@@ -3018,6 +3018,12 @@
       while (k < N && nnPeak[k] < c.idx) k++;
       if (k < N) _seamSec.push(tt[k]);
     }
+    /* THE NODE'S OWN SEAMS ALONE, snapshotted before the box's sidecar rows join them below
+       (SIGNAL-QUALITY-TABLE-2026-11-14 §6). A `clock-seam` refusal has TWO possible authors — this
+       node's stepped-counter detector above and the box's `_ECGSEAMS.txt` — so the BEFORE population
+       is measured by a second engine pass over this list, never by subtracting a count from the
+       population below. */
+    const _seamSecNode = _seamSec.slice();
     /* §∅ SAMPLE-VALIDITY-ENVELOPE §3.2 — the `_ECGRUNS.txt` spans, in SAMPLES as the box wrote them,
        converted to the seconds frame `tt` and the epoch windows use. `rec.blankingSpans` is absent
        unless a sidecar was ingested, so this is [] on every existing path and moves no fixture.
@@ -3045,6 +3051,72 @@
       _recSeamUnplaced = _rsPlaced.unplaced;
     const epochsRefused = [];
     const epochs = epochEngine(nn, tt, 300, nnSqi, nnSpansGap, _seamSec, epochsRefused, _blankSec);
+    /* THE SIDECAR EFFECT ON THE EPOCH POPULATION — §6 asks every fact a sidecar changes to show its
+       value before and after the sidecar applies. MEASURED FIRST, over one synthetic 20-minute 130 Hz
+       stream of 1199 beats (four runs of this module: no sidecar, runs only, seams only, both): of the
+       signal-quality table's 97 leaf keys exactly ONE moves, and it is the ledger's own state cell.
+       `coveragePct`, `analyzablePct`, `nGaps`, `meanSQI` and the flat-run share are identical across
+       all four runs, because each is computed from the stream before any sidecar is read. What the
+       sidecars DO change is this population: the runs sidecar alone refused 1 of 4 windows
+       (`blanking-run`), the seam sidecar alone 1 of 4 (`clock-seam`), and both together 2 of 4.
+       So the before-and-after cell is owed HERE and nowhere else in the table.
+       The second pass runs ONLY when a sidecar placed a row, so every sidecar-less path pays nothing
+       and no fixture of a sidecar-less recording moves. */
+    const _sqByReason = (rows) => {
+      const o = {};
+      for (const e of rows || []) o[e.reason] = (o[e.reason] || 0) + 1;
+      return o;
+    };
+    const _sqAfter = { analysed: epochs.length, refused: epochsRefused.length, byReason: _sqByReason(epochsRefused) };
+    let sidecarEpochEffect;
+    if (_blankSec.length > 0 || _recSeamPlaced > 0) {
+      const _refusedBefore = [];
+      const _epochsBefore = epochEngine(nn, tt, 300, nnSqi, nnSpansGap, _seamSecNode, _refusedBefore, []);
+      /* THE WINDOWS THE SIDECARS TOOK, named by the window's own minute rather than by a difference of
+         counts: a count cannot say WHICH window moved, and two refusals of different reasons can
+         cancel inside one. */
+      const _beforeKept = new Set(_epochsBefore.map((e) => e.tMin));
+      const _moved = {};
+      for (const e of epochsRefused) if (_beforeKept.has(e.tMin)) _moved[e.reason] = (_moved[e.reason] || 0) + 1;
+      sidecarEpochEffect = {
+        epochSec: 300,
+        applied: true,
+        placed: { blankingRuns: _blankSec.length, recordedSeams: _recSeamPlaced, unplacedSeams: _recSeamUnplaced },
+        before: { analysed: _epochsBefore.length, refused: _refusedBefore.length, byReason: _sqByReason(_refusedBefore) },
+        after: _sqAfter,
+        afterReason: null,
+        /* WHAT THIS ANALYSIS PUBLISHED, kept apart from `after`. They are one number whenever a
+           sidecar applied, and `population` is still the published figure when `after` is an absence
+           below — so the cell never has to read a before-and-after pair as its own value. */
+        population: _sqAfter,
+        movedByReason: _moved,
+        reason: null
+      };
+    } else {
+      /* §∅ — `before` is NOT a copy of `after` here. No sidecar row reached this recording, so no fact
+         of it HAS a before value, and the absence carries its own reason instead of a figure that
+         would read as a measured agreement between the two. */
+      sidecarEpochEffect = {
+        epochSec: 300,
+        applied: false,
+        placed: { blankingRuns: 0, recordedSeams: _recSeamPlaced, unplacedSeams: _recSeamUnplaced },
+        before: null,
+        /* §∅ AGAIN, ON THE OTHER SIDE OF THE PAIR, and it is what the brief's Polar-Sensor-Logger case
+           asks for: with no sidecar applied there is no "after the sidecar applied" state of this
+           fact either. The published population rides in `population`, so nothing is lost by refusing
+           to call it an after value. */
+        after: null,
+        afterReason: 'no sidecar applied to this recording, so no fact of it has an after value; the published population rides in `population`',
+        population: _sqAfter,
+        movedByReason: null,
+        /* A SIDECAR THAT ARRIVED AND PLACED NOTHING is a different state from no sidecar at all, and
+           both reach this arm — so the reason says which, rather than leaving a reader to read "the
+           box wrote nothing" out of a count of zero. */
+        reason:
+          'no sidecar row placed on this recording, so no fact of it has a before value' +
+          (_recSeamUnplaced > 0 ? ' (' + _recSeamUnplaced + ' recorded seam(s) arrived and none could be placed on the beat axis)' : '')
+      };
+    }
 
     // representative window for advanced metrics (epoch with rmssd closest to median)
     let repSeg = nn,
@@ -3506,6 +3578,9 @@
       // epochs + sleep + cvhr + events
       epochs,
       epochsRefused,
+      /* The before-and-after of the epoch population (§6). Always present, so the table never has to
+         guess whether the second pass ran; `applied: false` says it did not and why. */
+      sidecarEpochEffect,
       stages,
       stageMin,
       unstagedMin: +unstagedMin.toFixed(0),
@@ -3534,6 +3609,10 @@
          reshape-drop class trio-batch's PPG merge already fixed (WEARABLE-HOST-AXIS-FOLLOWUPS §F3),
          one node over. A reshape that renames fields must forward the ones it does not rename. */
       hostAxis: rec.hostAxis || null,
+      driftProfile: rec.driftProfile || null,
+      /* The ledger below needs to know WHICH WRITER produced the file, and the ECG text of the two is
+         identical — so the origin travels on the record and this allowlist must name it. */
+      captureOrigin: rec.captureOrigin || null,
       tMsCorrected: rec.tMsCorrected === true,
       deviceEpoch: rec.deviceEpoch || null,
       clockResyncs: rec.clockResyncs || null
@@ -4992,6 +5071,8 @@
     poincareGeo,
     epochEngine, // §∅ epoch gap-exclusion + seam refusal, gated directly
     placeRecordedSeams, // SEAM-SIDECAR-CONSUMPTION §4 — box-recorded seams onto this node's beat axis
+    ecgDriftProfile: _ecgDriftProfile, // §3d drift strip — exported so the step, spike and no-reference arms are gateable without a 900 s text fixture
+    ecgCaptureOrigin: _ecgCaptureOrigin, // which writer produced a file, decided from its name alone — the text of the two is identical
     attachEcgSidecars, // the one attach body for `_ECGRUNS` / `_ECGSEAMS` — the app's worker road calls it
     detectCVHR,
     cardiorespCoupling,
@@ -5528,6 +5609,15 @@
        clock.js is inlined into every bundle, so a field only ECGDex reads would re-stamp all eight
        provenance fragments to carry it. */
     var ecgAxisSpanMs = ecgAxisAnchors.length >= 2 ? ecgAxisAnchors[ecgAxisAnchors.length - 1].devMs - ecgAxisAnchors[0].devMs : 0;
+    /* §3d's drift profile — the night figure against a NAMED reference, the per-window strip from the
+       raw residuals, and each step or spike with its instant. Built from the anchors themselves, which
+       exist only in this scope; `ECG_AXIS_MAX_STEP_MS` below is the pre-stated step bound this node
+       already derived for its fs gate, reused rather than re-tuned. `spanMs` is handed over because
+       the spine's own success object reports the span it measured the rate over. */
+    /* ONE GRID. `_SQ_EPOCH_SEC` is the same 300 s the epoch engine above walks and the HRV and staging
+       code already use, so the strip cannot drift onto a grid of its own (§6's last box). A test pins
+       the two together over the committed fixtures. */
+    var ecgDrift = _ecgDriftProfile(ecgAxisAnchors, ecgHostAx, t0Ms, ECG_AXIS_MAX_STEP_MS, _SQ_EPOCH_SEC);
     var ecgAxisApplied = false;
     /* INDEPENDENCE GATE — Clock Contract §7 states it outright: "FIRST ASK WHETHER THERE IS A SECOND
        CLOCK AT ALL — read `independent`, never a ~0 ppm." This consumer did not, and it is the one
@@ -5773,6 +5863,9 @@
          `applied` is the field that says whether `fs` actually moved — `ok` alone does NOT mean the
          correction reached the axis, because the span gate can measure a rate and still decline to
          trust it. A consumer asking "is this recording host-disciplined?" must read `applied`. */
+      /* §3d's drift profile, built above. Published beside `hostAxis` rather than inside it, because
+         that block RENAMES the spine's fields and this one is this node's own measurement. */
+      driftProfile: ecgDrift,
       hostAxis: ecgHostAx.ok
         ? {
             ok: true,
@@ -6295,6 +6388,11 @@
      byte-identical, which is why no existing fixture input moves. LAST and OPTIONAL per §🧪. */
   function attachEcgSidecars(rec, opts) {
     if (!rec) return rec;
+    /* The origin rides on the record because the LEDGER needs it and the text cannot say it. A caller
+       that already decided keeps its answer, and a caller that handed over NO NAME gets no key at
+       all: an attach with neither sidecar nor name leaves the record byte-identical (pinned by the
+       `_ECGSEAMS drop lane` group), and `r.captureOrigin` then reads as the unknown it is. */
+    if (rec.captureOrigin == null && opts && opts.name) rec.captureOrigin = _ecgCaptureOrigin(opts.name);
     /* It lives HERE, not only in `parseECGText`, so a STREAMED caller (`tools/trio-batch.mjs` folds
        60 MB files line by line) reaches the same validity a whole-text caller does. */
     var runs = parseEcgRuns(opts && opts.runsText);
@@ -6328,7 +6426,7 @@
     // `opts.runsText` is the `_ECGRUNS.txt` companion's bytes when the caller ingested one, and
     // `opts.seamsText` the `_ECGSEAMS.txt` companion's. LAST and OPTIONAL per §🧪: every existing
     // 1-arg call is byte-identical, and the no-sidecar path does not move a single fixture.
-    return parseECGLines(String(text == null ? '' : text).split(/\r?\n/), { runsText: opts && opts.runsText, seamsText: opts && opts.seamsText });
+    return parseECGLines(String(text == null ? '' : text).split(/\r?\n/), { runsText: opts && opts.runsText, seamsText: opts && opts.seamsText, name: opts && opts.name });
   }
 
   // LINE-FEED entry point. Takes any ITERABLE of lines, so a Node caller can stream a file in bounded
@@ -6392,7 +6490,8 @@
       firstRelMs: t.firstRelMs,
       lastRelMs: t.lastRelMs,
       deviceEpoch: t.deviceEpoch,
-      hostAxis: t.hostAxis
+      hostAxis: t.hostAxis,
+      driftProfile: t.driftProfile
     };
     return attachEcgSidecars(rec, opts);
   }
@@ -6975,6 +7074,157 @@
      stream the app emits stays BYTE-IDENTICAL and only the one rich fixture moves. The node-local
      helper is deliberate (§5): a shared spine module would move `manifestHash` and `computeHash`
      on every carrier and put every corpus-backed fixture of those nodes into re-verification. */
+  /* ── THE DRIFT PROFILE — §3d's night drift, its per-window strip, and every step with its instant ──
+     WHY IT IS BUILT HERE and not read off `hostAxis`: the spine publishes SCALARS over the whole
+     anchor set (`ppm`, `spanPpm`, `maxStepMs`, `rawMaxStepMs` and the ONE largest raw step), and a
+     strip cannot be projected back out of them. The raw residual per anchor exists only inside
+     `parseECG`, where the anchors do, so the walk happens at the one place that holds the input.
+     ⚠️ THE REFERENCE IS NAMED, NEVER ASSUMED. §3d orders the references best first — a radio clock
+     log, then host arrival stamps, then a device clock log, then another device in the same night.
+     This node holds exactly one of them, the host arrival column, and it holds it only where that
+     column is a second clock: `independent === false` means the capture app derived it from the
+     device stamp, so there is NO reference and the night drift is `null` with `no-time-reference`,
+     which §3d names as the one legal cause of that null. A ~0 ppm is not that answer.
+     ⚠️ EVERY WINDOW APPEARS, including one with no anchor in it. A strip that silently drops an
+     uncovered window draws a continuous drift over a stretch nothing measured (§∅). */
+  function _ecgDriftProfile(anchors, ax, t0Ms, stepBoundMs, epochSec) {
+    var epochMs = epochSec * 1000;
+    var pts = [];
+    for (var i = 0; i < (anchors ? anchors.length : 0); i++) {
+      var d = anchors[i] ? Number(anchors[i].devMs) : NaN,
+        h = anchors[i] ? Number(anchors[i].hostMs) : NaN;
+      if (isFinite(d) && isFinite(h)) pts.push({ d: d, r: h - d });
+    }
+    pts.sort(function (x, y) {
+      return x.d - y.d;
+    });
+    var n = pts.length;
+    var okAxis = !!(ax && ax.ok === true);
+    var indep = okAxis && ax.independent !== false;
+    var refName = null,
+      refReason = null;
+    if (!okAxis) {
+      refReason = 'no-time-reference: the host axis refused, so this recording holds no second clock to drift against — ' + ((ax && ax.reason) || 'no reason published');
+    } else if (!indep) {
+      refReason =
+        'no-time-reference: the host column is the device stamp rounded (residual spread ' +
+        (ax.spreadMs != null ? ax.spreadMs.toFixed(2) : '?') +
+        ' ms), so it carries no timing the device column did not already have';
+    } else {
+      refName = 'host-arrival-stamps';
+    }
+    /* THE REFERENCES THIS NODE DOES NOT HOLD, listed rather than left out, so a reader sees that the
+       second-best reference was used because the better ones are absent and not because nobody
+       looked. The last one is the tri-device case, which belongs to the Combinator and not here. */
+    var refAbsent = [
+      { name: 'radio-clock-log', why: 'no radio clock log is written beside an ECG capture' },
+      { name: 'device-clock-log', why: 'the H10 writes no clock log of its own' },
+      { name: 'companion-device', why: 'a second device in the same night is a cross-node comparison, which this node cannot make alone' }
+    ];
+    var night = null;
+    if (refName) {
+      night = {
+        ppm: ax.ppm != null && isFinite(ax.ppm) ? ax.ppm : null,
+        spanPpm: ax.spanPpm != null && isFinite(ax.spanPpm) ? ax.spanPpm : null,
+        spanMs: ax.spanMs != null ? ax.spanMs : null,
+        anchors: n,
+        /* σ_y at the recording's own span — §7 forbids a ppm that travels without the size of its own
+           uncertainty, and this is the spine's own figure rather than a second estimate of it. */
+        ppmUncertainty: ax.stability && ax.stability.ppmUncertainty != null ? ax.stability.ppmUncertainty : null,
+        uncertaintyReason: ax.stability ? null : 'the spine published no stability curve for this axis'
+      };
+    }
+    /* THE PER-WINDOW STRIP, from the RAW residual. The night figure rides a width-21 running median
+       on purpose (one 470 ms host slip must not move the correction), and that smoother is wider than
+       a single window's anchor count on a short recording — so smoothing inside a window would report
+       the smoother. Each window's rate is the end-to-end raw residual over its own device span, and it
+       carries the anchor count that produced it. */
+    var windows = [];
+    var lastDev = n ? pts[n - 1].d : 0;
+    var nWin = n ? Math.floor(lastDev / epochMs) + 1 : 0;
+    var buckets = /** @type {Array<Array<{ d: number, r: number }>>} */ ([]);
+    for (var w = 0; w < nWin; w++) buckets.push([]);
+    for (var q = 0; q < n; q++) {
+      var bi = Math.floor(pts[q].d / epochMs);
+      if (bi >= 0 && bi < nWin) buckets[bi].push(pts[q]);
+    }
+    for (var b = 0; b < nWin; b++) {
+      var bp = buckets[b];
+      var row = {
+        tMin: +((b * epochMs) / 60000).toFixed(1),
+        anchors: bp.length,
+        ppm: /** @type {number|null} */ (null),
+        reason: /** @type {string|null} */ (null),
+        residFirstMs: /** @type {number|null} */ (null),
+        residLastMs: /** @type {number|null} */ (null),
+        residRangeMs: /** @type {number|null} */ (null)
+      };
+      if (!refName) {
+        row.reason = refReason;
+      } else if (bp.length < 3) {
+        /* The spine's own floor, applied per window: it refuses a rate under three anchors, and a
+           window is a smaller axis of the same kind. */
+        row.reason = 'too-few-anchors in this window: ' + bp.length + ' of the 3 a rate needs';
+      } else {
+        var wSpan = bp[bp.length - 1].d - bp[0].d;
+        row.residFirstMs = bp[0].r;
+        row.residLastMs = bp[bp.length - 1].r;
+        var lo = bp[0].r,
+          hi = bp[0].r;
+        for (var z = 1; z < bp.length; z++) {
+          if (bp[z].r < lo) lo = bp[z].r;
+          if (bp[z].r > hi) hi = bp[z].r;
+        }
+        row.residRangeMs = hi - lo;
+        if (wSpan > 0) row.ppm = ((bp[bp.length - 1].r - bp[0].r) / wSpan) * 1e6;
+        else row.reason = 'zero device span inside this window, so it carries no rate';
+      }
+      windows.push(row);
+    }
+    /* STEPS AND SPIKES, each with its instant. The bound is PRE-STATED by this node's fs gate
+       (`ECG_AXIS_MAX_STEP_MS`), which was derived from the measured host-stamp wander and not from
+       this recording — §🧾's rule that a threshold fitted to the data it judges decides nothing.
+       A SPIKE is one anchor that departs and returns: both adjacent deltas exceed the bound and they
+       oppose in sign. A STEP does not come back. The two need different remedies — a spike is one
+       late arrival, a step is a clock event — so they are named apart rather than counted together. */
+    var steps = [];
+    for (var s = 1; s < n; s++) {
+      var dlt = pts[s].r - pts[s - 1].r;
+      if (!(Math.abs(dlt) > stepBoundMs)) continue;
+      var nxt = s + 1 < n ? pts[s + 1].r - pts[s].r : null;
+      var isSpike = nxt != null && Math.abs(nxt) > stepBoundMs && dlt * nxt < 0;
+      steps.push({
+        kind: isSpike ? 'spike' : 'step',
+        atRelMs: pts[s].d,
+        tMs: t0Ms != null && isFinite(t0Ms) ? t0Ms + pts[s].d : null,
+        tMsReason: t0Ms != null && isFinite(t0Ms) ? null : 'this recording carries no parsed start stamp, so the instant has no wall-clock form',
+        deltaMs: dlt,
+        residMs: pts[s].r,
+        prevResidMs: pts[s - 1].r
+      });
+      if (isSpike) s++; // the return leg of a spike is the same event, not a second one
+    }
+    return {
+      epochSec: epochSec,
+      reference: refName ? { name: refName, basis: 'the capture app’s own arrival stamp per row, measured against the device counter', tier: 'second of §3d’s four, the best this node holds' } : null,
+      referenceReason: refReason,
+      referencesAbsent: refAbsent,
+      night: night,
+      nightReason: night ? null : refReason,
+      windows: windows,
+      gridBasis: 'windows of ' + epochSec + ' s from the first sample, the same grid the HRV and staging epochs use',
+      coverage: { firstAnchorRelMs: n ? pts[0].d : null, lastAnchorRelMs: n ? pts[n - 1].d : null, anchors: n },
+      /* §∅ — AN EMPTY LIST IS A MEASURED ZERO ONLY WHERE THE WALK RAN. Under two anchors there is no
+         adjacent gap to examine, so the list is `null` with its reason and `stepsExamined` says how
+         many gaps were actually read. An empty ARRAY beside `stepsExamined: 312` is the honest
+         "none found"; an empty array beside nothing examined would be a claim. */
+      steps: n >= 2 ? steps : null,
+      stepsReason: n >= 2 ? null : 'fewer than two host anchors, so no adjacent gap exists to examine for a step',
+      stepsExamined: n >= 2 ? n - 1 : 0,
+      stepBoundMs: stepBoundMs,
+      stepBasis: 'pre-stated by this node’s fs gate from measured host-stamp wander, never fitted to this recording'
+    };
+  }
   var _SQ_EPOCH_SEC = 300;
   var _SQ_UNMEASURED = 'unmeasured-and-unexplained';
   /* A cell. `value` is the number the fact is worth; `unit` names what the number counts, because
@@ -7129,15 +7379,67 @@
   /* The three computed rows. Each reads a state this node ALREADY carries — `r.runs` and `r.seams`
      from `analyze`, the motion sidecar off the ACC companion — so the ledger reports the node's own
      reading rather than a second opinion about the same files. */
+  /* ── WHO WROTE THIS FILE — the one fact the ECG TEXT cannot answer ─────────────────────────────
+     The capture box writes the SAME header as a Polar Sensor Logger export, byte for byte
+     (`capture-host/writers.py:1888` against the layout above), and the same declared units, on
+     purpose: the two are directly comparable. So an origin READ OUT OF THE TEXT would be invented.
+     The FILENAME does carry it, and the box's own reader already names the two layouts and pins them
+     with a test (`writers.py file_start_stamp`): this host writes the start instant as ONE contiguous
+     token, `…_<id>_YYYYMMDDHHMMSS_TAG.ext`, and Polar Sensor Logger SPLITS it,
+     `…_<id>_YYYYMMDD_HHMMSS_TAG.ext`. Read from the RIGHT for the same decidability reason that
+     reader gives — neither the id nor the vendor prefix has a fixed field count.
+     ⚠️ NO NAME MEANS UNKNOWN, NEVER "the box". A sidecar lane that reads `absent` under an unknown
+     origin says the FILE is absent and nothing about a writer; only a named vendor export makes the
+     box's own sidecars `not-applicable`, because no box ran. */
+  function _ecgCaptureOrigin(name) {
+    var nm = typeof name === 'string' ? name.trim() : '';
+    if (!nm) return { origin: null, basis: 'no filename reached this node, so the recording’s origin is unknown — not assumed to be either writer' };
+    var base = nm.indexOf('.') >= 0 ? nm.slice(0, nm.lastIndexOf('.')) : nm;
+    var parts = base.split('_');
+    if (parts.length >= 3) {
+      var d8 = parts[parts.length - 3],
+        t6 = parts[parts.length - 2];
+      if (/^(?:19|20)\d{6}$/.test(d8) && /^\d{6}$/.test(t6)) {
+        return { origin: 'polar-sensor-logger', basis: 'the filename carries the vendor app’s split start stamp, `…_YYYYMMDD_HHMMSS_<stream>`' };
+      }
+    }
+    if (parts.length >= 2 && /^(?:19|20)\d{12}$/.test(parts[parts.length - 2])) {
+      return { origin: 'capture-host', basis: 'the filename carries this host’s contiguous start stamp, `…_YYYYMMDDHHMMSS_<stream>`' };
+    }
+    return { origin: null, basis: 'the filename carries neither writer’s start-stamp layout, so the recording’s origin is unknown' };
+  }
+
   function _sqLedgerRow(row, r) {
-    if (row.state) return { key: row.key, file: row.file, label: row.label, state: row.state, reason: row.reason };
-    var st = null,
-      why = null;
-    if (row.lane === 'ecgRuns') {
+    var st = row.state || null,
+      why = row.state ? row.reason : null;
+    /* EVERY ROW IN THIS LEDGER IS A FILE THE CAPTURE HOST WRITES. So the absence of one has two
+       different causes, and they need different states: a box capture with no companion is `absent`
+       (the writer ran and produced nothing, which is not a clean stream), and a vendor export is
+       `not-applicable` (no box ran at all, so no companion could exist). An unknown origin is neither
+       claim — the row stays `absent` and its reason says only that no file reached this node. */
+    var org = (r && r.captureOrigin) || null;
+    var vendor = !!(org && org.origin === 'polar-sensor-logger');
+    var naWhy = function (file) {
+      return 'this recording is a Polar Sensor Logger export (' + org.basis + '), and `' + file + '` is written by the capture host — no host ran on it, so this sidecar cannot apply';
+    };
+    var absentWhy = function (file, tail) {
+      if (org && org.origin === 'capture-host') return 'the box wrote no `' + file + '` beside this capture, so ' + tail;
+      return (
+        'no `' +
+        file +
+        '` reached this node, and this recording’s origin is unknown (' +
+        ((org && org.basis) || 'no origin was published') +
+        '), so whether a writer should have produced one is unknown as well'
+      );
+    };
+    if (row.state) {
+      /* a fixed state is a fact about THIS NODE's readers, which no recording changes — the origin
+         override below is the one thing that can still outrank it */
+    } else if (row.lane === 'ecgRuns') {
       var rs = r && r.runs;
       if (!rs || rs.reason === 'no-runs-sidecar') {
-        st = 'absent';
-        why = 'the box wrote no `_ECGRUNS.txt` beside this recording, so no blanking span is known — this is not a clean stream';
+        st = vendor ? 'not-applicable' : 'absent';
+        why = vendor ? naWhy('_ECGRUNS.txt') : absentWhy('_ECGRUNS.txt', 'no blanking span is known — this is not a clean stream');
       } else if (rs.reason) {
         st = 'not-read';
         why = 'the reader ran and placed no row: ' + rs.reason;
@@ -7147,8 +7449,8 @@
     } else if (row.lane === 'ecgSeams') {
       var ss = r && r.seams;
       if (!ss || ss.reason === 'no-seam-sidecar') {
-        st = 'absent';
-        why = 'the box wrote no `_ECGSEAMS.txt` beside this recording, so the seam count is unknown rather than zero';
+        st = vendor ? 'not-applicable' : 'absent';
+        why = vendor ? naWhy('_ECGSEAMS.txt') : absentWhy('_ECGSEAMS.txt', 'the seam count is unknown rather than zero');
       } else if (ss.reason) {
         st = 'not-read';
         why = 'the reader ran and placed no row: ' + ss.reason;
@@ -7162,10 +7464,23 @@
         why = 'this recording carries no motion companion, so no motion sidecar can apply to it';
       } else if (acc._runsSidecar) {
         st = 'read';
+      } else if (vendor) {
+        st = 'not-applicable';
+        why = naWhy('_ACCRUNS.txt');
       } else {
         st = 'absent';
-        why = 'a motion companion is loaded and the box wrote no `_ACCRUNS.txt` beside it';
+        why = absentWhy('_ACCRUNS.txt', 'the held-value runs of the loaded motion companion are unknown');
       }
+    }
+    /* THE ORIGIN OUTRANKS EVERY OTHER CAUSE, AND ONLY EVIDENCE OUTRANKS IT. Every file in this ledger
+       is written by the capture host, so on a vendor export none of them can exist — whatever this
+       node's own reader state for it would otherwise be. A row that was actually READ keeps `read`:
+       a placed census is evidence, and evidence beats an inference drawn from a filename. The prior
+       state travels in the reason rather than being discarded, because "this node has no reader for
+       it" stays true of the next recording. */
+    if (vendor && st !== 'read') {
+      why = naWhy(row.file) + '. This node’s own state for that file is otherwise `' + st + '`: ' + (why || 'it reads the file whenever one arrives');
+      st = 'not-applicable';
     }
     return { key: row.key, file: row.file, label: row.label, state: st, reason: st === 'read' ? null : why };
   }
@@ -7250,7 +7565,91 @@
         loaReason: 'not computed: this node publishes no limits of agreement for the RR comparison'
       }
     );
+    /* THE EPOCH POPULATION — and the ONE before-and-after this table owes (§6). MEASURED, over one
+       synthetic 20-minute 130 Hz stream run four times (no sidecar, runs only, seams only, both),
+       diffing every published leaf: the table published 97 leaves before this cell existed and
+       exactly one of them moved, the ledger's own state cell. No published quality NUMBER moved in
+       any of the four runs, and that is still true of the 328 leaves a sidecar-less run publishes
+       now — held leaf by leaf against the same recording with ONE sidecar, 18 differ, 16 of them
+       inside this cell and 2 in the ledger row that records the read; with BOTH, 24 differ, 20 and
+       two rows. Every cell above is computed from the stream before a sidecar is
+       read, so its before value and its after value are one number. The population below is the fact
+       the sidecars DO change, and the table did not carry it until now.
+       `before` comes from a second pass over this node's own seams alone (`analyze`), because a
+       `clock-seam` refusal has two possible authors and a count cannot be unsubtracted. */
+    var sce = r.sidecarEpochEffect || null;
+    /* THE PUBLISHED POPULATION IS `population`, NEVER `after`. `after` is half of the sidecar pair and
+       is an absence whenever no sidecar applied (a Polar Sensor Logger export is always that case), so
+       reading the cell's own value off it would blank the count on every sidecar-less recording. */
+    var scePop = sce && sce.population ? sce.population : null;
+    var ecgEpochs = _sqCell(
+      scePop ? scePop.analysed : null,
+      'windows of ' + _SQ_EPOCH_SEC + ' s that survived every refusal',
+      'no epoch population reached this table: the analysis published no window count for this recording',
+      {
+        refused: scePop ? scePop.refused : null,
+        byReason: scePop ? scePop.byReason : null,
+        before: sce ? sce.before : null,
+        /* §∅ — an absent `before` says why rather than repeating the population, which would read as a
+           measured agreement between two passes where only one ran. */
+        beforeReason: sce && !sce.before ? sce.reason : sce ? null : 'the analysis published no sidecar effect for this recording',
+        after: sce ? sce.after : null,
+        afterReason: sce ? sce.afterReason || null : 'the analysis published no sidecar effect for this recording',
+        movedByReason: sce ? sce.movedByReason : null,
+        placed: sce ? sce.placed : null,
+        sidecarsApplied: sce ? sce.applied : null
+      }
+    );
+    /* The claim that the cells above do NOT move, carried beside them rather than left for a reader to
+       assume. The population is named, because it is one synthetic recording and not the corpus. */
+    var ecgSidecarEffect = {
+      changed: ['epochs'],
+      unchanged: ['coverage', 'rail', 'flatline', 'snr', 'mains', 'nodeSqi', 'timing', 'reference', 'drift'],
+      how: 'each unchanged fact is computed from the stream before any sidecar is read, so its before value and its after value are one number',
+      population:
+        'one synthetic 20-minute 130 Hz recording of 1199 beat intervals, run four times — no sidecar, runs only, seams only, both — and every published leaf of this table diffed between the runs',
+      measured:
+        '328 leaves on a sidecar-less run; held leaf by leaf against the same recording, 18 differ under one sidecar (16 inside the epochs cell, 2 in the ledger row that records the read) and 24 under both (20 and two rows) — no published quality number differs in any of the four runs',
+      measuredOn: '2026-11-15'
+    };
+    /* §3d's DRIFT ROW. The value is the night rate against the reference the profile NAMED, and the
+       extras carry what §7 forbids a ppm to travel without — the anchor count, the span, and the
+       uncertainty of the rate itself. The per-window strip and the steps ride here too, so the render
+       draws one cell's own data rather than re-deriving a second copy of it. */
+    var dp = r.driftProfile || null;
+    var dpn = dp && dp.night ? dp.night : null;
+    var ecgDrift = _sqCell(
+      dpn ? dpn.ppm : null,
+      'ppm of the device rate against ' + (dp && dp.reference ? dp.reference.name : 'the best §3d reference'),
+      dp ? dp.nightReason || 'the drift profile published no night figure and no reason' : 'the analysis published no drift profile for this recording',
+      {
+        /* THE GRID THE STRIP WAS CUT ON, published beside the strip (§6 box 9). The table, the epoch
+           engine and this profile are three call sites of one epoch, and a reader comparing a refused
+           epoch against a drift window compares two grids if they ever diverge — so the number travels
+           with the strip rather than being inferred from the window spacing. */
+        epochSec: dp ? dp.epochSec : null,
+        reference: dp ? dp.reference : null,
+        referenceReason: dp ? dp.referenceReason : null,
+        referencesAbsent: dp ? dp.referencesAbsent : null,
+        spanPpm: dpn ? dpn.spanPpm : null,
+        spanMs: dpn ? dpn.spanMs : null,
+        anchors: dpn ? dpn.anchors : dp ? dp.coverage.anchors : null,
+        ppmUncertainty: dpn ? dpn.ppmUncertainty : null,
+        uncertaintyReason: dpn ? dpn.uncertaintyReason : null,
+        windows: dp ? dp.windows : null,
+        gridBasis: dp ? dp.gridBasis : null,
+        coverage: dp ? dp.coverage : null,
+        steps: dp ? dp.steps : null,
+        stepsReason: dp ? dp.stepsReason : 'no drift profile reached this table',
+        stepsExamined: dp ? dp.stepsExamined : null,
+        stepBoundMs: dp ? dp.stepBoundMs : null,
+        stepBasis: dp ? dp.stepBasis : null
+      }
+    );
     var NO_ACC = 'this node ingests no motion channel on this recording';
+    var ACC_SIDECAR_ONLY = 'the box’s run census is the only source of this fact, so before the sidecar applies it is unknown, never 0';
+    var ACC_SIDECAR_AFTER =
+      'no run census applied to this recording, so this fact has no after value either — a Polar Sensor Logger export is always this case, because the census is written by the capture host';
     var acc = r.deviceACC && r.deviceACC.length ? r.deviceACC : null;
     var accBlank = acc && Array.isArray(acc._blankSpans) ? acc._blankSpans : null;
     var accBlankMs = null;
@@ -7282,11 +7681,27 @@
       accFlatPct != null ? +(100 - accFlatPct).toFixed(3) : null,
       '% of the recording span outside the box’s held-value runs',
       acc ? 'no `_ACCRUNS.txt` reached this node, so the covered share of the motion stream is unknown' : NO_ACC,
-      { blankMs: accBlankMs, spanMs: accSpanMs, samples: acc ? acc.length : null, fs: r.accFs != null ? r.accFs : null, complementOf: 'flatline' }
+      {
+        blankMs: accBlankMs,
+        spanMs: accSpanMs,
+        samples: acc ? acc.length : null,
+        fs: r.accFs != null ? r.accFs : null,
+        complementOf: 'flatline',
+        /* §6's before-and-after for a fact the sidecar CREATES rather than moves: the box's run census
+           is its only source, so before it applies the covered share is unknown — never 100. */
+        before: null,
+        beforeReason: ACC_SIDECAR_ONLY,
+        after: accFlatPct != null ? +(100 - accFlatPct).toFixed(3) : null,
+        afterReason: accFlatPct != null ? null : ACC_SIDECAR_AFTER
+      }
     );
     var accFlat = _sqCell(accFlatPct, '% of the recording span inside the box’s held-value runs', acc ? 'no `_ACCRUNS.txt` reached this node, so no run census applies to the motion stream' : NO_ACC, {
       runs: accBlank ? accBlank.length : null,
-      source: 'the box’s run sidecar, not a census this node computes'
+      source: 'the box’s run sidecar, not a census this node computes',
+      before: null,
+      beforeReason: ACC_SIDECAR_ONLY,
+      after: accFlatPct,
+      afterReason: accFlatPct != null ? null : ACC_SIDECAR_AFTER
     });
     var NOT_MEASURED_SNR = 'not-measured: this node computes no in-band SNR for the ECG; the band edges are pre-stated before that measurement (brief §8)';
     var NOT_MEASURED_MAINS = 'not-measured: this node computes no mains-hum ratio for any channel';
@@ -7306,7 +7721,10 @@
           mains: _sqCell(null, 'ratio to in-band power', NOT_MEASURED_MAINS),
           nodeSqi: ecgSqi,
           timing: ecgTiming,
-          reference: ecgRef
+          reference: ecgRef,
+          epochs: ecgEpochs,
+          drift: ecgDrift,
+          sidecarEffect: ecgSidecarEffect
         },
         acc: {
           stream: 'H10:acc',
@@ -7321,7 +7739,24 @@
             'ppm of the device rate against the host axis',
             acc ? 'no own axis: this node places motion samples against the ECG start, so the motion stream carries no rate of its own here' : NO_ACC
           ),
-          reference: _sqCell(null, 'ms', 'no-reference: no second motion stream reaches this node')
+          reference: _sqCell(null, 'ms', 'no-reference: no second motion stream reaches this node'),
+          /* The epoch population is walked over the ECG BEAT series, so the motion row cannot carry a
+             count of its own — stated rather than left as a hole in the row. */
+          epochs: _sqCell(null, 'windows of ' + _SQ_EPOCH_SEC + ' s', acc ? 'no own epochs: the window walk runs over the ECG beat series, and the motion stream contributes no window to it' : NO_ACC),
+          drift: _sqCell(
+            null,
+            'ppm against a §3d reference',
+            acc ? 'no own axis: the motion samples are placed against the ECG start, so no host anchor of their own exists to drift against' : NO_ACC
+          ),
+          /* The acc half of §6's before-and-after. Here the sidecar CREATES the two facts rather than
+             moving them: without the box's run census the covered and held shares are unknown. */
+          sidecarEffect: {
+            changed: ['coverage', 'flatline'],
+            unchanged: ['rail', 'snr', 'mains', 'nodeSqi', 'timing', 'reference', 'epochs', 'drift'],
+            how: 'the box’s `_ACCRUNS.txt` is the only source of the two changed facts, so each shows a null before value with its reason beside the value after',
+            population: 'the same four runs as the ECG channel, on a recording that carries no motion companion, so both cells read null in all four',
+            measuredOn: '2026-11-15'
+          }
         }
       },
       sidecars: _ECG_SIDECAR_LEDGER.map(function (row) {
