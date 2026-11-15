@@ -76,8 +76,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "ecbedd60c36f",
-        "computeHash": "9354778c73f5"
+        "manifestHash": "2df73bdaabf4",
+        "computeHash": "245d0467aeaf"
       },
       "evidence": {
         "envelopeRef": null,
@@ -106,8 +106,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "ecbedd60c36f",
-        "computeHash": "9354778c73f5"
+        "manifestHash": "2df73bdaabf4",
+        "computeHash": "245d0467aeaf"
       },
       "evidence": {
         "envelopeRef": null,
@@ -136,8 +136,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "ecbedd60c36f",
-        "computeHash": "9354778c73f5"
+        "manifestHash": "2df73bdaabf4",
+        "computeHash": "245d0467aeaf"
       },
       "evidence": {
         "envelopeRef": null,
@@ -166,8 +166,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "ecbedd60c36f",
-        "computeHash": "9354778c73f5"
+        "manifestHash": "2df73bdaabf4",
+        "computeHash": "245d0467aeaf"
       },
       "evidence": {
         "envelopeRef": null,
@@ -198,8 +198,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "ecbedd60c36f",
-        "computeHash": "9354778c73f5"
+        "manifestHash": "2df73bdaabf4",
+        "computeHash": "245d0467aeaf"
       },
       "evidence": {
         "envelopeRef": null,
@@ -320,6 +320,93 @@
           "maeReason": "not computed: the cross-check publishes a median absolute difference, not a mean",
           "loa": null,
           "loaReason": "not computed: this node publishes no limits of agreement for the RR comparison"
+        },
+        "epochs": {
+          "value": 1,
+          "unit": "windows of 300 s that survived every refusal",
+          "reason": null,
+          "refused": 0,
+          "byReason": {},
+          "before": null,
+          "beforeReason": "no sidecar row placed on this recording, so no fact of it has a before value",
+          "after": null,
+          "afterReason": "no sidecar applied to this recording, so no fact of it has an after value; the published population rides in `population`",
+          "movedByReason": null,
+          "placed": {
+            "blankingRuns": 0,
+            "recordedSeams": 0,
+            "unplacedSeams": 0
+          },
+          "sidecarsApplied": false
+        },
+        "drift": {
+          "value": null,
+          "unit": "ppm of the device rate against the best §3d reference",
+          "reason": "no-time-reference: the host column is the device stamp rounded (residual spread 0.92 ms), so it carries no timing the device column did not already have",
+          "epochSec": 300,
+          "reference": null,
+          "referenceReason": "no-time-reference: the host column is the device stamp rounded (residual spread 0.92 ms), so it carries no timing the device column did not already have",
+          "referencesAbsent": [
+            {
+              "name": "radio-clock-log",
+              "why": "no radio clock log is written beside an ECG capture"
+            },
+            {
+              "name": "device-clock-log",
+              "why": "the H10 writes no clock log of its own"
+            },
+            {
+              "name": "companion-device",
+              "why": "a second device in the same night is a cross-node comparison, which this node cannot make alone"
+            }
+          ],
+          "spanPpm": null,
+          "spanMs": null,
+          "anchors": 16,
+          "ppmUncertainty": null,
+          "uncertaintyReason": null,
+          "windows": [
+            {
+              "tMin": 0,
+              "anchors": 16,
+              "ppm": null,
+              "reason": "no-time-reference: the host column is the device stamp rounded (residual spread 0.92 ms), so it carries no timing the device column did not already have",
+              "residFirstMs": null,
+              "residLastMs": null,
+              "residRangeMs": null
+            }
+          ],
+          "gridBasis": "windows of 300 s from the first sample, the same grid the HRV and staging epochs use",
+          "coverage": {
+            "firstAnchorRelMs": 0,
+            "lastAnchorRelMs": 57684.615478515625,
+            "anchors": 16
+          },
+          "steps": [],
+          "stepsReason": null,
+          "stepsExamined": 15,
+          "stepBoundMs": 1000,
+          "stepBasis": "pre-stated by this node’s fs gate from measured host-stamp wander, never fitted to this recording"
+        },
+        "sidecarEffect": {
+          "changed": [
+            "epochs"
+          ],
+          "unchanged": [
+            "coverage",
+            "rail",
+            "flatline",
+            "snr",
+            "mains",
+            "nodeSqi",
+            "timing",
+            "reference",
+            "drift"
+          ],
+          "how": "each unchanged fact is computed from the stream before any sidecar is read, so its before value and its after value are one number",
+          "population": "one synthetic 20-minute 130 Hz recording of 1199 beat intervals, run four times — no sidecar, runs only, seams only, both — and every published leaf of this table diffed between the runs",
+          "measured": "328 leaves on a sidecar-less run; held leaf by leaf against the same recording, 18 differ under one sidecar (16 inside the epochs cell, 2 in the ledger row that records the read) and 24 under both (20 and two rows) — no published quality number differs in any of the four runs",
+          "measuredOn": "2026-11-15"
         }
       },
       "acc": {
@@ -332,7 +419,11 @@
           "spanMs": 59399.169581947135,
           "samples": null,
           "fs": null,
-          "complementOf": "flatline"
+          "complementOf": "flatline",
+          "before": null,
+          "beforeReason": "the box’s run census is the only source of this fact, so before the sidecar applies it is unknown, never 0",
+          "after": null,
+          "afterReason": "no run census applied to this recording, so this fact has no after value either — a Polar Sensor Logger export is always this case, because the census is written by the capture host"
         },
         "rail": {
           "value": null,
@@ -344,7 +435,11 @@
           "unit": "% of the recording span inside the box’s held-value runs",
           "reason": "this node ingests no motion channel on this recording",
           "runs": null,
-          "source": "the box’s run sidecar, not a census this node computes"
+          "source": "the box’s run sidecar, not a census this node computes",
+          "before": null,
+          "beforeReason": "the box’s run census is the only source of this fact, so before the sidecar applies it is unknown, never 0",
+          "after": null,
+          "afterReason": "no run census applied to this recording, so this fact has no after value either — a Polar Sensor Logger export is always this case, because the census is written by the capture host"
         },
         "snr": {
           "value": null,
@@ -370,6 +465,35 @@
           "value": null,
           "unit": "ms",
           "reason": "no-reference: no second motion stream reaches this node"
+        },
+        "epochs": {
+          "value": null,
+          "unit": "windows of 300 s",
+          "reason": "this node ingests no motion channel on this recording"
+        },
+        "drift": {
+          "value": null,
+          "unit": "ppm against a §3d reference",
+          "reason": "this node ingests no motion channel on this recording"
+        },
+        "sidecarEffect": {
+          "changed": [
+            "coverage",
+            "flatline"
+          ],
+          "unchanged": [
+            "rail",
+            "snr",
+            "mains",
+            "nodeSqi",
+            "timing",
+            "reference",
+            "epochs",
+            "drift"
+          ],
+          "how": "the box’s `_ACCRUNS.txt` is the only source of the two changed facts, so each shows a null before value with its reason beside the value after",
+          "population": "the same four runs as the ECG channel, on a recording that carries no motion companion, so both cells read null in all four",
+          "measuredOn": "2026-11-15"
         }
       }
     },
@@ -379,14 +503,14 @@
         "file": "_ECGRUNS.txt",
         "label": "Signal gaps — ECG",
         "state": "absent",
-        "reason": "the box wrote no `_ECGRUNS.txt` beside this recording, so no blanking span is known — this is not a clean stream"
+        "reason": "no `_ECGRUNS.txt` reached this node, and this recording’s origin is unknown (no origin was published), so whether a writer should have produced one is unknown as well"
       },
       {
         "key": "ECGSEAMS",
         "file": "_ECGSEAMS.txt",
         "label": "Clock jumps — ECG",
         "state": "absent",
-        "reason": "the box wrote no `_ECGSEAMS.txt` beside this recording, so the seam count is unknown rather than zero"
+        "reason": "no `_ECGSEAMS.txt` reached this node, and this recording’s origin is unknown (no origin was published), so whether a writer should have produced one is unknown as well"
       },
       {
         "key": "ACCRUNS",

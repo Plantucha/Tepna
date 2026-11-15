@@ -2476,7 +2476,19 @@ function nightRowInner(n) {
     );
   if (n.ssi) chipsArr.push(nrChip('SSI', n.ssi.ssi, n.ssi.ssi < 0.5 ? 'g' : n.ssi.ssi < 1.5 ? 'w' : 'r'));
   if (n.rolling) chipsArr.push(nrChip('CDI', n.rolling.cdi + '/h', n.rolling.cdi < 5 ? 'g' : n.rolling.cdi < 15 ? 'w' : 'r'));
-  if (n.hypLoad) chipsArr.push(nrChip('HypLoad', n.hypLoad.hypoxicLoad, n.hypLoad.hypoxicLoad < 1 ? 'g' : n.hypLoad.hypoxicLoad < 5 ? 'w' : 'r'));
+  /* §∅ — `null < 1` is TRUE, so a REFUSED hypoxic load painted the reassuring GREEN band and
+     printed the literal text `null`: the same chip a MEASURED 0 renders. `computeHypoxicLoad` nulls
+     the member and keeps the object, so `if (n.hypLoad)` cannot stand in for the guard. The em-dash
+     carries the reason, in the DFA chip's shape above. */
+  if (n.hypLoad)
+    chipsArr.push(
+      nrChip(
+        'HypLoad',
+        n.hypLoad.hypoxicLoad != null ? n.hypLoad.hypoxicLoad : '—',
+        n.hypLoad.hypoxicLoad == null ? '' : n.hypLoad.hypoxicLoad < 1 ? 'g' : n.hypLoad.hypoxicLoad < 5 ? 'w' : 'r',
+        n.hypLoad.hypoxicLoad == null ? 'refused · ' + (n.hypLoad.hlReason || 'no reason given') : ''
+      )
+    );
   if (n.recIdx) chipsArr.push(nrChip('RecIdx', n.recIdx.recoveryIndex, n.recIdx.recoveryIndex > 1.5 ? 'g' : n.recIdx.recoveryIndex > 0.8 ? 'w' : 'r'));
   if (n.oxyCrash) chipsArr.push(nrChip('OxyCrash', n.oxyCrash.oxyCrashRate + '/h', n.oxyCrash.oxyCrashRate < 2 ? 'g' : n.oxyCrash.oxyCrashRate < 5 ? 'w' : 'r'));
   /* §∅: `null < 5` is TRUE, so a REFUSED AHI estimate painted the reassuring GREEN band and

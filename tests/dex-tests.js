@@ -26021,6 +26021,120 @@
       T.eq('N1-11 · five measured seconds of the pre-window give the measured ratio, not an inflated one', effHalf && effHalf.o2hrEff, 2);
     });
 
+    group('§∅ · OxyDex medium group — a fit, a load and an age over absent input', 'oxydex-dsp · absence', function (T) {
+      var B = env.OxyDex && env.OxyDex._bare;
+      var need4 = ['linReg', 'computeSpO2Drift', 'computeHypoxicLoad', 'computeKarvonenZones'];
+      var absent4 = need4.filter(function (k) {
+        return !B || typeof B[k] !== 'function';
+      });
+      if (absent4.length) {
+        T.ok('OxyDex._bare exposes the four functions this group reads', false, 'not loaded: ' + absent4.join(', ') + ' — this group must not read as a pass');
+        return;
+      }
+      /* GROUP G4 of the null-and-zero audit (board #6444, routed by decision #6446 — findings N1-06,
+         N1-07 and N1-13; decision #6533 split N1-12 into its own unit). N1-05 needs no leg here: the
+         G3 consumer sweep (#5081) already guards both ODI-4 pattern points. Each leg pins the DEFECT
+         CASE, and each carries a control on the same shape, because a guard that blanks a real
+         reading is the same defect wearing the other mask. */
+      var t0g4 = Date.UTC(2026, 5, 14, 23, 0, 0);
+      var mkG4 = function (count, sFn) {
+        var out = [];
+        for (var i = 0; i < count; i++) out.push({ tMs: t0g4 + i * 1000, t: new Date(t0g4 + i * 1000), spo2: sFn(i), hr: 58, motion: 0, pi: null });
+        return out;
+      };
+
+      /* N1-07 · `linReg` returned `{ slope: 0, r2: 0, intercept: 0 }` under one point and tested no
+         member for presence, so an absent y summed as a zero and tilted the fit. It is on the export
+         surface, so a caller outside this file reached it with any input at all. */
+      T.eq('N1-07 · one point determines no line', B.linReg([96]), null);
+      T.eq('N1-07 · no point at all determines no line', B.linReg([]), null);
+      T.eq('N1-07 · an absent member refuses, it does not sum as a zero', B.linReg([1, null, 3]), null);
+      T.eq('N1-07 · one x value determines no line', B.linReg([0, 0, 0], [1, 2, 3]), null);
+      var lrCtl = B.linReg([1, 2, 3]);
+      T.eq('N1-07 CONTROL · three measured points still fit', lrCtl && lrCtl.slope, 1);
+      T.eq('N1-07 CONTROL · and the fit explains the whole variance', lrCtl && lrCtl.r2, 1);
+      var lrZero = B.linReg([0, 1, 2], [0, 1, 2]);
+      T.eq('N1-07 · a first y of 0 is a measurement, not a falsy intercept', lrZero && lrZero.intercept, 0);
+
+      /* N1-07 · the same function's first caller summed `r.spo2` over the whole window and divided by
+         WIN, so each absent sample added a zero. A half-absent window published a mean near 48 and the
+         label read `Declining (hypovent)` over a flat night. */
+      var driftHole = B.computeSpO2Drift(
+        mkG4(1800, function (i) {
+          return i >= 1200 && i % 2 === 0 ? null : 97;
+        })
+      );
+      T.eq('N1-07 · a half-absent window does not publish a decline', driftHole && driftHole.driftLabel, 'Stable');
+      T.eq('N1-07 · and the covered window count travels with the slope', driftHole && driftHole.driftWindows, 4);
+      T.eq('N1-07 · against six windows the night could have covered', driftHole && driftHole.driftWindowsPossible, 6);
+      var driftCtl = B.computeSpO2Drift(
+        mkG4(1800, function (i) {
+          return 97 - Math.floor(i / 300);
+        })
+      );
+      T.ok('N1-07 CONTROL · a real decline still reads as one', driftCtl && driftCtl.driftLabel === 'Declining (hypovent)', 'label = ' + JSON.stringify(driftCtl && driftCtl.driftLabel));
+      T.eq(
+        'N1-07 · under three covered windows there is no trend to publish',
+        B.computeSpO2Drift(
+          mkG4(1800, function (i) {
+            return i >= 600 ? null : 97;
+          })
+        ),
+        null
+      );
+
+      /* N1-06 · `computeHypoxicLoad` multiplied a rate of 0 by a depth of 0 by a duration of 0 and
+         published 0 with the label `Low`, whether or not the detector had examined anything. A
+         MEASURED event-free night keeps its 0; an unexamined one refuses and names why. */
+      var hlAbsent = B.computeHypoxicLoad(null, { rate: 8 }, 8, null, null);
+      T.eq('N1-06 · with no samples the load is absent, not Low', hlAbsent && hlAbsent.hypoxicLoad, null);
+      T.eq('N1-06 · and it names the reason', hlAbsent && hlAbsent.hlReason, 'rows-absent');
+      T.eq('N1-06 · the event count is absent too, never a counted zero', hlAbsent && hlAbsent.hl_nadirCount, null);
+      var flatRows = mkG4(3600, function () {
+        return 97;
+      });
+      var flatBl = flatRows.map(function () {
+        return 97;
+      });
+      var hlDisagree = B.computeHypoxicLoad(null, { rate: 8 }, 1, flatRows, flatBl);
+      T.eq('N1-06 · a detector that finds nothing under a stated ODI-3 of 8 refuses', hlDisagree && hlDisagree.hypoxicLoad, null);
+      T.eq('N1-06 · and it names the disagreement, not a borrowed reason', hlDisagree && hlDisagree.hlReason, 'detector-odi3-disagree');
+      var hlMeasuredZero = B.computeHypoxicLoad(null, { rate: 0 }, 1, flatRows, flatBl);
+      T.eq('N1-06 CONTROL · a measured event-free night keeps its zero', hlMeasuredZero && hlMeasuredZero.hypoxicLoad, 0);
+      T.eq('N1-06 CONTROL · and the zero carries no refusal reason', hlMeasuredZero && hlMeasuredZero.hlReason, null);
+      T.eq('N1-06 CONTROL · a measured event-free night means a mean depth of 0, not a NaN', JSON.stringify(hlMeasuredZero && hlMeasuredZero.hl_meanDepth), '0');
+      T.eq('N1-06 CONTROL · and a mean duration of 0 — this pins `nadirCount > 0` against `>=`', JSON.stringify(hlMeasuredZero && hlMeasuredZero.hl_meanDurSec), '0');
+      var dipRows = mkG4(3600, function (i) {
+        return i % 120 < 20 ? 90 : 97;
+      });
+      var hlCtl = B.computeHypoxicLoad(null, { rate: 25 }, 1, dipRows, flatBl);
+      T.ok('N1-06 CONTROL · real desaturations still load', hlCtl && hlCtl.hypoxicLoad > 0, 'load = ' + JSON.stringify(hlCtl && hlCtl.hypoxicLoad));
+
+      /* N1-13 · `age = age || 49` published five zones, a readiness tier, a MAF ceiling and an LTHR
+         over a silent default, and the return named no age, so no surface could say so. */
+      var kzAssumed = B.computeKarvonenZones(null, { rmssd: 1.4 }, { hrRest: 55 }, null, null, null, null, undefined, 480);
+      T.eq('N1-13 · an unentered age is named as an assumption', kzAssumed && kzAssumed.ageAssumed, true);
+      T.eq('N1-13 · and the age the zones used travels with them', kzAssumed && kzAssumed.ageUsed, 49);
+      T.ok(
+        'N1-13 · the method line says the age was not entered',
+        !!(kzAssumed && kzAssumed.method && kzAssumed.method.indexOf('ASSUMED') >= 0),
+        'method = ' + JSON.stringify(kzAssumed && kzAssumed.method)
+      );
+      var kzEntered = B.computeKarvonenZones(null, { rmssd: 1.4 }, { hrRest: 55 }, null, null, null, null, 30, 480);
+      T.eq('N1-13 CONTROL · an entered age is a measurement', kzEntered && kzEntered.ageAssumed, false);
+      T.eq('N1-13 CONTROL · and it reaches the zones', kzEntered && kzEntered.ageUsed, 30);
+      T.ok(
+        'N1-13 CONTROL · an entered age of 30 raises HRmax over the assumed 49',
+        kzEntered && kzAssumed && kzEntered.hrMax > kzAssumed.hrMax,
+        'entered = ' + JSON.stringify(kzEntered && kzEntered.hrMax) + ' assumed = ' + JSON.stringify(kzAssumed && kzAssumed.hrMax)
+      );
+      T.ok(
+        'N1-13 CONTROL · and the entered case says nothing about an assumption',
+        !!(kzEntered && kzEntered.method && kzEntered.method.indexOf('ASSUMED') < 0),
+        'method = ' + JSON.stringify(kzEntered && kzEntered.method)
+      );
+    });
+
     group('§∅ · OxyDex — a hole is not a reading, in all thirteen consumers', 'oxydex-dsp · absence', function (T) {
       var B = env.OxyDex && env.OxyDex._bare;
       if (!B) {
@@ -40686,10 +40800,18 @@
            untouched. These two reads say the same thing without naming the condition: exactly two
            delegating calls exist, and one `runPipeline` statement holds both arms. A third sidecar
            now costs no edit here, and a third parse copy still reds. */
+        /* CORRECTED A THIRD TIME 2026-11-15, and the cause is WHITESPACE, not a changed property.
+           Adding `name: file.name` to both arms pushed the statement past the formatter's line
+           limit, so Biome reflowed one line into four and the tail the regex demanded — a literal
+           `, file.name)` — became `,\n  file.name\n);`. Every run of space in the pattern is now
+           `\s*`, which is the only part a reformat can move. Measured against three controls: a
+           third `DSP.parseECG(e.target.result` reads 3 on the count half; splitting the arms into
+           two statements reds the pattern while the count still reads 2; and the pre-reflow pattern
+           does hold on origin/main's copy, so the reflow is what moved it. */
         T.ok(
           'the small-file path delegates to ECGDSP.parseECG on BOTH branches (the third copy is deleted)',
           (app.match(/DSP\.parseECG\(e\.target\.result/g) || []).length === 2 &&
-            /runPipeline\([^;]*DSP\.parseECG\(e\.target\.result[^;]*:[^;]*DSP\.parseECG\(e\.target\.result[^;]*, file\.name\)/.test(app),
+            /runPipeline\(\s*[^;]*DSP\.parseECG\(e\.target\.result[^;]*:[^;]*DSP\.parseECG\(e\.target\.result[^;]*,\s*file\.name\s*\)/.test(app),
           'the small-file branch must reach ECGDSP.parseECG with and without a sidecar, never a local parse'
         );
         T.ok('no app-local timestamp parser survives — one parse site, in the DSP', !/function parseTSfloat/.test(app), 'parseTSfloat is back; an unused parser is a mirror waiting for a caller');
@@ -54269,7 +54391,19 @@
           T.ok('ecgdex-app · the seam lane has a list of its own, never a field on the runs entries', /_seamsFiles\s*=\s*\[\]/.test(app));
           T.ok('ecgdex-app · …fed from `companionLanes.seams`', /companionLanes\.seams/.test(app));
           T.ok('ecgdex-app · the picker takes the LIST as a parameter, so the two lanes cannot share one', /function _pickSidecarFor\(list, primaryName\)/.test(app));
-          T.ok('ecgdex-app · the SMALL-file road hands both texts to the parser', /DSP\.parseECG\(e\.target\.result, \{ runsText: _sc\.runsText, seamsText: _sc\.seamsText \}\)/.test(app));
+          T.ok('ecgdex-app · the SMALL-file road hands both texts to the parser', /DSP\.parseECG\(e\.target\.result,\s*\{\s*runsText: _sc\.runsText,\s*seamsText: _sc\.seamsText/.test(app));
+          /* …AND THE FILENAME, on BOTH of that road's branches. The DSP decides which writer produced
+             a recording from the name alone — the capture host and the vendor app write the same ECG
+             header byte for byte — so a road that drops the name leaves the quality table's sidecar
+             ledger reading `absent` (the box wrote nothing) over a vendor export that can never carry
+             one. The no-sidecar branch needs it just as much, and it is the branch a vendor export
+             always takes. */
+          T.ok(
+            'ecgdex-app · …and the filename, which is the only thing that can name the writer',
+            /DSP\.parseECG\(e\.target\.result,\s*\{\s*runsText: _sc\.runsText,\s*seamsText: _sc\.seamsText,\s*name: file\.name/.test(app)
+          );
+          T.ok('ecgdex-app · the no-sidecar branch of the same road carries the name too', /DSP\.parseECG\(e\.target\.result,\s*\{\s*name: file\.name\s*\}\)/.test(app));
+          T.ok('ecgdex-app · and the big/multi-part road hands the name over with the two texts', /name: primaryName \|\| ''/.test(app));
           /* THE MEASURED GAP. This leg is the whole row: the big/multi-part road is the one every real
            overnight drop takes, and it attached nothing at all before 2026-11-05. */
           T.ok('ecgdex-app · the BIG/multi-part road attaches them too — the road every real night takes', /DSP\.attachEcgSidecars\(rec, _sidecarsFor\(/.test(app));
@@ -55991,7 +56125,7 @@
       T.eq('the epoch the table reports is the node epoch', sq && sq.epochSec, 300);
 
       // 2 · THE BICONDITIONAL, over every cell of every channel.
-      var FACTS = ['coverage', 'rail', 'flatline', 'snr', 'mains', 'nodeSqi', 'timing', 'reference'];
+      var FACTS = ['coverage', 'rail', 'flatline', 'snr', 'mains', 'nodeSqi', 'timing', 'reference', 'epochs', 'drift'];
       var cells = [],
         chans = (sq && sq.channels) || {};
       var chanNames = Object.keys(chans).sort();
@@ -56001,16 +56135,37 @@
         T.eq(chanNames[ci] + ' names its stream', typeof (ch && ch.stream), 'string');
         var got = Object.keys(ch || {})
           .filter(function (k) {
-            return k !== 'stream';
+            return k !== 'stream' && k !== 'sidecarEffect';
           })
           .sort();
-        T.eq(chanNames[ci] + ' carries the eight facts the brief names, and no others', got.join(','), FACTS.slice().sort().join(','));
+        T.eq(chanNames[ci] + ' carries the ten facts the brief names, and no others', got.join(','), FACTS.slice().sort().join(','));
+        /* §6's before-and-after record is NOT a cell — it carries no value and no unit, so it rides
+           beside the cells and the biconditional below does not read it. It is required on every row,
+           because a row that omits it is a row claiming nothing about what the sidecars moved. */
+        var eff = ch && ch.sidecarEffect;
+        T.ok(chanNames[ci] + ' carries the sidecar before-and-after record beside its cells', !!(eff && Array.isArray(eff.changed) && Array.isArray(eff.unchanged)));
+        T.eq(chanNames[ci] + ' · every fact of the row is on exactly one of the two lists', eff ? eff.changed.concat(eff.unchanged).slice().sort().join(',') : '', FACTS.slice().sort().join(','));
+        T.eq(
+          chanNames[ci] + ' · and no fact is on both',
+          eff
+            ? eff.changed
+                .filter(function (k) {
+                  return eff.unchanged.indexOf(k) >= 0;
+                })
+                .join(',')
+            : 'no record',
+          ''
+        );
+        T.ok(
+          chanNames[ci] + ' · the record names the population it was measured over, never a bare claim',
+          !!(eff && typeof eff.population === 'string' && eff.population.length > 20 && typeof eff.how === 'string')
+        );
         for (var fi = 0; fi < FACTS.length; fi++) {
           var cell = ch && ch[FACTS[fi]];
           if (cell) cells.push({ where: chanNames[ci] + '.' + FACTS[fi], cell: cell });
         }
       }
-      T.eq('every cell of both channels was reached', cells.length, 16);
+      T.eq('every cell of both channels was reached', cells.length, 20);
 
       var bad = [],
         unexplained = [],
@@ -56311,6 +56466,517 @@
         '91.5'
       );
     });
+
+    /* SIGNAL-QUALITY-TABLE unit 2 — THE ARMS UNIT 1 CANNOT REACH.
+       Unit 1 reads the one committed recording. It is 60 s long and carries no sidecar, so its epoch
+       population is a single window, its before-and-after pair is two named absences, its drift strip
+       holds one window and its origin is unknown. Every arm that moves a NUMBER therefore goes
+       unexamined there — which is the same gap the mutation sweep measured on this table's first
+       cells (21 of 55 mutants surviving on guards the committed input cannot reach).
+       This group builds the input each arm needs: a 20-minute 130 Hz stream the 300 s grid cuts into
+       four windows, the two ECG sidecar texts as the box writes them, hand-built anchor sets for the
+       drift walk, and the two filename layouts the writers are told apart by.
+       EVERY FIGURE BELOW WAS MEASURED BEFORE THE LEG WAS WRITTEN, by running these same inputs
+       through this module (2026-11-15):
+         · box 4 — bare analyses 4 of 4 windows; the runs sidecar alone takes 1, the seam sidecar
+           alone 1, both together 2. With a node-detected seam added, `after` reports 2 `clock-seam`
+           refusals while `movedByReason` reports 1: the node's own seam is never credited to the box.
+         · box 5 — on this stream the host column is the device stamp rounded, so the night rate is
+           `null` with `no-time-reference` over 313 anchors and 312 examined gaps, and all four
+           windows carry that reason rather than a rate.
+         · box 7 — under a vendor filename all 25 ledger rows read `not-applicable`; under this host's
+           own layout the same recording reads 2 `absent`, 13 `not-read` and 10 `not-applicable`. */
+    group(
+      'SIGNAL-QUALITY-TABLE unit 2 — the sidecar before-and-after, the drift strip, and the writer a filename names',
+      'ecgdex-dsp · §∅ · signalQuality · sidecar-effect · drift · §3d',
+      function (T) {
+        var E = env.ECGDSP || env.ECGDex;
+        var eq = env.equiv && env.equiv.ecgdex_rich;
+        if (!(E && typeof E.parseECG === 'function' && typeof E.compute === 'function' && typeof E.ecgDriftProfile === 'function' && typeof E.ecgCaptureOrigin === 'function')) {
+          T.skip('ECGDex parser, compute, drift profile and origin reader all reachable', 'unit 2 reads three of them directly, so a partial surface is a defect and not a skip');
+          return;
+        }
+
+        /* ── 1 · BOX 4 — THE EPOCH POPULATION BEFORE AND AFTER THE SIDECARS ───────────────────────────
+         The stream: 20 minutes at 130 Hz, one QRS per second, built once and parsed five ways. The
+         RUNS row brackets samples 39000..52000 (300 s to 400 s, inside window 1) and the SEAMS row
+         sits at 600 s (window 2), so each sidecar lands in a DIFFERENT window and the two effects
+         cannot hide inside one refusal. */
+        var FS2 = 130,
+          N2 = FS2 * 60 * 20,
+          T02 = Date.UTC(2026, 5, 17, 1, 0, 0);
+        var TEXT2 = (function () {
+          var rows = ['Phone timestamp;sensor timestamp [ns];ecg [uV]'],
+            step = Math.round(1e9 / FS2);
+          for (var i = 0; i < N2; i++) {
+            var iso = new Date(T02 + Math.round((i * 1000) / FS2)).toISOString().replace('Z', '').slice(0, 23);
+            var ph = i % FS2,
+              v = 20 * Math.sin((2 * Math.PI * i) / 37);
+            if (ph === 0) v += 900;
+            else if (ph === 1) v -= 300;
+            else if (ph === 2) v += 120;
+            rows.push(iso + ';' + i * step + ';' + v.toFixed(1));
+          }
+          return rows.join('\n') + '\n';
+        })();
+        var RUNS2 = [
+          '# stream=ecg rule=stuck min_run=30 merge_gap_max=4 total_runs=1 examined=' + N2,
+          'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule;bracket;contact',
+          '# stream=ecg channel=ecg [uV] class=variable ratio=1.0 top2=1,2 share=1.000 decided_at=64runs window=0 confirmed=1 at=2026-06-17T01:00:04.000',
+          '2026-06-17T01:05:00.000;ecg [uV];19164;39000;13000;100000.0;1;stuck;varied/varied;none'
+        ].join('\n');
+        var SEAMS2 = [
+          '# stream=ecg rule=clock-seam bound_ms=250 unit=ms basis=device-minus-host',
+          'phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;host_offset_ms;at_rel_ms',
+          '2026-06-17T01:10:00.000;78000;240000.0;7.7;239992.3;-12.0;600000.0',
+          '# final stream=ecg seams=1 examined=' + N2
+        ].join('\n');
+        var BOTH2 = { runsText: RUNS2, seamsText: SEAMS2 };
+        var sqOf = function (opts, prepare) {
+          var rec = opts ? E.parseECG(TEXT2, opts) : E.parseECG(TEXT2);
+          if (prepare) prepare(rec);
+          var ex = E.compute(rec, { rich: true });
+          return (ex && ex.signalQuality) || { channels: {}, sidecars: [] };
+        };
+        // A seam THIS NODE detected, at sample 1300 (10 s in, window 0) — the second author of a
+        // `clock-seam` refusal, and the whole reason `before` is a second pass and not a subtraction.
+        var nodeSeam = function (rec) {
+          rec.clockResyncs = [{ idx: 1300 }];
+        };
+        var epOf = function (t) {
+          return ((t.channels || {}).ecg || {}).epochs || {};
+        };
+        var V = {
+          bare: epOf(sqOf(null, null)),
+          runsOnly: epOf(sqOf({ runsText: RUNS2 }, null)),
+          seamsOnly: epOf(sqOf({ seamsText: SEAMS2 }, null)),
+          both: epOf(sqOf(BOTH2, null)),
+          nodeSeamOnly: epOf(sqOf(null, nodeSeam)),
+          nodeSeamBoth: epOf(sqOf(BOTH2, nodeSeam))
+        };
+        var popOf = function (c) {
+          return JSON.stringify({ analysed: c.value, refused: c.refused, byReason: c.byReason });
+        };
+
+        // 1a · THE POPULATION IS A NUMBER ON EVERY RUN, and it is the published value of the cell.
+        T.eq('the 300 s grid cuts this 20-minute stream into four windows, all analysable before any sidecar', popOf(V.bare), '{"analysed":4,"refused":0,"byReason":{}}');
+        T.eq('the runs sidecar refuses the one window its blanking span covers', popOf(V.runsOnly), '{"analysed":3,"refused":1,"byReason":{"blanking-run":1}}');
+        T.eq('the seam sidecar refuses the one window its recorded seam falls in', popOf(V.seamsOnly), '{"analysed":3,"refused":1,"byReason":{"clock-seam":1}}');
+        T.eq('both together refuse both windows, and the two reasons stay apart', popOf(V.both), '{"analysed":2,"refused":2,"byReason":{"blanking-run":1,"clock-seam":1}}');
+
+        // 1b · THE BEFORE VALUE IS MEASURED, NOT SUBTRACTED, and §∅ governs the pair when it is absent.
+        T.eq('a sidecar-less run has NO before value, and says so rather than repeating its population', JSON.stringify([V.bare.before, V.bare.after]), '[null,null]');
+        T.ok(
+          '…and both halves of the absent pair name a reason',
+          typeof V.bare.beforeReason === 'string' && V.bare.beforeReason.length > 20 && typeof V.bare.afterReason === 'string' && V.bare.afterReason.length > 20
+        );
+        T.eq('…while the published population survives the absent pair, which is what `population` is for', V.bare.value, 4);
+        T.eq('an applied run reports both halves and neither reason', JSON.stringify([!!V.both.before, !!V.both.after, V.both.beforeReason, V.both.afterReason]), '[true,true,null,null]');
+        T.eq('the before value is the population the sidecars found, measured by a second engine pass', JSON.stringify(V.both.before), '{"analysed":4,"refused":0,"byReason":{}}');
+        T.eq('…and the after value is what this analysis published', JSON.stringify(V.both.after), '{"analysed":2,"refused":2,"byReason":{"blanking-run":1,"clock-seam":1}}');
+        T.eq('the windows the sidecars TOOK are named by reason, never by a difference of counts', JSON.stringify(V.both.movedByReason), '{"blanking-run":1,"clock-seam":1}');
+
+        /* 1c · THE NODE'S OWN SEAM IS NEVER CREDITED TO THE BOX. This is the leg a subtraction cannot
+         pass: with a node-detected seam in window 0 AND both sidecars, the after population reports
+         TWO `clock-seam` refusals and `movedByReason` reports ONE. A count of refusals before and
+         after would read the node's own seam as a sidecar effect. */
+        T.eq(
+          'with a node seam and both sidecars, the population carries three refusals of two kinds',
+          popOf(V.nodeSeamBoth),
+          '{"analysed":1,"refused":3,"byReason":{"clock-seam":2,"blanking-run":1}}'
+        );
+        T.eq('…the after value reports both clock seams', JSON.stringify(V.nodeSeamBoth.after.byReason), '{"clock-seam":2,"blanking-run":1}');
+        T.eq('…and exactly one of them is credited to the sidecar', JSON.stringify(V.nodeSeamBoth.movedByReason), '{"blanking-run":1,"clock-seam":1}');
+        T.eq(
+          'the before pass REPRODUCES the node-seam-only run, so the node seam is the before state and not an effect',
+          JSON.stringify(V.nodeSeamBoth.before),
+          JSON.stringify({ analysed: V.nodeSeamOnly.value, refused: V.nodeSeamOnly.refused, byReason: V.nodeSeamOnly.byReason })
+        );
+        T.eq('a node seam with no sidecar is still no sidecar effect at all', JSON.stringify([V.nodeSeamOnly.sidecarsApplied, V.nodeSeamOnly.before, V.nodeSeamOnly.after]), '[false,null,null]');
+
+        /* 1d · ANTI-VACUITY. Every leg above would also pass if the sidecars had placed nothing and the
+         windows had been refused for some other reason, so the placement counts are read too. */
+        T.eq('the runs sidecar placed exactly the one blanking run it carries', JSON.stringify(V.runsOnly.placed), '{"blankingRuns":1,"recordedSeams":0,"unplacedSeams":0}');
+        T.eq('the seam sidecar placed exactly the one seam it carries, and none went unplaced', JSON.stringify(V.seamsOnly.placed), '{"blankingRuns":0,"recordedSeams":1,"unplacedSeams":0}');
+        T.eq('a sidecar-less run placed nothing, and the counts say so rather than being absent', JSON.stringify(V.bare.placed), '{"blankingRuns":0,"recordedSeams":0,"unplacedSeams":0}');
+        T.eq(
+          '`sidecarsApplied` tracks the placement and not the presence of a text',
+          JSON.stringify([V.bare.sidecarsApplied, V.runsOnly.sidecarsApplied, V.seamsOnly.sidecarsApplied, V.both.sidecarsApplied]),
+          '[false,true,true,true]'
+        );
+
+        /* ── 2 · BOX 9 — ONE GRID, NOT TWO ────────────────────────────────────────────────────────────
+         The epoch engine, the table and the drift strip must cut the same recording on the same
+         windows, or a reader comparing a refused epoch against a drift window compares two grids.
+         The table's own epoch, the drift profile's epoch and the spacing of the strip's windows are
+         three independently published numbers, so a divergence between the call sites reds here. */
+        var sqBoth = sqOf(BOTH2, null);
+        var dBoth = ((sqBoth.channels || {}).ecg || {}).drift || {};
+        T.eq('the table publishes the node epoch', sqBoth.epochSec, 300);
+        T.eq('the drift strip is cut on that same epoch', dBoth.epochSec, sqBoth.epochSec);
+        T.ok('…and the epochs cell names the same number in its own unit', ('' + epOf(sqBoth).unit).indexOf('' + sqBoth.epochSec + ' s') >= 0);
+        T.eq(
+          'the strip covers the whole recording, one window per epoch of it',
+          JSON.stringify(
+            (dBoth.windows || []).map(function (w) {
+              return w.tMin;
+            })
+          ),
+          '[0,5,10,15]'
+        );
+        var offGrid = (dBoth.windows || []).filter(function (w, i) {
+          return w.tMin !== +((i * sqBoth.epochSec) / 60).toFixed(1);
+        });
+        T.eq('every window sits on the grid the table names, never on a second one', offGrid.length, 0);
+        T.ok('the strip states the grid it was cut on, so a render cannot label it from elsewhere', /windows of 300 s/.test('' + dBoth.gridBasis));
+
+        /* ── 3 · BOX 5 — THE DRIFT ROW, ITS NAMED REFERENCE AND ITS STEPS ─────────────────────────────
+         §3d orders the references best first and this node holds exactly one of them, the host
+         arrival column — and only where that column is a SECOND CLOCK. The legs below read the
+         profile builder directly, because the arms that matter (a named reference, a real rate, a
+         step, a spike, an uncovered window) need anchor sets no 20-minute text can produce. */
+        var AX_OK = { ok: true, independent: true, ppm: 12.5, spanPpm: 13.1, spanMs: 1150000, spreadMs: 41.3, stability: { ppmUncertainty: 2.4 } };
+        var anchorsAt = function (list) {
+          return list.map(function (p) {
+            return { devMs: p[0], hostMs: p[0] + p[1] };
+          });
+        };
+        // 24 anchors every 50 s, residual rising at exactly 12.5 ppm.
+        var EVEN = [];
+        for (var ai = 0; ai < 24; ai++) EVEN.push([ai * 50000, 12.5e-6 * (ai * 50000)]);
+        var dp = E.ecgDriftProfile(anchorsAt(EVEN), AX_OK, T02, 1000, 300);
+
+        // 3a · THE REFERENCE IS NAMED, AND THE ONES THIS NODE DOES NOT HOLD ARE LISTED.
+        T.eq('a host column that is a second clock IS the reference §3d ranks second', dp.reference && dp.reference.name, 'host-arrival-stamps');
+        T.ok('…and it says which of §3d’s four it is, rather than claiming the best one', /second of §3d/.test('' + (dp.reference && dp.reference.tier)));
+        T.eq('a named reference leaves no reference reason', dp.referenceReason, null);
+        T.eq(
+          'the three references this node cannot hold are listed, each with why',
+          JSON.stringify(
+            (dp.referencesAbsent || []).map(function (x) {
+              return x.name;
+            })
+          ),
+          '["radio-clock-log","device-clock-log","companion-device"]'
+        );
+        T.eq(
+          'every absent reference says why rather than being a bare name',
+          (dp.referencesAbsent || []).filter(function (x) {
+            return !(typeof x.why === 'string' && x.why.length > 10);
+          }).length,
+          0
+        );
+
+        // 3b · THE NIGHT RATE CARRIES WHAT §7 FORBIDS A ppm TO TRAVEL WITHOUT.
+        T.eq('the night rate is the spine’s own figure, never a second estimate of it', dp.night && dp.night.ppm, 12.5);
+        T.eq('…with the anchor count that produced it', dp.night && dp.night.anchors, 24);
+        T.eq('…the span it was measured over', dp.night && dp.night.spanMs, 1150000);
+        T.eq('…and the uncertainty of the rate itself, which §7 requires beside it', dp.night && dp.night.ppmUncertainty, 2.4);
+        T.eq('a published uncertainty leaves no uncertainty reason', dp.night && dp.night.uncertaintyReason, null);
+        T.eq('a reference and a night figure are the same condition, so neither can appear alone', JSON.stringify([!!dp.reference, !!dp.night, dp.nightReason]), '[true,true,null]');
+        var axNoStab = { ok: true, independent: true, ppm: 12.5, spanPpm: 13.1, spanMs: 1150000, spreadMs: 41.3 };
+        var dpNoStab = E.ecgDriftProfile(anchorsAt(EVEN), axNoStab, T02, 1000, 300);
+        T.eq(
+          'an axis with no stability curve publishes a null uncertainty AND its reason, never a bare rate',
+          JSON.stringify([dpNoStab.night.ppmUncertainty, typeof dpNoStab.night.uncertaintyReason]),
+          '[null,"string"]'
+        );
+
+        // 3c · THE PER-WINDOW STRIP, from the raw residual and never from the night median.
+        T.eq('a window of six evenly drifting anchors reports the rate they drift at', dp.windows[0].ppm.toFixed(3), '12.500');
+        T.eq('…with the anchor count behind it', dp.windows[0].anchors, 6);
+        T.eq(
+          '…and the residual at both ends, so a render can draw the strip without re-deriving it',
+          JSON.stringify([dp.windows[0].residFirstMs.toFixed(3), dp.windows[0].residLastMs.toFixed(3), dp.windows[0].residRangeMs.toFixed(3)]),
+          '["0.000","3.125","3.125"]'
+        );
+        T.eq('a window with a rate carries no reason', dp.windows[0].reason, null);
+
+        /* 3d · §∅ — AN UNCOVERED WINDOW APPEARS, WITH ITS REASON. A strip that silently drops the
+         windows nothing measured draws one continuous drift across a stretch with no anchor in it. */
+        var GAPPED = [];
+        for (var gi = 0; gi < 4; gi++) GAPPED.push([gi * 20000, 0.25 * gi]);
+        for (var gj = 0; gj < 4; gj++) GAPPED.push([900000 + gj * 20000, 11.25 + 0.25 * gj]);
+        var dpGap = E.ecgDriftProfile(anchorsAt(GAPPED), AX_OK, T02, 1000, 300);
+        T.eq('the strip spans the whole covered recording, including the windows with no anchor', dpGap.windows.length, 4);
+        T.eq(
+          'an uncovered window is published with zero anchors and no rate',
+          JSON.stringify([dpGap.windows[1].anchors, dpGap.windows[1].ppm, dpGap.windows[2].anchors, dpGap.windows[2].ppm]),
+          '[0,null,0,null]'
+        );
+        T.ok('…and it names the floor it fell under rather than reading as a measured flat stretch', /too-few-anchors in this window: 0 of the 3/.test('' + dpGap.windows[1].reason));
+        T.ok(
+          'a window under the three-anchor floor says how many it had',
+          /too-few-anchors in this window: 2 of the 3/.test(
+            '' +
+              E.ecgDriftProfile(
+                anchorsAt([
+                  [0, 0],
+                  [10000, 0.1]
+                ]),
+                AX_OK,
+                T02,
+                1000,
+                300
+              ).windows[0].reason
+          )
+        );
+        var dpSameDev = E.ecgDriftProfile(
+          anchorsAt([
+            [0, 0],
+            [0, 0.1],
+            [0, 0.2]
+          ]),
+          AX_OK,
+          T02,
+          1000,
+          300
+        );
+        T.ok('three anchors on one device instant carry no rate, and the reason says that', /zero device span inside this window/.test('' + dpSameDev.windows[0].reason));
+
+        /* 3e · A STEP AND A SPIKE NEED DIFFERENT REMEDIES, so they are named apart. A spike is one
+         anchor that departs and returns; a step does not come back. The bound is pre-stated. */
+        var STEP = anchorsAt([
+          [0, 0],
+          [10000, 0],
+          [20000, 0],
+          [30000, 2000],
+          [40000, 2000],
+          [50000, 2000]
+        ]);
+        var dpStep = E.ecgDriftProfile(STEP, AX_OK, T02, 1000, 300);
+        T.eq(
+          'a residual that jumps the bound and stays is one step',
+          JSON.stringify(
+            dpStep.steps.map(function (s) {
+              return s.kind;
+            })
+          ),
+          '["step"]'
+        );
+        T.eq(
+          '…reported at the anchor that moved, with the delta that moved it',
+          JSON.stringify([dpStep.steps[0].atRelMs, dpStep.steps[0].deltaMs, dpStep.steps[0].residMs, dpStep.steps[0].prevResidMs]),
+          '[30000,2000,2000,0]'
+        );
+        T.eq('…and with its wall-clock instant, built from the recording start and the offset', dpStep.steps[0].tMs, T02 + 30000);
+        T.eq('a step with an instant carries no reason for the instant', dpStep.steps[0].tMsReason, null);
+        var SPIKE = anchorsAt([
+          [0, 0],
+          [10000, 0],
+          [20000, 0],
+          [30000, 2000],
+          [40000, 0],
+          [50000, 0]
+        ]);
+        var dpSpike = E.ecgDriftProfile(SPIKE, AX_OK, T02, 1000, 300);
+        T.eq(
+          'one anchor that departs and comes back is ONE spike, not two steps',
+          JSON.stringify(
+            dpSpike.steps.map(function (s) {
+              return s.kind;
+            })
+          ),
+          '["spike"]'
+        );
+        T.eq('…and the return leg is the same event, so it is not examined again', dpSpike.steps.length, 1);
+        T.eq('the bound is the one the caller pre-stated, echoed so a reader can check it', dpStep.stepBoundMs, 1000);
+        T.ok('…and it names its own provenance, which §🧾 requires of a threshold', /pre-stated/.test('' + dpStep.stepBasis) && /never fitted to this recording/.test('' + dpStep.stepBasis));
+        T.eq('a residual that stays inside the bound is a measured absence of steps, over a counted walk', JSON.stringify([dp.steps.length, dp.stepsExamined, dp.stepsReason]), '[0,23,null]');
+        T.eq('the gaps examined are the adjacent pairs of the anchor set, never the anchor count', dp.stepsExamined, 23);
+        var dpNoT0 = E.ecgDriftProfile(STEP, AX_OK, null, 1000, 300);
+        T.eq('a recording with no parsed start stamp publishes a null instant AND its reason', JSON.stringify([dpNoT0.steps[0].tMs, typeof dpNoT0.steps[0].tMsReason]), '[null,"string"]');
+
+        /* 3f · §∅ — UNDER TWO ANCHORS THE WALK NEVER RAN, so the step list is `null` and not `[]`. An
+         empty array beside `stepsExamined: 0` would claim that none were found. */
+        var dpOne = E.ecgDriftProfile(anchorsAt([[0, 0]]), AX_OK, T02, 1000, 300);
+        T.eq('one anchor leaves no adjacent gap, so the step list is an absence with a reason', JSON.stringify([dpOne.steps, dpOne.stepsExamined, typeof dpOne.stepsReason]), '[null,0,"string"]');
+        var dpNone = E.ecgDriftProfile([], AX_OK, T02, 1000, 300);
+        T.eq(
+          'no anchor at all publishes no strip and no coverage, rather than a zero-length night',
+          JSON.stringify([dpNone.windows.length, dpNone.coverage.firstAnchorRelMs, dpNone.coverage.lastAnchorRelMs, dpNone.coverage.anchors]),
+          '[0,null,null,0]'
+        );
+        T.eq(
+          'a non-finite anchor member is dropped before the walk, never read as a residual of 0',
+          E.ecgDriftProfile(
+            [
+              { devMs: 0, hostMs: 0 },
+              { devMs: NaN, hostMs: 5 },
+              { devMs: 10000, hostMs: 10000 }
+            ],
+            AX_OK,
+            T02,
+            1000,
+            300
+          ).coverage.anchors,
+          2
+        );
+        T.eq(
+          'the coverage of a real anchor set is its own first and last device offset',
+          JSON.stringify([dp.coverage.firstAnchorRelMs, dp.coverage.lastAnchorRelMs, dp.coverage.anchors]),
+          '[0,1150000,24]'
+        );
+
+        /* 3g · NO SECOND CLOCK MEANS NO REFERENCE — the one legal cause of a null night rate under §3d,
+         and a ~0 ppm is not that answer. This arm is what the synthetic stream above actually hits:
+         its host column is the device stamp rounded, which is a phone capture's normal shape. */
+        var dpDep = E.ecgDriftProfile(anchorsAt(EVEN), { ok: true, independent: false, ppm: 0.4, spreadMs: 0.97 }, T02, 1000, 300);
+        T.eq('a host column derived from the device stamp is NOT a reference', JSON.stringify([dpDep.reference, dpDep.night]), '[null,null]');
+        T.ok(
+          '…and the reason names the measured spread that decided it, never a near-zero rate',
+          /^no-time-reference: the host column is the device stamp rounded \(residual spread 0\.97 ms\)/.test('' + dpDep.referenceReason)
+        );
+        T.eq('the night reason is that same reason, so the two cannot disagree', dpDep.nightReason, dpDep.referenceReason);
+        T.eq(
+          'and every window of the strip carries it rather than a rate',
+          dpDep.windows.filter(function (w) {
+            return w.ppm !== null || w.reason !== dpDep.referenceReason;
+          }).length,
+          0
+        );
+        var dpRefused = E.ecgDriftProfile(anchorsAt(EVEN), { ok: false, reason: 'too-few-anchors: 2 of 3' }, T02, 1000, 300);
+        T.ok(
+          'a refused axis is a different cause of the same null, and it quotes the refusal',
+          /^no-time-reference: the host axis refused/.test('' + dpRefused.referenceReason) && /too-few-anchors: 2 of 3/.test('' + dpRefused.referenceReason)
+        );
+        T.ok(
+          'an axis that refused with no reason published says that, rather than inventing one',
+          /no reason published/.test('' + E.ecgDriftProfile(anchorsAt(EVEN), { ok: false }, T02, 1000, 300).referenceReason)
+        );
+        T.ok('an absent axis is the same no-reference answer and not a crash', E.ecgDriftProfile(anchorsAt(EVEN), null, T02, 1000, 300).reference === null);
+
+        // 3h · THE DRIFT CELL OF THE 20-MINUTE STREAM, the end-to-end form of 3g.
+        T.eq('the drift cell of a phone-shaped capture is null with the no-reference reason', JSON.stringify([dBoth.value, ('' + dBoth.reason).slice(0, 17)]), '[null,"no-time-reference"]');
+        T.eq('…over a walk that DID run, across 313 anchors and the 312 gaps between them', JSON.stringify([dBoth.coverage.anchors, dBoth.stepsExamined, (dBoth.steps || []).length]), '[313,312,0]');
+
+        /* ── 4 · BOX 7 — WHICH WRITER PRODUCED THE FILE, AND WHAT THAT MAKES THE LEDGER ───────────────
+         The capture host writes the same ECG header as a Polar Sensor Logger export, byte for byte,
+         so an origin read out of the TEXT would be invented. The filename carries it: this host
+         writes the start instant as one contiguous token, the vendor app splits it. Every file in the
+         ledger is written by the host, so on a vendor export none of them CAN exist — `absent` (the
+         writer ran and produced nothing) and `not-applicable` (no writer ran) are different facts. */
+        if (!(eq && eq.input)) {
+          T.skip('committed ECGDex rich input present', 'box 7 reads the ledger of the committed recording under three filenames');
+        } else {
+          var PSL_NAME = 'Polar_H10_D2A1B3C4_20260627_220000_ECG.txt',
+            HOST_NAME = 'Polar_H10_D2A1B3C4_20260627220000_ECG.txt';
+          var namedSq = function (nm) {
+            var rec = nm == null ? E.parseECG(eq.input) : E.parseECG(eq.input, { name: nm });
+            var ex = E.compute(rec, { rich: true });
+            return (ex && ex.signalQuality) || { channels: {}, sidecars: [] };
+          };
+          var census = function (t) {
+            var by = {};
+            for (var q = 0; q < (t.sidecars || []).length; q++) by[t.sidecars[q].state] = (by[t.sidecars[q].state] || 0) + 1;
+            return JSON.stringify(by);
+          };
+          var rowOf = function (t, key) {
+            var rows = t.sidecars || [];
+            for (var z = 0; z < rows.length; z++) if (rows[z].key === key) return rows[z];
+            return null;
+          };
+          var sqPsl = namedSq(PSL_NAME),
+            sqHost = namedSq(HOST_NAME),
+            sqAnon = namedSq(null);
+
+          // 4a · THE READER ITSELF, over both layouts and both ways of failing to name one.
+          T.eq(
+            'the two start-stamp layouts are read from the right, and neither is guessed from the text',
+            JSON.stringify(
+              [PSL_NAME, HOST_NAME, 'x_20260627_220000_ACC.txt', 'a_20260627220000_ECG.txt', 'export.txt', ''].map(function (n) {
+                return E.ecgCaptureOrigin(n).origin;
+              })
+            ),
+            '["polar-sensor-logger","capture-host","polar-sensor-logger","capture-host",null,null]'
+          );
+          T.ok(
+            'a name in neither layout is unknown, and the basis says it was the LAYOUT that failed',
+            /carries neither writer’s start-stamp layout/.test('' + E.ecgCaptureOrigin('export.txt').basis)
+          );
+          T.ok(
+            'no name at all is a different unknown, and is never assumed to be either writer',
+            /no filename reached this node/.test('' + E.ecgCaptureOrigin('').basis) && /not assumed to be either writer/.test('' + E.ecgCaptureOrigin('').basis)
+          );
+          T.eq(
+            'every answer names its own basis, so no origin travels without one',
+            JSON.stringify(
+              [PSL_NAME, HOST_NAME, 'export.txt', ''].filter(function (n) {
+                return !(typeof E.ecgCaptureOrigin(n).basis === 'string' && E.ecgCaptureOrigin(n).basis.length > 20);
+              })
+            ),
+            '[]'
+          );
+
+          // 4b · THE LEDGER UNDER EACH ORIGIN. One recording, three names, three different ledgers.
+          T.eq('on a vendor export no host sidecar can exist, so every row reads not-applicable', census(sqPsl), '{"not-applicable":25}');
+          T.eq('the same recording under this host’s own layout reads the node’s own four states', census(sqHost), '{"absent":2,"not-applicable":10,"not-read":13}');
+          T.eq('…and an unnamed recording cannot be told apart from it, so it reads the same', census(sqAnon), census(sqHost));
+          T.ok(
+            'a vendor row says WHY it cannot apply, naming the export and the writer',
+            /Polar Sensor Logger export/.test('' + rowOf(sqPsl, 'ECGRUNS').reason) && /no host ran on it/.test('' + rowOf(sqPsl, 'ECGRUNS').reason)
+          );
+          T.ok('…and it carries the basis the filename gave, not a bare claim about the file', /split start stamp/.test('' + rowOf(sqPsl, 'ECGRUNS').reason));
+          T.ok('a box capture with no companion says the writer ran and produced nothing', /the box wrote no `_ECGRUNS.txt` beside this capture/.test('' + rowOf(sqHost, 'ECGRUNS').reason));
+          T.ok('…and the seam row says the count is unknown rather than zero', /the seam count is unknown rather than zero/.test('' + rowOf(sqHost, 'ECGSEAMS').reason));
+          T.ok('an unknown origin claims neither, and says that whether a writer should have run is unknown too', /origin is unknown/.test('' + rowOf(sqAnon, 'ECGRUNS').reason));
+          T.eq('one row of one recording, flipped by the filename alone', rowOf(sqHost, 'ECGRUNS').state + '|' + rowOf(sqPsl, 'ECGRUNS').state, 'absent|not-applicable');
+
+          /* 4c · THE ORIGIN OUTRANKS EVERY OTHER CAUSE, AND ONLY EVIDENCE OUTRANKS IT. A row that was
+           actually READ keeps `read`: a placed census is evidence, and evidence beats an inference
+           drawn from a filename. The prior state travels in the reason rather than being discarded. */
+          var RUNS_FIT = [
+            '# stream=ecg rule=stuck min_run=30 merge_gap_max=4 total_runs=1 examined=7800',
+            'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule;bracket;contact',
+            '2026-06-27T22:00:10.000;ecg [uV];19164;1000;500;4000.0;1;stuck;varied/varied;none'
+          ].join('\n');
+          var recEv = E.parseECG(eq.input, { name: PSL_NAME, runsText: RUNS_FIT });
+          var sqEv = (E.compute(recEv, { rich: true }) || {}).signalQuality || { sidecars: [] };
+          T.eq('a sidecar that actually arrived beside a vendor-named file still reads `read`', rowOf(sqEv, 'ECGRUNS').state, 'read');
+          T.eq('…and a read row carries no reason, vendor name or not', rowOf(sqEv, 'ECGRUNS').reason, null);
+          T.ok('an overridden row keeps the state it would otherwise have had, inside its reason', /This node’s own state for that file is otherwise/.test('' + rowOf(sqPsl, 'ACCRUNS').reason));
+
+          /* §∅ — AND THE MEASURED ZERO. The committed recording holds ONE window, and the span above
+           covers it, so the published population is `0` with no reason: the engine ran, examined its
+           one window and refused it. That is the distinction this whole table exists for — a `0`
+           beside a `before` of 1 and a named refusal is a MEASUREMENT, where the same `0` over a
+           recording nobody scored would be the defect. */
+          var epEv = epOf(sqEv);
+          T.eq('a population of zero analysed windows is a value, not an absence, when the engine ran', JSON.stringify([epEv.value, epEv.reason]), '[0,null]');
+          T.eq(
+            '…and the pair behind it says what it was before and why it moved',
+            JSON.stringify([epEv.before, epEv.after, epEv.movedByReason]),
+            '[{"analysed":1,"refused":0,"byReason":{}},{"analysed":0,"refused":1,"byReason":{"blanking-run":1}},{"blanking-run":1}]'
+          );
+
+          /* 4d · §∅ ON THE OTHER SIDE OF THE PAIR. A vendor export is always a sidecar-less recording,
+           so its after value is an absence — and the published population must survive it, or the
+           cell blanks its own count on every vendor export the node will ever read. */
+          var epPsl = epOf(sqPsl);
+          T.eq('a vendor export has no after value for the epoch population, and names why', JSON.stringify([epPsl.after, typeof epPsl.afterReason]), '[null,"string"]');
+          T.eq('…and no before value either, because no sidecar pass ran', JSON.stringify([epPsl.before, typeof epPsl.beforeReason]), '[null,"string"]');
+          T.ok('…while the published population is still a number beside the absent pair', typeof epPsl.value === 'number' && epPsl.value > 0);
+        }
+
+        /* ── 5 · SOURCE MIRRORS — the three call sites box 9 holds to one grid, and the origin rule. */
+        var src2 = (env.sources && env.sources['ecgdex-dsp.js']) || '';
+        if (src2) {
+          T.ok('one constant carries the node epoch', /var _SQ_EPOCH_SEC = 300;/.test(src2));
+          T.ok('…and the drift strip is cut on it, never on a literal of its own', /_ecgDriftProfile\(ecgAxisAnchors, ecgHostAx, t0Ms, ECG_AXIS_MAX_STEP_MS, _SQ_EPOCH_SEC\)/.test(src2));
+          T.ok('the before pass reads the node’s own seams alone, snapshotted before the box’s rows join them', /const _seamSecNode = _seamSec\.slice\(\);/.test(src2));
+          T.ok('…and it is a second engine pass, never a subtraction of counts', /epochEngine\(nn, tt, 300, nnSqi, nnSpansGap, _seamSecNode, _refusedBefore, \[\]\)/.test(src2));
+          T.ok(
+            'the origin is read from the filename, and the comment cites the writer that proves the text cannot say',
+            /capture-host\/writers\.py:1888/.test(src2) && /function _ecgCaptureOrigin\(name\)/.test(src2)
+          );
+          T.ok('CONTROL · no origin is inferred from the ECG header text', !/_ecgCaptureOrigin\(\s*(?:text|lines|raw)/.test(src2));
+          T.ok(
+            'CONTROL · the published population is read off `population`, never off half the sidecar pair',
+            /scePop \? scePop\.analysed : null/.test(src2) && !/_sqCell\(\s*sce && sce\.after/.test(src2)
+          );
+        } else T.skip('ecgdex-dsp.js source unavailable');
+      }
+    );
 
     /* done-when 4, the four product-node legs (residue 2026-10-17-sample-parsers-called-without-their-sidecar).
        Each leg fails when the old 1-arg read comes back. PpgDex's ACC parser took no sidecar at all, so
@@ -100370,16 +101036,18 @@
         T.eq('OxyDex.computeGatedNadir("x") → out.excluded', JSON.stringify(out.excluded), '0');
       }
       /* mutant: cmp > → >=  @ nadirCount > 0
-         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The test ensures that the mean depth value is properly initialized to 0 instead of null when there are no nadi */
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The test ensures that the mean depth value is properly initialized to 0 instead of null when there are no nadi
+         ⚠ 2026-11-15 (G4): the recorded property was the defect. `rows` absent means the detector never ran, so the mean is now null with `hlReason: 'rows-absent'`. The mutant this leg guards (`nadirCount > 0`) is reached by the MEASURED-ZERO path instead, pinned in '§∅ · OxyDex medium group'. */
       {
         var out = NS._bare.computeHypoxicLoad(null, 1);
-        T.eq('OxyDex._bare.computeHypoxicLoad(null,1) → out.hl_meanDepth', JSON.stringify(out.hl_meanDepth), '0');
+        T.eq('OxyDex._bare.computeHypoxicLoad(null,1) → out.hl_meanDepth', JSON.stringify(out.hl_meanDepth), 'null');
       }
       /* mutant: cmp > → >=  @ nadirCount > 0
-         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The test ensures that the mean duration in seconds is properly initialized to 0 rather than null when there ar */
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The test ensures that the mean duration in seconds is properly initialized to 0 rather than null when there ar
+         ⚠ 2026-11-15 (G4): the recorded property was the defect. `rows` absent means the detector never ran, so the mean is now null with `hlReason: 'rows-absent'`. The mutant this leg guards (`nadirCount > 0`) is reached by the MEASURED-ZERO path instead, pinned in '§∅ · OxyDex medium group'. */
       {
         var out = NS._bare.computeHypoxicLoad(null, 1);
-        T.eq('OxyDex._bare.computeHypoxicLoad(null,1) → out.hl_meanDurSec', JSON.stringify(out.hl_meanDurSec), '0');
+        T.eq('OxyDex._bare.computeHypoxicLoad(null,1) → out.hl_meanDurSec', JSON.stringify(out.hl_meanDurSec), 'null');
       }
       /* mutant: bool || → &&  @ var pnn3 = hrv.pnn3 || 0;
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The vagal index value correctly computed instead of being null due to incorrect logical operator usage. */
@@ -101019,16 +101687,18 @@
           T.eq('NS.computeGatedNadir("x") → out.excluded', JSON.stringify(out.excluded), '0');
         }
         /* mutant: cmp > → >=  @ nadirCount > 0
-         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The mean depth of hypoxic events is correctly calculated as 0 when there are no hypoxic events, rather than be */
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The mean depth of hypoxic events is correctly calculated as 0 when there are no hypoxic events, rather than be
+         ⚠ 2026-11-15 (G4): the recorded property was the defect. `rows` absent means the detector never ran, so the mean is now null with `hlReason: 'rows-absent'`. The mutant this leg guards (`nadirCount > 0`) is reached by the MEASURED-ZERO path instead, pinned in '§∅ · OxyDex medium group'. */
         {
           var out = NS._bare.computeHypoxicLoad(null, 1);
-          T.eq('NS._bare.computeHypoxicLoad(null,1) → out.hl_meanDepth', JSON.stringify(out.hl_meanDepth), '0');
+          T.eq('NS._bare.computeHypoxicLoad(null,1) → out.hl_meanDepth', JSON.stringify(out.hl_meanDepth), 'null');
         }
         /* mutant: cmp > → >=  @ nadirCount > 0
-         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The mean duration in seconds is correctly initialized to 0 instead of being null when there are no hypoxic eve */
+         qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The mean duration in seconds is correctly initialized to 0 instead of being null when there are no hypoxic eve
+         ⚠ 2026-11-15 (G4): the recorded property was the defect. `rows` absent means the detector never ran, so the mean is now null with `hlReason: 'rows-absent'`. The mutant this leg guards (`nadirCount > 0`) is reached by the MEASURED-ZERO path instead, pinned in '§∅ · OxyDex medium group'. */
         {
           var out = NS._bare.computeHypoxicLoad(null, 1);
-          T.eq('NS._bare.computeHypoxicLoad(null,1) → out.hl_meanDurSec', JSON.stringify(out.hl_meanDurSec), '0');
+          T.eq('NS._bare.computeHypoxicLoad(null,1) → out.hl_meanDurSec', JSON.stringify(out.hl_meanDurSec), 'null');
         }
         /* mutant: bool || → &&  @ var pnn3 = hrv.pnn3 || 0;
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The vagal index value correctly computed as 0 instead of null when input is [1,1] */

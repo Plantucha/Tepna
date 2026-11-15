@@ -162,7 +162,12 @@ self.onmessage = async (e) => {
   /* Both sidecars for one primary, as the DSP's `attachEcgSidecars` opts. Absent ones stay null, so
      a drop without either hands the parser an object it treats as the 1-arg call it always was. */
   function _sidecarsFor(primaryName) {
-    return { runsText: _pickSidecarFor(_runsFiles, primaryName), seamsText: _pickSidecarFor(_seamsFiles, primaryName) };
+    /* `name` rides with the two sidecar texts because the DSP decides WHICH WRITER produced the
+       recording from the filename and nothing else: the capture host and the vendor app write the
+       same ECG header byte for byte, so the quality table's sidecar ledger cannot tell a box capture
+       with no companion (`absent`) from a vendor export that can never have one (`not-applicable`)
+       unless this name reaches it. Dropping it leaves the browser claiming the box wrote nothing. */
+    return { runsText: _pickSidecarFor(_runsFiles, primaryName), seamsText: _pickSidecarFor(_seamsFiles, primaryName), name: primaryName || '' };
   }
 
   function loadECGFile(files) {
@@ -204,7 +209,12 @@ self.onmessage = async (e) => {
             firstRelMs: t.firstRelMs,
             lastRelMs: t.lastRelMs,
             deviceEpoch: t.deviceEpoch,
-            hostAxis: t.hostAxis
+            hostAxis: t.hostAxis,
+            /* §3d's drift profile. THIS LANE IS A SECOND RESHAPE of the same resolver product, so a
+               field added there is inert here until it is named — the trap the headless copy's own
+               comment records. Without this line the browser would draw an empty drift row while the
+               headless export carried the measurement. */
+            driftProfile: t.driftProfile
           };
           /* …and the validity sidecars this drop paired. THIS ROAD HAD NEITHER until 2026-11-05:
              the rec above is hand-built from the worker's scan and never passes through
@@ -239,7 +249,10 @@ self.onmessage = async (e) => {
         /* The opts are SPELLED OUT here rather than handed over as `_sc`, because done-when 4's
            ratchet reads the guarded ternary's own argument list: an opts object built elsewhere
            reads to it as a parser called with no sidecar at all, which is the defect it counts. */
-        runPipeline(_sc.runsText || _sc.seamsText ? DSP.parseECG(e.target.result, { runsText: _sc.runsText, seamsText: _sc.seamsText }) : DSP.parseECG(e.target.result), file.name);
+        runPipeline(
+          _sc.runsText || _sc.seamsText ? DSP.parseECG(e.target.result, { runsText: _sc.runsText, seamsText: _sc.seamsText, name: file.name }) : DSP.parseECG(e.target.result, { name: file.name }),
+          file.name
+        );
       };
       fr.readAsText(file);
     }
