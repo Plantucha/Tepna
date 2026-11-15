@@ -3365,6 +3365,18 @@
    },
    "note": "THE ADOPTED WRITE-ROOT AND JUDGE-ROOT SETS, NAMED (brief WRITE-ROOT-ADOPTION \u00a74 and \u00a76.5): criterion undeclared_or_dropped_sites lte 0 over every tools/*.mjs, comment-blanked, against the two shapes the brief published as greps. A candidate in no row, an adopter with no row, an adopted row that calls no wrapper, a stale row and a de-adoption since the merge base each red with its own remedy. The shape is not the exposure, so an adopter is subtracted BY NAME. A cross-checkout run refuses with one NOT_RUN object and exit 2; with no manifest at the merge base the result says ratchet unexamined."
   },
+  "tools/write-targets.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/write-targets.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "THE WRITE-TARGET CENSUS BEHIND THE READINGS (brief WRITE-ROOT-ADOPTION \u00a73): it classifies HOW each named tool builds the path it writes, over comment-blanked source, so a reading rests on a measured class rather than on a literal-target grep that resolved nothing for 49 of 52 tools. The criterion is a CONTROL, not the census: census_classes_contradicting_the_adopted_reading lte 0 over the hand-authored `reading` of every adopted row, which is the one population with an independent answer. An adopted row whose site still builds its own root, or that holds no guarded site, or that names a path this scan never resolved, each contradicts and names the line. A row the control cannot cross-check is EXCLUDED BY NAME with its reason in `result.unexaminable`, so a smaller checked count never reads as agreement; the guard of `tools/repo-map.mjs` sits on its `--write` dispatch rather than at the write site, which this scan cannot reach. The real run is `--control` (one object over the tracked tools, corpus-free); `--verdict-sample` is the shape over the planted fixture and scans nothing."
+  },
   "tools/wt-done.mjs": {
    "bin": "word-only",
    "status": "exempt",

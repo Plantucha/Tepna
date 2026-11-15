@@ -48,6 +48,12 @@
  *   node tools/nsrr-effort-typing.mjs --selftest
  *   node tools/nsrr-effort-typing.mjs --limit 200 [--edfs <dir>] [--xml <dir>]
  */
+// THE WRITE-ROOT READING (brief WRITE-ROOT-ADOPTION-2026-11-03 §3, exempt arm). This tool writes no
+// product. Its one `writeFileSync` call sits in the selftest, which plants four filename fixtures in a
+// `mkdtempSync(tmpdir())` directory and removes it. Nothing it writes lands under a checkout, so no
+// root exists for a wrapper to resolve. `ROOT` from `import.meta.url` stays a read here, and a read
+// keeps its own reach by design.
+
 import { readFileSync, readdirSync, existsSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';

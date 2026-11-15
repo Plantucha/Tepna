@@ -30,6 +30,11 @@
      "wrapper": "writeRootOrDie",
      "reading": "it stamps five tracked files \u2014 `suite.manifest.json`, `CITATION.cff`, `RELEASE-MANIFEST.json`, `CHANGELOG.md` and `README.md` \u2014 and unlinks every consumed changeset, so a cross-checkout run cuts a release in a tree nobody named; `release-land.mjs` runs the stamp as a relative path under the worktree\u2019s own cwd, so both call sites already agree; a `--status` report reads a state file and writes no tracked artifact, so the guard sits on the stamp and `--full` branches only"
     },
+    "tools/repo-map.mjs": {
+     "since": "2026-11-15",
+     "wrapper": "writeRootOrDie",
+     "reading": "`--write` puts the shared repo map in the git common dir of ONE checkout and `doc-search` never rebuilds it, so a run by absolute path from another checkout left the caller’s own tree answering from a stale map at exit 0; the guard sits on the `--write` branch alone, and `writeMap` keeps its injected `root` so the selftest still writes under `mkdtemp`"
+    },
     "tools/sync-docs-index.mjs": {
      "since": "2026-11-14",
      "wrapper": "writeRootOrDie",
@@ -47,9 +52,13 @@
     }
    },
    "exempt": {
+    "tools/consensus-polarity-wiring.mjs": "both writes sit in its selftest, which makes one `mkdtempSync(tmpdir())` sandbox, plants a file and a broken symlink inside it and removes it; the tool writes no tracked artifact, writes nothing under any checkout, and calls no write wrapper",
+    "tools/nsrr-effort-typing.mjs": "its one write plants four filename fixtures in a selftest `mkdtempSync(tmpdir())` directory, so the write regex reads its own test data; it writes no tracked artifact and calls no write wrapper",
+    "tools/pr-compliance.mjs": "both writes build a two-changeset fixture repo inside a selftest `mkdtempSync(tmpdir())` directory, so the write regex reads its own test data; the gate writes no tracked artifact and calls no write wrapper",
     "tools/read-ref-drift.mjs": "both write calls sit in its selftest, which builds a two-clone git fixture under mkdtemp and removes it; the tool writes no tracked artifact, writes nothing under any checkout, and calls no write wrapper",
     "tools/ste-lint.mjs": "its one write builds a `docs/GLOSSARY.md` fixture inside a selftest `mkdtempSync(tmpdir())` directory, so the write regex reads its own test data; it writes no tracked artifact and calls no write wrapper",
-    "tools/write-root-adoption.mjs": "its selftests plant both shapes as fixture strings, so the write regexes read its own test data; it writes no tracked artifact and calls no write wrapper"
+    "tools/write-root-adoption.mjs": "its selftests plant both shapes as fixture strings, so the write regexes read its own test data; it writes no tracked artifact and calls no write wrapper",
+    "tools/write-targets.mjs": "every write call and every wrapper name in it is a fixture string in `PLANT` or a detection regex, so both shapes read the tool’s own test data; the census prints to stdout, writes no tracked artifact, and calls no write wrapper"
    },
    "pending": [
     "tools/analysis-rerun.mjs",
@@ -58,7 +67,6 @@
     "tools/brief-header-claims.mjs",
     "tools/build-analysis.mjs",
     "tools/build-docs.mjs",
-    "tools/consensus-polarity-wiring.mjs",
     "tools/corpus-census.mjs",
     "tools/cvhr-edge-widen.mjs",
     "tools/defect-bench.mjs",
@@ -75,7 +83,6 @@
     "tools/mutation-excused-rate.mjs",
     "tools/mutation-suite.mjs",
     "tools/nsrr-criterion-sweep.mjs",
-    "tools/nsrr-effort-typing.mjs",
     "tools/nsrr-oxydex-odi.mjs",
     "tools/nsrr-score-pool.mjs",
     "tools/paper-claim-markers.mjs",
@@ -85,11 +92,9 @@
     "tools/pin-coverage.mjs",
     "tools/ppg-foot-residual-sweep.mjs",
     "tools/ppi-jitter-vs-ecg.mjs",
-    "tools/pr-compliance.mjs",
     "tools/probe-equivalence.mjs",
     "tools/reanchor-equivalence.mjs",
     "tools/release-land.mjs",
-    "tools/repo-map.mjs",
     "tools/ring-offset-census.mjs",
     "tools/ring-rate-cause.mjs",
     "tools/sidecar-census.mjs",
