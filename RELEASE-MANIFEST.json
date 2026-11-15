@@ -1886,6 +1886,36 @@
         "WRITE-ROOT-ADOPTION-2026-11-03-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.33.0",
+      "date": "2026-11-15",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "8f303396465b",
+        "OxyDex": "cf0e915d08d0",
+        "PulseDex": "03f92a9fd584",
+        "GlucoDex": "90488c7ab314",
+        "PpgDex": "924efa606f28",
+        "HRVDex": "b5f219bbe863",
+        "CPAPDex": "d1377cded53b",
+        "Integrator": "0cc9ca3cd010",
+        "MotionDex": "f12892fd59d8",
+        "EEGDex": "c80915320196"
+      },
+      "briefs": [
+        "INTEGRATOR-SURFACE-2026-10-11-BRIEF.md",
+        "CROSS-DOMAIN-METHODS-FOLLOWUPS-2026-08-14-BRIEF.md",
+        "SIGNAL-QUALITY-TABLE-2026-11-14-BRIEF.md",
+        "WRITE-ROOT-ADOPTION-2026-11-03-BRIEF.md",
+        "PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md",
+        "EEGDEX-BUILD-BRIEF.md",
+        "MUSE-ATHENA-PROTOCOL-2026-11-14-BRIEF.md",
+        "PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md",
+        "JS-MUTATION-LANE-CI-COST-2026-10-20-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }

@@ -30,6 +30,154 @@ changesets.)
 
 ---
 
+## [2.33.0] — 2026-11-15
+
+### Added
+- Gate every bus `conf` constant a DSP publishes on a provenance line, at the point a branch adds one.
+- Judge the `fusion.clockSkew` subtree at depth 2, from its inline literal and its app-layer reader. (`INTEGRATOR-SURFACE-2026-10-11-BRIEF.md`)
+- Judge the first nested subtree of the Integrator export, `fusion.apnea`, at depth 2. (`INTEGRATOR-SURFACE-2026-10-11-BRIEF.md`)
+- Quote the naming commit's own fate sentence beside each lead row in `node tools/residue-ids.mjs --open`. The tool already counted 19 of the 28 OPEN rows that a later code commit names. It then told a picker to read those PRs. A hand read of the 18 leads on 2026-11-12 found every one of them stating the row's fate in the naming commit's body. That read closed no row, at a cost of about ten turns of PR reads.
+- Add `tools/read-ref-drift.mjs`. It holds the paths a code census read against the ref. It names the censused tree's distance beside the answer.
+- Route the blind-analysis protocol to every diff that touches a declared detector, and refuse a detector definition that neither declared set names. (`CROSS-DOMAIN-METHODS-FOLLOWUPS-2026-08-14-BRIEF.md`)
+- Judge the Integrator export subtree `fusion.handshakes` at depth 2 and one level inside it. The gate now reads an object literal that opens and closes on one line. (`INTEGRATOR-SURFACE-2026-10-11-BRIEF.md`)
+- Judge the Integrator export subtree `fusion.kernel` at depth 2. The gate now reads a guard that holds its consequent literal on one line. (`INTEGRATOR-SURFACE-2026-10-11-BRIEF.md`)
+- Judge the twelve keys of the Integrator export's `apneaTyping` subtree over its two export routes. (`INTEGRATOR-SURFACE-2026-10-11-BRIEF.md`)
+- Judge the eleven keys of the Integrator export's `findings` array, and stop the alias reader from crediting a child subtree's element read against its parent. (`INTEGRATOR-SURFACE-2026-10-11-BRIEF.md`)
+- Judge the six keys of the Integrator export's `schema` subtree, and the seven keys of the `method` object one level inside it. (`INTEGRATOR-SURFACE-2026-10-11-BRIEF.md`)
+- Judge the twelve keys of the Integrator export's `window` subtree over BOTH export routes, and report every realm's alias sites. (`INTEGRATOR-SURFACE-2026-10-11-BRIEF.md`)
+- Judge the Integrator export subtree `fusion.unmatched` at depth 2, with an element shape for each of its two array pools. (`INTEGRATOR-SURFACE-2026-10-11-BRIEF.md`)
+- Judge the `clockSkew.findings` element shape from its two push sites, and count an indexed-loop element read that the surface gate could not see. (`INTEGRATOR-SURFACE-2026-10-11-BRIEF.md`)
+- Judge the `vetoes` and `seamCensus` element shapes, union the keys each build route writes, and credit an element key an indexed loop reads. (`INTEGRATOR-SURFACE-2026-10-11-BRIEF.md`)
+- Mark an OPEN residue row whose naming commit reserves the remainder for the owner, and quote the section title with the sentence under it.
+- Add the per-channel signal-quality table to the ECGDex rich export, as `signalQuality`. (`SIGNAL-QUALITY-TABLE-2026-11-14-BRIEF.md`)
+- Range the inner object literals of a `builtBy` Integrator subtree inside its builder. The surface gate's census now ranges 7 of 10 subtrees and not 5. It names 4 inner literals in `fusion.apnea` that no layer declares, and it keeps naming the 3 subtrees it cannot range. (`INTEGRATOR-SURFACE-2026-10-11-BRIEF.md`)
+- Count the Integrator element keys the surface gate already judged, so the verdict reports 148 keys and not 108. Each opt-in layer of the gate now publishes its own denominator. It names an inner literal that no declaration carries, the subtrees it cannot range, and a key whose literal neither layer reads. (`INTEGRATOR-SURFACE-2026-10-11-BRIEF.md`)
+- Anchor the Integrator surface gate's inner layer on a builder return literal, and declare the 17 inner keys of `fusion.apnea`. A `builtBy` subtree writes no `apnea: {` line, so every inner declaration on one refused. The gate now judges 165 keys. (`INTEGRATOR-SURFACE-2026-10-11-BRIEF.md`)
+- Compute the probe reach over the argv abstention column, which a reader typed by hand.
+- Draw five badged EEGDex night charts, and keep the new per-epoch spectrum out of the node-export.
+- Measure sleep architecture, sleep spindles, the overnight slow-wave decline and the spectral edge in EEGDex.
+- Give EEGDex its first known answer and the shared timing block its node-export never carried.
+- Ship EEGDex as the tenth provenance-gated bundle, with an overnight synthetic simulator that returns its own ground-truth hypnogram. (`EEGDEX-BUILD-BRIEF.md`)
+- EEGDex reads an EEG channel out of the capture daemon's raw notification frames, and writes NaN where a lost frame took samples. (`EEGDEX-BUILD-BRIEF.md`)
+- Declare the Integrator `cvhrCorroboration` subtree and its corroborator element layer, so the surface gate judges 16 more keys.
+- Census the 25 Integrator export keys that hold no shape layer, red an undeclared inline literal, and declare the four keys of `matchWindow`. (`INTEGRATOR-SURFACE-2026-10-11-BRIEF.md`)
+- Declare the Integrator `hrvResource` and `pulseCrossCheck` export subtrees, so the surface gate judges 27 more keys.
+- Judge the Integrator `fusion.pairs` export array and the eight keys of one element, so the surface gate checks 248 keys rather than 239. The gate gains a fifth shape source, `pushedBy`, for an array a function pushes into and the export ships by its bare name. `arrayOf: true` alone needed a `.map(` projection, which this array does not have, so no form could read it.
+- Measure which tree each judge-arm tool hands its child, and exempt the twelve that ask only for a commit stamp. (`WRITE-ROOT-ADOPTION-2026-11-03-BRIEF.md`)
+- Add a pure Muse S Athena packet tokeniser to capture-host, with each wire fact measured from our own capture. (`MUSE-ATHENA-PROTOCOL-2026-11-14-BRIEF.md`)
+- Record the Muse S Athena natively in the capture daemon, with raw frames, counter gaps, clock seams and battery. (`MUSE-ATHENA-PROTOCOL-2026-11-14-BRIEF.md`)
+- Ship EEGDex on the public site with an authored reference guide graded from its generated registry.
+- Serve MotionDex and its reference guide on the public site, which the `deploy: false` row held back.
+- Publish the ECGDex epoch population with its value before the sidecars applied, the named drift reference, and the writer the filename names. (`SIGNAL-QUALITY-TABLE-2026-11-14-BRIEF.md`)
+- Add `tools/suite-determinism.mjs`. The tool runs one test selector repeatedly over an unchanged tree. It reds when the result sets disagree, and it reads NOT_RUN when the selector matched no group. `boundedChild` now carries a failing child's partial output, because a reader that discards it turns every failure into one empty answer. (`JS-MUTATION-LANE-CI-COST-2026-10-20-BRIEF.md`)
+- Classify how each writing tool builds the path it writes, and record four more write-root readings. (`WRITE-ROOT-ADOPTION-2026-11-03-BRIEF.md`)
+
+### Changed
+- Judge the Integrator's top-level keys against two declared reader realms, and correct the two cells that called a visible banner export-only. (`INTEGRATOR-SURFACE-2026-10-11-BRIEF.md`)
+- Judge `fusion.kernelAudit`, the third nested Integrator subtree, in three declared reader realms. OverDex reads one of its keys through the whole path and draws a reader-facing banner from it. So the gate credits a read that binds no alias. It also reads a return object that closes on one line. (`INTEGRATOR-SURFACE-2026-10-11-BRIEF.md`)
+- Lower the `xss-sink-gate` whole-tree baseline from 207 to the 206 the tree holds. One sink left `pat-feasibility.js` under #4954, which replaced an `innerHTML` assignment with a text node. This changeset moves the number alone, and the gate's code, criterion and ALLOW table stay put.
+- State that the shared CVHR gap cut aligns the two nodes' definitions and never makes their indices agree.
+- Judge the array element shape of the Integrator kernel audit, and count every unjudged element read. (`INTEGRATOR-SURFACE-2026-10-11-BRIEF.md`)
+- Resolve the judged checkout through `judgeRoot` in four gate-chain tools, so each one refuses a cross-checkout run with one NOT_RUN verdict. (`WRITE-ROOT-ADOPTION-2026-11-03-BRIEF.md`)
+- Resolve the write tree through `writeRootOrDie` in four tools that write a tracked path, so a cross-checkout run refuses rather than writing another tree. (`WRITE-ROOT-ADOPTION-2026-11-03-BRIEF.md`)
+- Give `tools/suite-determinism.mjs` a second selector and a power floor. It can now repeat any command, not only one test group. A caller states the event rate it wants to see, and agreement over fewer legs than that rate needs reads UNDERPOWERED with the floor named. A `--cmd` caller also declares the units its command must report, because this tool cannot infer the population of a command it does not know.
+- Declare the Integrator `autoGly` export subtree and the element layer of its `pairs` array, so the surface gate judges 14 more keys.
+- Follow each shape-blind Integrator key to the variable it names, so the gate states a reason per key. Judge `hrSource` through a new `localVar` shape source.
+- Refuse a release stamp and a verdict-adoption rewrite that would land in a checkout the caller never named. (`WRITE-ROOT-ADOPTION-2026-11-03-BRIEF.md`)
+
+### Fixed
+- Place three listed sources at the statements they support in the cgm-hrv-coupling paper, and shrink the uninvoked-reference baseline by three.
+- Point the two local `esc` helpers in `cpapdex-render.js` and `data-unifier-app.js` at the canonical `escapeHTML` in `dex-escape.js`. Each local copy escaped only `&`, `<` and `>`, so a value carrying a double quote closed the attribute it sat in. The sink gate held one selftest leg against the quote-blind body in `data-unifier-app.js`, and that leg now holds both files to the delegation arm instead.
+- Flatten the partial-escape detector regex in the suite, where a nested arm for a character class gave CodeQL two HIGH `js/redos` reports.
+- Read both of the Integrator's export routes in the surface gate. Its enumerator missed the `var _exp = {` slim-export literal. Ten keys reached the node-export with no declaration, and `confirmedApneaIndex` is one of them.
+- Resolve a record's declared destination against the tree, so the paper work list stops leading a reader to a record published in another page.
+- Retry a transient server error at the release chain's `push` and `pr` steps. One GitHub GraphQL error killed the v2.32.0 chain after it had committed and pushed. The timer then held on the unfinished run, so the cadence stopped until a person acted.
+- Escape a version through `escapeRe` in both release tools, where a dot-only escape reached a `new RegExp`. The suite now reds a partial escape that a RegExp reads in the same file.
+- Declare `recording.offsetSegments` in the export scrub allow-list, so a scrubbed PpgDex export keeps its per-segment offset detail.
+- Tokenize the overview reach test in the suite, where a `<!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
+
+# Changelog
+
+All notable changes to **Tepna — the Dex Suite** are recorded here. The format follows
+[Keep a Changelog](https://keepachangelog.com/), and the suite uses
+[Semantic Versioning](https://semver.org/) — one version number for the whole suite (the
+"maintenance number"). See `docs/COMPLIANCE/SOFTWARE-LIFECYCLE-PLAN.md` for what MAJOR / MINOR /
+PATCH mean against Tepna's published contracts, and `RELEASE-MANIFEST.json` for the machine-readable
+ledger this file is the human view of.
+
+> **How this file is maintained.** Do **not** hand-edit released sections. Each work-unit drops a
+> collision-free changeset in `changes/` (see `changes/README.md`); `tools/release.mjs` folds all
+> pending changesets into a new version section here, stamps `suite.manifest.json`, appends a
+> `RELEASE-MANIFEST.json` record, and prunes `changes/`. The `release-ledger` gate keeps this file,
+> the ledger, and the canonical version in agreement.
+
+> ⚠️ **Reconstructed history.** Everything **below 1.0.0** (waves `0.1.0`–`0.9.0`) is *reconstructed
+> from the DONE brief corpus* for provenance — those waves were **not** formally cut releases, and no
+> per-app `manifestHash` snapshot is claimed for them. Formal, ledger-backed releases begin at
+> **1.0.0**. Dates are the real brief execution dates.
+
+---
+
+-only escape of an extracted name reached a `new RegExp`. A token set needs no escape, and it also sees a `<!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
+
+# Changelog
+
+All notable changes to **Tepna — the Dex Suite** are recorded here. The format follows
+[Keep a Changelog](https://keepachangelog.com/), and the suite uses
+[Semantic Versioning](https://semver.org/) — one version number for the whole suite (the
+"maintenance number"). See `docs/COMPLIANCE/SOFTWARE-LIFECYCLE-PLAN.md` for what MAJOR / MINOR /
+PATCH mean against Tepna's published contracts, and `RELEASE-MANIFEST.json` for the machine-readable
+ledger this file is the human view of.
+
+> **How this file is maintained.** Do **not** hand-edit released sections. Each work-unit drops a
+> collision-free changeset in `changes/` (see `changes/README.md`); `tools/release.mjs` folds all
+> pending changesets into a new version section here, stamps `suite.manifest.json`, appends a
+> `RELEASE-MANIFEST.json` record, and prunes `changes/`. The `release-ledger` gate keeps this file,
+> the ledger, and the canonical version in agreement.
+
+> ⚠️ **Reconstructed history.** Everything **below 1.0.0** (waves `0.1.0`–`0.9.0`) is *reconstructed
+> from the DONE brief corpus* for provenance — those waves were **not** formally cut releases, and no
+> per-app `manifestHash` snapshot is claimed for them. Formal, ledger-backed releases begin at
+> **1.0.0**. Dates are the real brief execution dates.
+
+---
+
+-leading name that the word-boundary form missed.
+- Place four listed sources at the statements they support in the sensor-trio-nights paper, and shrink the uninvoked-reference baseline by four.
+- Withdraw a canonical escaper name from the sink gate's strip pattern in the file that shadows it. The gate credited `escapeHTML` and `esc` by name at every call site. So a file declaring a quote-blind local `esc` had its calls stripped out of their sinks, while the census reported the same name as unverified. The decision is static inside the one file the gate reads. A file that imports the canonical helper declares nothing and is untouched. The tree count holds at 206, so no baseline moves here.
+- Place five listed sources at the statements they support in the hrv-age-confound paper, and shrink the uninvoked-reference baseline by five.
+- Blank every span the JS scanner consumes, so each line number a gate prints is the raw file's own.
+- Warn in the Muse switch comment and the EEG how-to that the PyPI name `openmuse` holds an unrelated
+- Install the Muse S Athena recorder OpenMuse from its upstream repository, because the PyPI name holds an unrelated package.
+- Invoke the nine listed references the oximeter staging paper never named, and correct one entry's author order.
+- Time ECG R peaks on the H10's own counter in three more readers, through the one shared copy of that arithmetic.
+- Route the last four PPG-side ECG readers through the shared R-peak function on the historical linear axis.
+- Hold the three PAT readers on the historical linear axis, and route pat-three-corner's flag through the shared function.
+- Name the folder that holds the night reports in the QC digest and the gap alert, not the folder the poller judged.
+- Invoke the nine references the reference-free sigma paper listed but never named in its body.
+- Track the udev rule and the systemd drop-in that reattach a replugged Zephyr radio board, and check both for drift.
+- Skip YAML and shell comments when the capture-host test reads the packages that CI installs inline.
+- Make the Integrator surface gate judge the checkout it was run from. A run from a second checkout printed `PASS` over 148 keys of a tree the caller never named. It now refuses with one `NOT_RUN` object at exit 2. (`WRITE-ROOT-ADOPTION-2026-11-03-BRIEF.md`)
+- Move the capture-host mypy ratchet into the `test` job's Python 3.14 leg. A type error now reds the required context `test (py3.14)`, where the advisory job it replaces held no merge. (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- Single-source the cross-checkout refusal reason in `tools/write-root.mjs`, so ten gates stop claiming two checkouts where the caller stands in none. (`WRITE-ROOT-ADOPTION-2026-11-03-BRIEF.md`)
+- Extend the absence-regression gate to the `t0Ms || 0` family, with its whole-tree ratchet now running in CI.
+- Name the breach when a bounded child does not answer, so a timeout no longer reads as an empty result.
+- Read the sourced-CLAIM markers under `docs/` and `audits/`, which the claim scan skipped.
+- Bound every `doc-search` embed, so a stalled embedder degrades to the token lane under a named reason instead of hanging.
+- Read a motion blank span by the two keys that every producer writes. The held-value share then stops reading 0 % over unread runs. (`SIGNAL-QUALITY-TABLE-2026-11-14-BRIEF.md`)
+- Refuse a linear fit, a hypoxic load and an SpO₂ drift over absent OxyDex input. Name the assumed age in the Karvonen zones.
+- GlucoDex now publishes null with a reason where it measured nothing. This covers six sites: the core panel, MAGE, LBGI and HBGI, the span tier, the 2 h meal delta and the excursion peak.
+- Repair two Integrator surface-gate readers that hid the `fusion.positional` subtree. (`INTEGRATOR-SURFACE-2026-10-11-BRIEF.md`)
+- Refuse a `killcheck` run whose checkout differs from the one that holds the tool, so a kill rate never describes another tree's source. (`WRITE-ROOT-ADOPTION-2026-11-03-BRIEF.md`)
+- Name an unreadable primary in the night-loss verdict, and report an unknown pull total as an absence.
+- Bound every `fetch` in `tools/` through one helper, so a stalled endpoint names itself instead of hanging a tool.
+- Refuse the OxyDex event metrics over absent input, in seven sites that read a hole as a measurement.
+- Report absence as null in the OxyDex research block, where nine members published a 0 over an unmeasured stream. A pulseless night read hrRange 0, split-night HR means of 0, a 0 bpm arousal and SampEn 0.0022. It also placed the circadian nadir at the exact midpoint of the night. A fully unread night added spo2Range 0 and t95BurdenScore 0.
+- Carry the `--ecg-axis` name a PAT tool asks for into the extractor, so `linear` stops computing on the counter axis. (`PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md`)
+- Refuse the PpgDex time-domain and Poincare metrics when the clean population is too small, instead of restoring the intervals the caller excluded.
+
+---
+
 ## [2.32.0] — 2026-11-12
 
 ### Added
@@ -4300,7 +4448,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.32.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.33.0...HEAD
+[2.33.0]: https://github.com/Plantucha/Tepna/compare/v2.32.0...v2.33.0
 [2.32.0]: https://github.com/Plantucha/Tepna/compare/v2.31.0...v2.32.0
 [2.31.0]: https://github.com/Plantucha/Tepna/compare/v2.30.0...v2.31.0
 [2.30.0]: https://github.com/Plantucha/Tepna/compare/v2.29.0...v2.30.0
