@@ -469,6 +469,7 @@ import './glucodex-profile.js';
     else if (r.tier === 'multi-day')
       notes =
         '<div class="ctx-note">Full TIR/TAR/TBR, MAGE, CONGA, GVP and dawn-phenomenon are valid at this length. AGP percentile bands shown but firm up at ≥14 days (international consensus).</div>';
+    else if (r.tier === 'unknown') notes = '<div class="ctx-note">⚠ Unknown span — the active duration was not measured, so no length tier applies. Read each metric with its own reading count.</div>';
     else notes = '<div class="ctx-note">≥14 days — the AGP reporting standard. Percentile envelope, MODD and a robust GMI are all on solid footing.</div>';
     /* §∅ — the refusal note LEADS the banner, so a withheld rate cannot hide behind the tier prose
        that a measured record shows. It is empty on a measured cadence, by construction. */
@@ -538,8 +539,8 @@ import './glucodex-profile.js';
         s: r.gvp == null ? 'neutral' : r.gvp < 20 ? 'ok' : r.gvp < 35 ? 'warn' : 'bad'
       },
       ...(r.modd != null ? [{ l: 'MODD', v: window.GluDisp.spread(r.modd), sub: window.GluDisp.label() + ' · day-to-day', s: r.modd < 40 ? 'ok' : r.modd < 60 ? 'warn' : 'bad' }] : []),
-      { l: 'LBGI', v: r.lbgi, sub: 'low-BG risk', s: r.lbgi < 2.5 ? 'ok' : r.lbgi < 5 ? 'warn' : 'bad' },
-      { l: 'HBGI', v: r.hbgi, sub: 'high-BG risk', s: r.hbgi < 4.5 ? 'ok' : r.hbgi < 9 ? 'warn' : 'bad' },
+      { l: 'LBGI', v: r.lbgi, sub: 'low-BG risk', s: r.lbgi == null ? 'neutral' : r.lbgi < 2.5 ? 'ok' : r.lbgi < 5 ? 'warn' : 'bad' },
+      { l: 'HBGI', v: r.hbgi, sub: 'high-BG risk', s: r.hbgi == null ? 'neutral' : r.hbgi < 4.5 ? 'ok' : r.hbgi < 9 ? 'warn' : 'bad' },
       ...(r.dawn.present ? [{ l: 'Dawn rise', v: '+' + window.GluDisp.val(r.dawn.medianDelta), sub: window.GluDisp.label() + ' · median', s: r.dawn.medianDelta < 30 ? 'warn' : 'bad' }] : []),
       ...(r.nocturnalHypo.length ? [{ l: 'Nocturnal hypo', v: r.nocturnalHypo.length, sub: 'episodes ' + window.GluDisp.cmp('<', 70), s: 'bad' }] : []),
       {
@@ -727,8 +728,8 @@ import './glucodex-profile.js';
       ${eb('MODD', window.GluDisp.spread(r.modd), window.GluDisp.label(), 'mean |day-to-day Δ|', r.modd == null ? 'neutral' : r.modd < 40 ? 'ok' : r.modd < 60 ? 'warn' : 'bad')}
       ${eb('GVP', r.gvp, '%', 'trace path-length', r.gvp == null ? 'neutral' : r.gvp < 20 ? 'ok' : r.gvp < 35 ? 'warn' : 'bad')}
       ${eb('J-index', r.jIndex, '', '0.001·(mean+SD)²', r.jIndex == null ? 'neutral' : r.jIndex < 30 ? 'ok' : r.jIndex < 45 ? 'warn' : 'bad')}
-      ${eb('LBGI', r.lbgi, '', 'Kovatchev low-risk', r.lbgi < 2.5 ? 'ok' : r.lbgi < 5 ? 'warn' : 'bad')}
-      ${eb('HBGI', r.hbgi, '', 'Kovatchev high-risk', r.hbgi < 4.5 ? 'ok' : r.hbgi < 9 ? 'warn' : 'bad')}
+      ${eb('LBGI', r.lbgi, '', 'Kovatchev low-risk', r.lbgi == null ? 'neutral' : r.lbgi < 2.5 ? 'ok' : r.lbgi < 5 ? 'warn' : 'bad')}
+      ${eb('HBGI', r.hbgi, '', 'Kovatchev high-risk', r.hbgi == null ? 'neutral' : r.hbgi < 4.5 ? 'ok' : r.hbgi < 9 ? 'warn' : 'bad')}
       ${eb('MAG', window.GluDisp.spread(r.magRate), window.GluDisp.label() + '/h', 'mean abs rate', r.magRate == null ? 'neutral' : r.magRate < 30 ? 'ok' : r.magRate < 55 ? 'warn' : 'bad')}
       ${eb('GRADE', r.grade ? r.grade.score : null, '', 'glycemic risk score', r.grade == null ? 'neutral' : r.grade.score < 5 ? 'ok' : r.grade.score < 10 ? 'warn' : 'bad')}
       ${eb('ADRR', r.adrr, '', 'avg daily risk range', r.adrr == null ? 'neutral' : r.adrr < 20 ? 'ok' : r.adrr < 40 ? 'warn' : 'bad')}
@@ -1174,9 +1175,10 @@ import './glucodex-profile.js';
          • UNCOMPUTED — `mage()` returns null for a record shorter than 4 turning points, and this
            same file renders that as '—' at L514/L702/L1388 while the export note says null means
            not computed. Here it silently became a mid-range 50.
-         • MEASURED ZERO — with no excursion above 1 SD, `mage()` returns `round(sd, 0)`, which for
-           a flat trace is 0. `0 || 50` then reported the LEAST variable trace possible as
-           mid-range variability, inverting the metric it was standing in for.
+         • NO EXCURSION — with no excursion above 1 SD, `mage()` once returned `round(sd, 0)`, which
+           for a flat trace is 0. `0 || 50` then reported the LEAST variable trace possible as
+           mid-range variability, inverting the metric it was standing in for. `mage()` now
+           returns null there, because no excursion means no mean to take.
        An absent term is dropped and the remaining weights renormalise over 0.65 — the shape
        `autoRisk` above already uses. When MAGE is present the arithmetic is byte-identical. */
     const mageR = r.mage != null ? clamp((r.mage - 40) / 80, 0, 1) : null;
@@ -1489,8 +1491,8 @@ import './glucodex-profile.js';
       ],
       ['GRADE', r.grade ? r.grade.score : '—', '—', '<5', r.grade == null ? 'neutral' : r.grade.score < 5 ? 'ok' : r.grade.score < 10 ? 'warn' : 'bad', 'Glycaemic risk score (Hill 2007)'],
       ['ADRR', r.adrr == null ? '—' : r.adrr, '—', '<20', r.adrr == null ? 'neutral' : r.adrr < 20 ? 'ok' : r.adrr < 40 ? 'warn' : 'bad', 'Average daily risk range (needs ≥2 d)'],
-      ['LBGI', r.lbgi, '—', '<2.5', r.lbgi < 2.5 ? 'ok' : r.lbgi < 5 ? 'warn' : 'bad', 'Kovatchev low-BG index'],
-      ['HBGI', r.hbgi, '—', '<4.5', r.hbgi < 4.5 ? 'ok' : r.hbgi < 9 ? 'warn' : 'bad', 'Kovatchev high-BG index'],
+      ['LBGI', r.lbgi, '—', '<2.5', r.lbgi == null ? 'neutral' : r.lbgi < 2.5 ? 'ok' : r.lbgi < 5 ? 'warn' : 'bad', 'Kovatchev low-BG index'],
+      ['HBGI', r.hbgi, '—', '<4.5', r.hbgi == null ? 'neutral' : r.hbgi < 4.5 ? 'ok' : r.hbgi < 9 ? 'warn' : 'bad', 'Kovatchev high-BG index'],
       ['— Patterns —', '', '', '', 'neutral', 'event-level → Ganglior'],
       [
         'Dawn phenomenon',

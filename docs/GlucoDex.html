@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="d3f38216ec2f" data-compute-hash="8a59f358cb6b">
+<html lang="en" data-manifest-hash="90488c7ab314" data-compute-hash="7fae74625d0a">
 <head>
 <!--
   GlucoDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Cv0u2I9YwZm5jvAom4gFQfIMWPy64JRPiXEm2o7elJ4=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-UvDbDts3+neURbz5qbvya/0mru+OeoZ1uY5iEk8wSUw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-g0wDhZcW8kcry/MJoQfpCIQKgTJgmfQ3Wekb8JHRMx8=' 'sha256-oH7lhnTrlkQhQ9f9PuKw7Wwq8UnyptMMWqHMeBGouU8=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-xeo/SvJn5pePZ1SM5sKHX3dRwul+yLMPUvGj5yOK8ns='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Cv0u2I9YwZm5jvAom4gFQfIMWPy64JRPiXEm2o7elJ4=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-NmhOOy1eWo1a0Q4a5IUaMOCr0RXVD8rVFdEBdP5AzUw=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-UvDbDts3+neURbz5qbvya/0mru+OeoZ1uY5iEk8wSUw=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-as6flH+WwzbgCufW5xOHusUzigtVz8zxyLQzBeBtxwc=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-xeo/SvJn5pePZ1SM5sKHX3dRwul+yLMPUvGj5yOK8ns='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>GlucoDex — Continuous Glucose Analyzer · v2.32.0</title>
@@ -8779,9 +8779,43 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   const TIR_CUT = { vlow: 54, low: 70, high: 180, vhigh: 250 }; // mg/dL consensus 2019
 
   function coreMetrics(vals) {
+    /* §∅ — the panel is computed over MEASURED readings only. The old body fed every entry to the
+       TIR loop (`null < 54` is true, so ten nulls read as 100 % time below range) and divided by
+       `vals.length || 1`, so zero readings published GMI 3.3 and eHbA1c 1.6 over n 1. A non-finite
+       entry is now dropped and counted in `nAbsent`; zero readings return a null panel with its
+       reason, and the spread needs two readings. */
+    const all = vals || [];
+    const meas = [];
+    for (let i = 0; i < all.length; i++) {
+      if (typeof all[i] === 'number' && Number.isFinite(all[i])) meas.push(all[i]);
+    }
+    const nAbsent = all.length - meas.length;
+    if (!meas.length) {
+      return {
+        mean: null,
+        sd: null,
+        cv: null,
+        gmi: null,
+        ea1c: null,
+        titr: null,
+        min: null,
+        max: null,
+        p10: null,
+        p25: null,
+        median: null,
+        p75: null,
+        p90: null,
+        tir: { tbr2: null, tbr1: null, tir: null, tar1: null, tar2: null },
+        tirN: { tbr2: 0, tbr1: 0, tir: 0, tar1: 0, tar2: 0 },
+        n: 0,
+        nAbsent,
+        reason: 'no-readings'
+      };
+    }
+    vals = meas;
     const m = mean(vals),
-      sd = std(vals, m);
-    const cv = m > 0 ? (sd / m) * 100 : 0;
+      sd = vals.length >= 2 ? std(vals, m) : null;
+    const cv = sd == null ? null : m > 0 ? (sd / m) * 100 : 0;
     const gmi = 3.31 + 0.02392 * m; // GMI % (lab-A1c proxy, NOT A1c)
     const ea1c = (m + 46.7) / 28.7; // ADAG eHbA1c %
     let tbr2 = 0,
@@ -8800,7 +8834,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     for (const g of vals) {
       if (g >= 70 && g <= 140) tight++;
     } // Time in Tight Range (2023 consensus addition)
-    const n = vals.length || 1;
+    const n = vals.length;
     const pct = (x) => +((x / n) * 100).toFixed(1);
     const sorted = [...vals].sort((a, b) => a - b);
     return {
@@ -8819,7 +8853,9 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       p90: round(quantile(sorted, 0.9), 0),
       tir: { tbr2: pct(tbr2), tbr1: pct(tbr1), tir: pct(tir), tar1: pct(tar1), tar2: pct(tar2) },
       tirN: { tbr2, tbr1, tir, tar1, tar2 },
-      n
+      n,
+      nAbsent,
+      reason: null
     };
   }
 
@@ -8852,7 +8888,9 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       const amp = Math.abs(v[tp[i]] - v[tp[i - 1]]);
       if (amp > sd) exc.push(amp);
     }
-    return exc.length ? round(mean(exc), 0) : round(sd, 0);
+    // §∅ — MAGE is the mean of the qualifying excursions. With none above 1 SD there is no mean to
+    // take, so the value is null; the old fallback published the SD itself under MAGE's name.
+    return exc.length ? round(mean(exc), 0) : null;
   }
 
   // CONGA(n hours): SD of (G(t) − G(t−n))
@@ -8925,7 +8963,8 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       else rh += r;
       n++;
     }
-    return { lbgi: round(n ? rl / n : 0, 1), hbgi: round(n ? rh / n : 0, 1) };
+    // §∅ — zero scorable readings carry no risk estimate; the old body published LBGI 0 and HBGI 0.
+    return { lbgi: n ? round(rl / n, 1) : null, hbgi: n ? round(rh / n, 1) : null };
   }
 
   function variability(c, ana, core) {
@@ -9042,11 +9081,13 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
             ttp = s.rel;
           }
         }
+        // §∅ — the +2 h value must sit near +2 h. Without the ±15 min bound a record that ends at
+        // +30 min published its +30 min reading as the 2 h delta.
         let v2 = null,
-          best = 1e9;
+          best = Infinity;
         for (const s of seq) {
           const dd = Math.abs(s.rel - 120);
-          if (dd < best) {
+          if (dd <= 15 && dd < best) {
             best = dd;
             v2 = s.v;
           }
@@ -9223,6 +9264,9 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       let peak = trough,
         peakI = i;
       for (let k = i; k <= maxAhead; k++) {
+        // §∅ — a non-analysable cell (a GAP_LONG interpolation, warm-up or compression) ends the
+        // window: the old scan read the drawn line across a long gap and could publish its peak.
+        if (!_ana(c, k)) break;
         if (c.gV[k] > peak) {
           peak = c.gV[k];
           peakI = k;
@@ -9303,16 +9347,19 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       }
       if (vals.length < 6) continue;
       const cm = coreMetrics(vals);
+      // §∅ — the day's count is its MEASURED readings; a day of fewer than 6 is skipped as before.
+      const { tbr1, tbr2, tar1, tar2 } = cm.tir;
+      if (cm.n < 6 || tbr1 == null || tbr2 == null || tar1 == null || tar2 == null) continue;
       out.push({
         day: k,
         startMs: c.gT[cells[0]],
-        n: vals.length,
+        n: cm.n,
         mean: cm.mean,
         cv: cm.cv,
         tir: cm.tir.tir,
         gmi: cm.gmi,
-        tbr: +(cm.tir.tbr1 + cm.tir.tbr2).toFixed(1),
-        tar: +(cm.tir.tar1 + cm.tir.tar2).toFixed(1)
+        tbr: +(tbr1 + tbr2).toFixed(1),
+        tar: +(tar1 + tar2).toFixed(1)
       });
     }
     return out.sort((a, b) => a.startMs - b.startMs);
@@ -9322,6 +9369,9 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   //  TIER GATING
   // ════════════════════════════════════════════════════════════════════════
   function tierOf(activeDays, pctActive) {
+    // §∅ — an unmeasured span has no tier. `null < 1` is true, so the old first line graded it 'Partial day'.
+    if (activeDays == null || !Number.isFinite(activeDays))
+      return { tier: 'unknown', label: 'Unknown span', msg: 'The active duration was not measured, so no length tier applies — read each metric with its own n' };
     if (activeDays < 1) return { tier: 'partial', label: 'Partial day', msg: '< 24 h · mean glucose · GMI · SD · CV · basic TIR valid — MODD & AGP bands need more days' };
     if (activeDays < 14)
       return {
@@ -10224,6 +10274,12 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     // PUBLISHED — so the app threw `GLUDSP.glucoCells is not a function` and ⬇ JSON downloaded
     // nothing, while glucoBuildNodeExport (which calls it in lexical scope) kept the gates green.
     glucoCells,
+    // exposed for the §∅ null-panel regression group (tests/dex-tests.js, "GlucoDex absence")
+    _mage: mage,
+    _bgRisk: bgRisk,
+    _tierOf: tierOf,
+    _postprandial: postprandial,
+    _excursions: excursions,
     _ckParse // exposed for the Clock Contract §2.7 range-validation regression gate
   };
   // ONE namespaced global (brief §1A). GlucoDex leaks nothing bare (whole DSP is in
@@ -13184,6 +13240,7 @@ __require('glucodex-profile.js');
     else if (r.tier === 'multi-day')
       notes =
         '<div class="ctx-note">Full TIR/TAR/TBR, MAGE, CONGA, GVP and dawn-phenomenon are valid at this length. AGP percentile bands shown but firm up at ≥14 days (international consensus).</div>';
+    else if (r.tier === 'unknown') notes = '<div class="ctx-note">⚠ Unknown span — the active duration was not measured, so no length tier applies. Read each metric with its own reading count.</div>';
     else notes = '<div class="ctx-note">≥14 days — the AGP reporting standard. Percentile envelope, MODD and a robust GMI are all on solid footing.</div>';
     /* §∅ — the refusal note LEADS the banner, so a withheld rate cannot hide behind the tier prose
        that a measured record shows. It is empty on a measured cadence, by construction. */
@@ -13253,8 +13310,8 @@ __require('glucodex-profile.js');
         s: r.gvp == null ? 'neutral' : r.gvp < 20 ? 'ok' : r.gvp < 35 ? 'warn' : 'bad'
       },
       ...(r.modd != null ? [{ l: 'MODD', v: window.GluDisp.spread(r.modd), sub: window.GluDisp.label() + ' · day-to-day', s: r.modd < 40 ? 'ok' : r.modd < 60 ? 'warn' : 'bad' }] : []),
-      { l: 'LBGI', v: r.lbgi, sub: 'low-BG risk', s: r.lbgi < 2.5 ? 'ok' : r.lbgi < 5 ? 'warn' : 'bad' },
-      { l: 'HBGI', v: r.hbgi, sub: 'high-BG risk', s: r.hbgi < 4.5 ? 'ok' : r.hbgi < 9 ? 'warn' : 'bad' },
+      { l: 'LBGI', v: r.lbgi, sub: 'low-BG risk', s: r.lbgi == null ? 'neutral' : r.lbgi < 2.5 ? 'ok' : r.lbgi < 5 ? 'warn' : 'bad' },
+      { l: 'HBGI', v: r.hbgi, sub: 'high-BG risk', s: r.hbgi == null ? 'neutral' : r.hbgi < 4.5 ? 'ok' : r.hbgi < 9 ? 'warn' : 'bad' },
       ...(r.dawn.present ? [{ l: 'Dawn rise', v: '+' + window.GluDisp.val(r.dawn.medianDelta), sub: window.GluDisp.label() + ' · median', s: r.dawn.medianDelta < 30 ? 'warn' : 'bad' }] : []),
       ...(r.nocturnalHypo.length ? [{ l: 'Nocturnal hypo', v: r.nocturnalHypo.length, sub: 'episodes ' + window.GluDisp.cmp('<', 70), s: 'bad' }] : []),
       {
@@ -13442,8 +13499,8 @@ __require('glucodex-profile.js');
       ${eb('MODD', window.GluDisp.spread(r.modd), window.GluDisp.label(), 'mean |day-to-day Δ|', r.modd == null ? 'neutral' : r.modd < 40 ? 'ok' : r.modd < 60 ? 'warn' : 'bad')}
       ${eb('GVP', r.gvp, '%', 'trace path-length', r.gvp == null ? 'neutral' : r.gvp < 20 ? 'ok' : r.gvp < 35 ? 'warn' : 'bad')}
       ${eb('J-index', r.jIndex, '', '0.001·(mean+SD)²', r.jIndex == null ? 'neutral' : r.jIndex < 30 ? 'ok' : r.jIndex < 45 ? 'warn' : 'bad')}
-      ${eb('LBGI', r.lbgi, '', 'Kovatchev low-risk', r.lbgi < 2.5 ? 'ok' : r.lbgi < 5 ? 'warn' : 'bad')}
-      ${eb('HBGI', r.hbgi, '', 'Kovatchev high-risk', r.hbgi < 4.5 ? 'ok' : r.hbgi < 9 ? 'warn' : 'bad')}
+      ${eb('LBGI', r.lbgi, '', 'Kovatchev low-risk', r.lbgi == null ? 'neutral' : r.lbgi < 2.5 ? 'ok' : r.lbgi < 5 ? 'warn' : 'bad')}
+      ${eb('HBGI', r.hbgi, '', 'Kovatchev high-risk', r.hbgi == null ? 'neutral' : r.hbgi < 4.5 ? 'ok' : r.hbgi < 9 ? 'warn' : 'bad')}
       ${eb('MAG', window.GluDisp.spread(r.magRate), window.GluDisp.label() + '/h', 'mean abs rate', r.magRate == null ? 'neutral' : r.magRate < 30 ? 'ok' : r.magRate < 55 ? 'warn' : 'bad')}
       ${eb('GRADE', r.grade ? r.grade.score : null, '', 'glycemic risk score', r.grade == null ? 'neutral' : r.grade.score < 5 ? 'ok' : r.grade.score < 10 ? 'warn' : 'bad')}
       ${eb('ADRR', r.adrr, '', 'avg daily risk range', r.adrr == null ? 'neutral' : r.adrr < 20 ? 'ok' : r.adrr < 40 ? 'warn' : 'bad')}
@@ -13889,9 +13946,10 @@ __require('glucodex-profile.js');
          • UNCOMPUTED — `mage()` returns null for a record shorter than 4 turning points, and this
            same file renders that as '—' at L514/L702/L1388 while the export note says null means
            not computed. Here it silently became a mid-range 50.
-         • MEASURED ZERO — with no excursion above 1 SD, `mage()` returns `round(sd, 0)`, which for
-           a flat trace is 0. `0 || 50` then reported the LEAST variable trace possible as
-           mid-range variability, inverting the metric it was standing in for.
+         • NO EXCURSION — with no excursion above 1 SD, `mage()` once returned `round(sd, 0)`, which
+           for a flat trace is 0. `0 || 50` then reported the LEAST variable trace possible as
+           mid-range variability, inverting the metric it was standing in for. `mage()` now
+           returns null there, because no excursion means no mean to take.
        An absent term is dropped and the remaining weights renormalise over 0.65 — the shape
        `autoRisk` above already uses. When MAGE is present the arithmetic is byte-identical. */
     const mageR = r.mage != null ? clamp((r.mage - 40) / 80, 0, 1) : null;
@@ -14204,8 +14262,8 @@ __require('glucodex-profile.js');
       ],
       ['GRADE', r.grade ? r.grade.score : '—', '—', '<5', r.grade == null ? 'neutral' : r.grade.score < 5 ? 'ok' : r.grade.score < 10 ? 'warn' : 'bad', 'Glycaemic risk score (Hill 2007)'],
       ['ADRR', r.adrr == null ? '—' : r.adrr, '—', '<20', r.adrr == null ? 'neutral' : r.adrr < 20 ? 'ok' : r.adrr < 40 ? 'warn' : 'bad', 'Average daily risk range (needs ≥2 d)'],
-      ['LBGI', r.lbgi, '—', '<2.5', r.lbgi < 2.5 ? 'ok' : r.lbgi < 5 ? 'warn' : 'bad', 'Kovatchev low-BG index'],
-      ['HBGI', r.hbgi, '—', '<4.5', r.hbgi < 4.5 ? 'ok' : r.hbgi < 9 ? 'warn' : 'bad', 'Kovatchev high-BG index'],
+      ['LBGI', r.lbgi, '—', '<2.5', r.lbgi == null ? 'neutral' : r.lbgi < 2.5 ? 'ok' : r.lbgi < 5 ? 'warn' : 'bad', 'Kovatchev low-BG index'],
+      ['HBGI', r.hbgi, '—', '<4.5', r.hbgi == null ? 'neutral' : r.hbgi < 4.5 ? 'ok' : r.hbgi < 9 ? 'warn' : 'bad', 'Kovatchev high-BG index'],
       ['— Patterns —', '', '', '', 'neutral', 'event-level → Ganglior'],
       [
         'Dawn phenomenon',

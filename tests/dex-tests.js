@@ -41245,7 +41245,7 @@
         out = G.detectClampSaturation([1, 2, 3]);
         T.eq('G.detectClampSaturation([1,2,3]) → "null"', JSON.stringify(out.floor), 'null');
         out = G.coreMetrics('');
-        T.eq('G.coreMetrics("") → "0"', JSON.stringify(out.cv), '0');
+        T.eq('G.coreMetrics("") → "null" (zero readings carry no spread — §∅)', JSON.stringify(out.cv), 'null');
         out = G.coreMetrics([0, 0, 0], [0]);
         T.eq('G.coreMetrics([0,0,0],[0]) → "0"', JSON.stringify(out.cv), '0');
         out = G.coreMetrics([100, 150, 200, 250, 300], [100, 150, 200, 250, 300]);
@@ -41274,6 +41274,80 @@
         });
       }
     );
+
+    /* ── §∅ GLUCODEX ABSENCE — an empty or unmeasured input publishes null with its reason ──
+       Muse's null and zero audit (pin 645dd45ec) found six GlucoDex sites that turned absence into a
+       number. Each leg below pins one of them on the function itself, because `analyze` guards the
+       path and the exported surface does not. */
+    group('GlucoDex absence — coreMetrics, mage, bgRisk, tierOf, postprandial and excursions publish null over nothing measured', 'glucodex-dsp · absence · known-answer', function (T) {
+      var G = env.GLUDSP || (env.GlucoDex && env.GlucoDex._bare) || env.GlucoDex;
+      if (!G || typeof G._mage !== 'function') {
+        T.skip('GLUDSP absence hooks available', 'GlucoDex not co-loaded in this runner');
+        return;
+      }
+      var z = G.coreMetrics([]);
+      T.eq('coreMetrics([]) publishes no GMI (it read 3.3 over n 1)', JSON.stringify(z.gmi), 'null');
+      T.eq('coreMetrics([]) publishes no eHbA1c (it read 1.6)', JSON.stringify(z.ea1c), 'null');
+      T.eq('coreMetrics([]) counts n as 0, never 1', z.n, 0);
+      T.eq('coreMetrics([]) names its reason', z.reason, 'no-readings');
+      var nulls = [null, null, null, null, null, null, null, null, null, null];
+      var zn = G.coreMetrics(nulls);
+      T.eq('ten nulls are NOT 100 % time below range (null < 54 is true)', JSON.stringify(zn.tir.tbr2), 'null');
+      T.eq('ten nulls are counted as absent', zn.nAbsent, 10);
+      var mix = G.coreMetrics([100, null, 120, null, 140]);
+      T.eq('a mixed panel counts only the measured readings', mix.n, 3);
+      T.eq('a mixed panel reads 0 % below range, not 40 %', mix.tir.tbr2 + mix.tir.tbr1, 0);
+      T.eq('a mixed panel mean is over the measured three', mix.mean, 120);
+      T.eq('one reading has no SD', JSON.stringify(G.coreMetrics([110]).sd), 'null');
+
+      T.eq('mage with no excursion above 1 SD is null, not the SD itself', JSON.stringify(G._mage([100, 101, 100, 101, 100, 101], 30)), 'null');
+      T.eq('mage with qualifying excursions still reads them', G._mage([100, 160, 100, 160, 100], 30), 60);
+
+      var r0 = G._bgRisk([]);
+      T.eq('bgRisk over zero readings has no LBGI', JSON.stringify(r0.lbgi), 'null');
+      T.eq('bgRisk over zero readings has no HBGI', JSON.stringify(r0.hbgi), 'null');
+      var r1 = G._bgRisk([60, 80, 100, 250]);
+      T.ok('bgRisk over real readings still scores', r1.lbgi > 0 && r1.hbgi > 0, JSON.stringify(r1));
+
+      T.eq('tierOf(null) is unknown, not "Partial day"', G._tierOf(null).tier, 'unknown');
+      T.eq('tierOf(0.5) is still partial', G._tierOf(0.5).tier, 'partial');
+      T.eq('tierOf(20) is still agp', G._tierOf(20).tier, 'agp');
+
+      var FLAG = { OK: 0, WARMUP: 1, GAP: 2, COMPRESSION: 3, GAP_LONG: 4 };
+      var t0 = Date.UTC(2026, 0, 1, 11, 30);
+      var c = { N: 0, gT: [], gV: [], gF: [], FLAG: FLAG, cadence: 5 };
+      for (var k = 0; k <= 12; k++) {
+        c.gT.push(t0 + k * 300000);
+        c.gV.push(k < 6 ? 100 : 100 + (k - 5) * 12);
+        c.gF.push(FLAG.OK);
+      }
+      c.N = c.gT.length;
+      var pp = G._postprandial(c, [{ label: 'Lunch', category: 'lunch', minOfDay: 720 }]);
+      T.ok('postprandial still measures the peak of a record that ends at +30 min', !!(pp && pp[0] && pp[0].peakDelta > 0), JSON.stringify(pp));
+      T.eq('a record that ends at +30 min has no 2 h delta (it published the +30 min value)', JSON.stringify(pp && pp[0] && pp[0].delta2h), 'null');
+
+      var e = { N: 0, gT: [], gV: [], gF: [], FLAG: FLAG, cadence: 5 };
+      for (var j = 0; j < 50; j++) {
+        e.gT.push(t0 + j * 300000);
+        if (j < 10) {
+          e.gV.push(100);
+          e.gF.push(FLAG.OK);
+        } else if (j <= 30) {
+          e.gV.push(100 + (j - 9) * 7.5);
+          e.gF.push(FLAG.GAP_LONG);
+        } else {
+          e.gV.push(120);
+          e.gF.push(FLAG.OK);
+        }
+      }
+      e.N = e.gT.length;
+      var ex = G._excursions(e, null);
+      var onGap = ex.filter(function (v) {
+        var pi = e.gT.indexOf(v.peakMs);
+        return pi >= 0 && e.gF[pi] === FLAG.GAP_LONG;
+      });
+      T.eq('no excursion peak sits on a GAP_LONG interpolated cell', onGap.length, 0);
+    });
 
     /* ── THE TIME-IN-RANGE BAND EDGES ARE PINNED, NOT ASSUMED ──
        `TIR_CUT` in `glucodex-dsp.js` holds the 2019 consensus cut-points (Battelino 2019, Diabetes
