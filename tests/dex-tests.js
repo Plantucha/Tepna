@@ -43824,7 +43824,9 @@
     });
 
     group('∅ CPAPDex AHI-by-hour — an event with no time has no hour', 'cpapdex-dsp · cpapdex-render · absence', function (T) {
-      var CR = env.CpapRender;
+      /* The browser env leaves CpapRender unset on purpose (its canvas groups are node-lane only), but this
+         helper is pure, so read the page global the suite already evaluated and pin it in both lanes. */
+      var CR = env.CpapRender || (typeof window !== 'undefined' ? window.CpapRender : null);
       if (!CR || typeof CR.ahiByHourBuckets !== 'function') {
         T.skip('CpapRender.ahiByHourBuckets', 'export the pure bucketing so the untimed case is pinned with no canvas');
         return;
