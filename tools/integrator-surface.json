@@ -434,6 +434,26 @@
     }
    }
   },
+  "matchWindow": {
+   "inline": true,
+   "enumeratedWith": "The single inline `matchWindow: {` literal in integrator-dsp.js, at line 7956 on 2026-11-15, read in blanked code by `inlineShape`. The literal is written on ONE line and the one-line route of `literalRanges` reads it. The slim `var _exp = {` export carries `matchWindow: fusion.matchWindow` at :8057, which hands on this same object, so ONE route writes the shape and no route declaration is owed. The depth-1 census found this subtree: it was the only top-level key whose value is an object literal that `inlineShape` reads and no `nested` entry declared.",
+   "readAs": "integrator-render.js reads two of the four keys through the DIRECT path, at :990 for `leadMaxSec` and :992 for `trailMaxSec`, where the renderer adds the two halves of the window. The subtree holds no alias site at all, so `readsDirectPath` carries the whole credit here. integrator-app.js and overdex-app.js name none of the four keys. So two keys earn `card` and two earn `export-only`.",
+   "seededFrom": "Hand-checked against the literal and all three reader realms on 2026-11-15, from the read sites and never from a token match. Each of the four names was grepped across the three realms, and `directionalWindowSec` and `unionPrefilterSec` return zero lines in every one of them.",
+   "surfaces": {
+    "leadMaxSec": "card",
+    "trailMaxSec": "card",
+    "directionalWindowSec": "export-only",
+    "unionPrefilterSec": "export-only"
+   },
+   "notes": {
+    "leadMaxSec": "Read at integrator-render.js:990 as `fusion.matchWindow.leadMaxSec`, inside the sum the pairing window line prints.",
+    "trailMaxSec": "Read at integrator-render.js:992 as `fusion.matchWindow.trailMaxSec`, the other half of that same sum.",
+    "directionalWindowSec": "The literal computes it as `gate.leadMaxSec + gate.trailMaxSec`, which is the sum the renderer builds for itself from the two keys above. So the export carries the total and the render recomputes it, and no realm reads this key.",
+    "unionPrefilterSec": "The prefilter span in seconds, written as `dtMs / 1000`. No realm reads it, and `ganglior.node-export` carries it for a consumer that re-runs the pairing."
+   },
+   "nullWhen": "Never null and never absent. The full `runFusion` export writes the literal unconditionally and every key inside it is a number.",
+   "depthNote": "This subtree carries four numbers and no object, so it needs no `inner` block and no element shape. It is the first subtree the depth-1 census named rather than a session: the census reads each top-level key's value form at both export routes, and an object literal with no `nested` entry is its one red arm."
+  },
   "schema": {
    "inline": true,
    "aliasPath": "fusion.schema",
