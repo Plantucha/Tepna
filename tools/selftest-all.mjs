@@ -431,6 +431,14 @@ const TOOL_TIMEOUT_MS = 120000;
 export function whyFailed(err, timeoutMs) {
   if (!err) return null;
   if (err.killed || err.signal === 'SIGTERM') return `TIMED OUT after ${timeoutMs / 1000}s (killed, ${err.signal || 'no signal'})`;
+  /* 🔴 A TIMEOUT NODE REPORTS WITH NO SIGNAL USED TO READ AS AN ORDINARY EXIT. When the direct child
+     has ALREADY EXITED and something else still holds its stdout, `spawnSync` ends the wait itself and
+     reports `err.code === 'ETIMEDOUT'` with `killed: false` and `status: 0`. The `code != null` branch
+     below then answered `exited ETIMEDOUT`, and `childrenFrom` matches `/TIMED OUT|killed by/` against
+     this string — so a tool that merely ran out of time was graded `FAIL` rather than `UNKNOWN`.
+     Measured 2026-11-15 on Node v22.23.1: a child that spawns a grandchild on the inherited stdout and
+     exits at once returns at 504 ms against a 500 ms bound, by this path. */
+  if (err.code === 'ETIMEDOUT') return `TIMED OUT after ${timeoutMs / 1000}s (the child had already exited, and something still held its stdout)`;
   if (err.code != null) return `exited ${err.code}`;
   if (err.signal) return `killed by ${err.signal}`;
   return String(err.message || 'failed').split('\n')[0];
@@ -578,6 +586,12 @@ async function main() {
     eq(whyFailed({ killed: true, signal: 'SIGTERM' }, 120000).startsWith('TIMED OUT after 120s'), 'a killed process is reported as a TIMEOUT, in seconds');
     eq(whyFailed({ killed: true, signal: 'SIGTERM', code: 1 }, 120000).includes('TIMED OUT'), 'timeout wins over an exit code — a killed process also carries one');
     eq(whyFailed({ code: 7 }, 120000) === 'exited 7', 'a non-zero exit reports its code');
+    eq(whyFailed({ code: 'ETIMEDOUT', killed: false, status: 0 }, 120000).startsWith('TIMED OUT after 120s'), 'an UNSIGNALLED ETIMEDOUT is a TIMEOUT, never an exit code');
+    eq(whyFailed({ code: 'ETIMEDOUT' }, 120000).includes('already exited'), '…and it says WHY no signal arrived');
+    eq(
+      childrenFrom([{ f: 'z.mjs', ok: false, readable: false, why: whyFailed({ code: 'ETIMEDOUT' }, 120000) }], [], new Set()).some((k) => k.status === 'UNKNOWN'),
+      '🔴 AN UNSIGNALLED TIMEOUT GRADES UNKNOWN, where it used to grade FAIL'
+    );
     eq(whyFailed({ signal: 'SIGKILL' }, 120000) === 'killed by SIGKILL', 'a signal kill (OOM) is named, not swallowed');
     eq(whyFailed({ message: 'spawn ENOENT\nstack' }, 120000) === 'spawn ENOENT', 'a spawn failure reports its first line only');
     eq(failureLines('ok\n  \u2717 parse: junk\nmore').length === 1, 'assertion lines lead when the tool printed any');
