@@ -151,7 +151,7 @@
      spectral edge is a share of the band 0 to this number and nothing wider. */
   var SEF_CEIL_HZ = 45;
 
-  function epochBands(sig, from, to, fs) {
+  function epochBands(sig, from, to, fs, opts) {
     var n = to - from;
     if (!(fs > 0) || n < fs * 5) return null; // under 5 s is not an epoch
     var N = nextPow2(n),
@@ -185,12 +185,27 @@
     var out = { delta: 0, theta: 0, alpha: 0, sigma: 0, beta: 0 },
       tot = 0;
     var half = N >> 1;
+    /* ── THE OPT-IN 1 Hz BIN VECTOR (2026-11-15) ───────────────────────────────────────────────
+       The SEF comment below states that this function holds no array per epoch, and that stays the
+       default. A caller drawing a spectrogram needs one, so `opts.bins` turns it on and nothing
+       else does. The cost is 45 numbers an epoch, so 43 200 over an 8 h night at 30 s epochs, and
+       the renderer holds them for as long as the night stays open. Bin `i` carries the power in
+       [i, i+1) Hz, so the vector stops at the same `SEF_CEIL_HZ` as `tot` and as every share. */
+    var bins = opts && opts.bins ? new Array(SEF_CEIL_HZ) : null,
+      bi = 0;
+    if (bins) {
+      for (bi = 0; bi < SEF_CEIL_HZ; bi++) bins[bi] = 0;
+    }
     for (i = 1; i < half; i++) {
       var f = (i * fs) / N;
       if (f > SEF_CEIL_HZ) break;
       var p = (re[i] * re[i] + im[i] * im[i]) / (N * N);
       tot += p;
       for (var b in BANDS) if (f >= BANDS[b][0] && f < BANDS[b][1]) out[b] += p;
+      if (bins) {
+        bi = Math.floor(f);
+        if (bi < SEF_CEIL_HZ) bins[bi] += p;
+      }
     }
     if (!(tot > 0)) return null;
     var rel = {};
@@ -221,7 +236,7 @@
         break;
       }
     }
-    return { abs: out, rel: rel, total: tot, sef95: sef };
+    return { abs: out, rel: rel, total: tot, sef95: sef, bins: bins };
   }
 
   /* ── WHY AN EPOCH HAS NO SPECTRUM (∅) ─────────────────────────────────────────────────────────
@@ -450,7 +465,7 @@
   var SWA_MIN_EPOCHS = 4; // 2 min of staged NREM, under which a stretch's median is not a stretch
 
   function swaTrend(bands, stages) {
-    var out = { periods: [], decayPctPerPeriod: null, reason: null, population: { stretches: 0, measured: 0, excluded: 0 } };
+    var out = { periods: [], decayPctPerPeriod: null, fit: null, reason: null, population: { stretches: 0, measured: 0, excluded: 0 } };
     if (!bands || !bands.length || !stages || stages.length !== bands.length) {
       out.reason = 'no-epoch-bands';
       return out;
@@ -515,6 +530,12 @@
     }
     var slope = (n * sxy - sx * sy) / den;
     out.decayPctPerPeriod = +((100 * slope) / out.periods[0].deltaPower).toFixed(2);
+    /* THE FITTED LINE TRAVELS WITH THE PERCENTAGE. A surface that drew its own least squares over
+       `periods` would publish a second calculation of this same line, and the two would disagree the
+       moment either side changed — the band shares carry the same rule, where `alphaRel` and
+       `thetaRel` are the two published medians rather than a second pass. `intercept` is the fitted
+       delta power at stretch 0, in the units of `deltaPower`, so a renderer draws THIS line. */
+    out.fit = { slope: round3(slope), intercept: round3(sy / n - (slope * sx) / n) };
     return out;
   }
 
@@ -780,7 +801,19 @@
 
      Every value carries its own population, so a reader can never mistake a one-epoch median for a
      night. */
-  function nightBands(sig, fs) {
+  function nightBands(sig, fs, opts) {
+    /* `opts.series` is an OUT-PARAMETER object rather than a return key, because `buildNodeExport`
+       copies `summary.bands` WHOLE onto the bus. A per-epoch 45-bin vector has no place in a node
+       export, so the series never touches this function's return value. The caller that wants it
+       passes an object and reads `series`, `binHz`, `ceilHz` and `epochSec` back out of it. */
+    var sink = opts && opts.series && typeof opts.series === 'object' ? opts.series : null;
+    if (sink) {
+      sink.series = null;
+      sink.reason = null;
+      sink.binHz = 1;
+      sink.ceilHz = SEF_CEIL_HZ;
+      sink.epochSec = EPOCH_SEC;
+    }
     var out = {
       totalPower: null,
       alphaRel: null,
@@ -814,14 +847,23 @@
       ratio = [],
       sefs = [],
       k;
+    var rows = sink ? [] : null;
     for (var i = 0; i < nEp; i++) {
-      var b = epochBands(sig, i * step, (i + 1) * step, fs);
-      if (!b) continue;
+      var b = epochBands(sig, i * step, (i + 1) * step, fs, sink ? { bins: true } : null);
+      if (!b) {
+        /* ∅ · an epoch with no spectrum enters the series as an absence that NAMES ITSELF, out of
+           the same vocabulary `epochAbsence` gives the hypnogram. A chart then draws a gap with a
+           reason beside it, never a zero column. */
+        if (rows) rows.push({ epoch: i, reason: epochAbsence(sig, i * step, (i + 1) * step, fs), rel: null, total: null, sef95: null, bins: null });
+        continue;
+      }
+      if (rows) rows.push({ epoch: i, reason: null, rel: b.rel, total: b.total, sef95: b.sef95, bins: b.bins });
       tot.push(b.total);
       for (k in per) per[k].push(b.rel[k]);
       if (b.rel.theta > 0) ratio.push(b.rel.alpha / b.rel.theta);
       if (b.sef95 != null) sefs.push(b.sef95);
     }
+    if (sink) sink.series = rows;
     out.population.withBands = tot.length;
     out.population.ratioEpochs = ratio.length;
     out.population.sefEpochs = sefs.length;
@@ -1129,7 +1171,12 @@
     if (!(fs > 0)) return { err: 'no EEG signal', reason: 'no-sample-rate' };
     var res = analyze({ eeg: sig, fs: fs, t0Ms: frame.t0Ms, emg: frame.emg, eog: frame.eog, emgFs: frame.emgFs, eogFs: frame.eogFs }, opts);
     if (!res || res.err) return res || { err: 'no EEG signal', reason: 'analyze-returned-nothing' };
-    res.bands = nightBands(sig, fs);
+    /* The per-epoch spectrum rides its OWN key. `buildNodeExport` copies `bands` whole, so a
+       45-bin vector an epoch would otherwise reach the bus, where no consumer asked for it. */
+    var spec = {};
+    res.bands = nightBands(sig, fs, { series: spec });
+    if (!spec.series && !spec.reason) spec.reason = res.bands.reason || 'no-epoch-with-a-spectrum';
+    res.spectra = spec;
     res.t0Ms = frame.t0Ms == null ? null : frame.t0Ms;
     res.offsetMin = frame.offsetMin == null ? null : frame.offsetMin;
     res.t0Reason = frame.t0Ms == null ? frame.t0Reason || 'no-start-stamp' : null;
@@ -1678,7 +1725,18 @@
         offsetMin: summary.offsetMin == null ? null : summary.offsetMin,
         durSec: summary.durSec == null ? null : summary.durSec,
         sampleRateHz: summary.fs == null ? null : summary.fs,
-        channel: summary.channel || null
+        channel: summary.channel || null,
+        /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ──────────────────
+           One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
+           carries the field list and the null discipline). An EDF header and a synthetic frame each
+           carry ONE clock — the start stamp plus the record geometry — and no host stamp column, so
+           there is no second clock here to discipline the device rate against. This node looks for
+           neither device-clock resyncs nor axis seams either, so the bare call publishes both counts
+           as unknown rather than zero.
+           Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in
+           every bundle that builds an export and co-loaded by every realm that does, so a `null`
+           here is a load-order bug and the export-parity group reds on it. */
+        timing: typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock ? DexExport.timingBlock({}) : null
       },
       sleep: {
         epochSec: summary.epochSec == null ? EPOCH_SEC : summary.epochSec,

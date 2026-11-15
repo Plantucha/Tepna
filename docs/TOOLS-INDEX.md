@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**348 tools** · 347 with a purpose line · **1 without**
+**351 tools** · 350 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -142,6 +142,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`live-surface-audit.mjs`](../tools/live-surface-audit.mjs) | THE GATE JUDGES THE BUNDLE; THIS READS THE BYTES THE HOST SERVES. |
 | [`lomb-share-profile.mjs`](../tools/lomb-share-profile.mjs) | `lombScargle`'s SHARE of a real ECGDex and PpgDex `compute()`, measured on the PRODUCT PATH. |
 | [`make-synthetic-edf.mjs`](../tools/make-synthetic-edf.mjs) | emit a DETERMINISTIC, SYNTHETIC ResMed EDF file set. WHY THIS EXISTS. |
+| [`make-synthetic-eeg-edf.mjs`](../tools/make-synthetic-eeg-edf.mjs) | emit a DETERMINISTIC, SYNTHETIC single-channel EEG EDF. WHY THIS EXISTS. |
 | [`make-synthetic-inputs.mjs`](../tools/make-synthetic-inputs.mjs) | a COMMITTABLE vendor-format input for every node. WHY. The suite's strongest correctness gate — Phase-9 `compute() ≡ committed export` — DOES NOT RUN IN CI. |
 | [`measurement-emitter-perf-oxydex.mjs`](../tools/measurement-emitter-perf-oxydex.mjs) | MEASUREMENT-PROVENANCE-ROADMAP §10 for the OXYDEX emitter and the Integrator adapter — runtime, peak memory, export size, against bands written BEFORE the run. |
 | [`measurement-walk.mjs`](../tools/measurement-walk.mjs) | WALK A MEASUREMENT BACK TO ITS RAW INPUT — the roadmap §3 backward walk-through, as a check. |
@@ -260,6 +261,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`rebase-safe.mjs`](../tools/rebase-safe.mjs) | REBASE ONTO origin/main WITHOUT SILENTLY REVERTING SOURCE. WHY THIS EXISTS. |
 | [`regen-cpap-goldens.mjs`](../tools/regen-cpap-goldens.mjs) | Regenerate CPAPDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
 | [`regen-ecgdex-goldens.mjs`](../tools/regen-ecgdex-goldens.mjs) | Regenerate ECGDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
+| [`regen-eegdex-goldens.mjs`](../tools/regen-eegdex-goldens.mjs) | Regenerate EEGDex's committed node-export fixture by RE-RUNNING THE REAL MODULES on the committed input and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
 | [`regen-glucodex-goldens.mjs`](../tools/regen-glucodex-goldens.mjs) | Regenerate GlucoDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
 | [`regen-goldens-core.mjs`](../tools/regen-goldens-core.mjs) | Shared scaffolding for the per-node golden regenerators (CPAP-REAL-CORPUS-FOLLOWUPS-III §3). |
 | [`regen-goldens.mjs`](../tools/regen-goldens.mjs) | Unified entry for the per-node golden regenerators (CPAP-REAL-CORPUS-FOLLOWUPS-III §3). |
@@ -309,6 +311,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`stmt-delete.mjs`](../tools/stmt-delete.mjs) | LEVEL B — PSEUDO-TESTED STATEMENTS. Delete ONE statement and see whether anything notices. |
 | [`strip-markup.mjs`](../tools/strip-markup.mjs) | Remove an element AND ITS CONTENT from an HTML string — `<script>`/`<style>` for the tools that read a guide as prose. |
 | [`stuck-run-lengths.mjs`](../tools/stuck-run-lengths.mjs) | is T_STUCK = 200 samples a threshold for this stream, or only for the one it was derived from? |
+| [`suite-determinism.mjs`](../tools/suite-determinism.mjs) | IS A SUITE SELECTOR DECIDED THE SAME WAY TWICE? `2026-10-20-the-js-gate-survivor-set-does-not-reproduce-across-runs` measured three legs over one identical mutant population, and each leg… |
 | [`survivor-witness.mjs`](../tools/survivor-witness.mjs) | A WITNESS INPUT FOR EVERY SURVIVOR THAT HAS ONE 4708 operator mutants survive the JS sweeps unresolved. |
 | [`sync-docs-index.mjs`](../tools/sync-docs-index.mjs) | FLIP A BRIEF'S STATUS, THEN RUN THIS. It carries the flip into DOCS-INDEX.md. |
 | [`synth-desat-kinetics.mjs`](../tools/synth-desat-kinetics.mjs) | measure whether a synthetic SpO₂ corpus desaturates at a PHYSIOLOGICAL rate, and how much of it OxyDex's artifact self-gate rejects. |

@@ -25,6 +25,11 @@
      "wrapper": "writeRootOrDie",
      "reading": "it writes a tracked work-unit artifact, `changes/<slug>.md`, which a wrong checkout loses (row 2026-11-02-a-tool-run-by-absolute-path-writes-into-its-own-checkout)"
     },
+    "tools/release.mjs": {
+     "since": "2026-11-15",
+     "wrapper": "writeRootOrDie",
+     "reading": "it stamps five tracked files \u2014 `suite.manifest.json`, `CITATION.cff`, `RELEASE-MANIFEST.json`, `CHANGELOG.md` and `README.md` \u2014 and unlinks every consumed changeset, so a cross-checkout run cuts a release in a tree nobody named; `release-land.mjs` runs the stamp as a relative path under the worktree\u2019s own cwd, so both call sites already agree; a `--status` report reads a state file and writes no tracked artifact, so the guard sits on the stamp and `--full` branches only"
+    },
     "tools/sync-docs-index.mjs": {
      "since": "2026-11-14",
      "wrapper": "writeRootOrDie",
@@ -34,10 +39,16 @@
      "since": "2026-11-14",
      "wrapper": "writeRootOrDie",
      "reading": "it generates `docs/TOOLS-INDEX.md`, which `npm run verify:tools-index` re-checks in CI, so a write into the wrong checkout reds a job the causing worktree cannot explain"
+    },
+    "tools/verdict-adoption.mjs": {
+     "since": "2026-11-15",
+     "wrapper": "writeRootOrDie",
+     "reading": "`--format` rewrites the tracked `tools/verdict-adoption.json` it resolves from its own root, so a cross-checkout run rewrites the shared root\u2019s manifest and leaves the worktree unchanged; every selftest read keeps its own reach"
     }
    },
    "exempt": {
     "tools/read-ref-drift.mjs": "both write calls sit in its selftest, which builds a two-clone git fixture under mkdtemp and removes it; the tool writes no tracked artifact, writes nothing under any checkout, and calls no write wrapper",
+    "tools/ste-lint.mjs": "its one write builds a `docs/GLOSSARY.md` fixture inside a selftest `mkdtempSync(tmpdir())` directory, so the write regex reads its own test data; it writes no tracked artifact and calls no write wrapper",
     "tools/write-root-adoption.mjs": "its selftests plant both shapes as fixture strings, so the write regexes read its own test data; it writes no tracked artifact and calls no write wrapper"
    },
    "pending": [
@@ -78,19 +89,16 @@
     "tools/probe-equivalence.mjs",
     "tools/reanchor-equivalence.mjs",
     "tools/release-land.mjs",
-    "tools/release.mjs",
     "tools/repo-map.mjs",
     "tools/ring-offset-census.mjs",
     "tools/ring-rate-cause.mjs",
     "tools/sidecar-census.mjs",
     "tools/stage-lab.mjs",
-    "tools/ste-lint.mjs",
     "tools/stitch-31d-run.mjs",
     "tools/stmt-delete.mjs",
     "tools/survivor-witness.mjs",
     "tools/trio-eligible-nights.mjs",
     "tools/unit-health.mjs",
-    "tools/verdict-adoption.mjs",
     "tools/wearable-sync.mjs",
     "tools/wild-anchor-census.mjs"
    ]
