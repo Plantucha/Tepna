@@ -1530,3 +1530,14 @@ def test_a_counter_gap_file_of_one_byte_is_resumed_and_gets_no_header(tmp_path):
     sc.close()
     text = (tmp_path / "r_MUSERUNS.txt").read_text()
     assert text.startswith("x# final rule=counter-gap ") and "# stream=" not in text
+
+
+def test_an_EMPTY_counter_gap_file_is_NOT_a_resume_and_gets_its_header(tmp_path):
+    """A file of zero bytes holds no header, so the sidecar writes one (mutate-diff on #5049)."""
+    f = tmp_path / "f_MUSE.txt"
+    (tmp_path / "f_MUSERUNS.txt").write_text("")
+    sc = writers._CounterGapSidecar(str(f), "muse")
+    sc.close()
+    body = (tmp_path / "f_MUSERUNS.txt").read_text()
+    assert body.startswith("# stream=muse rule=counter-gap ")
+    assert body.count(writers._RunSidecar.HEADER) == 1

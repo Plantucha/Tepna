@@ -214,7 +214,7 @@ class TickClock:
             self.ticks = tick
         else:
             step = (tick - self.ticks) % TICK_MOD
-            if step >= TICK_MOD // 2:  # half a wrap or more forward reads as a step back
+            if 2 * step >= TICK_MOD:  # half a wrap or more forward reads as a step back
                 step -= TICK_MOD
             self.ticks += step
         return self.ticks
