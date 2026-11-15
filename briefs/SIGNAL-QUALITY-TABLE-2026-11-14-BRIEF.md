@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS (unit 1 of 5 — the ECGDex table, its reasons and its sidecar ledger) · **Created:** 2026-11-14
+**Status:** IN-PROGRESS (unit 1 of 5 — the ECGDex table: its reasons, its sidecar ledger, the sidecar before-and-after, the drift strip and the writer a filename names; the two RENDER boxes stay open) · **Created:** 2026-11-14
 
 # Signal-quality table — every Dex shows its sensors before its results
 
@@ -261,15 +261,19 @@ Assignee: decided on the agent board (`--kind decision`, 2026-11-14).
       absent fact.
 - [x] The sidecar ledger lists every ECG-side sidecar in §3b with its state. A gate fails when
       a sidecar on disk reads `not-read` without a named reason.
-- [ ] Each fact that a sidecar changes shows its value before and after the sidecar applies.
-- [ ] The table shows the night drift against the best reference from §3d and names it. It
+- [x] Each fact that a sidecar changes shows its value before and after the sidecar applies.
+- [x] The table shows the night drift against the best reference from §3d and names it. It
       also shows the per-window drift strip from raw residuals, and each step or spike with its instant (§3d).
 - [ ] The drift chart renders the divergence panel and the per-window rate panel, plus the
       Allan chart, with a badge on each series (§3d).
 - [ ] A Polar Sensor Logger ECG export renders the table with every sidecar row
       `not-applicable` and every AFTER cell `null`. A test covers this case.
+      *(The DATA half is done and tested: the origin is read from the filename, because the two
+      writers' ECG text is byte-identical, and under a vendor name all 25 ledger rows read
+      `not-applicable` while the epoch cell's before and after are both named absences. The box stays
+      open for the RENDER half, which rides the same unit as boxes 6 and 8.)*
 - [ ] The render shows the table above the first result card, with a badge in every cell.
-- [ ] The per-window strip aligns to the epochs that the HRV and staging code already use.
+- [x] The per-window strip aligns to the epochs that the HRV and staging code already use.
 - [x] `tests/dex-tests.js` gains a group for the table over the committed ECGDex fixtures.
 - [x] The ECGDex fixtures regenerate through `tools/regen-ecgdex-goldens.mjs`, and
       `tools/verify-fixtures.mjs` re-verifies them.
