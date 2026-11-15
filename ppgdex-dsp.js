@@ -122,6 +122,17 @@
   function r1(v) {
     return Math.round(v * 10) / 10;
   }
+  /* 🔴 §∅ — `r1(null)` IS `0`, NOT `null`: `Math.round(null * 10) / 10` reads 0, because `null`
+     coerces to 0 in arithmetic. So a refusal that travels through `r1`/`r2` arrives at the export as
+     a measured zero, and the refusal is erased by its own rounding. These two wrappers are what a
+     nullable statistic rounds through. They also null a non-finite value, which is what `mean([])`
+     and `std(<2 samples)` return by design (§2.6). Measured 2026-11-15, Muse N1-21. */
+  function r1n(v) {
+    return v == null || !isFinite(v) ? null : r1(v);
+  }
+  function r2n(v) {
+    return v == null || !isFinite(v) ? null : r2(v);
+  }
 
   // ════════════════════════════════════════════════════════════════════════
   //  BIQUAD filtering (RBJ cookbook) + zero-phase filtfilt
@@ -3784,9 +3795,17 @@
   function timeDomain(nn, cleanMask, omit, adj) {
     if (nn.length < 2) return null;
     const keep = omit ? nn.filter((_, i) => !omit[i]) : nn;
-    const base = keep.length >= 2 ? keep : nn; // never let the omission empty the record
-    const meanRR = mean(base),
-      sdnn = std(base); // dispersion: over ALL accepted NN (whole-record), minus non-measurements
+    /* 🔴 §∅ — THE OMITTED INTERVALS ARE NOT MEASUREMENTS, SO THIS ARM REFUSES RATHER THAN RESTORING
+       THEM. Until 2026-11-15 this line read `keep.length >= 2 ? keep : nn`, under the comment "never
+       let the omission empty the record": when omission emptied the record, every interval the caller
+       had declined to invent came back into `meanRR`, `sdnn`, `hr` and `triIdx`. An omitted interval
+       straddles a time discontinuity, which is the DISCONTINUITY case of the owner's 2026-09-17
+       ruling — a discontinuity refuses, and only reduced coverage annotates. The refusal is PER ARM:
+       the beat-to-beat arm below holds its own population and its own reason. (Muse N1-21.) */
+    const dispersionReason = keep.length >= 2 ? null : 'omit-leaves-under-2-intervals';
+    const base = keep;
+    const meanRR = dispersionReason ? null : mean(base),
+      sdnn = dispersionReason ? null : std(base); // dispersion: over ALL accepted NN, minus non-measurements
     // §4 (PPGDEX-BEAT-DETECTION-PERF): the beat-to-beat metrics (rMSSD/pNN50) are computed
     // over adjacent HIGH-SQI CLEAN pairs only, so sub-ectopy-threshold optical PAT jitter +
     // gap boundaries don't inflate them (the whole-record 137 ms → truth). The ectopy/gap
@@ -3803,17 +3822,15 @@
       cnt++;
       if (Math.abs(d) > 50) nn50++;
     }
-    if (cnt < 1) {
-      for (let i = 1; i < nn.length; i++) {
-        const d = nn[i] - nn[i - 1];
-        sumSq += d * d;
-        cnt++;
-        if (Math.abs(d) > 50) nn50++;
-      }
-    } // no clean pair → fall back
-    const rmssd = Math.sqrt(sumSq / cnt),
-      pnn50 = (100 * nn50) / cnt;
-    const hr = 60000 / meanRR;
+    /* 🔴 §∅ — NO CLEAN ADJACENT PAIR MEANS NO BEAT-TO-BEAT MEASUREMENT. Until 2026-11-15 a `cnt < 1`
+       fallback recomputed rMSSD and pNN50 over EVERY pair in `nn`, which is exactly the population
+       `cleanMask` and `adj` had excluded: the published number was the one the caller refused. The
+       caller cannot tell that from the numbers, because the old return carried no population and no
+       reason. `nBeatPairs` now travels beside them. (Muse N1-21.) */
+    const beatPairReason = cnt >= 1 ? null : 'no-clean-adjacent-pair';
+    const rmssd = beatPairReason ? null : Math.sqrt(sumSq / cnt),
+      pnn50 = beatPairReason ? null : (100 * nn50) / cnt;
+    const hr = meanRR == null ? null : 60000 / meanRR;
     // triangular index
     const bins = {};
     for (const v of nn) {
@@ -3822,9 +3839,26 @@
     }
     let mx = 0;
     for (const k in bins) if (bins[k] > mx) mx = bins[k];
-    const triIdx = mx ? nn.length / mx : null;
-    return { meanRR: Math.round(meanRR), sdnn: r1(sdnn), rmssd: r1(rmssd), pnn50: r1(pnn50), hr: Math.round(hr), lnRMSSD: r2(Math.log(rmssd)), triIdx: triIdx ? r1(triIdx) : null };
+    /* The histogram bins `nn`, so it counts the omitted intervals too. That population is unchanged
+       here, and it is a SEPARATE defect from N1-21: this line only declines to publish an index whose
+       dispersion arm has already refused. */
+    const triIdx = dispersionReason ? null : mx ? nn.length / mx : null;
+    return {
+      meanRR: meanRR == null ? null : Math.round(meanRR),
+      sdnn: r1n(sdnn),
+      rmssd: r1n(rmssd),
+      pnn50: r1n(pnn50),
+      hr: hr == null ? null : Math.round(hr),
+      lnRMSSD: rmssd == null ? null : r2n(Math.log(rmssd)),
+      triIdx: triIdx ? r1(triIdx) : null,
+      nDispersionIntervals: keep.length,
+      nBeatPairs: cnt,
+      dispersionReason,
+      beatPairReason
+    };
   }
+  /* Half of `r1`'s last published decimal place: an `sd2` below this prints as `0.0`. */
+  const PPG_SD2_MIN_MS = 0.05;
   function poincare(nn, cleanMask, adj) {
     if (nn.length < 3) return null;
     // §4: SD1 (≈ short-term beat-to-beat) from the clean adjacent-pair successive
@@ -3836,14 +3870,30 @@
       if (adj && adj[i] === false) continue;
       d.push(nn[i] - nn[i - 1]);
     }
-    if (d.length < 2) {
-      d.length = 0;
-      for (let i = 1; i < nn.length; i++) d.push(nn[i] - nn[i - 1]);
-    } // fallback
+    /* 🔴 §∅ — the same refusal as `timeDomain`'s beat-to-beat arm, and for the same reason. Until
+       2026-11-15 a `d.length < 2` fallback refilled `d` with every pair in `nn`, so SD1 and SD2 were
+       published over the population `cleanMask` and `adj` had excluded. (Muse N1-22.) */
+    const pairReason = d.length >= 2 ? null : 'no-clean-adjacent-pair';
+    if (pairReason) return { sd1: null, sd2: null, sd1sd2: null, ellArea: null, nPairs: d.length, reason: pairReason };
     const sd1 = Math.sqrt(0.5) * std(d);
     const sdnn = std(nn);
     const sd2 = Math.sqrt(Math.max(0, 2 * sdnn * sdnn - 0.5 * std(d) * std(d)));
-    return { sd1: r1(sd1), sd2: r1(sd2), sd1sd2: r2(sd1 / (sd2 || 1)), ellArea: Math.round(Math.PI * sd1 * sd2) };
+    /* 🔴 THE RATIO NEEDS A DENOMINATOR THIS NODE CAN PUBLISH. Until 2026-11-15 the ratio read
+       `sd1 / (sd2 || 1)`, which substitutes 1 ms for an EXACT zero and nothing for a floating-point
+       residue: `sd2` is a difference of two squares, so it lands at 1e-8 rather than at 0, survives
+       the `||` guard, and the ratio reads ~75,000,000 (Muse N1-22, measured). The bound is the
+       PUBLISHED precision rather than a chosen epsilon: `r1` prints one decimal, so any `sd2` under
+       half of that last place publishes as `0.0`, and a ratio over a denominator the reader sees as
+       zero cannot be read. The substituted 1 was never a measurement either. */
+    const pcReason = sd2 >= PPG_SD2_MIN_MS ? null : 'sd2-below-published-precision';
+    return {
+      sd1: r1n(sd1),
+      sd2: r1n(sd2),
+      sd1sd2: pcReason ? null : r2n(sd1 / sd2),
+      ellArea: Math.round(Math.PI * sd1 * sd2),
+      nPairs: d.length,
+      reason: pcReason
+    };
   }
   // Lomb–Scargle on irregular RR for frequency-domain HRV
   function lombScargle(tt, nn) {
@@ -5766,7 +5816,8 @@
         beats: idx.length,
         hr: td.hr,
         /* Same STATISTIC as ECGDex (60000/mean(RR)) but a different PRECISION: `td.hr` is
-           `Math.round(hr)`, so every epoch here is an integer where ECGDex keeps a decimal. A ±0.5
+           `Math.round(hr)`, so every MEASURED epoch here is an integer where ECGDex keeps a decimal,
+           and an epoch whose clean population falls under two intervals is `null` (2026-11-15). A ±0.5
            uniform rounding is SD 0.289 bpm on a hat leg resolving σ≈1.5. Labelled, not changed —
            un-rounding moves every epoch and the fleet has not chosen a precision (R5-FOLLOWUPS). */
         hrStat: 'rate-of-mean',
