@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="497b1e7e6362" data-compute-hash="9f877cd1b8ea">
+<html lang="en" data-manifest-hash="e0a665da8f4c" data-compute-hash="9f877cd1b8ea">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-SsW0E8mxpq9EzOTgibx/tNoYl+CtwDPobg7VPZwPnkE=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jU+dw+IT2rwtLcI6NYHxMA0+3qLsJNGkAHJkagoo0D4=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-lOTY4TeKI95pd25ZHoEpk1WBMZgbmr2dfYcJOykSR/8=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-tjkCYUkVr6sbwE07jNsb+9OWhs5U0ViMom4+B6mf1RA=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-DlePUBNMezK2suXfbcW2fBDidFlPyQqt0gMt1tfhhgI=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jU+dw+IT2rwtLcI6NYHxMA0+3qLsJNGkAHJkagoo0D4=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-lOTY4TeKI95pd25ZHoEpk1WBMZgbmr2dfYcJOykSR/8=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-tjkCYUkVr6sbwE07jNsb+9OWhs5U0ViMom4+B6mf1RA=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.33.0</title>
@@ -19683,6 +19683,32 @@ window.evBadge = evBadge;
             : stab && stab.note
               ? stab.note
               : 'the axis published no Allan curve for this recording';
+    /* THE NIGHT FIGURE IS AN OBJECT, NEVER A NUMBER. `ecgdex-dsp.js` builds
+       `{ppm, spanPpm, spanMs, anchors, ppmUncertainty, uncertaintyReason}`, and it is non-null
+       whenever the recording names a host reference — which is every capture-host night, and no
+       committed fixture. A `== null` guard passes that object to a numeric site, so `night.toFixed(1)`
+       threw on the first real night, and the throw took down every section after this one, because
+       it aborts `renderAll`. Read `.ppm`, and read it finite.
+       §🔒.7 forbids a quoted `ppm` without its anchor count and its span, so the label carries both,
+       and §7 forbids a rate that travels without the size of its own uncertainty. §∅: each absence
+       states the node's own reason rather than printing nothing. */
+    var nightObj = dp.night && typeof dp.night === 'object' ? dp.night : null;
+    var nightPpm = nightObj && nightObj.ppm != null && isFinite(nightObj.ppm) ? nightObj.ppm : null;
+    var nightUnc = nightObj && nightObj.ppmUncertainty != null && isFinite(nightObj.ppmUncertainty) ? nightObj.ppmUncertainty : null;
+    var nightSpanH = nightObj && nightObj.spanMs != null && isFinite(nightObj.spanMs) ? nightObj.spanMs / 3600000 : null;
+    var nightTxt;
+    if (nightPpm == null) {
+      nightTxt = nightObj ? ' · no night rate: the host axis published none for this recording' : dp.nightReason ? ' · no night rate: ' + dp.nightReason : '';
+    } else {
+      nightTxt =
+        ' · night ' +
+        nightPpm.toFixed(1) +
+        (nightUnc == null ? ' ppm (no uncertainty: ' + (nightObj.uncertaintyReason || _SQ_NO_REASON) + ')' : ' ± ' + nightUnc.toFixed(1) + ' ppm') +
+        ' · ' +
+        (nightObj.anchors == null ? '?' : nightObj.anchors) +
+        ' anchors' +
+        (nightSpanH == null ? ' · span absent' : ' over ' + nightSpanH.toFixed(1) + ' h');
+    }
     var winWhy = refName ? 'no window of this recording holds the three anchors a rate needs' : noRef;
     return (
       '<div class="mini-h">Clock drift <span class="mini-sub">' +
@@ -19706,13 +19732,13 @@ window.evBadge = evBadge;
       _sqPanel(
         SQ_DRIFT_SERIES.rate,
         'Per-window rate',
-        'ppm from each window own raw residuals' + (dp.night == null ? '' : ' · night ' + dp.night.toFixed(1) + ' ppm'),
+        'ppm from each window own raw residuals' + nightTxt,
         ratePts,
         C.teal,
         {
           W: 680,
           H: 140,
-          med: dp.night == null ? undefined : dp.night,
+          med: nightPpm == null ? undefined : nightPpm,
           xfmt: function (x) {
             return (x / 60).toFixed(1) + 'h';
           }
