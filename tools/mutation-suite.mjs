@@ -55,6 +55,7 @@ import { createRequire } from 'node:module';
 import { buildIdentity, mapCandidates, resolveMapPath, stateDirs, verifyFor } from './mutation-map.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { collapseHome } from './home-paths.mjs';
+import { boundedFetch } from './net-bound.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
@@ -770,11 +771,15 @@ async function cmdCluster(file) {
   const vecs = [];
   for (const t of texts) {
     try {
-      const res = await fetch('http://127.0.0.1:11434/api/embeddings', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ model: 'bge-m3', prompt: t })
-      });
+      const res = await boundedFetch(
+        'http://127.0.0.1:11434/api/embeddings',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ model: 'bge-m3', prompt: t })
+        },
+        { cls: 'model', label: 'the bge-m3 embedding call' }
+      );
       const j = await res.json();
       vecs.push(Array.isArray(j.embedding) ? j.embedding : null);
     } catch {
@@ -2116,17 +2121,21 @@ export function renderDraft(c, projection, property, origValue) {
 }
 
 async function askLocal(prompt, model, attempt = 0) {
-  const res = await fetch(LOCAL_HOST + '/api/generate', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      prompt,
-      stream: false,
-      think: false,
-      options: { num_ctx: DRAFT_CTX, num_predict: 260, ...SAMPLING[Math.min(attempt, SAMPLING.length - 1)] }
-    })
-  });
+  const res = await boundedFetch(
+    LOCAL_HOST + '/api/generate',
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        prompt,
+        stream: false,
+        think: false,
+        options: { num_ctx: DRAFT_CTX, num_predict: 260, ...SAMPLING[Math.min(attempt, SAMPLING.length - 1)] }
+      })
+    },
+    { cls: 'model', label: 'the ollama draft call' }
+  );
   const j = await res.json();
   return j.response || '';
 }
