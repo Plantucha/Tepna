@@ -43823,6 +43823,41 @@
       T.ok('ANTI-VACUITY · buildLongitudinal returned a real block', D.buildLongitudinal(two).nights === 2 && typeof D.buildLongitudinal(two).compliancePct === 'number');
     });
 
+    group('∅ CPAPDex AHI-by-hour — an event with no time has no hour', 'cpapdex-dsp · cpapdex-render · absence', function (T) {
+      /* The browser env leaves CpapRender unset on purpose (its canvas groups are node-lane only), but this
+         helper is pure, so read the page global the suite already evaluated and pin it in both lanes. */
+      var CR = env.CpapRender || (typeof window !== 'undefined' ? window.CpapRender : null);
+      if (!CR || typeof CR.ahiByHourBuckets !== 'function') {
+        T.skip('CpapRender.ahiByHourBuckets', 'export the pure bucketing so the untimed case is pinned with no canvas');
+        return;
+      }
+      var T0 = Date.UTC(2026, 0, 1, 22, 0, 0);
+      var night = function (events) {
+        return { t0Ms: T0, therapyHours: 4, sessions: [{ t0Ms: T0, events: events }] };
+      };
+      /* The row's case: an event with neither an absolute stamp nor a session offset. The old code
+         read `(ev.timeSec || 0)` and placed it at the session start, i.e. the h1 bar. */
+      var b0 = CR.ahiByHourBuckets(night([{ type: 'OA' }, { type: 'H', tMs: null, timeSec: null }]));
+      T.eq('∅ two timeless events do not enter hour 1', b0.buckets[0], 0);
+      T.eq('∅ they travel beside the buckets instead', b0.untimed, 2);
+      T.eq('∅ and no other bucket invents them', b0.buckets.join(','), '0,0,0,0');
+      var b1 = CR.ahiByHourBuckets(night([{ type: 'OA', tMs: T0 + 2 * 3600000 + 5 }]));
+      T.eq('CONTROL · a measured event lands in its own hour', b1.buckets[2], 1);
+      T.eq('CONTROL · and nothing is left untimed', b1.untimed, 0);
+      var b2 = CR.ahiByHourBuckets(
+        night([
+          { type: 'OA', timeSec: 1800 },
+          { type: 'CA', timeSec: null }
+        ])
+      );
+      T.eq('a session-relative offset is a measured time', b2.buckets[0], 1);
+      T.eq('∅ a null timeSec is not a zero', b2.untimed, 1);
+      var b3 = CR.ahiByHourBuckets(night([{ type: 'OA', tMs: T0 + 9 * 3600000 }]));
+      T.eq('a timed event past the last hour is OUTSIDE, not untimed', [b3.untimed, b3.outside].join(','), '0,1');
+      T.eq('a RERA stays out of the count, as before', CR.ahiByHourBuckets(night([{ type: 'RE' }])).untimed, 0);
+      T.eq('∅ a night with no anchor places nothing and says so', CR.ahiByHourBuckets({ therapyHours: 4, sessions: [{ events: [{ type: 'OA', timeSec: 60 }] }] }).untimed, 1);
+    });
+
     /* ════ CPAPDex USAGE — a mask-on label draws mask-on hours ════
      `night.therapyHours` sums each session's `durMin`, and the full-set constructor sets `durMin`
      from the WALL span ("WALL duration (for off-mask gap math)"). The pooled MASK-ON figure lives
@@ -100086,6 +100121,64 @@
           return r.device === 'Wellue O2Ring-S';
         })
       );
+    });
+
+    /* ════ ∅ · A READ CHAIN MUST NOT SKIP A MEASURED ZERO ════
+       Unit `glycv`, the opposite-direction sibling of the three absence rows PR 5100 fixed. The
+       adapter read five numeric summary fields as `_dig(a) || _dig(b) || …`, and `||` rejects 0.
+       Every one of these fields has 0 inside its domain: a flat CGM trace has cv 0, a night with no
+       dawn rise has medianDelta 0, and a drawn or constant RR series has rmssd 0. So a measured zero
+       fell through to the next key. Where a later key held a number from a DIFFERENT basis, the
+       adapter published that number instead, which is worse than the null. */
+    group('Integrator adapter keeps a measured zero in every read chain', 'integrator-dsp · adapter · measured-zero', function (T) {
+      var A = env.adaptEnvelopeNode;
+      T.ok('adaptEnvelopeNode is reachable', typeof A === 'function');
+      if (typeof A !== 'function') return;
+      var t0 = U(2026, 5, 7, 22, 0, 0);
+      var glu = function (body, label) {
+        var j = { schema: { node: 'GlucoDex' }, recording: { startEpochMs: t0, durationMin: 480, offsetMin: null } };
+        Object.keys(body).forEach(function (k) {
+          j[k] = body[k];
+        });
+        return A(j, 'GlucoDex', label || 'g.json')[0].summary;
+      };
+      var hrv = function (body, label) {
+        var j = { schema: { node: 'HRVDex' }, recording: { startEpochMs: t0, durationMin: 480, offsetMin: null } };
+        Object.keys(body).forEach(function (k) {
+          j[k] = body[k];
+        });
+        return A(j, 'HRVDex', label || 'h.json')[0].summary;
+      };
+
+      /* A FLAT CGM TRACE MEASURES cv 0. */
+      T.eq('a measured cv of 0 survives the chain', glu({ glucose: { cv: 0 } }).glucoseCV, 0);
+      T.eq('the FIRST path still wins over a later one', glu({ glucose: { cv: 0 }, glycemic: { cv: 34 } }).glucoseCV, 0);
+      T.eq('a later path still answers when the first is absent', glu({ glycemic: { cv: 34 } }).glucoseCV, 34);
+      T.eq('no cv anywhere is null', JSON.stringify(glu({ glucose: { mean: 5.4 } }).glucoseCV), 'null');
+
+      /* A NIGHT WITH NO DAWN RISE MEASURES medianDelta 0 — and the pre-fix chain published
+         `fusion.dawnSurge`, a number from another basis, in its place. */
+      T.eq('a measured dawn surge of 0 survives', glu({ glucose: { dawn: { medianDelta: 0 } } }).dawnSurge, 0);
+      T.eq('…even when a later path carries another basis’s number', glu({ glucose: { dawn: { medianDelta: 0 } }, fusion: { dawnSurge: 42 } }).dawnSurge, 0);
+      T.eq('…and that later path still answers on its own', glu({ fusion: { dawnSurge: 42 } }).dawnSurge, 42);
+      T.eq('no dawn key anywhere is null', JSON.stringify(glu({ glucose: { cv: 12 } }).dawnSurge), 'null');
+
+      /* A CONSTANT RR SERIES MEASURES rmssd 0. */
+      var flat = hrv({ hrv: { time: { rmssd: 0, sdnn: 0 }, frequency: { lfhf: 0 } } });
+      T.eq('a measured rmssd of 0 survives', flat.rmssd, 0);
+      T.eq('a measured sdnn of 0 survives', flat.sdnn, 0);
+      T.eq('a measured lf/hf of 0 survives', flat.lfhf, 0);
+      var legacy = hrv({ hrv: { rmssd: 41, sdnn: 58, lfhf: 1.4 } });
+      T.eq('the legacy bare path still answers for rmssd', legacy.rmssd, 41);
+      T.eq('…for sdnn', legacy.sdnn, 58);
+      T.eq('…and for lf/hf', legacy.lfhf, 1.4);
+      T.eq('an absent hrv block is null', JSON.stringify(hrv({}).rmssd), 'null');
+
+      /* WHAT THE WALK WILL NOT PUBLISH. A path holding something other than a finite number is not
+         a number this adapter can publish, so the field ends null rather than carrying the token on. */
+      T.eq('a numeric STRING is not a number, so the field is null', JSON.stringify(glu({ glucose: { cv: '34' } }).glucoseCV), 'null');
+      T.eq('NaN is not a measurement either', JSON.stringify(glu({ glucose: { cv: NaN } }).glucoseCV), 'null');
+      T.eq('…and a string does not block a later path that holds a number', glu({ glucose: { cv: '34' }, glycemic: { cv: 34 } }).glucoseCV, 34);
     });
 
     /* ════ ∅ · THE ACTIVITY ENVELOPE SAYS NOTHING FOR A SAMPLE IT COULD NOT DIFFERENCE ════
