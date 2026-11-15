@@ -697,7 +697,315 @@ window.evBadge = evBadge;
 
   // §RN render-harness: the two ECGScope axis helpers are exposed so the node lane can pin the
   // surfaced tick spacing and label text without a canvas shim (see the note above their definitions).
-  global.ECGUI = { ECGScope, lineChart, poincare, hypnogram, medianBeatChart, buildEnvelope, scopeAxisTick, scopeAxisLabel, COLORS: C };
+  /* ════════════════════════════════════════════════════════════════════════════════════════════
+     SIGNAL QUALITY TABLE AND DRIFT PANELS — SIGNAL-QUALITY-TABLE-2026-11-14 §6 (boxes 6, 7, 8)
+     ────────────────────────────────────────────────────────────────────────────────────────────
+     The table draws the `signalQuality` object the node export carries, so the page and the
+     exported bytes are ONE measurement read twice. The app reads it through
+     `ECGDSP.buildNodeExport`, which is the published surface — `ecgSignalQuality` is not on
+     `ECGDSP`, and EXPORT-PATH-UNREACHABLE-2026-08-01 is the brief about reaching for a function
+     that the DSP only holds in lexical scope.
+
+     §∅ — A NULL CELL PRINTS ITS REASON, never a bare dash. A dash alone reads as a rounding or a
+     zero; the reason is the part a reader needs, and `_sqCell` already carries one on every null.
+     A cell whose reason is absent prints that fact rather than an empty space.
+     ════════════════════════════════════════════════════════════════════════════════════════════ */
+
+  // One row per fact of §3, in the order the brief states them. `label` is also the badge key:
+  // `evBadge` resolves it through the registry's own declared labels, so a typo here would
+  // fabricate an `experimental` disc — the test asserts each one resolves to a `measured` entry.
+  /* One row per quality fact: `k` is the key the export publishes, `id` is the metric this row
+     DRAWS and `label` is what the reader sees. The badge resolves through `id`, never through
+     `label`: `badgeForLabel` FABRICATES an `experimental` disc for anything it cannot resolve and
+     that branch prints no warning, so a prose label is a silent under-grade waiting to happen,
+     while an id is the registry's own key. It also states, in this file, which metric each series
+     is — the binding the undeclared-metric gate reads. */
+  var SQ_ROWS = [
+    { k: 'coverage', id: 'coverage', label: 'Coverage' },
+    { k: 'rail', id: 'sqRail', label: 'Rail census' },
+    { k: 'flatline', id: 'sqFlatline', label: 'Flatline share' },
+    { k: 'snr', id: 'sqSnr', label: 'In-band SNR' },
+    { k: 'mains', id: 'sqMains', label: 'Mains ratio' },
+    { k: 'nodeSqi', id: 'meanSQI', label: 'Mean SQI' },
+    { k: 'timing', id: 'sqTiming', label: 'Axis rate' },
+    { k: 'reference', id: 'sqReference', label: 'Reference Δ' },
+    { k: 'epochs', id: 'sqEpochs', label: 'Epoch population' },
+    { k: 'drift', id: 'sqDrift', label: 'Night drift' }
+  ];
+
+  /* The three §3d series, each naming the metric it draws for the same reason. */
+  var SQ_DRIFT_SERIES = { divergence: 'sqDivergence', rate: 'sqWindowRate', allan: 'sqAllan' };
+  var SQ_LEDGER_ID = 'sqSidecarState';
+
+  function _sqBadge(label) {
+    /* The MODULE-LOCAL `evBadge` of this file, never `global.evBadge`. The two are the same function
+       in a browser, because line 27 publishes it — but a realm that loads this module without that
+       publication reaching it would draw a table with no disc in it, and the badge rule calls an
+       unbadged number a bug of wrong-unit severity. The lexical name cannot be absent. */
+    return evBadge(label);
+  }
+
+  /* A number for a reader. `null` stays null here — the CALLER decides what an absence prints,
+     because only the caller holds the reason that must travel with it. */
+  function _sqNum(v) {
+    if (v == null || typeof v !== 'number' || !isFinite(v)) return null;
+    var a = Math.abs(v);
+    if (a === 0) return '0';
+    if (a >= 1000) return v.toFixed(0);
+    if (a >= 1) return v.toFixed(2);
+    return v.toPrecision(3);
+  }
+
+  var _SQ_NO_REASON = 'no reason travelled with this absence, which is itself a defect';
+
+  function _sqWhy(reason) {
+    return '<div class="sq-why" style="font-size:10px;line-height:1.35;color:var(--text3);margin-top:3px">' + (reason || _SQ_NO_REASON) + '</div>';
+  }
+
+  /* The before-and-after pair of §6: a fact a sidecar changes shows both sides, and an absent side
+     shows its own reason. Box 7's vendor case is exactly this — every AFTER side null. */
+  function _sqBeforeAfter(cell) {
+    var hasB = Object.prototype.hasOwnProperty.call(cell, 'before'),
+      hasA = Object.prototype.hasOwnProperty.call(cell, 'after');
+    if (!hasB && !hasA) return '';
+    var b = _sqNum(cell.before),
+      a = _sqNum(cell.after);
+    return (
+      '<div class="sq-ba" style="font-size:10px;line-height:1.35;color:var(--text3);margin-top:3px">' +
+      'before ' +
+      (b == null ? '<b>—</b> (' + (cell.beforeReason || _SQ_NO_REASON) + ')' : '<b>' + b + '</b>') +
+      ' → after ' +
+      (a == null ? '<b>—</b> (' + (cell.afterReason || _SQ_NO_REASON) + ')' : '<b>' + a + '</b>') +
+      '</div>'
+    );
+  }
+
+  function _sqValueCell(cell, badgeId) {
+    var pad = 'padding:5px 8px;border-top:1px solid var(--border);vertical-align:top';
+    if (!cell) return '<td class="sq-v" style="' + pad + '">' + _sqBadge(badgeId) + '<b>—</b>' + _sqWhy('this channel publishes no cell for this fact, so the table has nothing to read') + '</td>';
+    var n = _sqNum(cell.value);
+    return (
+      '<td class="sq-v" style="' +
+      pad +
+      '">' +
+      _sqBadge(badgeId) +
+      (n == null ? '<b>—</b>' : '<b style="font-family:IBM Plex Mono,monospace">' + n + '</b>') +
+      (cell.unit ? '<div class="sq-u" style="font-size:10px;color:var(--text3)">' + cell.unit + '</div>' : '') +
+      (n == null ? _sqWhy(cell.reason) : '') +
+      _sqBeforeAfter(cell) +
+      '</td>'
+    );
+  }
+
+  var _SQ_STATE_COLOR = { read: 'var(--green)', 'not-applicable': 'var(--text3)', 'not-read': 'var(--amber)' };
+
+  /* sqTable(sq) → HTML for the per-channel table and the sidecar ledger.
+     Returns a named absence rather than '' when the object is not there: an empty card is a
+     question a reader cannot answer. */
+  function sqTable(sq, why) {
+    if (!sq || !sq.channels)
+      return (
+        '<div class="mini-h">Signal quality table</div>' +
+        '<div class="q-note">No cell of this table can be drawn, and here is why: <b>' +
+        (why || _SQ_NO_REASON) +
+        '</b>. The table reads the <code>signalQuality</code> object of the node export and computes nothing of its own, ' +
+        'so a reason stands here rather than an empty card (EXPORT-PATH-UNREACHABLE-2026-08-01: an export path no one watches rots unseen).</div>'
+      );
+    var chans = [];
+    for (var ck in sq.channels) if (Object.prototype.hasOwnProperty.call(sq.channels, ck)) chans.push(ck);
+    var head =
+      '<tr><th style="text-align:left;padding:5px 8px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Fact</th>' +
+      chans
+        .map(function (ck) {
+          var st = (sq.channels[ck] && sq.channels[ck].stream) || ck;
+          return '<th style="text-align:left;padding:5px 8px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">' + st + '</th>';
+        })
+        .join('') +
+      '</tr>';
+    var rows = SQ_ROWS.map(function (row) {
+      return (
+        '<tr><td style="padding:5px 8px;border-top:1px solid var(--border);color:var(--text2);font-weight:600;white-space:nowrap">' +
+        _sqBadge(row.id) +
+        row.label +
+        '</td>' +
+        chans
+          .map(function (ck) {
+            return _sqValueCell(sq.channels[ck] ? sq.channels[ck][row.k] : null, row.id);
+          })
+          .join('') +
+        '</tr>'
+      );
+    }).join('');
+    var sc = Array.isArray(sq.sidecars) ? sq.sidecars : [];
+    var scRows = sc
+      .map(function (r) {
+        var col = _SQ_STATE_COLOR[r.state] || 'var(--text3)';
+        return (
+          '<tr><td style="padding:4px 8px;border-top:1px solid var(--border);font-family:IBM Plex Mono,monospace;font-size:11px;color:var(--text2)">' +
+          r.file +
+          '</td>' +
+          '<td style="padding:4px 8px;border-top:1px solid var(--border);font-size:11px;color:var(--text3)">' +
+          r.label +
+          '</td>' +
+          '<td class="sq-state" style="padding:4px 8px;border-top:1px solid var(--border);font-size:11px;color:' +
+          col +
+          ';white-space:nowrap">' +
+          _sqBadge(SQ_LEDGER_ID) +
+          r.state +
+          '</td>' +
+          '<td style="padding:4px 8px;border-top:1px solid var(--border);font-size:10px;color:var(--text3)">' +
+          (r.state === 'read' ? '' : r.reason || _SQ_NO_REASON) +
+          '</td></tr>'
+        );
+      })
+      .join('');
+    var nRead = sc.filter(function (r) {
+      return r.state === 'read';
+    }).length;
+    var nNA = sc.filter(function (r) {
+      return r.state === 'not-applicable';
+    }).length;
+    return (
+      '<div class="mini-h">Signal quality per channel <span class="mini-sub">' +
+      (sq.epochSec ? sq.epochSec + ' s windows' : 'window grid not stated') +
+      '</span></div>' +
+      '<div style="overflow-x:auto"><table class="sq-tbl" style="width:100%;border-collapse:collapse;font-size:12px">' +
+      head +
+      rows +
+      '</table></div>' +
+      '<div class="mini-h" style="margin-top:12px">Validity sidecars <span class="mini-sub">' +
+      sc.length +
+      ' listed · ' +
+      nRead +
+      ' read · ' +
+      nNA +
+      ' not-applicable</span></div>' +
+      '<div style="overflow-x:auto;max-height:260px;overflow-y:auto"><table class="sq-sidecars" style="width:100%;border-collapse:collapse">' +
+      scRows +
+      '</table></div>' +
+      '<div class="q-note" style="margin-top:8px">Every cell above is the byte the node export carries. A <b>—</b> is a fact no one measured, ' +
+      'and the line under it is the reason; a cell a sidecar changes shows the value before and after that sidecar applies.</div>'
+    );
+  }
+
+  /* One panel: a header with the series badge, then the chart, or a named reason in place of it. */
+  function _sqPanel(badgeId, label, sub, pts, color, opts, reason) {
+    var finite = pts.filter(function (p) {
+      return isFinite(p.y);
+    }).length;
+    var head = '<div class="mini-h" style="margin-top:10px">' + _sqBadge(badgeId) + label + ' <span class="mini-sub">' + sub + '</span></div>';
+    if (finite < 2) return head + '<div class="q-note">' + (reason || _SQ_NO_REASON) + '</div>';
+    return head + lineChart(pts, color, opts);
+  }
+
+  /* sqDriftPanels(dp, ax) → the three §3d series: the raw divergence, the per-window rate, and the
+     Allan deviation of the divergence. Each carries its own badge, and an empty series states why
+     rather than drawing an axis with no line on it. */
+  function sqDriftPanels(dp, ax) {
+    if (!dp)
+      return (
+        '<div class="mini-h">Clock drift</div>' +
+        '<div class="q-note">This recording carries no drift profile, so none of the three series exists. ' +
+        'The profile needs a device clock and a host column from the same rows.</div>'
+      );
+    var wins = Array.isArray(dp.windows) ? dp.windows : [];
+    var refName = dp.reference && dp.reference.name ? dp.reference.name : null;
+    var noRef = dp.referenceReason || 'this recording names no §3d time reference';
+    var divPts = wins.map(function (w) {
+      return { x: w.tMin, y: w.residFirstMs == null ? null : w.residFirstMs };
+    });
+    var ratePts = wins.map(function (w) {
+      return { x: w.tMin, y: w.ppm == null ? null : w.ppm };
+    });
+    var stab = ax && ax.stability ? ax.stability : null;
+    var curve = stab && Array.isArray(stab.curve) ? stab.curve : [];
+    /* τ is read on a LOG axis, because an Allan curve's whole shape lives in the decades. The
+       helper scales x linearly, so the points carry log10(τ) and the tick formatter prints τ. */
+    var allanPts = curve
+      .filter(function (c) {
+        return c && c.tauSec > 0 && isFinite(c.adevPpm);
+      })
+      .map(function (c) {
+        return { x: Math.log(c.tauSec) / Math.LN10, y: c.adevPpm };
+      });
+    /* THE AXIS PUBLISHES ITS OWN REASONS, so this ladder QUOTES them and writes no prose over them
+       (§∅: the named reason must be the node's own). `deviceDrawn` is read BEFORE `independent`,
+       because the two answer different questions: `drawnReason` says the DEVICE column is a
+       synthesised counter and not a clock, while `inertReason` says the HOST column is the device
+       stamp rounded. clock.js publishes the two separately, because both can be non-null and neither
+       implies the other — and a drawn axis still reads `independent: true`, so a ladder gating on
+       `independent` alone prints the wrong reason for a drawn stream. That shape is what the
+       drawn-axis provenance gate reds. Either reason may be absent on a hand-made axis, and then the
+       panel says so rather than inventing one. */
+    var allanWhy = !ax
+      ? 'this recording publishes no host axis, so the divergence it would average does not exist'
+      : ax.ok === false
+        ? 'the host axis refused this recording: ' + (ax.reason || _SQ_NO_REASON)
+        : ax.deviceDrawn === true
+          ? 'no second timebase to average: ' + (ax.drawnReason || _SQ_NO_REASON)
+          : ax.independent === false
+            ? 'no second clock to average: ' + (ax.inertReason || _SQ_NO_REASON)
+            : stab && stab.note
+              ? stab.note
+              : 'the axis published no Allan curve for this recording';
+    var winWhy = refName ? 'no window of this recording holds the three anchors a rate needs' : noRef;
+    return (
+      '<div class="mini-h">Clock drift <span class="mini-sub">' +
+      (refName ? 'reference ' + refName + (dp.reference.basis ? ' · ' + dp.reference.basis : '') : 'no reference named') +
+      '</span></div>' +
+      _sqPanel(
+        SQ_DRIFT_SERIES.divergence,
+        'Host divergence',
+        'raw host − device residual per ' + (dp.epochSec || '?') + ' s window, ms',
+        divPts,
+        C.blue,
+        {
+          W: 680,
+          H: 140,
+          xfmt: function (x) {
+            return (x / 60).toFixed(1) + 'h';
+          }
+        },
+        winWhy
+      ) +
+      _sqPanel(
+        SQ_DRIFT_SERIES.rate,
+        'Per-window rate',
+        'ppm from each window own raw residuals' + (dp.night == null ? '' : ' · night ' + dp.night.toFixed(1) + ' ppm'),
+        ratePts,
+        C.teal,
+        {
+          W: 680,
+          H: 140,
+          med: dp.night == null ? undefined : dp.night,
+          xfmt: function (x) {
+            return (x / 60).toFixed(1) + 'h';
+          }
+        },
+        winWhy
+      ) +
+      _sqPanel(
+        SQ_DRIFT_SERIES.allan,
+        'Allan deviation',
+        'σ(τ) of the raw divergence, ppm' + (stab && stab.noise ? ' · ' + stab.noise : ''),
+        allanPts,
+        C.amber,
+        {
+          W: 680,
+          H: 140,
+          xfmt: function (x) {
+            var t = Math.pow(10, x);
+            return t >= 3600 ? (t / 3600).toFixed(1) + 'h' : t >= 60 ? (t / 60).toFixed(0) + 'm' : t.toFixed(0) + 's';
+          }
+        },
+        allanWhy
+      ) +
+      '<div class="q-note" style="margin-top:8px">The top two panels read the <b>raw</b> anchor residuals, never the smoothed correction: the running median exists to keep delivery jitter out of the correction, ' +
+      'so a per-window cell taken from it would under-report a real step. The bottom panel says how far to trust a rate read over a given span; it is null when the host column carries no clock of its own.</div>'
+    );
+  }
+
+  global.ECGUI = { ECGScope, lineChart, poincare, hypnogram, medianBeatChart, buildEnvelope, scopeAxisTick, scopeAxisLabel, sqTable, sqDriftPanels, SQ_ROWS, SQ_DRIFT_SERIES, SQ_LEDGER_ID, COLORS: C };
 })(window);
 
 // ESM-MIGRATION: dual-mode re-export so ecgdex-app.js can `import { ECGUI }`; the IIFE still attaches

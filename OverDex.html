@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="43ccd45cab3c" data-compute-hash="cfbd5e1abda5"><head>
+<html lang="en" data-manifest-hash="ceb35f0173d1" data-compute-hash="ad36a1ad65ff"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-NmhOOy1eWo1a0Q4a5IUaMOCr0RXVD8rVFdEBdP5AzUw=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SYhOYN70OcmPNUyQI3+XkzBPsDEkov/r8Qc03as7ooU=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-WCQTLVkSv1QgSOi2vvBHY7+NBC4URxQt6+ufi6R/3qU=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-dVHmZXyP4XwTjEhlcHA5KAS8qlCtDlt15p8WXc7GPMw=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lOTY4TeKI95pd25ZHoEpk1WBMZgbmr2dfYcJOykSR/8=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-z4l2zX2D/RcAl/wpu0C/Z9GU6A/Rt5Gmh35gDByXOhQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-B3XTD2peIJeFeH5M2Rx6jFo5SBrzXthAJ0hmxnxoXqc=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-NmhOOy1eWo1a0Q4a5IUaMOCr0RXVD8rVFdEBdP5AzUw=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SYhOYN70OcmPNUyQI3+XkzBPsDEkov/r8Qc03as7ooU=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-WCQTLVkSv1QgSOi2vvBHY7+NBC4URxQt6+ufi6R/3qU=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-dVHmZXyP4XwTjEhlcHA5KAS8qlCtDlt15p8WXc7GPMw=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lOTY4TeKI95pd25ZHoEpk1WBMZgbmr2dfYcJOykSR/8=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -9137,10 +9137,19 @@ function activityEnvelope(x, y, z, dtSec) {
   var n = Math.min(x ? x.length : 0, y ? y.length : 0, z ? z.length : 0);
   if (n < 2 || !(dtSec > 0)) return new Float64Array(0);
   var out = new Float64Array(n);
-  out[0] = 0;
+  /* ── ∅ A SAMPLE WITH NO MEASURABLE CHANGE IS NOT A MOTIONLESS ONE ────────────────────
+     `log1p(d)` is 0 for a finite delta of 0, so 0 is a LEGAL reading here: the limb held still
+     between these two samples. A NON-finite delta landed on that same 0, so one absent axis, or a
+     NaN from the writer, published perfect stillness and `_ncc` correlated it as signal. Index 0
+     has no previous sample, so it owns no first difference at all, and it carried the same
+     fabricated 0. Both write NaN now. NaN sits outside this envelope's value domain, which is the
+     finite non-negative reals, so no reader can mistake it for a measurement. `_ncc` already skips
+     a pair where either side reads non-finite, and it refuses below 8 of them, so an absence
+     travels as a smaller overlap or as a refusal — never as a correlated zero. */
+  out[0] = NaN;
   for (var i = 1; i < n; i++) {
     var d = Math.abs(x[i] - x[i - 1]) + Math.abs(y[i] - y[i - 1]) + Math.abs(z[i] - z[i - 1]);
-    out[i] = isFinite(d) ? Math.log1p(d) : 0;
+    out[i] = isFinite(d) ? Math.log1p(d) : NaN;
   }
   return out;
 }
@@ -10554,16 +10563,30 @@ function arrivalPairOffsets(devices, opts) {
       var ca = a.offsetMs;
       var cb = b.offsetMs;
       var sameEpoch = Math.abs(ca - cb) < 3600000; // within an hour ⇒ the same counter origin
+      /* ── ∅ A PAIR'S WORST CASE NEEDS BOTH SIDES TO HAVE REPORTED ───────────────────────
+         `Math.min(a.spanSec || 0, b.spanSec || 0)` answered 0 whenever EITHER device never reported
+         its span, and 0 is a legal span: it is what a single-anchor clock measures. A span the pair
+         never measured cannot bound the pair, so it reads null. `Math.max(a.offsetMadMs || 0,
+         b.offsetMadMs || 0)` has the same shape one field up: with neither spread measured it
+         answered 0, which states a perfectly precise pair, and with one measured it reported that
+         one as the pair's worst case while the other side could be worse. Both fields need both
+         sides. `maxTolerableDriftPpm` already refuses a span that does not read above 0. */
+      var _madA = a.offsetMadMs,
+        _madB = b.offsetMadMs,
+        _spA = a.spanSec,
+        _spB = b.spanSec;
+      var _madBoth = _madA != null && isFinite(_madA) && _madB != null && isFinite(_madB);
+      var _spBoth = _spA != null && isFinite(_spA) && _spB != null && isFinite(_spB);
       pairs.push({
         a: a.device,
         b: b.device,
         offsetMs: sameEpoch ? Math.round((ca - cb) * 10) / 10 : null,
         sameEpoch: sameEpoch,
         reason: sameEpoch ? undefined : 'different counter epochs — the difference is not an offset',
-        madMs: Math.max(a.offsetMadMs || 0, b.offsetMadMs || 0),
+        madMs: _madBoth ? Math.max(_madA, _madB) : null,
         ppmA: a.ppm,
         ppmB: b.ppm,
-        spanSec: Math.min(a.spanSec || 0, b.spanSec || 0)
+        spanSec: _spBoth ? Math.min(_spA, _spB) : null
       });
     }
   }
@@ -11783,10 +11806,19 @@ function runFusion(recs, opts) {
     findings.push({
       tMs: startMs ?? null,
       type: 'glucose_autonomic_correlation',
-      conf: 0.6,
+      /* ── ∅ ONE CONFIDENCE CANNOT STAND FOR TWO ARMS ───────────────────────────────
+         `glucoseAutonomicCorrelation` carries a Pearson r over >=3 overlapping nights, or, with
+         fewer, the single-pair directional estimate `0.5 + clamp(slope)`. The two arms published
+         one hard-coded conf of 0.6, so a correlation over seven nights and a one-night direction
+         read equally trustworthy. Nothing measures a confidence for the directional arm, so it
+         reports null, which `integrator-render.js` already draws as an em dash. `meta.basis` names
+         the arm, so a reader no longer has to parse `note` to learn which one answered.
+         PROVENANCE: the 0.6 is a heuristic constant which predates this change, and no paper sets
+         it. This change narrows what it covers to the pearson arm alone. */
+      conf: autoGly.r != null ? 0.6 : null,
       nodes: ['ECGDex', 'GlucoDex'],
       sources: [],
-      meta: { r: autoGly.r, directional: autoGly.directional, n: autoGly.n },
+      meta: { r: autoGly.r, directional: autoGly.directional, n: autoGly.n, basis: autoGly.r != null ? 'pearson' : 'directional' },
       note: autoGly.note
     });
   }
