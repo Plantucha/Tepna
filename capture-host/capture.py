@@ -5458,12 +5458,17 @@ async def run_polar(dev: dict, root: str):
 
 
 # ── THE NATIVE MUSE S ATHENA RECORDER (MUSE-ATHENA-PROTOCOL brief §6) ──────────────────────────────
-MUSE_DEFAULT_PRESET = "p1045"  # EEG + 4 optics + motion: the night candidate of brief §6.6 (drain run owed)
+MUSE_DEFAULT_PRESET = muse_athena.DEFAULT_PRESET  # one default, named in muse_athena beside PRESETS
 MUSE_CMD_GAP_S = 0.6  # between two control writes, as in the probe client of 2026-11-14
 MUSE_SETTLE_S = 1.5  # after the first `h v6 s`, before the preset is sent
 # The data characteristic silent this long behind a live link is a stall. The built-in adapter lost the
 # link with no disconnect event in the probe (brief §6.1), so without this the runner would wait forever.
 MUSE_STALL_S = 20.0
+# EEG reaches the monitor's live card at the rate the tick spacing measured: 128 records per second, two
+# samples per record (brief §2.4). Only the four identified electrodes go to the card; channels 4-7 are
+# unidentified and stay in the raw file. The card shows raw counts, because the scale is not measured.
+MUSE_EEG_HZ = 256.0
+MUSE_LIVE_CHANNELS = len(muse_athena.EEG_ELECTRODES)
 
 
 async def run_muse_athena(dev: dict, root: str):
@@ -5471,7 +5476,7 @@ async def run_muse_athena(dev: dict, root: str):
     written VERBATIM, with the host stamp, the device tick and the packet counter.
 
     Nothing is decoded into the stream file. The three sidecars are the existing ones: device clock
-    seams through `_SeamSidecar`, counter gaps through `_RunSidecar` (rule `counter-gap`), and the true
+    seams through `_SeamSidecar`, counter gaps through `_CounterGapSidecar` (rule `counter-gap`), and the true
     arrival instant of each frame through `PmdArrivalLogWriter`. Battery comes from each 0x88 record
     into STATUS, so LINK.csv and the battery alert read it like any other device's. The preset stays
     on for the whole session; the device adapter is the daemon instance's own (`adapter:`)."""
@@ -5493,6 +5498,16 @@ async def run_muse_athena(dev: dict, root: str):
             _set(name, connected=False, address=addr, last_error=None)
             async with _connect(addr) as client:
                 _set(name, connected=True, preset=preset)
+                eeg_key = _live_key("eeg", _dev_tag(dev))
+                BUS.register(
+                    eeg_key,
+                    f"EEG ({name})",
+                    "raw",
+                    MUSE_EEG_HZ,
+                    MUSE_LIVE_CHANNELS,
+                    muse_athena.EEG_ELECTRODES,
+                    device=name,
+                )
 
                 def _path(kind: str, ext: str) -> str:
                     return os.path.join(
@@ -5515,12 +5530,17 @@ async def run_muse_athena(dev: dict, root: str):
                     n_rec = 0
                     if pkt is not None:
                         n_rec = len(pkt.records)
-                        first_ns = clock.ns(pkt.records[0].tick)
-                        last_ns = clock.ns(pkt.records[-1].tick)
-                        for r in pkt.records:
+                        # One clock read per record, in order: TickClock unwraps by the step from the
+                        # previous read, so each record's tick is fed exactly once.
+                        rec_ns = [clock.ns(r.tick) for r in pkt.records]
+                        first_ns, last_ns = rec_ns[0], rec_ns[-1]
+                        for r, r_ns in zip(pkt.records, rec_ns, strict=True):
                             pct = muse_athena.battery_pct(r)
                             if pct is not None:
                                 _set(name, battery=round(pct))
+                            eeg = muse_athena.eeg_samples(r)
+                            if eeg is not None:
+                                BUS.push(eeg_key, [row[:MUSE_LIVE_CHANNELS] for row in eeg], MUSE_EEG_HZ, dev_ns=r_ns)
                     # A refused packet is still written: the raw frame is the record, the decode is not.
                     wr.write_muse(arrival, first_ns, muse_athena.frame_counter(raw), raw)
                     try:

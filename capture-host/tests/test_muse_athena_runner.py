@@ -331,3 +331,29 @@ def test_an_arrival_log_that_cannot_write_still_leaves_the_raw_frame(tmp_path, m
     asyncio.run(capture.run_muse_athena(_dev(), str(tmp_path)))
     (raw,) = _files(tmp_path, "*_RAW.txt")
     assert len(open(raw).read().splitlines()) == 2  # the header and the one frame
+
+
+def test_a_session_feeds_the_live_eeg_card_four_electrodes_at_256_hz(tmp_path, monkeypatch):
+    c = FakeMuse()
+    _inject(monkeypatch, c)
+    n_start = len(M.start_sequence("p1045"))
+    reg, pushed = [], []
+    monkeypatch.setattr(capture.BUS, "register", lambda *a, **k: reg.append((a, k)))
+    monkeypatch.setattr(capture.BUS, "push", lambda *a, **k: pushed.append((a, k)))
+
+    def on_sleep(n, _secs):
+        if n == n_start:
+            c.cbs[M.DATA_CHAR](M.DATA_CHAR, bytearray(_eeg(1, 1000)))
+            c.cbs[M.DATA_CHAR](M.DATA_CHAR, bytearray(_battery(2, 0x4880)))  # no EEG record: no push
+        if n == n_start + 1:
+            capture._STOP.set()
+
+    _sleeps(monkeypatch, on_sleep)
+    asyncio.run(capture.run_muse_athena(_dev(), str(tmp_path)))
+
+    assert reg == [(("eeg_TEST0001", "EEG (Muse)", "raw", 256.0, 4, M.EEG_ELECTRODES), {"device": "Muse"})]
+    assert [a[0] for a, _ in pushed] == ["eeg_TEST0001", "eeg_TEST0001"]  # one push per EEG record
+    rows, hz = pushed[0][0][1], pushed[0][0][2]
+    assert hz == 256.0 and len(rows) == 2 and all(len(r) == 4 for r in rows)
+    # Each record carries its own device time: 78 125 ticks apart is 7.8125 ms.
+    assert pushed[1][1]["dev_ns"] - pushed[0][1]["dev_ns"] == 7_812_500

@@ -25,6 +25,7 @@ import clockcfg
 import offline_lock
 import loss_audit
 import probe_night as _probe
+import muse_athena
 import polar_pmd as pmd  # for SDK_MODE — the feature bit, named once, not spelled "0x9" here
 import polar_psftp
 import storage_targets
@@ -1101,6 +1102,12 @@ def make_app(
             cfg["devices"] = [merged if d is existing else d for d in cfg["devices"]]
             saved = merged
         else:
+            # A NEW MUSE IS AN ATHENA. The browser's guess cannot tell the models apart by name, and the
+            # native recorder (`protocol: athena`, capture.run_muse_athena) is the only Muse path this box
+            # has exercised; without the key the dispatcher hands the device to the child-tool supervisor,
+            # whose tools are not installed. An existing entry keeps whatever protocol it already has.
+            if incoming.get("vendor") == "Muse":
+                incoming["protocol"] = "athena"
             cfg["devices"].append(incoming)
             saved = incoming
         if not _save():
@@ -1499,6 +1506,19 @@ def make_app(
                     # collapsing "unknown" into "off" is how a night runs at 55 Hz under a config
                     # that reads 176 with nothing to show for it (see capture._enter_sdk_mode).
                     "sdk_mode_actual": st.get("sdk_mode"),
+                    # THE MUSE PRESET PICKER: offered only for the native recorder, from the presets the
+                    # headband accepted (muse_athena.PRESETS). `muse_preset` is the request (the config,
+                    # else the recorder's default); `muse_preset_actual` is what the headband last
+                    # confirmed in its `ps` reply, None when it has not said.
+                    **(
+                        {
+                            "muse_preset": d.get("preset") or muse_athena.DEFAULT_PRESET,
+                            "muse_preset_options": muse_athena.PRESETS,
+                            "muse_preset_actual": muse_athena.preset_name(st.get("preset_active")),
+                        }
+                        if d.get("vendor") == "Muse" and d.get("protocol") == "athena"
+                        else {}
+                    ),
                 }
             )
         return web.json_response(
@@ -1656,6 +1676,20 @@ def make_app(
                         f"{'those streams' if len(excl) > 1 else 'that stream'} will be silently absent "
                         "while it is on"
                     )
+            for addr, want in (body.get("muse_preset") or {}).items():
+                dev = next((d for d in cfg.get("devices", []) if d.get("address") == addr), None)
+                if not dev:
+                    raise settings_schema.SettingsError(f"unknown device {addr}")
+                if dev.get("vendor") != "Muse" or dev.get("protocol") != "athena":
+                    raise settings_schema.SettingsError(f"{dev.get('name')} is not a Muse on the native recorder")
+                if want not in muse_athena.PRESETS:
+                    raise settings_schema.SettingsError(
+                        f"{dev.get('name')}: preset {want!r} is not one the headband accepted"
+                    )
+                if (dev.get("preset") or muse_athena.DEFAULT_PRESET) != want:
+                    dev["preset"] = want
+                    changed.append(f"{dev.get('name')}.preset")
+                    restart_needed = True  # the preset is sent once, in the start sequence at connect
         except settings_schema.SettingsError as e:
             return web.json_response({"ok": False, "error": str(e)}, status=400)
         if changed:
