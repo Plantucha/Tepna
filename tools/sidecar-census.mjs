@@ -50,7 +50,7 @@ const ROW_SEAMNODE = '2026-11-02-no-node-reads-a-seam-sidecar-or-the-radio-clock
 /* Names the box spells that are NOT sidecars: the signal streams themselves, outputs derived from a
    night, and the human key to the sidecars. Each is declared, so a new name still has to be placed. */
 export const NOT_SIDECARS = {
-  stream: ['ACC', 'ACCRAW', 'ECG', 'EEG', 'HR', 'PLETHA', 'PPG', 'PPG2W', 'PPI', 'SPO2'],
+  stream: ['ACC', 'ACCRAW', 'ECG', 'EEG', 'HR', 'PLETHA', 'PPG', 'PPG2W', 'PPI', 'RAW', 'SPO2'],
   derived: ['NIGHT-REPORT'],
   note: ['README-SIDECARS']
 };

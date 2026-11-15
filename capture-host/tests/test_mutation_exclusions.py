@@ -662,7 +662,10 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # 349 → 350 on 2026-11-11 (OXYLIFE follows the attempt): `oxylife_writer_for`, which gives each ring
     # connect attempt the writer for the folder of its own day. The runner tests judge it. +1, the whole
     # delta. `moduleFunctionsAtDeclaration` stays where it is, per the note above.
-    assert n == 350, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 350 → 354 on 2026-11-15 (Muse S Athena native recorder, Kestrel order): `run_muse_athena` and its
+    # three closures `_path`, `on_data` and `on_ctrl`. The closures hold the per-session writers, as in
+    # run_polar. test_muse_athena_runner.py judges all four. +4, the whole delta.
+    assert n == 354, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():

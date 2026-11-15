@@ -1407,3 +1407,137 @@ def test_the_ecg_sidecar_records_what_it_EXAMINED_not_only_what_it_found(tmp_pat
     text = open(_sidecar(p)).read()
     assert "runs=0" in text and "examined=12" in text, text
     assert "min_run=30" in text, "the header publishes the threshold it used"
+
+
+# ── the counter-gap rule: a raw-frame stream judged by its packet counter ─────────────────────────────
+def _muse(tmp_path, counters, step_ms=10):
+    p = tmp_path / "Muse_S-Athena_TEST0001_20261115010000_MUSE.txt"
+    w = StreamWriter(str(p), "muse", device_axis=writers.DEVICE_AXIS_CLOCK)
+    for i, c in enumerate(counters):
+        w.write_muse(_phone(i * step_ms, 1000.0), 1000 + i * 100, c, bytes([9, c or 0]) + bytes(7))
+    w.close()
+    return p, _sidecar(p)
+
+
+def test_a_muse_frame_is_written_verbatim_with_its_counter_and_clock(tmp_path):
+    p, _ = _muse(tmp_path, [1, None])
+    lines = open(p).read().splitlines()
+    assert lines[0] == "Phone timestamp;sensor timestamp [ns];counter;bytes;hex"
+    assert lines[1].split(";")[1:] == ["1000", "1", "9", "090100000000000000"]
+    assert lines[2].split(";")[1:] == ["1100", "", "9", "090000000000000000"]
+
+
+def test_a_counter_gap_writes_one_row_with_the_absent_frame_count(tmp_path):
+    _, sc = _muse(tmp_path, [1, 2, 3, 7, 8])
+    assert [r[1:] for r in _rows(sc)] == [
+        ["muse", "3", "7", "3", "10.0", "1", "counter-gap", "unavailable/unavailable", "none"]
+    ]
+    text = open(sc).read()
+    assert text.startswith("# stream=muse rule=counter-gap modulus=256 ")
+    assert text.rstrip().endswith("# final rule=counter-gap examined=4 rows=1 unexamined=1 errors=0")
+
+
+def test_the_counter_wraps_at_256_without_a_gap_and_a_gap_across_the_wrap_counts(tmp_path):
+    _, sc = _muse(tmp_path, [254, 255, 0, 3])
+    rows = _rows(sc)
+    assert [(r[2], r[3], r[4]) for r in rows] == [("0", "3", "2")]
+
+
+def test_a_repeated_counter_is_a_repeat_not_255_frames_lost(tmp_path):
+    _, sc = _muse(tmp_path, [5, 5, 6])
+    assert [(r[2], r[3], r[4], r[7]) for r in _rows(sc)] == [("5", "5", "0", "counter-repeat")]
+
+
+def test_a_frame_with_no_counter_breaks_the_chain_and_is_never_read_across(tmp_path):
+    """3 -> None -> 9 is not "5 frames lost": no step crosses a frame whose header did not hold."""
+    _, sc = _muse(tmp_path, [3, None, 9, 10])
+    assert _rows(sc) == []
+    assert "examined=1 rows=0 unexamined=3" in open(sc).read()
+
+
+def test_a_resumed_counter_gap_file_writes_no_second_header_and_its_first_frame_is_unexamined(tmp_path):
+    p, sc = _muse(tmp_path, [1, 2])
+    w = StreamWriter(str(p), "muse", device_axis=writers.DEVICE_AXIS_CLOCK)
+    w.write_muse(_phone(500, 1000.0), 9000, 9, bytes(9))
+    w.close()
+    text = open(sc).read()
+    assert text.count("Phone timestamp;stream;") == 1
+    assert text.count("rule=counter-gap modulus=") == 1
+    assert _rows(sc) == []  # 2 -> 9 across the resume is not judged
+    assert text.rstrip().endswith("examined=0 rows=0 unexamined=1 errors=0")
+
+
+def test_a_counter_gap_write_that_raises_is_counted_and_never_ends_the_recording(tmp_path):
+    sc = writers._CounterGapSidecar(str(tmp_path / "x_MUSE.txt"), "muse")
+    real = sc._fh
+
+    class _Boom:
+        def write(self, _):
+            raise OSError("disk")
+
+        def close(self):
+            raise OSError("disk")
+
+    sc._fh = _Boom()
+    sc.count_step(T0, 1, 5, 1.0)
+    sc.count_step(T0, 5, 9, 1.0)
+    assert (sc.errors, sc.runs, sc.steps) == (2, 0, 2)  # each failed write counts once
+    sc.close()
+    assert sc.errors == 3 and sc._fh is None
+    sc.count_step(T0, 9, 12, 1.0)  # a closed sidecar takes no more steps
+    assert sc.steps == 2
+    real.close()
+
+
+def test_a_counter_gap_row_carries_the_host_step_in_ms_and_each_row_counts(tmp_path):
+    """One second between two frames reads 1000.0 ms: a scale off by one part in a thousand shows."""
+    _, sc = _muse(tmp_path, [1, 3, 9], step_ms=1000)
+    assert [(r[2], r[3], r[5]) for r in _rows(sc)] == [("1", "3", "1000.0"), ("3", "9", "1000.0")]
+    assert "examined=2 rows=2 unexamined=1 errors=0" in open(sc).read()
+
+
+def test_a_counter_gap_step_with_no_host_step_writes_a_blank_duration(tmp_path):
+    sc = writers._CounterGapSidecar(str(tmp_path / "y_MUSE.txt"), "muse")
+    sc.count_step(T0, 1, 5, None)
+    sc.close()
+    assert [r[5] for r in _rows(str(tmp_path / "y_MUSERUNS.txt"))] == [""]
+    assert (sc.runs, sc.errors) == (1, 0)
+
+
+def test_the_counter_gap_file_is_named_from_the_last_dot_and_a_name_with_no_dot_gets_a_suffix(tmp_path, monkeypatch):
+    """`a.b/f_MUSE.txt` keeps its directory, and a name with no dot takes `RUNS` at its end."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "a.b").mkdir()
+    assert writers._CounterGapSidecar("a.b/f_MUSE.txt", "muse").path == "a.b/f_MUSERUNS.txt"
+    sc = writers._CounterGapSidecar("f", "muse")
+    assert sc.path == "fRUNS"
+    sc.close()
+    assert open("fRUNS").read().startswith("# stream=muse rule=counter-gap ")
+
+
+def test_a_counter_gap_file_that_cannot_open_counts_one_error_and_takes_no_step(tmp_path):
+    sc = writers._CounterGapSidecar(str(tmp_path / "absent-dir" / "z_MUSE.txt"), "muse")
+    assert (sc._fh, sc.errors) == (None, 1)
+    sc.count_step(T0, 1, 5, 1.0)
+    sc.close()
+    assert (sc.steps, sc.runs, sc.errors) == (0, 0, 1)
+
+
+def test_a_counter_gap_file_of_one_byte_is_resumed_and_gets_no_header(tmp_path):
+    """The file's own size decides resume: one byte already there means append, never truncate."""
+    (tmp_path / "r_MUSERUNS.txt").write_text("x")
+    sc = writers._CounterGapSidecar(str(tmp_path / "r_MUSE.txt"), "muse")
+    sc.close()
+    text = (tmp_path / "r_MUSERUNS.txt").read_text()
+    assert text.startswith("x# final rule=counter-gap ") and "# stream=" not in text
+
+
+def test_an_EMPTY_counter_gap_file_is_NOT_a_resume_and_gets_its_header(tmp_path):
+    """A file of zero bytes holds no header, so the sidecar writes one (mutate-diff on #5049)."""
+    f = tmp_path / "f_MUSE.txt"
+    (tmp_path / "f_MUSERUNS.txt").write_text("")
+    sc = writers._CounterGapSidecar(str(f), "muse")
+    sc.close()
+    body = (tmp_path / "f_MUSERUNS.txt").read_text()
+    assert body.startswith("# stream=muse rule=counter-gap ")
+    assert body.count(writers._RunSidecar.HEADER) == 1
