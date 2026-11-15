@@ -447,6 +447,60 @@
    "notes": "This subtree is the first one declared through `localVar`. Before this unit it sat in the shape-blind census with 10 other keys, where the verdict could name it and say nothing about it.",
    "depthNote": "Depth 2 only. `available` is an array of node names and carries no element object, and `note` is a string, so neither owes an element or an inner layer."
   },
+  "hrvResource": {
+   "builtBy": "fuseHrvResource",
+   "enumeratedWith": "the depth-1 keys of the ONE `return {` inside fuseHrvResource(), at integrator-dsp.js:3585. Read from SOURCE in blanked code on 2026-11-15. The builder holds no second return literal: its only other exit is the bare `return null` guard at :3576, so this subtree has ONE route and owes no two-route union. Three of the 8 keys open an inner object literal, which the `inner` block below declares. Both export routes carry the key: the full return writes `hrvResource: hrvResource` at :7990 and the slim `var _exp = {` projection attaches it at :8134.",
+   "readAs": "an anchored read: `<alias>.<key>` or `<alias>[\"<key>\"]` inside the enclosing function of a site that binds the whole path. No realm holds such a site. `hrvResource` is named 0 times in integrator-render.js, integrator-app.js and overdex-app.js, so the depth-2 walk finds no alias to anchor on, and no inner key earns a card.",
+   "seededFrom": "Hand-checked on 2026-11-15 against the builder and all three reader realms, from the read sites and never from a token match. Three of these key names also match a bare token elsewhere. `grep -c` counts the LINES that hold the name: `reference` on 8 lines of the render file and 2 of the app, `tier` on 8 and 2 of overdex, and `note` on 14, 3 and 12 lines across render, app and overdex. Every one of those sites belongs to another object, which is why the depth-2 read is ANCHORED. The seed is DERIVED from one reading of the builder, so this first green states the shape it read and nothing about a later edit.",
+   "nullWhen": "Null whenever a finger PpgDex RMSSD and an OxyDex 1 Hz RMSSD are not both present. The guard at integrator-dsp.js:3576 returns `null` when either leg is absent, and both export sites attach the key only when the value is truthy.",
+   "surfaces": {
+    "reference": "export-only",
+    "tier": "export-only",
+    "resourced": "export-only",
+    "proxy1Hz": "export-only",
+    "supersedes": "export-only",
+    "bridge": "export-only",
+    "lowConfidence": "export-only",
+    "note": "export-only"
+   },
+   "inner": {
+    "resourced": {
+     "readAs": "The two RE-SOURCED metrics, each one an object of its own at integrator-dsp.js:3590 and :3591. No realm reads either, because no realm names `hrvResource` at all.",
+     "surfaces": {
+      "rmssd": "export-only",
+      "hrVarSd": "export-only"
+     }
+    },
+    "proxy1Hz": {
+     "readAs": "The carried 1 Hz proxy, in the SAME two-key shape as `resourced` and in DIFFERENT units. Each value is an object of its own at integrator-dsp.js:3595 and :3596. No realm reads either.",
+     "surfaces": {
+      "rmssd": "export-only",
+      "hrVarSd": "export-only"
+     }
+    },
+    "bridge": {
+     "readAs": "The cross-unit sanity bridge at integrator-dsp.js:3600, five flat values and no deeper object. No realm reads any of them.",
+     "surfaces": {
+      "meanHr": "export-only",
+      "proxyRmssdAsMs": "export-only",
+      "ratio": "export-only",
+      "factorBand": "export-only",
+      "concordance": "export-only"
+     }
+    }
+   },
+   "notes": {
+    "reference": "The literal string `waveform`, which names the honest RR-interval leg.",
+    "tier": "The evidence tier, `emerging`. The builder header states that a real-corpus reproduction of the audited PulseDex path is owed before `validated`.",
+    "resourced": "The trustworthy pair: real RR-interval values in ms from the finger waveform.",
+    "proxy1Hz": "The superseded pair, carried for continuity in pulse-RATE units. The builder never averages it with the resourced pair.",
+    "supersedes": "A sentence naming WHAT this subtree supersedes and why a smoothed rate series cannot resolve beat-to-beat intervals.",
+    "bridge": "An approximate first-order cross-unit check, never a published value.",
+    "lowConfidence": "Carried from the finger record's own HRV confidence flag.",
+    "note": "A reader sentence built by concatenation. It states that the units differ and that the two pairs travel side by side."
+   },
+   "depthNote": "Depth 3 is declared for the three inner literals, and a FOURTH layer exists under two of them. `resourced.rmssd`, `resourced.hrVarSd`, `proxy1Hz.rmssd` and `proxy1Hz.hrVarSd` each hold `{ value, unit, basis }` at integrator-dsp.js:3590, :3591, :3595 and :3596. The `inner` block of this format declares ONE layer under a parent key, so those four `{ value, unit, basis }` triples stay UNJUDGED rather than declared, and this note is where the gate's reader cannot follow. I state the bound instead of implying coverage: a key added to one of those four triples moves no counter today. `bridge` needs no fourth layer, because its five values are flat."
+  },
   "kernel": {
    "routes": [
     {
@@ -576,6 +630,38 @@
    },
    "nullWhen": "Never null and never absent. The full `runFusion` export writes the literal unconditionally and every key inside it is a number.",
    "depthNote": "This subtree carries four numbers and no object, so it needs no `inner` block and no element shape. It is the first subtree the depth-1 census named rather than a session: the census reads each top-level key's value form at both export routes, and an object literal with no `nested` entry is its one red arm."
+  },
+  "pulseCrossCheck": {
+   "builtBy": "fusePulseCrossCheck",
+   "enumeratedWith": "the depth-1 keys of the ONE `return {` inside fusePulseCrossCheck(), at integrator-dsp.js:3515. Read from SOURCE in blanked code on 2026-11-15. The builder holds no second return literal: its only other exit is the bare `return null` guard at :3507, so this subtree has ONE route and owes no two-route union. The builder holds no `.map` callback either, so no element layer exists. Both export routes carry the key: the full return writes `pulseCrossCheck: pulseCrossCheck` at :7989 and the slim `var _exp = {` projection attaches it at :8133.",
+   "readAs": "an anchored read: `<alias>.<key>` or `<alias>[\"<key>\"]` inside the enclosing function of a site that binds the whole path. No realm holds such a site. `pulseCrossCheck` is named 0 times in integrator-render.js, integrator-app.js and overdex-app.js, so the depth-2 walk finds no alias to anchor on, and no inner key earns a card.",
+   "seededFrom": "Hand-checked on 2026-11-15 against the builder and all three reader realms, from the read sites and never from a token match. Three of these 10 key names also match a bare token elsewhere. `grep -c` counts the LINES that hold the name: `reference` on 8 lines of the render file and 2 of the app, `agree` on 2 and 1, and `note` on 14, 3 and 12 lines across render, app and overdex. Every one of those sites belongs to another object, which is why the depth-2 read is ANCHORED. The seed is DERIVED from one reading of the builder, so this first green states the shape it read and nothing about a later edit.",
+   "nullWhen": "Null whenever no PpgDex finger record and OxyDex record may overlap. The guard at integrator-dsp.js:3507 returns `null` when either leg is absent, and both export sites attach the key only when the value is truthy. The absence rule, not a second shape: `null` carries no key.",
+   "surfaces": {
+    "waveformHr": "export-only",
+    "deviceHr": "export-only",
+    "overlapVerified": "export-only",
+    "reference": "export-only",
+    "biasBpm": "export-only",
+    "absBpm": "export-only",
+    "pctOfWaveform": "export-only",
+    "agree": "export-only",
+    "agreeThresholdBpm": "export-only",
+    "note": "export-only"
+   },
+   "notes": {
+    "waveformHr": "The finger pleth HR, one decimal. The reference leg of the comparison.",
+    "deviceHr": "The O2Ring 1 Hz pulse field, one decimal. The smoothed leg.",
+    "overlapVerified": "False means at least one record declares no window, so one session stays UNVERIFIED rather than proven. The builder names the rule at :3518.",
+    "reference": "The literal string `waveform`, which names WHICH leg the bias is signed against.",
+    "biasBpm": "Signed device minus waveform. Positive means the ring reads high against the honest waveform.",
+    "absBpm": "The magnitude of that bias, one decimal.",
+    "pctOfWaveform": "The magnitude relative to the WAVEFORM, which is the reference leg and the honest denominator.",
+    "agree": "True inside the pre-stated band. The threshold travels beside it rather than in prose alone.",
+    "agreeThresholdBpm": "The band itself, from PULSE_AGREE_BPM. A consumer reads the criterion rather than infers it.",
+    "note": "A reader sentence built by concatenation. It reports the disagreement and never averages the two legs."
+   },
+   "depthNote": "Depth 2 only, and nothing deeper exists. Every one of the 10 values is a number, a boolean or a string, so no inner literal and no element layer is owed here. `note` builds a string by concatenation with no callback inside it, so it stays out of the `literalKeysNoLayerReads` diagnostic that `cvhrCorroboration.note` sits in."
   },
   "schema": {
    "inline": true,
