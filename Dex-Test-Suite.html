@@ -337,6 +337,9 @@ const SOURCE_FILES = ['tools/trio-batch.mjs','tools/pat-host-offset.mjs','tools/
      Gate: `browser lane — every file it EVALUATES … is also in SOURCE_FILES` (tests/dex-tests.js). */
   'kernel-constants.js','synth-gen.js','cohort-gen.js','dex-patient-gen.js','cpapdex-coimport.js',
   'signal-spec.js','signal-adapters.js','quantity.js','event-coupling.js',
+ /* ecgdex-render.js — EVALUATED below through esmClassicify, so the evaluate-equals-listed gate
+    requires it here, and the id-binding gate needs its TEXT to see the `sqAllan` render site. */
+ 'ecgdex-render.js',
  /* THE FOUR ANALYSIS PAGES THE DELEGATION-PARITY REGISTRY NAMES AND THIS LANE COULD NOT READ. The
     registry in tests/dex-tests.js scans each page for its `AnalysisStats.*` calls, and skips a page
     whose source the runner passed none of — so a private copy reappearing in any of these four was
@@ -374,6 +377,14 @@ async function main(){
   // ESM-MIGRATION: ecgdex-dsp.js is a dual-mode ES module — classic-load it here (clock.js + ecgdex-morph.js
   // are already loaded classically above, so window.DexClock / window.ECGMorph are present when it evals).
   { const _e = await fetchText('ecgdex-dsp.js'); if(_e) (0, eval)(esmClassicify(_e)); }
+  // ECGDex RENDER — evaluated here for the same reason as the dsp above, and it cannot be a classic
+  // <script src>: the file ends in `export const ECGUI = window.ECGUI;` and its own last line says
+  // classicify sheds that line. A classic tag throws a SyntaxError and defines NOTHING, which is how
+  // this page came to hand `ECGUI: window.ECGUI` to the tests while never loading the module — the
+  // global was undefined and every group reading it skipped in this lane only. Measured 2026-11-15:
+  // the signal-quality render group was that skip. The registries load classically above, so
+  // window.EcgRegistry is present for its badge calls.
+  { const _er = await fetchText('ecgdex-render.js'); if(_er) (0, eval)(esmClassicify(_er)); }
   // ESM-MIGRATION: ppgdex-dsp.js is a dual-mode ES module (ppgdex-morph.js loaded classically above →
   // window.PPGMorph present; the DSP carries its own local clock parser, so no clock.js dependency).
   { const _p = await fetchText('ppgdex-dsp.js'); if(_p) (0, eval)(esmClassicify(_p)); }

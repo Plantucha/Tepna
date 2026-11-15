@@ -734,7 +734,51 @@ self.onmessage = async (e) => {
     </div>
     ${r.lowCoverage ? `<div class="q-note" style="color:var(--amber);border:1px solid rgba(255,184,77,.25);background:rgba(255,184,77,.06);border-radius:8px;padding:10px 12px;margin-bottom:10px">⚠ <b>Low coverage:</b> beats span ${r.spanMin} min but only ${r.activeMin} min is continuously covered — ${r.gapMin} min of off-body / dropout across ${r.nGaps} gap${r.nGaps === 1 ? '' : 's'}. All metrics describe the usable signal only; duration and tier use active time, not the raw span.</div>` : ''}
     <div class="q-note">Per-beat SQI = kurtosis (kSQI) · two-detector agreement (bSQI ±50 ms) · RR plausibility (300–2000 ms) · flatline/rail · amplitude range. Coverage = active (beat-covered) time ÷ raw span — stray beats in noise after the strap comes off no longer inflate duration. Excluded spans are greyed on the waveform; SQI feeds the <b>conf</b> of every Ganglior event. <span style="opacity:.7">ACC motion-gating deferred to the Integrator (v1 is ECG-only).</span></div>`;
+    /* SIGNAL-QUALITY-TABLE-2026-11-14 §6 (boxes 6, 7, 8) — the per-channel table and the three
+       drift series, ABOVE this section's first result card. The owner's direction put the table in
+       this existing section rather than above the first result card of the page (agent board entry
+       6514), and the brief's box text moved with this diff. */
+    var _sq = _sqObject(r);
+    _sqSet('sqTableCard', UI.sqTable(_sq.sq, _sq.why));
+    _sqSet('sqDriftCard', UI.sqDriftPanels(r.driftProfile || null, r.hostAxis || null));
     $('qualitySection').style.display = 'block';
+  }
+
+  /* THE TABLE'S OBJECT, READ ONCE PER RENDER — and never built a second time.
+     `ecgSignalQuality` is called in exactly one place, inside `ecgBuildNodeExport`, and `ECGDSP`
+     does not publish it. So the page reads the published surface, `buildNodeExport`, exactly as
+     `eegdex-app.js` and `motiondex-app.js` already do. The page and the exported bytes are then ONE
+     measurement read twice, instead of two producers that can drift apart.
+     `ecgBuildNodeExport` assigns no field on its argument (measured: zero `r.<name> =` statements in
+     its body), so this call changes nothing the rest of the render reads.
+     A REVIEW-MODE RESULT IS AN INGESTED EXPORT and already carries the object; rebuilding it there
+     would compute over a view rather than over a recording.
+     EVERY FAILURE HERE IS NAMED, never swallowed: EXPORT-PATH-UNREACHABLE-2026-08-01 is the brief
+     about an export path that broke in five nodes while every gate stayed green, because nothing
+     surfaced the breakage. A thrown export now prints its own message in the card. */
+  function _sqObject(r) {
+    if (r && r.signalQuality) return { sq: r.signalQuality, why: null };
+    if (!(window.ECGDSP && typeof ECGDSP.buildNodeExport === 'function')) return { sq: null, why: 'this build publishes no ECGDSP.buildNodeExport, so the table has no object to read' };
+    try {
+      /* `rich: true` IS LOAD-BEARING. `out.signalQuality` sits inside the `if (opts.rich)` branch of
+         ecgdex-dsp.js, so a call without it returns an export with no table in it and this card
+         prints an absence that the node did not have. This call is LOCAL to the card: the app's own
+         exportGanglior() still calls buildNodeExport WITHOUT opts.rich, so the Ganglior stream the
+         user downloads does not move a byte. */
+      const ex = ECGDSP.buildNodeExport(r, { kernel: window.DexKernel || null, rich: true });
+      if (ex && ex.signalQuality) return { sq: ex.signalQuality, why: null };
+      return { sq: null, why: 'the rich node export built with no signalQuality object inside it' };
+    } catch (e) {
+      return { sq: null, why: 'the node export threw while this card was built: ' + ((e && e.message) || String(e)) };
+    }
+  }
+
+  /* The one sink for both cards. Every string the two builders interpolate is a repo constant or a
+     formatted number, and the only raw markup is `evBadge()` output — the reason this statement
+     carries an entry in the xss-sink-gate ALLOW table. */
+  function _sqSet(id, html) {
+    const el = $(id);
+    if (el) el.innerHTML = html;
   }
 
   function _chartCardBadge(bodyId, label) {
