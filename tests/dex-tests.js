@@ -12661,6 +12661,95 @@
       });
     });
 
+    /* §∅ N1-12 · A WINDOW WITH NO MEASURED SAMPLE HAS NO CEILING — and 95 was the number it published.
+       `computeCeilingBaselineArr` fell back to `bl[i] = 95` whenever its trailing histogram held
+       nothing (`cnt === 0`): index 0, which has no history, and every index whose whole trailing WIN
+       is absent. 95 is in range for a resting ceiling, so nothing downstream could tell it from a
+       reading — and it is the reference a desaturation is SCORED against, which makes it the §∅
+       error at the one place the whole desaturation family shares.
+       MEASURED PLANT, both ways, against this module's own sources: over a 900-sample series whose
+       first 500 samples are absent, the parent reported a ceiling of 95 at all 500 indices whose
+       window held nothing, and `detectDesatEvents`
+       published `{startIdx: 300, baseline: 95, depth: 7}` out of a window holding no sample at all.
+       `minSec: 10` kept that event out of ODI-4, but `computeODI1` (dropPct 1) and `dip3Count`
+       (dropPct 3) both call the primitive with `minSec: 0`, so the fabricated reference reached two
+       PUBLISHED counts. With the fix the same series yields 67 events where the parent yielded 68,
+       and the one that went is exactly the one with no baseline. */
+    group('§∅ · OxyDex — an empty baseline window has NO ceiling, never 95 (plant-backed)', 'oxydex-util · oxydex-dsp · absence · plant', function (T) {
+      var CB = env.computeCeilingBaselineArr || (typeof globalThis !== 'undefined' && globalThis.computeCeilingBaselineArr) || null;
+      var det = env.OxyDex && env.OxyDex._bare && env.OxyDex._bare.detectDesatEvents;
+      if (typeof CB !== 'function') {
+        T.skip('computeCeilingBaselineArr reachable', 'not exposed in this lane');
+        return;
+      }
+      var WIN = 300;
+      var clean = [];
+      for (var i = 0; i < 900; i++) clean.push(94 + (i % 5)); // spans 94..98 — a percentile cannot be
+      // seen to move on a constant series.
+
+      // (a) THE COLD START. Index 0 has no history, so it has no ceiling. RED on the parent: 95.
+      T.eq('index 0 has no measured history, so it reports null', JSON.stringify(CB(clean, WIN, 90)[0]), 'null');
+
+      // (b) AND EVERY INDEX WHOSE WHOLE TRAILING WINDOW IS ABSENT. RED on the parent: all 500 read 95.
+      var holed = clean.slice();
+      for (var j = 0; j < 500; j++) holed[j] = null; // a dropout LONGER than WIN
+      var blH = CB(holed, WIN, 90);
+      var unsupported = 0;
+      for (var k = 0; k < 500; k++) if (blH[k] != null) unsupported++;
+      T.eq('no index inside a dropout longer than the window reports a ceiling', unsupported, 0);
+      T.eq('and the first index after it, whose window is still all absent, reports null', JSON.stringify(blH[499]), 'null');
+
+      // (c) THE DETECTOR PUBLISHES NO EVENT AGAINST A REFERENCE NOTHING MEASURED. This is the
+      // `minSec: 0` path that computeODI1 and dip3Count use, so it is a published count.
+      if (typeof det !== 'function') {
+        T.skip('detectDesatEvents reachable', 'not exposed in this lane');
+      } else {
+        var deep = holed.slice();
+        for (var m = 300; m < 360; m++) deep[m] = 88; // real readings inside the absent span
+        var evs = det(deep, { dropPct: 4, exitPct: 4, minSec: 0 });
+        var fabricated = evs.filter(function (e) {
+          return e.startIdx < 500 && e.baseline === 95;
+        });
+        // RED on the parent: one event, {startIdx: 300, baseline: 95, depth: 7}.
+        T.eq('no event is scored against a baseline no sample supports', fabricated.length, 0);
+        T.eq(
+          'and none of the published events starts inside the dropout at all',
+          evs.filter(function (e) {
+            return e.startIdx < 500;
+          }).length,
+          0
+        );
+      }
+
+      /* CONTROLS — these pass on the parent TOO, so a red above is the absence path and not the
+         harness. The first is the one that matters: the fix is "no supporting sample", NEVER
+         "the value happens to be 95". */
+      var flat95 = [];
+      for (var q = 0; q < 400; q++) flat95.push(95);
+      T.eq('CONTROL · a MEASURED ceiling of 95 is still reported as 95', CB(flat95, WIN, 90)[399], 95);
+      var blC = CB(clean, WIN, 90);
+      var missing = 0;
+      for (var r = 1; r < 900; r++) if (blC[r] == null) missing++;
+      T.eq('CONTROL · a null-free series reports a ceiling at every index from 1 on', missing, 0);
+      T.eq('CONTROL · absence does not shorten the series', blH.length, blC.length);
+
+      // The source carries the two call sites the fabrication reached. `match(/…/g)` counts
+      // OCCURRENCES — `grep -c` would count LINES and under-read a file that calls it twice.
+      if (typeof require !== 'undefined') {
+        var src = '';
+        try {
+          src = require('fs').readFileSync('oxydex-dsp.js', 'utf8');
+        } catch (_e) {}
+        if (src) {
+          var zero = src.match(/minSec:\s*0\b/g) || [];
+          T.ok('the primitive is called with minSec 0 at more than one site (ODI-1 and dip3)', zero.length >= 2, String(zero.length));
+          T.ok('the detector refuses an index with no baseline', /if \(bl == null\)/.test(src));
+        } else {
+          T.skip('source assertions', 'Node-only (require(fs))');
+        }
+      }
+    });
+
     /* §∅ · A TERMINAL DESATURATION OBSERVED NO RESATURATION — item (B) of the 2026-10-06 batch, as
        ACTUALLY FOUND. The hunter's claim was an EOF off-by-one: a desat opening 10 samples before the
        end passing a 10 s gate at 9 s. That does NOT reproduce, and the table is in the PR body —
@@ -30209,6 +30298,41 @@
       for (i = 0; i < UI.length; i++) if (typeof U[UI[i]] !== 'function') missing.push('EEGUI.' + UI[i]);
       T.eq('every function the app imports is callable in this realm', missing.join(', '), '');
       T.eq('the engine declares the 30 s epoch', D.EPOCH_SEC, 30);
+    });
+
+    group('EEGDex pins two refusals no assertion held: rms over an all-hole window, the four-epoch stretch floor', 'eegdex · refusals · mutation-pinned', function (T) {
+      /* Shrike's eegdex-dsp.js mutant run (2026-11-15, verified by Kestrel) found both guards unpinned:
+         each mutant passed all 19007 assertions. */
+      var D = env.EEGDSP;
+      /* rms returns null when no finite sample is in the window. A 0 there is the lowest muscle
+         tone, which is the REM arm's own requirement, so a hole would push an epoch toward REM. */
+      T.eq('rms over a window of holes → null, never 0', JSON.stringify(D.rms([NaN, NaN, NaN], 0, 3)), 'null');
+      T.eq('rms over an empty window → null', JSON.stringify(D.rms([1, 2], 1, 1)), 'null');
+      T.eq('CONTROL: rms over finite samples skips the hole and measures', JSON.stringify(D.rms([3, NaN, 4], 0, 3)), JSON.stringify(Math.sqrt(12.5)));
+      /* swaTrend excludes a stretch with fewer than SWA_MIN_EPOCHS (4) N2/N3 epochs. Three stretches:
+         4 N2, then 1 N2 among 11 N1, then 4 N2. The REM epochs sit 12 epochs apart, past the
+         10-epoch merge gap, so they are two REM periods and the middle stretch is a stretch. */
+      var st = [],
+        k;
+      for (k = 0; k < 4; k++) st.push('N2');
+      st.push('REM', 'N2');
+      for (k = 0; k < 11; k++) st.push('N1');
+      st.push('REM');
+      for (k = 0; k < 4; k++) st.push('N2');
+      var bands = st.map(function () {
+        return { abs: { delta: 10 } };
+      });
+      var sw = D.swaTrend(bands, st);
+      T.eq('a one-epoch stretch is excluded and counted, never measured', JSON.stringify(sw.population), JSON.stringify({ stretches: 3, measured: 2, excluded: 1 }));
+      T.eq(
+        'and only the two four-epoch stretches enter the trend',
+        JSON.stringify(
+          sw.periods.map(function (p) {
+            return p.epochs;
+          })
+        ),
+        '[4,4]'
+      );
     });
 
     group('EEGDex scores the deterministic synthetic to its pinned values', 'eegdex · compute · known-answer', function (T) {
