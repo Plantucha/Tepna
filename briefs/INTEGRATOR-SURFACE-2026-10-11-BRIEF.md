@@ -1532,3 +1532,99 @@ These keys add nothing to `population.checked`, because the census names keys it
 Selftests move 421 to 448. Twenty-seven legs hold the census, and three pin the lessons above: the
 longest chain, the dropped method of `fusion.findings.map`, and the string that survives as an empty
 value text.
+
+## 26 · 2026-11-15 — two gate defects hid one subtree, and the fixtures named it
+
+The residue row `2026-10-11-integrator-cvhr-row-was-the-wrong-frame` records an owner assignment from
+2026-10-11: declare `surface:` per key. The row stays open until that declaration lands. This unit
+held the declaration against real exports, found one undeclared subtree, and then found two gate
+defects that hid it.
+
+### What the committed fixtures say about depth 1
+
+The primary checkout holds 7 integrator fusion artifacts. Six of them carry `kind: "fusion"`, and
+those six hold 18 depth-1 keys and 45 depth-2 keys. The declaration already names every depth-1 key
+those six carry, so the row's depth-1 half is complete against real exports.
+
+⚠️ The first reader folded in the seventh artifact and lied. The twins artifact holds the root keys
+`nights` and `schema`, and a `j.fusion || j.result || j` fallback admits it. That admission invented a
+top-level `nights` gap plus three `nights.*` keys. A `kind === "fusion"` test excludes exactly that one
+file.
+
+Five more candidates came from the same reader's own path naming. `apneaNullModel.belowChance`,
+`.directionalWindowSec`, `.expectedConfirmed`, `.pAtLeastObserved` and `.surgeRatePerHr` all sit under
+`nested.apnea.inner.nullModel`, which section 24 declares as 11 keys. Section 25 already reports that
+pair as served.
+
+So the honest depth-2 gap holds 9 keys. Eight of them belong to `positional`, which one of the six
+fixtures carries. The ninth is `hrvConsensus.blocks`.
+
+### Defect 1 — the shape reader read raw source
+
+`nestedShapes` split the DSP text itself, and every sibling reader splits prepared code. The gate
+holds 16 readers that take a `pre = prepare` parameter, and before this unit 15 of them used it.
+`oneLineObject` refuses any body that holds a quote, because it counts braces with no string
+awareness. That refusal is right for raw text and wrong for a reader whose caller hands it raw text.
+
+`labelPositionalApnea` returns from two places. The guard route at `integrator-dsp.js:2657` is one
+line and carries a message string, so the raw read returned null, and `nestedShapes` returned null for
+the whole builder. The gate then threw `its shape changed, and this gate must not guess` over a
+builder that had never moved. The `positional` subtree sat unreachable for that reason alone.
+
+### Defect 2 — a shadowed alias site lost its pre-shadow reads
+
+`integrator-render.js:1045` binds `var p = fusion.positional` and reads `p.note` at :1054. Two
+unrelated `.filter(function (p)` callbacks follow at :1062 and :1068. The shadow scan is right about
+those callbacks, and the evaluator dropped the whole site for them, so `note` read as unrendered
+although a card prints it.
+
+A binding names one object from its own line up to the line before its first shadow. `narrowToBinding`
+now keeps that window and drops the rest. The window starts at that line, not at the enclosing
+function: a shadow in front of a binding owns the lines above it, and a read there belongs to whatever
+that shadow bound. An unshadowed site keeps its whole scope, which stays loose in the crediting
+direction and harmless, because `var` hoisting makes a read above a binding read `undefined`.
+
+### The subtree
+
+`fusion.positional` holds eight scalars and no object. `integrator-dsp.js:7815` writes
+`apnea ? labelPositionalApnea(recs, apnea) : null`, and the builder returns null at :2611 on an empty
+finding list. `integrator-render.js` alone reads the subtree, at two sites that both bind `p`.
+
+| key | surface | the read the gate credits |
+|---|---|---|
+| `available` | card | `:509` tests the whole path, `:1052` reads it through `p` |
+| `supine` | card | `:515`, beside `nonsupine` in one KPI sub-line |
+| `nonsupine` | card | `:515` |
+| `supineRate` | card | `:514` KPI value, `:1053` finding body |
+| `positional` | card | `:516` picks the KPI tone, `:1050` gates the finding |
+| `note` | card | `:1054`, the finding card body. Defect 2 hid this one |
+| `unknown` | export-only | no anchored read |
+| `postureSource` | export-only | no anchored read |
+
+Six keys sit on the measured route only, so `partialShape` states why: the guard route at :2657
+returns `available: false` and the note alone.
+
+### `hrvConsensus` is a bare variable, so the resolver stays parked
+
+The slim export writes `hrvConsensus: fusion.hrv || null` at `integrator-dsp.js:8091`. The key the
+export carries and the key the fusion builds differ by name, so the census cannot resolve it. That
+puts `hrvConsensus.blocks` behind section 25's 11 unresolved keys, and this unit declares nothing for
+it.
+
+### The controls
+
+| control | outcome |
+|---|---|
+| 0 · this branch, unchanged | `PASS` · `checked: 177` · `nestedKeys: 75` · `nestedCard: 33` · `nestedAliasShadowed: 1` |
+| 1 · defect 1 fix reverted | exit 1 · `labelPositionalApnea() was not found … this gate must not guess`. This control sizes the unit |
+| 2 · defect 2 fix reverted | `FAIL` · `note` reds as a card key no anchored read reaches. The second control that sizes the unit |
+| 3 · a ninth key added to the builder literal | `FAIL` · names `probe` as undeclared, and as a key with no `partialShape` reason |
+| 4 · `unknown` flipped to `card` | `FAIL` · no anchored read reaches it |
+| 5 · `postureSource` flipped to `card` | `FAIL` · no anchored read reaches it |
+| 6 · `supineRate` flipped to `export-only` | `FAIL` · an anchored read reaches it, so the card credit is a real read |
+
+Controls 3 to 6 mutate the source or the declaration one key at a time, and controls 1 and 2 revert my
+own repair. Only the second pair shows what this unit changed.
+
+Selftests move 448 to 457. Four legs hold defect 1 and five hold defect 2. The control leg among them
+places a shadow above the line that binds the alias, where the window stays empty.
