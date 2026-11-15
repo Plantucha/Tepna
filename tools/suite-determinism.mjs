@@ -33,9 +33,25 @@
  * holds a control where two outputs differ ONLY in an assertion COUNT, which must read FAIL, beside a
  * control where they differ only in a duration, which must read PASS.
  *
+ * 🔴 AND THE ONE AGREEMENT ITSELF CREATES. A rare event needs legs to appear in. Row
+ * `2026-11-04-the-hooks-gate-flakes-on-the-worktree-creating-cd-shape` is the measured case: one red in
+ * 30 runs at six-way concurrency, then 0 reds in 310 further runs. Three agreeing legs over a one in 30
+ * event agree about 90 % of the time BY CHANCE. So a caller states the rate it wants to see and the
+ * confidence it wants, `powerFloor` names the legs that needs, and a would-be PASS under that floor is
+ * downgraded to UNDERPOWERED with both numbers in its reason. A FAIL is never downgraded, because a
+ * disagreement is its own evidence.
+ *
+ * 🔴 THE EMPTY-SELECTION REFUSAL TRAVELS WITH THE SELECTOR. `tests/run-tests.mjs` prints its group
+ * count, so a 0 there is readable. An arbitrary command prints whatever it prints, so `--cmd` callers
+ * pre-state `--min-units N` and this tool counts the command's own result lines. A run below the
+ * declared floor reads NOT_RUN. A tool that guesses the population of a command it does not know is
+ * the §4b defect wearing a number.
+ *
  * Usage:
  *   node tools/suite-determinism.mjs --group ppgdex-dsp --legs 3
  *   node tools/suite-determinism.mjs --group ppgdex-dsp --json      # ONE tepna.verdict/1 on stdout
+ *   node tools/suite-determinism.mjs --legs 89 --rate 1/30 --min-units 30 \
+ *     --cmd -- bash .claude/hooks/guard-stale-brief.test.sh
  *   node tools/suite-determinism.mjs --verdict-sample               # the object alone
  *   node tools/suite-determinism.mjs --selftest
  */
@@ -60,12 +76,20 @@ const opt = (f, d) => {
 
 /* A duration and a wall-clock stamp move on every run and carry no verdict. NOTHING ELSE is stripped:
    an assertion count, a group count, a name and a reported value all survive into the hash. */
-export function normalize(text) {
-  return String(text)
+export function normalize(text, volatile) {
+  let out = String(text)
     .replace(/\u001b\[[0-9;]*m/g, '')
     .replace(/\b\d+(\.\d+)?\s?ms\b/g, '<ms>')
     .replace(/\b\d+(\.\d+)?\s?s\b/g, '<s>')
-    .replace(/\b\d{4}-\d{2}-\d{2}T[\d:.]+Z?\b/g, '<at>')
+    .replace(/\b\d{4}-\d{2}-\d{2}T[\d:.]+Z?\b/g, '<at>');
+  /* 🔴 A VOLATILE TOKEN THE CALLER DECLARES, AND NOTHING THIS TOOL GUESSES. Measured 2026-11-15:
+     89 legs of `.claude/hooks/guard-stale-brief.test.sh` produced 89 DISTINCT result sets, and the
+     first difference was the throwaway repo's `mktemp` path, printed on its own fixture line. That is
+     a run nonce and not a flake, and 89 of 89 is the shape a nonce makes. Widening the built-in strips
+     to cover it would strip every path from every caller, so the pattern is an ARGUMENT: it lands in
+     the verdict's evidence, and a reader sees what was held volatile. */
+  for (const re of volatile || []) out = out.replace(new RegExp(re, 'g'), '<volatile>');
+  return out
     .split('\n')
     .filter((l) => l.trim() !== '')
     .join('\n');
@@ -83,6 +107,60 @@ export function groupsSelected(text) {
   return null;
 }
 
+/* The command's OWN result lines, for a selector this tool does not know. It counts the shapes a test
+   file prints per leg and nothing else, so prose scores 0 — which is why `--min-units` is the caller's
+   to declare and never this tool's to infer. */
+export function unitsCounted(text) {
+  const s = String(text).replace(/\u001b\[[0-9;]*m/g, '');
+  const m = s.split('\n').filter((l) => /^\s*(?:ok|OK|not ok|PASS|FAIL|REFUSE|\u2713|\u2717)\b/.test(l));
+  return m.length;
+}
+
+/* `1/30`, `0.033` or nothing. A rate this tool cannot read is `null`, never a default — §∅. */
+export function parseRate(raw) {
+  if (raw === null || raw === undefined) return null;
+  const s = String(raw).trim();
+  const frac = s.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
+  const v = frac ? Number(frac[1]) / Number(frac[2]) : Number(s);
+  return Number.isFinite(v) && v > 0 && v < 1 ? v : null;
+}
+
+/* The legs a rate `p` needs before agreement MEANS anything at confidence `conf`:
+   the smallest n with 1 - (1-p)^n >= conf. At one event in 30 legs and 95 %, that is 89 — and 88 legs
+   reach 94.94 %, which is the arithmetic my own claim for this unit got wrong. */
+export function powerFloor(p, conf) {
+  if (!(Number.isFinite(p) && p > 0 && p < 1)) throw new Error('powerFloor needs a rate in (0,1)');
+  if (!(Number.isFinite(conf) && conf > 0 && conf < 1)) throw new Error('powerFloor needs a confidence in (0,1)');
+  return Math.ceil(Math.log(1 - conf) / Math.log(1 - p));
+}
+
+/* The selector, built once and carried into every leg. Two kinds only, and each one brings its own
+   population reader — see the header. */
+export function parseSelector(args) {
+  const list = Array.isArray(args) ? args : [];
+  const ci = list.indexOf('--cmd');
+  if (ci >= 0) {
+    const dash = list.indexOf('--', ci);
+    const rest = dash >= 0 ? list.slice(dash + 1) : [];
+    if (!rest.length) {
+      return { ok: false, reason: '--cmd needs its command after a `--` terminator, so no shell quoting can reach it' };
+    }
+    return { ok: true, kind: 'cmd', exe: rest[0], args: rest.slice(1), label: rest.join(' '), countsGroups: false };
+  }
+  const gi = list.indexOf('--group');
+  const group = gi >= 0 && list[gi + 1] && !list[gi + 1].startsWith('--') ? list[gi + 1] : null;
+  if (!group) return { ok: false, reason: 'neither --group <pattern> nor --cmd -- <argv> was given' };
+  return {
+    ok: true,
+    kind: 'group',
+    exe: process.execPath,
+    args: ['tests/run-tests.mjs', `--group=${group}`],
+    label: `--group=${group}`,
+    group,
+    countsGroups: true
+  };
+}
+
 export function firstDifference(a, b) {
   const la = String(a).split('\n');
   const lb = String(b).split('\n');
@@ -93,10 +171,12 @@ export function firstDifference(a, b) {
 }
 
 /* One leg: run the selector once and reduce it to a comparable result set. */
-export function runLeg({ group, tree, boundMs, impl, legNo }) {
-  const got = boundedChild(process.execPath, ['tests/run-tests.mjs', `--group=${group}`], {
+export function runLeg({ selector, group, tree, boundMs, impl, legNo, volatile }) {
+  const sel = selector || parseSelector(['--group', group]);
+  if (!sel.ok) return { ok: false, reason: sel.reason, groups: null, hash: null, text: null };
+  const got = boundedChild(sel.exe, sel.args, {
     ms: boundMs,
-    label: `leg ${legNo} of the "${group}" selection`,
+    label: `leg ${legNo} of "${sel.label}"`,
     cwd: tree,
     ...(impl ? { impl } : {})
   });
@@ -112,18 +192,30 @@ export function runLeg({ group, tree, boundMs, impl, legNo }) {
     const why = got.reason || 'the suite failed and wrote nothing this tool could read';
     return { ok: false, reason: why, groups: null, hash: null, text: null };
   }
-  const norm = normalize(text);
+  const norm = normalize(text, volatile);
+  /* A declared pattern that swallows the whole result set makes every leg agree about nothing — the
+     same vacuous pass as a selector that matched no group, reached from the other side.
+     🔴 THE FIRST VERSION OF THIS GUARD COULD NOT FIRE. It tested `norm === ''`, and a substitution
+     WRITES its placeholder, so the text is never empty however greedy the pattern is. The reachable
+     test is whether anything of the run SURVIVES the placeholders. */
+  const survives = norm.replace(/<volatile>/g, '').replace(/[\s\n]/g, '');
+  if (norm === '' || survives === '') {
+    return { ok: false, reason: 'the declared volatile pattern(s) swallowed the whole result set, so nothing of the run survived to compare', groups: null, hash: null, text: null };
+  }
   return {
     ok: true,
     reason: null,
     status: got.ok ? 0 : got.status,
-    groups: groupsSelected(text),
+    /* ONE field, two readers. The runner prints its group count; an arbitrary command prints its own
+       result lines. Neither is ever inferred from the other. */
+    groups: sel.countsGroups ? groupsSelected(text) : unitsCounted(text),
     hash: createHash('sha256').update(norm).digest('hex').slice(0, 12),
     text: norm
   };
 }
 
-export function judge(legs, requested) {
+export function judge(legs, requested, opts) {
+  const { floor = null, minUnits = null, rate = null, confidence = null } = opts || {};
   const read = legs.filter((l) => l.ok);
   const unread = legs.filter((l) => !l.ok);
   const base = {
@@ -142,6 +234,16 @@ export function judge(legs, requested) {
   if (zero) {
     return { ...base, status: 'NOT_RUN', reason: 'the selector matched ZERO groups, so every leg agreed about nothing' };
   }
+  if (minUnits !== null) {
+    const thin = read.find((l) => Number(l.groups) < minUnits);
+    if (thin) {
+      return {
+        ...base,
+        status: 'NOT_RUN',
+        reason: `a leg reported ${thin.groups} countable unit(s) against the declared floor of ${minUnits}, so the legs agreed about less than the caller asked to examine`
+      };
+    }
+  }
   const blind = read.find((l) => l.groups === null);
   if (blind) {
     return { ...base, status: 'NOT_RUN', reason: 'the selection count could not be read from the runner output, and an unread count is not a non-empty one' };
@@ -155,7 +257,19 @@ export function judge(legs, requested) {
     distinctExitStatuses: statuses.length,
     hashes
   };
-  if (hashes.length === 1 && statuses.length === 1) return { ...base, status: 'PASS', result };
+  if (hashes.length === 1 && statuses.length === 1) {
+    /* 🔴 AGREEMENT IS NOT A READING UNTIL IT HAD THE LEGS TO DISAGREE IN. Only a would-be PASS is
+       downgraded: a FAIL below the floor already saw the event. */
+    if (floor !== null && read.length < floor) {
+      return {
+        ...base,
+        status: 'UNDERPOWERED',
+        result: { ...result, powerFloor: floor, rate, confidence },
+        reason: `${read.length} agreeing leg(s) against a floor of ${floor}: at a pre-stated rate of ${rate} and ${confidence} confidence, this many legs agree by chance`
+      };
+    }
+    return { ...base, status: 'PASS', result: floor === null ? result : { ...result, powerFloor: floor, rate, confidence } };
+  }
   const a = read.find((l) => l.hash === hashes[0]);
   const b = read.find((l) => l.hash !== hashes[0]) || read[1];
   const diff = firstDifference(a.text, b.text);
@@ -177,7 +291,8 @@ function commitOf() {
   }
 }
 
-export function verdictOf({ status, population, result, reason, group, legs }) {
+export function verdictOf({ status, population, result, reason, group, selector, legs, volatile }) {
+  const label = selector || (group ? `--group=${group}` : 'unknown selector');
   const commit = commitOf();
   const v = Verdict.make({
     gate: GATE,
@@ -190,7 +305,7 @@ export function verdictOf({ status, population, result, reason, group, legs }) {
       direction: 'lte'
     },
     result,
-    evidence: ['tools/suite-determinism.mjs', 'tools/child-bound.mjs', `selector:--group=${group}`],
+    evidence: ['tools/suite-determinism.mjs', 'tools/child-bound.mjs', `selector:${label}`, ...(volatile || []).map((r) => `volatile:${r}`)],
     reason: status === 'PASS' ? null : reason,
     producedBy: { tool: 'tools/suite-determinism.mjs', commit, ...(commit ? {} : { commitReason: 'git could not be read from this checkout' }) }
   });
@@ -213,9 +328,11 @@ function main() {
     process.stdout.write(JSON.stringify(verdictOf(SAMPLE), null, 2) + '\n');
     return 0;
   }
-  const group = opt('--group', null);
-  if (!group) {
-    process.stderr.write('usage: node tools/suite-determinism.mjs --group <pattern> [--legs N] [--tree <path>] [--json]\n');
+  const selector = parseSelector(argv);
+  if (!selector.ok) {
+    process.stderr.write(`suite-determinism: ${selector.reason}\n`);
+    process.stderr.write('usage: node tools/suite-determinism.mjs (--group <pattern> | --cmd -- <argv>...) [--legs N]\n');
+    process.stderr.write('       [--rate 1/30] [--confidence 0.95] [--min-units N] [--tree <path>] [--bound-ms N] [--json]\n');
     return 2;
   }
   const legsWanted = Math.max(1, Number(opt('--legs', '3')));
@@ -223,16 +340,26 @@ function main() {
   const boundMs = Number(opt('--bound-ms', '900000'));
   const asJson = has('--json');
   const say = asJson ? (s) => process.stderr.write(s + '\n') : (s) => process.stdout.write(s + '\n');
+  /* The rate and the confidence are the CALLER's, pre-stated on the command line, and a rate this tool
+     cannot read is absent rather than assumed — so no floor binds and the reason says nothing about one. */
+  const rate = parseRate(opt('--rate', null));
+  const confidence = rate === null ? null : Number(opt('--confidence', '0.95'));
+  const floor = rate === null ? null : powerFloor(rate, confidence);
+  /* Repeatable. Each one is a regex source, and all of them reach the verdict's evidence. */
+  const volatile = argv.reduce((acc, a, i) => (a === '--volatile' && argv[i + 1] ? [...acc, argv[i + 1]] : acc), []);
+  const minUnitsRaw = opt('--min-units', null);
+  const minUnits = minUnitsRaw === null ? null : Math.max(0, Number(minUnitsRaw));
+  if (floor !== null) say(`▸ power floor ${floor} leg(s) at a pre-stated rate of ${rate.toFixed(4)} and ${confidence} confidence`);
 
   const legs = [];
   for (let i = 1; i <= legsWanted; i++) {
     const t0 = Date.now();
-    const leg = runLeg({ group, tree, boundMs, legNo: i });
+    const leg = runLeg({ selector, tree, boundMs, legNo: i, volatile });
     legs.push(leg);
-    say(`  leg ${i}/${legsWanted}  ${((Date.now() - t0) / 1000).toFixed(1)}s  ${leg.ok ? `groups=${leg.groups} status=${leg.status} hash=${leg.hash}` : `UNREADABLE — ${leg.reason}`}`);
+    say(`  leg ${i}/${legsWanted}  ${((Date.now() - t0) / 1000).toFixed(1)}s  ${leg.ok ? `units=${leg.groups} status=${leg.status} hash=${leg.hash}` : `UNREADABLE — ${leg.reason}`}`);
   }
-  const j = judge(legs, legsWanted);
-  const v = verdictOf({ ...j, group, legs: legsWanted });
+  const j = judge(legs, legsWanted, { floor, minUnits, rate, confidence });
+  const v = verdictOf({ ...j, selector: selector.label, legs: legsWanted, volatile });
   if (asJson) process.stdout.write(JSON.stringify(v, null, 2) + '\n');
   say(`▸ ${GATE}: ${j.status}${j.reason ? ' — ' + j.reason : ''}`);
   return j.status === 'PASS' ? 0 : j.status === 'FAIL' ? 1 : 2;
@@ -335,6 +462,115 @@ function selftest() {
   ok('the FAIL verdict validates and carries a reason', Verdict.validate(vFail).ok && !!vFail.reason);
   const vZero = verdictOf({ ...jZero, group: 'x', legs: 2 });
   ok('the NOT_RUN verdict validates with a null result', Verdict.validate(vZero).ok && vZero.result === null);
+
+  /* ── the power floor ──────────────────────────────────────────────────────────────────────── */
+  /* 🔴 89, NOT 88. The claim for this unit pre-stated 88 and the arithmetic says otherwise: 88 legs
+     reach 94.94 % and miss the stated confidence. The leg was right and my number was wrong. */
+  ok('powerFloor names 89 legs for one event in 30 at 95 %', powerFloor(1 / 30, 0.95) === 89, `${powerFloor(1 / 30, 0.95)}`);
+  ok('…and 5 legs for a coin flip', powerFloor(0.5, 0.95) === 5, `${powerFloor(0.5, 0.95)}`);
+  ok(
+    '…and it REFUSES a rate of 0, which would need infinite legs',
+    (() => {
+      try {
+        powerFloor(0, 0.95);
+        return false;
+      } catch (e) {
+        return /rate in \(0,1\)/.test(e.message);
+      }
+    })()
+  );
+  ok(
+    '…and REFUSES a confidence of 1, by name',
+    (() => {
+      try {
+        powerFloor(0.1, 1);
+        return false;
+      } catch (e) {
+        return /confidence in \(0,1\)/.test(e.message);
+      }
+    })()
+  );
+  ok('parseRate reads a fraction and a decimal', Math.abs(parseRate('1/30') - 1 / 30) < 1e-12 && parseRate('0.05') === 0.05);
+  ok('…and an unreadable rate is null, never a default', parseRate('sometimes') === null && parseRate(null) === null && parseRate('1') === null);
+
+  const agree = (n) => Array.from({ length: n }, (_, i) => ({ ok: true, status: 0, groups: 40, hash: 'aaaaaaaaaaaa', text: `x\n${i}`.replace(/\n\d+/, '') }));
+  const floored = judge(agree(3), 3, { floor: 89, rate: 1 / 30, confidence: 0.95 });
+  ok('3 agreeing legs under a floor of 89 read UNDERPOWERED', floored.status === 'UNDERPOWERED', floored.status);
+  ok('…and the reason names BOTH numbers', /\b3 agreeing leg\(s\) against a floor of 89\b/.test(floored.reason || ''), (floored.reason || '').slice(0, 80));
+  ok('…and the result carries the floor it was judged against', floored.result && floored.result.powerFloor === 89);
+  const powered = judge(agree(89), 89, { floor: 89, rate: 1 / 30, confidence: 0.95 });
+  ok('89 agreeing legs at the floor read PASS', powered.status === 'PASS', powered.status);
+  const disagree = [
+    { ok: true, status: 0, groups: 40, hash: 'aaaaaaaaaaaa', text: 'ok one\nok two' },
+    { ok: true, status: 1, groups: 40, hash: 'bbbbbbbbbbbb', text: 'ok one\nFAIL two' }
+  ];
+  const notDowngraded = judge(disagree, 2, { floor: 89, rate: 1 / 30, confidence: 0.95 });
+  ok('a DISAGREEMENT under the floor stays FAIL — it already saw the event', notDowngraded.status === 'FAIL', notDowngraded.status);
+  ok('…and no floor at all leaves a PASS untouched', judge(agree(2), 2).status === 'PASS');
+
+  /* ── the population of a command this tool does not know ──────────────────────────────────── */
+  ok(
+    'unitsCounted counts a test file result lines',
+    unitsCounted('  ok    first leg   3 of 3\nnot ok  second\nPASS — done\nsome prose') === 3,
+    `${unitsCounted('  ok    first leg   3 of 3\nnot ok  second\nPASS — done\nsome prose')}`
+  );
+  ok("…and reads 0 over prose, which is why --min-units is the CALLER's", unitsCounted('this ran nothing at all\nand said so') === 0);
+  const thin = judge(
+    [
+      { ok: true, status: 0, groups: 2, hash: 'aaaaaaaaaaaa', text: 'ok a' },
+      { ok: true, status: 0, groups: 2, hash: 'aaaaaaaaaaaa', text: 'ok a' }
+    ],
+    2,
+    { minUnits: 30 }
+  );
+  ok('a leg below --min-units reads NOT_RUN', thin.status === 'NOT_RUN', thin.status);
+  ok('…and the reason names the reported count and the declared floor', /2 countable unit\(s\) against the declared floor of 30/.test(thin.reason || ''), (thin.reason || '').slice(0, 90));
+
+  /* ── the selector ─────────────────────────────────────────────────────────────────────────── */
+  const selCmd = parseSelector(['--legs', '4', '--cmd', '--', 'bash', 'x.sh', '--flag']);
+  ok('parseSelector builds a cmd selector from the argv after `--`', selCmd.ok && selCmd.kind === 'cmd' && selCmd.exe === 'bash' && selCmd.args.join(' ') === 'x.sh --flag');
+  ok('…and a cmd selector brings NO group reader', selCmd.countsGroups === false);
+  const selBad = parseSelector(['--cmd']);
+  ok('…and --cmd with no argv REFUSES, naming the terminator', !selBad.ok && /`--` terminator/.test(selBad.reason));
+  const selGroup = parseSelector(['--group', 'ppgdex-dsp']);
+  ok('parseSelector still builds the group selector', selGroup.ok && selGroup.kind === 'group' && selGroup.countsGroups === true && selGroup.args[1] === '--group=ppgdex-dsp');
+  ok('…and neither flag REFUSES, naming both', !parseSelector([]).ok && /--group/.test(parseSelector([]).reason) && /--cmd/.test(parseSelector([]).reason));
+  const vSel = verdictOf({ status: 'PASS', population: { checked: 2, eligible: 2, excluded: 0 }, result: { legs: 2 }, reason: null, selector: 'bash x.sh', legs: 2 });
+  ok('the verdict names the SELECTOR it ran, not a group it did not', vSel.evidence.includes('selector:bash x.sh'));
+
+  /* ── the caller-declared volatile token ───────────────────────────────────────────────────── */
+  const nonceA = '  ok    fixture: the stub shadows the real sort   /tmp/tmp.Hu2Jq29qni/blindbin/sort\n  ok    second leg  3 of 3';
+  const nonceB = '  ok    fixture: the stub shadows the real sort   /tmp/tmp.C3h0SR8wQn/blindbin/sort\n  ok    second leg  3 of 3';
+  const NONCE = '/tmp/tmp\\.[A-Za-z0-9]+';
+  ok('CONTROL · with NO pattern the two legs differ, which is the measured 89 of 89', normalize(nonceA) !== normalize(nonceB));
+  ok('…and the declared pattern makes them one result set', normalize(nonceA, [NONCE]) === normalize(nonceB, [NONCE]));
+  const nonceC = nonceB.replace('second leg  3 of 3', 'second leg  2 of 3');
+  ok('…and it does NOT hide a real difference beside the nonce', normalize(nonceA, [NONCE]) !== normalize(nonceC, [NONCE]), 'the assertion count survives');
+  const eraseSel = parseSelector(['--cmd', '--', process.execPath, '-e', 'console.log("  ok    a leg")']);
+  const erased = runLeg({ selector: eraseSel, tree: ROOT, boundMs: 20000, legNo: 1, volatile: ['[\\s\\S]'] });
+  ok('a pattern that SWALLOWS the result set is refused, not passed', !erased.ok && /swallowed the whole result set/.test(erased.reason), erased.ok ? `hash=${erased.hash}` : erased.reason);
+  ok(
+    'CONTROL · and a pattern that leaves one token behind is still read',
+    (() => {
+      const kept = runLeg({ selector: eraseSel, tree: ROOT, boundMs: 20000, legNo: 1, volatile: ['ok'] });
+      return kept.ok && kept.hash !== null;
+    })(),
+    'the guard refuses total loss and nothing less'
+  );
+  const vVol = verdictOf({ status: 'PASS', population: { checked: 2, eligible: 2, excluded: 0 }, result: { legs: 2 }, reason: null, selector: 'bash x.sh', legs: 2, volatile: [NONCE] });
+  ok('…and every declared pattern reaches the verdict evidence', vVol.evidence.includes(`volatile:${NONCE}`));
+
+  /* ── a REAL child, because an injected one proves the reader and not the capture ─────────── */
+  const realSel = parseSelector(['--cmd', '--', process.execPath, '-e', 'console.log("  ok    a leg  1 of 1");console.log("PASS — done")']);
+  const realLeg = runLeg({ selector: realSel, tree: ROOT, boundMs: 20000, legNo: 1 });
+  ok('a REAL child leg reads its own result lines', realLeg.ok && realLeg.groups === 2, realLeg.ok ? `units=${realLeg.groups}` : realLeg.reason);
+  const realFailSel = parseSelector(['--cmd', '--', process.execPath, '-e', 'console.log("  ok    a leg");process.exit(7)']);
+  const realFailLeg = runLeg({ selector: realFailSel, tree: ROOT, boundMs: 20000, legNo: 1 });
+  ok(
+    'a REAL failing child is still a result set, through `partial`',
+    realFailLeg.ok && realFailLeg.status === 7 && realFailLeg.groups === 1,
+    realFailLeg.ok ? `status=${realFailLeg.status} units=${realFailLeg.groups}` : realFailLeg.reason
+  );
 
   process.stdout.write(fail === 0 ? `\n✓ all ${pass} selftests passed\n` : `\n✗ ${fail} of ${pass + fail} selftests FAILED\n`);
   return fail === 0 ? 0 : 1;
