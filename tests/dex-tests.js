@@ -28675,7 +28675,7 @@
         T.ok(
           'CLAUDE.md does not claim clock.js reaches EVERY bundle',
           !/clock\.js[^\n]*\n?[^\n]*inlined by the owned bundler into every bundle/.test(C.claudeMd || ''),
-          'three app bundles ship without it; DexClock is undefined there, so "every bundle" is not a rounding error'
+          'two of the nine app bundles ship without it; DexClock is undefined there, so "every bundle" is not a rounding error'
         );
       }
 
@@ -30408,6 +30408,323 @@
         threw = (e && e.message) || String(e);
       }
       T.ok('an unreadable samples-per-record field throws out of the ingest', threw != null && /samples-per-record/.test(threw), threw == null ? 'it returned instead of throwing' : threw);
+    });
+
+    /* Builds a deterministic `<base>_RAW.txt` from `muse-frame.js`'s OWN constants, so the fixture
+       carries no captured byte and no device has to be present. The byte LAYOUT is proved elsewhere,
+       against the capture host's Python reader over a shared synthetic frame; what these groups
+       exercise is the WALK: the gap arithmetic, the measured rate and every named refusal. */
+    function buildMuseRawText(o) {
+      o = o || {};
+      var M = env.MuseFrame,
+        nRec = o.records == null ? 128 * 90 : o.records,
+        gapAt = o.gapAt == null ? 4000 : o.gapAt,
+        gapLen = o.gapLen == null ? 3 : o.gapLen,
+        TICKS_PER_REC = 78125, // TICK_HZ / 128 records per second — the device reader states both
+        HEX = [],
+        lines = [],
+        index = 0,
+        counter = 0,
+        tick = 0,
+        hostMs = Date.UTC(2026, 10, 15, 1, 2, 3, 456),
+        skipped = 0,
+        seed = 12345,
+        i,
+        b;
+      for (b = 0; b < 256; b++) HEX.push((b < 16 ? '0' : '') + b.toString(16));
+      function rnd() {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff;
+      }
+      function p(n, w) {
+        var s = String(n);
+        while (s.length < (w || 2)) s = '0' + s;
+        return s;
+      }
+      function eegRecord(ix, tk, sd) {
+        var fields = [],
+          j,
+          k,
+          bit,
+          rec = new Uint8Array(M.RECORD_SIZE[M.TAG_EEG]);
+        for (j = 0; j < M.EEG_CHANNELS * M.EEG_SAMPLES; j++) fields.push((sd * 7919 + j * 613) % 16384);
+        for (j = 0; j < fields.length; j++)
+          for (bit = 0; bit < M.EEG_WIDTH; bit++)
+            if (Math.floor(fields[j] / Math.pow(2, bit)) % 2) {
+              k = j * M.EEG_WIDTH + bit;
+              rec[M.RECORD_HEAD + (k >> 3)] |= 1 << (k & 7);
+            }
+        rec[0] = M.TAG_EEG;
+        rec[1] = ix & 0xff;
+        rec[2] = tk & 0xff;
+        rec[3] = (tk >> 8) & 0xff;
+        rec[4] = (tk >> 16) & 0xff;
+        return rec;
+      }
+      function row(ctr, rec, hMs, dNs) {
+        var len = M.HEADER_LEN + rec.length,
+          pkt = new Uint8Array(len),
+          hex = [],
+          d = new Date(hMs),
+          j;
+        pkt[0] = o.lengthByte == null ? len : o.lengthByte;
+        pkt[1] = ctr & 0xff;
+        pkt.set(rec, M.HEADER_LEN);
+        for (j = 0; j < len; j++) hex.push(HEX[pkt[j]]);
+        /* §🔒.1 — the capture host writes a FLOATING civil stamp with no zone, so it is built here
+           from `getUTC*` and read back by `DexClock` branch 3 with `offsetMin` null. */
+        var host =
+          d.getUTCFullYear() +
+          '-' +
+          p(d.getUTCMonth() + 1) +
+          '-' +
+          p(d.getUTCDate()) +
+          'T' +
+          p(d.getUTCHours()) +
+          ':' +
+          p(d.getUTCMinutes()) +
+          ':' +
+          p(d.getUTCSeconds()) +
+          '.' +
+          p(d.getUTCMilliseconds(), 3);
+        return host + ';' + (o.blankNs ? '' : dNs) + ';' + (o.blankCounter ? '' : ctr & 0xff) + ';' + (o.blankLength ? '' : len) + ';' + hex.join('');
+      }
+      for (i = 0; i < nRec; i++) {
+        if (i === gapAt && gapLen) {
+          index += gapLen;
+          tick += TICKS_PER_REC * gapLen;
+          hostMs += (1000 / 128) * gapLen;
+          skipped = gapLen;
+        }
+        lines.push(row(counter, eegRecord(index, tick % M.TICK_MOD, i), hostMs + (o.jitterHost ? Math.round((rnd() - 0.5) * 12) : 0), tick * 100));
+        index = (index + 1) & 0xff;
+        counter = (counter + 1 + skipped) & 0xff;
+        skipped = 0;
+        tick += TICKS_PER_REC;
+        hostMs += 1000 / 128;
+      }
+      return lines.join('\n') + '\n';
+    }
+
+    group('The shared device frame reader answers the layout its capture host writes', 'muse · frame · known-answer', function (T) {
+      var M = env.MuseFrame;
+      if (!M) {
+        T.skip('env.MuseFrame available', 'muse-frame.js is not executed by this lane');
+        return;
+      }
+      /* THE BIT READER CANNOT USE A JS BITWISE OPERATOR. `1 << b` and `v & sign` both truncate to 32
+         bits, so an accumulator over `Math.pow(2, b)` is the only exact form up to width 53. Measured
+         2026-11-15 against the capture host's Python at widths 14, 16, 20, 32, 40 and 53: a shift
+         read -1 for an all-ones 32-bit field, and the SIGNED path was wrong above width 31 until the
+         bitwise sign test came out. The three widths this format uses are 14, 16 and 20, so a battery
+         restricted to them cannot see that defect at all. */
+      var ones5 = new Uint8Array([0xff, 0xff, 0xff, 0xff, 0xff]);
+      T.eq('an all-ones 40-bit field reads unsigned', JSON.stringify(M.unpackLsb(ones5, 40, false)), JSON.stringify([1099511627775]));
+      T.eq('the same field reads -1 signed, which a 32-bit sign test gets wrong', JSON.stringify(M.unpackLsb(ones5, 40, true)), JSON.stringify([-1]));
+      T.eq('two 20-bit fields come out least-significant-bit first', JSON.stringify(M.unpackLsb(ones5, 20, false)), JSON.stringify([1048575, 1048575]));
+      /* A width over 53 cannot be held exactly by a double, so this REFUSES rather than returning a
+         rounded field. It is a deliberate divergence from the Python, which is exact at any width,
+         and it is unreachable through the three readers this format needs. */
+      T.eq('a width a double cannot hold exactly refuses', M.unpackLsb(ones5, 54, false), null);
+      T.eq('a width of zero refuses', M.unpackLsb(ones5, 0, false), null);
+
+      /* The loss count is MODULO 256, so a loss of exactly 256 reads as 0 and a repeated counter
+         reads as 255. That is the counter's own blind spot, carried over from the device reader
+         deliberately: a caller that needs certainty beyond 255 lost frames has to read the clock. */
+      T.eq('consecutive counters lose nothing', M.lostBetween(5, 6), 0);
+      T.eq('a counter that wrapped past 255 is still counted', M.lostBetween(250, 2), 7);
+      T.eq('a repeated counter reads as 255 lost, not as 0', M.lostBetween(5, 5), 255);
+      T.eq('the first frame of a chain loses nothing', M.lostBetween(null, 9), 0);
+
+      T.eq('a one-tick step across the 24-bit wrap is one tick', M.tickSeconds(M.TICK_MOD - 1, 0), 1 / M.TICK_HZ);
+      /* The clock unwraps with a SIGNED half-modulus step, so it follows the shorter path. A forward
+         wrap accumulates; a backward step of one tick reads as -1 and not as the whole modulus. A
+         silence longer than the half-modulus therefore aliases, which is why a gap is counted from
+         the record index and never from the clock. */
+      var ck = new M.TickClock();
+      ck.feed(M.TICK_MOD - 500);
+      T.eq('a forward wrap accumulates across the modulus', ck.feed(500), M.TICK_MOD - 500 + 1000);
+      var ck2 = new M.TickClock();
+      ck2.feed(0);
+      T.eq('a one-tick step backwards reads as -1, not as the modulus', ck2.feed(M.TICK_MOD - 1), -1);
+
+      /* Every tokenise refusal is NAMED. A packet that cannot be read is never a packet with no
+         records: the first would hide a framing bug behind an empty answer. */
+      T.eq('a payload under the header length refuses', M.tokenise(new Uint8Array(3)).reason, 'short');
+      T.eq('a length byte that disagrees with the payload refuses', M.tokenise(new Uint8Array([99, 0, 0, 0, 0, 0, 0, 0, 0])).reason, 'length-byte');
+      T.eq('a header with no record refuses rather than reading as empty', M.tokenise(new Uint8Array([9, 0, 0, 0, 0, 0, 0, 0, 0])).reason, 'no-record');
+      var unk = new Uint8Array(10);
+      unk[0] = 10;
+      unk[9] = 0x99;
+      T.eq('an unknown record tag refuses', M.tokenise(unk).reason, 'unknown-tag');
+      var trunc = new Uint8Array(12);
+      trunc[0] = 12;
+      trunc[9] = M.TAG_EEG;
+      T.eq('a record the payload cannot hold refuses', M.tokenise(trunc).reason, 'truncated-record');
+
+      /* The row reader hands the host stamp out AS TEXT. §🔒.2 has one parser, so the node parses it
+         through `DexClock` and nothing here reads a second stamp format. */
+      var one = buildMuseRawText({ records: 1, gapLen: 0 }).trim();
+      var r = M.parseRawRow(one);
+      T.eq('a well-formed row parses', r.reason, null);
+      T.eq('the host stamp comes out as text for the one parser', r.row.hostRaw, '2026-11-15T01:02:03.456');
+      T.eq(
+        'the payload decodes to one EEG record of two samples per channel',
+        JSON.stringify([M.tokenise(r.row.bytes).packet.records.length, M.eegSamples(M.tokenise(r.row.bytes).packet.records[0]).length]),
+        JSON.stringify([1, M.EEG_SAMPLES])
+      );
+      T.eq('a row with the wrong column count refuses', M.parseRawRow('a;b;c').reason, 'column-count');
+      T.eq('a payload that is not hex refuses', M.parseRawRow('a;1;2;3;zz').reason, 'payload-not-hex');
+      T.eq('a length column that disagrees with the payload refuses', M.parseRawRow('a;1;2;999;0000').reason, 'length-column');
+      /* §∅ — the capture host writes an ABSENT device stamp and an absent counter as EMPTY, never as
+         0, because 0 is a legal value for both. The reader carries that absence through as null. */
+      var blank = M.parseRawRow('a;;;4;00000000');
+      T.eq('an absent device stamp and counter come through as null, not as zero', JSON.stringify([blank.row.devNs, blank.row.counter]), JSON.stringify([null, null]));
+      T.eq('a blank line is not a row and not a fault', JSON.stringify(M.parseRawRows('\n\n')), JSON.stringify({ rows: [], refused: {} }));
+    });
+
+    group('EEGDex reads an EEG channel out of raw device frames and writes NaN where frames were lost', 'eegdex · ingest · muse-frames', function (T) {
+      var D = env.EEGDSP;
+      if (!D || !env.MuseFrame) {
+        T.skip('env.EEGDSP and env.MuseFrame available', 'eegdex-dsp.js or muse-frame.js is not executed by this lane');
+        return;
+      }
+      var M = env.MuseFrame,
+        nRec = 128 * 90,
+        gapLen = 3,
+        got = D.ingestMuseRaw(buildMuseRawText({ records: nRec, gapAt: 4000, gapLen: gapLen }));
+      T.ok('the stream ingests', got.ok, got.reason || '');
+      if (!got.ok) return;
+      /* THE RATE IS MEASURED, not asserted. The device reader states 78 125 ticks per EEG record at
+         128 records per second and two samples per record; this reads 256 Hz back out of the tick
+         column alone, so the two agree without either being copied into the other. */
+      T.eq('the rate is measured from the device clock', JSON.stringify([got.fs, got.fsBasis.source, got.fsBasis.samplesPerRecord]), JSON.stringify([256, 'device-tick-median', 2]));
+      T.eq('the median inter-record interval is one 128th of a second', got.fsBasis.medianSec, 0.0078125);
+      /* §∅ — THE LOST SAMPLES ARE NaN AND THE POSITION ADVANCES. Dropping them instead would splice
+         two stretches of signal into one epoch and move every stamp after the gap. */
+      T.eq('the gap occupies its own sample positions', got.samples.length, (nRec + gapLen) * M.EEG_SAMPLES);
+      T.eq(
+        'every absent sample is non-finite, and exactly those',
+        got.samples.filter(function (v) {
+          return !isFinite(v);
+        }).length,
+        gapLen * M.EEG_SAMPLES
+      );
+      T.eq(
+        'the gap is reported where it sits, counted in records and in samples',
+        JSON.stringify(got.frames.gaps),
+        JSON.stringify([{ firstSample: 4000 * M.EEG_SAMPLES, records: gapLen, samples: gapLen * M.EEG_SAMPLES }])
+      );
+      T.eq(
+        'every row was read and every record decoded',
+        JSON.stringify([got.frames.rows, got.frames.eegRecords, got.frames.lostRecords, got.frames.refusedRows, got.frames.unparsable]),
+        JSON.stringify([nRec, nRec, gapLen, {}, {}])
+      );
+      T.ok('a stream with a gap says it is not whole', got.truncated === true, 'truncated read ' + got.truncated);
+      /* §∅ — the device reader states the 14-bit field is raw counts and that the scale is NOT
+         measured, so the amplitude unit is absent rather than asserted as µV. */
+      T.eq('the amplitude unit is undeclared, because nobody calibrated it', got.unit, null);
+      T.eq(
+        'four of the eight channels are identified and the others say so',
+        JSON.stringify(got.channels),
+        JSON.stringify(['left-ear', 'left-forehead', 'right-forehead', 'right-ear', 'unidentified-4', 'unidentified-5', 'unidentified-6', 'unidentified-7'])
+      );
+      T.eq('the default channel is the first the device packs', got.channel, 'left-ear');
+      /* §🔒.1 — the first row's floating stamp, read back with getUTC* so it does not move with TZ. */
+      T.eq('the start stamp is the first row, floating', new Date(got.t0Ms).toISOString(), '2026-11-15T01:02:03.456Z');
+      T.eq('a zone-free host stamp carries no offset and no reason', JSON.stringify([got.offsetMin, got.t0Reason]), JSON.stringify([null, null]));
+
+      /* §🔒.7 — THE HOST AXIS IS REPORTED AND NOT APPLIED. ECGDex gates its own rate correction at a
+         2400 s span, and that knee is a measurement of the H10's crystal over the H10's fragments.
+         Nothing has measured this device, so `fs` stays on the device clock either way. Read
+         `independent` before `ppm`: a host column derived from the device counter is NOT a second
+         clock, and the two streams below differ in that alone. */
+      T.eq('a host stamp derived from the device counter is not a second clock', got.hostAxis.independent, false);
+      var jit = D.ingestMuseRaw(buildMuseRawText({ records: 2000, gapLen: 0, jitterHost: true }));
+      T.eq('a host stamp carrying real jitter is a second clock', jit.hostAxis.independent, true);
+      T.eq('the axis answers over every anchor it was given', JSON.stringify([jit.hostAxis.ok, jit.hostAxis.anchors, jit.hostAxis.n]), JSON.stringify([true, 2000, 2000]));
+      T.eq('the measured rate is the same under both host columns', jit.fs, got.fs);
+
+      /* ── THE DEVICE COLUMN IS DRAWN, SO THE RATE IS A DECLARATION READ BACK ────────────────────
+         Measured 2026-11-15: `drawnShare` 0.9999 — the record tick advances by ONE constant, which
+         is what `clock.js` reads as a synthesised counter rather than a clock (CK_AXIS_DRAWN_SHARE).
+         So the rate this reader publishes is the cadence the device DECLARES through its own
+         counter, and not an independent measurement of it. `fsBasis.source` is the field that says
+         which, and a reader who quotes 256 Hz as measured quotes the device.
+         The five fields below travel for `dex-export.js timingBlock`, whose `timingSource` turns on
+         `deviceDrawn`: a summary carrying `ok` and `independent` ALONE leaves that builder's `drawn`
+         null, and its own comment calls the result an under-claim to `host`. */
+      T.eq('the device tick column is DRAWN - a counter, not a clock', got.hostAxis.deviceDrawn, true);
+      T.ok('...and the share it read that verdict from travels beside it', got.hostAxis.drawnShare > 0.99, 'drawnShare = ' + got.hostAxis.drawnShare);
+      T.eq('...so the rate names its basis rather than claiming a measurement', got.fsBasis.source, 'device-tick-median');
+      T.ok(
+        'the drawn verdict carries the spine own sentence, not a borrowed one',
+        /synthesised counter/.test(String(got.hostAxis.drawnReason)),
+        'drawnReason = ' + JSON.stringify(got.hostAxis.drawnReason)
+      );
+      T.ok('and the inert host column carries its own', /not an independent clock/.test(String(got.hostAxis.inertReason)), 'inertReason = ' + JSON.stringify(got.hostAxis.inertReason));
+      T.ok('the host spread is published, so the independence call is checkable', typeof got.hostAxis.spreadMs === 'number', 'spreadMs = ' + got.hostAxis.spreadMs);
+      /* CONTROL - the two streams differ in the HOST column alone, so a real host column must not
+         move the verdict on the DEVICE column. Measured: spreadMs 0.94 ms against 12.94 ms. */
+      T.eq('CONTROL - a real host column does not make the device counter a clock', jit.hostAxis.deviceDrawn, true);
+      T.eq('CONTROL - and an independent host publishes no inert reason', jit.hostAxis.inertReason, null);
+
+      /* THE WHOLE POINT OF THE NaN. A dropout reaches the node's EXISTING absence vocabulary, so no
+         new reason key was invented for it: `epochBands` already refuses an epoch holding a hole,
+         and `epochAbsence` already answers `partial-hole`. The owner's 2026-09-17 ruling is that a
+         DISCONTINUITY refuses while reduced coverage annotates, and a 23 ms seam is a discontinuity:
+         it costs its own epoch and leaves the other two scored. */
+      var res = D.compute(got);
+      T.ok('the ingested frame computes', !res.err, res.err || '');
+      if (res.err) return;
+      T.eq('90 s at the measured rate is three epochs', res.nEpochs, 3);
+      T.eq('the epoch holding the gap is refused, and it names the gap', JSON.stringify(res.absentReasons), JSON.stringify({ 'partial-hole': 1 }));
+      T.eq(
+        'the refused epoch is the one the gap sits in',
+        JSON.stringify(
+          res.hypnogram.map(function (h) {
+            return h.absentReason;
+          })
+        ),
+        JSON.stringify([null, 'partial-hole', null])
+      );
+      T.eq('the other two epochs still score', JSON.stringify(res.quality), JSON.stringify({ analyzablePct: 66.7, nUnscorable: 1 }));
+      T.eq('the provenance the frame carried through compute', JSON.stringify([res.channel, res.source, res.fs, res.durSec, res.unit]), JSON.stringify(['left-ear', 'muse-raw', 256, 90, null]));
+    });
+
+    group('Every raw-frame ingest refusal is named', 'eegdex · ingest · muse-refusals', function (T) {
+      var D = env.EEGDSP;
+      if (!D || !env.MuseFrame) {
+        T.skip('env.EEGDSP and env.MuseFrame available', 'eegdex-dsp.js or muse-frame.js is not executed by this lane');
+        return;
+      }
+      var txt = buildMuseRawText({ records: 400, gapLen: 0 });
+      /* Both the frame reader and the clock live in other modules, so a realm that did not load one
+         gets a NAMED refusal. A silent guard would turn a load-order bug into "this file holds no
+         EEG", which is the same class of lie one layer up. */
+      T.eq('a realm without the frame reader refuses by name', D.ingestMuseRaw(txt, { frame: {} }).reason, 'frame-reader-absent');
+      T.eq('a realm without the clock refuses by name', D.ingestMuseRaw(txt, { clock: {} }).reason, 'clock-absent');
+      T.eq('a file with no row refuses', D.ingestMuseRaw('').reason, 'no-row');
+      T.eq('a channel the caller named and the device lacks refuses', D.ingestMuseRaw(txt, { channel: 'Cz' }).reason, 'named-channel-absent');
+      /* A rate from fewer than three intervals is not a rate, for the reason `DexClock.hostAxis`
+         refuses below three anchors: two points cannot disagree. */
+      var one = D.ingestMuseRaw(txt.split('\n')[0] + '\n');
+      T.eq('one row cannot state a rate, and says how little it had', JSON.stringify([one.ok, one.reason, one.eegRecords, one.cleanSteps]), JSON.stringify([false, 'no-sample-rate', 1, 0]));
+      /* A payload holding only records of other tags is not an EEG file. The count of what it DID
+         hold rides the refusal, so a reader is never left to guess whether anything was examined. */
+      var batteryOnly = '2200' + '00000000000000' + '8800' + '000000' + '0000000000000000000000000000000000000000';
+      var noEeg = D.ingestMuseRaw('2026-11-15T01:02:03.456;1;0;34;' + batteryOnly + '\n');
+      T.eq('a stream with no EEG record refuses and says what it read', JSON.stringify([noEeg.ok, noEeg.reason]), JSON.stringify([false, 'no-eeg-record']));
+      /* §∅ — an unreadable row is TALLIED BY REASON rather than dropped. A refusal count of zero
+         beside a row count would otherwise be the only evidence that anything was skipped. */
+      var mixed = D.ingestMuseRaw(txt + 'a;b;c\n' + 'a;1;2;999;0000\n');
+      T.eq('unreadable rows are counted by their own reason', JSON.stringify(mixed.frames.refusedRows), JSON.stringify({ 'column-count': 1, 'length-column': 1 }));
+      T.ok('a stream with a refused row says it is not whole', mixed.truncated === true, 'truncated read ' + mixed.truncated);
+      /* A row whose counter column is blank BREAKS THE CHAIN. The next step is then unexamined
+         rather than read across a frame nobody counted, so the loss count does not grow. */
+      var noCtr = D.ingestMuseRaw(buildMuseRawText({ records: 400, gapAt: 100, gapLen: 2, blankCounter: true }));
+      T.eq('a blank counter column leaves the notification loss at zero', noCtr.frames.lostFrames, 0);
+      T.eq('and the record index still counts the lost records', noCtr.frames.lostRecords, 2);
     });
 
     group('The EEGDex node export carries one event per stage transition', 'eegdex · export · ganglior', function (T) {
@@ -77241,18 +77558,22 @@
        assertion stays green. Same for each app's authored `<script src>` sequence.
        So the gap is real and narrow: the invariant holds today BY CONSTRUCTION and by nothing else.
 
-       MEASURED 2026-09-27 before writing a line of it — the population is exactly CLAUDE.md's
-       `CLAIM clockBundles = 5`: ECGDex · HRVDex · MotionDex · OxyDex · PulseDex carry `clock.js` AND a
-       delegating DSP, all five in the right order; CPAPDex, GlucoDex and PpgDex carry neither (the three
-       deliberate non-carriers, §✅); Integrator carries `clock.js` and no delegating DSP. Asserted on the
+       MEASURED 2026-09-27 before writing a line of it — ECGDex · HRVDex · MotionDex · OxyDex · PulseDex
+       carry `clock.js` AND a delegating DSP, all five in the right order; CPAPDex and GlucoDex carry
+       neither (§✅); Integrator carries `clock.js` and no delegating DSP.
+       ⚠ THE TWO SETS HAVE SINCE SEPARATED, so this group's five is NOT the CLAIM any more. PpgDex
+       inlined `clock.js` on 2026-10-29 and EEGDex on 2026-11-15, each for `hostAxis` and neither with a
+       delegating DSP, so `CLAIM clockBundles` reads 7 of 9 while the set below stays five. Asserted on the
        AUTHORED `.src.html`, because that is where a human reorders — the bundle's inline blocks are the
        builder's output and follow it. */
     group('clock.js loads before every delegating DSP — manifest order and authored order', 'co-load · order · clock · §✅', function (T) {
       var M = env.DexCoload;
       var SH = env.srcHtml;
-      /* The five DSPs that ALIAS DexClock at load. ppgdex/glucodex/cpapdex are deliberately absent:
-         they carry node-local variants and `DexClock` is undefined there (§✅), so listing them here
-         would demand a clock.js their bundles must not have. */
+      /* The five DSPs that ALIAS DexClock at load. Four nodes are deliberately absent, for TWO
+         different reasons, and only one of them is about the bundle. glucodex/cpapdex carry node-local
+         variants and `DexClock` is undefined there (§✅), so listing them would demand a clock.js their
+         bundles must not have. ppgdex/eegdex DO carry clock.js, for `DexClock.hostAxis`, and still alias
+         no parser at load — so their absence here says nothing about their bundle. */
       var DELEGATING = ['ecgdex-dsp.js', 'hrvdex-dsp.js', 'motiondex-dsp.js', 'oxydex-dsp.js', 'pulsedex-dsp.js'];
 
       /* ── P1 · the manifest's own order ─────────────────────────────────────────────────────────── */
@@ -77323,12 +77644,14 @@
 
       /* ── THE POPULATION AS TWO EQUALITIES, ONE PER BUNDLE FAMILY ────────────────────────────────
          Deriving the shell list surfaced that the carriers are not one set but two: the five APP shells
-         CLAUDE.md counts as `CLAIM clockBundles = 5`, plus the two ORCHESTRATOR shells it counts
+         that carry a delegating DSP, plus the two ORCHESTRATOR shells CLAUDE.md counts
          separately as `CLAIM orchestrators = 2`, which co-load the same DSPs. Asserting one merged set of
          seven would corroborate neither claim; asserting them apart corroborates both, and a node moving
          between families reds instead of being absorbed. */
       /* ── TWO FAMILIES, TWO EQUALITIES (restored 2026-09-27) ─────────────────────────────────────
-         The carriers are not one set. Five APP shells are what CLAUDE.md counts as `CLAIM clockBundles = 5`;
+         The carriers are not one set. Five APP shells carry a DELEGATING DSP, and that five is NOT what
+         the CLAIM counts: `CLAIM clockBundles` counts every app shell that INLINES clock.js, which is 7 of
+         9 since 2026-11-15, so PpgDex and EEGDex are in the claim and absent from the set below;
          the two ORCHESTRATOR shells co-load the same DSPs and are counted separately as
          `CLAIM orchestrators = 2`. This was written as a merged set of seven first, which corroborates
          neither claim, then scoped to apps only while the orchestrator shells were excluded from
@@ -77345,7 +77668,7 @@
         return ORCH.indexOf(n) >= 0;
       });
       T.eq(
-        'the APP shells carrying a delegating DSP are exactly the five §✅ names (PpgDex also carries clock.js, CLAIM clockBundles = 6, and delegates nothing at load)',
+        'the APP shells carrying a delegating DSP are exactly the five §✅ names (PpgDex and EEGDex also carry clock.js, CLAIM clockBundles = 7, and delegate nothing at load)',
         appCarriers.sort().join(','),
         'ECGDex,HRVDex,MotionDex,OxyDex,PulseDex',
         'the delegating set changed. If a node started delegating to DexClock its shell must also load clock.js; if one stopped, CLAUDE.md CLAIM clockBundles must move with it.'
@@ -77608,6 +77931,15 @@
         'cpapdex-coimport.js': 'CpapCoimport',
         // node compute aux that exposes a runtime surface
         'cpapdex-edf.js': 'CpapEdf',
+        /* ADDED 2026-11-15. The shared raw device frame reader, classified the same way as the EDF
+           reader above it and for the same reason: it is a FORMAT reader with one namespaced global
+           and a compute surface, not a DOM helper, so it earns the teeth of leg (2) rather than a
+           reason-stamped exemption. This gate is what caught it — the module was bundled by
+           `EEGDex.src.html` and classified nowhere, which is the `cpapdex-cross.js` class the group
+           header names. Both lanes execute it: `muse · frame · known-answer` drives its tokenizer
+           and counter arithmetic directly, and `eegdex · ingest · muse-frames` drives it through
+           `EEGDSP.ingestMuseRaw`. */
+        'muse-frame.js': 'MuseFrame',
         'cpapdex-fusion.js': 'CpapFusion',
         'ecgdex-morph.js': 'ECGMorph',
         'ppgdex-morph.js': 'PPGMorph',
