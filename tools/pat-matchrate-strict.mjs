@@ -203,6 +203,22 @@ function ecgCounterTimeMs(rec, pos) {
    The DEFAULT is `counter` since the flip (PR #4783, owner-accepted): omitted `opts.axis` times
    beats on the H10 sample counter. Owner ruling 2 (2026-11-06) was measure first — the flip waited
    on the measurement, and `linear` stays available as an explicit opt-in. */
+/* ── A CALLER WITH AN AXIS KNOB NAMES ITS AXIS ────────────────────────────────
+   `tools/pat-window-oracle.mjs` and `tools/pat-drift-attribution.mjs` turned their own
+   `--ecg-axis linear` into `undefined`, which meant `linear` while `linear` was the default.
+   The PR #4783 flip moved the default to `counter`. Both tools then computed on the counter axis
+   and printed a `linear` header over it. Measured 2026-11-14 on one box night: the two axis legs
+   printed identical rows under two different headers, so the linear axis sat unreachable through
+   those tools and nobody could re-read the pre-flip numbers.
+   `axisOpts` refuses a nameless axis, so a knob cannot spell the default again. An omitted opts
+   object still takes the default, which is what the knobless callers want. */
+function axisOpts(axis, extra) {
+  if (axis !== 'linear' && axis !== 'piecewise' && axis !== 'counter') {
+    throw new Error('axisOpts: axis is linear, piecewise or counter, never ' + String(axis) + ' \u2014 omit the opts object to take the default');
+  }
+  return { ...(extra || {}), axis };
+}
+
 function rPeakTimesOnAxis(rec, positions, opts) {
   const axis = opts && opts.axis ? opts.axis : 'counter';
   if (axis !== 'linear' && axis !== 'piecewise' && axis !== 'counter') throw new Error('rPeakTimesOnAxis: axis is linear, piecewise or counter, never ' + axis);
@@ -257,6 +273,9 @@ function ecgRpeakTimes(text, runsTextOrOpts, optsThird) {
     const want = '_ECGRUNS.txt bytes (a string) or opts (an object)';
     throw new Error('ecgRpeakTimes: position two is the ' + want + ', never a ' + typeof runsTextOrOpts);
   }
+  /* A key the caller WROTE must carry a name: a hand-built `{ axis: undefined }` reads as an
+     omission and takes the default, which is the defect above in its other spelling. */
+  if (opts && 'axis' in opts && !opts.axis) axisOpts(opts.axis);
   if (runsText == null && opts && typeof opts.runsText === 'string') runsText = opts.runsText;
   const rec = runsText ? ECGDSP.parseECG(text, { runsText }) : ECGDSP.parseECG(text);
   if (rec.t0Ms == null) throw new Error('ECG file carried no phone timestamp.');
@@ -814,7 +833,7 @@ function getDsps() {
   loadDsps();
   return { ECGDSP, PPGDSP, PATAlign, DexClock, PATGate };
 }
-export { loadDsps, getDsps, ecgRpeakTimes, ecgCounterTimeMs, rPeakTimesOnAxis, ppgFootTimes, median, quantile, BIN_MIN };
+export { loadDsps, getDsps, ecgRpeakTimes, ecgCounterTimeMs, rPeakTimesOnAxis, axisOpts, ppgFootTimes, median, quantile, BIN_MIN };
 /* Night selection and clock alignment, so the fiducial comparison runs on exactly the pair and the
    offsets this tool would have used. Forking either would make the two legs incomparable — which is
    the whole failure `pat-finger-coupler.mjs`'s note above was written to avoid. Additive. */

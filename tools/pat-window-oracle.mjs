@@ -1420,7 +1420,7 @@ async function main() {
     console.error('usage: node tools/pat-window-oracle.mjs --selftest | --dir <captures root> [--half-width 100] [--fiducial foot|cfd|half] [--ecg-axis linear|counter|piecewise] [--no-ecg-refine]');
     process.exit(2);
   }
-  const { getDsps, ecgRpeakTimes, ppgFootTimes } = await import(join(HERE, 'pat-matchrate-strict.mjs'));
+  const { getDsps, ecgRpeakTimes, axisOpts, ppgFootTimes } = await import(join(HERE, 'pat-matchrate-strict.mjs'));
   getDsps();
   const entries = readdirSync(DIR);
   /* THE NIGHT WALK IS THE POPULATION. `NIGHT_RE` is the shared NIGHT RULE and travels as the
@@ -1500,7 +1500,7 @@ async function main() {
     let E;
     let P;
     try {
-      E = ecgRpeakTimes(readFileSync(eF, 'utf8'), runsOf(eF, 'ECG'), { axis: AXIS === 'linear' ? undefined : AXIS, refine: REFINE });
+      E = ecgRpeakTimes(readFileSync(eF, 'utf8'), runsOf(eF, 'ECG'), axisOpts(AXIS, { refine: REFINE }));
       P = ppgFootTimes(readFileSync(pF, 'utf8'), runsOf(pF, 'PPG'));
     } catch (e) {
       /* The catch cannot narrow WHAT the parse/transform layer throws (it is another module's

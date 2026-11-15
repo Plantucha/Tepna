@@ -278,7 +278,7 @@ async function main() {
     console.error('usage: node tools/pat-drift-attribution.mjs --selftest | --dir <root> [--only a,b] [--ecg-axis linear|counter|piecewise]');
     process.exit(2);
   }
-  const { getDsps, ecgRpeakTimes, ppgFootTimes } = await import(join(HERE, 'pat-matchrate-strict.mjs'));
+  const { getDsps, ecgRpeakTimes, axisOpts, ppgFootTimes } = await import(join(HERE, 'pat-matchrate-strict.mjs'));
   const { oracleNight, pickPair } = await import(join(HERE, 'pat-window-oracle.mjs'));
   const { acceptedSeries } = await import(join(HERE, 'pat-residual-structure.mjs'));
   const { ECGDSP, PPGDSP } = getDsps();
@@ -318,7 +318,7 @@ async function main() {
       const pTxt = readFileSync(pF, 'utf8');
       const eRuns = runsOf(eF, 'ECG');
       const pRuns = runsOf(pF, 'PPG');
-      E = ecgRpeakTimes(eTxt, eRuns, ECG_AXIS === 'linear' ? undefined : { axis: ECG_AXIS });
+      E = ecgRpeakTimes(eTxt, eRuns, axisOpts(ECG_AXIS));
       P = ppgFootTimes(pTxt, pRuns);
       /* Straight from the parser — the wrappers above drop `hostAxis` (see header). These two reads
          take the SAME sidecar bytes the wrappers got, held in a const rather than read twice, so the
