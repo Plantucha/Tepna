@@ -4318,6 +4318,17 @@
         if (inEv) evMissing++;
         continue;
       }
+      /* §∅ N1-12 · NO BASELINE MEANS THE INDEX CANNOT BE SCORED, so it is unobserved, not normal.
+         `computeCeilingBaselineArr` now reports null where its whole trailing window is absent —
+         index 0, and the first sample after a dropout longer than WIN. Without this guard the
+         comparisons coerce: `null - 4` is -4, so `spo2[i] <= -4` is false and an event silently
+         never opens, while an OPEN event reads `spo2[i] >= -2` as true and closes one sample early
+         against a reference that does not exist. The sample is measured but unjudgeable, so it is
+         counted exactly as an absent one is — `missingSec` already publishes that span. */
+      if (bl == null) {
+        if (inEv) evMissing++;
+        continue;
+      }
       if (!inEv) {
         // inclusive <= : a dip of EXACTLY dropPct% counts (ODI-4 = ≥4%)
         if (spo2[i] <= bl - dropPct) {
