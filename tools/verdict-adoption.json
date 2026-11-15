@@ -2999,6 +2999,18 @@
    },
    "note": "residue 2026-09-06-t-stuck-validated-on-ring-only: does writers.T_STUCK = 200 SAMPLES transfer to the four streams RUN_MIN_BY_STREAM extends it to? Criterion pre-registered in the tool header before any stream was read - a bracketed multiplicative gap of >= 4x above p99.99 containing 200. The per-channel words (HOLD/FAIL-LOW/FAIL-HIGH/NO GAP/NOT-EXERCISED) are the tool's own reading and live in result; the contract's closed vocabulary is reached by an explicit map, precedence FAIL > UNKNOWN > UNDERPOWERED > PASS, never a vote. NOT-EXERCISED maps to UNKNOWN and not NOT_APPLICABLE: the contract refused that on the first attempt because NOT_APPLICABLE must carry result: null, and here the result (550M samples, p99.99, N = 0) IS the finding. Population = channel-reports; checked = those the criterion bound on."
   },
+  "tools/suite-determinism.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/suite-determinism.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "residue 2026-10-20-the-js-gate-survivor-set-does-not-reproduce-across-runs: the row measured one 26-mutant population three times, every leg reported 6 survivors of 26, and each leg named a DIFFERENT survivor, so a kill rate is not a survivor list. #4001 refuted the timeout path and #4003 refuted write-through from the hard-linked worker trees, which left a flaky assertion in the covering group. That candidate is about the SUITE, so this tool runs one selector N times over an unchanged tree and compares the normalized result sets. Criterion pre-stated in the header: distinct_result_sets lte 1, with the exit status compared beside the text. Population = legs; a leg the tool could not read at all is excluded and reds the run NOT_RUN, while a leg whose SUITE failed is read, because a failing suite is exactly what decides a mutant. A selector that matched ZERO groups is NOT_RUN and never PASS - it agrees with itself about nothing - and the count is read from the runner's own stdout, where an unreadable count is not an empty one. Two selftest controls hold the normalizer from both sides: legs differing only in a duration must PASS, and legs differing in an assertion count must FAIL."
+  },
   "tools/tch-bootstrap-ci.mjs": {
    "bin": "decides",
    "status": "adopted",
