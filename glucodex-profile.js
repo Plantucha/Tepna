@@ -204,14 +204,17 @@
     let calib = null;
     if (p.a1c > 0) {
       const labEAG = 28.7 * p.a1c - 46.7;
-      const sensorMean = r.mean - (r.biasOffset || 0);
+      /* ∅ a null offset means NO shift was applied, so backing out 0 is the arithmetic truth here.
+         The reported field below stays null, because 0 mg/dL applied and nothing applied are not the
+         same calibration state. */
+      const sensorMean = r.mean - (r.biasOffset != null ? r.biasOffset : 0);
       const bias = +(labEAG - sensorMean).toFixed(0); // +ve ⇒ sensor reads LOW vs lab
       calib = {
         labEAG: Math.round(labEAG),
         sensorMean: Math.round(sensorMean),
         bias,
         applied: !!r.biasOffset,
-        appliedOffset: Math.round(r.biasOffset || 0),
+        appliedOffset: r.biasOffset != null ? Math.round(r.biasOffset) : null,
         magnitude: Math.abs(bias) >= 15 ? 'large' : Math.abs(bias) >= 8 ? 'moderate' : 'small',
         requested: p.calib
       };
