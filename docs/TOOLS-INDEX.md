@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**345 tools** · 344 with a purpose line · **1 without**
+**346 tools** · 345 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -25,6 +25,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`aperiodic-offset.mjs`](../tools/aperiodic-offset.mjs) | aperiodic-offset — target 1 of KNOWN-CLOCK-ADVERSARIAL-CAPTURE, finally testable. |
 | [`archive-manifest.mjs`](../tools/archive-manifest.mjs) | archive-manifest — a hash manifest for every archived capture night, written at copy time on the rig. |
 | [`argv-guard.mjs`](../tools/argv-guard.mjs) | REFUSE AN ARGV TOKEN NOBODY READS. Residue `2026-09-28-trio-batch-ignores-an-unknown-flag-so-a-near-miss-writes-the-corpus`. |
+| [`argv-probe-reach.mjs`](../tools/argv-probe-reach.mjs) | HOW MANY ABSTAINING TOOLS CAN THE PROBE REACH TODAY? — the join nobody computed. |
 | [`argv-reads.mjs`](../tools/argv-reads.mjs) | WHICH TOOLS IGNORE AN UNKNOWN ARGV TOKEN BY CONSTRUCTION. WHY. |
 | [`argv-survey.mjs`](../tools/argv-survey.mjs) | WHICH TOOLS CAN TELL AN UNKNOWN FLAG FROM AN ABSENT ONE. Executable, controlled, and bounded to the tools it can prove are inert. |
 | [`assertion-strength.mjs`](../tools/assertion-strength.mjs) | WHICH ASSERTIONS PIN A DIRECTION WHERE THEY COULD PIN A VALUE |
