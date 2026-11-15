@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="c020c833c54b" data-compute-hash="46e0aaa93def">
+<html lang="en" data-manifest-hash="ec36d5a0f45a" data-compute-hash="8deff5e5bf5e">
 <head>
 <!--
   EEGDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). EEGDex ships zero
      inline scripts (all init lives in eegdex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VF6lK8TBRYVVlrbjauTHdyR79k/V1iejbfZVFQsgNLk=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-aLycR5k7ZbrBOoSbyZpzfLYxJE2dIeBuEnJjGxkLHNw=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-yLIubjNzZELxCd9aGzM1WSYIitqPTbNYLUngtLsmC1U=' 'sha256-zNrW85hAqNGql/xLaI8/ruXZeyqkmumE0Jh22zrFop0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+5s/308ZZHLhEYgoeaMWJ/zCs2ZUakeHuo1fhny95Bc=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-G6XCFoe1MnyPh2+tjT/Mp1hqSGUMPTYr1AZiRaywclE=' 'sha256-K7+uIbG5ZqPm405RoRfCVCG+Q2LLPZtHsZfR8aQyP8M=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-zNrW85hAqNGql/xLaI8/ruXZeyqkmumE0Jh22zrFop0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>EEGDex — Sleep EEG Analyzer · v2.32.0</title>
@@ -2778,6 +2778,21 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
 
     <div class="section-title" id="egBands" style="display:none">Spectral Bands <span class="st-note">relative power per epoch, summarised as a median over scored epochs</span></div>
     <div class="card" id="egBandsCard" style="display:none"></div>
+
+    <div class="section-title" id="egSpectro" style="display:none">Spectrogram <span class="st-note">one 1 Hz bin per cell · shade is log power inside this night, not across nights</span></div>
+    <div class="card" id="egSpectroCard" style="display:none"></div>
+
+    <div class="section-title" id="egBandTime" style="display:none">Band Power Over Time <span class="st-note">five independent shares of the same total · a line lifts over an absent stretch</span></div>
+    <div class="card" id="egBandTimeCard" style="display:none"></div>
+
+    <div class="section-title" id="egSwa" style="display:none">Slow-Wave Activity <span class="st-note">one bar per NREM stretch · the dashed line is the engine's own least squares</span></div>
+    <div class="card" id="egSwaCard" style="display:none"></div>
+
+    <div class="section-title" id="egRaster" style="display:none">Spindle Raster <span class="st-note">one tick per detection over the stage staircase · no slow-wave events are detected</span></div>
+    <div class="card" id="egRasterCard" style="display:none"></div>
+
+    <div class="section-title" id="egAbsence" style="display:none">Absence Timeline <span class="st-note">every unscored stretch in its own reason's colour</span></div>
+    <div class="card" id="egAbsenceCard" style="display:none"></div>
 
     <div class="section-title" id="egQuality" style="display:none">Signal Quality <span class="st-note">what was scored, and what this instrument refuses to measure</span></div>
     <div class="card" id="egQualityCard" style="display:none"></div>
@@ -6169,7 +6184,7 @@ global.EegRegistry = {
      spectral edge is a share of the band 0 to this number and nothing wider. */
   var SEF_CEIL_HZ = 45;
 
-  function epochBands(sig, from, to, fs) {
+  function epochBands(sig, from, to, fs, opts) {
     var n = to - from;
     if (!(fs > 0) || n < fs * 5) return null; // under 5 s is not an epoch
     var N = nextPow2(n),
@@ -6203,12 +6218,27 @@ global.EegRegistry = {
     var out = { delta: 0, theta: 0, alpha: 0, sigma: 0, beta: 0 },
       tot = 0;
     var half = N >> 1;
+    /* ── THE OPT-IN 1 Hz BIN VECTOR (2026-11-15) ───────────────────────────────────────────────
+       The SEF comment below states that this function holds no array per epoch, and that stays the
+       default. A caller drawing a spectrogram needs one, so `opts.bins` turns it on and nothing
+       else does. The cost is 45 numbers an epoch, so 43 200 over an 8 h night at 30 s epochs, and
+       the renderer holds them for as long as the night stays open. Bin `i` carries the power in
+       [i, i+1) Hz, so the vector stops at the same `SEF_CEIL_HZ` as `tot` and as every share. */
+    var bins = opts && opts.bins ? new Array(SEF_CEIL_HZ) : null,
+      bi = 0;
+    if (bins) {
+      for (bi = 0; bi < SEF_CEIL_HZ; bi++) bins[bi] = 0;
+    }
     for (i = 1; i < half; i++) {
       var f = (i * fs) / N;
       if (f > SEF_CEIL_HZ) break;
       var p = (re[i] * re[i] + im[i] * im[i]) / (N * N);
       tot += p;
       for (var b in BANDS) if (f >= BANDS[b][0] && f < BANDS[b][1]) out[b] += p;
+      if (bins) {
+        bi = Math.floor(f);
+        if (bi < SEF_CEIL_HZ) bins[bi] += p;
+      }
     }
     if (!(tot > 0)) return null;
     var rel = {};
@@ -6239,7 +6269,7 @@ global.EegRegistry = {
         break;
       }
     }
-    return { abs: out, rel: rel, total: tot, sef95: sef };
+    return { abs: out, rel: rel, total: tot, sef95: sef, bins: bins };
   }
 
   /* ── WHY AN EPOCH HAS NO SPECTRUM (∅) ─────────────────────────────────────────────────────────
@@ -6468,7 +6498,7 @@ global.EegRegistry = {
   var SWA_MIN_EPOCHS = 4; // 2 min of staged NREM, under which a stretch's median is not a stretch
 
   function swaTrend(bands, stages) {
-    var out = { periods: [], decayPctPerPeriod: null, reason: null, population: { stretches: 0, measured: 0, excluded: 0 } };
+    var out = { periods: [], decayPctPerPeriod: null, fit: null, reason: null, population: { stretches: 0, measured: 0, excluded: 0 } };
     if (!bands || !bands.length || !stages || stages.length !== bands.length) {
       out.reason = 'no-epoch-bands';
       return out;
@@ -6533,6 +6563,12 @@ global.EegRegistry = {
     }
     var slope = (n * sxy - sx * sy) / den;
     out.decayPctPerPeriod = +((100 * slope) / out.periods[0].deltaPower).toFixed(2);
+    /* THE FITTED LINE TRAVELS WITH THE PERCENTAGE. A surface that drew its own least squares over
+       `periods` would publish a second calculation of this same line, and the two would disagree the
+       moment either side changed — the band shares carry the same rule, where `alphaRel` and
+       `thetaRel` are the two published medians rather than a second pass. `intercept` is the fitted
+       delta power at stretch 0, in the units of `deltaPower`, so a renderer draws THIS line. */
+    out.fit = { slope: round3(slope), intercept: round3(sy / n - (slope * sx) / n) };
     return out;
   }
 
@@ -6798,7 +6834,19 @@ global.EegRegistry = {
 
      Every value carries its own population, so a reader can never mistake a one-epoch median for a
      night. */
-  function nightBands(sig, fs) {
+  function nightBands(sig, fs, opts) {
+    /* `opts.series` is an OUT-PARAMETER object rather than a return key, because `buildNodeExport`
+       copies `summary.bands` WHOLE onto the bus. A per-epoch 45-bin vector has no place in a node
+       export, so the series never touches this function's return value. The caller that wants it
+       passes an object and reads `series`, `binHz`, `ceilHz` and `epochSec` back out of it. */
+    var sink = opts && opts.series && typeof opts.series === 'object' ? opts.series : null;
+    if (sink) {
+      sink.series = null;
+      sink.reason = null;
+      sink.binHz = 1;
+      sink.ceilHz = SEF_CEIL_HZ;
+      sink.epochSec = EPOCH_SEC;
+    }
     var out = {
       totalPower: null,
       alphaRel: null,
@@ -6832,14 +6880,23 @@ global.EegRegistry = {
       ratio = [],
       sefs = [],
       k;
+    var rows = sink ? [] : null;
     for (var i = 0; i < nEp; i++) {
-      var b = epochBands(sig, i * step, (i + 1) * step, fs);
-      if (!b) continue;
+      var b = epochBands(sig, i * step, (i + 1) * step, fs, sink ? { bins: true } : null);
+      if (!b) {
+        /* ∅ · an epoch with no spectrum enters the series as an absence that NAMES ITSELF, out of
+           the same vocabulary `epochAbsence` gives the hypnogram. A chart then draws a gap with a
+           reason beside it, never a zero column. */
+        if (rows) rows.push({ epoch: i, reason: epochAbsence(sig, i * step, (i + 1) * step, fs), rel: null, total: null, sef95: null, bins: null });
+        continue;
+      }
+      if (rows) rows.push({ epoch: i, reason: null, rel: b.rel, total: b.total, sef95: b.sef95, bins: b.bins });
       tot.push(b.total);
       for (k in per) per[k].push(b.rel[k]);
       if (b.rel.theta > 0) ratio.push(b.rel.alpha / b.rel.theta);
       if (b.sef95 != null) sefs.push(b.sef95);
     }
+    if (sink) sink.series = rows;
     out.population.withBands = tot.length;
     out.population.ratioEpochs = ratio.length;
     out.population.sefEpochs = sefs.length;
@@ -7147,7 +7204,12 @@ global.EegRegistry = {
     if (!(fs > 0)) return { err: 'no EEG signal', reason: 'no-sample-rate' };
     var res = analyze({ eeg: sig, fs: fs, t0Ms: frame.t0Ms, emg: frame.emg, eog: frame.eog, emgFs: frame.emgFs, eogFs: frame.eogFs }, opts);
     if (!res || res.err) return res || { err: 'no EEG signal', reason: 'analyze-returned-nothing' };
-    res.bands = nightBands(sig, fs);
+    /* The per-epoch spectrum rides its OWN key. `buildNodeExport` copies `bands` whole, so a
+       45-bin vector an epoch would otherwise reach the bus, where no consumer asked for it. */
+    var spec = {};
+    res.bands = nightBands(sig, fs, { series: spec });
+    if (!spec.series && !spec.reason) spec.reason = res.bands.reason || 'no-epoch-with-a-spectrum';
+    res.spectra = spec;
     res.t0Ms = frame.t0Ms == null ? null : frame.t0Ms;
     res.offsetMin = frame.offsetMin == null ? null : frame.offsetMin;
     res.t0Reason = frame.t0Ms == null ? frame.t0Reason || 'no-start-stamp' : null;
@@ -7954,7 +8016,7 @@ __exports.EEGDSP = window.EEGDSP;
      One column per epoch, at that stage's depth. An epoch with no stage is HATCHED at full height
      rather than drawn at some stage's height: §∅, an absence has no depth, and a column drawn at
      Wake's height would read as a scored Wake epoch. */
-  function hypnoHtml(summary) {
+  function hypnoHtml(summary, truth) {
     var hyp = (summary && summary.hypnogram) || [];
     if (!hyp.length) return '<p class="eg-empty">No epochs to draw.</p>';
     var counts = (summary && summary.stageCounts) || {};
@@ -7976,13 +8038,52 @@ __exports.EEGDSP = window.EEGDSP;
     }
     var nul = summary && summary.quality ? summary.quality.nUnscorable : null;
     legend += '<span class="eg-lg"><span class="eg-dot eg-ep-nul"></span>unscored ' + (nul == null ? '—' : nul) + '</span>';
+    /* ── THE GENERATOR'S OWN PLAN, UNDER THE SCORED SERIES (demo path only) ───────────────────
+       `truth` reaches this function from the DEMO, never from `compute`, so a recording cannot grow
+       a truth strip and the simulator cannot lose one. The two strips sit on the same epoch grid, so
+       a column above a column is the same 30 s, and a reader sees where the stager and the plan
+       part without any agreement number standing between them.
+
+       NO AGREEMENT FIGURE IS PRINTED HERE. Agreement is a metric and this node's registry grades
+       none, so a number beside these strips would mint a grade the registry never gave. The test
+       lane measures it against a pre-stated floor instead. */
+    var tr = '';
+    if (truth && truth.hypnogram && truth.hypnogram.length) {
+      var th = truth.hypnogram,
+        tcols = '',
+        bothN = 0,
+        ts;
+      for (i = 0; i < th.length; i++) {
+        ts = th[i].absent ? null : th[i].stage;
+        tcols +=
+          '<div class="eg-ep ' + (ts == null ? 'eg-ep-nul' : STAGE_CLASS[ts] || 'eg-ep-nul') + '" title="' + esc('planned · epoch ' + th[i].epoch + ' · ' + (ts == null ? 'absent' : ts)) + '"></div>';
+        if (i < hyp.length && hyp[i].stage != null && ts != null) bothN++;
+      }
+      tr =
+        '<div class="eg-hyp">' +
+        tcols +
+        '</div><p class="chart-note">' +
+        esc(
+          'The strip above is the stager and this one is the generator\u2019s own plan, on the same ' +
+            (summary.epochSec || 30) +
+            ' s grid: ' +
+            th.length +
+            ' planned epochs against ' +
+            hyp.length +
+            ' scored, and ' +
+            bothN +
+            ' epochs where both name a stage. A column is the plan and not a score, so it is authored arithmetic and carries no evidence grade. The test lane holds the agreement against its own floor; this figure prints none.'
+        ) +
+        '</p>';
+    }
     return (
       row('Hypnogram', hyp.length + ' epochs', (summary.epochSec || '—') + ' s each · median-smoothed') +
       '<div class="eg-hyp">' +
       eps +
       '</div><div class="eg-legend">' +
       legend +
-      '</div><p class="chart-note">A hatched column is an epoch with no stage. The stager scores one EEG channel, so this is not a polysomnogram score.</p>'
+      '</div><p class="chart-note">A hatched column is an epoch with no stage. The stager scores one EEG channel, so this is not a polysomnogram score.</p>' +
+      tr
     );
   }
 
@@ -8102,6 +8203,696 @@ __exports.EEGDSP = window.EEGDSP;
     return out;
   }
 
+  /* ── THE CHART SPINE ──────────────────────────────────────────────────────────────────────────
+     The five SVG figures below share these helpers, and they deliberately do NOT import
+     `ecgdex-render.js lineChart` or `oxydex-render.js barChart`. Those two draw one series over an
+     axis in SECONDS from a flat sample array; every figure here draws a per-EPOCH series on the 30 s
+     grid, several of them stacked, and three of them are not line charts at all. What this file
+     takes from those two is the three rules their comments earned, not their code:
+
+       1 · A NULL IS A GAP, NOT A ZERO (§∅). A non-finite value leaves the domain and BREAKS the
+           path, so an absent stretch draws as a gap. A line ruled across an hour of absent signal
+           is a claim about that hour.
+       2 · AN EMPTY BUCKET IS NULL. A card holds about 680 px and an 8 h night holds 960 epochs, so
+           the series is averaged into columns. A column whose every epoch is absent has no value,
+           and 0 would draw it as silence that was measured.
+       3 · THE AXIS STATES ITS OWN ENDS. A chart scaled to its own extremes says nothing about the
+           size of what it draws, so every figure prints its top and bottom.
+  */
+  var C = { axis: 'rgba(255,255,255,.16)', grid: 'rgba(255,255,255,.07)', dim: '#6F8096' };
+
+  /* The band hexes mirror `.eg-seg-*` in EEGDex.src.html, which stays the authority: an SVG stroke
+     cannot carry a CSS class that also sets a segment width. */
+  var BAND_COLOR = { delta: '#5EC8B0', theta: '#3DE0D0', alpha: '#58A6FF', sigma: '#A78BFA', beta: '#F0A860' };
+
+  /* Stage DEPTH as a fraction of the plot height, mirroring the `.eg-ep-*` heights in
+     EEGDex.src.html for the same reason as STAGE_COLOR: an SVG staircase cannot read a CSS height. */
+  var STAGE_DEPTH = { W: 1, REM: 0.82, N1: 0.62, N2: 0.42, N3: 0.22 };
+
+  var CH = { W: 680, P: { l: 46, r: 12, t: 12, b: 22 } };
+
+  /* 240 columns is about 2.6 px each at 680 px, so a column is visible. An 8 h night then averages
+     4 epochs into a column rather than drawing 960 columns under one pixel wide. */
+  var MAX_COLS = 240;
+
+  /* Ten shades of ONE accent. A cell's lightness is its power and its hue carries no second
+     meaning, so the figure needs no legend for the hue. Ten rather than a smoother twenty because
+     the runs below MERGE on equal levels, and a finer scale merges less and costs markup. */
+  var SPEC_LEVELS = 10;
+  var SPEC_ACCENT = '#3DE0D0';
+
+  /* The spectrogram gets its OWN, smaller column budget: it draws 45 cells per column against a
+     line chart's one point, so 240 columns cost it 45 times what they cost a line. 120 columns is
+     5.3 px each at 680 px, which is 4 min a column over an 8 h night. */
+  var SPEC_COLS = 120;
+
+  /* ∅ · WHY AN EPOCH CARRIES NO SPECTRUM, in the reader's words. The seven keys are
+     `eegdex-dsp.js epochAbsence`, which stays the authority; an untranslated key prints raw. */
+  var ABSENCE_WHY = {
+    'no-samples': 'no samples reached this epoch',
+    'no-sample-rate': 'no sample rate, so the epoch has no duration',
+    'epoch-too-short': 'the epoch holds under one window',
+    'signal-absent': 'every sample in the epoch is absent',
+    'partial-hole': 'a hole inside an otherwise present epoch',
+    'flat-signal': 'the epoch never moves, so it carries no spectrum',
+    'no-spectrum': 'the transform returned no power'
+  };
+  var ABSENCE_COLOR = {
+    'no-samples': '#6F8096',
+    'no-sample-rate': '#8B7FB0',
+    'epoch-too-short': '#A78BFA',
+    'signal-absent': '#FF6B7A',
+    'partial-hole': '#F0A860',
+    'flat-signal': '#FFD166',
+    'no-spectrum': '#58A6FF'
+  };
+
+  /* Equal-width epoch groups. `cols <= n` makes every group hold at least one epoch, so no figure
+     below has to carry an empty-group arm that could never run. */
+  function buckets(n, maxCols) {
+    var cols = n < maxCols ? n : maxCols,
+      out = [],
+      i;
+    for (i = 0; i < cols; i++) out.push([Math.floor((i * n) / cols), Math.floor(((i + 1) * n) / cols)]);
+    return out;
+  }
+
+  /* Rule 1 and rule 2 in one place: the mean over the FINITE members of a group, and `null` when
+     the group holds none. Every figure below reads its series through this. */
+  function meanOf(vals, from, to) {
+    var s = 0,
+      c = 0,
+      v,
+      i;
+    for (i = from; i < to; i++) {
+      v = vals[i];
+      if (v != null && isFinite(v)) {
+        s += v;
+        c++;
+      }
+    }
+    return c ? s / c : null;
+  }
+
+  /* One subpath per contiguous run of finite points, so the line LIFTS across a gap. */
+  function pathOf(pts) {
+    var d = '',
+      open = false,
+      i;
+    for (i = 0; i < pts.length; i++) {
+      if (pts[i].y == null || !isFinite(pts[i].y)) {
+        open = false;
+        continue;
+      }
+      d += (open ? ' L' : d ? ' M' : 'M') + pts[i].x.toFixed(1) + ' ' + pts[i].y.toFixed(1);
+      open = true;
+    }
+    return d;
+  }
+
+  function svg(H, body) {
+    return '<svg viewBox="0 0 ' + CH.W + ' ' + H + '" preserveAspectRatio="none" role="img" style="width:100%;height:auto;display:block">' + body + '</svg>';
+  }
+
+  function tx(x, y, s, anchor) {
+    return '<text x="' + x + '" y="' + y + '" fill="' + C.dim + '" font-size="9" text-anchor="' + anchor + '" font-family="IBM Plex Mono,monospace">' + esc(s) + '</text>';
+  }
+
+  /* Six x labels along the epoch axis: a wall clock when the recording declared a start, else the
+     elapsed hours. §🔒.5 — the clock comes from `clock()`, which owns the one formatter. */
+  function xTicks(H, n, epochSec, t0Ms) {
+    var out = '',
+      i,
+      frac,
+      ep,
+      lab;
+    for (i = 0; i <= 5; i++) {
+      frac = i / 5;
+      ep = Math.round(frac * (n > 1 ? n - 1 : 0));
+      lab = t0Ms == null ? num((ep * (epochSec || 30)) / 3600, 1) + ' h' : clock(t0Ms + ep * (epochSec || 30) * 1000);
+      out += tx((CH.P.l + frac * (CH.W - CH.P.l - CH.P.r)).toFixed(1), H - 6, lab, 'middle');
+    }
+    return out;
+  }
+
+  /* The two axis lines plus the y ends. Every figure draws the same frame, so a reader moving
+     between them reads the same geometry. */
+  function frameOf(H, topTxt, botTxt) {
+    var P = CH.P;
+    return (
+      '<line x1="' +
+      P.l +
+      '" y1="' +
+      (H - P.b) +
+      '" x2="' +
+      (CH.W - P.r) +
+      '" y2="' +
+      (H - P.b) +
+      '" stroke="' +
+      C.axis +
+      '"/>' +
+      '<line x1="' +
+      P.l +
+      '" y1="' +
+      P.t +
+      '" x2="' +
+      P.l +
+      '" y2="' +
+      (H - P.b) +
+      '" stroke="' +
+      C.axis +
+      '"/>' +
+      tx(P.l - 5, P.t + 8, topTxt, 'end') +
+      tx(P.l - 5, H - P.b - 2, botTxt, 'end')
+    );
+  }
+
+  /* ── 1 · THE SPECTROGRAM ──────────────────────────────────────────────────────────────────────
+     One column per epoch group, one cell per 1 Hz bin, up to the ceiling the engine declares. The
+     shade is log10 power against the night's OWN 5th-to-95th centile of finite bins, quantized to
+     twelve levels, so a quiet night is not drawn as an empty card and a loud one does not saturate.
+
+     ADJACENT CELLS AT THE SAME LEVEL MERGE INTO ONE RECT. Forty-five bins over 240 columns is
+     10 800 cells, and a per-cell rect puts about a megabyte of markup into one card. Merging the
+     runs leaves the same picture, because two cells of one colour and one rect of that colour paint
+     the same pixels. An epoch group with no spectrum at all draws ONE rect in its reason's colour,
+     because a dark column would otherwise read as measured silence (§∅). */
+  function spectroHtml(summary) {
+    var sp = summary && summary.spectra;
+    if (!sp) return '<p class="eg-empty">This summary carries no per-epoch spectrum.</p>';
+    if (!sp.series) return '<p class="eg-empty">' + esc('No spectrogram — ' + (sp.reason || 'no reason given')) + '</p>';
+    var rows = sp.series,
+      n = rows.length,
+      nb = sp.ceilHz,
+      P = CH.P,
+      i,
+      j,
+      e,
+      v;
+    var all = [];
+    for (i = 0; i < n; i++) {
+      if (!rows[i].bins) continue;
+      for (j = 0; j < nb; j++) {
+        v = rows[i].bins[j];
+        if (v > 0) all.push(Math.log10(v));
+      }
+    }
+    if (!all.length) return '<p class="eg-empty">No epoch in this night carries a spectrum.</p>';
+    all.sort(function (a, b) {
+      return a - b;
+    });
+    var lo = all[Math.floor(0.05 * (all.length - 1))],
+      hi = all[Math.floor(0.95 * (all.length - 1))];
+    if (!(hi > lo)) hi = lo + 1;
+    var cellH = 3.4,
+      H = Math.round(P.t + nb * cellH + P.b),
+      bks = buckets(n, SPEC_COLS),
+      cw = (CH.W - P.l - P.r) / bks.length,
+      body = frameOf(H, nb + ' Hz', '0 Hz') + xTicks(H, n, sp.epochSec, summary.t0Ms),
+      absentCols = 0,
+      cells = 0;
+    /* ONE GROUP PER LEVEL, so the fill and the opacity are written ten times rather than once per
+       rect. The merged runs of an 8 h night number in the hundreds, and those two attributes cost
+       more than the rects that carry them. */
+    var byLevel = [],
+      lvi;
+    for (lvi = 0; lvi <= SPEC_LEVELS; lvi++) byLevel.push('');
+    /* The 30 Hz line marks where the five bands stop while the total runs to the ceiling, so a
+       reader can see that the top of this figure is outside every band. */
+    var y30 = P.t + (nb - 30) * cellH;
+    body += '<line x1="' + P.l + '" y1="' + y30.toFixed(1) + '" x2="' + (CH.W - P.r) + '" y2="' + y30.toFixed(1) + '" stroke="' + C.grid + '" stroke-dasharray="3 3"/>';
+    body += tx(CH.W - P.r - 2, y30 - 3, '30 Hz — the bands stop here', 'end');
+    for (i = 0; i < bks.length; i++) {
+      var from = bks[i][0],
+        to = bks[i][1],
+        x = P.l + i * cw,
+        lv = [],
+        withBins = 0;
+      for (e = from; e < to; e++) if (rows[e].bins) withBins++;
+      if (!withBins) {
+        var why = rows[from].reason || 'no-spectrum';
+        absentCols++;
+        body +=
+          '<rect x="' +
+          x.toFixed(1) +
+          '" y="' +
+          P.t +
+          '" width="' +
+          (cw + 0.6).toFixed(1) +
+          '" height="' +
+          (nb * cellH).toFixed(1) +
+          '" fill="' +
+          (ABSENCE_COLOR[why] || C.dim) +
+          '" opacity=".5"><title>' +
+          esc('epochs ' + from + '–' + (to - 1) + ' · ' + (ABSENCE_WHY[why] || why)) +
+          '</title></rect>';
+        continue;
+      }
+      for (j = 0; j < nb; j++) {
+        var s2 = 0,
+          c2 = 0;
+        for (e = from; e < to; e++) {
+          var bb = rows[e].bins;
+          if (!bb) continue;
+          v = bb[j];
+          if (v != null && isFinite(v) && v > 0) {
+            s2 += v;
+            c2++;
+          }
+        }
+        if (!c2) lv.push(null);
+        else {
+          var q = Math.round((SPEC_LEVELS * (Math.log10(s2 / c2) - lo)) / (hi - lo));
+          lv.push(q < 1 ? 1 : q > SPEC_LEVELS ? SPEC_LEVELS : q);
+        }
+      }
+      var run = 0;
+      for (j = 1; j <= nb; j++) {
+        if (j < nb && lv[j] === lv[run]) continue;
+        if (lv[run] != null) {
+          /* The bins run upward in frequency and the cells run downward in y, so bin `j-1` is the
+             TOP of a run that starts at bin `run`. */
+          cells++;
+          byLevel[lv[run]] += '<rect x="' + x.toFixed(1) + '" y="' + (P.t + (nb - j) * cellH).toFixed(1) + '" width="' + (cw + 0.6).toFixed(1) + '" height="' + ((j - run) * cellH).toFixed(1) + '"/>';
+        }
+        run = j;
+      }
+    }
+    for (lvi = 1; lvi <= SPEC_LEVELS; lvi++) {
+      if (byLevel[lvi]) body += '<g fill="' + SPEC_ACCENT + '" opacity="' + (lvi / SPEC_LEVELS).toFixed(2) + '">' + byLevel[lvi] + '</g>';
+    }
+    return (
+      row('Total Power', num(summary.bands ? summary.bands.totalPower : null, 3), powerSub(summary)) +
+      svg(H, body) +
+      '<p class="chart-note">' +
+      esc(
+        'Each column is ' +
+          (n / bks.length).toFixed(1) +
+          ' epochs averaged, each cell one ' +
+          sp.binHz +
+          ' Hz bin up to the engine’s ' +
+          nb +
+          ' Hz ceiling. Shade is log₁₀ power against this night’s own 5th-to-95th centile of ' +
+          all.length +
+          ' finite bins, in ' +
+          SPEC_LEVELS +
+          ' levels, so it compares epochs inside this night and not across nights. ' +
+          absentCols +
+          ' of ' +
+          bks.length +
+          ' columns carry no spectrum and are drawn in their own reason’s colour. ' +
+          cells +
+          ' rects paint the rest, merged from ' +
+          (bks.length - absentCols) * nb +
+          ' cells.'
+      ) +
+      '</p>' +
+      absenceLegend(rows, 'Every epoch in this night carries a spectrum.')
+    );
+  }
+
+  /* The legend the spectrogram and the absence timeline share: one entry per reason PRESENT, with
+     its epoch count. A reason with no epoch never appears, so the legend cannot imply an absence
+     the night did not carry. */
+  function absenceLegend(rows, allText) {
+    var seen = {},
+      order = [],
+      out = '',
+      i,
+      k,
+      r;
+    for (i = 0; i < rows.length; i++) {
+      r = rows[i].reason || (rows[i].absentReason != null ? rows[i].absentReason : null);
+      if (!r) continue;
+      if (!seen[r]) {
+        seen[r] = 0;
+        order.push(r);
+      }
+      seen[r]++;
+    }
+    if (!order.length) return '<p class="chart-note">' + esc(allText || 'Every epoch in this night carries a spectrum.') + '</p>';
+    for (i = 0; i < order.length; i++) {
+      k = order[i];
+      out += '<span class="eg-lg"><span class="eg-dot" style="background:' + (ABSENCE_COLOR[k] || C.dim) + '"></span>' + esc((ABSENCE_WHY[k] || k) + ' — ' + seen[k] + ' epochs') + '</span>';
+    }
+    return '<div class="eg-legend">' + out + '</div>';
+  }
+
+  /* ── 2 · BAND POWER OVER TIME ─────────────────────────────────────────────────────────────────
+     Five lines, one per band, each the band's own relative share per epoch group. The five share
+     ONE y axis because they are shares of the same total, so a reader can see delta trade against
+     beta. They are five independent series and not a stack: they do not sum to 100, for the same
+     reason the band bar leaves a remainder — the bands stop at 30 Hz and the total runs to the
+     ceiling. */
+  function bandSeriesHtml(summary) {
+    var sp = summary && summary.spectra;
+    if (!sp) return '<p class="eg-empty">This summary carries no per-epoch spectrum.</p>';
+    if (!sp.series) return '<p class="eg-empty">' + esc('No band series — ' + (sp.reason || 'no reason given')) + '</p>';
+    var rows = sp.series,
+      n = rows.length,
+      bks = buckets(n, MAX_COLS),
+      P = CH.P,
+      H = 180,
+      i,
+      j,
+      k,
+      v;
+    /* One pass per band over the epochs, then the group means. `vals` holds a null for every epoch
+       with no spectrum, so `meanOf` drops it and an all-absent group stays null. */
+    var series = {},
+      ymx = 0,
+      drawn = 0;
+    for (j = 0; j < BAND_ORDER.length; j++) {
+      k = BAND_ORDER[j];
+      var vals = [];
+      for (i = 0; i < n; i++) vals.push(rows[i].rel ? rows[i].rel[k] : null);
+      var pts = [];
+      for (i = 0; i < bks.length; i++) {
+        v = meanOf(vals, bks[i][0], bks[i][1]);
+        if (v != null && v > ymx) ymx = v;
+        pts.push(v);
+      }
+      series[k] = pts;
+    }
+    if (!(ymx > 0)) return '<p class="eg-empty">No epoch in this night published a band share.</p>';
+    var sx = function (col) {
+      return P.l + (bks.length < 2 ? 0 : (col / (bks.length - 1)) * (CH.W - P.l - P.r));
+    };
+    var sy = function (y) {
+      return H - P.b - (y / ymx) * (H - P.t - P.b);
+    };
+    var body = frameOf(H, num(ymx, 1) + ' %', '0 %') + xTicks(H, n, sp.epochSec, summary.t0Ms),
+      legend = '';
+    for (j = 0; j < BAND_ORDER.length; j++) {
+      k = BAND_ORDER[j];
+      var pp = [];
+      for (i = 0; i < series[k].length; i++) pp.push({ x: sx(i), y: series[k][i] == null ? null : sy(series[k][i]) });
+      var d = pathOf(pp);
+      if (!d) continue;
+      drawn++;
+      body += '<path d="' + d + '" fill="none" stroke="' + BAND_COLOR[k] + '" stroke-width="1.3" stroke-linejoin="round" opacity=".92"/>';
+      /* THE SERIES CARRIES THE BADGE (owner 2026-08-16). Each legend entry is a registry abbr, so
+         the grade on the line is the grade the registry gave that band. */
+      legend += '<span class="eg-lg">' + evBadge(BAND_LABEL[k]) + '<span class="eg-dot" style="background:' + BAND_COLOR[k] + '"></span>' + esc(BAND_LABEL[k] + ' · ' + BAND_EDGE[k]) + '</span>';
+    }
+    return (
+      svg(H, body) +
+      '<div class="eg-legend">' +
+      legend +
+      '</div><p class="chart-note">' +
+      esc(
+        drawn +
+          ' of ' +
+          BAND_ORDER.length +
+          ' bands drew a line, over ' +
+          bks.length +
+          ' groups of ' +
+          (n / bks.length).toFixed(1) +
+          ' epochs. The axis runs to the largest group mean, ' +
+          num(ymx, 1) +
+          ' %. The five are independent shares of (0, ' +
+          sp.ceilHz +
+          '] Hz power and do not sum to 100 %. A line LIFTS over a group whose every epoch is absent, because a segment drawn across it would claim a share this night never measured.'
+      ) +
+      '</p>'
+    );
+  }
+
+  /* ── 3 · SLOW-WAVE ACTIVITY PER NREM PERIOD ───────────────────────────────────────────────────
+     One bar per NREM stretch and the engine's OWN least-squares line over them. The renderer never
+     fits anything: `swa.fit` carries the slope and the intercept that produced the published
+     percentage, so the line a reader sees is the line the number came from. A second fit here would
+     be a second calculation of one claim, and the two would part the moment either side changed. */
+  function swaHtml(summary) {
+    var sw = summary && summary.swa;
+    if (!sw) return '<p class="eg-empty">This summary carries no slow-wave trend.</p>';
+    var per = sw.periods || [];
+    if (!per.length) return '<p class="eg-empty">' + esc('No NREM stretch to draw — ' + (sw.reason || 'no reason given')) + '</p>';
+    var P = CH.P,
+      H = 170,
+      ymx = 0,
+      i,
+      v;
+    for (i = 0; i < per.length; i++) {
+      v = per[i].deltaPower;
+      if (v != null && isFinite(v) && v > ymx) ymx = v;
+    }
+    if (sw.fit) {
+      v = sw.fit.intercept + sw.fit.slope * (per.length - 1);
+      if (v > ymx) ymx = v;
+      if (sw.fit.intercept > ymx) ymx = sw.fit.intercept;
+    }
+    if (!(ymx > 0)) return '<p class="eg-empty">Every NREM stretch in this night measured no delta power.</p>';
+    var span = CH.W - P.l - P.r,
+      bw = (span / per.length) * 0.62,
+      sy = function (y) {
+        return H - P.b - (y / ymx) * (H - P.t - P.b);
+      },
+      cx = function (k) {
+        return P.l + ((k + 0.5) / per.length) * span;
+      };
+    var body = frameOf(H, num(ymx, 2), '0'),
+      bars = '',
+      labs = '';
+    for (i = 0; i < per.length; i++) {
+      v = per[i].deltaPower;
+      if (v == null || !isFinite(v)) continue;
+      bars +=
+        '<rect x="' +
+        (cx(i) - bw / 2).toFixed(1) +
+        '" y="' +
+        sy(v).toFixed(1) +
+        '" width="' +
+        bw.toFixed(1) +
+        '" height="' +
+        (H - P.b - sy(v)).toFixed(1) +
+        '" fill="' +
+        BAND_COLOR.delta +
+        '" opacity=".72" rx="2"><title>' +
+        esc('stretch ' + (i + 1) + ' · epochs ' + per[i].fromEpoch + '–' + per[i].toEpoch + ' · ' + per[i].epochs + ' epochs · delta power ' + num(v, 3)) +
+        '</title></rect>';
+      labs += tx(cx(i).toFixed(1), H - 6, String(i + 1), 'middle');
+    }
+    body += bars + labs;
+    if (sw.fit) {
+      body +=
+        '<line x1="' +
+        cx(0).toFixed(1) +
+        '" y1="' +
+        sy(sw.fit.intercept).toFixed(1) +
+        '" x2="' +
+        cx(per.length - 1).toFixed(1) +
+        '" y2="' +
+        sy(sw.fit.intercept + sw.fit.slope * (per.length - 1)).toFixed(1) +
+        '" stroke="#FF6B7A" stroke-width="1.6" stroke-dasharray="5 3"/>';
+    }
+    var pop = sw.population || {};
+    return (
+      row(
+        'SWA Decay',
+        sw.decayPctPerPeriod == null ? '—' : num(sw.decayPctPerPeriod, 2) + ' %/period',
+        sw.decayPctPerPeriod == null ? sw.reason || 'absent, with no reason given' : 'against the first stretch'
+      ) +
+      svg(H, body) +
+      '<p class="chart-note">' +
+      esc(
+        'One bar per NREM stretch, ' +
+          (pop.measured == null ? '—' : pop.measured) +
+          ' of ' +
+          (pop.stretches == null ? '—' : pop.stretches) +
+          ' measured and ' +
+          (pop.excluded == null ? '—' : pop.excluded) +
+          ' excluded. '
+      ) +
+      (sw.fit
+        ? esc(
+            'The dashed line is the engine’s own least squares, slope ' +
+              num(sw.fit.slope, 3) +
+              ' a stretch from ' +
+              num(sw.fit.intercept, 3) +
+              ' at the first, which is the fit the percentage above reports. '
+          )
+        : esc('No line is drawn, because this summary carries no fit — ' + (sw.reason || 'no reason given') + '. ')) +
+      esc('A stretch is a run of N2 or N3 epochs, so the x axis counts stretches and not hours.') +
+      '</p>'
+    );
+  }
+
+  /* ── 4 · THE SPINDLE RASTER OVER THE HYPNOGRAM ────────────────────────────────────────────────
+     One tick per detection, at its own second, over a faint stage staircase. The engine publishes
+     every detection with its start, its width, its epoch and its stage, so this figure draws the
+     events the density counted rather than the density itself.
+
+     NO SLOW-WAVE EVENTS ARE DRAWN. The owner's chart list asks for a spindle AND slow-wave raster,
+     and this engine holds no slow-wave event detector — `swa` measures delta POWER per stretch, not
+     individual waves. A row drawn from the power would be a different thing wearing the name, so
+     the row is absent and the note says why.
+
+     On the simulator path the generator's PLANTED spindles draw underneath, so a reader sees the
+     detector against the plant. A recording has no plant and the second row is simply absent. */
+  function spindleRasterHtml(summary, truth) {
+    var sp = summary && summary.spindles;
+    if (!sp) return '<p class="eg-empty">This summary carries no spindle answer.</p>';
+    var ev = sp.spindles || [],
+      dur = summary.durSec,
+      hyp = summary.hypnogram || [],
+      P = CH.P,
+      H = 150,
+      i,
+      s;
+    if (!(dur > 0)) return '<p class="eg-empty">This summary states no duration, so no event has a place on a time axis.</p>';
+    var span = CH.W - P.l - P.r,
+      hypTop = P.t + 16,
+      hypBot = H - P.b - 26,
+      hypH = hypBot - hypTop,
+      sxSec = function (sec) {
+        return P.l + (sec / dur) * span;
+      };
+    var body = frameOf(H, 'W', 'N3') + xTicks(H, hyp.length || 1, summary.epochSec, summary.t0Ms);
+    /* The staircase is a STEP line and not a smoothed one: a stage holds for its whole epoch, and a
+       slope between two epochs would draw a transition that took 30 s.
+
+       ONE PATH PER STAGE, AND RUNS MERGE. An 8 h night holds 960 epochs, and a line element per
+       epoch writes the stroke and the width 960 times over five distinct values. A sleeper holds
+       one stage for many epochs at a time, so the merged runs number in the dozens. */
+    var ep = summary.epochSec || 30,
+      stepD = {},
+      runStart = 0,
+      stageKeys = Object.keys(STAGE_DEPTH),
+      ki,
+      kk;
+    for (i = 1; i <= hyp.length; i++) {
+      if (i < hyp.length && hyp[i].stage === hyp[runStart].stage) continue;
+      s = hyp[runStart].stage;
+      if (s != null && STAGE_DEPTH[s] != null) {
+        stepD[s] = (stepD[s] || '') + 'M' + sxSec(runStart * ep).toFixed(1) + ',' + (hypBot - STAGE_DEPTH[s] * hypH).toFixed(1) + 'H' + sxSec(i * ep).toFixed(1);
+      }
+      runStart = i;
+    }
+    for (ki = 0; ki < stageKeys.length; ki++) {
+      kk = stageKeys[ki];
+      if (stepD[kk]) body += '<path d="' + stepD[kk] + '" fill="none" stroke="' + (STAGE_COLOR[kk] || C.dim) + '" stroke-width="1.6" opacity=".45"/>';
+    }
+    var plantRow = hypBot + 8,
+      detRow = hypTop - 10;
+    /* THE TICKS CARRY NO PER-EVENT HOVER, and that is a measurement rather than a saving. An 8 h
+       night holds over a thousand detections across 620 px, so two ticks sit inside one pixel and
+       a pointer cannot reach one of them. A title per event would weigh more than the whole
+       figure and would never open. The per-event second, stage, length and peak ratio travel in
+       the export, which is where a reader can hold them. */
+    var tickD = {};
+    for (i = 0; i < ev.length; i++) {
+      kk = STAGE_DEPTH[ev[i].stage] == null ? 'W' : ev[i].stage;
+      tickD[kk] = (tickD[kk] || '') + 'M' + sxSec(ev[i].atSec).toFixed(1) + ',' + (detRow - 7) + 'v8';
+    }
+    for (ki = 0; ki < stageKeys.length; ki++) {
+      kk = stageKeys[ki];
+      if (tickD[kk]) body += '<path d="' + tickD[kk] + '" fill="none" stroke="' + (STAGE_COLOR[kk] || C.dim) + '" stroke-width="1.1"/>';
+    }
+    body += tx(P.l - 5, detRow - 1, 'found', 'end');
+    var planted = truth && truth.spindles ? truth.spindles : null;
+    if (planted) {
+      var plantD = '';
+      for (i = 0; i < planted.length; i++) {
+        plantD += 'M' + sxSec(planted[i].atSec).toFixed(1) + ',' + plantRow + 'v8';
+      }
+      if (plantD) body += '<path d="' + plantD + '" fill="none" stroke="' + C.dim + '" stroke-width="1.1" opacity=".85"/>';
+      body += tx(P.l - 5, plantRow + 7, 'planted', 'end');
+    }
+    var pop = sp.population || {};
+    return (
+      row(
+        'Spindles',
+        sp.density == null ? '—' : num(sp.density, 2) + ' /min',
+        sp.density == null ? sp.reason || 'absent, with no reason given' : (pop.detections == null ? '—' : pop.detections) + ' detections over ' + num(pop.eligibleMin, 0) + ' staged NREM min'
+      ) +
+      svg(H, body) +
+      '<p class="chart-note">' +
+      esc(
+        'Each upper tick is one detection at its own second, coloured by the stage it was found in, over the stage staircase. ' +
+          ev.length +
+          ' detections are drawn and ' +
+          (pop.excludedByHole == null ? '—' : pop.excludedByHole) +
+          ' were dropped for touching an absent span. '
+      ) +
+      (planted
+        ? esc('The lower ticks are the ' + planted.length + ' spindles the simulator planted, so the two rows read as the detector against its own plant.')
+        : esc('A recording carries no planted row, so the lower row is absent here.')) +
+      esc(' Each stage draws one path, so a colour names the stage and no tick carries its own hover: over a thousand events share 620 px, and the per-event detail travels in the export.') +
+      esc(' No slow-wave events are drawn: this engine measures delta power per NREM stretch and detects no individual slow wave, so a row drawn from the power would carry a name it did not earn.') +
+      '</p>'
+    );
+  }
+
+  /* ── 5 · THE ABSENCE TIMELINE ─────────────────────────────────────────────────────────────────
+     The night as one strip, with every unscored stretch shaded in ITS OWN reason's colour. This is
+     the complement of `% Analyzable`: the KPI says how much was scored and this figure says where
+     the rest went and why. Runs of one reason merge, so the strip holds one rect per stretch and
+     not one per epoch. */
+  function absenceHtml(summary) {
+    var hyp = (summary && summary.hypnogram) || [];
+    if (!hyp.length) return '<p class="eg-empty">No epochs to draw.</p>';
+    var P = CH.P,
+      H = 86,
+      span = CH.W - P.l - P.r,
+      top = P.t + 6,
+      h = H - P.b - top - 6,
+      cw = span / hyp.length,
+      i,
+      run = 0,
+      cur = hyp[0].absentReason || null,
+      rects = '',
+      spans = 0,
+      absent = 0;
+    var emit = function (from, to, why) {
+      var x = (P.l + from * cw).toFixed(1),
+        w = ((to - from) * cw + 0.6).toFixed(1);
+      if (!why) return '<rect x="' + x + '" y="' + top + '" width="' + w + '" height="' + h.toFixed(1) + '" fill="' + SPEC_ACCENT + '" opacity=".16"/>';
+      spans++;
+      absent += to - from;
+      return (
+        '<rect x="' +
+        x +
+        '" y="' +
+        top +
+        '" width="' +
+        w +
+        '" height="' +
+        h.toFixed(1) +
+        '" fill="' +
+        (ABSENCE_COLOR[why] || C.dim) +
+        '" opacity=".78"><title>' +
+        esc('epochs ' + from + '–' + (to - 1) + ' · ' + (ABSENCE_WHY[why] || why)) +
+        '</title></rect>'
+      );
+    };
+    for (i = 1; i <= hyp.length; i++) {
+      var r = i < hyp.length ? hyp[i].absentReason || null : '\u0000';
+      if (r === cur) continue;
+      rects += emit(run, i, cur);
+      run = i;
+      cur = r;
+    }
+    var body = frameOf(H, '', '') + rects + xTicks(H, hyp.length, summary.epochSec, summary.t0Ms);
+    var q = summary.quality || {};
+    return (
+      row('% Analyzable', pct(q.analyzablePct), hyp.length - absent + ' of ' + hyp.length + ' epochs scored') +
+      svg(H, body) +
+      absenceLegend(hyp, 'Every epoch in this night was scored.') +
+      '<p class="chart-note">' +
+      esc(
+        'The pale strip is the scored night and each shaded stretch is unscored, in its own reason’s colour. ' +
+          spans +
+          ' stretches hold ' +
+          absent +
+          ' of ' +
+          hyp.length +
+          ' epochs. Two stretches of one reason stay apart, because a merged strip would read as one longer absence than the night carried.'
+      ) +
+      '</p>'
+    );
+  }
+
   /* ── EVERY SIMULATOR SURFACE SAYS WHAT IT IS (owner order 2026-11-14, board #6256 item 7) ──
      The label rides `summary.source`, which `compute` carries from the frame, so an EDF run cannot
      claim it and a demo cannot lose it. The app's own status text used to carry this sentence and
@@ -8112,7 +8903,7 @@ __exports.EEGDSP = window.EEGDSP;
     return '<p class="chart-note">\u26a0 synthetic \u2014 not a recording: authored arithmetic from the EEGDex simulator, so every number below describes the generator rather than a person.</p>';
   }
 
-  function renderSummary(summary) {
+  function renderSummary(summary, truth) {
     var st = $('egStatus');
     if (!summary || summary.err) {
       if (st) {
@@ -8142,9 +8933,17 @@ __exports.EEGDSP = window.EEGDSP;
     var title = $('egKPI');
     if (title) title.style.display = '';
     var sn = synthNote(summary);
-    fill('egHypnoCard', 'egHypno', sn + hypnoHtml(summary));
+    fill('egHypnoCard', 'egHypno', sn + hypnoHtml(summary, truth));
     fill('egArchCard', 'egArch', sn + archHtml(summary));
     fill('egBandsCard', 'egBands', sn + bandHtml(summary));
+    /* THE FIVE FIGURES, each one carrying the same `synthNote` as the tables above. A chart over the
+       simulator says what it is in its own card, because a reader who scrolls to one figure never
+       saw the sentence on the first (owner order 2026-11-14, board #6258). */
+    fill('egSpectroCard', 'egSpectro', sn + spectroHtml(summary));
+    fill('egBandTimeCard', 'egBandTime', sn + bandSeriesHtml(summary));
+    fill('egSwaCard', 'egSwa', sn + swaHtml(summary));
+    fill('egRasterCard', 'egRaster', sn + spindleRasterHtml(summary, truth));
+    fill('egAbsenceCard', 'egAbsence', sn + absenceHtml(summary));
     fill('egQualityCard', 'egQuality', sn + qualityHtml(summary));
     if (st) {
       st.textContent =
@@ -8164,8 +8963,21 @@ __exports.EEGDSP = window.EEGDSP;
     archHtml: archHtml,
     bandHtml: bandHtml,
     qualityHtml: qualityHtml,
+    spectroHtml: spectroHtml,
+    bandSeriesHtml: bandSeriesHtml,
+    swaHtml: swaHtml,
+    spindleRasterHtml: spindleRasterHtml,
+    absenceHtml: absenceHtml,
+    absenceLegend: absenceLegend,
+    buckets: buckets,
+    meanOf: meanOf,
+    pathOf: pathOf,
     powerSub: powerSub,
-    ARCH_ROWS: ARCH_ROWS
+    ARCH_ROWS: ARCH_ROWS,
+    ABSENCE_WHY: ABSENCE_WHY,
+    SPEC_LEVELS: SPEC_LEVELS,
+    SPEC_COLS: SPEC_COLS,
+    MAX_COLS: MAX_COLS
   };
 })(window);
 
@@ -8278,8 +9090,13 @@ const { EEGUI } = __require('eegdex-render.js');
     var frame = EEGDSP.genOvernight({ durSec: 8 * 3600, scenario: 'artefactual', t0Ms: Date.UTC(2026, 0, 1, 23, 0, 0) });
     RESULT = EEGDSP.compute(frame);
     /* The render reads `summary.source`, which `compute` carries from the frame, so the label needs
-       no second argument and an EDF run cannot accidentally claim it. */
-    EEGUI.renderSummary(RESULT);
+       no second argument and an EDF run cannot accidentally claim it.
+
+       THE PLAN IS THE SECOND ARGUMENT, AND ONLY THE DEMO HOLDS IT. `compute` never returns the
+       generator's truth, so the hypnogram's planned strip and the raster's planted row exist on this
+       path alone; the EDF path above calls `renderSummary(RESULT)` and those two rows are absent by
+       construction rather than by a flag. */
+    EEGUI.renderSummary(RESULT, frame.truth);
     setStatus('Demo — synthetic, not a recording: an 8 h simulated night, authored arithmetic.');
     setExportReady(true);
   }

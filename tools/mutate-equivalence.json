@@ -6102,6 +6102,36 @@
     "probe": "mutate.mjs --only over the groups tagged ecgdex-dsp (94 group(s))"
    },
    "fn": "triangularIndex"
+  },
+  {
+   "line": 7259,
+   "op": "cmp < → <=",
+   "before": "for (var i = 0; i < accBlank.length; i++) {",
+   "after": "for (var i = 0; i <= accBlank.length; i++) {",
+   "class": "equivalent",
+   "why": "EQUIVALENT — the extra pass reads `accBlank[accBlank.length]`, which is `undefined` for every array, so `sp` is undefined, the ternary extraction gives `undefined` for both ends of the span, and the `typeof a === number` test rejects the row before the sum. The body can add no term on that pass and it mutates nothing else.",
+   "brief": "SIGNAL-QUALITY-TABLE-2026-11-14-BRIEF.md — adjudicated by reading the source, not by a probe battery (`tools/probe-equivalence.mjs` carries no `ecgdex-dsp.js` family), 2026-11-15",
+   "fn": "ecgSignalQuality"
+  },
+  {
+   "line": 7271,
+   "op": "cmp > → >=",
+   "before": "if (typeof a === 'number' && typeof b === 'number' && isFinite(a) && isFinite(b) && b > a) accBlankM",
+   "after": "if (typeof a === 'number' && typeof b === 'number' && isFinite(a) && isFinite(b) && b >= a) accBlank",
+   "class": "equivalent",
+   "why": "EQUIVALENT — widening `b > a` to `b >= a` admits only the zero-width span `b === a`, and the term it then adds is `b - a`, which is 0. The two guards ahead of it make both ends finite numbers, so the sum is unchanged exactly. The run count published beside the sum is the ROW count and not the summed count, so it does not move either.",
+   "brief": "SIGNAL-QUALITY-TABLE-2026-11-14-BRIEF.md — adjudicated by reading the source, not by a probe battery (`tools/probe-equivalence.mjs` carries no `ecgdex-dsp.js` family), 2026-11-15",
+   "fn": "ecgSignalQuality"
+  },
+  {
+   "line": 7274,
+   "op": "bool && → ||",
+   "before": "var accSpanMs = r.durSec != null && isFinite(r.durSec) ? r.durSec * 1000 : null;",
+   "after": "var accSpanMs = r.durSec != null || isFinite(r.durSec) ? r.durSec * 1000 : null;",
+   "class": "no-distinguishing-input",
+   "why": "NO DISTINGUISHING INPUT — `r` here is `analyze`'s RESULT and not the parsed record, and the duration it carries is built at :3007 from the ACTIVE data seconds. Every branch of that expression yields a finite number except the third fallback, which needs a record that produced no beats at all, and analyze throws at :2857 before it can return one. Writing a non-finite duration onto the parsed record therefore does not move the published span, which the §5g legs of `tests/dex-tests.js` measure. `null`, `Infinity` and `NaN` each separate the two arms, so the guard is reachable in principle: the mutant is excused by input and not by proof.",
+   "brief": "SIGNAL-QUALITY-TABLE-2026-11-14-BRIEF.md — adjudicated by reading the source, not by a probe battery (`tools/probe-equivalence.mjs` carries no `ecgdex-dsp.js` family), 2026-11-15",
+   "fn": "ecgSignalQuality"
   }
  ],
  "oxydex-dsp.js": [

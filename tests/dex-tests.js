@@ -30394,6 +30394,201 @@
       T.ok('the night edge is a finite frequency under the ceiling', flat.bands.sef95 < D.SEF_CEIL_HZ && tone.bands.sef95 > 0, 'flat ' + flat.bands.sef95 + ' tone ' + tone.bands.sef95);
     });
 
+    group('The EEGDex chart helpers answer every case a night axis carries', 'eegdex · charts · helpers', function (T) {
+      var U = env.EEGUI;
+      if (!U) {
+        T.skip('env.EEGUI available', 'eegdex-render.js is not executed by this lane');
+        return;
+      }
+      /* THESE THREE HELPERS CARRY THE ∅ RULE FOR EVERY FIGURE, so their answers are pinned here
+         rather than inferred from a drawing. `buckets` groups epochs into columns, `meanOf`
+         averages the finite members of one group, and `pathOf` lifts the line over a null. */
+      var b960 = U.buckets(960, 120);
+      T.eq('an 8 h night at 120 columns gives 120 equal groups', b960.length, 120);
+      T.eq('the first group holds 8 epochs', JSON.stringify(b960[0]), JSON.stringify([0, 8]));
+      T.eq('and the last group ends on the last epoch', JSON.stringify(b960[119]), JSON.stringify([952, 960]));
+      /* A NIGHT SHORTER THAN THE BUDGET GETS ONE COLUMN PER EPOCH AND NO EMPTY GROUP. An empty
+         group would average nothing and draw a gap the night does not hold. */
+      T.eq('50 epochs under a 120 budget give 50 groups', U.buckets(50, 120).length, 50);
+      T.eq('and each of them holds exactly one epoch', JSON.stringify(U.buckets(50, 120)[0]), JSON.stringify([0, 1]));
+      T.eq(
+        'an uneven split puts the remainder in the last group',
+        JSON.stringify(U.buckets(7, 3)),
+        JSON.stringify([
+          [0, 2],
+          [2, 4],
+          [4, 7]
+        ])
+      );
+      T.eq('no epochs give no groups rather than one empty group', JSON.stringify(U.buckets(0, 120)), '[]');
+      T.eq('one epoch gives one group', JSON.stringify(U.buckets(1, 120)), JSON.stringify([[0, 1]]));
+      T.eq('a group mean skips the null and the non-finite members', U.meanOf([1, null, 3, NaN], 0, 4), 2);
+      T.eq('a group with no finite member is null, never 0', U.meanOf([null, null], 0, 2), null);
+      /* THE LINE LIFTS OVER A NULL rather than joining across it: a joined segment would draw a
+         value for a group that published none. */
+      var pth = U.pathOf([
+        { x: 0, y: 10 },
+        { x: 1, y: null },
+        { x: 2, y: 20 },
+        { x: 3, y: 30 }
+      ]);
+      T.eq('a null inside a series starts a second subpath', (pth.match(/M/g) || []).length, 2);
+      T.eq('and the subpaths carry only the finite points', pth, 'M0.0 10.0 M2.0 20.0 L3.0 30.0');
+      T.eq('a series with no finite point draws nothing at all', U.pathOf([{ x: 0, y: null }]), '');
+      T.ok('the spectrogram declares its own column budget, narrower than a line chart’s', U.SPEC_COLS < U.MAX_COLS, U.SPEC_COLS + ' against ' + U.MAX_COLS);
+    });
+
+    group('The EEGDex charts draw the engine answer and badge every series', 'eegdex · charts · known-answer', function (T) {
+      var D = env.EEGDSP,
+        U = env.EEGUI;
+      if (!D || !U) {
+        T.skip('env.EEGDSP and env.EEGUI available', 'eegdex-dsp.js or eegdex-render.js is not executed by this lane');
+        return;
+      }
+      /* ONE 1 h ARTEFACTUAL NIGHT. The planted absences are the whole point of three legs below,
+         and a `clean` night plants none, so the same legs over a clean night would pass over an
+         empty population and say nothing. */
+      var night = D.genOvernight({ durSec: 3600, scenario: 'artefactual', seed: 7310011, t0Ms: Date.UTC(2026, 0, 1, 23, 0, 0) }),
+        res = D.compute(night),
+        absent = res.hypnogram.filter(function (e) {
+          return e.stage == null;
+        });
+      // ANTI-VACUITY FIRST: every leg below describes one of these three populations.
+      T.eq('the night holds the epochs the figures draw', res.nEpochs, 120);
+      T.eq('and it holds the planted absences three legs describe', absent.length, 5);
+      T.ok('and it holds detections for the raster', res.spindles.spindles.length > 50, res.spindles.spindles.length + ' detections');
+
+      /* THE PER-EPOCH SPECTRUM IS OPT-IN, AND IT STAYS OFF THE BUS. `buildNodeExport` copies
+         `bands` wholesale, so a 45-bin vector per epoch attached there would put some 43 000
+         numbers per 8 h night onto `ganglior.node-export`. It rides `summary.spectra` instead,
+         which the export projects by name and therefore never carries. */
+      T.eq('the night publishes one spectrum per epoch', res.spectra.series.length, res.nEpochs);
+      T.eq('each spectrum is a 1 Hz bin vector', res.spectra.binHz, 1);
+      T.eq('and it holds one bin per hertz up to the declared ceiling', res.spectra.series[0].bins.length, D.SEF_CEIL_HZ);
+      T.ok('the published band medians carry no bin vector', JSON.stringify(res.bands).indexOf('bins') < 0);
+      var ex = JSON.stringify(D.buildNodeExport(res, night));
+      T.ok('the node export carries neither the bins nor the series', ex.indexOf('"bins"') < 0 && ex.indexOf('spectra') < 0, 'export ' + ex.length + ' B');
+      /* THE KNOWN ANSWER IS ANALYTIC, not a pinned night: one sinusoid puts every watt in its own
+         bin, so the argmax bin IS the sinusoid’s frequency. */
+      var FS = 100,
+        N = FS * 30 * 4,
+        sig = new Float64Array(N),
+        i;
+      for (i = 0; i < N; i++) sig[i] = 30 * Math.sin((2 * Math.PI * 10 * i) / FS);
+      var tone = D.compute({ samples: sig, fs: FS, t0Ms: null, offsetMin: null, channel: 'EEG', source: 'authored' }),
+        bins = tone.spectra.series[0].bins,
+        arg = -1,
+        best = -Infinity;
+      for (i = 0; i < bins.length; i++) {
+        if (bins[i] != null && bins[i] > best) {
+          best = bins[i];
+          arg = i;
+        }
+      }
+      T.eq('a 10 Hz sinusoid puts its own bin at the top of the spectrum', arg, 10);
+
+      /* EVERY FIGURE BADGES THE SERIES IT DRAWS (§🎫). The band figure draws five independent
+         lines, so it carries five badges and not one caption badge. */
+      var figs = {
+        spectro: U.spectroHtml(res),
+        bandSeries: U.bandSeriesHtml(res),
+        swa: U.swaHtml(res),
+        raster: U.spindleRasterHtml(res, night.truth),
+        absence: U.absenceHtml(res)
+      };
+      T.eq('the spectrogram badges the power it draws', (figs.spectro.match(/class="ev /g) || []).length, 1);
+      T.eq('the band figure badges each of its five lines', (figs.bandSeries.match(/class="ev /g) || []).length, 5);
+      T.eq('and it draws one path per band', (figs.bandSeries.match(/<path /g) || []).length, 5);
+      T.eq('the slow-wave figure badges its decay', (figs.swa.match(/class="ev /g) || []).length, 1);
+      T.eq('the raster badges the spindle density', (figs.raster.match(/class="ev /g) || []).length, 1);
+      T.eq('the absence timeline badges the analyzable share', (figs.absence.match(/class="ev /g) || []).length, 1);
+      var k;
+      for (k in figs) {
+        if (!Object.prototype.hasOwnProperty.call(figs, k)) continue;
+        T.ok('the ' + k + ' figure writes no NaN and no undefined', figs[k].indexOf('NaN') < 0 && figs[k].indexOf('undefined') < 0, figs[k].slice(0, 160));
+      }
+      /* THE RASTER GROUPS ITS TICKS BY STAGE AND CARRIES NO PER-EVENT HOVER: over a thousand
+         detections share 620 px on an 8 h night, so a pointer cannot reach one tick and a title
+         per tick would weigh more than the figure. */
+      T.ok(
+        'the raster draws paths rather than one element per event',
+        (figs.raster.match(/<path /g) || []).length <= 11,
+        (figs.raster.match(/<path /g) || []).length + ' paths over ' + res.spindles.spindles.length + ' detections'
+      );
+      T.ok('and it says where the per-event detail went', figs.raster.indexOf('detail travels in the export') >= 0);
+      T.ok('the raster draws no slow-wave row, because the engine detects no single slow wave', figs.raster.indexOf('no individual slow wave') >= 0);
+
+      /* THE ABSENCE TIMELINE NAMES EACH REASON IN THE READER’S WORDS and counts its epochs. The
+         two planted spans land on two different reasons, which is what makes the legend a
+         measurement rather than a label. */
+      T.eq('the timeline shades one stretch per planted span', (figs.absence.match(/opacity="\.78"/g) || []).length, 2);
+      T.eq('and it draws the three scored stretches between them', (figs.absence.match(/opacity="\.16"/g) || []).length, 3);
+      T.eq('the legend names both reasons the night carried', (figs.absence.match(/class="eg-lg"/g) || []).length, 2);
+      T.ok('a whole absent epoch reads in words, with its count', figs.absence.indexOf('every sample in the epoch is absent — 3 epochs') >= 0, figs.absence.slice(-420));
+      T.ok('and a hole inside an epoch reads as its own reason', figs.absence.indexOf('a hole inside an otherwise present epoch — 2 epochs') >= 0);
+      T.ok('the note states the epochs the shading covers', figs.absence.indexOf('5 of 120 epochs') >= 0);
+
+      /* THE SLOW-WAVE LINE IS THE ENGINE’S OWN FIT. A renderer fitting its own least squares would
+         publish a second calculation of one claim, and the two would disagree the moment either
+         side changed. The 8 h night is the memoised pre-stated one, so this costs no generation. */
+      var eight = eegPrestatedNight(D, 'on'),
+        sw = eight.res.swa;
+      T.eq('the engine publishes the fitted line beside the percentage', JSON.stringify(sw.fit), JSON.stringify({ slope: -1.784, intercept: 11.368 }));
+      T.eq('the fit covers the stretches the decay was read over', sw.periods.length, 6);
+      T.ok('the intercept is the fitted power at the first stretch', Math.abs(sw.fit.intercept - sw.periods[0].deltaPower) < 0.2, sw.fit.intercept + ' against ' + sw.periods[0].deltaPower);
+      var sw8 = U.swaHtml(eight.res);
+      T.eq('the figure draws one bar per stretch', (sw8.match(/<rect /g) || []).length, 6);
+      T.ok('and it draws the fitted line as a dashed line', sw8.indexOf('stroke-dasharray') >= 0);
+      /* THE CONTROL: a trend with no fit must name its reason rather than draw a flat line. */
+      var noFit = D.swaTrend(null, null);
+      T.eq('a refused trend publishes no fit', noFit.fit, null);
+      T.ok('and the figure names the refusal instead of drawing', U.swaHtml({ swa: noFit, nEpochs: 0 }).indexOf(noFit.reason) >= 0, noFit.reason);
+
+      /* THE MARKUP BUDGET IS PINNED, because the two heaviest figures were 244 kB and 282 kB
+         before the runs were merged and the attributes grouped. Both ceilings were set against a
+         measured mutant rather than a round number: 120 columns widened back to 240 draws
+         144 842 B, and a staircase that emits one segment per epoch rather than per run draws
+         37 504 B against the 22 516 B it draws merged. */
+      var spectro8 = U.spectroHtml(eight.res),
+        raster8 = U.spindleRasterHtml(eight.res, eight.night.truth);
+      T.ok('an 8 h spectrogram stays under 120 kB of markup', spectro8.length < 120000, spectro8.length + ' B, ' + (spectro8.match(/<rect /g) || []).length + ' rects');
+      T.ok('an 8 h raster stays under 30 kB of markup', raster8.length < 30000, raster8.length + ' B, ' + (raster8.match(/<path /g) || []).length + ' paths');
+
+      /* THE PLANTED STRIP EXISTS ON THE DEMO PATH ALONE. `compute` never returns the truth, so the
+         EDF path loses the strip by construction rather than by a flag. */
+      var withTruth = U.hypnoHtml(res, night.truth),
+        without = U.hypnoHtml(res);
+      T.eq('a summary alone draws one cell per epoch', (without.match(/class="eg-ep/g) || []).length, 120);
+      T.eq('and the truth draws a second strip beside it', (withTruth.match(/class="eg-ep/g) || []).length, 240);
+      T.ok('the second strip is the plan the generator followed', withTruth.indexOf('planned · epoch') >= 0);
+      T.ok('the note counts the epochs both strips name', withTruth.indexOf('120 planned') >= 0, withTruth.slice(-300));
+      /* ⚠ NO AGREEMENT NUMBER IS DRAWN: the registry grades no agreement metric, so a number on
+         this surface would mint a fabricated badge. The pre-stated agreement lives in the test
+         lane, against its own floor. */
+      T.ok('the figure prints no agreement number', !/agreement[^<]{0,14}\d/.test(withTruth), withTruth.slice(-300));
+
+      /* EVERY FIGURE REFUSES IN WORDS. `compute` refuses with `{err, reason}` and carries no
+         spectra, bands or hypnogram, so each figure must say what it lacks and never throw. */
+      var refused = D.compute({ samples: new Float64Array(0), fs: 100 }),
+        names = ['spectroHtml', 'bandSeriesHtml', 'swaHtml', 'spindleRasterHtml', 'absenceHtml', 'hypnoHtml'],
+        threw = null,
+        bare = [];
+      for (i = 0; i < names.length; i++) {
+        try {
+          var a = U[names[i]](refused),
+            b = U[names[i]](null);
+          if (a.indexOf('eg-empty') < 0 || b.indexOf('eg-empty') < 0) bare.push(names[i]);
+        } catch (e) {
+          threw = names[i] + ': ' + ((e && e.message) || String(e));
+          break;
+        }
+      }
+      T.eq('no figure throws over a refusal or over nothing', threw, null);
+      T.eq('and each of them says what it lacks', JSON.stringify(bare), '[]');
+      T.ok('a synthetic summary carries the synthetic note the cards print', U.synthNote(eight.res).indexOf('synthetic — not a recording') >= 0);
+      T.eq('and an authored frame carries no such note', U.synthNote(tone), '');
+    });
+
     group('Every runtime source layer is readable by at least one lane', 'cohesion · source-visibility · ratchet', function (T) {
       var SV = env.sourceVisibility;
       if (!SV || !env.sources) {
@@ -55002,6 +55197,260 @@
         T.ok('the ledger is one literal table, which the census gate holds against its registry', /var _ECG_SIDECAR_LEDGER = \[/.test(src));
         T.ok('CONTROL · no cell builder defaults a value to 0', !/_sqCell\(\s*0\s*,/.test(src));
       } else T.skip('ecgdex-dsp.js source unavailable');
+
+      /* 5 · THE COMPUTED CELLS, OVER INPUTS THAT REACH THE ARITHMETIC. Sections 1 to 4 pin the SHAPE
+         of every cell, and they read the one committed recording, which carries no motion companion,
+         no run or seam sidecar, no device RR train and no saturation rail. Each of those four lanes
+         therefore answers with a named absence, and no arithmetic inside it ever runs. A diff-scoped
+         mutation sweep measured what that costs: 21 of 55 mutants on this table's own lines survived,
+         and every one of the 21 sits on a guard or a term that the committed input cannot reach. The
+         legs below feed each lane an input that produces a VALUE, so a changed term moves a number. */
+      var tableOf = function (prepare) {
+        var rec2 = E.parseECG(eq.input);
+        prepare(rec2);
+        var ex2 = E.compute(rec2, { rich: true });
+        return (ex2 && ex2.signalQuality) || { channels: {}, sidecars: [] };
+      };
+      var ledgerOf = function (t, key) {
+        var rows = (t && t.sidecars) || [];
+        for (var q = 0; q < rows.length; q++) if (rows[q].key === key) return rows[q];
+        return null;
+      };
+
+      /* 5a · THE MOTION RUN CENSUS, READ THROUGH ITS PRODUCER. The bytes below are `…_ACCRUNS.txt`
+         as the box writes it, and `parseDeviceACC` hangs the spans it parses on the row array it
+         returns. Building the census through the PARSER is the whole point of this leg. The shipped
+         reader took an `[a, b]` pair or `startMs`/`endMs`, shapes no producer in this repo emits, so
+         every real span read as malformed and the published share was a measured 0 % over runs the
+         node never read. Hand-written spans in those two phantom shapes are what let it pass
+         (board #6309). Two rows below are well formed and sum 3000 ms. The third carries a negative
+         duration and the fourth a non-numeric one, and the SIDECAR PARSER drops both. */
+      var RUNS_TEXT = [
+        '# stream=acc min_run=8',
+        'Phone timestamp;channel;class;a;b;dur_ms;c;d',
+        '2026-06-10T22:00:01.000;X [mg];held;0;0;1000;0;0',
+        '2026-06-10T22:00:10.000;Y [mg];held;0;0;2000;0;0',
+        '2026-06-10T22:00:20.000;Z [mg];held;0;0;-5;0;0',
+        '2026-06-10T22:00:30.000;Z [mg];held;0;0;x;0;0'
+      ].join('\n');
+      var ACC_TEXT = (function () {
+        var rows = [];
+        for (var k = 0; k < 60; k++) rows.push('2026-06-10T22:00:00.000;' + (600000000000000000 + k * 19230769) + ';0;0;1000');
+        return rows.join('\n');
+      })();
+      var accParsed = E.parseDeviceACC(ACC_TEXT, { runsText: RUNS_TEXT });
+      var accNoSc = E.parseDeviceACC(ACC_TEXT);
+      T.ok('the ACC parser accepted the planted stream and derived a rate from its device column', accParsed.acc !== null && accParsed.accFs > 0);
+      var SPANS = accParsed.acc._blankSpans;
+      T.eq('PRODUCER · the sidecar parser emitted the two well-formed runs and dropped the two unusable rows', SPANS.length, 2);
+      T.eq(
+        '…each as `{ t0Ms, t1Ms }` in floating ms, which is therefore the one shape this reader may take',
+        SPANS.map(function (s) {
+          return typeof s.t0Ms + '/' + typeof s.t1Ms + '/' + (s.t1Ms - s.t0Ms);
+        }).join(' '),
+        'number/number/1000 number/number/2000'
+      );
+      T.ok('PRODUCER · and the same call records that a sidecar was read at all, which no span can say', !!accParsed.acc._runsSidecar && accNoSc.acc._runsSidecar === undefined);
+      var accT = tableOf(function (rec2) {
+        rec2.deviceACC = accParsed.acc;
+        rec2.accFs = accParsed.accFs;
+      });
+      var mCov = (accT.channels && accT.channels.acc && accT.channels.acc.coverage) || {},
+        mFlat = (accT.channels && accT.channels.acc && accT.channels.acc.flatline) || {};
+      T.ok('the span the motion shares divide by is the record duration in ms', typeof mCov.spanMs === 'number' && isFinite(mCov.spanMs) && mCov.spanMs > 0);
+      T.eq('the two parsed runs are summed, in the shape their own parser wrote', mCov.blankMs, 3000);
+      var mPct = +((100 * 3000) / mCov.spanMs).toFixed(3);
+      T.ok('ANTI-VACUITY · that share is above zero, so the shipped reader’s 0 ms fails this leg', mPct > 0 && mFlat.value > 0);
+      T.eq('the flatline cell is the summed runs over that span', mFlat.value, mPct);
+      T.eq('the coverage cell is its complement, which is what the comment claims', mCov.value, +(100 - mPct).toFixed(3));
+      T.eq('both cells carry a value and no reason', (mFlat.reason === null) + '/' + (mCov.reason === null), 'true/true');
+      T.eq('the motion sample count and rate ride beside the share', mCov.samples + '@' + mCov.fs, accParsed.acc.length + '@' + accParsed.accFs);
+      T.eq('the run count is every span the sidecar parser handed over', mFlat.runs, SPANS.length);
+
+      /* 5a2 · THE READER’S OWN GUARDS, over rows this sidecar parser cannot produce but a future one
+         could. Only the first row is well formed, so the sum is 2000 ms however the rest are read.
+         The fourth row is the one that separates the two guards: `isFinite(null)` is TRUE, so
+         `typeof` is what rejects a null edge, and losing it would add 2000 ms of blanking the box
+         never reported. The sidecar record stays on the rows, because spans without it is a shape no
+         producer emits. */
+      var BAD_SPANS = [
+        { t0Ms: 1000, t1Ms: 3000 },
+        null,
+        { t0Ms: 10000, t1Ms: 9000 },
+        { t0Ms: null, t1Ms: 2000 },
+        { t0Ms: 1000, t1Ms: Number.NaN },
+        { t0Ms: Number.POSITIVE_INFINITY, t1Ms: 2000 },
+        { t0Ms: 5000, t1Ms: 5000 }
+      ];
+      var accBad = tableOf(function (rec2) {
+        var rows = accParsed.acc.slice();
+        rows._runsSidecar = accParsed.acc._runsSidecar;
+        rows._blankSpans = BAD_SPANS;
+        rec2.deviceACC = rows;
+        rec2.accFs = accParsed.accFs;
+      });
+      var bCov = (accBad.channels && accBad.channels.acc && accBad.channels.acc.coverage) || {},
+        bFlat = (accBad.channels && accBad.channels.acc && accBad.channels.acc.flatline) || {};
+      T.eq('only the one well-formed span is summed, so the null edge and the reversed row add nothing', bCov.blankMs, 2000);
+      T.eq('the run count is every row handed over, the unusable ones included', bFlat.runs, BAD_SPANS.length);
+      T.ok('ANTI-VACUITY · that share is above zero too, so a sum of 0 fails this leg as well', bFlat.value > 0);
+      var accAbs = tableOf(function (rec2) {
+        rec2.deviceACC = accNoSc.acc;
+        rec2.accFs = accNoSc.accFs;
+      });
+
+      /* 5b · THE MOTION LEDGER ROW. A loaded companion with no `_ACCRUNS.txt` beside it is `absent`,
+         which is NOT the `not-applicable` that a recording with no motion channel at all earns. */
+      var accRead = tableOf(function (rec2) {
+        var acc = [{ x: 0, y: 0, z: 1, tsMs: rec2.t0Ms || 0 }];
+        acc._runsSidecar = { stream: 'acc' };
+        rec2.deviceACC = acc;
+        rec2.accFs = 52;
+      });
+      T.eq('a motion companion the parser read with NO sidecar beside it reads absent', (ledgerOf(accAbs, 'ACCRUNS') || {}).state, 'absent');
+      T.eq(
+        '…and the one built from real sidecar bytes reads read, with no reason beside it',
+        (ledgerOf(accT, 'ACCRUNS') || {}).state + '/' + ((ledgerOf(accT, 'ACCRUNS') || {}).reason === null),
+        'read/true'
+      );
+      T.eq('a motion companion WITH one reads read, and names no reason', (ledgerOf(accRead, 'ACCRUNS') || {}).state + '/' + ((ledgerOf(accRead, 'ACCRUNS') || {}).reason === null), 'read/true');
+      T.eq('CONTROL · the committed recording carries no companion, so the row is not-applicable', (ledgerOf(sq, 'ACCRUNS') || {}).state, 'not-applicable');
+
+      /* 5c · THE ECG RUN AND SEAM LANES. `absent` is the box writing nothing, `not-read` is the reader
+         running and placing no row, and `read` is a placed census — three states, of which the
+         committed recording only ever shows the first. */
+      var unplaced = tableOf(function (rec2) {
+        rec2.runsSidecar = { placedNone: true, examined: 9, dataRows: 9, minRun: 5, stream: 'ecg' };
+        rec2.seamsSidecar = { placedNone: true, examined: 4, dataRows: 4, stream: 'ecg' };
+      });
+      var placed = tableOf(function (rec2) {
+        rec2.runsSidecar = { spans: [[1000, 2000]], examined: 3, rejected: 0, minRun: 5, stream: 'ecg' };
+        /* `rows: []` is the sidecar the box wrote with no seam in it — read, and measured
+           seam-free, which the reader's own comment separates from a file that never arrived. */
+        rec2.seamsSidecar = { rows: [], examined: 3, boundMs: 60000, stream: 'ecg' };
+      });
+      T.eq('a run sidecar that placed no row reads not-read, never absent', (ledgerOf(unplaced, 'ECGRUNS') || {}).state, 'not-read');
+      T.eq('a seam sidecar that placed no row reads not-read, never absent', (ledgerOf(unplaced, 'ECGSEAMS') || {}).state, 'not-read');
+      T.eq('a run sidecar that placed its rows reads read, and names no reason', (ledgerOf(placed, 'ECGRUNS') || {}).state + '/' + ((ledgerOf(placed, 'ECGRUNS') || {}).reason === null), 'read/true');
+      T.eq(
+        'a seam sidecar that placed its rows reads read, and names no reason',
+        (ledgerOf(placed, 'ECGSEAMS') || {}).state + '/' + ((ledgerOf(placed, 'ECGSEAMS') || {}).reason === null),
+        'read/true'
+      );
+
+      /* 5d · THE SATURATION RAIL. `ecgRails` keys on the sample histogram, so a record whose extreme
+         value repeats far more often than its neighbour has a rail, and the cell then carries the
+         COUNT of samples sitting at it. The committed recording has none, so `absent: true` is the
+         only state sections 1 to 4 ever read. */
+      var railT = tableOf(function (rec2) {
+        var hi = 0;
+        for (var ri = 0; ri < rec2.int16.length; ri++) if (rec2.int16[ri] > hi) hi = rec2.int16[ri];
+        var RAIL = Math.min(32767, hi + 100);
+        for (var rj = 0; rj < 40; rj++) rec2.int16[rj * 7] = RAIL;
+      });
+      var railCell = (railT.channels && railT.channels.ecg && railT.channels.ecg.rail) || {};
+      T.ok('a record whose extreme value repeats carries a rail, and the cell counts the samples at it', typeof railCell.value === 'number' && railCell.value >= 40);
+      T.eq('…and that cell names no reason, because it measured something', railCell.reason, null);
+      T.eq('…and the rail no longer reads as absent', railCell.absent, false);
+      T.eq('CONTROL · the committed recording holds no rail, so the count is null beside a named cause', sq.channels.ecg.rail.value + '/' + (sq.channels.ecg.rail.absent === true), 'null/true');
+
+      /* 5e · THE REFERENCE LANE. The cross-check pairs the two trains beat by beat, and its median
+         needs 300 pairs (`RR_ALIGN_MIN_PAIRS`). The committed recording carries 60 beats, so neither
+         the pairing nor its median can run over it, and `reference` is an absence there by
+         construction rather than by a defect — which is why this leg takes the node's own generator,
+         whose recording is long enough and carries a strap train of its own. */
+      var synth = E.genSynthetic({ durSec: 420, seed: 20261114 });
+      var synthT = (E.compute(synth, { rich: true }) || {}).signalQuality || { channels: {}, sidecars: [] };
+      var refCell = ((synthT.channels && synthT.channels.ecg) || {}).reference || {};
+      T.ok('ANTI-VACUITY · the generated recording clears the 300-pair floor the median needs', !!(synth.deviceRR && synth.deviceRR.length >= 301));
+      T.ok('a recording WITH a device RR train fills the reference cell with a number', typeof refCell.value === 'number' && isFinite(refCell.value));
+      T.eq('…and that cell names no reason, because the comparison ran', refCell.reason, null);
+      T.ok('…and the beats compared and the source ride beside the number', refCell.beatsCompared > 0 && refCell.source === 'device-rr');
+      T.eq(
+        'CONTROL · the committed recording has no train, so the cell is null beside no-reference',
+        sq.channels.ecg.reference.value + '/' + /^no-reference/.test(sq.channels.ecg.reference.reason || ''),
+        'null/true'
+      );
+
+      /* 5g · THE SPAN IS NOT THE RECORD FIELD. The motion share divides by a span, and the ∅ guard on
+         that divide reads `r.durSec`. That `r` is `analyze`'s RESULT and not the parsed record: the
+         duration it carries is the ACTIVE data seconds `analyze` computes (:3007), and the parsed
+         record's own field reaches it only as a third fallback, for a record that yields no beats at
+         all. The leg below writes a non-finite duration onto the parsed record and measures that the
+         published span does not move. The guard answers a value this path cannot deliver, which is why
+         the equivalence ledger classes it by input and not by proof. */
+      var injected = null;
+      var accInf = tableOf(function (rec2) {
+        rec2.deviceACC = accParsed.acc;
+        rec2.accFs = accParsed.accFs;
+        rec2.durSec = Number.POSITIVE_INFINITY;
+        injected = rec2.durSec;
+      });
+      var iCov = (accInf.channels && accInf.channels.acc && accInf.channels.acc.coverage) || {},
+        iFlat = (accInf.channels && accInf.channels.acc && accInf.channels.acc.flatline) || {};
+      T.eq('ANTI-VACUITY · the non-finite duration did land on the parsed record, so the absent effect is the finding', injected, Number.POSITIVE_INFINITY);
+      T.eq('a non-finite duration on the parsed record does not reach the published motion span', iCov.spanMs, mCov.spanMs);
+      T.eq('…so both shares stay the ones the untouched record published', iFlat.value + '/' + iCov.value, mFlat.value + '/' + mCov.value);
+      T.ok('…and that span is finite, because the duration comes from the active data seconds and never from the field', isFinite(iCov.spanMs) && iCov.spanMs > 0);
+
+      /* 5f · THE BICONDITIONAL AGAIN, over every cell of every table these legs built. A lane that now
+         produces a value must not carry a reason beside it, and none may fall to the fallback. */
+      var mixed = [];
+      var tabs = [accT, accRead, unplaced, placed, railT, synthT, accInf, accBad, accAbs];
+      for (var ti = 0; ti < tabs.length; ti++) {
+        var chs = (tabs[ti] && tabs[ti].channels) || {};
+        for (var cn in chs)
+          if (Object.prototype.hasOwnProperty.call(chs, cn))
+            for (var fj = 0; fj < FACTS.length; fj++) {
+              var cc = chs[cn][FACTS[fj]];
+              if (!cc) continue;
+              var fin = typeof cc.value === 'number' && isFinite(cc.value);
+              var nmd = typeof cc.reason === 'string' && cc.reason.length > 0;
+              if (fin === nmd) mixed.push(ti + ':' + cn + '.' + FACTS[fj]);
+              if (cc.reason === 'unmeasured-and-unexplained') mixed.push(ti + ':' + cn + '.' + FACTS[fj] + ' fell to the fallback');
+            }
+      }
+      T.eq('every cell of all ' + tabs.length + ' built tables is a value or a named absence, never both', mixed.join(' | '), '');
+      /* THE RICH EXPORT'S §∅ NORMALIZER — a non-finite input publishes `null`, never `NaN`.
+         `nz` in the rich block is the one place this builder turns a non-finite number into an
+         absence, and the table above ships in the same export. Two mutations of that line survived a
+         sweep that ran with no no-progress watchdog: the `typeof v === 'number'` test inverted, and
+         its `||` turned into `&&`. Both let a `NaN` reach `quality.*`, where a reader sees a
+         number-shaped absence — the ∅ defect in the headline numbers rather than the table. The
+         assertion reads the OBJECT, because `JSON.stringify(NaN)` is `null`, so a round-trip
+         through text hides exactly this defect. */
+      T.eq('the rich builder is reachable, so the normalizer legs below examine something', typeof E.buildNodeExport, 'function');
+      var nzOut =
+        (
+          E.buildNodeExport(
+            {
+              t0Ms: Date.UTC(2026, 5, 27, 22, 0, 0),
+              fs: 125,
+              n: 400,
+              ch: [new Float32Array(400)],
+              site: 'chest',
+              beats: [],
+              events: [],
+              analyzablePct: NaN,
+              cleanBeatPct: Number.POSITIVE_INFINITY,
+              coveragePct: Number.NEGATIVE_INFINITY
+            },
+            { rich: true }
+          ) || {}
+        ).quality || {};
+      T.eq('a non-finite quality input publishes null, never a number-shaped absence', [nzOut.analyzablePct, nzOut.cleanBeatPct, nzOut.coveragePct].map(String).join('|'), 'null|null|null');
+      T.eq(
+        'and a finite one still passes through the same normalizer untouched',
+        String(
+          (
+            (
+              E.buildNodeExport({ t0Ms: Date.UTC(2026, 5, 27, 22, 0, 0), fs: 125, n: 400, ch: [new Float32Array(400)], site: 'chest', beats: [], events: [], analyzablePct: 91.5 }, { rich: true }) ||
+              {}
+            ).quality || {}
+          ).analyzablePct
+        ),
+        '91.5'
+      );
     });
 
     /* done-when 4, the four product-node legs (residue 2026-10-17-sample-parsers-called-without-their-sidecar).

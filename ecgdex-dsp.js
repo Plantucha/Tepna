@@ -7258,8 +7258,16 @@
       accBlankMs = 0;
       for (var i = 0; i < accBlank.length; i++) {
         var sp = accBlank[i];
-        var a = sp && (sp.length ? sp[0] : sp.startMs),
-          b = sp && (sp.length ? sp[1] : sp.endMs);
+        /* THE ONE SHAPE EVERY PRODUCER WRITES — `{ t0Ms, t1Ms }`, absolute floating ms
+           (`parseAccRunsTimed` :6612, hung on the row array at :6756; MotionDex's parser and
+           `pat-align` write the same two keys, and this file's own epoch walk reads them at :4201).
+           This reader took an `[a, b]` pair or `startMs`/`endMs`, which NOTHING in this repo emits,
+           so every real span read as malformed, the sum stayed 0, and the table published a measured
+           0 % held share over runs it had never read — the ∅ defect itself. Found by a hand probe of
+           the published table, board #6309. The two guards below both stay: `typeof` rejects the
+           `null` that `isFinite` alone admits, because `isFinite(null)` is true. */
+        var a = sp ? sp.t0Ms : undefined,
+          b = sp ? sp.t1Ms : undefined;
         if (typeof a === 'number' && typeof b === 'number' && isFinite(a) && isFinite(b) && b > a) accBlankMs += b - a;
       }
     }
