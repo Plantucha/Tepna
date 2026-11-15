@@ -166,6 +166,8 @@ jobs:
         run: node tools/build.mjs --check
       - name: Absence regression — no new fabrication patterns introduced
         run: node tools/absence-regression.mjs --base origin/main
+      - name: Absence backlog — the whole-tree fabrication count may only fall (shrink-only ratchet)
+        run: node tools/absence-regression.mjs --full-tree
       - name: XSS sink gate — no unescaped innerHTML sinks added
         run: node tools/xss-sink-gate.mjs --base origin/main
       - name: Docs constants — documented numbers match code

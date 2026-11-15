@@ -535,9 +535,20 @@ export function selftest() {
     ok(realDeleg.credited.includes('esc'), `${f} earns esc by BODY on the real file — the delegation arm`, JSON.stringify(realDeleg));
   }
 
+  ok(EXCLUDED_PATHS.length > 0 && EXCLUDED_PATHS.every((e) => /\/$/.test(e.path) && typeof e.why === 'string' && e.why.length > 0), 'every path the gate does not scan is named, with its reason');
+
   const line = fail.length ? `xss-sink-gate selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };
 }
+
+/* THE PATHS THIS GATE DOES NOT SCAN, DISCLOSED (residue 2026-11-15-gates-share-an-undisclosed-file-exclusion).
+   The pathspec once sat inline in the `git diff` call and no verdict named it, so a reader of a PASS
+   could not tell that two directories were never examined. Both stay out for a stated reason, and the
+   verdict now carries the list as `result.notScanned`. */
+export const EXCLUDED_PATHS = [
+  { path: 'tests/', why: 'the suite builds DOM fixtures with innerHTML on purpose; no page ships them' },
+  { path: 'tools/', why: 'build and audit code, outside every app bundle; on 2026-11-15 no tools/*.js line wrote innerHTML' }
+];
 
 function verdictOf({ status, sinksAdded, violations, base, fullTree, files, baseline, allowed, stale, escapers, reason }) {
   const exempt = (allowed || []).length;
@@ -555,6 +566,7 @@ function verdictOf({ status, sinksAdded, violations, base, fullTree, files, base
             sinksAdded,
             violations: violations.map((v2) => ({ file: v2.file, unsafe: v2.unsafe })),
             allowed: (allowed || []).map((a) => ({ file: a.file, match: a.match, reason: a.reason })),
+            notScanned: EXCLUDED_PATHS.map((e) => ({ path: e.path, why: e.why })),
             ...(stale && stale.length ? { staleAllow: stale.map((a) => ({ file: a.file, match: a.match })) } : {}),
             ...(fullTree ? { mode: 'full-tree', unescapedSinks: violations.length, sinksInTree: sinksAdded, files, fileCount: files.length, baseline: baseline ? baseline.count : null } : {}),
             ...(escapers ? { escapers: { verified: escapers.verified.length, unverified: escapers.unverified } } : {})
@@ -645,7 +657,7 @@ function main() {
   const baseIdx = process.argv.indexOf('--base');
   const base = fullTree ? EMPTY_TREE : baseIdx >= 0 ? process.argv[baseIdx + 1] : 'HEAD';
 
-  const diff = sh(`git diff ${base}..HEAD -U3 -- '*.js' '*.src.html' ':!tests/' ':!tools/'`);
+  const diff = sh(`git diff ${base}..HEAD -U3 -- '*.js' '*.src.html' ${EXCLUDED_PATHS.map((e) => `':!${e.path}'`).join(' ')}`);
 
   /* The earned escaper set is a property of the FILE, so it is read from the file on disk and
      memoised: a file holds about five sinks, and --full-tree reads every sink in the tree. A file the
