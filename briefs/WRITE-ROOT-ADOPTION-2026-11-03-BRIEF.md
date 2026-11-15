@@ -238,7 +238,8 @@ three tests held the path in this repo's own words. So each of the 49 remaining 
       `git rev-parse` for a commit stamp, which names the code that produced the verdict. That stamp is
       right in the checkout of the tool itself, and the §6.2 recipe's third grep catches it. Each of the
       twelve carries the reading in its header beside a row under `arms.judge.exempt`, and the census
-      adopts `judgeRoot` itself.
+      adopts `judgeRoot` itself. The arm then reads 13 adopted, 30 pending and 12 exempt over 52
+      candidates, measured beside `tools/killcheck.mjs`'s own adoption the same day.
 - [ ] Every gate judging an artifact of the run's work-unit calls `judgeRootOrDie`.
 - [x] `tools/run-check.mjs` carries its reading, because it runs the whole gate in the tree it resolves.
       Done 2026-11-05: it resolves through `judgeRoot` inside the CLI block and refuses a disagreement with exit 2.
