@@ -68,7 +68,7 @@ the always-on, one-clock upgrade, not the entry fee.
 | **HRVDex** | HRV summaries | exports | an additive multi-day HRV ledger | [reference](HRVDex%20Reference.html) |
 | **GlucoDex** | CGM | exports | Time in Range · GMI | [reference](GlucoDex%20Reference.html) |
 | **CPAPDex** | CPAP therapy | ResMed EDF | pressure · leak · respiratory events · breath rate | [reference](CPAPDex%20Reference.html) |
-| **MotionDex** | IMU | Polar Verity Sense · H10 | body position · actigraphy · motion quality | *(no guide yet)* |
+| **MotionDex** | IMU | Polar Verity Sense · H10 | body position · actigraphy · motion quality | [reference](MotionDex%20Reference.html) |
 | **EEGDex** | EEG | Muse | *planned* | — |
 
 Each app writes a `ganglior.node-export` JSON. The **Integrator** fuses them; the **Data Unifier**
