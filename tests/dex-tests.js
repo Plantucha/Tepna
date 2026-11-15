@@ -67496,8 +67496,13 @@
       T.eq('respFromEDR is NULL — no dominant EDR period, so no number is invented', c.respFromEDR, null);
       T.ok('…and the refusal NAMES its reason', typeof c.respFromEDRReason === 'string' && /no dominant EDR period/.test(c.respFromEDRReason), String(c.respFromEDRReason));
       T.ok('the value is not the old constant, and not the Lomb hint either', c.respFromEDR !== 15 && c.respFromEDR !== 11.1);
-      // the coupling path must SURVIVE the refusal — f0 falls back to an analysis centre by design
-      T.ok('crcPLV still computed (f0 centring is an analysis choice, not a surfaced rate)', c.crcPLV != null && isFinite(c.crcPLV), 'crcPLV = ' + c.crcPLV);
+      /* The coupling path must not INHERIT the rate refusal — f0 falls back to an analysis centre by
+         design. This committed twin holds under one 60 s coupling window, so the PLV refuses for its
+         OWN named reason (§∅, 2026-11-15); until then it published a fabricated 0 here, and this leg
+         read that 0 as proof the f0 fallback had run. The positive control for a measured PLV sits
+         in the §∅ refusal group, on a 240 s record. */
+      T.eq('crcPLV refuses for its OWN reason, never the rate refusal', c.crcPLV, null);
+      T.ok('…and the reason names the window, not the EDR period', typeof c.crcPLVReason === 'string' && /60 s/.test(c.crcPLVReason) && !/EDR/.test(c.crcPLVReason), String(c.crcPLVReason));
       /* ── THE EXPORT PATH, BOTH DIRECTIONS ────────────────────────────────────────────────────
          The assertions above read the `crc` object. The EXPORT emits `respFromEDRReason` only when
          there IS one — deliberately, so a measuring night is not churned with a null field — and a
@@ -71291,6 +71296,198 @@
         T.eq('artifact desat NOT emitted (1 of 2 desats survives to the bus)', devs.length, 1);
       } else {
         T.ok('normalizeFile present', false);
+      }
+    });
+
+    /* ════ 22b · §∅ — THE EIGHT ECGDex/PpgDex METRICS THAT PUBLISHED A NUMBER OVER ABSENT INPUT ════
+     Every leg below pinned a defect on 2026-11-15: each estimator returned a 0 (or a trust of 1)
+     that a consumer could not tell from a measurement. A 0 is legal for all of them, which is why
+     the absence had to leave the population rather than be filtered by value — CLAUDE.md §∅. Each
+     refusal carries its OWN reason, and each block carries a positive control, because a refusal
+     that fires on everything measures nothing either. */
+    group('ECGDex refuses over absent input, each refusal named — §∅', 'ecgdex-dsp · ppgdex-dsp · refusals · named', function (T) {
+      var D = env.ECGDSP,
+        P = env.PPGDSP;
+      if (!(D && typeof D.pnn50 === 'function' && typeof D.hrvStability === 'function' && typeof D.validateRR === 'function')) {
+        T.skip('the ECGDSP refusal surface is exported', 'pnn50 / hrvStability / validateRR not on env.ECGDSP');
+        return;
+      }
+
+      // ── 1 · pnn50 — the successive-pair POPULATION, never the count alone ──
+      T.eq('pnn50 over one beat is null (no successive pair exists)', D.pnn50([800], null), null);
+      T.eq('pnn50 with every pair skipped is null, not 0', D.pnn50([800, 900, 820], [0, 1, 1]), null);
+      T.eq('control: one surviving pair still measures', D.pnn50([800, 900, 820], [0, 1, 0]), 100);
+      T.eq('control: a steady record still reports a MEASURED 0', D.pnn50([800, 810, 820], null), 0);
+
+      // ── 2 · hrvStability — a refused epoch leaves the ln(RMSSD) population ──
+      var eps = function (f) {
+        var a = [];
+        for (var i = 0; i < 36; i++) a.push({ tMin: i * 5, rmssd: f(i) });
+        return a;
+      };
+      T.eq(
+        'hrvStability over all-null epochs is null, never a flat 0 slope',
+        D.hrvStability(
+          eps(function () {
+            return null;
+          })
+        ),
+        null
+      );
+      var mix = D.hrvStability(
+        eps(function (i) {
+          return i === 2 ? null : 30 + (i % 3);
+        })
+      );
+      T.ok('control: a series with one refused epoch still fits', !!mix, mix ? mix.classification : 'NULL');
+      T.ok(
+        'the window that lost an epoch states nExcluded',
+        !!(
+          mix &&
+          mix.series.some(function (q) {
+            return q.nExcluded === 1;
+          })
+        ),
+        mix ? JSON.stringify(mix.series[0]) : ''
+      );
+      T.ok(
+        'no window is fitted on fewer than 3 MEASURED epochs',
+        !!(
+          mix &&
+          mix.series.every(function (q) {
+            return q.n >= 3;
+          })
+        ),
+        mix
+          ? 'n=' +
+              mix.series
+                .map(function (q) {
+                  return q.n;
+                })
+                .join(',')
+          : ''
+      );
+
+      // ── 3 · lombScargle respRate — no spectral peak is not a 0 br/min breath ──
+      var fNN = [],
+        fT = [];
+      for (var k = 0; k < 64; k++) {
+        fNN.push(1000);
+        fT.push(k);
+      }
+      var sp = D.lombScargle(fNN, fT);
+      T.eq('respRate over a flat RR series is null, never 0.0 br/min', sp.respRate, null);
+      T.ok('…and names the absent peak', typeof sp.respRateReason === 'string' && /peak/.test(sp.respRateReason), String(sp.respRateReason));
+      var few = D.lombScargle([1000, 1000, 1000], [0, 1, 2]);
+      T.ok('a sub-12-beat series carries its OWN reason, not a borrowed one', few.respRateReason !== sp.respRateReason, String(few.respRateReason));
+
+      // ── 4 · validateRR — an all-absent device series validates nothing ──
+      var vNone = D.validateRR([800, 810, 790, 805], [{ rr: null }, { rr: NaN }, { rr: undefined }, { rr: null }]);
+      T.ok('validateRR still returns a shape', !!vNone);
+      T.eq('nDev is 0 over an all-absent device series', vNone.nDev, 0);
+      T.eq('…and nDevAbsent counts what was handed in', vNone.nDevAbsent, 4);
+      T.ok('…and devReason names it', typeof vNone.devReason === 'string' && /finite/.test(vNone.devReason), String(vNone.devReason));
+      T.eq('devHR is null, never Infinity from a 0 mean', vNone.devHR, null);
+      T.eq('devRMSSD is null, never 0', vNone.devRMSSD, null);
+      var vOK = D.validateRR([800, 810, 790, 805], [{ rr: 800 }, { rr: 805 }, { rr: 795 }, { rr: 800 }]);
+      T.ok('control: a real device series validates and carries no reason', !!vOK && vOK.nDev > 0 && !('devReason' in vOK), vOK ? 'nDev=' + vOK.nDev : '');
+      T.ok('control: devHR is a finite rate', !!vOK && isFinite(vOK.devHR), vOK ? 'devHR=' + vOK.devHR : '');
+
+      // ── 5 · cardiorespCoupling — PLV with no complete 60 s window ──
+      if (typeof D.cardiorespCoupling === 'function') {
+        var mk = function (beats) {
+          var nn = [],
+            tt = [],
+            ref = [],
+            i16 = new Int16Array(beats * 104 + 16);
+          for (var b = 0; b < beats; b++) {
+            nn.push(800);
+            tt.push(b * 0.8);
+            ref.push(b * 104);
+            i16[b * 104] = 900 + (b % 5) * 40;
+          }
+          return { nn: nn, tt: tt, ref: ref, i16: i16 };
+        };
+        var shrt = mk(70); // 70 beats inside 56 s — enough beats, no 60 s window
+        var crcS = D.cardiorespCoupling(shrt.nn, shrt.tt, shrt.i16, shrt.ref, 130, null, []);
+        T.ok('cardiorespCoupling still returns a shape on a 56 s record', !!crcS);
+        T.eq('crcPLV is null when no 60 s window completed, never 0', crcS ? crcS.crcPLV : 'NO-SHAPE', null);
+        T.ok('…and names the absent window', !!(crcS && typeof crcS.crcPLVReason === 'string' && /window/.test(crcS.crcPLVReason)), crcS ? String(crcS.crcPLVReason) : '');
+        T.eq('couplingStrength refuses with it, rather than reading 0.35·RSA', crcS ? crcS.couplingStrength : 'NO-SHAPE', null);
+        var lng = mk(300); // 240 s — four windows
+        var crcL = D.cardiorespCoupling(lng.nn, lng.tt, lng.i16, lng.ref, 130, null, []);
+        T.ok('control: a 240 s record measures a PLV and carries no reason', !!(crcL && crcL.crcPLV != null && crcL.crcPLVReason == null), crcL ? 'plv=' + crcL.crcPLV : 'NULL');
+      }
+
+      // ── 6 · classifyMode — no accelerometer is not a measured stillness ──
+      if (typeof D.classifyMode === 'function') {
+        var noAcc = D.classifyMode(3 * 3600, Date.UTC(2026, 5, 1, 23, 30), null, true);
+        T.eq('accPresent is false when no ACC stream reached the classifier', noAcc.accPresent, false);
+        T.eq('activityScore is null, never 0.00', noAcc.activityScore, null);
+        T.ok('…and names the absent stream', typeof noAcc.activityScoreReason === 'string' && /accelerometer/.test(noAcc.activityScoreReason), String(noAcc.activityScoreReason));
+        T.eq('ambulatory is null — the veto has no evidence either way', noAcc.ambulatory, null);
+        T.eq('the step count refuses with it', noAcc.activity.steps, null);
+        T.eq('the mode itself is still classified from duration', noAcc.mode, 'overnight');
+        var withAcc = D.classifyMode(3 * 3600, Date.UTC(2026, 5, 1, 23, 30), { gait: { walking: true, totalSteps: 120, zonePct: [], cadEpochs: [] }, consensus: null }, true);
+        T.eq('control: ACC present and quiet reads a MEASURED false', withAcc.ambulatory, false);
+        T.ok('control: a measured score is a number', typeof withAcc.activityScore === 'number', 'score=' + withAcc.activityScore);
+        T.eq('control: and carries no reason', withAcc.activityScoreReason, null);
+      }
+
+      // ── 7+8 · beatConfidence — a trust of 1 the statistic never calibrated (both copies) ──
+      var pk = function (beats) {
+        var a = [];
+        for (var b = 0; b < beats; b++) a.push(b * 104);
+        return a;
+      };
+      var cases = [
+        { name: 'ECGDex', fn: D.beatConfidence },
+        { name: 'PpgDex', fn: P && P.beatConfidence }
+      ];
+      for (var ci = 0; ci < cases.length; ci++) {
+        var nm = cases[ci].name,
+          bc = cases[ci].fn;
+        if (typeof bc !== 'function') {
+          T.skip(nm + ' exports beatConfidence', 'not on the module surface');
+          continue;
+        }
+        var mNoSqi = bc(pk(40), null, 130, 0);
+        T.eq(nm + ': an absent SQI array leaves the map UNCALIBRATED', mNoSqi.calibrated, false);
+        T.eq(nm + ': …and says the SQI was absent', mNoSqi.sqiSource, 'absent');
+        T.ok(nm + ': …and names the cue that never fired', typeof mNoSqi.reason === 'string' && /SQI/.test(mNoSqi.reason), String(mNoSqi.reason));
+        T.eq(nm + ': the per-second weight still reads 1 — no beat is dropped on a guess', mNoSqi.get(mNoSqi.keys().next().value), 1);
+        var zeros = [];
+        for (var z = 0; z < 40; z++) zeros.push(0);
+        var mFlat = bc(pk(40), zeros, 130, 0);
+        T.eq(nm + ': a uniformly ZERO SQI is uncalibrated, not uniformly fine', mFlat.calibrated, false);
+        T.eq(nm + ': …and the SQI itself was read', mFlat.sqiSource, 'per-beat');
+        T.ok(nm + ': …and the reason names the cue that has nothing to suspect', typeof mFlat.reason === 'string' && /below the median/.test(mFlat.reason), String(mFlat.reason));
+        T.eq(nm + ': the median SQI it calibrated against is reported', mFlat.sqiMedian, 0);
+        var mShort = bc(pk(10), null, 130, 0);
+        T.eq(nm + ': under 20 beats is uncalibrated', mShort.calibrated, false);
+        T.ok(nm + ': …with its own reason, not a borrowed one', mShort.reason !== mNoSqi.reason && /beats/.test(String(mShort.reason)), String(mShort.reason));
+        var spread = [];
+        for (var q2 = 0; q2 < 300; q2++) spread.push(q2 < 150 ? 0.9 : 0.3);
+        var mGood = bc(pk(300), spread, 130, 0);
+        T.eq(nm + ': control — an SQI with spread CALIBRATES', mGood.calibrated, true);
+        T.eq(nm + ': control — and carries no reason', mGood.reason, null);
+        T.eq(nm + ': control — the beat count is the population it used', mGood.nBeats, 300);
+        T.eq(nm + ': control — every beat reported an SQI', mGood.nSqi, 300);
+      }
+
+      // ── the source leg: a refusal that a rounder erases is not a refusal ──
+      var src = (env.sources || {})['ecgdex-dsp.js'];
+      if (!src) {
+        T.skip('ecgdex-dsp.js is wired into env.sources', 'the scan would read nothing');
+      } else {
+        T.ok('control: the scan reads the real file', src.indexOf('function beatConfidence(') > 0, 'len=' + src.length);
+        var bad = [];
+        ['pn', 'plv', 'couplingStrength', 'activityScore', 'peakF'].forEach(function (id) {
+          var re = new RegExp('[^\\w.]' + id + '\\.toFixed\\(', 'g');
+          var m = src.match(re);
+          if (m) bad.push(id + ' ×' + m.length);
+        });
+        T.eq('nothing calls .toFixed directly on a value that can now be null', bad.join(' · '), '');
       }
     });
 

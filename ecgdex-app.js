@@ -586,7 +586,13 @@ self.onmessage = async (e) => {
       `<span>window <b>${fmt(s0)} – ${fmt(s1)}</b></span><span>span ${span < 60 ? span.toFixed(span < 8 ? 2 : 0) + ' s' : (span / 60).toFixed(1) + ' min'}</span><span>${(N / fs / 3600).toFixed(2)} h total</span>`;
   }
 
-  const sc = (v, ok, warn) => (v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
+  /* ∅ A GRADE OVER AN ABSENCE IS A FABRICATED JUDGEMENT. `null >= ok` and `null >= warn` are both
+     false, so every refused metric used to grade `bad` — the worst band, over a number no one
+     measured. The PulseDex road took the same correction (suite group "∅ clock seam — the app road
+     and its three surfaces take the same refusal", which states that `null >= 50` "graded absence
+     RED rather than neutral"). A refusal is `neutral`, and the value cell prints an em dash.
+     A real 0 still grades, because 0 is a legal value for every metric this helper reads. */
+  const sc = (v, ok, warn) => (v == null || !isFinite(v) ? 'neutral' : v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
   const hrStat = (v) => (v < 35 ? 'bad' : v <= 80 ? 'ok' : v <= 95 ? 'warn' : 'bad');
 
   function renderContext(r) {
@@ -806,9 +812,11 @@ self.onmessage = async (e) => {
       }
     }
     const ratioSev = c.rsaEfficiencyRatio >= 1.08 ? 'good' : c.rsaEfficiencyRatio >= 1.04 ? 'warn' : 'neutral';
-    const plvSev = c.crcPLV >= 0.5 ? 'good' : c.crcPLV >= 0.3 ? 'warn' : 'bad';
+    /* ∅ A refused PLV grades `neutral`, never `bad` — `null >= 0.5` and `null >= 0.3` are both
+       false, and the red disc would be a judgement over a number no one measured. */
+    const plvSev = c.crcPLV == null ? 'neutral' : c.crcPLV >= 0.5 ? 'good' : c.crcPLV >= 0.3 ? 'warn' : 'bad';
     const ratioCol = { good: UI.COLORS.green, warn: UI.COLORS.amber, bad: UI.COLORS.red, neutral: UI.COLORS.dim }[ratioSev];
-    const plvCol = { good: UI.COLORS.green, warn: UI.COLORS.amber, bad: UI.COLORS.red }[plvSev];
+    const plvCol = { good: UI.COLORS.green, warn: UI.COLORS.amber, bad: UI.COLORS.red, neutral: UI.COLORS.dim }[plvSev];
 
     // per-epoch PLV trend (overnight)
     let epochChart = '';
@@ -838,8 +846,8 @@ self.onmessage = async (e) => {
       `<div class="gang-summary" style="margin-top:10px">
          <div class="gang-pill" style="border-color:${ratioCol};color:${ratioCol}"><b>RSA efficiency ${c.rsaEfficiencyRatio}</b> insp:exp HR · higher = stronger</div>
          <div class="gang-pill">RSA swing <b>${c.rsaAmplitudeBpm}</b> bpm</div>
-         <div class="gang-pill" style="border-color:${plvCol};color:${plvCol}"><b>CRC PLV ${c.crcPLV}</b> · phase-lock</div>
-         <div class="gang-pill">coupling strength <b>${c.couplingStrength}</b>/1</div>
+         <div class="gang-pill" style="border-color:${plvCol};color:${plvCol}">${c.crcPLV != null ? `<b>CRC PLV ${c.crcPLV}</b> · phase-lock` : 'CRC PLV — <b>no estimate</b>'}</div>
+         <div class="gang-pill">${c.couplingStrength != null ? `coupling strength <b>${c.couplingStrength}</b>/1` : 'coupling strength — <b>no estimate</b>'}</div>
          <div class="gang-pill">${c.respFromEDR != null ? `EDR resp <b>${c.respFromEDR}</b> br/min` : 'EDR resp — <b>no estimate</b>'}</div>
        </div>` +
       epochChart +
@@ -1030,6 +1038,29 @@ self.onmessage = async (e) => {
     const v = DSP.validateRR(r.nn, r.deviceRR);
     if (!v) {
       $('valCard').style.display = 'none';
+      return;
+    }
+    /* ∅ A REFUSED VALIDATION DRAWS A REFUSAL, NOT A RED PANEL. `validateRR` now reports
+       `devReason` when no device interval was finite. Every cell below would then print the string
+       "null", `null < 5` is false, so each verdict graded `bad` — a red judgement over a comparison
+       that never ran. CLAUDE.md §∅: an output over absent input reports the absence. */
+    if (v.devReason) {
+      /* 🔒 THIS PANEL BUILDS DOM, SO IT OPENS NO HTML SINK AT ALL. Gate `verify:xss-sink`
+         assembles the whole statement when `innerHTML =` ends a line, and its string pattern skips
+         any template that carries a `${`. So every literal word in such a template reads as an
+         untracked identifier, and a new sink there costs an ALLOW row plus a trust claim about
+         today's producer. `textContent` needs neither. It cannot execute markup, whatever string
+         `devReason` carries on the day someone feeds it a capture byte. */
+      const absent = v.nDevAbsent ? ` The series carried ${v.nDevAbsent} interval${v.nDevAbsent > 1 ? 's' : ''}, none of them finite.` : '';
+      const note = document.createElement('div');
+      note.className = 'q-note';
+      const lead = document.createElement('b');
+      lead.textContent = 'No device-RR comparison.';
+      note.append(lead, ` ${v.devReason}${absent} The self-computed RR (${v.nSelf.toLocaleString()} beats) stands on its own; this card compares nothing.`);
+      const panel = $('valBody');
+      panel.textContent = '';
+      panel.append(note);
+      $('valCard').style.display = 'block';
       return;
     }
     const cell = (a, b, d, unit) => `<td class="mono">${a}</td><td class="mono">${b}</td><td class="mono ${d < 5 ? 'ok' : d < 12 ? 'warn' : 'bad'}">${d}%</td>`;
@@ -1628,8 +1659,8 @@ self.onmessage = async (e) => {
       ['Mean RR', r.meanRR, 'ms', '700–1100', 'neutral', 'Average NN interval'],
       ['Median RR', r.medianRR, 'ms', '—', 'neutral', '50th percentile'],
       ['SDNN', r.sdnn, 'ms', r.longRec ? 'long-rec' : '≥50', r.longRec ? 'neutral' : insuf(sc(r.sdnn, 50, 30)), r.longRec ? 'Whole-night — use SDANN/SDNN-index' : 'Total HRV spread'],
-      ['rMSSD', r.rmssd, 'ms', '≥30', sc(r.rmssd, 30, 20), 'Parasympathetic HRV'],
-      ['pNN50', r.pnn50, '%', '≥15', sc(r.pnn50, 15, 5), 'Beat-to-beat variability'],
+      ['rMSSD', r.rmssd == null ? '—' : r.rmssd, 'ms', '≥30', sc(r.rmssd, 30, 20), r.rmssd == null ? 'No successive pair was measured' : 'Parasympathetic HRV'],
+      ['pNN50', r.pnn50 == null ? '—' : r.pnn50, '%', '≥15', sc(r.pnn50, 15, 5), r.pnn50 == null ? 'No successive pair entered the population' : 'Beat-to-beat variability'],
       ['NN50', r.nn50, 'count', '—', 'neutral', 'Pairs |Δ|>50 ms'],
       ...(r.longRec
         ? [
@@ -1651,7 +1682,7 @@ self.onmessage = async (e) => {
       ['LF/HF', r.lfhf, 'ratio', '0.5–2.0', 'neutral', 'Sympathovagal balance'],
       ['HF nu', r.hfnu, 'nu', '40–60', 'neutral', 'HF normalized'],
       ['LF nu', r.lfnu, 'nu', '40–60', 'neutral', 'LF normalized'],
-      ['Resp rate', r.respRate, 'br/min', '12–20', r.respRate >= 10 && r.respRate <= 22 ? 'ok' : 'neutral', 'EDR — HF spectral peak'],
+      ['Resp rate', r.respRate != null ? r.respRate : 'no estimate', 'br/min', '12–20', r.respRate >= 10 && r.respRate <= 22 ? 'ok' : 'neutral', r.respRateReason || 'EDR — HF spectral peak'],
       ['ln(rMSSD)', r.lnrmssd, '—', '≥3.5', r.lnrmssd >= 3.5 ? 'ok' : r.lnrmssd >= 3.1 ? 'warn' : 'bad', 'Log-RMSSD readiness'],
       ['Tri index', r.triIdx, '—', '≥15', r.triIdx >= 15 ? 'ok' : r.triIdx >= 9 ? 'warn' : 'bad', 'HRV triangular index'],
       [
@@ -1697,14 +1728,21 @@ self.onmessage = async (e) => {
               'Insp:exp HR ratio — higher = stronger RSA (Border 2025; 1.5 = theoretical optimum)'
             ],
             ['RSA amplitude', r.crc.rsaAmplitudeBpm, 'bpm', '—', 'neutral', 'Peak-to-trough HR swing across the respiratory cycle'],
-            ['CRC PLV', r.crc.crcPLV, '0–1', '≥0.5', r.crc.crcPLV >= 0.5 ? 'ok' : r.crc.crcPLV >= 0.3 ? 'warn' : 'bad', 'RR↔respiration phase-lock (arXiv:2508.00773)'],
             [
-              'Coupling strength',
-              r.crc.couplingStrength,
+              'CRC PLV',
+              r.crc.crcPLV != null ? r.crc.crcPLV : 'no estimate',
               '0–1',
               '≥0.5',
-              r.crc.couplingStrength >= 0.5 ? 'ok' : r.crc.couplingStrength >= 0.3 ? 'warn' : 'bad',
-              'CSI-style sync index (arXiv:2605.18802)'
+              r.crc.crcPLV == null ? 'neutral' : r.crc.crcPLV >= 0.5 ? 'ok' : r.crc.crcPLV >= 0.3 ? 'warn' : 'bad',
+              r.crc.crcPLVReason || 'RR↔respiration phase-lock (arXiv:2508.00773)'
+            ],
+            [
+              'Coupling strength',
+              r.crc.couplingStrength != null ? r.crc.couplingStrength : 'no estimate',
+              '0–1',
+              '≥0.5',
+              r.crc.couplingStrength == null ? 'neutral' : r.crc.couplingStrength >= 0.5 ? 'ok' : r.crc.couplingStrength >= 0.3 ? 'warn' : 'bad',
+              r.crc.crcPLVReason || 'CSI-style sync index (arXiv:2605.18802)'
             ],
             // §1.10 — a null EDR rate renders as an explicit refusal, never as a blank that reads
             // like a missing field or as the constant 15 it used to substitute.
@@ -2517,8 +2555,12 @@ self.onmessage = async (e) => {
         mode: r.mode,
         modeLabel: r.modeLabel,
         modeWhy: r.modeWhy,
-        ambulatory: !!r.ambulatory,
+        /* ∅ `!!` ERASED THE REFUSAL. With no ACC stream the node now states `ambulatory: null`,
+           and `!!null` published `false` — the bus then read "measured, not ambulatory" over a
+           record with no accelerometer. Consumers test `=== true`, so null costs them nothing. */
+        ambulatory: r.ambulatory == null ? null : r.ambulatory,
         activityScore: r.activityScore,
+        ...(r.activityScoreReason ? { activityScoreReason: r.activityScoreReason } : {}),
         startEpochMs: r.t0Ms || null,
         beats: r.nBeats,
         epochs5min: r.epochs.length,
@@ -2723,6 +2765,9 @@ self.onmessage = async (e) => {
             rsaEfficiencyRatio: r.crc.rsaEfficiencyRatio,
             rsaAmplitudeBpm: r.crc.rsaAmplitudeBpm,
             crcPLV: r.crc.crcPLV,
+            /* The key is present only when the PLV is refused — the §1.10 idiom beside the EDR rate,
+               so a measuring night's export keeps its bytes. */
+            ...(r.crc.crcPLVReason ? { crcPLVReason: r.crc.crcPLVReason } : {}),
             couplingStrength: r.crc.couplingStrength,
             plvDuringSurges: r.crc.plvDuringSurges,
             plvBaseline: r.crc.plvBaseline,
