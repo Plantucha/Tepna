@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**345 tools** · 344 with a purpose line · **1 without**
+**348 tools** · 347 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -25,6 +25,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`aperiodic-offset.mjs`](../tools/aperiodic-offset.mjs) | aperiodic-offset — target 1 of KNOWN-CLOCK-ADVERSARIAL-CAPTURE, finally testable. |
 | [`archive-manifest.mjs`](../tools/archive-manifest.mjs) | archive-manifest — a hash manifest for every archived capture night, written at copy time on the rig. |
 | [`argv-guard.mjs`](../tools/argv-guard.mjs) | REFUSE AN ARGV TOKEN NOBODY READS. Residue `2026-09-28-trio-batch-ignores-an-unknown-flag-so-a-near-miss-writes-the-corpus`. |
+| [`argv-probe-reach.mjs`](../tools/argv-probe-reach.mjs) | HOW MANY ABSTAINING TOOLS CAN THE PROBE REACH TODAY? — the join nobody computed. |
 | [`argv-reads.mjs`](../tools/argv-reads.mjs) | WHICH TOOLS IGNORE AN UNKNOWN ARGV TOKEN BY CONSTRUCTION. WHY. |
 | [`argv-survey.mjs`](../tools/argv-survey.mjs) | WHICH TOOLS CAN TELL AN UNKNOWN FLAG FROM AN ABSENT ONE. Executable, controlled, and bounded to the tools it can prove are inert. |
 | [`assertion-strength.mjs`](../tools/assertion-strength.mjs) | WHICH ASSERTIONS PIN A DIRECTION WHERE THEY COULD PIN A VALUE |
@@ -54,6 +55,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`cgm-variability-check.mjs`](../tools/cgm-variability-check.mjs) | does GlucoDex's variability family actually need a ROBUST scale? |
 | [`check-stranded.mjs`](../tools/check-stranded.mjs) | DID YOUR WORK ACTUALLY REACH `main`? — the stranded-commit detector. |
 | [`checkout-advance.mjs`](../tools/checkout-advance.mjs) | say what blocks a fast-forward of a checkout, path by path, and which of those paths an advance would not change at all. |
+| [`child-bound.mjs`](../tools/child-bound.mjs) | KEEP THE REASON A BOUNDED CHILD GAVE YOU. One `boundedChild` for a synchronous child process that a tool reads an answer from, so a child killed at its cap names the breach instead of… |
 | [`ci-step-parity.mjs`](../tools/ci-step-parity.mjs) | A LOCAL GATE STEP THAT NO WORKFLOW RUNS REDS ON EVERY BIRD'S BOX WHILE `main` STAYS GREEN. |
 | [`ci-timing.mjs`](../tools/ci-timing.mjs) | WHICH CHECK IS THE MERGE RACE? — per-job CI timings, measured. |
 | [`circular-stats.mjs`](../tools/circular-stats.mjs) | CIRCULAR STATISTICS — the null the suite's own phase statistic lacked. |
@@ -165,6 +167,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`mutation-worklist.mjs`](../tools/mutation-worklist.mjs) | THE RANKED REMAINING WORK — regenerated, never transcribed. The target is 99 % OF DISTINGUISHABLE (owner-ratified 2026-08-11, raised from 90 %). |
 | [`name-lease.mjs`](../tools/name-lease.mjs) | WHO ALREADY HOLDS THIS FILENAME — run it BEFORE naming a new file. |
 | [`nearest-advocate.mjs`](../tools/nearest-advocate.mjs) | EVENT-BASED time-shift estimation, for the case where cross-correlation is known to fail. |
+| [`net-bound.mjs`](../tools/net-bound.mjs) | BOUND EVERY NETWORK WAIT A TOOL MAKES, so a stalled endpoint names itself instead of hanging. |
 | [`new-changeset.mjs`](../tools/new-changeset.mjs) | write a changeset whose `brief:` RESOLVES, at write time. WHY THIS EXISTS. |
 | [`night-rule-horizon.mjs`](../tools/night-rule-horizon.mjs) | THE YEAR A DECLARED NIGHT RULE STOPS SCORING — measured, never read off the digits. |
 | [`no-network-surface-parity.mjs`](../tools/no-network-surface-parity.mjs) | NO-NETWORK SURFACE PARITY — the gate's scope is closed, not remembered. |

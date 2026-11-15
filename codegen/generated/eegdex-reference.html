@@ -134,7 +134,7 @@
       <div class="data-pill"><span class="data-dot"></span> Reference Guide</div>
       <div class="sidebar-data-info">
         EEGDex v0.1.0 · generated from eegdex.manifest.json<br>
-        17 metrics · 3 sections
+        27 metrics · 3 sections
       </div>
     </div>
   </div>
@@ -147,7 +147,7 @@
     <h1 class="ph-title">Metrics, Formulas &amp;<br><span>Normal Values</span></h1>
     <p class="ph-desc">Band-power and sleep-architecture analysis from consumer EEG (Muse). Direct spectral readouts, EEG-staged hypnogram, and derived micro-architecture markers.</p>
     <p class="ph-desc" style="margin-top:8px;font-size:12px;color:var(--text3)">
-      17 metrics total: 10 Core · 5 Advanced · 2 Research
+      27 metrics total: 13 Core · 11 Advanced · 3 Research
     </p>
   </div>
 
@@ -166,7 +166,7 @@
       <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
     </svg>
     Quick Jump Index
-    <span class="qj-count">17 metrics · 3 sections</span>
+    <span class="qj-count">27 metrics · 3 sections</span>
     <svg class="qj-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <polyline points="6 9 12 15 18 9"/>
     </svg>
@@ -197,7 +197,7 @@
           Band Powers
         </div>
         <div class="qj-links"><a href="#bands" class="qj-sec">Band Powers</a></div>
-        <div class="qj-metrics"><a href="#bands" class="qm">δ rel</a><a href="#bands" class="qm">θ rel</a><a href="#bands" class="qm">α rel</a><a href="#bands" class="qm">σ rel</a><a href="#bands" class="qm">β rel</a><a href="#bands" class="qm">α/θ</a></div>
+        <div class="qj-metrics"><a href="#bands" class="qm">δ rel</a><a href="#bands" class="qm">θ rel</a><a href="#bands" class="qm">α rel</a><a href="#bands" class="qm">σ rel</a><a href="#bands" class="qm">β rel</a><a href="#bands" class="qm">α/θ</a><a href="#bands" class="qm">SEF95</a></div>
       </div>
 
       <div class="qj-group">
@@ -206,7 +206,7 @@
           Sleep Architecture
         </div>
         <div class="qj-links"><a href="#sleep" class="qj-sec">Sleep Architecture</a></div>
-        <div class="qj-metrics"><a href="#sleep" class="qm">REM %</a><a href="#sleep" class="qm">Spindles</a><a href="#sleep" class="qm">FAA</a><a href="#sleep" class="qm">Calm</a><a href="#sleep" class="qm">Hypnogram</a><a href="#sleep" class="qm">TST</a><a href="#sleep" class="qm">SE</a><a href="#sleep" class="qm">N3 %</a></div>
+        <div class="qj-metrics"><a href="#sleep" class="qm">REM %</a><a href="#sleep" class="qm">Spindles</a><a href="#sleep" class="qm">FAA</a><a href="#sleep" class="qm">Calm</a><a href="#sleep" class="qm">Hypnogram</a><a href="#sleep" class="qm">TST</a><a href="#sleep" class="qm">SE</a><a href="#sleep" class="qm">N3 %</a><a href="#sleep" class="qm">N1 %</a><a href="#sleep" class="qm">N2 %</a><a href="#sleep" class="qm">Wake %</a><a href="#sleep" class="qm">SOL</a><a href="#sleep" class="qm">REM Lat</a><a href="#sleep" class="qm">WASO</a><a href="#sleep" class="qm">Shifts</a><a href="#sleep" class="qm">REM Per</a><a href="#sleep" class="qm">SWA Decay</a></div>
       </div>
     </div>
     <div class="qj-no-results" id="qjNoResults" hidden>No metrics match your search.</div>
@@ -413,6 +413,24 @@
     
     <span class="ev-corner ev-emerging" title="α/θ — Alpha/theta ratio — published drowsiness/relaxation index, device-dependent"></span>
   </div>
+
+  <div class="mc" data-tier="secondary">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">SEF95</span>
+        <span class="mf">Frequency below which 95 % of the epoch's examined power sits</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">median over epochs of min{ f : Σ P(≤ f) ≥ 0.95 × Σ P over (0, 45] Hz }</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-measured" title="SEF95 — Spectral edge frequency — a definition over the same PSD the band shares divide, with no tuned constant and no stage assumption. The 45 Hz ceiling is this engine's own, so the answer is an edge of the EXAMINED band and never of the channel"></span>
+  </div>
   </div>
 </div>
 
@@ -451,18 +469,18 @@
     <div class="mh">
       <div class="mi">
         <span class="ma">Spindles</span>
-        <span class="mf">Sleep-spindle count per minute of N2</span>
+        <span class="mf">Sleep-spindle count per minute of staged N2 and N3</span>
       </div>
       <span class="mt tr">Research</span>
     </div>
     
     <div class="fb">
       <div class="fl">Formula</div>
-      <div class="ft">spindleCount / N2Minutes</div>
+      <div class="ft">detections / staged NREM minutes, over an epoch-relative sigma envelope</div>
       
     </div>
     
-    <span class="ev-corner ev-emerging" title="Spindles — Sleep-spindle density (11–16 Hz bursts) — published memory-consolidation marker, device-dependent"></span>
+    <span class="ev-corner ev-heuristic" title="Spindles — Sleep-spindle density (11–16 Hz bursts) — published memory-consolidation marker. The DETECTOR is a relative-envelope rule this suite wrote, and no expert-scored spindle has judged it, so the metric carries the suite's own tier and never the marker's. It dropped from `emerging` to `heuristic` when it stopped being a refusal"></span>
   </div>
 
   <div class="mc" data-tier="research">
@@ -572,6 +590,168 @@
     
     <span class="ev-corner ev-emerging" title="N3 % — N3 fraction from the staged hypnogram — single-channel stager, not a PSG score"></span>
   </div>
+
+  <div class="mc" data-tier="secondary">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">N1 %</span>
+        <span class="mf">Fraction of total sleep time scored N1, the lightest stage</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">100 × N1 / sleepEpochs</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="N1 % — N1 fraction from the staged hypnogram — the stage a band-power rule scores least reliably. Against the simulator's planted truth this engine over-reads N1, so the number carries the stager's tier and a stated shortfall"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">N2 %</span>
+        <span class="mf">Fraction of total sleep time scored N2, the dominant NREM stage</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">100 × N2 / sleepEpochs</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="N2 % — N2 fraction from the staged hypnogram — single-channel stager, not a PSG score"></span>
+  </div>
+
+  <div class="mc" data-tier="secondary">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">Wake %</span>
+        <span class="mf">Percent of SCORED epochs scored wake, not of the recording span</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">100 × W / scoredEpochs</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="Wake % — Wake fraction over the scored population — an unscorable epoch is excluded, never counted as wake. It is the complement of sleep efficiency over the same denominator"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">SOL</span>
+        <span class="mf">Minutes of elapsed epochs before the first epoch scored as sleep</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">0.5 × elapsed epochs before the first sleep epoch</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="SOL — Sleep-onset latency from the staged hypnogram. It counts ELAPSED epochs, so an unscorable epoch before onset still costs the time it occupied — a latency is a clock fact rather than a scoring fact"></span>
+  </div>
+
+  <div class="mc" data-tier="secondary">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">REM Lat</span>
+        <span class="mf">Minutes from the first sleep epoch to the first epoch scored REM</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">0.5 × (first REM epoch − first sleep epoch)</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="REM Lat — REM latency from the staged hypnogram — it inherits the stager's REM tier, and a night with no REM epoch reports the absence with its own reason"></span>
+  </div>
+
+  <div class="mc">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">WASO</span>
+        <span class="mf">Minutes scored wake strictly between the first and last sleep epoch</span>
+      </div>
+      <span class="mt tc">Core</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">0.5 × wake epochs between the first and last sleep epoch</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="WASO — Wake after sleep onset from the staged hypnogram. The bounds are STRICT, so wake before onset and wake after the final sleep epoch are not WASO"></span>
+  </div>
+
+  <div class="mc" data-tier="secondary">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">Shifts</span>
+        <span class="mf">Count of stage transitions over the scored series</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">transitions over the scored series, where an unscorable epoch BREAKS the run</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-heuristic" title="Shifts — Stage-shift count from the staged hypnogram. Measured against the simulator's planted truth this engine reports roughly twice the planted transitions, because an epoch-independent rule set fragments a stable stage, so the number reads this stager's fragmentation as much as the night's"></span>
+  </div>
+
+  <div class="mc" data-tier="secondary">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">REM Per</span>
+        <span class="mf">Count of REM runs, merged across a non-REM gap of up to 5 minutes</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">maximal REM runs merged across a gap of ≤ 10 epochs</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-emerging" title="REM Per — REM period count from the staged hypnogram. It is NOT the Feinberg–Floyd NREM–REM cycle, which needs an NREM duration rule this engine does not apply, and the name says so"></span>
+  </div>
+
+  <div class="mc" data-tier="research">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">SWA Decay</span>
+        <span class="mf">Change in NREM delta power per NREM stretch, against the first stretch</span>
+      </div>
+      <span class="mt tr">Research</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">100 × leastSquaresSlope(median delta power vs stretch index) / first stretch's median</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-heuristic" title="SWA Decay — The overnight fall of slow-wave activity. What this metric measures is the SLOPE over NREM delta power, and it claims nothing about sleep homeostasis: that reading rests on a citation this repo has not verified, so the metric carries the suite's own tier"></span>
+  </div>
   </div>
 </div>
 
@@ -589,9 +769,15 @@
       <tr><th>Abbr</th><th>Meaning</th></tr>
       <tr><td class="nr" style="color:var(--teal)">EEG</td><td>Electroencephalography</td></tr>
 <tr><td class="nr" style="color:var(--teal)">FAA</td><td>Frontal Alpha Asymmetry</td></tr>
+<tr><td class="nr" style="color:var(--teal)">N1</td><td>Non-REM sleep stage 1</td></tr>
 <tr><td class="nr" style="color:var(--teal)">N2</td><td>Non-REM sleep stage 2</td></tr>
+<tr><td class="nr" style="color:var(--teal)">N3</td><td>Non-REM sleep stage 3, slow-wave sleep</td></tr>
 <tr><td class="nr" style="color:var(--teal)">PSD</td><td>Power Spectral Density</td></tr>
 <tr><td class="nr" style="color:var(--teal)">REM</td><td>Rapid Eye Movement sleep</td></tr>
+<tr><td class="nr" style="color:var(--teal)">SEF95</td><td>Spectral Edge Frequency, 95 %</td></tr>
+<tr><td class="nr" style="color:var(--teal)">SOL</td><td>Sleep-Onset Latency</td></tr>
+<tr><td class="nr" style="color:var(--teal)">SWA</td><td>Slow-Wave Activity</td></tr>
+<tr><td class="nr" style="color:var(--teal)">WASO</td><td>Wake After Sleep Onset</td></tr>
     </table>
   </div>
 </div>

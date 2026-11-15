@@ -109,6 +109,7 @@ export const DETECTORS = [
   { file: 'cpapdex-dsp.js', name: 'detectBreaths', why: 'breath detection over the CPAP flow channel' },
   { file: 'glucodex-dsp.js', name: 'detectSessions', why: 'CGM session segmentation over the glucose series' },
   { file: 'glucodex-dsp.js', name: 'detectClampSaturation', why: 'sensor-clamp detection over the glucose series' },
+  { file: 'eegdex-dsp.js', name: 'detectSpindles', why: 'sleep-spindle detection over the 11-16 Hz envelope inside staged NREM epochs' },
   { file: 'integrator-dsp.js', name: 'detectClockSkew', why: 'clock-skew detection across node recordings' },
   { file: 'resp-acc-analysis.js', name: 'detectBreaths', why: 'breath detection over an accelerometer-derived flow series' },
   { file: 'treatment-response-analysis.js', name: 'detect', why: 'the three change-point detectors this study compares' },

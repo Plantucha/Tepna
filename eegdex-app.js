@@ -101,8 +101,13 @@ import { EEGUI } from './eegdex-render.js';
     var frame = EEGDSP.genOvernight({ durSec: 8 * 3600, scenario: 'artefactual', t0Ms: Date.UTC(2026, 0, 1, 23, 0, 0) });
     RESULT = EEGDSP.compute(frame);
     /* The render reads `summary.source`, which `compute` carries from the frame, so the label needs
-       no second argument and an EDF run cannot accidentally claim it. */
-    EEGUI.renderSummary(RESULT);
+       no second argument and an EDF run cannot accidentally claim it.
+
+       THE PLAN IS THE SECOND ARGUMENT, AND ONLY THE DEMO HOLDS IT. `compute` never returns the
+       generator's truth, so the hypnogram's planned strip and the raster's planted row exist on this
+       path alone; the EDF path above calls `renderSummary(RESULT)` and those two rows are absent by
+       construction rather than by a flag. */
+    EEGUI.renderSummary(RESULT, frame.truth);
     setStatus('Demo — synthetic, not a recording: an 8 h simulated night, authored arithmetic.');
     setExportReady(true);
   }

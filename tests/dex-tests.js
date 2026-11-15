@@ -29739,7 +29739,24 @@
       T.eq('1800 s at 100 Hz is 60 epochs', res.nEpochs, 60);
       T.eq('the five authored blocks score 12 epochs each', JSON.stringify(res.stageCounts), JSON.stringify({ W: 12, N1: 12, N2: 12, N3: 12, REM: 12 }));
       T.eq('every epoch is scorable', JSON.stringify(res.quality), JSON.stringify({ analyzablePct: 100, nUnscorable: 0 }));
-      T.eq('the architecture over 48 sleep epochs', JSON.stringify(res.architecture), JSON.stringify({ TST: 0.4, SE: 80, n3Pct: 25, remPct: 25 }));
+      T.eq(
+        'the architecture over 48 sleep epochs',
+        JSON.stringify(res.architecture),
+        JSON.stringify({
+          TST: 0.4,
+          SE: 80,
+          n1Pct: 25,
+          n2Pct: 25,
+          n3Pct: 25,
+          remPct: 25,
+          wakePct: 20,
+          latencySleepMin: 6,
+          latencyRemMin: 18,
+          wasoMin: 0,
+          stageShifts: 4,
+          remPeriods: 1
+        })
+      );
       /* §🔒.1 — the demo t0 is a FLOATING wall clock, so the stamp reads back as written under any
          viewer zone. A `new Date(...).getHours()` here would move with TZ; `getUTC*` does not. */
       T.eq('the first epoch carries the floating t0, read back with getUTC*', new Date(res.hypnogram[0].tMs).toISOString(), '2026-01-01T23:00:00.000Z');
@@ -29781,7 +29798,7 @@
       T.eq('the five shares sum to 51.7 %, not 100 %', b.relSum, 51.7);
       T.eq('alphaRel and thetaRel are the same two medians, not a second calculation', JSON.stringify([b.alphaRel, b.thetaRel]), JSON.stringify([b.rel.alpha, b.rel.theta]));
       T.eq('the alpha-over-theta ratio', b.alphaTheta, 0.991);
-      T.eq('the ratio names the epochs it covers', JSON.stringify(b.population), JSON.stringify({ epochs: 60, withBands: 60, ratioEpochs: 60 }));
+      T.eq('the ratio names the epochs it covers', JSON.stringify(b.population), JSON.stringify({ epochs: 60, withBands: 60, ratioEpochs: 60, sefEpochs: 60 }));
       T.eq(
         'a nothing-to-band input refuses with its own reason, not a zero',
         JSON.stringify([D.nightBands(null, 100).reason, D.nightBands(fr.samples, 0).reason]),
@@ -29918,7 +29935,7 @@
       T.eq('truth and output are epoch-aligned on the same grid', JSON.stringify([night.truth.epochSec, res.epochSec]), JSON.stringify([30, 30]));
     });
 
-    group('EEGDex refuses the four metrics one channel cannot measure, each with its own reason', 'eegdex · refusals · named', function (T) {
+    group('EEGDex refuses the three metrics one channel cannot measure, each with its own reason', 'eegdex · refusals · named', function (T) {
       var D = env.EEGDSP;
       if (!D) {
         T.skip('env.EEGDSP available', 'eegdex-dsp.js is not executed by this lane');
@@ -29928,7 +29945,7 @@
         keys = Object.keys(ref || {}),
         reasons = [],
         i;
-      T.eq('the four declared-but-unmeasurable metrics are named', keys.join(','), 'contactPct,frontalAsym,spindleDensity,calmScore');
+      T.eq('the three declared-but-unmeasurable metrics are named', keys.join(','), 'contactPct,frontalAsym,calmScore');
       for (i = 0; i < keys.length; i++) {
         T.eq('refused ' + keys[i] + ' is null, never 0', ref[keys[i]].value, null);
         T.ok('refused ' + keys[i] + ' carries a reason', !!ref[keys[i]].reason);
@@ -29936,7 +29953,7 @@
       }
       /* §∅ — a BORROWED reason is the defect this leg guards. A null whose reason says "no
          recording" reads downstream as absent input, which is a different fact from an instrument
-         that cannot see the quantity at all. Four refusals, four distinct reasons. */
+         that cannot see the quantity at all. Three refusals, three distinct reasons. */
       T.eq(
         'no refusal borrows another refusal’s reason',
         reasons
@@ -29947,7 +29964,7 @@
           }).length,
         0
       );
-      T.eq('the reasons, in the order the engine declares them', reasons.join(','), 'no-contact-sidecar,single-channel-ingest,no-spindle-detector,depends-on-refused-inputs');
+      T.eq('the reasons, in the order the engine declares them', reasons.join(','), 'no-contact-sidecar,single-channel-ingest,depends-on-refused-inputs');
     });
 
     group('EEGDex reads an EEG channel out of real EDF bytes', 'eegdex · ingest · edf-bytes', function (T) {
@@ -30080,7 +30097,11 @@
       T.ok('the note names the unfilled part of the bar', bh.indexOf('the share that no band claims') >= 0);
       T.ok('the note names the epochs the medians cover', bh.indexOf('over 60 of 60 epochs') >= 0);
       T.eq('one hypnogram cell per epoch', (hh.match(/class="eg-ep/g) || []).length, 60);
-      T.ok('the quality table carries one row per refusal, with its own reason', qh.indexOf('no contact sidecar') >= 0 && qh.indexOf('no spindle detector') >= 0);
+      T.ok(
+        'the quality table carries one row per refusal, with its own reason',
+        qh.indexOf('no contact sidecar') >= 0 && qh.indexOf('one EEG channel') >= 0 && qh.indexOf('a derived score over the two refusals above') >= 0,
+        qh.slice(0, 240)
+      );
       T.ok('a summary with no spectrum says so instead of drawing an empty bar', U.bandHtml({}).indexOf('No spectrum in this summary') >= 0);
       T.ok('nothing analyzed renders as nothing analyzed', U.qualityHtml(null).indexOf('Nothing analyzed') >= 0);
       /* `renderSummary` is the only function here that touches the DOM. In this lane
@@ -30094,6 +30115,478 @@
         threw = (e && e.message) || String(e);
       }
       T.eq('renderSummary runs over a summary and over nothing without throwing', threw, null);
+    });
+
+    /* ONE 8 h night per plant state, memoised. The pre-stated spindle criterion and the pre-stated
+       SWA criterion name the SAME recording, so generating it once per state keeps the two legs
+       honest about each other and costs the suite one generation rather than three. */
+    var EEG_PRESTATED = { on: null, off: null };
+    function eegPrestatedNight(D, key) {
+      if (!EEG_PRESTATED[key]) {
+        var opts = { durSec: 8 * 3600, scenario: 'clean', seed: 7310011 };
+        if (key === 'off') opts.swaSlopePerH = 0;
+        var night = D.genOvernight(opts);
+        EEG_PRESTATED[key] = { night: night, res: D.compute(night) };
+      }
+      return EEG_PRESTATED[key];
+    }
+
+    group('EEGDex architecture arithmetic over a hand-built stage series', 'eegdex · architecture · known-answer', function (T) {
+      var D = env.EEGDSP;
+      if (!D) {
+        T.skip('env.EEGDSP available', 'eegdex-dsp.js is not executed by this lane');
+        return;
+      }
+      /* Twelve numbers over twelve epochs, every one computable by hand at 30 s an epoch. The null
+         at index 5 is an epoch nobody could score: it holds no stage and it still holds 30 s. */
+      var A = ['W', 'W', 'N1', 'N2', 'N3', null, 'REM', 'REM', 'W', 'N2', 'W', 'W'];
+      var a = D.sleepArchitecture(A);
+      T.eq(
+        'the twelve architecture numbers over the hand-built series',
+        JSON.stringify(a.arch),
+        JSON.stringify({
+          TST: 0.05,
+          SE: 54.5,
+          n1Pct: 16.7,
+          n2Pct: 33.3,
+          n3Pct: 16.7,
+          remPct: 33.3,
+          wakePct: 45.5,
+          latencySleepMin: 1,
+          latencyRemMin: 2,
+          wasoMin: 0.5,
+          stageShifts: 6,
+          remPeriods: 1
+        })
+      );
+      T.eq('no number is absent on a series this complete', JSON.stringify(a.absence), '{}');
+      T.eq('the population behind those numbers', JSON.stringify([a.scored, a.sleepEpochs, a.onsetEpoch]), JSON.stringify([11, 6, 2]));
+      /* CONTROL 1 · the same twelve epoch POSITIONS, with the unscorable epoch replaced by a repeat
+         of the stage before it. Every index is unmoved, so the only cell that may differ is the
+         transition count — and it differs by exactly one, which is the N3→REM step the null hides.
+         A detector that counted a transition ACROSS an unstaged span would read 7 on both. */
+      var C = ['W', 'W', 'N1', 'N2', 'N3', 'N3', 'REM', 'REM', 'W', 'N2', 'W', 'W'];
+      var c = D.sleepArchitecture(C);
+      T.eq('a null epoch breaks the transition run and costs exactly one shift', JSON.stringify([a.arch.stageShifts, c.arch.stageShifts]), JSON.stringify([6, 7]));
+      T.eq('replacing the null in place moves no latency', JSON.stringify([a.arch.latencyRemMin, c.arch.latencyRemMin]), JSON.stringify([2, 2]));
+      /* CONTROL 2 · the same series with the unscorable epoch DELETED rather than replaced. Now the
+         indices after it all move down one, and the REM latency falls by half an epoch. That is the
+         rule the engine states: a latency is a clock fact, so an epoch nobody scored still costs
+         the 30 s it occupied. */
+      var B = ['W', 'W', 'N1', 'N2', 'N3', 'REM', 'REM', 'W', 'N2', 'W', 'W'];
+      var b = D.sleepArchitecture(B);
+      T.eq('deleting the null shortens the REM latency by the epoch it occupied', JSON.stringify([a.arch.latencyRemMin, b.arch.latencyRemMin]), JSON.stringify([2, 1.5]));
+      T.eq('the two controls agree on every share, so only the two cells above moved', JSON.stringify([a.arch.n2Pct, b.arch.n2Pct, a.arch.SE, b.arch.SE]), JSON.stringify([33.3, 33.3, 54.5, 54.5]));
+      T.eq('the REM period count equals the REM stretches the helper finds', a.arch.remPeriods, D.remPeriodSpans(A).length);
+    });
+
+    group('EEGDex names the reason for every architecture number it cannot measure', 'eegdex · architecture · absence', function (T) {
+      var D = env.EEGDSP;
+      if (!D) {
+        T.skip('env.EEGDSP available', 'eegdex-dsp.js is not executed by this lane');
+        return;
+      }
+      var KEYS = D.ARCH_KEYS,
+        i,
+        k;
+      T.eq('the declared key set is the twelve this unit measures', KEYS.join(','), 'TST,SE,n1Pct,n2Pct,n3Pct,remPct,wakePct,latencySleepMin,latencyRemMin,wasoMin,stageShifts,remPeriods');
+      /* §∅ · EVERY key is either a finite value with no reason, or a null with its own reason. A key
+         that carried both would let a reader quote a number the engine disowned; a key that carried
+         neither would be an unexplained null, which is the defect this whole rule exists to stop. */
+      var CASES = [
+        ['no epoch at all', []],
+        ['every epoch unscorable', [null, null, null]],
+        ['wake from end to end', ['W', 'W', 'W']],
+        ['one scored epoch', ['N2']],
+        ['sleep without REM', ['W', 'N2', 'N2']],
+        ['a complete night', ['W', 'N2', 'REM', 'N2', 'W']]
+      ];
+      var ci,
+        both = 0,
+        neither = 0;
+      for (ci = 0; ci < CASES.length; ci++) {
+        var p = D.sleepArchitecture(CASES[ci][1]);
+        for (i = 0; i < KEYS.length; i++) {
+          k = KEYS[i];
+          var hasVal = p.arch[k] != null,
+            hasWhy = p.absence[k] != null;
+          if (hasVal && hasWhy) both++;
+          if (!hasVal && !hasWhy) neither++;
+        }
+      }
+      T.eq('no architecture key carries a value and a reason at once', both, 0);
+      T.eq('no architecture key is null with no reason given', neither, 0);
+      var empty = D.sleepArchitecture([]).absence,
+        wake = D.sleepArchitecture(['W', 'W', 'W']),
+        one = D.sleepArchitecture(['N2']),
+        norem = D.sleepArchitecture(['W', 'N2', 'N2']);
+      var emptyReasons = [];
+      for (i = 0; i < KEYS.length; i++) emptyReasons.push(empty[KEYS[i]]);
+      T.eq('an unscored series refuses all twelve for the same reason', emptyReasons.join(','), new Array(KEYS.length).join('no-scored-epoch,') + 'no-scored-epoch');
+      T.eq(
+        'a wake-only night still measures the three numbers wake alone defines',
+        JSON.stringify([wake.arch.TST, wake.arch.SE, wake.arch.wakePct, wake.arch.stageShifts]),
+        JSON.stringify([0, 0, 100, 0])
+      );
+      T.eq(
+        'a wake-only night refuses the four sleep shares as absent sleep',
+        [wake.absence.n1Pct, wake.absence.n2Pct, wake.absence.n3Pct, wake.absence.remPct].join(','),
+        'no-sleep-epoch,no-sleep-epoch,no-sleep-epoch,no-sleep-epoch'
+      );
+      T.eq(
+        'a wake-only night refuses the three clock numbers as absent onset',
+        [wake.absence.latencySleepMin, wake.absence.latencyRemMin, wake.absence.wasoMin].join(','),
+        'no-sleep-onset,no-sleep-onset,no-sleep-onset'
+      );
+      T.eq('one scored epoch holds no transition to count', one.absence.stageShifts, 'under-two-scored-epochs');
+      T.eq('a night without REM names REM, never onset, as the absent thing', [norem.absence.latencyRemMin, norem.absence.remPeriods].join(','), 'no-rem-epoch,no-rem-epoch');
+    });
+
+    group('EEGDex spindle detection meets its pre-stated criterion on the planted overnight', 'eegdex · spindles · pre-stated', function (T) {
+      var D = env.EEGDSP;
+      if (!D) {
+        T.skip('env.EEGDSP available', 'eegdex-dsp.js is not executed by this lane');
+        return;
+      }
+      /* The criterion was written down BEFORE the first measurement, against this exact night:
+         recall ≥ 0.50, precision ≥ 0.50, and an N2 density inside [1.5, 6.0] spindles a minute.
+         The band is the one the literature reports for N2 in adults; the detector is HEURISTIC in
+         the registry because no spindle DOI sits in the citation ledger. */
+      var P = eegPrestatedNight(D, 'on'),
+        sp = P.res.spindles,
+        planted = P.night.truth.spindles,
+        det = [],
+        tp = 0,
+        i,
+        j;
+      for (i = 0; i < sp.spindles.length; i++) det.push([sp.spindles[i].atSec, sp.spindles[i].atSec + sp.spindles[i].durSec]);
+      for (i = 0; i < planted.length; i++) {
+        var a0 = planted[i].atSec,
+          a1 = planted[i].atSec + planted[i].durSec;
+        for (j = 0; j < det.length; j++) {
+          if (det[j][0] < a1 && det[j][1] > a0) {
+            tp++;
+            break;
+          }
+        }
+      }
+      T.ok('the night plants spindles to find', planted.length > 100, 'only ' + planted.length + ' spindles were planted');
+      var recall = tp / planted.length,
+        precision = det.length ? tp / det.length : 0;
+      T.ok('recall over the planted spindles is at least 0.50', recall >= 0.5, 'recall ' + recall.toFixed(3) + ' over ' + planted.length + ' planted');
+      T.ok('precision over the detections is at least 0.50', precision >= 0.5, 'precision ' + precision.toFixed(3) + ' over ' + det.length + ' detections');
+      T.ok('the N2 density lands inside the pre-stated band', sp.byStage.N2 >= 1.5 && sp.byStage.N2 <= 6, 'N2 density ' + sp.byStage.N2 + ' per minute');
+      T.eq('the detection count the population reports is the count it published', sp.population.detections, sp.spindles.length);
+      T.ok('the density names the staged minutes it covers', sp.population.eligibleMin > 60, 'only ' + sp.population.eligibleMin + ' eligible minutes');
+      T.eq('a night that detects spindles carries no refusal reason', sp.reason, null);
+    });
+
+    group('A planted hole drops the spindle inside it and leaves the one beside it standing', 'eegdex · spindles · control', function (T) {
+      var D = env.EEGDSP;
+      if (!D) {
+        T.skip('env.EEGDSP available', 'eegdex-dsp.js is not executed by this lane');
+        return;
+      }
+      /* ⚠ THIS GUARD IS UNREACHABLE THROUGH `analyze`, and that is why it needs a direct test.
+         `epochBands` refuses any epoch holding a non-finite sample, so the stager never scores a
+         holed epoch and `detectSpindles` never sees one from that path — `excludedByHole` read 0 on
+         all four simulated nights. The guard still protects a CALLER that supplies its own
+         hypnogram, so the leg below plants the hole itself rather than counting a zero. */
+      var FS = 100,
+        SEC = 120,
+        N = FS * SEC,
+        sig = new Float64Array(N),
+        i;
+      for (i = 0; i < N; i++) sig[i] = 3 * Math.sin((2 * Math.PI * 6 * i) / FS);
+      function burst(atSec) {
+        var s = Math.round(atSec * FS),
+          L = FS,
+          k;
+        for (k = 0; k < L; k++) sig[s + k] += 40 * Math.sin((2 * Math.PI * 13.5 * (s + k)) / FS);
+      }
+      burst(45);
+      burst(75);
+      var hyp = [{ stage: 'N2' }, { stage: 'N2' }, { stage: 'N2' }, { stage: 'N2' }];
+      var clean = D.detectSpindles(sig.slice(0), FS, hyp);
+      T.eq('the clean signal yields both planted bursts', clean.spindles.length, 2);
+      T.eq('the clean signal excludes nothing for a hole', clean.population.excludedByHole, 0);
+      /* The hole guard is one second wide either side, so a non-finite sample INSIDE the second
+         burst must drop it, and the first burst thirty seconds away must survive. */
+      var holed = sig.slice(0);
+      holed[Math.round(75.4 * FS)] = NaN;
+      var h = D.detectSpindles(holed, FS, hyp);
+      T.eq('a hole inside the burst drops that one detection', h.spindles.length, 1);
+      T.eq('the dropped detection is counted, never silently absent', h.population.excludedByHole, 1);
+      T.eq('the surviving detection is the burst the hole did not touch', Math.round(h.spindles[0].atSec), 45);
+      /* CONTROL · a hole FIVE seconds from either burst. A guard that dropped on any hole anywhere
+         in the epoch, rather than on a hole beside the candidate, would read 1 detection here too. */
+      var far = sig.slice(0);
+      far[Math.round(70 * FS)] = NaN;
+      var f = D.detectSpindles(far, FS, hyp);
+      T.eq('a hole five seconds away drops neither detection', JSON.stringify([f.spindles.length, f.population.excludedByHole]), JSON.stringify([2, 0]));
+    });
+
+    group('EEGDex reads the planted SWA decline and reads a flat night as flat', 'eegdex · swa · pre-stated', function (T) {
+      var D = env.EEGDSP;
+      if (!D) {
+        T.skip('env.EEGDSP available', 'eegdex-dsp.js is not executed by this lane');
+        return;
+      }
+      /* Two clauses, both written down before the first measurement. The generator plants an
+         overnight delta-power decline, and `swaTrend` must read it back inside [-25, -5] % a NREM
+         period over at least four measured stretches. The CONTROL carries the weight: the same
+         seed with `swaSlopePerH: 0` must read flat, inside [-3, +3]. A detector that reports a
+         decline over a flat night is the failure worth catching, and only the second clause can
+         catch it. The tier stays `heuristic` whatever both clauses do, because the homeostatic
+         meaning of the slope rests on a citation this repo cannot check. */
+      var ON = eegPrestatedNight(D, 'on'),
+        OFF = eegPrestatedNight(D, 'off');
+      T.ok('the default night plants a decline', ON.night.truth.swaSlopePerH < 0, 'planted slope ' + ON.night.truth.swaSlopePerH);
+      T.eq('the control night plants no decline', OFF.night.truth.swaSlopePerH, 0);
+      var on = ON.res.swa,
+        off = OFF.res.swa;
+      T.ok('the measured decline lands inside the pre-stated band', on.decayPctPerPeriod <= -5 && on.decayPctPerPeriod >= -25, 'measured ' + on.decayPctPerPeriod + ' % per period');
+      T.ok('the decline is measured over at least four NREM stretches', on.population.measured >= 4, 'only ' + on.population.measured + ' of ' + on.population.stretches + ' stretches were measured');
+      T.ok('the flat control reads flat', off.decayPctPerPeriod >= -3 && off.decayPctPerPeriod <= 3, 'control read ' + off.decayPctPerPeriod + ' % per period');
+      T.eq('a measured trend carries no refusal reason', JSON.stringify([on.reason, off.reason]), JSON.stringify([null, null]));
+      T.eq('the periods it reports are the ones it measured', on.periods.length, on.population.measured);
+      /* A night too short to hold two NREM stretches refuses rather than reporting a slope over one
+         point. The reason is its own, never borrowed from the absent-input family. */
+      var short = D.compute(D.genOvernight({ durSec: 1800, scenario: 'clean', seed: 7310011 }));
+      T.eq('too few stretches refuses with its own reason', JSON.stringify([short.swa.decayPctPerPeriod, short.swa.reason]), JSON.stringify([null, 'under-two-nrem-stretches']));
+    });
+
+    group('The EEGDex spectral edge answers two spectra whose edge is known in advance', 'eegdex · sef95 · known-answer', function (T) {
+      var D = env.EEGDSP;
+      if (!D) {
+        T.skip('env.EEGDSP available', 'eegdex-dsp.js is not executed by this lane');
+        return;
+      }
+      /* SEF95 is the frequency below which 95 % of the power up to the 45 Hz ceiling sits, so two
+         spectra fix it analytically. A FLAT spectrum puts it at 0.95 × 45 = 42.75 Hz. A single
+         sinusoid puts it at that sinusoid's own frequency, because one bin holds every watt.
+         ⚠ The synthetic nights all read 13.53 Hz, which is the N2 carrier the generator plants and
+         not a property of EEG — a pinned night could not tell a correct edge from that carrier. */
+      var FS = 100,
+        N = FS * 30 * 20,
+        base = D.genSynthetic(),
+        i;
+      function frameOf(sig) {
+        return { samples: sig, fs: FS, t0Ms: base.t0Ms, offsetMin: base.offsetMin, channel: base.channel, source: base.source };
+      }
+      var seed = 12345;
+      function rnd() {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff - 0.5;
+      }
+      var noise = new Float64Array(N);
+      for (i = 0; i < N; i++) noise[i] = 40 * rnd();
+      var flat = D.compute(frameOf(noise));
+      T.ok('a flat spectrum puts the edge at 95 % of the ceiling', Math.abs(flat.bands.sef95 - 0.95 * D.SEF_CEIL_HZ) < 0.6, 'measured ' + flat.bands.sef95 + ' against 42.75 Hz');
+      var sine = new Float64Array(N);
+      for (i = 0; i < N; i++) sine[i] = 30 * Math.sin((2 * Math.PI * 10 * i) / FS);
+      var tone = D.compute(frameOf(sine));
+      T.ok('one sinusoid puts the edge at its own frequency', Math.abs(tone.bands.sef95 - 10) < 0.3, 'measured ' + tone.bands.sef95 + ' against 10 Hz');
+      T.eq('the ceiling the edge is measured under is declared, not implied', D.SEF_CEIL_HZ, 45);
+      T.eq('both answers count every epoch they covered', JSON.stringify([flat.bands.population.sefEpochs, tone.bands.population.sefEpochs]), JSON.stringify([20, 20]));
+      /* An epoch with no spectral edge is EXCLUDED and counted, never entered at the ceiling: a
+         ceiling-valued epoch would pull the night's median up toward 45 Hz without saying so. */
+      T.ok('the night edge is a finite frequency under the ceiling', flat.bands.sef95 < D.SEF_CEIL_HZ && tone.bands.sef95 > 0, 'flat ' + flat.bands.sef95 + ' tone ' + tone.bands.sef95);
+    });
+
+    group('The EEGDex chart helpers answer every case a night axis carries', 'eegdex · charts · helpers', function (T) {
+      var U = env.EEGUI;
+      if (!U) {
+        T.skip('env.EEGUI available', 'eegdex-render.js is not executed by this lane');
+        return;
+      }
+      /* THESE THREE HELPERS CARRY THE ∅ RULE FOR EVERY FIGURE, so their answers are pinned here
+         rather than inferred from a drawing. `buckets` groups epochs into columns, `meanOf`
+         averages the finite members of one group, and `pathOf` lifts the line over a null. */
+      var b960 = U.buckets(960, 120);
+      T.eq('an 8 h night at 120 columns gives 120 equal groups', b960.length, 120);
+      T.eq('the first group holds 8 epochs', JSON.stringify(b960[0]), JSON.stringify([0, 8]));
+      T.eq('and the last group ends on the last epoch', JSON.stringify(b960[119]), JSON.stringify([952, 960]));
+      /* A NIGHT SHORTER THAN THE BUDGET GETS ONE COLUMN PER EPOCH AND NO EMPTY GROUP. An empty
+         group would average nothing and draw a gap the night does not hold. */
+      T.eq('50 epochs under a 120 budget give 50 groups', U.buckets(50, 120).length, 50);
+      T.eq('and each of them holds exactly one epoch', JSON.stringify(U.buckets(50, 120)[0]), JSON.stringify([0, 1]));
+      T.eq(
+        'an uneven split puts the remainder in the last group',
+        JSON.stringify(U.buckets(7, 3)),
+        JSON.stringify([
+          [0, 2],
+          [2, 4],
+          [4, 7]
+        ])
+      );
+      T.eq('no epochs give no groups rather than one empty group', JSON.stringify(U.buckets(0, 120)), '[]');
+      T.eq('one epoch gives one group', JSON.stringify(U.buckets(1, 120)), JSON.stringify([[0, 1]]));
+      T.eq('a group mean skips the null and the non-finite members', U.meanOf([1, null, 3, NaN], 0, 4), 2);
+      T.eq('a group with no finite member is null, never 0', U.meanOf([null, null], 0, 2), null);
+      /* THE LINE LIFTS OVER A NULL rather than joining across it: a joined segment would draw a
+         value for a group that published none. */
+      var pth = U.pathOf([
+        { x: 0, y: 10 },
+        { x: 1, y: null },
+        { x: 2, y: 20 },
+        { x: 3, y: 30 }
+      ]);
+      T.eq('a null inside a series starts a second subpath', (pth.match(/M/g) || []).length, 2);
+      T.eq('and the subpaths carry only the finite points', pth, 'M0.0 10.0 M2.0 20.0 L3.0 30.0');
+      T.eq('a series with no finite point draws nothing at all', U.pathOf([{ x: 0, y: null }]), '');
+      T.ok('the spectrogram declares its own column budget, narrower than a line chart’s', U.SPEC_COLS < U.MAX_COLS, U.SPEC_COLS + ' against ' + U.MAX_COLS);
+    });
+
+    group('The EEGDex charts draw the engine answer and badge every series', 'eegdex · charts · known-answer', function (T) {
+      var D = env.EEGDSP,
+        U = env.EEGUI;
+      if (!D || !U) {
+        T.skip('env.EEGDSP and env.EEGUI available', 'eegdex-dsp.js or eegdex-render.js is not executed by this lane');
+        return;
+      }
+      /* ONE 1 h ARTEFACTUAL NIGHT. The planted absences are the whole point of three legs below,
+         and a `clean` night plants none, so the same legs over a clean night would pass over an
+         empty population and say nothing. */
+      var night = D.genOvernight({ durSec: 3600, scenario: 'artefactual', seed: 7310011, t0Ms: Date.UTC(2026, 0, 1, 23, 0, 0) }),
+        res = D.compute(night),
+        absent = res.hypnogram.filter(function (e) {
+          return e.stage == null;
+        });
+      // ANTI-VACUITY FIRST: every leg below describes one of these three populations.
+      T.eq('the night holds the epochs the figures draw', res.nEpochs, 120);
+      T.eq('and it holds the planted absences three legs describe', absent.length, 5);
+      T.ok('and it holds detections for the raster', res.spindles.spindles.length > 50, res.spindles.spindles.length + ' detections');
+
+      /* THE PER-EPOCH SPECTRUM IS OPT-IN, AND IT STAYS OFF THE BUS. `buildNodeExport` copies
+         `bands` wholesale, so a 45-bin vector per epoch attached there would put some 43 000
+         numbers per 8 h night onto `ganglior.node-export`. It rides `summary.spectra` instead,
+         which the export projects by name and therefore never carries. */
+      T.eq('the night publishes one spectrum per epoch', res.spectra.series.length, res.nEpochs);
+      T.eq('each spectrum is a 1 Hz bin vector', res.spectra.binHz, 1);
+      T.eq('and it holds one bin per hertz up to the declared ceiling', res.spectra.series[0].bins.length, D.SEF_CEIL_HZ);
+      T.ok('the published band medians carry no bin vector', JSON.stringify(res.bands).indexOf('bins') < 0);
+      var ex = JSON.stringify(D.buildNodeExport(res, night));
+      T.ok('the node export carries neither the bins nor the series', ex.indexOf('"bins"') < 0 && ex.indexOf('spectra') < 0, 'export ' + ex.length + ' B');
+      /* THE KNOWN ANSWER IS ANALYTIC, not a pinned night: one sinusoid puts every watt in its own
+         bin, so the argmax bin IS the sinusoid’s frequency. */
+      var FS = 100,
+        N = FS * 30 * 4,
+        sig = new Float64Array(N),
+        i;
+      for (i = 0; i < N; i++) sig[i] = 30 * Math.sin((2 * Math.PI * 10 * i) / FS);
+      var tone = D.compute({ samples: sig, fs: FS, t0Ms: null, offsetMin: null, channel: 'EEG', source: 'authored' }),
+        bins = tone.spectra.series[0].bins,
+        arg = -1,
+        best = -Infinity;
+      for (i = 0; i < bins.length; i++) {
+        if (bins[i] != null && bins[i] > best) {
+          best = bins[i];
+          arg = i;
+        }
+      }
+      T.eq('a 10 Hz sinusoid puts its own bin at the top of the spectrum', arg, 10);
+
+      /* EVERY FIGURE BADGES THE SERIES IT DRAWS (§🎫). The band figure draws five independent
+         lines, so it carries five badges and not one caption badge. */
+      var figs = {
+        spectro: U.spectroHtml(res),
+        bandSeries: U.bandSeriesHtml(res),
+        swa: U.swaHtml(res),
+        raster: U.spindleRasterHtml(res, night.truth),
+        absence: U.absenceHtml(res)
+      };
+      T.eq('the spectrogram badges the power it draws', (figs.spectro.match(/class="ev /g) || []).length, 1);
+      T.eq('the band figure badges each of its five lines', (figs.bandSeries.match(/class="ev /g) || []).length, 5);
+      T.eq('and it draws one path per band', (figs.bandSeries.match(/<path /g) || []).length, 5);
+      T.eq('the slow-wave figure badges its decay', (figs.swa.match(/class="ev /g) || []).length, 1);
+      T.eq('the raster badges the spindle density', (figs.raster.match(/class="ev /g) || []).length, 1);
+      T.eq('the absence timeline badges the analyzable share', (figs.absence.match(/class="ev /g) || []).length, 1);
+      var k;
+      for (k in figs) {
+        if (!Object.prototype.hasOwnProperty.call(figs, k)) continue;
+        T.ok('the ' + k + ' figure writes no NaN and no undefined', figs[k].indexOf('NaN') < 0 && figs[k].indexOf('undefined') < 0, figs[k].slice(0, 160));
+      }
+      /* THE RASTER GROUPS ITS TICKS BY STAGE AND CARRIES NO PER-EVENT HOVER: over a thousand
+         detections share 620 px on an 8 h night, so a pointer cannot reach one tick and a title
+         per tick would weigh more than the figure. */
+      T.ok(
+        'the raster draws paths rather than one element per event',
+        (figs.raster.match(/<path /g) || []).length <= 11,
+        (figs.raster.match(/<path /g) || []).length + ' paths over ' + res.spindles.spindles.length + ' detections'
+      );
+      T.ok('and it says where the per-event detail went', figs.raster.indexOf('detail travels in the export') >= 0);
+      T.ok('the raster draws no slow-wave row, because the engine detects no single slow wave', figs.raster.indexOf('no individual slow wave') >= 0);
+
+      /* THE ABSENCE TIMELINE NAMES EACH REASON IN THE READER’S WORDS and counts its epochs. The
+         two planted spans land on two different reasons, which is what makes the legend a
+         measurement rather than a label. */
+      T.eq('the timeline shades one stretch per planted span', (figs.absence.match(/opacity="\.78"/g) || []).length, 2);
+      T.eq('and it draws the three scored stretches between them', (figs.absence.match(/opacity="\.16"/g) || []).length, 3);
+      T.eq('the legend names both reasons the night carried', (figs.absence.match(/class="eg-lg"/g) || []).length, 2);
+      T.ok('a whole absent epoch reads in words, with its count', figs.absence.indexOf('every sample in the epoch is absent — 3 epochs') >= 0, figs.absence.slice(-420));
+      T.ok('and a hole inside an epoch reads as its own reason', figs.absence.indexOf('a hole inside an otherwise present epoch — 2 epochs') >= 0);
+      T.ok('the note states the epochs the shading covers', figs.absence.indexOf('5 of 120 epochs') >= 0);
+
+      /* THE SLOW-WAVE LINE IS THE ENGINE’S OWN FIT. A renderer fitting its own least squares would
+         publish a second calculation of one claim, and the two would disagree the moment either
+         side changed. The 8 h night is the memoised pre-stated one, so this costs no generation. */
+      var eight = eegPrestatedNight(D, 'on'),
+        sw = eight.res.swa;
+      T.eq('the engine publishes the fitted line beside the percentage', JSON.stringify(sw.fit), JSON.stringify({ slope: -1.784, intercept: 11.368 }));
+      T.eq('the fit covers the stretches the decay was read over', sw.periods.length, 6);
+      T.ok('the intercept is the fitted power at the first stretch', Math.abs(sw.fit.intercept - sw.periods[0].deltaPower) < 0.2, sw.fit.intercept + ' against ' + sw.periods[0].deltaPower);
+      var sw8 = U.swaHtml(eight.res);
+      T.eq('the figure draws one bar per stretch', (sw8.match(/<rect /g) || []).length, 6);
+      T.ok('and it draws the fitted line as a dashed line', sw8.indexOf('stroke-dasharray') >= 0);
+      /* THE CONTROL: a trend with no fit must name its reason rather than draw a flat line. */
+      var noFit = D.swaTrend(null, null);
+      T.eq('a refused trend publishes no fit', noFit.fit, null);
+      T.ok('and the figure names the refusal instead of drawing', U.swaHtml({ swa: noFit, nEpochs: 0 }).indexOf(noFit.reason) >= 0, noFit.reason);
+
+      /* THE MARKUP BUDGET IS PINNED, because the two heaviest figures were 244 kB and 282 kB
+         before the runs were merged and the attributes grouped. Both ceilings were set against a
+         measured mutant rather than a round number: 120 columns widened back to 240 draws
+         144 842 B, and a staircase that emits one segment per epoch rather than per run draws
+         37 504 B against the 22 516 B it draws merged. */
+      var spectro8 = U.spectroHtml(eight.res),
+        raster8 = U.spindleRasterHtml(eight.res, eight.night.truth);
+      T.ok('an 8 h spectrogram stays under 120 kB of markup', spectro8.length < 120000, spectro8.length + ' B, ' + (spectro8.match(/<rect /g) || []).length + ' rects');
+      T.ok('an 8 h raster stays under 30 kB of markup', raster8.length < 30000, raster8.length + ' B, ' + (raster8.match(/<path /g) || []).length + ' paths');
+
+      /* THE PLANTED STRIP EXISTS ON THE DEMO PATH ALONE. `compute` never returns the truth, so the
+         EDF path loses the strip by construction rather than by a flag. */
+      var withTruth = U.hypnoHtml(res, night.truth),
+        without = U.hypnoHtml(res);
+      T.eq('a summary alone draws one cell per epoch', (without.match(/class="eg-ep/g) || []).length, 120);
+      T.eq('and the truth draws a second strip beside it', (withTruth.match(/class="eg-ep/g) || []).length, 240);
+      T.ok('the second strip is the plan the generator followed', withTruth.indexOf('planned · epoch') >= 0);
+      T.ok('the note counts the epochs both strips name', withTruth.indexOf('120 planned') >= 0, withTruth.slice(-300));
+      /* ⚠ NO AGREEMENT NUMBER IS DRAWN: the registry grades no agreement metric, so a number on
+         this surface would mint a fabricated badge. The pre-stated agreement lives in the test
+         lane, against its own floor. */
+      T.ok('the figure prints no agreement number', !/agreement[^<]{0,14}\d/.test(withTruth), withTruth.slice(-300));
+
+      /* EVERY FIGURE REFUSES IN WORDS. `compute` refuses with `{err, reason}` and carries no
+         spectra, bands or hypnogram, so each figure must say what it lacks and never throw. */
+      var refused = D.compute({ samples: new Float64Array(0), fs: 100 }),
+        names = ['spectroHtml', 'bandSeriesHtml', 'swaHtml', 'spindleRasterHtml', 'absenceHtml', 'hypnoHtml'],
+        threw = null,
+        bare = [];
+      for (i = 0; i < names.length; i++) {
+        try {
+          var a = U[names[i]](refused),
+            b = U[names[i]](null);
+          if (a.indexOf('eg-empty') < 0 || b.indexOf('eg-empty') < 0) bare.push(names[i]);
+        } catch (e) {
+          threw = names[i] + ': ' + ((e && e.message) || String(e));
+          break;
+        }
+      }
+      T.eq('no figure throws over a refusal or over nothing', threw, null);
+      T.eq('and each of them says what it lacks', JSON.stringify(bare), '[]');
+      T.ok('a synthetic summary carries the synthetic note the cards print', U.synthNote(eight.res).indexOf('synthetic — not a recording') >= 0);
+      T.eq('and an authored frame carries no such note', U.synthNote(tone), '');
     });
 
     group('Every runtime source layer is readable by at least one lane', 'cohesion · source-visibility · ratchet', function (T) {

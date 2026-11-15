@@ -31,6 +31,7 @@ import { appendFileSync, existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { makeVerdict } from './verdict-emit.mjs';
 import { join } from 'node:path';
+import { boundedFetch } from './net-bound.mjs';
 
 /* ── THE PROVIDER TABLE ────────────────────────────────────────────────────────────────────────────
    ONE reader with adapters, not a tool per provider (owner 2026-10-05; mistral, cerebras, groq,
@@ -437,18 +438,22 @@ async function main(argv) {
     let version = 'n/a';
     if (P.metaUrl) {
       try {
-        version = (await (await fetch(P.metaUrl(model), { headers: P.headers(key) })).json())?.version || 'unknown';
+        version = (await (await boundedFetch(P.metaUrl(model), { headers: P.headers(key) }, { cls: 'api', label: "the provider's model metadata" })).json())?.version || 'unknown';
       } catch {
         version = 'unknown';
       }
     }
     record(out, { at, provider: providerName, model, version, kind: 'request', sources: sources.map(([pp, tt]) => ({ path: pp, bytes: tt.length })), prompt }, key);
 
-    const r = await fetch(P.url(model), {
-      method: 'POST',
-      headers: P.headers(key),
-      body: JSON.stringify(P.body(prompt, model, REQ_MAX_OUTPUT_TOKENS))
-    });
+    const r = await boundedFetch(
+      P.url(model),
+      {
+        method: 'POST',
+        headers: P.headers(key),
+        body: JSON.stringify(P.body(prompt, model, REQ_MAX_OUTPUT_TOKENS))
+      },
+      { cls: 'model', label: 'the provider completion' }
+    );
     const raw = await r.text();
     /* RATE-LIMIT HEADERS ARE RECORDED, not inferred from a 429. A free tier's real ceiling is the one
        it tells you about before you hit it, and a transcript without them cannot answer "what did the

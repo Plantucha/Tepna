@@ -58,6 +58,7 @@ import { diffPaths } from './mutation-suite.mjs';
 import { checkArgv, isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { draftableShape, functionSpan, locate, publishedFieldOnLine, splitKey, whyAbsent } from './mutation-key-core.mjs';
 import { classify } from './js-lex.mjs';
+import { boundedFetch } from './net-bound.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CH = join(ROOT, 'capture-host');
@@ -804,18 +805,22 @@ function promptFor(row, before, context, feedback, fieldLine) {
 }
 
 async function askLocal(prompt, attempt) {
-  const res = await fetch(LOCAL_HOST + '/api/generate', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      model: MODEL,
-      prompt,
-      stream: false,
-      think: false,
-      keep_alive: KEEP_ALIVE,
-      options: { num_ctx: CTX, num_predict: 700, ...SAMPLING[Math.min(attempt, SAMPLING.length - 1)] }
-    })
-  });
+  const res = await boundedFetch(
+    LOCAL_HOST + '/api/generate',
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: MODEL,
+        prompt,
+        stream: false,
+        think: false,
+        keep_alive: KEEP_ALIVE,
+        options: { num_ctx: CTX, num_predict: 700, ...SAMPLING[Math.min(attempt, SAMPLING.length - 1)] }
+      })
+    },
+    { cls: 'model', label: 'the ollama generate call' }
+  );
   const j = await res.json();
   return j.response || '';
 }

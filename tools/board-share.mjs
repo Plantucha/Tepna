@@ -52,6 +52,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { boundedChild } from './child-bound.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CORPUS = process.env.TEPNA_BOARD_CORPUS || path.join(homedir(), '.local/share/tepna/board-corpus');
@@ -164,7 +165,14 @@ export function shareVerdict(rows, { corpusPresent = true, commit = null, commit
   const population = { checked: measured.length, eligible: rows.length, excluded: unreadable.length + belowFloor.length };
 
   if (measured.length === 0) {
-    return { ...base, status: 'NOT_RUN', population, result: null, reason: `no query returned a hit list: ${unreadable.length} did not run, ${belowFloor.length} fell below the reranker floor` };
+    const firstWhy = (unreadable.find((r) => r.note) || {}).note || null;
+    return {
+      ...base,
+      status: 'NOT_RUN',
+      population,
+      result: null,
+      reason: `no query returned a hit list: ${unreadable.length} did not run, ${belowFloor.length} fell below the reranker floor${firstWhy ? ` — first: ${firstWhy}` : ''}`
+    };
   }
 
   const slots = measured.reduce((a, r) => a + r.slots, 0);
@@ -187,6 +195,8 @@ export function shareVerdict(rows, { corpusPresent = true, commit = null, commit
     slots,
     byArm,
     unreadable: unreadable.map((r) => r.q),
+    /* A new field beside the old list, so a consumer reading `unreadable` keeps its shape. */
+    unreadableWhy: unreadable.map((r) => ({ q: r.q, why: r.note })),
     belowFloor: belowFloor.map((r) => r.q)
   };
 
@@ -204,24 +214,34 @@ export function shareVerdict(rows, { corpusPresent = true, commit = null, commit
 
 /* ── the impure half ─────────────────────────────────────────────────────────────────────────── */
 
+/* 🔴 THE BOUND WAS ALREADY HERE AND THE REASON WAS THROWN AWAY. The `catch { return null }` this
+   replaced collapsed a 120 s timeout, a crash and a bad exit into one `unreadable` state carrying a
+   borrowed note. The population arithmetic below was right either way — an unreadable query is
+   EXCLUDED from `checked`, never counted as zero board hits — and a reader still could not tell a
+   stalled `doc-search` from one that crashed on that query. That is the distinction that cost the
+   fleet three sessions on 2026-11-14, so the reason now travels with the row (CLAUDE.md §∅). */
 function runQuery(q) {
-  try {
-    const out = execFileSync(process.execPath, [path.join(ROOT, 'tools', 'doc-search.mjs'), '--brief', q], {
-      cwd: ROOT,
-      encoding: 'utf-8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: 120_000,
-      maxBuffer: 32 * 1024 * 1024
-    });
-    return parseHits(out);
-  } catch {
-    return null;
-  }
+  const r = boundedChild(process.execPath, [path.join(ROOT, 'tools', 'doc-search.mjs'), '--brief', q], {
+    ms: 120_000,
+    label: `doc-search for "${q}"`,
+    cwd: ROOT,
+    encoding: 'utf-8',
+    maxBuffer: 32 * 1024 * 1024
+  });
+  return r.ok ? { hits: parseHits(r.out), note: null } : { hits: null, note: r.reason };
 }
 
+/* `run` may answer in either shape, because an injected run in a selftest hands back a hit list or a
+   bare `null` and the live one hands back `{ hits, note }`. A wrapped answer is the one carrying a
+   `hits` key: an Array is a hit list whatever else it holds. */
 export function survey(arms, run = runQuery) {
   const rows = [];
-  for (const arm of arms) for (const q of QUERIES[arm] ?? []) rows.push(readingFor(q, arm, run(q)));
+  for (const arm of arms)
+    for (const q of QUERIES[arm] ?? []) {
+      const got = run(q);
+      const wrapped = !!got && !Array.isArray(got) && typeof got === 'object' && 'hits' in got;
+      rows.push(readingFor(q, arm, wrapped ? got.hits : got, wrapped ? got.note : null));
+    }
   return rows;
 }
 
@@ -242,6 +262,7 @@ function report(rows, v) {
   for (const r of rows) {
     const cell = r.state === 'measured' ? `${r.board}/${r.slots}  ${pct(r.share)}` : `  ${r.state}`;
     console.log(`  ${cell.padEnd(14)} ${r.arm.padEnd(6)} ${r.q}`);
+    if (r.state === 'unreadable' && r.note) console.log(`${' '.repeat(21)}↳ ${r.note}`);
   }
   if (v.result) {
     console.log(`\n  worst: ${v.result.worstCounts} for "${v.result.worstQuery}" (${pct(v.result.maxShare)})`);
@@ -303,6 +324,9 @@ if (isCliEntry(import.meta.url)) {
     ok('…and is a different state from unreadable', readingFor('q', 'repo', []).state !== readingFor('q', 'repo', null).state);
     ok('a measured query counts only board paths', readingFor('q', 'repo', [`${BOARD_PREFIX}1/2.md`, 'briefs/A.md', 'ext:memory/b.md']).board === 1);
     ok('…and a memory hit is not a board hit', readingFor('q', 'repo', ['ext:memory/b.md']).board === 0);
+    ok('🔴 AN UNREADABLE QUERY CARRIES ITS OWN REASON', readingFor('q', 'repo', null, 'the doc-search call: TIMED OUT after 120s').note === 'the doc-search call: TIMED OUT after 120s');
+    ok('…and with no reason it still says what it does not know', readingFor('q', 'repo', null).note.includes('did not complete'));
+    ok('…while a measured query carries no reason at all', !readingFor('q', 'repo', ['a.md']).note);
 
     const clean = [readingFor('a', 'repo', ['briefs/A.md', 'b.mjs', 'c.md', 'd.md', 'e.md']), readingFor('b', 'fleet', [`${BOARD_PREFIX}1/1.md`, 'b.mjs', 'c.md', 'd.md', 'e.md'])];
     const vClean = shareVerdict(clean, { commit: 'abc12345', at: '2026-10-28T00:00:00Z' });
@@ -344,6 +368,27 @@ if (isCliEntry(import.meta.url)) {
       surveyed.every((r) => r.arm === 'repo')
     );
     ok('an unknown arm contributes nothing rather than throwing', survey(['nope'], () => ['a.md']).length === 0);
+    ok(
+      "survey passes the live shape's reason through to the row",
+      survey(['repo'], () => ({ hits: null, note: 'the doc-search call: it was killed after 120s' }))[0].note === 'the doc-search call: it was killed after 120s'
+    );
+    ok('…and reads its hit list from the same shape', survey(['repo'], () => ({ hits: ['a.md'], note: null }))[0].state === 'measured');
+    ok('…and an injected bare hit list still works', survey(['repo'], () => ['a.md'])[0].state === 'measured');
+    ok('…and an injected bare null is still unreadable', survey(['repo'], () => null)[0].state === 'unreadable');
+    const WHY = 'the doc-search call: TIMED OUT after 120s';
+    const vWhy = shareVerdict([readingFor('m', 'repo', ['a.md']), readingFor('x', 'repo', null, WHY)], {});
+    /* A reason leg reads for PRESENCE first, so a cell that goes null REDS THIS LEG BY NAME instead of
+       throwing `Cannot read properties of null` from inside the harness. A crashing control proves
+       nothing about which assertion holds the behaviour (measured here 2026-11-14, twice). */
+    const why0 = vWhy.result.unreadableWhy[0];
+    ok('the verdict names WHICH query was unreadable and WHY', why0.q === 'x' && !!why0.why && why0.why.includes('TIMED OUT'), JSON.stringify(vWhy.result.unreadableWhy));
+    ok('…and the old unreadable list keeps its shape', Array.isArray(vWhy.result.unreadable) && vWhy.result.unreadable[0] === 'x');
+    ok('…and that query stays OUT of the checked count', vWhy.population.checked === 1 && vWhy.population.excluded === 1);
+    ok(
+      '🔴 AN ALL-OUT SURVEY QUOTES ITS FIRST REASON, where it used to name only a count',
+      shareVerdict([readingFor('x', 'repo', null, WHY)], {}).reason.includes('TIMED OUT after 120s'),
+      shareVerdict([readingFor('x', 'repo', null, WHY)], {}).reason
+    );
 
     console.log(fails.length ? `board-share selftest: ${fails.length} FAILED of ${ran}\n  ${fails.join('\n  ')}` : `all ${ran} selftests passed`);
     process.exit(fails.length ? 1 : 0);

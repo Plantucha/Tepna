@@ -36,6 +36,8 @@ import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
 import { primaryGitDir } from './home-paths.mjs';
+import { boundedFetch } from './net-bound.mjs';
+import { boundedChild } from './child-bound.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -216,16 +218,21 @@ function docContext(fn, file) {
   if (process.env.DEX_QWEN_FORBID_DOCCTX) {
     throw new Error('docContext() called under DEX_QWEN_FORBID_DOCCTX — a test path spawned doc-search; pass ctx into buildPrompt instead');
   }
-  try {
-    const out = execFileSync('node', [join(HERE, 'doc-search.mjs'), `${file.replace(/\.js$/, '')} ${fn.name}`], { encoding: 'utf8', timeout: 30000 });
-    const lines = out
-      .split('\n')
-      .filter((l) => /^ {2}0\./.test(l) || /::/.test(l))
-      .slice(0, 4);
-    return lines.length ? '\nREPO CONTEXT (top doc-search hits — documented intent, may be stale):\n' + lines.join('\n').slice(0, 600) + '\n' : '';
-  } catch {
-    return '';
-  }
+  /* ∅ A BREACH IS NOT AN EMPTY CONTEXT. The `catch { return '' }` this replaced handed the model the
+     SAME string for "the repo documents nothing about this function" and for "doc-search stalled for
+     30 s and got killed". The model then judged the function against an absence it could not see was
+     manufactured. The reason now reaches the prompt, so the reviewer reads the context as UNAVAILABLE
+     rather than as empty (CLAUDE.md §∅). */
+  const r = boundedChild('node', [join(HERE, 'doc-search.mjs'), `${file.replace(/\.js$/, '')} ${fn.name}`], {
+    ms: 30000,
+    label: 'the doc-search context call'
+  });
+  if (!r.ok) return `\nREPO CONTEXT: NOT AVAILABLE — ${r.reason}. Judge the code alone, and do not read this as "the repo documents nothing".\n`;
+  const lines = r.out
+    .split('\n')
+    .filter((l) => /^ {2}0\./.test(l) || /::/.test(l))
+    .slice(0, 4);
+  return lines.length ? '\nREPO CONTEXT (top doc-search hits — documented intent, may be stale):\n' + lines.join('\n').slice(0, 600) + '\n' : '';
 }
 
 /* `ctx` is INJECTED, not fetched. It used to call docContext() inline, which made every caller —
@@ -274,10 +281,14 @@ export function parseFindings(reply) {
 }
 
 async function askQwen(prompt) {
-  const res = await fetch(OLLAMA + '/api/generate', {
-    method: 'POST',
-    body: JSON.stringify({ model: MODEL, prompt, think: false, stream: false, options: { temperature: 0.2, num_predict: 900, num_ctx: 8192 } })
-  });
+  const res = await boundedFetch(
+    OLLAMA + '/api/generate',
+    {
+      method: 'POST',
+      body: JSON.stringify({ model: MODEL, prompt, think: false, stream: false, options: { temperature: 0.2, num_predict: 900, num_ctx: 8192 } })
+    },
+    { cls: 'model', label: 'the ollama generate call' }
+  );
   if (!res.ok) throw new Error('ollama HTTP ' + res.status);
   return (await res.json()).response || '';
 }

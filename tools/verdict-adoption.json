@@ -873,6 +873,18 @@
    },
    "note": "ARCHIVE-MANIFEST (infra item 3a, Kestrel ruling #2507, brief INFRA-STATE-2026-10-31): --json prints ONE tepna.verdict/1 over archived capture nights. PASS = the copy matches the source-hashed manifest; FAIL names the missing or differing files; NOT_RUN (exit 2) where the archive dest is absent or unmounted, or the source does not answer over ssh, which is CI and every fresh clone, so the sample there examines nothing and says so. The sample night 2000-01-01 was never archived: the verdict is the tool's true answer for it on any box."
   },
+  "tools/argv-probe-reach.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/argv-probe-reach.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the JOIN of the two argv instruments, which residue 2026-10-26-the-probe-reach-figure-moved-with-the-column-and-the-bar logged as a figure nobody computes: the reach is the static abstention column of tools/argv-reads.mjs intersected with the closure-proof probe bar of tools/argv-survey.mjs, and a reader produced it by hand until now. The row's headline 4 of 40 was typed at #3843 and every term under it moved - 269 files / 37 / 45 / 5 at 482e39264 against 320 / 41 / 66 / 6 at b2e7590ad, measured by this tool. Pre-stated criterion: zero probe-safe abstentions with no CURRENT probe row, where currency is crossCheck's reading and never this file's - a control row whose tool's bytes moved since audits/ARGV-REFUSAL-SURVEY-2026-09-28.json described OTHER bytes, so it counts as unprobed with that exclusion as its reason. SHORTFALL is a measured backlog and exits 0 (5 of 6 at b2e7590ad, guarantees.mjs the one probed member, reading IGNORES); --strict exits 1 on any non-PASS, which is the form a caller uses once the backlog reads 0. An ABSENT record is not an empty one: controls null reads NOT_RUN naming the artifact, because every reach tool would otherwise read 'no row' and state a backlog the run never examined. An empty intersection is NOT_APPLICABLE with result null, never a PASS over nothing, and the 35 abstentions outside the bar are excluded with their reason, because the parent row reserves that question (a sandbox, or named abstentions) for the owner. This tool imports the scanner, which execs git through verdict-emit.mjs, so the closure proof excludes it from its own candidate set; it reads argv and refuses an unknown token, so it joins the scanned population at 321 and stays out of the abstention column. The cmd is the REAL object over today's tree: it reads files and runs no tool."
+  },
   "tools/argv-reads.mjs": {
    "bin": "decides",
    "status": "adopted",

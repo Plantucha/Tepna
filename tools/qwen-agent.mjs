@@ -22,11 +22,12 @@
   Output: .git/tepna-mutation/qwen-agent/<timestamp>-<slug>.md
 */
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import { join, dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { positionalArgs, refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 import { primaryGitDir } from './home-paths.mjs';
+import { boundedFetch } from './net-bound.mjs';
+import { boundedChild } from './child-bound.mjs';
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
@@ -92,13 +93,32 @@ export function runTool(name, args) {
       const slice = lines.slice(start, start + 250);
       return `[${args.path} lines ${start + 1}-${start + slice.length} of ${lines.length}]\n` + slice.map((l, i) => `${start + i + 1}\t${l}`).join('\n');
     }
+    /* 🔴 THE MODEL READ THE CLASS OF A FAILURE AND NOT THE FAILURE. Both calls below used to fall
+       through to `runTool`'s generic catch, which answered `TOOL ERROR: Command failed: node …` —
+       the same line for a stalled index, a crash and an absent file. A tool-using model cannot
+       recover from a reason it never sees, so each call now names its own breach. */
     if (name === 'doc_search') {
-      const out = execFileSync('node', [join(HERE, 'doc-search.mjs'), String(args.query || '')], { encoding: 'utf8', timeout: 60000 });
-      return out.split('\n').slice(0, 14).join('\n');
+      const r = boundedChild('node', [join(HERE, 'doc-search.mjs'), String(args.query || '')], {
+        ms: 60000,
+        label: 'the doc_search call'
+      });
+      if (!r.ok) return 'TOOL ERROR: ' + r.reason;
+      return r.out.split('\n').slice(0, 14).join('\n');
     }
     if (name === 'grep_repo') {
-      const out = execFileSync('git', ['grep', '-nF', '--', String(args.text || '')], { cwd: ROOT, encoding: 'utf8', timeout: 30000 });
-      return out.split('\n').slice(0, 40).join('\n');
+      const r = boundedChild('git', ['grep', '-nF', '--', String(args.text || '')], {
+        ms: 30000,
+        label: 'the grep_repo call',
+        cwd: ROOT
+      });
+      /* ∅ `git grep` EXITS 1 TO SAY "NO MATCHES", AND THAT IS AN ANSWER. The old generic catch turned
+         every clean no-match search into `TOOL ERROR: Command failed`, so a model asking whether a
+         symbol exists was told the TOOL broke rather than that the symbol is absent. The test reads
+         `timedOut` and NOT `killed`, because a child that exits under its own cap reads `killed:
+         false` with a status, and that shape would otherwise pass for an answer. */
+      if (!r.ok && !r.timedOut && r.status === 1) return 'NO MATCHES for ' + JSON.stringify(String(args.text || ''));
+      if (!r.ok) return 'TOOL ERROR: ' + r.reason;
+      return r.out.split('\n').slice(0, 40).join('\n');
     }
     if (name === 'list_dir') {
       const p = jail(args.path || '.');
@@ -152,10 +172,14 @@ When you have enough evidence, STOP calling tools and write your final answer as
 }
 
 async function chat(messages, useTools) {
-  const res = await fetch(OLLAMA + '/api/chat', {
-    method: 'POST',
-    body: JSON.stringify({ model: MODEL, messages, tools: useTools ? TOOLS : undefined, think: false, stream: false, options: { temperature: 0.2, num_predict: 1400 } })
-  });
+  const res = await boundedFetch(
+    OLLAMA + '/api/chat',
+    {
+      method: 'POST',
+      body: JSON.stringify({ model: MODEL, messages, tools: useTools ? TOOLS : undefined, think: false, stream: false, options: { temperature: 0.2, num_predict: 1400 } })
+    },
+    { cls: 'model', label: 'the ollama chat call' }
+  );
   if (!res.ok) throw new Error('ollama HTTP ' + res.status);
   return (await res.json()).message || {};
 }
@@ -254,6 +278,15 @@ function selftest() {
   ck('read_file: reads real file', runTool('read_file', { path: 'package.json' }).includes('"name"'));
   ck('read_file: pages', runTool('read_file', { path: 'CLAUDE.md', start_line: 50 }).includes('lines 50-'));
   ck('grep: finds fixed string', runTool('grep_repo', { text: 'DEFAULT_FLEET' }).includes('mutation-crawl'));
+  /* ∅ `git grep` EXITS 1 FOR "NO MATCHES", so the generic catch used to report a broken TOOL where
+     the truth was an absent symbol. A model cannot act on that difference unless the tool states it. */
+  /* 🔴 THE NEEDLE IS BUILT, NEVER WRITTEN — a literal here is itself a line of the repo, so the first
+     spelling of this leg found its own source and read 2 matches where it wanted none (§👥.4's
+     self-match, applied to a SEARCH TERM rather than a process pattern). */
+  const needle = 'ZqQx' + 'NoSuchString' + 'AnywhereInThisRepo';
+  const noHit = runTool('grep_repo', { text: needle });
+  ck('grep: no match is an ANSWER, never a tool error', noHit.startsWith('NO MATCHES'));
+  ck('grep: …and it names what it searched for', noHit.includes(needle));
   ck('list: jailed', runTool('list_dir', { path: '/etc' }).startsWith('REFUSED'));
   /* 🔴 THE LEG USED TO NAME `doc-search.mjs`, WHICH MADE AN UNRELATED FILE'S ALPHABETICAL POSITION
      LOAD-BEARING. It was entry 80 of `tools/`, the cap's last slot, so adding any file that sorts
