@@ -176,6 +176,70 @@
    "notes": "`obstructive` and `central` are permanently null by the INTEGRATOR-APNEA-TYPING-REVIEW-2026-07-22 withdrawal, and `typingWithdrawn` states that with a machine-readable `withdrawnReason`. So two of the twelve keys carry an absence by ruling and not by a measurement gap, and the gate judges the SURFACE of each one, never its value.",
    "depthNote": "This subtree needed the `routes` list. One source form reads one route, and the two routes here differ in form: a returned variable and a guarded literal. `inlineShape`, `nestedShapes` and `exportMapShape` each returned null on 2026-11-13, so the subtree had no shape at all under the three readers that existed."
   },
+  "cvhrCorroboration": {
+   "builtBy": "fuseCvhrCorroboration",
+   "enumeratedWith": "the depth-1 keys of EVERY `return {` inside fuseCvhrCorroboration(), unioned \u2014 11 on the refusal route at integrator-dsp.js:3667 and 10 on the measured path at :3703. Read from SOURCE in blanked code on 2026-11-15. The builder also holds two `.map` callback returns, at :3677 and :3695, and both sit in a callback scope that `nestedShapes` excludes from the builder's own shape. Both export routes carry the key: the full export writes `cvhrCorroboration: cvhrCorroboration` at :7991 and the slim `var _exp = {` projection attaches it at :8135, so depth 2 agrees with depth 1 here.",
+   "readAs": "an anchored read: `<alias>.<key>` or `<alias>[\"<key>\"]` inside the enclosing function of a site that binds the whole path. No realm holds such a site. `cvhrCorroboration` is named 0 times in integrator-render.js, integrator-app.js and overdex-app.js, so the depth-2 walk finds no alias to anchor on, and no inner key earns a card.",
+   "seededFrom": "Hand-checked on 2026-11-15 against the builder and all three reader realms, from the read sites and never from a token match. The bare-token trap is live in this subtree: `integrator-app.js:674` writes `apnea: { cvhrIndex: ... }`, which carries one of these 11 key names inside a DIFFERENT object, and `integrator-render.js:248` names CVHR in a `cite` string. A token reader would credit a card on either line. The seed is DERIVED from one reading of the builder, so this first green states the shape it read and nothing about a later edit.",
+   "partialShape": {
+    "reason": "Present on the refusal route alone. `fuseCvhrCorroboration:3667` returns the reason beside a null index when a finger PpgDex leg was PRESENT and could not compute an index. The measured path at :3703 has an index, so it carries no reason, and the key is absent rather than null."
+   },
+   "elements": {
+    "corroborator": {
+     "servesKeys": [
+      "corroborators"
+     ],
+     "builtBy": "fuseCvhrCorroboration",
+     "mappedFrom": "checked",
+     "enumeratedWith": "the `.map` return literal of the ONE `var checked =` declaration inside fuseCvhrCorroboration(), at integrator-dsp.js:3695, read by `mapShapes` because that statement is the array's own declaration. 5 keys on one line. The refusal route at :3677 maps the SAME five key names inline inside its own return literal, where the one-declaration rule of this reader cannot reach it, so the element layer rests on the measured route alone. Both routes write `node`, `channel` and `cvhrIndex` from the corroborator, and they differ only in the VALUES of `gapPerH` and `agree`, which the refusal route writes as null because no reference exists to measure against.",
+     "readAs": "an anchored ELEMENT read: a callback or an indexed loop bound on `<alias-or-whole-path>.corroborators` in a declared realm, and a read of that parameter inside the call. No realm holds one, because no realm names `cvhrCorroboration` at all.",
+     "seededFrom": "hand-checked on 2026-11-15 against both map callbacks, line by line. `integrator-app.js:674` writes `apnea: { cvhrIndex: ... }`, which carries one of these element key names inside a DIFFERENT object, so a token reader would credit a card on a line that belongs to another subtree.",
+     "shapeNote": "one line, so the element reader accepts it. The refusal route's twin literal is also one line, and it is unread for the declaration reason above and not for its shape.",
+     "surfaces": {
+      "node": "export-only",
+      "channel": "export-only",
+      "cvhrIndex": "export-only",
+      "gapPerH": "export-only",
+      "agree": "export-only"
+     },
+     "notes": {
+      "node": "Which node produced the corroborating cardiac CVHR index. No realm reads it off an element.",
+      "channel": "Which channel of that node carried the reading, so two channels of one node stay distinct.",
+      "cvhrIndex": "The corroborator's own index in events per hour, never averaged with the finger leg.",
+      "gapPerH": "The absolute gap against the finger-PPI reference, in events per hour. Null on the refusal route, where no reference exists to measure against.",
+      "agree": "Whether that gap is within `CVHR_AGREE_PER_H`. Null on the refusal route, which says `not assessed` and never `disagrees`."
+     }
+    }
+   },
+   "surfaces": {
+    "reference": "export-only",
+    "source": "export-only",
+    "cvhrIndex": "export-only",
+    "reason": "export-only",
+    "unit": "export-only",
+    "tier": "export-only",
+    "corroborators": "export-only",
+    "agreeThresholdPerH": "export-only",
+    "ahiPublished": "export-only",
+    "ahiOwner": "export-only",
+    "note": "export-only"
+   },
+   "notes": {
+    "reference": "Names which signal is the reference measure, `waveform` on both routes. No realm reads it.",
+    "source": "The provenance sentence for the index, which names the finger PPI leg and the Hayano whole-record method. No realm reads it.",
+    "cvhrIndex": "The finger-PPI CVHR index in events per hour, or null on the refusal route. §\u2205 holds here already: the null travels with `reason` and never alone.",
+    "reason": "Why no index exists, carried on the refusal route alone. This is the named reason that splits a refused metric from an absent node, which #3220 and the block comment at :3657 record.",
+    "unit": "The unit string `events/h` for `cvhrIndex`. No realm reads it, and the metric registry carries the unit a surface would print.",
+    "tier": "The evidence tier `emerging`, which the builder comment pins as NOT validated until a real-corpus comparison exists. A reader that surfaced this subtree would owe a badge from the registry rather than this string.",
+    "corroborators": "The other nodes' cardiac CVHR readings, each with its gap against the finger leg. An array of objects, never averaged, so a divergence stays visible.",
+    "agreeThresholdPerH": "The `CVHR_AGREE_PER_H` gap under which a corroborator counts as agreeing. It travels with the data so a consumer need not hold the constant.",
+    "ahiPublished": "The §3.1 (b) marker, always false. It states that this fusion publishes no AHI of its own.",
+    "ahiOwner": "Names `OxyDex.ahiEst` as the only AHI on the bus, so a consumer knows where the one AHI lives.",
+    "note": "The prose sentence a surface would print, built on both routes. It names the index or its absence, the corroborators and their gaps, and the AHI owner."
+   },
+   "nullWhen": "`fusion.cvhrCorroboration` is null when there is no finger-PPI index and no refusal to report: `integrator-dsp.js:3691` returns null when `wave` is absent or no O2Ring record is present, and the refusal route at :3667 needs both a reason and an O2Ring record. Both export routes attach the key only when the object is non-null, so a night with no finger PpgDex leg omits it entirely.",
+   "depthNote": "Depth 3 is judged for this subtree. `corroborators` is an array of objects built by two `.map` callbacks, at integrator-dsp.js:3677 and :3695, and the `elements` block above declares the five keys of the measured route. No realm iterates the array, so every element key is `export-only` and no element read is credited. ONE KEY STAYS IN THE GATE\u2019S OWN DIAGNOSTIC, AND IT OWES NOTHING: `literalKeysNoLayerReadsWhere` names `cvhrCorroboration.note`, because `builderCandidates` counts a key whose value text holds a brace anywhere, and this note is a STRING concatenation that embeds a `.map(function (c) {` callback. The brace belongs to that callback and not to an object the subtree carries, so the diagnostic names a key that can never own a shape layer. The count is non-blocking and it moved from 0 to 1 with this declaration, which is the honest place to record it rather than silence it here."
+  },
   "clockSkew": {
    "inline": true,
    "readerFile": "integrator-app.js",
