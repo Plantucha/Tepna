@@ -142,7 +142,7 @@ module inlined into many bundles moves every carrying app's `manifestHash` at on
 | module | bundles carrying it |
 |---|---|
 | `kernel-constants.js` · `metric-registry.js` · `dex-export.js` | **9 of 9** |
-| **`clock.js`** | **6 of 9** — absent from **GlucoDex · CPAPDex · EEGDex**, where `DexClock` is `undefined` |
+| **`clock.js`** | **7 of 9** — absent from **GlucoDex · CPAPDex**, where `DexClock` is `undefined` |
 
 - **Before delegating anything in a `*-dsp.js` to `DexClock`, check the bundle carries it**
   (`grep -c 'data-inline-src="clock.js"' <App>.html`). An unguarded alias throws at module evaluation
@@ -566,11 +566,12 @@ placeholders).
 - **Fonts:** no woff2, no `@font-face`, no CDN; `'Inter'`/`'IBM Plex Mono'` fall through to system faces
   by design.
 - **`parseTimestamp` is single-sourced in `clock.js` (`DexClock`)**, inlined into
-  **`CLAIM clockBundles = 6`** of the 9 app bundles — oxydex/pulsedex/hrvdex/ecgdex/motiondex delegate
+  **`CLAIM clockBundles = 7`** of the 9 app bundles — oxydex/pulsedex/hrvdex/ecgdex/motiondex delegate
   via local aliases; **ppgdex carries `clock.js` (since 2026-10-29, for `DexClock.hostAxis`) and keeps
-  its node-local parser; glucodex, cpapdex and eegdex do not carry it, so `DexClock` is UNDEFINED
-  there** (a `ReferenceError`, not a fallback). The first three keep deliberate node-local parser
-  variants, and eegdex reads its EDF stamps through `CpapEdf.parseEdfClock` instead. Do not force
+  its node-local parser; eegdex carries it too (since 2026-11-15, for the raw-frame tick axis) and
+  still reads its EDF stamps through `CpapEdf.parseEdfClock`; glucodex and cpapdex do not carry it, so
+  `DexClock` is UNDEFINED there** (a `ReferenceError`, not a fallback). ppgdex, glucodex and cpapdex
+  keep deliberate node-local parser variants. Do not force
   them onto DexClock or reintroduce a mirror. Load `clock.js` before any delegating `*-dsp.js`
   (`dex-coload.js shared:`, worker `importScripts`).
 - `docs-archive/REFACTOR-BRIEF-modularize-Dexes.md`: historical, done.

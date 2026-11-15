@@ -33,20 +33,25 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
 
-function verdictOf({ status, scanned, hits, base, fullTree, baseline }) {
+function verdictOf({ status, scanned, excluded = 0, hits, base, fullTree, baseline, reason = null }) {
   const v = Verdict.make({
     gate: 'absence-regression',
     status,
-    population: { checked: scanned, eligible: scanned, excluded: 0 },
+    population: { checked: scanned, eligible: scanned + excluded, excluded },
     criterion: fullTree
       ? { name: 'the-whole-tree-backlog-of-absence-fabrications-may-only-fall', threshold: baseline ? baseline.count : 0, unit: 'lines fabricating an absent value', direction: 'lte' }
       : { name: 'no-added-line-fabricates-an-absent-value', threshold: 0, unit: 'added lines matching a fixed pattern', direction: 'eq' },
     result:
       status === 'NOT_RUN' && !fullTree
         ? null
-        : { scanned, violations: hits.map((h) => ({ pattern: h.name, line: h.line })), ...(fullTree ? { mode: 'full-tree', baseline: baseline ? baseline.count : null } : {}) },
+        : {
+            scanned,
+            violations: hits.map((h) => ({ pattern: h.name, line: h.line })),
+            notScanned: EXCLUDED_PATHS.map((e) => ({ path: e.path, why: e.why })),
+            ...(fullTree ? { mode: 'full-tree', baseline: baseline ? baseline.count : null } : {})
+          },
     evidence: ['tools/absence-regression.mjs'],
-    reason: status === 'PASS' ? null : status === 'NOT_RUN' ? `0 added lines in ${base}..HEAD — nothing was examined` : `${hits.length} added line(s) fabricate an absent value`,
+    reason: status === 'PASS' ? null : reason ? reason : status === 'NOT_RUN' ? `0 added lines in ${base}..HEAD — nothing was examined` : `${hits.length} added line(s) fabricate an absent value`,
     producedBy: {
       tool: 'tools/absence-regression.mjs',
       commit: (() => {
@@ -67,30 +72,86 @@ function verdictOf({ status, scanned, hits, base, fullTree, baseline }) {
 const PATTERNS = [
   {
     name: 'tms-fabrication',
-    // tMs: <expr> || 0  — but not tMs: <expr> ?? null, and not in tests/
+    // tMs: <expr> || 0  — the fix is tMs: <expr> ?? null, which this shape cannot match
     regex: /tMs:\s*[^,;]*\|\|\s*0/,
     why: 'tMs: x || 0 stamps 1970 on timeless findings — use ?? null (§2a #3366)'
+  },
+  {
+    /* THE t0Ms FAMILY (residue 2026-11-15-absence-regression-misses-the-t0ms-or-zero-family). The tMs
+       shape above never matched it, so 35 sites in 16 files sat outside this gate. Measured live on
+       CPAP: an absent t0Ms read as 1970-01-01 gave spanDays about 20,700 in an export filename and a
+       clockOffsetSec of about 56 years. The lookahead keeps `|| 0.5` and `|| 0x10` out: those are
+       ordinary defaults, not an epoch. */
+    name: 't0ms-fabrication',
+    regex: /t0Ms\)?\s*\|\|\s*0(?![.\w])/,
+    why: 'x.t0Ms || 0 turns an absent recording start into 1970-01-01 — use ?? null and refuse downstream (§∅)'
   }
 ];
+
+/* THE PATHS THIS GATE DOES NOT SCAN, DISCLOSED (residue 2026-11-15-gates-share-an-undisclosed-file-exclusion).
+   A test plants the fabricated shape on purpose, so `tests/` stays out. The gate COUNTS what it skips
+   and the verdict carries that count as `population.excluded`, because a pathspec nobody reads is an
+   exclusion in the dark. */
+export const EXCLUDED_PATHS = [{ path: 'tests/', why: 'the suite plants the fabricated shape on purpose, as a fixture' }];
+const isExcluded = (file) => EXCLUDED_PATHS.some((e) => file.startsWith(e.path));
 
 /**
  * PURE CORE — classify the ADDED lines of a diff. No git, no clock, no fs, so the selftest can plant
  * a violation and a control without a repository.
  *
- * @param {string[]} addedLines  lines beginning with `+` (the `+++` header already removed)
- * @returns {{hits: Array<{name: string, line: string, why: string}>, scanned: number}}
+ * `+++ b/<path>` headers set the current file, so a line under an EXCLUDED path is counted, not
+ * scanned. A context line, a removal or a hunk header ends a run of added lines.
+ *
+ * TWO ESCAPES CLOSED (residue 2026-11-15-absence-regression-classifier-escapes), both proven at runtime:
+ *  1. Any `?? null` on the line used to excuse the whole line, so `tMs: a || 0, note: b ?? null` passed,
+ *     and so did `tMs: a ?? null || 0`, which still yields 0. The shape cannot match the fix, so the
+ *     excuse is gone.
+ *  2. A statement split over two added lines (`tMs:` on one, `x || 0` on the next) matched neither line.
+ *     Each added line is now also read joined to the NEXT added line of its run. The pair counts only
+ *     when neither line matches alone, so one site never counts twice.
+ *
+ * @param {string[]} diffLines  raw `git diff -U0` lines
+ * @returns {{hits: Array<{name: string, line: string, why: string}>, scanned: number, excluded: number}}
  */
-export function classifyAdded(addedLines, patterns = PATTERNS) {
-  const lines = (addedLines || []).filter((l) => typeof l === 'string' && l.startsWith('+') && !l.startsWith('+++'));
+export function classifyAdded(diffLines, patterns = PATTERNS) {
+  const runs = [];
+  let run = null;
+  let file = null;
+  let excluded = 0;
+  for (const l of diffLines || []) {
+    if (typeof l !== 'string') {
+      run = null;
+      continue;
+    }
+    if (l.startsWith('+++')) {
+      file = l.replace(/^\+\+\+ (?:b\/)?/, '');
+      run = null;
+      continue;
+    }
+    if (!l.startsWith('+')) {
+      run = null;
+      continue;
+    }
+    if (file != null && isExcluded(file)) {
+      excluded += 1;
+      continue;
+    }
+    if (!run) {
+      run = [];
+      runs.push(run);
+    }
+    run.push(l.slice(1));
+  }
   const hits = [];
   for (const p of patterns) {
-    for (const l of lines) {
-      /* `?? null` IS the fix, so a line carrying it is not a regression even though it matches the
-         shape. Checked per LINE, not per file: one corrected site must not excuse another. */
-      if (p.regex.test(l) && !l.includes('?? null')) hits.push({ name: p.name, line: l.trim(), why: p.why });
+    for (const r of runs) {
+      for (let i = 0; i < r.length; i += 1) {
+        if (p.regex.test(r[i])) hits.push({ name: p.name, line: r[i].trim(), why: p.why });
+        else if (i + 1 < r.length && !p.regex.test(r[i + 1]) && p.regex.test(`${r[i]} ${r[i + 1].trim()}`)) hits.push({ name: p.name, line: `${r[i].trim()} ⏎ ${r[i + 1].trim()}`, why: p.why });
+      }
     }
   }
-  return { hits, scanned: lines.length };
+  return { hits, scanned: runs.reduce((n, r) => n + r.length, 0), excluded };
 }
 
 export function selftest() {
@@ -114,6 +175,32 @@ export function selftest() {
   ok(classifyAdded([]).hits.length === 0 && classifyAdded([]).scanned === 0, 'CONTROL: an empty diff yields no hit and reports scanning nothing');
   /* A `+++` header can itself contain a path that matches; it is not code. */
   ok(classifyAdded(['+++ b/tMs: x || 0']).scanned === 0, 'CONTROL: the +++ file header is not scanned as code');
+
+  /* THE t0Ms FAMILY — the live CPAP shape, plus the sort-comparator shape that holds most of the backlog. */
+  ok(
+    classifyAdded(['+    var clockOffsetSec = ((a.t0Ms || 0) - (b.t0Ms || 0)) / 1000;']).hits.some((h) => h.name === 't0ms-fabrication'),
+    'a planted `(a.t0Ms || 0)` is caught'
+  );
+  ok(classifyAdded(['+    const t0 = t0Ms || 0;']).hits.length === 1, 'a bare `t0Ms || 0` is caught');
+  ok(classifyAdded(['+    const t0 = rec.t0Ms ?? null;']).hits.length === 0, 'CONTROL: the t0Ms FIX `?? null` is not a violation');
+  ok(classifyAdded(['+    const k = rec.t0Ms || 0.5;', '+    const m = rec.t0Ms || 0x10;']).hits.length === 0, 'CONTROL: `|| 0.5` and `|| 0x10` are ordinary defaults, not an epoch');
+
+  /* THE TWO CLASSIFIER ESCAPES, each planted in the shape the audit proved at runtime. */
+  ok(classifyAdded(['+      tMs: f.stamp || 0, note: g ?? null,']).hits.length === 1, 'ESCAPE 1: a `?? null` elsewhere on the line no longer excuses the fabrication');
+  ok(classifyAdded(['+      tMs: f.stamp ?? null || 0,']).hits.length === 1, 'ESCAPE 1: `?? null || 0` still yields 0 and is caught');
+  const split = classifyAdded(['+      tMs:', '+        f.stamp || 0,']);
+  ok(split.hits.length === 1 && /⏎/.test(split.hits[0].line), 'ESCAPE 2: a statement split over two added lines is caught once, and the hit shows both lines');
+  ok(classifyAdded(['+      tMs: f.stamp || 0,', '+      other: 1,']).hits.length === 1, 'CONTROL: a site that matches alone is not counted again as a pair');
+  ok(classifyAdded(['+      tMs:', ' context line', '+        f.stamp || 0,']).hits.length === 0, 'CONTROL: a context line ends the run, so lines from two places are never joined');
+  ok(classifyAdded(['+      tMs: a,', '+        b || 0,']).hits.length === 0, 'CONTROL: a comma between the two lines ends the expression');
+
+  /* THE DISCLOSED EXCLUSION — counted, not silently dropped. */
+  const ex = classifyAdded(['+++ b/tests/dex-tests.js', '+      tMs: f.stamp || 0,', '+++ b/oxydex-dsp.js', '+      x: 1,']);
+  ok(ex.hits.length === 0 && ex.excluded === 1 && ex.scanned === 1, 'an added line under tests/ is counted as EXCLUDED, not scanned and not lost');
+  ok(
+    EXCLUDED_PATHS.every((e) => typeof e.why === 'string' && e.why.length > 0),
+    'every excluded path carries its reason'
+  );
 
   /* ── THE SHRINK-ONLY RATCHET ──────────────────────────────────────────────────────────────────────
      Four states, and the one that matters most is the THIRD: a count that FELL must not quietly pass,
@@ -175,24 +262,31 @@ function main() {
     process.exit(r.ok ? 0 : 1);
   }
   const asJson = argv.includes('--json');
-  /* ⚠️ NEVER A PR GATE. A whole-tree scan on a PR reports the INHERITED backlog as that PR's findings,
-     blocking work on code the author never touched — which is how a measurement becomes something people
-     route around. Nightly/release only; the PR gate stays diff-scoped and unchanged. */
+  /* --full-tree IS THE RATCHET, AND IT NOW RUNS (residue 2026-11-15-absence-regression-full-tree-ratchet-never-runs).
+     The note here once read "never a PR gate", and nothing ran it anywhere, so the backlog count was a
+     number nobody read. A scan judged against the shrink-only baseline cannot report an inherited
+     backlog as a PR's finding: the inherited count EQUALS the baseline and passes. It fails only when
+     the tree holds MORE fabrications than the ledger records, which is a regression whichever diff
+     carried it, including one the diff-scoped scan cannot see. `verify:absence-backlog` runs it in
+     `npm run check` and in CI. It reads in under a second. */
   const fullTree = argv.includes('--full-tree');
   const baseIdx = process.argv.indexOf('--base');
   const base = fullTree ? EMPTY_TREE : baseIdx >= 0 ? process.argv[baseIdx + 1] : 'HEAD';
   const head = 'HEAD';
 
-  const diff = sh(`git diff ${base}..${head} -U0 -- '*.js' '*.src.html' ':!tests/'`);
-  const { hits, scanned } = classifyAdded(diff.split('\n'));
+  /* No `:!tests/` pathspec: the classifier skips EXCLUDED_PATHS itself, so it can COUNT what it skips. */
+  const diff = sh(`git diff ${base}..${head} -U0 -- '*.js' '*.src.html'`);
+  const { hits, scanned, excluded } = classifyAdded(diff.split('\n'));
 
   if (fullTree) {
     const baseline = readBacklog(join(ROOT, BACKLOG_LEDGER), 'absence-regression', (f) => readFileSync(f, 'utf-8'));
     const r = ratchet(hits.length, baseline);
     if (asJson) {
-      process.stdout.write(`${JSON.stringify(verdictOf({ status: r.status, scanned, hits, base, fullTree: true, baseline }), null, 1)}\n`);
+      process.stdout.write(`${JSON.stringify(verdictOf({ status: r.status, scanned, excluded, hits, base, fullTree: true, baseline, reason: r.reason }), null, 1)}\n`);
     } else {
-      process.stdout.write(`absence-regression --full-tree · ${scanned} line(s) scanned · ${hits.length} fabrication(s)\n`);
+      process.stdout.write(
+        `absence-regression --full-tree · ${scanned} line(s) scanned · ${excluded} under ${EXCLUDED_PATHS.map((e) => e.path).join(', ')} not scanned · ${hits.length} fabrication(s)\n`
+      );
       for (const h of hits) process.stdout.write(`    ${h.name}: ${h.line.slice(0, 110)}\n`);
       process.stdout.write(`  baseline: ${baseline ? baseline.count : '(none yet)'} → ${r.status}${r.reason ? ` — ${r.reason}` : ''}\n`);
     }
@@ -205,7 +299,7 @@ function main() {
      claims and only one of them is evidence. */
   const status = scanned === 0 ? 'NOT_RUN' : hits.length ? 'FAIL' : 'PASS';
   if (asJson) {
-    process.stdout.write(`${JSON.stringify(verdictOf({ status, scanned, hits, base }), null, 1)}\n`);
+    process.stdout.write(`${JSON.stringify(verdictOf({ status, scanned, excluded, hits, base }), null, 1)}\n`);
   } else {
     for (const p of PATTERNS) {
       const n = hits.filter((h) => h.name === p.name).length;
@@ -216,9 +310,15 @@ function main() {
         process.stdout.write(`✓ ${p.name}\n`);
       }
     }
-    if (status === 'NOT_RUN') process.stdout.write(`absence-regression: NOT_RUN — 0 added lines in ${base}..${head}, so nothing was examined\n`);
+    if (status === 'NOT_RUN')
+      process.stdout.write(
+        `absence-regression: NOT_RUN — 0 added lines in ${base}..${head} outside ${EXCLUDED_PATHS.map((e) => e.path).join(', ')} (${excluded} there, not scanned), so nothing was examined\n`
+      );
     else if (status === 'FAIL') process.stderr.write('\nabsence-regression: FAIL — new absence-fabrication patterns introduced\n');
-    else process.stdout.write(`absence-regression: ✓ PASS — ${scanned} added line(s) examined, no new fabrication pattern\n`);
+    else
+      process.stdout.write(
+        `absence-regression: ✓ PASS — ${scanned} added line(s) examined, ${excluded} under ${EXCLUDED_PATHS.map((e) => e.path).join(', ')} not scanned, no new fabrication pattern\n`
+      );
   }
   process.exit(status === 'FAIL' ? 1 : 0);
 }

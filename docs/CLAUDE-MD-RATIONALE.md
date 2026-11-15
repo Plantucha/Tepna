@@ -1350,11 +1350,12 @@ hand-typed version onto source files — `manifestHash` already identifies code 
   flag "missing woff2" — that whole class of warning was removed at the root in June 2026.
 - **`parseTimestamp` single-sourced in `clock.js` (A5 EXECUTED 2026-07-03, owner-ratified).** The former
   "duplicated in every `*-dsp.js`, mirror it" rule is RETIRED: THE canonical Clock-Contract parser now lives
-  in `clock.js` (`DexClock`), inlined by the owned bundler into **`CLAIM clockBundles = 6`** of the 9 app
+  in `clock.js` (`DexClock`), inlined by the owned bundler into **`CLAIM clockBundles = 7`** of the 9 app
   bundles (bundled-local AND single-source) — **NOT all of them**, and that distinction is load-bearing:
   oxydex/pulsedex/hrvdex/ecgdex/motiondex ship the spine and DELEGATE via local aliases; ppgdex inlines it
-  since 2026-10-29 for `hostAxis` only and delegates no parser; **glucodex, cpapdex and eegdex do not inline
-  `clock.js` at all** (until 2026-10-29 ppgdex was a third), so **`DexClock` is UNDEFINED in those
+  since 2026-10-29 for `hostAxis` only and delegates no parser; eegdex inlines it since 2026-11-15 for the
+  raw-frame tick axis and delegates no parser either; **glucodex and cpapdex do not inline
+  `clock.js` at all** (ppgdex left that set on 2026-10-29, and eegdex on 2026-11-15), so **`DexClock` is UNDEFINED in those
   bundles** — a bare `DexClock.x` there is a `ReferenceError`, not a fallback. They keep DELIBERATE
   node-local variants (ppgdex: strict ISO/epoch subset + quote-strip; glucodex: `_ckParse` + MDY numeric
   wrapper; cpapdex: EDF subset; eegdex delegates its EDF stamps to `CpapEdf.parseEdfClock`) — do not force them onto DexClock, and do not reintroduce a mirror.

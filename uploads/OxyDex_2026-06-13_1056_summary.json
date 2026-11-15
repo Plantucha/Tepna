@@ -121,8 +121,8 @@
         {
           "key": "oxyCrash",
           "label": "OxyCrash/hr",
-          "value": 1.1,
-          "displayVal": "1.1/hr",
+          "value": 1,
+          "displayVal": "1/hr",
           "score": 3,
           "sev": "w",
           "cat": null
@@ -378,8 +378,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "55ce50a6dd7e",
-          "computeHash": "60d418e5dcd2"
+          "manifestHash": "6065ad2d2479",
+          "computeHash": "489f933f3eea"
         },
         "evidence": {
           "envelopeRef": null,
@@ -407,8 +407,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "55ce50a6dd7e",
-          "computeHash": "60d418e5dcd2"
+          "manifestHash": "6065ad2d2479",
+          "computeHash": "489f933f3eea"
         },
         "evidence": {
           "envelopeRef": null,
@@ -436,8 +436,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "55ce50a6dd7e",
-          "computeHash": "60d418e5dcd2"
+          "manifestHash": "6065ad2d2479",
+          "computeHash": "489f933f3eea"
         },
         "evidence": {
           "envelopeRef": null,
@@ -465,8 +465,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "55ce50a6dd7e",
-          "computeHash": "60d418e5dcd2"
+          "manifestHash": "6065ad2d2479",
+          "computeHash": "489f933f3eea"
         },
         "evidence": {
           "envelopeRef": null,
@@ -1650,12 +1650,12 @@
       },
       "extras": {
         "spo2Range": 14,
-        "tir9499": 95.1,
+        "tir9499": 95.2,
         "meanSpo2Early": 95.36,
-        "meanSpo2Late": 95.84,
+        "meanSpo2Late": 95.97,
         "hrRange": 37,
         "meanHrEarly": 47.4,
-        "meanHrLate": 54.1,
+        "meanHrLate": 54.2,
         "motionBursts": 14,
         "longestCleanRun": 49.9,
         "nadirDensity": 1.93,
@@ -1711,7 +1711,7 @@
         "ssiBasis": 1
       },
       "circHR": {
-        "circAmplitude": 2.62,
+        "circAmplitude": 2.63,
         "circNadirHour": 2.1
       },
       "spo2Ent": {
@@ -1742,8 +1742,8 @@
         "biLabel": "Irregular"
       },
       "oxyCrash": {
-        "oxyCrashCount": 8,
-        "oxyCrashRate": 1.1
+        "oxyCrashCount": 7,
+        "oxyCrashRate": 1
       },
       "hrnDip": {
         "hrnDip": 11.2,

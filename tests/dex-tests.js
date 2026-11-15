@@ -25652,6 +25652,375 @@
       T.ok('CONTROL · and a measured all-still night is still a zero, not a null', st2.motionColumnAbsent === undefined, 'motionColumnAbsent = ' + JSON.stringify(st2.motionColumnAbsent));
     });
 
+    group('§∅ · OxyDex — an unread stream is not a reading, in the research block', 'oxydex-dsp · absence', function (T) {
+      var B = env.OxyDex && env.OxyDex._bare;
+      var need = ['computeStats', 'computeNightExtras', 'computeHREntropy', 'computeCircadianHR', 'computeRollingMetrics'];
+      var absentFn = need.filter(function (k) {
+        return !B || typeof B[k] !== 'function';
+      });
+      if (absentFn.length) {
+        T.ok('OxyDex._bare exposes the five functions this group reads', false, 'not loaded: ' + absentFn.join(', ') + ' — this group must not read as a pass');
+        return;
+      }
+      /* GROUP G2 of the null-and-zero audit (board #6444 — findings N1-10, N1-42 and N2-3). The
+         research block reported a confident number for a stream the device never measured: a
+         pulseless night published `hrRange` 0, `meanHrEarly` and `meanHrLate` 0, `postDipHrResponse`
+         0, SampEn 0.0022 labelled "Low (regular)" and a `circNadirHour` at the exact midpoint of the
+         night. A fully unread night added `spo2Range` 0, `t95BurdenScore` 0 and a time-in-range share
+         scored against every row rather than the measured ones.
+         🔴 EVERY LEG BELOW HAS A MEASURED CONTROL ON THE SAME SHAPE, because a guard that blanks a
+         real reading is the same defect wearing the other mask. The pulseless night is the
+         discriminator the fully unread night cannot be: it proves the HR guards do not blank the
+         SpO2 members beside them. */
+      var t0 = Date.UTC(2026, 5, 13, 23, 0, 0);
+      var N = 3600;
+      var mk = function (sFn, hFn, count) {
+        var out = [];
+        var lim = count || N;
+        for (var i = 0; i < lim; i++) out.push({ tMs: t0 + i * 1000, t: new Date(t0 + i * 1000), spo2: sFn(i), hr: hFn(i), motion: 0, pi: null });
+        return out;
+      };
+      var exOf = function (rows) {
+        var st = B.computeStats(rows.slice());
+        return B.computeNightExtras(rows.slice(), st, null, null, null, { total: 100 }) || {};
+      };
+      var sOk = function (i) {
+        return 96 + (i % 3);
+      };
+      /* ⚠️ A CONTROL WHOSE VALUE COLLIDES WITH THE DEFECT'S VALUE CANNOT SHOW THE TWO APART, AND MY
+         FIRST TWO TRIES BOTH DID. `58 + (i % 7)` scored SampEn 0.0022 — the very figure N2-3 reports
+         for a pulseless night — and `58 + ((i * 7919) % 13)` only moved it to 0.0023, because a short
+         integer cycle is nearly as regular as nothing at all. A hashed step is genuinely irregular,
+         which is the direction a real night lies in (this file's own measurement: whole-night SampEn
+         ≈ 1.5 on the committed O2Ring corpus). */
+      var hOk = function (i) {
+        return 58 + (((i * 2654435761) >>> 8) % 17);
+      };
+      var nil = function () {
+        return null;
+      };
+      var exM = exOf(mk(sOk, hOk)),
+        exP = exOf(mk(sOk, nil)),
+        exU = exOf(mk(nil, nil));
+
+      // ── CONTROL FIRST · a measured night keeps all seven members, or every leg below is vacuous ──
+      var seven = ['spo2Range', 'tir9499', 'meanSpo2Early', 'meanSpo2Late', 'hrRange', 'meanHrEarly', 'meanHrLate'];
+      var notNum = seven.filter(function (k) {
+        return typeof exM[k] !== 'number';
+      });
+      T.eq('CONTROL · a MEASURED night still reports all seven members (the group is non-vacuous)', notNum.join(',') || '—', '—');
+      T.ok('CONTROL · and its t95BurdenScore is a number', typeof exM.t95BurdenScore === 'number', 't95BurdenScore = ' + JSON.stringify(exM.t95BurdenScore));
+
+      // ── N1-42 · a fully unread night ──
+      T.eq('N1-42 · spo2Range is NULL on an unread night, not a 0 spread', exU.spo2Range, null);
+      T.eq('N1-42 · t95BurdenScore is NULL, not a 0 burden', exU.t95BurdenScore, null);
+      T.eq('N2-3 · hrRange is NULL, not a 0 spread', exU.hrRange, null);
+      T.eq('N1-10 · time-in-range is NULL when nothing was measured', exU.tir9499, null);
+      T.eq('and the split-night SpO2 means are NULL, not 0', JSON.stringify([exU.meanSpo2Early, exU.meanSpo2Late]), '[null,null]');
+      T.eq('and the split-night HR means are NULL, not 0', JSON.stringify([exU.meanHrEarly, exU.meanHrLate]), '[null,null]');
+
+      // ── N2-3 · the pulseless night, which must blank the HR members ONLY ──
+      T.eq('N2-3 · a pulseless night reports NO HR range', exP.hrRange, null);
+      T.eq('N2-3 · and no split-night HR means', JSON.stringify([exP.meanHrEarly, exP.meanHrLate]), '[null,null]');
+      T.ok(
+        'DISCRIMINATOR · its MEASURED SpO2 members survive untouched',
+        typeof exP.spo2Range === 'number' && typeof exP.tir9499 === 'number' && typeof exP.meanSpo2Early === 'number',
+        JSON.stringify([exP.spo2Range, exP.tir9499, exP.meanSpo2Early])
+      );
+
+      /* ── N1-10 · the split-night defect: an absent half must not drag a mean, and the time-in-range
+            denominator is the MEASURED set. This night is in range over 100 % of what it measured. ── */
+      /* ⚠️ THE TWO HALVES MUST NOT OVERLAP, AND MY FIRST VERSION'S DID. `TWO_HR` is
+         `Math.min(n, 7200)`, so over an hour-long night BOTH slices are the whole night and the
+         "late" mean read the measured early half — 96, not null. The leg failed and the leg was
+         wrong. This night runs 16000 rows, so the two 7200-sample slices are disjoint. */
+      var half = mk(
+        function (i) {
+          return i < 8000 ? 96 : null;
+        },
+        nil,
+        16000
+      );
+      var exH = exOf(half);
+      T.eq('N1-10 · a night in range over ALL of its measured time reads 100, not 50', exH.tir9499, 100);
+      T.eq('N1-10 · the measured early half keeps its real mean', exH.meanSpo2Early, 96);
+      T.eq('N1-10 · and the absent late half is NULL, not 0', exH.meanSpo2Late, null);
+
+      // ── N2-3 · SampEn ──
+      T.ok('CONTROL · a measured night still yields a SampEn', typeof (B.computeHREntropy(mk(sOk, hOk)) || {}).sampEn === 'number', JSON.stringify(B.computeHREntropy(mk(sOk, hOk))));
+      T.eq('N2-3 · a pulseless night yields NO entropy, not 0.0022 "Low (regular)"', B.computeHREntropy(mk(sOk, nil)), null);
+      /* COVERAGE ANNOTATES, ABSENCE REFUSES (owner, 2026-09-17): 250 measured HR samples clear the
+         function's own 200-sample floor, so reduced coverage must still produce a value. */
+      var thin = B.computeHREntropy(
+        mk(sOk, function (i) {
+          return i < 250 ? 58 + (((i * 2654435761) >>> 8) % 17) : null;
+        })
+      );
+      T.ok('CONTROL · reduced coverage above the 200-sample floor still yields a SampEn', typeof (thin || {}).sampEn === 'number', JSON.stringify(thin));
+
+      // ── N2-3 · the circadian fit ──
+      var circM = B.computeCircadianHR(
+        mk(sOk, function (i) {
+          return 58 + 6 * Math.sin((2 * Math.PI * i) / N);
+        })
+      );
+      T.ok('CONTROL · a measured night still yields a circadian fit', typeof (circM || {}).circNadirHour === 'number' && circM.circAmplitude > 0, JSON.stringify(circM));
+      T.eq('N2-3 · a pulseless night yields NO circadian fit', B.computeCircadianHR(mk(sOk, nil)), null);
+      /* THE OLD VALUE WAS NOT RANDOM, AND NAMING IT IS THE POINT: with every `y` coerced to 0 the two
+         sums fell to 0, `Math.atan2(0, 0)` returned 0, and the nadir landed at half the recording —
+         0.5 h for this hour-long night. A later edit that restores the coercion reproduces it. */
+      T.ok('…and it is not the midpoint the coerced fit always produced', (B.computeCircadianHR(mk(sOk, nil)) || {}).circNadirHour !== 0.5, JSON.stringify(B.computeCircadianHR(mk(sOk, nil))));
+      /* Coverage again: 3700 measured samples of a 4000-row night clear the same floor the function
+         already applies to rows, so a night with holes is fitted rather than refused. */
+      var gappy = B.computeCircadianHR(
+        mk(
+          sOk,
+          function (i) {
+            return i < 3700 ? 58 + 6 * Math.sin((2 * Math.PI * i) / 4000) : null;
+          },
+          4000
+        )
+      );
+      T.ok('CONTROL · a night with a 300 s hole is still fitted, not refused', typeof (gappy || {}).circNadirHour === 'number', JSON.stringify(gappy));
+      T.ok('…and its amplitude is the real 6 bpm, not the 12.34 the uncentred sum read', Math.abs(((gappy || {}).circAmplitude || 0) - 6) < 0.6, JSON.stringify(gappy));
+
+      // ── N2-3 · postDipHrResponse ──
+      var dips = function (i) {
+        return i % 300 < 20 ? 90 : 97;
+      };
+      var rollM = B.computeRollingMetrics(mk(dips, hOk), null, null, null, null) || {};
+      var rollP = B.computeRollingMetrics(mk(dips, nil), null, null, null, null) || {};
+      T.ok('CONTROL · a measured night still scores a post-dip HR response', typeof rollM.postDipHrResponse === 'number', 'measured = ' + JSON.stringify(rollM.postDipHrResponse));
+      T.eq('N2-3 · a pulseless night scores NO arousal, not a mean of 0 bpm', rollP.postDipHrResponse, null);
+    });
+
+    group('§∅ · OxyDex events — a hole is not an event, in the seven event metrics', 'oxydex-dsp · absence', function (T) {
+      var B = env.OxyDex && env.OxyDex._bare;
+      var need = ['computeOxyCrash', 'computeSpO2Percentiles', 'detectODI', 'computeODRI', 'computeSpikeDecay', 'computeRollingMetrics', 'computePBmetrics', 'computeO2HREfficiency'];
+      var absentFn = need.filter(function (k) {
+        return !B || typeof B[k] !== 'function';
+      });
+      if (absentFn.length) {
+        T.ok('OxyDex._bare exposes the eight functions this group reads', false, 'not loaded: ' + absentFn.join(', ') + ' — this group must not read as a pass');
+        return;
+      }
+      /* GROUP G3 of the null-and-zero audit (board #6444, routed by decision #6446 — findings N1-01,
+         N1-02, N1-03, N1-04, N1-08, N1-09 and N1-11). Each leg pins the DEFECT CASE: the input shape
+         that published an event measurement over seconds the device never recorded. Each one carries a
+         measured control on the same shape, because a guard that blanks a real reading is the same
+         defect wearing the other mask. The file's own contract block states which remedy each site
+         needs: a delta across a hole skips the pair, a run across a hole breaks. */
+      var t0 = Date.UTC(2026, 5, 13, 23, 0, 0);
+      var mk = function (count, sFn, hFn) {
+        var out = [];
+        for (var i = 0; i < count; i++) out.push({ tMs: t0 + i * 1000, t: new Date(t0 + i * 1000), spo2: sFn(i), hr: hFn ? hFn(i) : 58, motion: 0, pi: null });
+        return out;
+      };
+      var flat96 = function () {
+        return 96;
+      };
+      var nil = function () {
+        return null;
+      };
+
+      /* N1-01 · `spo2[i - 30] - null` reads as a fall of the whole saturation, so the hole ENTRY
+         scored a crash indistinguishable from the real-crash control below. */
+      var crashHole = B.computeOxyCrash(
+        mk(1200, function (i) {
+          return i >= 600 && i < 720 ? null : 96;
+        })
+      );
+      T.eq('N1-01 · a 120 s hole in a flat night scores no crash', crashHole && crashHole.oxyCrashCount, 0);
+      var crashReal = B.computeOxyCrash(
+        mk(1200, function (i) {
+          return i >= 600 && i < 640 ? 88 : 96;
+        })
+      );
+      T.ok('N1-01 CONTROL · a real 8-point fall still counts', crashReal && crashReal.oxyCrashCount >= 1, 'count = ' + JSON.stringify(crashReal && crashReal.oxyCrashCount));
+      T.eq('N1-01 · an unmeasured column reports no count at all, never 0', B.computeOxyCrash(mk(1200, nil)), null);
+
+      /* N1-02 · `a - b` coerces null to 0, so every hole sorted below every reading: p25 came back as
+         the hole and `spo2IQR` was `p75 - null`, the whole scale. */
+      var pcts = B.computeSpO2Percentiles(
+        mk(1200, function (i) {
+          return i < 400 ? null : 97;
+        })
+      );
+      T.eq('N1-02 · p25 is a measured saturation, not a hole', pcts && pcts.spo2P25, 97);
+      T.eq('N1-02 · and the IQR is the width of the measured distribution', pcts && pcts.spo2IQR, 0);
+      var pctCtl = B.computeSpO2Percentiles(
+        mk(1200, function (i) {
+          return i < 120 ? 88 : 97;
+        })
+      );
+      T.eq('N1-02 CONTROL · a real low tail still reaches p5', pctCtl && pctCtl.spo2P5, 88);
+      T.eq(
+        'N1-02 · under a minute of measured signal there is no distribution to publish',
+        B.computeSpO2Percentiles(
+          mk(1200, function (i) {
+            return i < 1180 ? null : 97;
+          })
+        ),
+        null
+      );
+
+      /* N1-03 · `Math.max(hrs, 0.01)` divided 0 events by a hundredth of an hour, so a column that
+         measured nothing published ODI 0.0/hr — the most reassuring reading there is. */
+      var allNull = [];
+      for (var k = 0; k < 3600; k++) allNull.push(null);
+      var odiNone = B.detectODI(allNull, 4, 0);
+      T.eq('N1-03 · an unmeasured column yields no ODI rate', odiNone && odiNone.rate, null);
+      T.eq('N1-03 · and no event count either', odiNone && odiNone.count, null);
+      var odiSeries = [];
+      for (var m2 = 0; m2 < 3600; m2++) odiSeries.push(m2 % 120 < 15 ? 91 : 96);
+      var odiCtl = B.detectODI(odiSeries, 4, 3600);
+      T.ok('N1-03 CONTROL · a measured column with real desaturations still rates', odiCtl && typeof odiCtl.rate === 'number' && odiCtl.rate > 0, 'rate = ' + JSON.stringify(odiCtl && odiCtl.rate));
+      T.eq('N1-03 · and a refused index does not become a regularity ratio of zero', B.computeODRI({ odi1Rate: 12 }, odiNone), null);
+
+      /* N1-04 · `null <= baseline + 2` is TRUE, so the first hole after the peak read as the recovery
+         second and a pulse that came back 80 s later was labelled "Fast (<60s)". */
+      var mfm300 = 23 * 60 + 300 / 60;
+      var dec = B.computeSpikeDecay(
+        mk(600, flat96, function (i) {
+          if (i >= 300 && i < 310) return 95;
+          if (i >= 310 && i < 380) return null;
+          return 60;
+        }),
+        [{ baseline: 60, peak: 95, mfm: mfm300 }]
+      );
+      T.ok('N1-04 · the decay is measured to a real sample, not to the hole', dec && dec.spikeDecayMeanS >= 60, 'mean = ' + JSON.stringify(dec && dec.spikeDecayMeanS));
+      var decCtl = B.computeSpikeDecay(
+        mk(600, flat96, function (i) {
+          if (i >= 300 && i < 310) return 95;
+          if (i >= 310 && i < 320) return 70;
+          return 60;
+        }),
+        [{ baseline: 60, peak: 95, mfm: mfm300 }]
+      );
+      T.ok('N1-04 CONTROL · a real fast recovery is still fast', decCtl && decCtl.spikeDecayMeanS < 60, 'mean = ' + JSON.stringify(decCtl && decCtl.spikeDecayMeanS));
+
+      /* N1-08 · the emptiest window was the worst window: a 30-minute hole published `worst10` near a
+         saturation of zero, `worst30minT95` at 100 % and a stable-window count that scored the hole. */
+      var roll = B.computeRollingMetrics(
+        mk(3600, function (i) {
+          return i >= 1000 && i < 2800 ? null : 96;
+        }),
+        null,
+        null,
+        null,
+        null
+      );
+      T.ok('N1-08 · worst10 is a measured saturation', roll && roll.worst10minSpo2 >= 95, 'worst10 = ' + JSON.stringify(roll && roll.worst10minSpo2));
+      T.eq('N1-08 · the worst 30-min T95 share counts measured seconds only', roll && roll.worst30minT95, 0);
+      var rollNone = B.computeRollingMetrics(mk(3600, nil, nil), null, null, null, null);
+      T.eq('N1-08 · an unmeasured night withholds worst10', rollNone && rollNone.worst10minSpo2, null);
+      T.eq('N1-08 · and withholds the stable-window count rather than reporting none', rollNone && rollNone.spo2StableWindows, null);
+      var rollCtl = B.computeRollingMetrics(
+        mk(3600, function (i) {
+          return i >= 1000 && i < 2800 ? 88 : 96;
+        }),
+        null,
+        null,
+        null,
+        null
+      );
+      T.ok('N1-08 CONTROL · a real 30-minute desaturation is still the worst window', rollCtl && rollCtl.worst10minSpo2 <= 89, 'worst10 = ' + JSON.stringify(rollCtl && rollCtl.worst10minSpo2));
+      T.ok('N1-08 CONTROL · and it still fills the worst T95 window', rollCtl && rollCtl.worst30minT95 >= 90, 'T95 = ' + JSON.stringify(rollCtl && rollCtl.worst30minT95));
+      T.ok('N1-08 CONTROL · a measured night still counts its stable windows', rollCtl && rollCtl.spo2StableWindows > 0, 'stable = ' + JSON.stringify(rollCtl && rollCtl.spo2StableWindows));
+
+      /* MY OWN CONTROL FOUND TWO MORE COERCIONS IN THE SAME FUNCTION, outside N1-08's three. A
+         deceleration RUN extended across a 1000 s pulse hole and closed as a qualifying descent,
+         because `null < hr[i - 1]` is TRUE and `decelStartHR - null` is the whole heart rate. And the
+         30-second decoupling pair spanned a hole, where the SIGN it reads came from a second nobody
+         recorded. A run BREAKS at a hole (the owner's 2026-09-17 ruling); a pair is skipped. */
+      var decel = B.computeRollingMetrics(
+        mk(3600, flat96, function (i) {
+          return i >= 1000 && i < 2000 ? null : 58;
+        }),
+        null,
+        null,
+        null,
+        null
+      );
+      T.eq('a 1000 s pulse hole is no deceleration run', decel && decel.hrDecelRuns, 0);
+      var decoup = B.computeRollingMetrics(
+        mk(
+          3600,
+          function (i) {
+            return i >= 1000 && i < 2000 ? null : 96;
+          },
+          function (i) {
+            return 58 + (i % 7);
+          }
+        ),
+        null,
+        null,
+        null,
+        null
+      );
+      T.eq('and no decoupling share is read out of a hole', decoup && decoup.spo2HrDecouplingPct, null);
+      var decelCtl = B.computeRollingMetrics(
+        mk(3600, flat96, function (i) {
+          /* 39 STRICTLY decreasing seconds. An equal pair breaks the run as surely as a hole does,
+             so a ramp that repeats each value never reaches the 30-sample floor. */
+          return i >= 1000 && i < 1040 ? 90 - (i - 1000) : 58;
+        }),
+        null,
+        null,
+        null,
+        null
+      );
+      T.ok('CONTROL · a real sustained deceleration is still a run', decelCtl && decelCtl.hrDecelRuns >= 1, 'runs = ' + JSON.stringify(decelCtl && decelCtl.hrDecelRuns));
+
+      /* N1-09 · one hole took a window the device spent at 96 % and read it as an oscillating window,
+         with an amplitude of the whole saturation and a cycle nobody recorded. */
+      var pb = B.computePBmetrics(
+        mk(600, function (i) {
+          return i >= 100 && i < 160 ? null : 96;
+        }),
+        { episodeCount: 2 }
+      );
+      T.eq('N1-09 · a flat 96 % window with a hole has no PB amplitude', pb && pb.pbAmplitude, null);
+      T.eq('N1-09 · and invents no cycle length', pb && pb.pbCycleLen, null);
+      var pbCtl = B.computePBmetrics(
+        mk(600, function (i) {
+          return i % 40 < 20 ? 88 : 97;
+        }),
+        { episodeCount: 2 }
+      );
+      T.ok('N1-09 CONTROL · a real oscillation still measures its amplitude', pbCtl && pbCtl.pbAmplitude >= 8, 'amplitude = ' + JSON.stringify(pbCtl && pbCtl.pbAmplitude));
+      T.ok('N1-09 CONTROL · and its cycle length', pbCtl && pbCtl.pbCycleLen != null && pbCtl.pbCycleLen > 0, 'cycle = ' + JSON.stringify(pbCtl && pbCtl.pbCycleLen));
+
+      /* N1-11 · an absent pre-window summed as a pulse of zero, so the rise was the whole heart rate
+         and the ratio came out sevenfold — the audit measured 14 against 2. */
+      var effHole = B.computeO2HREfficiency(
+        mk(600, flat96, function (i) {
+          if (i >= 290 && i < 300) return null;
+          if (i >= 305 && i < 335) return 68;
+          return 60;
+        }),
+        { events: [{ depth: 4, nadirIdx: 300 }] }
+      );
+      T.eq('N1-11 · an event with no measured pre-window is not scored', effHole, null);
+      var effCtl = B.computeO2HREfficiency(
+        mk(600, flat96, function (i) {
+          if (i >= 305 && i < 335) return 68;
+          return 60;
+        }),
+        { events: [{ depth: 4, nadirIdx: 300 }] }
+      );
+      T.eq('N1-11 CONTROL · a measured pair still scores its ratio', effCtl && effCtl.o2hrEff, 2);
+      var effHalf = B.computeO2HREfficiency(
+        mk(600, flat96, function (i) {
+          if (i >= 290 && i < 295) return null;
+          if (i >= 305 && i < 335) return 68;
+          return 60;
+        }),
+        { events: [{ depth: 4, nadirIdx: 300 }] }
+      );
+      T.eq('N1-11 · five measured seconds of the pre-window give the measured ratio, not an inflated one', effHalf && effHalf.o2hrEff, 2);
+    });
+
     group('§∅ · OxyDex — a hole is not a reading, in all thirteen consumers', 'oxydex-dsp · absence', function (T) {
       var B = env.OxyDex && env.OxyDex._bare;
       if (!B) {
@@ -28306,7 +28675,7 @@
         T.ok(
           'CLAUDE.md does not claim clock.js reaches EVERY bundle',
           !/clock\.js[^\n]*\n?[^\n]*inlined by the owned bundler into every bundle/.test(C.claudeMd || ''),
-          'three app bundles ship without it; DexClock is undefined there, so "every bundle" is not a rounding error'
+          'two of the nine app bundles ship without it; DexClock is undefined there, so "every bundle" is not a rounding error'
         );
       }
 
@@ -30039,6 +30408,323 @@
         threw = (e && e.message) || String(e);
       }
       T.ok('an unreadable samples-per-record field throws out of the ingest', threw != null && /samples-per-record/.test(threw), threw == null ? 'it returned instead of throwing' : threw);
+    });
+
+    /* Builds a deterministic `<base>_RAW.txt` from `muse-frame.js`'s OWN constants, so the fixture
+       carries no captured byte and no device has to be present. The byte LAYOUT is proved elsewhere,
+       against the capture host's Python reader over a shared synthetic frame; what these groups
+       exercise is the WALK: the gap arithmetic, the measured rate and every named refusal. */
+    function buildMuseRawText(o) {
+      o = o || {};
+      var M = env.MuseFrame,
+        nRec = o.records == null ? 128 * 90 : o.records,
+        gapAt = o.gapAt == null ? 4000 : o.gapAt,
+        gapLen = o.gapLen == null ? 3 : o.gapLen,
+        TICKS_PER_REC = 78125, // TICK_HZ / 128 records per second — the device reader states both
+        HEX = [],
+        lines = [],
+        index = 0,
+        counter = 0,
+        tick = 0,
+        hostMs = Date.UTC(2026, 10, 15, 1, 2, 3, 456),
+        skipped = 0,
+        seed = 12345,
+        i,
+        b;
+      for (b = 0; b < 256; b++) HEX.push((b < 16 ? '0' : '') + b.toString(16));
+      function rnd() {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff;
+      }
+      function p(n, w) {
+        var s = String(n);
+        while (s.length < (w || 2)) s = '0' + s;
+        return s;
+      }
+      function eegRecord(ix, tk, sd) {
+        var fields = [],
+          j,
+          k,
+          bit,
+          rec = new Uint8Array(M.RECORD_SIZE[M.TAG_EEG]);
+        for (j = 0; j < M.EEG_CHANNELS * M.EEG_SAMPLES; j++) fields.push((sd * 7919 + j * 613) % 16384);
+        for (j = 0; j < fields.length; j++)
+          for (bit = 0; bit < M.EEG_WIDTH; bit++)
+            if (Math.floor(fields[j] / Math.pow(2, bit)) % 2) {
+              k = j * M.EEG_WIDTH + bit;
+              rec[M.RECORD_HEAD + (k >> 3)] |= 1 << (k & 7);
+            }
+        rec[0] = M.TAG_EEG;
+        rec[1] = ix & 0xff;
+        rec[2] = tk & 0xff;
+        rec[3] = (tk >> 8) & 0xff;
+        rec[4] = (tk >> 16) & 0xff;
+        return rec;
+      }
+      function row(ctr, rec, hMs, dNs) {
+        var len = M.HEADER_LEN + rec.length,
+          pkt = new Uint8Array(len),
+          hex = [],
+          d = new Date(hMs),
+          j;
+        pkt[0] = o.lengthByte == null ? len : o.lengthByte;
+        pkt[1] = ctr & 0xff;
+        pkt.set(rec, M.HEADER_LEN);
+        for (j = 0; j < len; j++) hex.push(HEX[pkt[j]]);
+        /* §🔒.1 — the capture host writes a FLOATING civil stamp with no zone, so it is built here
+           from `getUTC*` and read back by `DexClock` branch 3 with `offsetMin` null. */
+        var host =
+          d.getUTCFullYear() +
+          '-' +
+          p(d.getUTCMonth() + 1) +
+          '-' +
+          p(d.getUTCDate()) +
+          'T' +
+          p(d.getUTCHours()) +
+          ':' +
+          p(d.getUTCMinutes()) +
+          ':' +
+          p(d.getUTCSeconds()) +
+          '.' +
+          p(d.getUTCMilliseconds(), 3);
+        return host + ';' + (o.blankNs ? '' : dNs) + ';' + (o.blankCounter ? '' : ctr & 0xff) + ';' + (o.blankLength ? '' : len) + ';' + hex.join('');
+      }
+      for (i = 0; i < nRec; i++) {
+        if (i === gapAt && gapLen) {
+          index += gapLen;
+          tick += TICKS_PER_REC * gapLen;
+          hostMs += (1000 / 128) * gapLen;
+          skipped = gapLen;
+        }
+        lines.push(row(counter, eegRecord(index, tick % M.TICK_MOD, i), hostMs + (o.jitterHost ? Math.round((rnd() - 0.5) * 12) : 0), tick * 100));
+        index = (index + 1) & 0xff;
+        counter = (counter + 1 + skipped) & 0xff;
+        skipped = 0;
+        tick += TICKS_PER_REC;
+        hostMs += 1000 / 128;
+      }
+      return lines.join('\n') + '\n';
+    }
+
+    group('The shared device frame reader answers the layout its capture host writes', 'muse · frame · known-answer', function (T) {
+      var M = env.MuseFrame;
+      if (!M) {
+        T.skip('env.MuseFrame available', 'muse-frame.js is not executed by this lane');
+        return;
+      }
+      /* THE BIT READER CANNOT USE A JS BITWISE OPERATOR. `1 << b` and `v & sign` both truncate to 32
+         bits, so an accumulator over `Math.pow(2, b)` is the only exact form up to width 53. Measured
+         2026-11-15 against the capture host's Python at widths 14, 16, 20, 32, 40 and 53: a shift
+         read -1 for an all-ones 32-bit field, and the SIGNED path was wrong above width 31 until the
+         bitwise sign test came out. The three widths this format uses are 14, 16 and 20, so a battery
+         restricted to them cannot see that defect at all. */
+      var ones5 = new Uint8Array([0xff, 0xff, 0xff, 0xff, 0xff]);
+      T.eq('an all-ones 40-bit field reads unsigned', JSON.stringify(M.unpackLsb(ones5, 40, false)), JSON.stringify([1099511627775]));
+      T.eq('the same field reads -1 signed, which a 32-bit sign test gets wrong', JSON.stringify(M.unpackLsb(ones5, 40, true)), JSON.stringify([-1]));
+      T.eq('two 20-bit fields come out least-significant-bit first', JSON.stringify(M.unpackLsb(ones5, 20, false)), JSON.stringify([1048575, 1048575]));
+      /* A width over 53 cannot be held exactly by a double, so this REFUSES rather than returning a
+         rounded field. It is a deliberate divergence from the Python, which is exact at any width,
+         and it is unreachable through the three readers this format needs. */
+      T.eq('a width a double cannot hold exactly refuses', M.unpackLsb(ones5, 54, false), null);
+      T.eq('a width of zero refuses', M.unpackLsb(ones5, 0, false), null);
+
+      /* The loss count is MODULO 256, so a loss of exactly 256 reads as 0 and a repeated counter
+         reads as 255. That is the counter's own blind spot, carried over from the device reader
+         deliberately: a caller that needs certainty beyond 255 lost frames has to read the clock. */
+      T.eq('consecutive counters lose nothing', M.lostBetween(5, 6), 0);
+      T.eq('a counter that wrapped past 255 is still counted', M.lostBetween(250, 2), 7);
+      T.eq('a repeated counter reads as 255 lost, not as 0', M.lostBetween(5, 5), 255);
+      T.eq('the first frame of a chain loses nothing', M.lostBetween(null, 9), 0);
+
+      T.eq('a one-tick step across the 24-bit wrap is one tick', M.tickSeconds(M.TICK_MOD - 1, 0), 1 / M.TICK_HZ);
+      /* The clock unwraps with a SIGNED half-modulus step, so it follows the shorter path. A forward
+         wrap accumulates; a backward step of one tick reads as -1 and not as the whole modulus. A
+         silence longer than the half-modulus therefore aliases, which is why a gap is counted from
+         the record index and never from the clock. */
+      var ck = new M.TickClock();
+      ck.feed(M.TICK_MOD - 500);
+      T.eq('a forward wrap accumulates across the modulus', ck.feed(500), M.TICK_MOD - 500 + 1000);
+      var ck2 = new M.TickClock();
+      ck2.feed(0);
+      T.eq('a one-tick step backwards reads as -1, not as the modulus', ck2.feed(M.TICK_MOD - 1), -1);
+
+      /* Every tokenise refusal is NAMED. A packet that cannot be read is never a packet with no
+         records: the first would hide a framing bug behind an empty answer. */
+      T.eq('a payload under the header length refuses', M.tokenise(new Uint8Array(3)).reason, 'short');
+      T.eq('a length byte that disagrees with the payload refuses', M.tokenise(new Uint8Array([99, 0, 0, 0, 0, 0, 0, 0, 0])).reason, 'length-byte');
+      T.eq('a header with no record refuses rather than reading as empty', M.tokenise(new Uint8Array([9, 0, 0, 0, 0, 0, 0, 0, 0])).reason, 'no-record');
+      var unk = new Uint8Array(10);
+      unk[0] = 10;
+      unk[9] = 0x99;
+      T.eq('an unknown record tag refuses', M.tokenise(unk).reason, 'unknown-tag');
+      var trunc = new Uint8Array(12);
+      trunc[0] = 12;
+      trunc[9] = M.TAG_EEG;
+      T.eq('a record the payload cannot hold refuses', M.tokenise(trunc).reason, 'truncated-record');
+
+      /* The row reader hands the host stamp out AS TEXT. §🔒.2 has one parser, so the node parses it
+         through `DexClock` and nothing here reads a second stamp format. */
+      var one = buildMuseRawText({ records: 1, gapLen: 0 }).trim();
+      var r = M.parseRawRow(one);
+      T.eq('a well-formed row parses', r.reason, null);
+      T.eq('the host stamp comes out as text for the one parser', r.row.hostRaw, '2026-11-15T01:02:03.456');
+      T.eq(
+        'the payload decodes to one EEG record of two samples per channel',
+        JSON.stringify([M.tokenise(r.row.bytes).packet.records.length, M.eegSamples(M.tokenise(r.row.bytes).packet.records[0]).length]),
+        JSON.stringify([1, M.EEG_SAMPLES])
+      );
+      T.eq('a row with the wrong column count refuses', M.parseRawRow('a;b;c').reason, 'column-count');
+      T.eq('a payload that is not hex refuses', M.parseRawRow('a;1;2;3;zz').reason, 'payload-not-hex');
+      T.eq('a length column that disagrees with the payload refuses', M.parseRawRow('a;1;2;999;0000').reason, 'length-column');
+      /* §∅ — the capture host writes an ABSENT device stamp and an absent counter as EMPTY, never as
+         0, because 0 is a legal value for both. The reader carries that absence through as null. */
+      var blank = M.parseRawRow('a;;;4;00000000');
+      T.eq('an absent device stamp and counter come through as null, not as zero', JSON.stringify([blank.row.devNs, blank.row.counter]), JSON.stringify([null, null]));
+      T.eq('a blank line is not a row and not a fault', JSON.stringify(M.parseRawRows('\n\n')), JSON.stringify({ rows: [], refused: {} }));
+    });
+
+    group('EEGDex reads an EEG channel out of raw device frames and writes NaN where frames were lost', 'eegdex · ingest · muse-frames', function (T) {
+      var D = env.EEGDSP;
+      if (!D || !env.MuseFrame) {
+        T.skip('env.EEGDSP and env.MuseFrame available', 'eegdex-dsp.js or muse-frame.js is not executed by this lane');
+        return;
+      }
+      var M = env.MuseFrame,
+        nRec = 128 * 90,
+        gapLen = 3,
+        got = D.ingestMuseRaw(buildMuseRawText({ records: nRec, gapAt: 4000, gapLen: gapLen }));
+      T.ok('the stream ingests', got.ok, got.reason || '');
+      if (!got.ok) return;
+      /* THE RATE IS MEASURED, not asserted. The device reader states 78 125 ticks per EEG record at
+         128 records per second and two samples per record; this reads 256 Hz back out of the tick
+         column alone, so the two agree without either being copied into the other. */
+      T.eq('the rate is measured from the device clock', JSON.stringify([got.fs, got.fsBasis.source, got.fsBasis.samplesPerRecord]), JSON.stringify([256, 'device-tick-median', 2]));
+      T.eq('the median inter-record interval is one 128th of a second', got.fsBasis.medianSec, 0.0078125);
+      /* §∅ — THE LOST SAMPLES ARE NaN AND THE POSITION ADVANCES. Dropping them instead would splice
+         two stretches of signal into one epoch and move every stamp after the gap. */
+      T.eq('the gap occupies its own sample positions', got.samples.length, (nRec + gapLen) * M.EEG_SAMPLES);
+      T.eq(
+        'every absent sample is non-finite, and exactly those',
+        got.samples.filter(function (v) {
+          return !isFinite(v);
+        }).length,
+        gapLen * M.EEG_SAMPLES
+      );
+      T.eq(
+        'the gap is reported where it sits, counted in records and in samples',
+        JSON.stringify(got.frames.gaps),
+        JSON.stringify([{ firstSample: 4000 * M.EEG_SAMPLES, records: gapLen, samples: gapLen * M.EEG_SAMPLES }])
+      );
+      T.eq(
+        'every row was read and every record decoded',
+        JSON.stringify([got.frames.rows, got.frames.eegRecords, got.frames.lostRecords, got.frames.refusedRows, got.frames.unparsable]),
+        JSON.stringify([nRec, nRec, gapLen, {}, {}])
+      );
+      T.ok('a stream with a gap says it is not whole', got.truncated === true, 'truncated read ' + got.truncated);
+      /* §∅ — the device reader states the 14-bit field is raw counts and that the scale is NOT
+         measured, so the amplitude unit is absent rather than asserted as µV. */
+      T.eq('the amplitude unit is undeclared, because nobody calibrated it', got.unit, null);
+      T.eq(
+        'four of the eight channels are identified and the others say so',
+        JSON.stringify(got.channels),
+        JSON.stringify(['left-ear', 'left-forehead', 'right-forehead', 'right-ear', 'unidentified-4', 'unidentified-5', 'unidentified-6', 'unidentified-7'])
+      );
+      T.eq('the default channel is the first the device packs', got.channel, 'left-ear');
+      /* §🔒.1 — the first row's floating stamp, read back with getUTC* so it does not move with TZ. */
+      T.eq('the start stamp is the first row, floating', new Date(got.t0Ms).toISOString(), '2026-11-15T01:02:03.456Z');
+      T.eq('a zone-free host stamp carries no offset and no reason', JSON.stringify([got.offsetMin, got.t0Reason]), JSON.stringify([null, null]));
+
+      /* §🔒.7 — THE HOST AXIS IS REPORTED AND NOT APPLIED. ECGDex gates its own rate correction at a
+         2400 s span, and that knee is a measurement of the H10's crystal over the H10's fragments.
+         Nothing has measured this device, so `fs` stays on the device clock either way. Read
+         `independent` before `ppm`: a host column derived from the device counter is NOT a second
+         clock, and the two streams below differ in that alone. */
+      T.eq('a host stamp derived from the device counter is not a second clock', got.hostAxis.independent, false);
+      var jit = D.ingestMuseRaw(buildMuseRawText({ records: 2000, gapLen: 0, jitterHost: true }));
+      T.eq('a host stamp carrying real jitter is a second clock', jit.hostAxis.independent, true);
+      T.eq('the axis answers over every anchor it was given', JSON.stringify([jit.hostAxis.ok, jit.hostAxis.anchors, jit.hostAxis.n]), JSON.stringify([true, 2000, 2000]));
+      T.eq('the measured rate is the same under both host columns', jit.fs, got.fs);
+
+      /* ── THE DEVICE COLUMN IS DRAWN, SO THE RATE IS A DECLARATION READ BACK ────────────────────
+         Measured 2026-11-15: `drawnShare` 0.9999 — the record tick advances by ONE constant, which
+         is what `clock.js` reads as a synthesised counter rather than a clock (CK_AXIS_DRAWN_SHARE).
+         So the rate this reader publishes is the cadence the device DECLARES through its own
+         counter, and not an independent measurement of it. `fsBasis.source` is the field that says
+         which, and a reader who quotes 256 Hz as measured quotes the device.
+         The five fields below travel for `dex-export.js timingBlock`, whose `timingSource` turns on
+         `deviceDrawn`: a summary carrying `ok` and `independent` ALONE leaves that builder's `drawn`
+         null, and its own comment calls the result an under-claim to `host`. */
+      T.eq('the device tick column is DRAWN - a counter, not a clock', got.hostAxis.deviceDrawn, true);
+      T.ok('...and the share it read that verdict from travels beside it', got.hostAxis.drawnShare > 0.99, 'drawnShare = ' + got.hostAxis.drawnShare);
+      T.eq('...so the rate names its basis rather than claiming a measurement', got.fsBasis.source, 'device-tick-median');
+      T.ok(
+        'the drawn verdict carries the spine own sentence, not a borrowed one',
+        /synthesised counter/.test(String(got.hostAxis.drawnReason)),
+        'drawnReason = ' + JSON.stringify(got.hostAxis.drawnReason)
+      );
+      T.ok('and the inert host column carries its own', /not an independent clock/.test(String(got.hostAxis.inertReason)), 'inertReason = ' + JSON.stringify(got.hostAxis.inertReason));
+      T.ok('the host spread is published, so the independence call is checkable', typeof got.hostAxis.spreadMs === 'number', 'spreadMs = ' + got.hostAxis.spreadMs);
+      /* CONTROL - the two streams differ in the HOST column alone, so a real host column must not
+         move the verdict on the DEVICE column. Measured: spreadMs 0.94 ms against 12.94 ms. */
+      T.eq('CONTROL - a real host column does not make the device counter a clock', jit.hostAxis.deviceDrawn, true);
+      T.eq('CONTROL - and an independent host publishes no inert reason', jit.hostAxis.inertReason, null);
+
+      /* THE WHOLE POINT OF THE NaN. A dropout reaches the node's EXISTING absence vocabulary, so no
+         new reason key was invented for it: `epochBands` already refuses an epoch holding a hole,
+         and `epochAbsence` already answers `partial-hole`. The owner's 2026-09-17 ruling is that a
+         DISCONTINUITY refuses while reduced coverage annotates, and a 23 ms seam is a discontinuity:
+         it costs its own epoch and leaves the other two scored. */
+      var res = D.compute(got);
+      T.ok('the ingested frame computes', !res.err, res.err || '');
+      if (res.err) return;
+      T.eq('90 s at the measured rate is three epochs', res.nEpochs, 3);
+      T.eq('the epoch holding the gap is refused, and it names the gap', JSON.stringify(res.absentReasons), JSON.stringify({ 'partial-hole': 1 }));
+      T.eq(
+        'the refused epoch is the one the gap sits in',
+        JSON.stringify(
+          res.hypnogram.map(function (h) {
+            return h.absentReason;
+          })
+        ),
+        JSON.stringify([null, 'partial-hole', null])
+      );
+      T.eq('the other two epochs still score', JSON.stringify(res.quality), JSON.stringify({ analyzablePct: 66.7, nUnscorable: 1 }));
+      T.eq('the provenance the frame carried through compute', JSON.stringify([res.channel, res.source, res.fs, res.durSec, res.unit]), JSON.stringify(['left-ear', 'muse-raw', 256, 90, null]));
+    });
+
+    group('Every raw-frame ingest refusal is named', 'eegdex · ingest · muse-refusals', function (T) {
+      var D = env.EEGDSP;
+      if (!D || !env.MuseFrame) {
+        T.skip('env.EEGDSP and env.MuseFrame available', 'eegdex-dsp.js or muse-frame.js is not executed by this lane');
+        return;
+      }
+      var txt = buildMuseRawText({ records: 400, gapLen: 0 });
+      /* Both the frame reader and the clock live in other modules, so a realm that did not load one
+         gets a NAMED refusal. A silent guard would turn a load-order bug into "this file holds no
+         EEG", which is the same class of lie one layer up. */
+      T.eq('a realm without the frame reader refuses by name', D.ingestMuseRaw(txt, { frame: {} }).reason, 'frame-reader-absent');
+      T.eq('a realm without the clock refuses by name', D.ingestMuseRaw(txt, { clock: {} }).reason, 'clock-absent');
+      T.eq('a file with no row refuses', D.ingestMuseRaw('').reason, 'no-row');
+      T.eq('a channel the caller named and the device lacks refuses', D.ingestMuseRaw(txt, { channel: 'Cz' }).reason, 'named-channel-absent');
+      /* A rate from fewer than three intervals is not a rate, for the reason `DexClock.hostAxis`
+         refuses below three anchors: two points cannot disagree. */
+      var one = D.ingestMuseRaw(txt.split('\n')[0] + '\n');
+      T.eq('one row cannot state a rate, and says how little it had', JSON.stringify([one.ok, one.reason, one.eegRecords, one.cleanSteps]), JSON.stringify([false, 'no-sample-rate', 1, 0]));
+      /* A payload holding only records of other tags is not an EEG file. The count of what it DID
+         hold rides the refusal, so a reader is never left to guess whether anything was examined. */
+      var batteryOnly = '2200' + '00000000000000' + '8800' + '000000' + '0000000000000000000000000000000000000000';
+      var noEeg = D.ingestMuseRaw('2026-11-15T01:02:03.456;1;0;34;' + batteryOnly + '\n');
+      T.eq('a stream with no EEG record refuses and says what it read', JSON.stringify([noEeg.ok, noEeg.reason]), JSON.stringify([false, 'no-eeg-record']));
+      /* §∅ — an unreadable row is TALLIED BY REASON rather than dropped. A refusal count of zero
+         beside a row count would otherwise be the only evidence that anything was skipped. */
+      var mixed = D.ingestMuseRaw(txt + 'a;b;c\n' + 'a;1;2;999;0000\n');
+      T.eq('unreadable rows are counted by their own reason', JSON.stringify(mixed.frames.refusedRows), JSON.stringify({ 'column-count': 1, 'length-column': 1 }));
+      T.ok('a stream with a refused row says it is not whole', mixed.truncated === true, 'truncated read ' + mixed.truncated);
+      /* A row whose counter column is blank BREAKS THE CHAIN. The next step is then unexamined
+         rather than read across a frame nobody counted, so the loss count does not grow. */
+      var noCtr = D.ingestMuseRaw(buildMuseRawText({ records: 400, gapAt: 100, gapLen: 2, blankCounter: true }));
+      T.eq('a blank counter column leaves the notification loss at zero', noCtr.frames.lostFrames, 0);
+      T.eq('and the record index still counts the lost records', noCtr.frames.lostRecords, 2);
     });
 
     group('The EEGDex node export carries one event per stage transition', 'eegdex · export · ganglior', function (T) {
@@ -76872,18 +77558,22 @@
        assertion stays green. Same for each app's authored `<script src>` sequence.
        So the gap is real and narrow: the invariant holds today BY CONSTRUCTION and by nothing else.
 
-       MEASURED 2026-09-27 before writing a line of it — the population is exactly CLAUDE.md's
-       `CLAIM clockBundles = 5`: ECGDex · HRVDex · MotionDex · OxyDex · PulseDex carry `clock.js` AND a
-       delegating DSP, all five in the right order; CPAPDex, GlucoDex and PpgDex carry neither (the three
-       deliberate non-carriers, §✅); Integrator carries `clock.js` and no delegating DSP. Asserted on the
+       MEASURED 2026-09-27 before writing a line of it — ECGDex · HRVDex · MotionDex · OxyDex · PulseDex
+       carry `clock.js` AND a delegating DSP, all five in the right order; CPAPDex and GlucoDex carry
+       neither (§✅); Integrator carries `clock.js` and no delegating DSP.
+       ⚠ THE TWO SETS HAVE SINCE SEPARATED, so this group's five is NOT the CLAIM any more. PpgDex
+       inlined `clock.js` on 2026-10-29 and EEGDex on 2026-11-15, each for `hostAxis` and neither with a
+       delegating DSP, so `CLAIM clockBundles` reads 7 of 9 while the set below stays five. Asserted on the
        AUTHORED `.src.html`, because that is where a human reorders — the bundle's inline blocks are the
        builder's output and follow it. */
     group('clock.js loads before every delegating DSP — manifest order and authored order', 'co-load · order · clock · §✅', function (T) {
       var M = env.DexCoload;
       var SH = env.srcHtml;
-      /* The five DSPs that ALIAS DexClock at load. ppgdex/glucodex/cpapdex are deliberately absent:
-         they carry node-local variants and `DexClock` is undefined there (§✅), so listing them here
-         would demand a clock.js their bundles must not have. */
+      /* The five DSPs that ALIAS DexClock at load. Four nodes are deliberately absent, for TWO
+         different reasons, and only one of them is about the bundle. glucodex/cpapdex carry node-local
+         variants and `DexClock` is undefined there (§✅), so listing them would demand a clock.js their
+         bundles must not have. ppgdex/eegdex DO carry clock.js, for `DexClock.hostAxis`, and still alias
+         no parser at load — so their absence here says nothing about their bundle. */
       var DELEGATING = ['ecgdex-dsp.js', 'hrvdex-dsp.js', 'motiondex-dsp.js', 'oxydex-dsp.js', 'pulsedex-dsp.js'];
 
       /* ── P1 · the manifest's own order ─────────────────────────────────────────────────────────── */
@@ -76954,12 +77644,14 @@
 
       /* ── THE POPULATION AS TWO EQUALITIES, ONE PER BUNDLE FAMILY ────────────────────────────────
          Deriving the shell list surfaced that the carriers are not one set but two: the five APP shells
-         CLAUDE.md counts as `CLAIM clockBundles = 5`, plus the two ORCHESTRATOR shells it counts
+         that carry a delegating DSP, plus the two ORCHESTRATOR shells CLAUDE.md counts
          separately as `CLAIM orchestrators = 2`, which co-load the same DSPs. Asserting one merged set of
          seven would corroborate neither claim; asserting them apart corroborates both, and a node moving
          between families reds instead of being absorbed. */
       /* ── TWO FAMILIES, TWO EQUALITIES (restored 2026-09-27) ─────────────────────────────────────
-         The carriers are not one set. Five APP shells are what CLAUDE.md counts as `CLAIM clockBundles = 5`;
+         The carriers are not one set. Five APP shells carry a DELEGATING DSP, and that five is NOT what
+         the CLAIM counts: `CLAIM clockBundles` counts every app shell that INLINES clock.js, which is 7 of
+         9 since 2026-11-15, so PpgDex and EEGDex are in the claim and absent from the set below;
          the two ORCHESTRATOR shells co-load the same DSPs and are counted separately as
          `CLAIM orchestrators = 2`. This was written as a merged set of seven first, which corroborates
          neither claim, then scoped to apps only while the orchestrator shells were excluded from
@@ -76976,7 +77668,7 @@
         return ORCH.indexOf(n) >= 0;
       });
       T.eq(
-        'the APP shells carrying a delegating DSP are exactly the five §✅ names (PpgDex also carries clock.js, CLAIM clockBundles = 6, and delegates nothing at load)',
+        'the APP shells carrying a delegating DSP are exactly the five §✅ names (PpgDex and EEGDex also carry clock.js, CLAIM clockBundles = 7, and delegate nothing at load)',
         appCarriers.sort().join(','),
         'ECGDex,HRVDex,MotionDex,OxyDex,PulseDex',
         'the delegating set changed. If a node started delegating to DexClock its shell must also load clock.js; if one stopped, CLAUDE.md CLAIM clockBundles must move with it.'
@@ -77239,6 +77931,15 @@
         'cpapdex-coimport.js': 'CpapCoimport',
         // node compute aux that exposes a runtime surface
         'cpapdex-edf.js': 'CpapEdf',
+        /* ADDED 2026-11-15. The shared raw device frame reader, classified the same way as the EDF
+           reader above it and for the same reason: it is a FORMAT reader with one namespaced global
+           and a compute surface, not a DOM helper, so it earns the teeth of leg (2) rather than a
+           reason-stamped exemption. This gate is what caught it — the module was bundled by
+           `EEGDex.src.html` and classified nowhere, which is the `cpapdex-cross.js` class the group
+           header names. Both lanes execute it: `muse · frame · known-answer` drives its tokenizer
+           and counter arithmetic directly, and `eegdex · ingest · muse-frames` drives it through
+           `EEGDSP.ingestMuseRaw`. */
+        'muse-frame.js': 'MuseFrame',
         'cpapdex-fusion.js': 'CpapFusion',
         'ecgdex-morph.js': 'ECGMorph',
         'ppgdex-morph.js': 'PPGMorph',

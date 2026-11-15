@@ -48,15 +48,6 @@
   "summary": {
     "ranked": [
       {
-        "key": "worst10",
-        "label": "Worst 10min SpO₂",
-        "value": 0,
-        "displayVal": "0%",
-        "score": 10,
-        "sev": "r",
-        "cat": null
-      },
-      {
         "key": "hbRate",
         "label": "Hypoxic Burden",
         "value": 14.2,
@@ -102,15 +93,6 @@
         "cat": null
       },
       {
-        "key": "oxyCrash",
-        "label": "OxyCrash/hr",
-        "value": 3,
-        "displayVal": "3/hr",
-        "score": 6,
-        "sev": "r",
-        "cat": null
-      },
-      {
         "key": "minSpo2",
         "label": "Min SpO₂",
         "value": 88,
@@ -127,6 +109,15 @@
         "score": 5,
         "sev": "w",
         "cat": "hr"
+      },
+      {
+        "key": "oxyCrash",
+        "label": "OxyCrash/hr",
+        "value": 2.5,
+        "displayVal": "2.5/hr",
+        "score": 3,
+        "sev": "w",
+        "cat": null
       },
       {
         "key": "desSev",
@@ -154,6 +145,15 @@
         "score": 2,
         "sev": "g",
         "cat": "spo2"
+      },
+      {
+        "key": "worst10",
+        "label": "Worst 10min SpO₂",
+        "value": 94.29,
+        "displayVal": "94.29%",
+        "score": 2,
+        "sev": "g",
+        "cat": null
       },
       {
         "key": "aai",
@@ -284,15 +284,6 @@
     ],
     "top5": [
       {
-        "key": "worst10",
-        "label": "Worst 10min SpO₂",
-        "value": 0,
-        "displayVal": "0%",
-        "score": 10,
-        "sev": "r",
-        "cat": null
-      },
-      {
         "key": "hbRate",
         "label": "Hypoxic Burden",
         "value": 14.2,
@@ -327,10 +318,19 @@
         "score": 9,
         "sev": "r",
         "cat": "spo2"
+      },
+      {
+        "key": "recIdx",
+        "label": "Recovery Idx",
+        "value": 0.334,
+        "displayVal": 0.334,
+        "score": 8,
+        "sev": "r",
+        "cat": null
       }
     ],
-    "impression": "Moderate burden: worst 10-min SpO₂ 0%, HB rate 14.2 %-min/hr.",
-    "overallScore": 10
+    "impression": "Moderate burden: HB rate 14.2 %-min/hr, SBII 64.317 %²·min/hr.",
+    "overallScore": 9
   },
   "odi4": {
     "rate": 2,
@@ -370,8 +370,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "55ce50a6dd7e",
-        "computeHash": "60d418e5dcd2"
+        "manifestHash": "6065ad2d2479",
+        "computeHash": "489f933f3eea"
       },
       "evidence": {
         "envelopeRef": null,
@@ -399,8 +399,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "55ce50a6dd7e",
-        "computeHash": "60d418e5dcd2"
+        "manifestHash": "6065ad2d2479",
+        "computeHash": "489f933f3eea"
       },
       "evidence": {
         "envelopeRef": null,
@@ -428,8 +428,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "55ce50a6dd7e",
-        "computeHash": "60d418e5dcd2"
+        "manifestHash": "6065ad2d2479",
+        "computeHash": "489f933f3eea"
       },
       "evidence": {
         "envelopeRef": null,
@@ -457,8 +457,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "55ce50a6dd7e",
-        "computeHash": "60d418e5dcd2"
+        "manifestHash": "6065ad2d2479",
+        "computeHash": "489f933f3eea"
       },
       "evidence": {
         "envelopeRef": null,
@@ -843,12 +843,12 @@
       "odriLabel": "Moderate"
     },
     "spo2Pct": {
-      "spo2P5": null,
-      "spo2P10": null,
-      "spo2P25": null,
+      "spo2P5": 96,
+      "spo2P10": 96,
+      "spo2P25": 96,
       "spo2P75": 97,
       "spo2P90": 97,
-      "spo2IQR": 97
+      "spo2IQR": 1
     },
     "spo2Shape": {
       "spo2Mean": 96.37,
@@ -1212,12 +1212,12 @@
     },
     "extras": {
       "spo2Range": 9,
-      "tir9499": 73,
-      "meanSpo2Early": 72.28,
-      "meanSpo2Late": 72.28,
+      "tir9499": 97.4,
+      "meanSpo2Early": 96.37,
+      "meanSpo2Late": 96.37,
       "hrRange": 16,
-      "meanHrEarly": 43.6,
-      "meanHrLate": 43.6,
+      "meanHrEarly": 58.1,
+      "meanHrLate": 58.1,
       "motionBursts": 0,
       "longestCleanRun": 27.6,
       "nadirDensity": 1.5,
@@ -1225,13 +1225,13 @@
       "odi41ratio": 0.8
     },
     "rolling": {
-      "worst10minSpo2": 0,
-      "worst30minT95": 100,
-      "spo2StableWindows": 20,
+      "worst10minSpo2": 94.29,
+      "worst30minT95": 8.6,
+      "spo2StableWindows": 14,
       "cdi": 0,
       "postDipHrResponse": -0.3,
       "hrDecelRuns": 0,
-      "spo2HrDecouplingPct": 42.9,
+      "spo2HrDecouplingPct": 50,
       "intraNightNSI": [
         11,
         9
@@ -1263,8 +1263,8 @@
       "reason": "absence-run"
     },
     "hrEnt": {
-      "sampEn": 0.0371,
-      "sampEnLabel": "Low (regular)"
+      "sampEn": 0.623,
+      "sampEnLabel": "Normal"
     },
     "ssi": {
       "ssi": 0.06,
@@ -1272,8 +1272,8 @@
       "ssiBasis": 1
     },
     "circHR": {
-      "circAmplitude": 26.45,
-      "circNadirHour": 1.2
+      "circAmplitude": 1.11,
+      "circNadirHour": 0.9
     },
     "spo2Ent": {
       "spo2SampEn": 0.0165,
@@ -1303,8 +1303,8 @@
       "biLabel": "Irregular"
     },
     "oxyCrash": {
-      "oxyCrashCount": 6,
-      "oxyCrashRate": 3
+      "oxyCrashCount": 5,
+      "oxyCrashRate": 2.5
     },
     "hrnDip": {
       "hrnDip": 12.2,
