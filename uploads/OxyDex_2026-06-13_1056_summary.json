@@ -121,8 +121,8 @@
         {
           "key": "oxyCrash",
           "label": "OxyCrash/hr",
-          "value": 1.1,
-          "displayVal": "1.1/hr",
+          "value": 1,
+          "displayVal": "1/hr",
           "score": 3,
           "sev": "w",
           "cat": null
@@ -378,8 +378,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "e96750b3f5ba",
-          "computeHash": "ffb60ced82d3"
+          "manifestHash": "6065ad2d2479",
+          "computeHash": "489f933f3eea"
         },
         "evidence": {
           "envelopeRef": null,
@@ -407,8 +407,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "e96750b3f5ba",
-          "computeHash": "ffb60ced82d3"
+          "manifestHash": "6065ad2d2479",
+          "computeHash": "489f933f3eea"
         },
         "evidence": {
           "envelopeRef": null,
@@ -436,8 +436,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "e96750b3f5ba",
-          "computeHash": "ffb60ced82d3"
+          "manifestHash": "6065ad2d2479",
+          "computeHash": "489f933f3eea"
         },
         "evidence": {
           "envelopeRef": null,
@@ -465,8 +465,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "e96750b3f5ba",
-          "computeHash": "ffb60ced82d3"
+          "manifestHash": "6065ad2d2479",
+          "computeHash": "489f933f3eea"
         },
         "evidence": {
           "envelopeRef": null,
@@ -1742,8 +1742,8 @@
         "biLabel": "Irregular"
       },
       "oxyCrash": {
-        "oxyCrashCount": 8,
-        "oxyCrashRate": 1.1
+        "oxyCrashCount": 7,
+        "oxyCrashRate": 1
       },
       "hrnDip": {
         "hrnDip": 11.2,

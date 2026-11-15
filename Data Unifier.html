@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="8279f238b233" data-compute-hash="85c544d2f7d3"><head>
+<html lang="en" data-manifest-hash="31fa9f0b9655" data-compute-hash="20e26166eb7b"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-NmhOOy1eWo1a0Q4a5IUaMOCr0RXVD8rVFdEBdP5AzUw=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-WCQTLVkSv1QgSOi2vvBHY7+NBC4URxQt6+ufi6R/3qU=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-bLaOPCCzJ6ucv2cYT7gXT3wMKeYyQgCMbOFas3IV7BM=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-i0Sm5seKz/22C1rTuIDz5PXWmQKSkXwkwamG+kYKUzQ=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-nSX5PyficygrKiE1nMcWzryB3NzRaFnC7XbRTBpJZiY=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRD8QQPzioAcVYb7sBOZRWYs9wSe3Wz3WOcdMsZStHQ=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-NmhOOy1eWo1a0Q4a5IUaMOCr0RXVD8rVFdEBdP5AzUw=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-WCQTLVkSv1QgSOi2vvBHY7+NBC4URxQt6+ufi6R/3qU=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-bLaOPCCzJ6ucv2cYT7gXT3wMKeYyQgCMbOFas3IV7BM=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-i0Sm5seKz/22C1rTuIDz5PXWmQKSkXwkwamG+kYKUzQ=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -5984,17 +5984,33 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     // Re-detect crossing times to compute inter-crossing intervals
     var crossingTimes = [];
     var amplitudes = [];
+    /* §∅ N1-09 — ONE ABSENT SECOND INVENTED A PERIODIC-BREATHING EPISODE (residue
+       2026-11-15-oxydex-pbmetrics-one-null-invents-a-cycle). Three coercions sit in this one window
+       loop, all of them the same `null → 0`:
+         · `segMean` summed holes as 0 % and fell under THRESH, so a window with dropout entered the
+           loop as an OSCILLATING window;
+         · `seg[i] < THRESH` is TRUE for a hole, so each absent second registered as a downward
+           crossing and `crossingTimes` filled with transitions nobody recorded — the invented
+           298-second cycle in the row above;
+         · `Math.min.apply(null, seg)` reads a hole as 0, so `mx - mn` published an amplitude of the
+           whole saturation, the measured 97.
+       The window mean and the amplitude are over the samples that EXIST, under this file's 60-sample
+       support floor for a statistic over this column. The crossing walk SKIPS THE PAIR at a hole and
+       leaves `lastDir` alone: a crossing is a statement about two adjacent seconds, so across a hole
+       the transition was never observed — but `lastDir` records the side the signal was last seen on,
+       which a gap does not change, and resetting it would have manufactured a crossing at the first
+       measured sample after every dropout. */
+    var PB_MIN_MEASURED = 60;
     for (var w = 0; w + WIN <= n; w += WIN) {
       var seg = spo2.slice(w, w + WIN);
-      var segMean =
-        seg.reduce(function (a, b) {
-          return a + b;
-        }, 0) / seg.length;
-      if (segMean >= THRESH) continue; // not an oscillating window
+      var _segStat = _avgPresent(seg);
+      if (!_segStat || _segStat.n < PB_MIN_MEASURED) continue;
+      if (_segStat.mean >= THRESH) continue; // not an oscillating window
       var _lastCross = -1,
         lastDir = 0,
         localCross = [];
       for (var i = 1; i < seg.length; i++) {
+        if (!_has(seg[i])) continue;
         var dir = seg[i] > THRESH ? 1 : seg[i] < THRESH ? -1 : 0;
         if (dir !== lastDir && dir !== 0) {
           localCross.push(w + i);
@@ -6003,10 +6019,9 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         }
       }
       if (localCross.length >= 2) crossingTimes = crossingTimes.concat(localCross);
-      // Amplitude: max - min within window
-      var mx = seg.length ? Math.max.apply(null, seg) : 0,
-        mn = seg.length ? Math.min.apply(null, seg) : 0;
-      amplitudes.push(mx - mn);
+      // Amplitude: max - min within window, over the measured samples
+      var _segMeas = seg.filter(_has);
+      amplitudes.push(Math.max.apply(null, _segMeas) - Math.min.apply(null, _segMeas));
     }
 
     // PB cycle length: mean interval between consecutive crossings (full cycle = 2 crossings)
@@ -6350,7 +6365,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
 
     // ODI-4/ODI-1 ratio (depth distribution index)
     var odi41ratio = null;
-    if (odi4 && odi1 && odi1.odi1Rate > 0) {
+    // ∅ `null / rate` is 0, so a refused ODI-4 published a depth-distribution index of 0.000.
+    if (odi4 && _has(odi4.rate) && odi1 && odi1.odi1Rate > 0) {
       odi41ratio = +(odi4.rate / odi1.odi1Rate).toFixed(3);
     }
 
@@ -6387,17 +6403,25 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var W5 = 300; // 5-min
     var durationHr = n / 3600;
 
+    /* §∅ N1-08 — THE WORST WINDOW WAS THE EMPTIEST WINDOW (residue
+       2026-11-15-oxydex-rolling-metrics-read-null-windows-as-worst). Three statistics in this
+       function read absence as a measurement, and this is the first: `reduce((a, b) => a + b, 0)`
+       coerces every absent second to a saturation of 0, so a 10-minute window the sensor spent off
+       read as a mean near zero and won `worst10` outright — the worst SpO2 on record, out of a
+       window with no record. Each window's mean is over the samples that EXIST, through the house
+       helper, and a window must carry the support this file already requires of a published statistic
+       over this column (60 samples: `computeSpO2Shape`'s `m < 60`, the 5-minute binner's
+       `hrCovered >= 60`). `worst10` is null when no window reached that floor, never the old 0,
+       which read as a saturation of zero — the worst value the scale holds. */
+    var ROLL_MIN_MEASURED = 60;
     // Worst 10-min SpO2 window
-    var worst10 = 100;
+    var worst10 = null;
     for (var i = 0; i + W10 <= n; i += 60) {
-      var seg = spo2.slice(i, i + W10);
-      var m =
-        seg.reduce(function (a, b) {
-          return a + b;
-        }, 0) / seg.length;
-      if (m < worst10) worst10 = m;
+      var _w10 = _avgPresent(spo2.slice(i, i + W10));
+      if (!_w10 || _w10.n < ROLL_MIN_MEASURED) continue;
+      if (worst10 == null || _w10.mean < worst10) worst10 = _w10.mean;
     }
-    worst10 = isFinite(worst10) ? +worst10.toFixed(2) : 0;
+    worst10 = worst10 != null && isFinite(worst10) ? +worst10.toFixed(2) : null;
 
     // Worst 30-min T95 window
     // ∅ null until a 30-min window is evaluated: at 10–30 min of data the loop never runs, and the old 0 published
@@ -6405,28 +6429,40 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var worstT95 = null;
     for (var i = 0; i + W30 <= n; i += 60) {
       var seg = spo2.slice(i, i + W30);
-      var cnt = seg.filter(function (v) {
-        return v < 95;
-      }).length;
-      var pct = (cnt / seg.length) * 100;
+      /* §∅ `null < 95` is TRUE and the denominator was the window LENGTH, so each absent second
+         counted as a second below 95 % over a count that never dropped: a 30-minute hole published
+         T95 = 100 %, the worst window of the night, manufactured. Both sides read the measured
+         samples now — the share this file states beside `nSpo2` ("every rate below divides by the
+         measured count") — under the same support floor as `worst10`. */
+      var _t95N = 0,
+        _t95Below = 0;
+      for (var _ti = 0; _ti < seg.length; _ti++) {
+        if (!_has(seg[_ti])) continue;
+        _t95N++;
+        if (seg[_ti] < 95) _t95Below++;
+      }
+      if (_t95N < ROLL_MIN_MEASURED) continue;
+      var pct = (_t95Below / _t95N) * 100;
       if (worstT95 == null || pct > worstT95) worstT95 = pct;
     }
     worstT95 = worstT95 != null && isFinite(worstT95) ? +worstT95.toFixed(1) : null;
 
+    /* §∅ A WINDOW OF HOLES IS NOT A STABLE WINDOW. With every sample absent the present-blind mean
+       is 0 and each `(null - 0)` term is 0, so the SD came out at exactly 0 and the window scored as
+       the calmest kind there is. The SD is over the present samples on the present mean, through the
+       house helper, and a window below the support floor is not scored at all. `_stableScored`
+       carries the population: with no scorable window the count is null, because "no window was
+       stable" and "no window was examined" are different facts and 0 states the first. */
     // SpO2 stable windows (5-min with SD < 1%)
-    var stableWins = 0;
+    var stableWins = 0,
+      _stableScored = 0;
     for (var i = 0; i + W5 <= n; i += W5) {
-      var seg = spo2.slice(i, i + W5);
-      var mean =
-        seg.reduce(function (a, b) {
-          return a + b;
-        }, 0) / seg.length;
-      var sd = Math.sqrt(
-        seg.reduce(function (a, b) {
-          return a + (b - mean) * (b - mean);
-        }, 0) / seg.length
-      );
-      if (sd < 1) stableWins++;
+      var _s5 = spo2.slice(i, i + W5);
+      var _s5m = _avgPresent(_s5);
+      if (!_s5m || _s5m.n < ROLL_MIN_MEASURED) continue;
+      _stableScored++;
+      // the SD is non-null here because `_avgPresent` above already found present samples.
+      if (/** @type {number} */ (_sdPresent(_s5)) < 1) stableWins++;
     }
 
     // CDI: Cyclic Desaturation Index — SpO2 oscillations crossing mean±2SD per hour
@@ -6481,17 +6517,34 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       : null;
 
     // HR deceleration runs: ≥3 BPM total decrease sustained ≥30s
+    /* §∅ A RUN ACROSS A HOLE IS NOT A RUN. `null < hr[i - 1]` is TRUE, so every absent second
+       EXTENDED a deceleration run with no sample behind it, and `decelStartHR - hr[i - 1]` then read
+       the hole as a fall to 0 bpm, which closes any run as a qualifying 3 bpm descent. A hole CLOSES
+       the run — the owner's 2026-09-17 ruling, a discontinuity refuses — because skipping the pair
+       would join the runs either side of a dropout into one sustained descent nobody recorded.
+       `_decelLastHR` is the last MEASURED sample of the run, so the closing test reads a real value
+       rather than the hole that ended it. */
     var hrDecelRuns = 0,
       decelLen = 0,
-      decelStartHR = 0;
+      decelStartHR = 0,
+      _decelLastHR = null;
     for (var i = 1; i < n; i++) {
+      if (!_has(hr[i]) || !_has(hr[i - 1])) {
+        if (decelLen >= 30 && _has(_decelLastHR) && decelStartHR - _decelLastHR >= 3) hrDecelRuns++;
+        decelLen = 0;
+        decelStartHR = 0;
+        _decelLastHR = null;
+        continue;
+      }
       if (hr[i] < hr[i - 1]) {
         if (decelLen === 0) decelStartHR = hr[i - 1]; // capture baseline before first step
         decelLen++;
+        _decelLastHR = hr[i];
       } else {
         if (decelLen >= 30 && decelStartHR - hr[i - 1] >= 3) hrDecelRuns++;
         decelLen = 0;
         decelStartHR = 0;
+        _decelLastHR = null;
       }
     }
     if (decelLen >= 30 && decelStartHR - hr[n - 1] >= 3) hrDecelRuns++; // end-of-array run
@@ -6501,6 +6554,11 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var decoupled = 0,
       dcTotal = 0;
     for (var i = 30; i < n; i += 30) {
+      /* §∅ BOTH DELTAS NEED ALL FOUR SAMPLES. A hole at either end of either channel coerced to 0,
+         so the window published a swing of the whole saturation or the whole pulse and its SIGN —
+         which is the only thing this metric reads — came from a second nobody recorded. Skip the
+         pair; `dcTotal` already carries the population, and it is the denominator below. */
+      if (!_has(spo2[i]) || !_has(spo2[i - 30]) || !_has(hr[i]) || !_has(hr[i - 30])) continue;
       var dSpo2 = spo2[i] - spo2[i - 30];
       var dHr = hr[i] - hr[i - 30];
       if (dSpo2 !== 0 && dHr !== 0) {
@@ -6614,7 +6672,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     return {
       worst10minSpo2: worst10,
       worst30minT95: worstT95,
-      spo2StableWindows: stableWins,
+      spo2StableWindows: _stableScored > 0 ? stableWins : null,
       cdi: cdi,
       postDipHrResponse: postDipHrResponse,
       hrDecelRuns: hrDecelRuns,
@@ -6647,7 +6705,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       cs++;
     if (cross && cross.crcIdx != null && cross.crcIdx < 0.2) cs++;
     // CS-specific: low ODI despite high PB burden (central = less desaturation per event)
-    if (odi4 && odi4.rate < 3 && osc && osc.episodeCount >= 5) cs++;
+    // ∅ `null < 3` is TRUE, so a refused ODI-4 scored the "low ODI despite high PB burden" point.
+    if (odi4 && _has(odi4.rate) && odi4.rate < 3 && osc && osc.episodeCount >= 5) cs++;
     cs = Math.min(3, cs);
 
     // UARS probability (0-3)
@@ -6657,7 +6716,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       if (pbMet.pbCycleLen < 40) uars++;
     }
     if (cross && cross.autoArousalIdx >= 3) uars++;
-    if (odi4 && odi4.rate < 5 && osc && osc.episodeCount >= 3) uars++;
+    // ∅ the same coercion as the CS point above: `null < 5` is TRUE and scored a UARS point.
+    if (odi4 && _has(odi4.rate) && odi4.rate < 5 && osc && osc.episodeCount >= 3) uars++;
     if (comp && comp.sfi >= 2) uars++;
     uars = Math.min(3, uars);
 
@@ -7544,18 +7604,32 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var crashes = 0;
     var WIN = 30;
     var cooldown = 0;
+    /* §∅ N1-01 — A DELTA ACROSS A HOLE IS NOT A DELTA (residue
+       2026-11-15-oxydex-oxycrash-counts-a-sensor-disappearance). `null` coerces to 0 inside `-`, so
+       the sensor going absent read as `spo2[i - WIN] - 0`, a drop of the whole saturation, and the
+       hole scored a crash indistinguishable from the real-crash control. §∅ names the remedy for a
+       delta: SKIP THE PAIR. A crash is a statement about two seconds, and one of them was never
+       recorded. `_pairs` counts the pairs that WERE examined, so a night whose SpO2 column measured
+       nothing reports no crash count at all rather than a count of 0 — the same answer the `n < 60`
+       refusal above gives, where no search is no result. The old `durationHr > 0 ? … : 0` tail is
+       gone rather than re-spelled: `n >= 60` here makes `durationHr` positive, so that 0 stood for
+       an absence the branch could never reach. */
+    var _pairs = 0;
     for (var i = WIN; i < n; i++) {
       if (cooldown > 0) {
         cooldown--;
         continue;
       }
+      if (!_has(spo2[i - WIN]) || !_has(spo2[i])) continue;
+      _pairs++;
       if (spo2[i - WIN] - spo2[i] >= 5) {
         crashes++;
         cooldown = WIN;
       } // 30s cooldown prevents re-counting sustained drops
     }
+    if (_pairs === 0) return null;
     var durationHr = n / 3600;
-    return { oxyCrashCount: crashes, oxyCrashRate: durationHr > 0 ? +(crashes / durationHr).toFixed(1) : 0 };
+    return { oxyCrashCount: crashes, oxyCrashRate: +(crashes / durationHr).toFixed(1) };
   }
 
   // Nocturnal HR Dip % — (refHR - hrFloor) / refHR  (higher=better parasympathetic)
@@ -7637,7 +7711,9 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         n.osc.episodeCount === 0 ? 0 : n.osc.episodeCount < 3 ? 1 : n.osc.episodeCount < 8 ? 4 : n.osc.episodeCount < 15 ? 7 : 10,
         n.osc.episodeCount + ' eps'
       );
-    if (n.rolling)
+    /* §∅ — `push` drops a null value, and the display string it is handed must not read
+       "null%" if a later edit moves that check. The guard states the refusal at the site. */
+    if (n.rolling && n.rolling.worst10minSpo2 != null)
       push(
         'worst10',
         'Worst 10min SpO₂',
@@ -7808,13 +7884,14 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         return n.stats ? 'T95 ' + n.stats.t95pct + '%' : 'T95 unavailable';
       },
       odi4: function () {
-        return n.odi4 ? 'ODI-4 ' + n.odi4.rate + '/hr' : 'ODI-4 unavailable';
+        return n.odi4 && n.odi4.rate != null ? 'ODI-4 ' + n.odi4.rate + '/hr' : 'ODI-4 unavailable';
       },
       pbEp: function () {
         return n.osc ? n.osc.episodeCount + ' PB episodes' : 'PB data unavailable';
       },
       worst10: function () {
-        return 'worst 10-min SpO₂ ' + n.rolling.worst10minSpo2 + '%';
+        // ∅ null reaches the reader as the text "null%" unless the absence is stated.
+        return n.rolling && n.rolling.worst10minSpo2 != null ? 'worst 10-min SpO₂ ' + n.rolling.worst10minSpo2 + '%' : 'worst 10-min SpO₂ unavailable';
       },
       cdi: function () {
         return n.rolling ? 'CDI ' + n.rolling.cdi + '/hr' : 'CDI unavailable';
@@ -8031,7 +8108,9 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     // the ODI-4 rate. The desat profile and the ODI counter share the same
     // inclusive bl-ODI_DROP entry, so each flagged artifact corresponds to one
     // ODI-4 event; subtract them so a probe-squeeze "67% cliff" never inflates ODI.
-    if (odi4 && desat && desat.artifactCount) {
+    // ∅ `(odi4.count || 0) - artifactCount` clamps a refused count to 0 and then re-rates it as
+    // 0.0/hr, which is how a refusal became the most reassuring reading on the next line down.
+    if (odi4 && _has(odi4.count) && desat && desat.artifactCount) {
       odi4.count = Math.max(0, (odi4.count || 0) - desat.artifactCount);
       // §5 (DEEP-AUDIT-2026-07-14): re-rate on the SAME sample basis detectODI/computeODI1/nadir/crashRate
       // use (rows.length/3600), NOT the elapsed span (stats.durationMin/60). On a gappy night the two diverge
@@ -8863,6 +8942,21 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     // so gating here too would double-subtract. Back-compat: param is LAST + optional (absent ⇒
     // ungated, byte-identical to the old signature for every existing caller/test).
     var events = pulseSeries ? detectDesatEventsGated(spo2, { dropPct: drop, exitPct: drop, blArr: blArr }, pulseSeries) : detectDesatEvents(spo2, { dropPct: drop, exitPct: drop, blArr: blArr });
+    /* §∅ N1-03 — `Math.max(hrs, 0.01)` TURNED "NO MEASURED HOURS" INTO A DENOMINATOR (residue
+       2026-11-15-oxydex-detectodi-publishes-zero-over-all-null). `n` is the MEASURED sample count
+       since the caller stopped passing `rows.length` (the ANALYZABLE HOURS note at the call site),
+       so an all-absent SpO2 column arrives here as `n = 0`: the clamp divided 0 events by 0.01 h and
+       published ODI 0.0/hr, the most reassuring reading of a night nothing examined. The clamp stays
+       for a short MEASURED night, where it does guard a division by zero, and the floor below refuses
+       before it can stand in for absence. 60 measured samples is this file's own support floor for a
+       published statistic over this column — `computeSpO2Shape`'s `m < 60` and the 5-minute binner's
+       `hrCovered >= 60` — and under a minute of measured signal there is no index to publish.
+       THE MEMBERS GO NULL AND THE OBJECT STAYS, because `buildFlags` and `computeCrossSignal`
+       dereference `odi4.rate` and `odi4.count` with no guard: a bare `null` here would throw at
+       those two sites instead of refusing. `null >= 5` is false, so no flag fires, and the five
+       consumers that would have read a null as a number are guarded in this same change. */
+    var ODI_MIN_MEASURED = 60;
+    if (!(n >= ODI_MIN_MEASURED)) return { count: null, rate: null };
     var hrs = n / 3600;
     return { count: events.length, rate: +(events.length / Math.max(hrs, 0.01)).toFixed(1) };
   }
@@ -10141,7 +10235,9 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
        genuinely calm night, and feeding a `HIGH_AROUSAL_IDX` flag that keys off `>= 5` and a
        user-visible `AAI` metric graded `heuristic`. A rate whose denominator is unknown is not a
        small rate; it is not a rate. */
-    var autoArousalIdx = durationHr > 0 ? +((spikes.length + odi4.count) / durationHr).toFixed(1) : null;
+    // ∅ and a refused ODI-4 count sums as 0 here, so the index counted the spikes alone and said
+    // nothing about having lost its other term.
+    var autoArousalIdx = durationHr > 0 && odi4 && _has(odi4.count) ? +((spikes.length + odi4.count) / durationHr).toFixed(1) : null;
 
     // Cardiorespiratory Coupling: Pearson r of SpO2 and HR 5-min rolling means
     var WIN5 = 300,
@@ -11091,7 +11187,12 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       }
       if (peakIdx < 0) return;
       for (var j = peakIdx + 1; j < Math.min(rows.length, peakIdx + 300); j++) {
-        if (rows[j].hr <= threshold) {
+        /* §∅ N1-04 — `null <= threshold` IS TRUE (residue
+           2026-11-15-oxydex-spikedecay-reads-a-hole-as-recovery). The first hole after a spike read
+           as the recovery second, so the decay was measured to a second nobody recorded and a
+           one-second "recovery" was labelled "Fast (<60s)". The walk must see a real sample — the
+           same fix, for the same walk, that `computeSpikeUndershoot` below already carries. */
+        if (_has(rows[j].hr) && rows[j].hr <= threshold) {
           decays.push(j - peakIdx);
           break;
         }
@@ -11119,7 +11220,10 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       var u0 = Math.max(0, apxIdx1 - 300),
         u1 = Math.min(rows.length, apxIdx1 + 300);
       for (var i = u0; i < u1; i++) {
-        if (rows[i].hr >= sp.peak - 2) {
+        /* §∅ `null >= sp.peak - 2` is FALSE, so a hole under-counts here rather than fabricating —
+           and the guard makes that a decision rather than a coercion that happened to fall the right
+           way, which is what the same search in `computeSpikeDecay` above says of itself. */
+        if (_has(rows[i].hr) && rows[i].hr >= sp.peak - 2) {
           peakIdx = i;
           break;
         }
@@ -11383,8 +11487,13 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // ODI3/ODI1 — ratio → 1.0 = nearly all dips ≥3% = CS/PB signature
   function computeODRI(odi1, odi3) {
     if (!odi1 || !odi3) return null;
-    var r1 = (odi1.rate != null ? odi1.rate : odi1.odi1Rate) || 0;
-    var r3 = (odi3.rate != null ? odi3.rate : odi3.odi3Rate) || 0;
+    /* §∅ `|| 0` READ A REFUSED INDEX AS A RATE OF ZERO. `detectODI` now returns null members when
+       the night measured under a minute of SpO2, and this `|| 0` turned the ODI-3 refusal into
+       `odri = 0`, labelled "Low (mixed/OA)" — a stated finding over two indices that do not exist.
+       A ratio needs both its terms measured. */
+    var r1 = odi1.rate != null ? odi1.rate : odi1.odi1Rate;
+    var r3 = odi3.rate != null ? odi3.rate : odi3.odi3Rate;
+    if (!_has(r1) || !_has(r3)) return null;
     if (r1 === 0) return null;
     var odri = +(r3 / r1).toFixed(3);
     return { odri: odri, odriLabel: odri > 0.85 ? 'High (CS/PB pattern)' : odri > 0.6 ? 'Moderate' : 'Low (mixed/OA)' };
@@ -11394,16 +11503,22 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   function computeSpO2Percentiles(rows) {
     var n = rows.length;
     if (n < 60) return null;
-    var sorted = rows
-      .map(function (r) {
-        return r.spo2;
-      })
-      .slice()
-      .sort(function (a, b) {
-        return a - b;
-      });
+    /* §∅ N1-02 — A SORT DOES NOT SKIP WHAT IT CANNOT COMPARE (residue
+       2026-11-15-oxydex-spo2-percentiles-sort-nulls-as-zero). `a - b` coerces `null` to 0, so every
+       absent second sorted BELOW every measured one: p5 and p10 came back at a saturation of 0, and
+       `spo2IQR` was then taken between two ranks the night never measured. The distribution is over
+       the samples that EXIST, which is the convention `computeSpO2Shape` states for this same column
+       two functions below, down to its 60-sample floor. A fully measured night is unchanged, because
+       the measured count then equals the row count and every rank is the rank it was. */
+    var _meas = [];
+    for (var _pi = 0; _pi < n; _pi++) if (_has(rows[_pi].spo2)) _meas.push(rows[_pi].spo2);
+    var _m = _meas.length;
+    if (_m < 60) return null;
+    var sorted = _meas.sort(function (a, b) {
+      return a - b;
+    });
     function pct(p) {
-      return sorted[Math.floor((p / 100) * (n - 1))];
+      return sorted[Math.floor((p / 100) * (_m - 1))];
     }
     return { spo2P5: pct(5), spo2P10: pct(10), spo2P25: pct(25), spo2P75: pct(75), spo2P90: pct(90), spo2IQR: pct(75) - pct(25) };
   }
@@ -11681,25 +11796,34 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       // Find HR change in 30s after nadir index
       var nadirIdx = ev.nadirIdx != null ? ev.nadirIdx : -1;
       if (nadirIdx < 0 || nadirIdx >= rows.length) return;
-      // preHR: mean of 10s window before nadir (more robust than single sample)
-      var preStart = Math.max(0, nadirIdx - 10),
-        preCnt = 0,
-        preSum = 0;
-      for (var j = preStart; j < nadirIdx; j++) {
-        preSum += rows[j].hr;
-        preCnt++;
-      }
-      var preHR = preCnt > 0 ? preSum / preCnt : rows[Math.max(0, nadirIdx - 1)].hr;
+      /* §∅ N1-11 — AN ABSENT PRE-WINDOW INFLATED THE RATIO SEVENFOLD (residue
+         2026-11-15-oxydex-o2hr-efficiency-null-prewindow-inflates, measured 14 against 2). Both
+         windows summed `rows[j].hr` over the window LENGTH, so each absent second entered as a pulse
+         of 0 bpm: a hole before the nadir pulled `preHR` toward zero, `hrRise = postHR - preHR` grew
+         by most of a heart rate, and the event published an arousal response it never had. The
+         single-sample fallback carried the same defect in its sharpest form, reading one possibly
+         absent second as the whole pre-event pulse. Both means are over the present samples through
+         the house helper, and an event whose window lacks the support is DROPPED rather than scored —
+         the treatment `computeSpikeUndershoot` gives the same shape of mean, at the same share of the
+         window (`postM.n < 20` of 60 samples, a third): 4 of these 10 and 10 of these 30.
+         `o2hrEffN` already reports how many events were scored, so the drop has a population. */
+      var preStart = Math.max(0, nadirIdx - 10);
+      var _preM = _avgPresent(
+        rows.slice(preStart, nadirIdx).map(function (r) {
+          return r.hr;
+        })
+      );
+      if (!_preM || _preM.n < 4) return;
+      var preHR = _preM.mean;
       // postHR: mean 5-35s after nadir (skip nadir itself to avoid including trough)
       var postEnd = Math.min(rows.length, nadirIdx + 35);
-      var postHR = 0,
-        cnt = 0;
-      for (var j = Math.min(rows.length - 1, nadirIdx + 5); j < postEnd; j++) {
-        postHR += rows[j].hr;
-        cnt++;
-      }
-      if (cnt === 0) return;
-      postHR /= cnt;
+      var _postM = _avgPresent(
+        rows.slice(Math.min(rows.length - 1, nadirIdx + 5), postEnd).map(function (r) {
+          return r.hr;
+        })
+      );
+      if (!_postM || _postM.n < 10) return;
+      var postHR = _postM.mean;
       var hrRise = Math.max(0, postHR - preHR);
       var ratio = +(hrRise / ev.depth).toFixed(2);
       ratios.push(ratio);
