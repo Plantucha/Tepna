@@ -378,8 +378,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "55ce50a6dd7e",
-          "computeHash": "60d418e5dcd2"
+          "manifestHash": "e96750b3f5ba",
+          "computeHash": "ffb60ced82d3"
         },
         "evidence": {
           "envelopeRef": null,
@@ -407,8 +407,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "55ce50a6dd7e",
-          "computeHash": "60d418e5dcd2"
+          "manifestHash": "e96750b3f5ba",
+          "computeHash": "ffb60ced82d3"
         },
         "evidence": {
           "envelopeRef": null,
@@ -436,8 +436,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "55ce50a6dd7e",
-          "computeHash": "60d418e5dcd2"
+          "manifestHash": "e96750b3f5ba",
+          "computeHash": "ffb60ced82d3"
         },
         "evidence": {
           "envelopeRef": null,
@@ -465,8 +465,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "55ce50a6dd7e",
-          "computeHash": "60d418e5dcd2"
+          "manifestHash": "e96750b3f5ba",
+          "computeHash": "ffb60ced82d3"
         },
         "evidence": {
           "envelopeRef": null,
@@ -1441,10 +1441,10 @@
         "spo2Range": 9,
         "tir9499": 98.9,
         "meanSpo2Early": 96.59,
-        "meanSpo2Late": 96.16,
+        "meanSpo2Late": 96.29,
         "hrRange": 62,
         "meanHrEarly": 47.8,
-        "meanHrLate": 52.8,
+        "meanHrLate": 52.9,
         "motionBursts": 2,
         "longestCleanRun": 48.8,
         "nadirDensity": 1.16,
@@ -1500,7 +1500,7 @@
         "ssiBasis": 1
       },
       "circHR": {
-        "circAmplitude": 2.02,
+        "circAmplitude": 2.04,
         "circNadirHour": 2
       },
       "spo2Ent": {
