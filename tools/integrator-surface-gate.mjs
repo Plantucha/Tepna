@@ -1035,6 +1035,134 @@ export function builderCandidates(dspText, fnName, pre = prepare) {
    upward and take the first whose brace span CONTAINS the line, which is the tightest real scope.
    Null still means no enclosing function contains it, and the caller then refuses the site. */
 /** The enclosing function of a line, in BLANKED code lines. Null when none contains the line. */
+/* 🔴 THE GATE JUDGED 36 TOP-LEVEL KEYS AND SAID NOTHING ABOUT 26 OF THEM. A `nested` declaration
+   buys a key its shape layer, and a key without one holds a depth-1 label alone. Ten subtrees carry
+   that layer today, so the other 26 keys ship whatever they ship and the verdict prints no word
+   about them. One of the 26 is an object literal this file's own `inlineShape` reads today:
+   `matchWindow` carries four keys and the gate judged one. That is the fourth instance of the class
+   at board #6135, where an opt-in layer reports its own absence nowhere. Measured 2026-11-14.
+
+   THE FORM IS MEASURED, NEVER ASSUMED. Each export route writes `key:` once, and the text after the
+   colon says what the key carries: an object literal, a scalar, a member of `fusion`, a bare
+   variable or a call. The census reports every form and reds on ONE of them, an object literal that
+   no `nested` entry declares and `inlineShape` reads. That case needs no resolver and no new reader,
+   so the red arm carries its own remedy.
+
+   A MEMBER NAMES THE LONGEST CHAIN, NEVER THE FIRST. `apneaNullModel` writes
+   `fusion.apnea ? fusion.apnea.nullModel : null`, where the first chain is the GUARD and the second
+   is the value. A consumer receives the longest chain, so `target` takes it and `targets` keeps the
+   rest for a reader of the verdict. A chain that a call follows drops its last segment, because
+   `fusion.findings.map(…)` names the path `findings` and a method is not a key.
+
+   WHAT STAYS BLIND HERE. A bare variable and a call carry no path this reader can follow, so the
+   census states that it cannot decide whether those keys hold an object. 16 sites are bare
+   variables and 2 are calls, and board #5905 parked the resolver they need. The census names them
+   rather than leaving the blindness unstated, and it adds no key to `population.checked`, because
+   it names keys it does not judge. */
+/** The [start, end] PREPARED line range of each export route literal. */
+export function exportRoutes(lines) {
+  const out = [];
+  const anchor = lines.findIndex((l) => /^\s*hrSource: hrSource,?\s*$/.test(l));
+  for (let i = anchor; i >= 0; i--)
+    if (/return \{\s*$/.test(lines[i])) {
+      const end = closeOf(lines, i);
+      if (end > 0) out.push({ route: 'fusion-return', start: i, end });
+      break;
+    }
+  const slim = lines.findIndex((l) => /^\s*var _exp = \{\s*$/.test(l));
+  if (slim >= 0) {
+    const end = closeOf(lines, slim);
+    if (end > 0) out.push({ route: 'slim-export', start: slim, end });
+  }
+  return out;
+}
+
+/** The measured form of one value text, and every `fusion.<path>` chain it names. */
+export function valueForm(text) {
+  const raw = text.trim();
+  const t = raw.replace(/,$/, '').trim();
+  /* A property that ends with its own comma carried its whole value on that line, so an EMPTY text
+     there is a string the preparer deleted. One that does not is either the literal's last property
+     or a value the source continues below, and the census reports that state separately. */
+  const closedOnOwnLine = raw.endsWith(',');
+  const targets = [];
+  for (const m of t.matchAll(/\bfusion\.([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)/g)) {
+    const path = t[m.index + m[0].length] === '(' ? m[1].split('.').slice(0, -1).join('.') : m[1];
+    if (path) targets.push(path);
+  }
+  targets.sort((a, b) => b.length - a.length || a.localeCompare(b));
+  let form = 'other';
+  /* 🔴 THE PREPARER DELETES A STRING LITERAL, SO A STRING VALUE HAS NO TEXT AT ALL. `kind: 'fusion'`
+     reads as `kind: ,` in prepared code, and the first spelling of this reader called that `other`
+     and swept `kind` into the keys it cannot resolve. A number, `true`, `false` and `null` all
+     survive the blanking, so this class is narrow: an empty value text is a string the preparer
+     removed, or a value the source continues on the next line. Measured 2026-11-15. */
+  if (t === '') form = 'blanked-value';
+  else if (/^\{$/.test(t) || /^\{[^{}]*\}$/.test(t)) form = 'inline-literal';
+  else if (/^('[^']*'|"[^"]*"|-?\d+(?:\.\d+)?|true|false|null)$/.test(t)) form = 'scalar-literal';
+  else if (/^fusion\.[A-Za-z_][A-Za-z0-9_.]*(?:\s*\|\|\s*null)?$/.test(t)) form = 'member';
+  else if (targets.length) form = 'member-guarded';
+  else if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(t)) form = 'variable';
+  else if (t.includes('(')) form = 'call';
+  return { form, closedOnOwnLine, targets: [...new Set(targets)], target: targets[0] || null };
+}
+
+/** Every export route site that writes `key:`, each with the measured form of its value. */
+export function passThroughSites(dspText, key, pre = prepare) {
+  const lines = pre(dspText).code.split('\n');
+  const routes = exportRoutes(lines);
+  if (!routes.length) return null;
+  const anchor = new RegExp('^\\s*' + escapeRe(key) + '\\s*:(.*)$');
+  const sites = [];
+  for (const { route, start, end } of routes) {
+    let d = 0;
+    for (let i = start + 1; i < end; i++) {
+      if (d === 0) {
+        const m = lines[i].match(anchor);
+        if (m) sites.push({ route, at: i + 1, text: m[1].trim(), ...valueForm(m[1]) });
+      }
+      d += (lines[i].match(/[{[]/g) || []).length - (lines[i].match(/[}\]]/g) || []).length;
+    }
+  }
+  return sites;
+}
+
+/** One census row per top-level key with no `nested` declaration: what it carries, and who judges it. */
+export function passThroughCensus(dspText, keys, decl, pre = prepare) {
+  const nested = decl.nested || {};
+  const judged = new Set();
+  for (const [sub, d] of Object.entries(nested)) {
+    judged.add(sub);
+    for (const inner of Object.keys((d || {}).inner || {})) judged.add(sub + '.' + inner);
+  }
+  const rows = [];
+  for (const k of keys) {
+    if (nested[k]) continue;
+    const sites = passThroughSites(dspText, k, pre) || [];
+    const forms = [...new Set(sites.map((x) => x.form))];
+    rows.push({
+      key: k,
+      sites,
+      forms,
+      /* A declared path judges this key's value already, so the remedy is a pointer and never a
+         second shape. `apneaNullModel` is the one member in that state today. */
+      servedBy: [...new Set(sites.map((x) => x.target).filter((t) => t && judged.has(t)))],
+      /* An inline literal the reader cannot range gets REPORTED, because a red with no remedy
+         sends the next session looking for a declaration form that does not exist. */
+      readable: forms.includes('inline-literal') ? !!inlineShape(dspText, k, pre) : null,
+      /* Every site is a bare variable, a call or an expression this reader cannot follow, so the
+         census cannot say whether the key holds an object at all. */
+      /* A `blanked-value` is NOT in this set. The preparer deleted a string, and a string carries
+         no object, so that key needs no shape layer and no resolver. */
+      unresolved: sites.length > 0 && forms.every((f) => f === 'variable' || f === 'call' || f === 'other'),
+      /* An empty value text that did not close on its own line is the one state `blanked-value`
+         cannot read as a string, so the census names it rather than counting it either way. */
+      blankedOpen: sites.filter((x) => x.form === 'blanked-value' && !x.closedOnOwnLine).map((x) => x.route + ':' + x.at)
+    });
+  }
+  return rows;
+}
+
 /* 🔴 THE LITERAL DOES NOT ALWAYS OPEN ON THE KEY'S OWN LINE. `inlineShape` anchors on
    `key: {`, so a key whose literal sits behind a GUARD has no shape at all: the slim export
    writes `apneaTyping: fusion.apneaTyping ? {` and opens the object on the next line. The gate
@@ -2110,10 +2238,20 @@ function main() {
   const nestedElementKeys = nested.reduce((t, n) => t + (n.elements || []).reduce((u, e) => u + e.keys.length, 0), 0);
   const nestedCard = nested.reduce((t, n) => t + n.keys.filter((k) => (decl.nested[n.subtree].surfaces || {})[k] === 'card').length, 0);
   const cards = keys.filter((k) => (decl.surfaces || {})[k] === 'card').length;
+  /* 🔴 THE DEPTH-1 CENSUS, AND THE ONE ARM OF IT THAT REDS. Every top-level key with no `nested`
+     entry lands here with its measured value form. The red covers exactly one case: an object
+     literal that `inlineShape` reads and no `nested` entry declares. Everything else is REPORTED,
+     because a bare variable needs the resolver board #5905 parked and a red with no remedy is a
+     red nobody can clear. */
+  const ptRows = passThroughCensus(dsp, keys, decl);
+  const ptForms = {};
+  for (const row of ptRows) for (const site of row.sites) ptForms[site.form] = (ptForms[site.form] || 0) + 1;
+  const ptInlineRed = ptRows.filter((row) => row.forms.includes('inline-literal') && row.readable);
+  const ptInlineUnreadable = ptRows.filter((row) => row.forms.includes('inline-literal') && row.readable === false);
   const v = Verdict.make({
     gate: 'integrator-surface',
     scope: 'internal',
-    status: r.ok && !nestedBad.length ? 'PASS' : 'FAIL',
+    status: r.ok && !nestedBad.length && !ptInlineRed.length ? 'PASS' : 'FAIL',
     population: {
       checked: keys.length + nestedKeys + nestedInnerKeys + nestedElementKeys,
       eligible: keys.length + nestedKeys + nestedInnerKeys + nestedElementKeys,
@@ -2197,11 +2335,30 @@ function main() {
       readerRealms: r.realms,
       cardByRealm: r.cardByRealm,
       staleDeclarations: r.stale.length,
+      /* 🔴 THE 26 KEYS THE GATE NEVER NAMED. `passThroughKeys` counts the top-level keys with no
+         shape layer, and `passThroughForms` says what each of their export sites carries. None of
+         these keys joins `population.checked`, because the census names keys it does not judge.
+         The single red arm is `passThroughUndeclaredInline`. */
+      passThroughKeys: ptRows.length,
+      passThroughForms: ptForms,
+      passThroughUndeclaredInline: ptInlineRed.length,
+      passThroughUndeclaredInlineWhere: ptInlineRed.map((row) => row.key),
+      passThroughInlineUnreadable: ptInlineUnreadable.length,
+      passThroughInlineUnreadableWhere: ptInlineUnreadable.map((row) => row.key),
+      /* A key whose value a DECLARED path already judges. The remedy there is a pointer and never a
+         second shape, and the census states the pair rather than the key alone. */
+      passThroughServed: ptRows.filter((row) => row.servedBy.length).length,
+      passThroughServedWhere: ptRows.filter((row) => row.servedBy.length).map((row) => row.key + ' → ' + row.servedBy.join(' + ')),
+      /* Every site is a bare variable or a call, so the census cannot say whether the key holds an
+         object. This is the population board #5905's parked resolver would serve. */
+      passThroughUnresolved: ptRows.filter((row) => row.unresolved).length,
+      passThroughUnresolvedWhere: ptRows.filter((row) => row.unresolved).map((row) => row.key),
+      passThroughBlankedOpenWhere: ptRows.flatMap((row) => row.blankedOpen.map((site) => row.key + '@' + site)),
       blankedBy: r.blankedBy
     },
     evidence: ['tools/integrator-surface-gate.mjs', 'tools/integrator-surface.json', 'briefs/INTEGRATOR-SURFACE-2026-10-11-BRIEF.md'],
     reason:
-      r.ok && !nestedBad.length
+      r.ok && !nestedBad.length && !ptInlineRed.length
         ? null
         : [
             r.undeclared.length ? r.undeclared.length + ' key(s) declare no surface: ' + r.undeclared.join(', ') : '',
@@ -2221,7 +2378,12 @@ function main() {
             r.exportOnlyReadElsewhere.length
               ? r.exportOnlyReadElsewhere.length + " key(s) declare 'export-only' and a SECOND declared realm reads them through its holder: " + r.exportOnlyReadElsewhere.join(', ')
               : '',
-            r.badRealm.length ? r.badRealm.length + ' key(s) name a reader file that is not a declared realm: ' + r.badRealm.join(', ') : ''
+            r.badRealm.length ? r.badRealm.length + ' key(s) name a reader file that is not a declared realm: ' + r.badRealm.join(', ') : '',
+            ptInlineRed.length
+              ? ptInlineRed.length +
+                ' top-level key(s) carry an object literal this gate can read and no `nested` entry declares, so their keys ship unjudged: ' +
+                ptInlineRed.map((row) => row.key + ' at integrator-dsp.js:' + row.sites.find((site) => site.form === 'inline-literal').at).join(', ')
+              : ''
           ]
             .concat(nestedBad.flatMap((n) => nestedReasons(n)))
             .filter(Boolean)
@@ -2232,7 +2394,7 @@ function main() {
      which reads well and does not parse. Nothing read the flag until 2026-10-21. */
   const JSON_ONLY = process.argv.includes('--json');
   console.log(JSON.stringify(v));
-  if (!r.ok || nestedBad.length) {
+  if (!r.ok || nestedBad.length || ptInlineRed.length) {
     console.error('✗ ' + v.reason);
     process.exit(1);
   }
@@ -2270,6 +2432,23 @@ function main() {
           ((n.innerStale || []).length ? ` · ${n.innerStale.length} declared inner key(s) the literal no longer carries (${n.innerStale.join(', ')})` : '') +
           ((n.elemUnjudged || []).length ? ` · ${n.elemUnjudged.length} element read(s) UNJUDGED (${n.elemUnjudged.map((u) => u.arrayKey + '@' + u.file + ':' + u.line).join(', ')})` : '')
       );
+  if (!JSON_ONLY)
+    console.log(
+      `  census: ${ptRows.length} top-level key(s) hold no shape layer — ${Object.entries(ptForms)
+        .map(([f, n]) => n + ' ' + f)
+        .join(' · ')} over ${ptRows.reduce((t, row) => t + row.sites.length, 0)} export site(s)` +
+        ` · ${ptRows.filter((row) => row.unresolved).length} key(s) this census cannot resolve (${ptRows
+          .filter((row) => row.unresolved)
+          .map((row) => row.key)
+          .join(', ')})` +
+        (ptRows.filter((row) => row.servedBy.length).length
+          ? ` · ${ptRows.filter((row) => row.servedBy.length).length} served by a declared path (${ptRows
+              .filter((row) => row.servedBy.length)
+              .map((row) => row.key + ' → ' + row.servedBy.join(' + '))
+              .join(', ')})`
+          : '') +
+        (ptInlineUnreadable.length ? ` · ${ptInlineUnreadable.length} inline literal(s) no reader can range (${ptInlineUnreadable.map((row) => row.key).join(', ')})` : '')
+    );
   if (r.stale.length) console.log(`  note: ${r.stale.length} declaration(s) name a key the fusion no longer emits (${r.stale.join(', ')}) — not a red, but worth pruning`);
   process.exit(0);
 }
@@ -3481,6 +3660,85 @@ if (DIRECT && process.argv.includes('--selftest')) {
     })(),
     true
   );
+  /* 🔴 THE DEPTH-1 CENSUS, PLANTED. `win` is an object literal with no `nested` entry, which is the
+     one state this census reds on and the state `matchWindow` sat in until 2026-11-15. `apneaNull`
+     re-exports a path a declared `inner` block already judges, `kind` is a string the preparer
+     deletes, `nodes` is a call and `hrSource` is a bare variable. */
+  const PT1 = [
+    'x = function () {',
+    '  return {',
+    '    hrSource: hrSource,',
+    "    kind: 'fusion',",
+    '    win: { lead: 1, trail: 2 },',
+    '    apnea: apnea,',
+    '    nodes: recs.map(function (r) {',
+    '      return { id: r.id };',
+    '    })',
+    '  };',
+    '};',
+    '  var _exp = {',
+    '    win: fusion.win,',
+    '    apneaNull: fusion.apnea ? fusion.apnea.nullModel : null,',
+    '    tagged: fusion.findings.map(function (f) {',
+    '      return f;',
+    '    }),',
+    '    ratio: 0.5',
+    '  };'
+  ].join('\n');
+  const PTDECL = { nested: { apnea: { builtBy: 'buildApnea', inner: { nullModel: {} } } } };
+  ck(
+    'both export routes are bounded',
+    exportRoutes(PT1.split('\n')).map((x) => x.route),
+    ['fusion-return', 'slim-export']
+  );
+  ck('an object literal that opens its own line is inline', valueForm(' {').form, 'inline-literal');
+  ck('…and one closed on the same line is too', valueForm(' { lead: 1, trail: 2 },').form, 'inline-literal');
+  ck('a number is a scalar literal', valueForm(' 0.5').form, 'scalar-literal');
+  ck('🔴 a STRING has no text at all once the preparer runs, and it is NOT unresolvable', valueForm(' ,').form, 'blanked-value');
+  ck('…and a property that closed on its own line says so', valueForm(' ,').closedOnOwnLine, true);
+  ck('a bare member is a member', valueForm(' fusion.window,').form, 'member');
+  ck('…and so is one guarded with `|| null`', valueForm(' fusion.window || null,').form, 'member');
+  ck('🔴 a guarded member names the LONGEST chain, never the guard', valueForm(' fusion.apnea ? fusion.apnea.nullModel : null,').target, 'apnea.nullModel');
+  ck('…and its form says it is guarded', valueForm(' fusion.apnea ? fusion.apnea.nullModel : null,').form, 'member-guarded');
+  ck('🔴 a chain a CALL follows drops the method — `findings.map` is not a key', valueForm(' fusion.findings.map(function (f) {').target, 'findings');
+  ck('a bare identifier is a variable', valueForm(' hrSource,').form, 'variable');
+  ck('a call is a call', valueForm(' recs.map(function (r) {').form, 'call');
+  ck(
+    'a site carries its route and its form',
+    passThroughSites(PT1, 'win').map((x) => x.route + '/' + x.form),
+    ['fusion-return/inline-literal', 'slim-export/member']
+  );
+  const PTOK = (src) => ({ code: codeOnly(src), by: 'tokenizer' });
+  ck(
+    '…and the tokenizer route agrees',
+    passThroughSites(PT1, 'win', PTOK).map((x) => x.form),
+    ['inline-literal', 'member']
+  );
+  ck('a key the source never writes has no site', passThroughSites(PT1, 'absent'), []);
+  ck('a text with no export route at all returns null', passThroughSites('var other = { a: 1 };', 'a'), null);
+  const PTC = passThroughCensus(PT1, fusionKeys(PT1), PTDECL);
+  ck(
+    'a nested-declared key leaves the census',
+    PTC.some((row) => row.key === 'apnea'),
+    false
+  );
+  ck(
+    '🔴 an object literal with no `nested` entry is the census red arm',
+    PTC.filter((row) => row.forms.includes('inline-literal') && row.readable).map((row) => row.key),
+    ['win']
+  );
+  ck('🔴 a member whose target a declared `inner` block judges is SERVED', PTC.find((row) => row.key === 'apneaNull').servedBy, ['apnea.nullModel']);
+  ck('…and a member whose target nothing declares is not', PTC.find((row) => row.key === 'tagged').servedBy, []);
+  ck('a bare variable cannot be resolved', PTC.find((row) => row.key === 'hrSource').unresolved, true);
+  ck('a call cannot be resolved either', PTC.find((row) => row.key === 'nodes').unresolved, true);
+  ck('🔴 a STRING key is RESOLVED — it carries no object and needs no shape layer', PTC.find((row) => row.key === 'kind').unresolved, false);
+  ck('a scalar key is resolved too', PTC.find((row) => row.key === 'ratio').unresolved, false);
+  ck(
+    'an open blanked value is named, and none is open here',
+    PTC.flatMap((row) => row.blankedOpen),
+    []
+  );
+  ck('the census counts every key with no shape layer', PTC.length, fusionKeys(PT1).length - 1);
   /* THE JUDGE ARM. The refusal itself needs a second checkout, so it is verified by a cross-checkout
      run and recorded in the brief; what a selftest can hold is the object that run prints and the
      path that moves with the resolved root. */
