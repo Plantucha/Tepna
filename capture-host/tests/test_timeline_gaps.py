@@ -591,7 +591,7 @@ def _day(root, date, hhmmss, rows=10, base_sec=0):
     return d
 
 
-def _crossing_day(root, date, open_hhmmss, close_iso, rows=10):
+def _crossing_day(root, date, open_hhmmss, close_iso, rows=10, mtime=None):
     """One folder whose single ECG session OPENS at `open_hhmmss` and whose last row AND mtime both say
     `close_iso` (no fractional part — this appends it).
 
@@ -606,7 +606,10 @@ def _crossing_day(root, date, open_hhmmss, close_iso, rows=10):
     lines.append(f"{close_iso}.000;{rows}000000000;1")
     p = d / f"Polar_H10_02849638_{date.replace('-', '')}{open_hhmmss}_ECG.txt"
     p.write_text("Phone timestamp;sensor timestamp [ns];channel 0\n" + "\n".join(lines) + "\n")
-    close = datetime.datetime.strptime(close_iso, "%Y-%m-%dT%H:%M:%S").timestamp()
+    # `mtime` OVERRIDES the close instant, because the pooling clause reads the mtime and the published
+    # window reads the rows — a leg that pins one against a declared frame must set it without moving the
+    # other. Absent, the file closes when its last row says it did, in the reader's own zone.
+    close = mtime if mtime is not None else datetime.datetime.strptime(close_iso, "%Y-%m-%dT%H:%M:%S").timestamp()
     os.utime(p, (close, close))
     return d
 
@@ -661,6 +664,27 @@ def test_build_does_not_pool_a_neighbour_that_STOPPED_BEFORE_MIDNIGHT(tmp_path):
     assert out["t0"] == _floating_epoch("20260725113400") + frame["offset_sec"], (
         f"yesterday must stay out of it; window opens at {out['t0']}"
     )
+
+
+def test_build_reads_the_crossing_in_a_DECLARED_frame_AND_at_the_exact_midnight(tmp_path):
+    """The same two boundaries `nightqc.summarize` owes, asked of the picture (mutants
+    `x_build__mutmut_97` and `_98`, run 43748619887). The verdict and the picture read one crossing, so
+    a sign or a boundary that moves in one of them moves the two apart.
+
+    ⚠️ THE FRAME IS DECLARED AND NONZERO for the reason that function's note carries: under UTC
+    `midnight + offset` and `midnight - offset` are one number, so CI cannot see the sign at all. Both
+    legs here refuse to pool, and the neighbour is row-heavier, so a pooled window would open on it and
+    the assertion would say so."""
+    off = 3600.0
+    mid = _floating_epoch("20260725000000")
+    for leg, prev_close in (("stopped AT midnight", mid + off), ("stopped an hour before it", mid)):
+        root = tmp_path / leg.replace(" ", "-")
+        _crossing_day(root, "2026-07-24", "200000", "2026-07-24T22:00:00", rows=20, mtime=prev_close)
+        tonight = _crossing_day(
+            root, "2026-07-25", "113400", "2026-07-25T11:34:09", mtime=_floating_epoch("20260725113409") + off
+        )
+        out = timeline.build(str(tonight), _DEV, writer_offset=nightqc.declared_offset(off))
+        assert out["t0"] == _floating_epoch("20260725113400") + off, (leg, out["t0"])
 
 
 def test_a_session_opening_EXACTLY_at_midnight_pools_the_previous_day(tmp_path):
