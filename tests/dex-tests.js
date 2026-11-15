@@ -45840,6 +45840,32 @@
       T.eq('H.pearsonCorr([1,2],[3,4]) → "1" (n===2 is ABOVE the n<2 guard, so it computes; two points are always ±1)', JSON.stringify(out), '1');
       out = H.std([1, 2]);
       T.eq('H.std([1,2]) → sample SD (n===2 is above the arr.length<2 guard — a DEFENSIVE guard no caller reaches, pinned so it cannot degrade silently)', JSON.stringify(out), '0.7071067811865476');
+      /* The other side of that guard (Shrike mutant 4, 2026-11-15, verified by Kestrel): `return 0`
+         for n < 2 passed all 19007 assertions. A sample SD over one value has n - 1 = 0 and is
+         undefined; a zero would read as an SDNN of 0 ms, a perfectly flat rhythm. */
+      T.eq('H.std([5]) → NaN, never 0 (one value carries no spread)', JSON.stringify(Number.isNaN(H.std([5]))), 'true');
+      T.eq('H.std([]) → NaN, never 0 (no value carries no spread)', JSON.stringify(Number.isNaN(H.std([]))), 'true');
+      /* commitRows drops a row with no finite stamp (Shrike mutant 9, 2026-11-15): deleting that
+         filter passed the whole suite. Feed it ONLY a timeless row with replace:true. The real code
+         filters it out and leaves allRows empty; the mutant keeps it, so allRows reads 1 (or the
+         derived pass throws on it). The hooks and allRows are restored in finally, as the persist leg above does. */
+      var _savedRows2 = env.HRVDex.allRows;
+      var _savedHooks = env.HRVDex.getHooks();
+      try {
+        // The co-loaded render module registers setStatus, which needs a DOM. Install no-op hooks for this call.
+        env.HRVDex.setHooks({ setStatus: function () {}, setProgress: function () {}, rerender: function () {}, inferFromData: function () {} });
+        var _kept = -1;
+        try {
+          H.commitRows([{ _tMs: NaN }], { replace: true });
+          _kept = (env.HRVDex.allRows || []).length;
+        } catch (_e) {
+          _kept = -2;
+        }
+        T.eq('H.commitRows([{_tMs:NaN}], {replace:true}) → allRows holds 0 rows (the timeless row never enters)', JSON.stringify(_kept), '0');
+      } finally {
+        env.HRVDex.setHooks(_savedHooks);
+        env.HRVDex.allRows = _savedRows2;
+      }
     });
 
     /* ── THE GUARDS, not the outputs ────────────────────────────────────────────────────────────
