@@ -867,7 +867,8 @@ def test_a_bad_preset_request_is_refused_before_the_config_moves(tmp_path, devic
 
 
 @pytest.mark.parametrize(
-    ("ps", "name"), [(0x1041, "p1041"), (0x21, "p21"), (None, None), (True, None), (-1, None), ("4161", None)]
+    ("ps", "name"),
+    [(0x1041, "p1041"), (0x21, "p21"), (None, None), (True, None), (0, "p0"), (-1, None), ("4161", None)],
 )
 def test_preset_name_reads_the_ps_reply_and_nulls_what_is_not_a_preset(ps, name):
     assert muse_athena.preset_name(ps) == name
