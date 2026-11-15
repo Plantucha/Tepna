@@ -622,6 +622,48 @@ export function exportMapShape(dspText, key, literalVar = '_exp') {
   return null;
 }
 
+/* 🔴 A FIFTH SHAPE SOURCE, BECAUSE A TOP-LEVEL ARRAY CAN REACH THE EXPORT BY ITS BARE NAME.
+   `arrayOf: true` read the slim-export literal through `exportMapShape`, which needs a `.map(`
+   return literal to project the element. `fusion.pairs` has no such projection: `runFusion` binds
+   `var pairs = []`, pushes into it, and the full export writes `pairs: pairs,`. So the subtree had
+   no readable anchor at all, while `pushShapes` already read its element shape — the gate's own
+   census said the declaration owed an element layer, and no form could carry it.
+
+   This reader anchors the subtree on the EXPORT LINE that ships the array under its own name, and
+   it refuses unless BOTH halves hold: the named function pushes into that local, and exactly one
+   line INSIDE that function writes `<key>: <into>`. The second half stops a declaration claiming
+   an array the export never ships. It also separates `pairs: pairs,` from the neighbouring
+   `pairs: skew.pairs,`, which carries a DIFFERENT object under the same key name.
+
+   🔴 THE SCOPE IS THE PUSHING FUNCTION, BECAUSE A BARE NAME IS NOT UNIQUE IN A FILE. Measured
+   2026-11-15: `^\\s*pairs\\s*:` matches four lines of integrator-dsp.js, and THREE of them read
+   `pairs: pairs,` — one in `fuseAutonomicGlycemic` at :2898, one at :6778, and runFusion's own
+   export at :7981. A file-wide search therefore refused a subtree that is perfectly well formed.
+   The array a function pushes into is exported by that same function, so the function body is the
+   only honest window, and `pushShapes` beside it already scopes the push the same way. */
+export function pushedArrayShape(dspText, fnName, arrayVar, exportKey) {
+  const push = pushShapes(dspText, fnName, arrayVar);
+  if (!push) return null;
+  const lines = dspText.split('\n');
+  const start = lines.findIndex((l) => new RegExp('^function ' + escapeRe(fnName) + '\\(').test(l));
+  if (start < 0) return null;
+  let d = 0;
+  let end = -1;
+  for (let i = start; i < lines.length; i++) {
+    d += (lines[i].match(/\{/g) || []).length - (lines[i].match(/\}/g) || []).length;
+    if (i > start && d <= 0) {
+      end = i;
+      break;
+    }
+  }
+  if (end < 0) return null;
+  const ent = new RegExp('^\\s*' + escapeRe(exportKey) + '\\s*:\\s*' + escapeRe(arrayVar) + '\\s*,?\\s*$');
+  const at = [];
+  for (let i = start; i <= end; i++) if (ent.test(lines[i])) at.push(i + 1);
+  if (at.length !== 1) return null;
+  return { at: at[0], keys: [exportKey], via: 'pushed-array', pushAt: push.at };
+}
+
 /* 🔴 AN ELEMENT READ DOES NOT HAVE TO BE A CALLBACK, AND THE CENSUS MISSED TWO OF THREE.
    `callbackSites` matches eight iterator names, so an INDEXED FOR LOOP is invisible to it.
    `skewSilenceLines` binds `vetoes = cs.vetoes || []` and `census = cs.seamCensus || []`, then
@@ -2464,10 +2506,20 @@ function main() {
       throw new Error(
         `nested subtree \`${sub}\` must declare exactly one of builtBy, inline:true, arrayOf:true or routes — it declares ${picked.length ? picked.join(' and ') : 'none'}, and the gate must not guess where its shape lives`
       );
-    const arrShape = byArray ? exportMapShape(dsp, d.exportMapped || sub) : null;
+    /* 🔴 THE FIFTH SOURCE IS AN `arrayOf` VARIANT, NOT A SIXTH TOP-LEVEL FORM. The subtree is
+       still an array whose one depth-2 key is its name on the holder. Only the ANCHOR differs: a
+       slim projection through `.map(` for `exportMapped`, or a pushed local that the export ships
+       by its bare name for `pushedBy`. Declaring both would leave the gate to pick an anchor. */
+    if (d.pushedBy && d.exportMapped) throw new Error(`nested subtree \`${sub}\` declares both pushedBy and exportMapped, and the gate must not choose which anchor its array comes from`);
+    if (d.pushedBy && !byArray) throw new Error(`nested subtree \`${sub}\` declares pushedBy without arrayOf:true, and pushedBy names where an ARRAY subtree's anchor lives`);
+    if (d.pushedBy && (!d.pushedBy.fn || !d.pushedBy.into))
+      throw new Error(`nested subtree \`${sub}\` declares pushedBy with no ${!d.pushedBy.fn ? 'fn' : 'into'}, so the gate cannot say which function pushes into which local`);
+    const arrShape = byArray ? (d.pushedBy ? pushedArrayShape(dsp, d.pushedBy.fn, d.pushedBy.into, sub) : exportMapShape(dsp, d.exportMapped || sub)) : null;
     if (byArray && !arrShape)
       throw new Error(
-        `the export entry \`${d.exportMapped || sub}:\` with a single .map return literal was not found in integrator-dsp.js, appears more than once, or does not close — its shape changed, and this gate must not guess`
+        d.pushedBy
+          ? `the pushed array \`${d.pushedBy.into}\` of ${d.pushedBy.fn}() was not found, it holds no push literal, or the export writes \`${sub}: ${d.pushedBy.into}\` zero times or more than once in integrator-dsp.js — its shape changed, and this gate must not guess`
+          : `the export entry \`${d.exportMapped || sub}:\` with a single .map return literal was not found in integrator-dsp.js, appears more than once, or does not close — its shape changed, and this gate must not guess`
       );
     const shapes = byRoutes
       ? routeShapes(dsp, d.routes)
@@ -3773,6 +3825,31 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('a second export literal refuses', exportMapShape(XOK + '\n' + XOK, 'findings'), null);
   ck('no export literal at all refuses', exportMapShape('var other = { findings: 1 };', 'findings'), null);
   ck('a one-line return literal is read', (exportMapShape(XL('    findings: fusion.findings.map(function (f) { return { tMs: f.tMs }; }),'), 'findings') || {}).keys, ['tMs']);
+
+  /* 🔴 THE FIFTH SHAPE SOURCE. A pushed top-level array reaches the export by its bare name,
+     and BOTH halves of that sentence are a refusal state of their own. */
+  const PA = ['function runF(recs) {', '  var pairs = [];', '  pairs.push({ a: 1, b: 2 });', '  return {', '    pairs: pairs,', '    other: 3', '  };', '}'].join('\n');
+  ck('the pushed-array reader anchors on the export line', (pushedArrayShape(PA, 'runF', 'pairs', 'pairs') || {}).at, 5);
+  ck('…and says the route it read', (pushedArrayShape(PA, 'runF', 'pairs', 'pairs') || {}).via, 'pushed-array');
+  ck('…and its one depth-2 key is the array name', (pushedArrayShape(PA, 'runF', 'pairs', 'pairs') || {}).keys, ['pairs']);
+  ck('…and it carries where the element literal sits', (pushedArrayShape(PA, 'runF', 'pairs', 'pairs') || {}).pushAt, 3);
+  ck('a builder this file does not hold refuses', pushedArrayShape(PA, 'runOther', 'pairs', 'pairs'), null);
+  ck('an array the builder never pushes refuses', pushedArrayShape(PA, 'runF', 'absent', 'pairs'), null);
+  ck('an export that never ships the array by name refuses', pushedArrayShape(PA.replace('    pairs: pairs,', '    other2: 4,'), 'runF', 'pairs', 'pairs'), null);
+  /* 🔴 THE SAME KEY NAME OVER A DIFFERENT OBJECT IS NOT THIS ARRAY. That is the live trap at
+     integrator-dsp.js:7971, where `pairs: skew.pairs,` sits ten lines above `pairs: pairs,`. */
+  ck('a same-named entry holding a DIFFERENT value is not the anchor', pushedArrayShape(PA.replace('    pairs: pairs,', '    pairs: skew.pairs,'), 'runF', 'pairs', 'pairs'), null);
+  ck('…and a DOUBLED anchor refuses rather than taking the first', pushedArrayShape(PA.replace('    pairs: pairs,', '    pairs: pairs,\n    pairs: pairs,'), 'runF', 'pairs', 'pairs'), null);
+  ck('a longer key name is not this key', pushedArrayShape(PA.replace('    pairs: pairs,', '    pairsExtra: pairs,'), 'runF', 'pairs', 'pairs'), null);
+  /* 🔴 AND THE SCOPE IS THE PUSHING FUNCTION. A file-wide search for `pairs: pairs,` matched
+     three lines of integrator-dsp.js and refused a well-formed subtree. */
+  ck(
+    'the same export line in ANOTHER function is not this anchor',
+    (pushedArrayShape('function other(x) {\n  return {\n    pairs: pairs,\n    z: 1\n  };\n}\n' + PA, 'runF', 'pairs', 'pairs') || {}).at,
+    11
+  );
+  ck('a function this file does not hold refuses before the scope is read', pushedArrayShape(PA, 'runNope', 'pairs', 'pairs'), null);
+  ck('…and a DOUBLED anchor INSIDE the function still refuses', pushedArrayShape(PA.replace('    pairs: pairs,', '    pairs: pairs,\n    pairs: pairs,'), 'runF', 'pairs', 'pairs'), null);
 
   /* 🔴 AN ALIAS MUST BIND THE PATH AND THEN STOP. `var cs = FUSION && FUSION.clockSkew` names the
      subtree and NOT `FUSION`, and the gate credited a `cs.findings` read against the top-level

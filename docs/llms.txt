@@ -12,6 +12,7 @@ Repository: https://github.com/Plantucha/Tepna · License: Apache-2.0 · Author:
 - [HRVDex](https://tepna.net/HRVDex%20Reference.html): HRV summaries — Additive multi-day HRV ledger.
 - [GlucoDex](https://tepna.net/GlucoDex%20Reference.html): CGM — Continuous glucose → Time in Range, GMI.
 - [CPAPDex](https://tepna.net/CPAPDex%20Reference.html): CPAP therapy — EDF therapy data → pressure, leak, respiratory events.
+- [MotionDex](https://tepna.net/MotionDex%20Reference.html): IMU — Raw IMU → body position, actigraphy, motion quality.
 
 ## Overview
 - [Science](https://tepna.net/Science.html)
