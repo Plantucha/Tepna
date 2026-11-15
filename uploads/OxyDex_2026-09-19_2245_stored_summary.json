@@ -49,8 +49,8 @@
         {
           "key": "odi1",
           "label": "ODI-1/hr",
-          "value": 49.9,
-          "displayVal": "49.9/hr",
+          "value": 49.8,
+          "displayVal": "49.8/hr",
           "score": 8,
           "sev": "r",
           "cat": "spo2"
@@ -211,8 +211,8 @@
         {
           "key": "nsi",
           "label": "NSI",
-          "value": 12,
-          "displayVal": 12,
+          "value": 11,
+          "displayVal": 11,
           "score": 0,
           "sev": "g",
           "cat": "hr"
@@ -247,8 +247,8 @@
         {
           "key": "pred3p",
           "label": "pRED-3p",
-          "value": 0.46,
-          "displayVal": "0.46%",
+          "value": 0.45,
+          "displayVal": "0.45%",
           "score": 0,
           "sev": "g",
           "cat": "spo2"
@@ -276,8 +276,8 @@
         {
           "key": "odi1",
           "label": "ODI-1/hr",
-          "value": 49.9,
-          "displayVal": "49.9/hr",
+          "value": 49.8,
+          "displayVal": "49.8/hr",
           "score": 8,
           "sev": "r",
           "cat": "spo2"
@@ -319,7 +319,7 @@
           "cat": null
         }
       ],
-      "impression": "Clean night: ODI-1/hr 49.9/hr, nadir SpO₂ 90%; otherwise stable baseline.",
+      "impression": "Clean night: ODI-1/hr 49.8/hr, nadir SpO₂ 90%; otherwise stable baseline.",
       "overallScore": 3
     },
     "odi4": {
@@ -360,8 +360,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "cf0e915d08d0",
-          "computeHash": "f1a31415db66"
+          "manifestHash": "a8602535390d",
+          "computeHash": "7fe1e6f130f0"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -388,8 +388,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "cf0e915d08d0",
-          "computeHash": "f1a31415db66"
+          "manifestHash": "a8602535390d",
+          "computeHash": "7fe1e6f130f0"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -416,8 +416,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "cf0e915d08d0",
-          "computeHash": "f1a31415db66"
+          "manifestHash": "a8602535390d",
+          "computeHash": "7fe1e6f130f0"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -444,8 +444,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "cf0e915d08d0",
-          "computeHash": "f1a31415db66"
+          "manifestHash": "a8602535390d",
+          "computeHash": "7fe1e6f130f0"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -565,7 +565,7 @@
       "events": [],
       "eventsAll": [],
       "artifactCount": 0,
-      "dip3Rate": 2.4
+      "dip3Rate": 2.2
     },
     "hrProfile": {
       "circadianScore": 4.36,
@@ -607,7 +607,7 @@
     "composite": {
       "couplingScore": null,
       "sfi": 0.3,
-      "nsi": 12,
+      "nsi": 11,
       "nsiComponents": 4
     },
     "sbii": {
@@ -615,7 +615,7 @@
       "sbiiQ": "Q1(low)"
     },
     "pred3p": {
-      "pred3p": 0.46,
+      "pred3p": 0.45,
       "pred3pQ": "Q1(low)"
     },
     "desSev": {
@@ -1114,8 +1114,8 @@
         "ultradianValleys": 7
       },
       "odi1": {
-        "odi1Rate": 49.9,
-        "odi1Total": 356
+        "odi1Rate": 49.8,
+        "odi1Total": 355
       },
       "mos": {
         "mos": 1,

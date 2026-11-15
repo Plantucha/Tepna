@@ -218,6 +218,12 @@ function escaperSets(escapers) {
    FAILS the gate rather than sitting there. */
 export const ALLOW = [
   {
+    file: 'ecgdex-app.js',
+    match: 'el.innerHTML = html',
+    reason:
+      "the one sink helper (_sqSet) for the two signal-quality cards. Both builders live in ecgdex-render.js (sqTable, sqDriftPanels) and interpolate only repo constants \u2014 the \u00a73 fact labels, the sidecar ledger's own file names and labels, the pre-stated reason strings \u2014 plus numbers through _sqNum and SVG from lineChart. No dropped filename and no other user string reaches either builder, and the only raw markup is evBadge() output, which is MetricRegistry.badge() over a registry key."
+  },
+  {
     file: 'eegdex-render.js',
     match: 'el.innerHTML = html',
     reason:

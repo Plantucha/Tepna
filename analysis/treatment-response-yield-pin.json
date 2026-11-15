@@ -22,9 +22,9 @@
       "clock.js": "47a0dcff15d0",
       "clock-seam.js": "eca421bd5c5e",
       "dex-escape.js": "f0d38619047a",
-      "oxydex-util.js": "5cc642ee790b",
+      "oxydex-util.js": "46faf431bb51",
       "oxydex-profile.js": "410146545439",
-      "oxydex-dsp.js": "0f18bb8ea6c3"
+      "oxydex-dsp.js": "a6e8cd23f237"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
@@ -228,11 +228,32 @@
       "old": "ed812f7cb6d9",
       "new": "0f18bb8ea6c3",
       "reason": "Group G4 of the null and zero audit (board #6532): a linear fit, a hypoxic load and an SpO2 drift reported absence as a measurement. linReg published a zero slope over fewer than two points, over a non-finite member and over a zero denominator, and it now refuses in all three cases. computeSpO2Drift divided a null sum by the full window, and it now averages the measured samples, keeps each window on its own ordinal so a dropped window leaves a hole, and refuses below three covered windows. computeHypoxicLoad reported a zero load when the detector never ran and when it disagreed with a positive ODI3, and it now names the refusal reason and keeps a measured zero. computeKarvonenZones hid an assumed age of 49, and it now declares ageUsed and ageAssumed. No numeric detector output moves for a fully measured night. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped."
+    },
+    {
+      "date": "2026-11-15",
+      "file": "oxydex-util.js",
+      "old": "5cc642ee790b",
+      "new": "46faf431bb51",
+      "reason": "Group N1-12 of the null and zero audit (board #6550): the shared desaturation CEILING reported a number where nothing was measured. computeCeilingBaselineArr fell back to a ceiling of 95 whenever its trailing histogram held no sample, which is index 0 and every index inside a dropout longer than the window, and 95 is in range for a resting ceiling so no consumer could tell it from a reading. It now reports null there, and detectDesatEvents refuses an index with no baseline instead of coercing null through the comparisons. Measured on a 900-sample series whose first 500 samples are absent, the parent published an event with baseline 95 and depth 7 out of a window holding no sample at all. This run RE-CUT the cohort at paper scale, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped, so no synthetic patient changed arm. On the committed corpus it DOES move: night OxyDex_2026-09-19_2245 reports ODI-1 49.9 to 49.8/hr, NSI 12 to 11 and pRED-3p 0.46 to 0.45 %, which is one event per metric that was scored against a reference no sample supported."
+    },
+    {
+      "date": "2026-11-15",
+      "file": "oxydex-dsp.js",
+      "old": "0f18bb8ea6c3",
+      "new": "2500b3795724",
+      "reason": "Group N1-12 of the null and zero audit (board #6550): the shared desaturation CEILING reported a number where nothing was measured. computeCeilingBaselineArr fell back to a ceiling of 95 whenever its trailing histogram held no sample, which is index 0 and every index inside a dropout longer than the window, and 95 is in range for a resting ceiling so no consumer could tell it from a reading. It now reports null there, and detectDesatEvents refuses an index with no baseline instead of coercing null through the comparisons. Measured on a 900-sample series whose first 500 samples are absent, the parent published an event with baseline 95 and depth 7 out of a window holding no sample at all. This run RE-CUT the cohort at paper scale, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped, so no synthetic patient changed arm. On the committed corpus it DOES move: night OxyDex_2026-09-19_2245 reports ODI-1 49.9 to 49.8/hr, NSI 12 to 11 and pRED-3p 0.46 to 0.45 %, which is one event per metric that was scored against a reference no sample supported."
+    },
+    {
+      "date": "2026-11-15",
+      "file": "oxydex-dsp.js",
+      "old": "2500b3795724",
+      "new": "a6e8cd23f237",
+      "reason": "Unit s2field (board claim #6580): the OxyDex sleep-stability score published a number over a night it never measured. detectOscillations returned episodeCount 0 over an SpO2 channel that never reported, subscore s4 read (20 - 0) / 20 as a perfect 100, it was the only surviving component, and the weighted mean divided by its own 0.2 weight. Measured through processNight over 900 rows carrying spo2 null with no motion column: score 100 of 100, grade Good. The three counts now report null when no SpO2 sample was measured, every subscore guards its OWN field rather than the parent object, and a score over no measured component refuses with reason no-measured-component instead of publishing NaN graded Poor. A successful score now carries wMeasured, the summed weight behind it. No numeric detector output moves for a fully measured night, and the two node-export goldens diff on code.manifestHash and code.computeHash alone with zero other lines. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped, which are the 2026-09-22 published counts this file already holds, so no synthetic patient changed arm."
     }
   ],
-  "measuredAt": "2026-11-15T15:49:36.072Z",
+  "measuredAt": "2026-11-15T19:15:09.993Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "0c54e9dd5"
+    "commit": "529f454a9"
   }
 }

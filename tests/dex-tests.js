@@ -2569,6 +2569,117 @@
       }
     });
 
+    /* ══ THE SLEEP-STABILITY SCORE GRADED A NIGHT IT DID NOT MEASURE ══
+       Three findings in one function family, measured 2026-11-15 on `origin/main` at 529f454a9.
+
+       1 · s2 GUARDED THE PARENT, NOT THE FIELD. Its five siblings each test their own field; s2 tested
+           `hrv` alone, so `(70 - null) / 18 * 100` is 389 and the clamp published a PERFECT HR-floor
+           subscore of 100. LATENT today and reported as latent: the one caller passes `computeHRV(rows)`,
+           which refuses under 120 rows and otherwise carries a finite floor. It is ONE PRODUCER CHANGE
+           FROM LIVE — the §∅ block at `computeHRNoctDip` records exactly that transition for the same
+           field, and the stored-night re-load writes `hrFloor: null` into a PRESENT `hrv` object.
+       2 · THE PB COUNT WAS 0 OVER A CHANNEL THAT NEVER REPORTED. `detectOscillations` returned
+           `episodeCount: 0` for a night of 900 rows carrying `spo2: null`, s4 read `(20 - 0) / 20` as a
+           perfect 100, it was the ONLY surviving component, and the night published
+           **score 100, grade "Good"** with no SpO2 at all. This one was REACHABLE through
+           `processNight`, which is why it is the headline.
+       3 · WITH EVERY COMPONENT NULL THE SCORE WAS NaN, GRADED "Poor". `0 / 0` is NaN, `NaN >= 60` is
+           false, and `oxydex-render.js` guards the KPI on `score != null`, which NaN passes.
+
+       EVERY LEG BELOW IS A PAIR: the absent case and a MEASURED control, because a consumer that simply
+       stopped answering would pass a one-sided leg. Each number was measured through the real module. */
+    group('OxyDex §∅ — the stability score refuses a night it did not measure (six field guards + the unexamined PB count)', 'oxydex-dsp · absence-as-value · stability-score', function (T) {
+      var _odS = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var OD = (_odS && _odS._bare) || _odS;
+      var needS = ['computeSleepStabilityScore', 'processNight', 'detectOscillations'];
+      var missS = needS.filter(function (k) {
+        return !OD || typeof OD[k] !== 'function';
+      });
+      if (missS.length) {
+        T.ok('OxyDSP exposes the stability-score family', false, 'absent: ' + missS.join(',') + ' — this group cannot run and must not read as a pass');
+        return;
+      }
+      var f = OD.computeSleepStabilityScore;
+      // Every field measured, and each one away from its clamp so a dropped component MOVES the score.
+      var ST = { spo2Std: 1.0, motionPct: 1.0, t95pct: 5 },
+        HRV = { hrFloor: 60 },
+        OSC = { episodeCount: 2 },
+        HB = { rate: 5 };
+      var all = f(ST, HRV, OSC, HB);
+      T.eq('CONTROL · a fully measured night scores 70 on the six subscores', all.score, 70);
+      T.eq('CONTROL · …and the HR-floor subscore is the MEASURED 56, not a clamp', all.components.hrFloor, 56);
+      T.eq('CONTROL · …over the whole weight', all.wMeasured, 1);
+      T.eq('CONTROL · …with no refusal reason', all.reason, null);
+
+      /* ── 1 · each subscore refuses on ITS OWN absent field, and the renormaliser scores the rest ── */
+      var sw = [
+        ['spo2Stab', f({ spo2Std: null, motionPct: 1.0, t95pct: 5 }, HRV, OSC, HB), 71, 0.8],
+        ['hrFloor', f(ST, { hrFloor: null }, OSC, HB), 72, 0.9],
+        ['motion', f({ spo2Std: 1.0, motionPct: null, t95pct: 5 }, HRV, OSC, HB), 73, 0.85],
+        ['pb', f(ST, HRV, { episodeCount: null }, HB), 65, 0.8],
+        ['hypoxicBurden', f(ST, HRV, OSC, { rate: null }), 71, 0.8],
+        ['t95', f({ spo2Std: 1.0, motionPct: 1.0, t95pct: null }, HRV, OSC, HB), 69, 0.85]
+      ];
+      sw.forEach(function (row) {
+        T.eq('§∅ · components.' + row[0] + ' is null on ITS OWN absent field, never a clamped 100', row[1].components[row[0]], null);
+        T.eq('§∅ · …and the night scores on the components it measured', row[1].score, row[2]);
+        T.eq('§∅ · …with the covered weight beside the value', row[1].wMeasured, row[3]);
+      });
+
+      /* ── 2 · s2's field guard, the arm this unit added. The parent guard already held. ── */
+      T.eq('§∅ · a PRESENT hrv carrying hrFloor null drops the subscore (the parent guard could not see it)', f(ST, { hrFloor: null }, OSC, HB).components.hrFloor, null);
+      T.eq('§∅ · …and a null hrv object reads the same, as it already did', f(ST, null, OSC, HB).components.hrFloor, null);
+      T.eq('§∅ · a NaN floor is dropped, not kept — `!= null` would have let one NaN poison the score', f(ST, { hrFloor: NaN }, OSC, HB).components.hrFloor, null);
+      T.eq('§∅ · …so the score stays a number', f(ST, { hrFloor: NaN }, OSC, HB).score, 72);
+      T.eq('§∅ · an infinite floor is dropped too, rather than clamping to the WORST floor of 0', f(ST, { hrFloor: Infinity }, OSC, HB).components.hrFloor, null);
+      T.eq('CONTROL · a measured floor of 70 scores 0 — the WORST the scale expresses, and not null', f(ST, { hrFloor: 70 }, OSC, HB).components.hrFloor, 0);
+
+      /* ── 3 · nothing measured: no score, no grade, and a named reason ── */
+      var none = f({ spo2Std: null, motionPct: null, t95pct: null }, null, null, null);
+      T.eq('§∅ · with every component absent the score is null, not NaN', none.score, null);
+      T.eq('§∅ · …and the night carries NO grade (the ref graded it "Poor" off a NaN)', none.grade, null);
+      T.eq('§∅ · …the refusal names its reason', none.reason, 'no-measured-component');
+      T.eq('§∅ · …and the covered weight says nothing was measured', none.wMeasured, 0);
+      T.ok('§∅ · …and the score is not a number the KPI guard would pass', none.score == null, String(none.score));
+
+      /* ── 4 · THE HEADLINE, through processNight on real rows: an unexamined SpO2 channel ── */
+      var t0 = Date.UTC(2026, 0, 1, 22, 0, 0);
+      var mkN = function (spo2, hr, withMotion) {
+        var rows = [];
+        for (var i = 0; i < 900; i++) {
+          var r = { tMs: t0 + i * 1000, t: new Date(t0 + i * 1000), spo2: spo2, hr: hr };
+          if (withMotion) r.motion = 0;
+          rows.push(r);
+        }
+        return rows;
+      };
+      var blank = OD.processNight(mkN(null, null, false), 'blank.csv');
+      T.eq('§∅ · a night whose SpO2 channel never reported has NO episode count — 0 was the detector saying nothing', blank.osc.episodeCount, null);
+      T.eq('§∅ · …nor a peak crossing count', blank.osc.peakCrossings, null);
+      T.eq('§∅ · …nor a crossing burden', blank.osc.totalCrossings, null);
+      T.eq('§∅ · so the night no longer scores 100 "Good" off the one component it never measured', blank.stab.score, null);
+      T.eq('§∅ · …and reports WHY it refused', blank.stab.reason, 'no-measured-component');
+      var flat = OD.processNight(mkN(96, 60, true), 'flat.csv');
+      T.eq('CONTROL · a MEASURED night with no periodic breathing still reports a real zero', flat.osc.episodeCount, 0);
+      T.eq('CONTROL · …and its stability score is unmoved from the ref', flat.stab.score, 96);
+      T.eq('CONTROL · …over the whole weight', flat.stab.wMeasured, 1);
+      /* The partially measured case: no SpO2, but the motion column DID report, reading 0 every second.
+         Every input the score used was measured, so a refusal would be wrong — and `wMeasured` is what
+         tells a reader the 100 rests on a seventh of the scale. A reader-facing coverage floor is a
+         separate decision; this field is what one would read. */
+      var motionOnly = OD.processNight(mkN(null, null, true), 'motion-only.csv');
+      T.eq('§∅ · a night measured on motion ALONE still scores, and says so', motionOnly.stab.score, 100);
+      T.eq('§∅ · …with the covered weight beside it, so the 100 is not read as a whole night', motionOnly.stab.wMeasured, 0.15);
+      T.eq(
+        '§∅ · …and the five unmeasured components stay null',
+        [motionOnly.stab.components.spo2Stab, motionOnly.stab.components.hrFloor, motionOnly.stab.components.pb, motionOnly.stab.components.hypoxicBurden, motionOnly.stab.components.t95].filter(
+          function (v) {
+            return v !== null;
+          }
+        ).length,
+        0
+      );
+    });
     group('OxyDex §∅ — processNight reports an unmeasured SpO2/HR night as null, never 0', 'oxydex-dsp · absence-as-value · primary-builder', function (T) {
       var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var OD = (_od && _od._bare) || _od;
@@ -11742,7 +11853,7 @@
          is the difference between a lane bug and a false phantom. */
       var BODIES = {
         cpapdex: ['cpapdex-dsp.js', 'cpapdex-cross.js'],
-        ecgdex: ['ecgdex-dsp.js', 'ecgdex-cross.js', 'ecgdex-app.js'],
+        ecgdex: ['ecgdex-dsp.js', 'ecgdex-cross.js', 'ecgdex-app.js', 'ecgdex-render.js'],
         glucodex: ['glucodex-dsp.js'],
         hrvdex: ['hrvdex-dsp.js', 'hrvdex-app.js', 'hrvdex-profile.js'],
         motiondex: ['motiondex-dsp.js'],
@@ -12659,6 +12770,95 @@
         // CONTROL — passes on main too: the metric itself still reports.
         T.ok('CONTROL · ' + name + ' still carries its value', 'value' in b || 'label' in b || Object.keys(b).length > 2, Object.keys(b).slice(0, 6).join(','));
       });
+    });
+
+    /* §∅ N1-12 · A WINDOW WITH NO MEASURED SAMPLE HAS NO CEILING — and 95 was the number it published.
+       `computeCeilingBaselineArr` fell back to `bl[i] = 95` whenever its trailing histogram held
+       nothing (`cnt === 0`): index 0, which has no history, and every index whose whole trailing WIN
+       is absent. 95 is in range for a resting ceiling, so nothing downstream could tell it from a
+       reading — and it is the reference a desaturation is SCORED against, which makes it the §∅
+       error at the one place the whole desaturation family shares.
+       MEASURED PLANT, both ways, against this module's own sources: over a 900-sample series whose
+       first 500 samples are absent, the parent reported a ceiling of 95 at all 500 indices whose
+       window held nothing, and `detectDesatEvents`
+       published `{startIdx: 300, baseline: 95, depth: 7}` out of a window holding no sample at all.
+       `minSec: 10` kept that event out of ODI-4, but `computeODI1` (dropPct 1) and `dip3Count`
+       (dropPct 3) both call the primitive with `minSec: 0`, so the fabricated reference reached two
+       PUBLISHED counts. With the fix the same series yields 67 events where the parent yielded 68,
+       and the one that went is exactly the one with no baseline. */
+    group('§∅ · OxyDex — an empty baseline window has NO ceiling, never 95 (plant-backed)', 'oxydex-util · oxydex-dsp · absence · plant', function (T) {
+      var CB = env.computeCeilingBaselineArr || (typeof globalThis !== 'undefined' && globalThis.computeCeilingBaselineArr) || null;
+      var det = env.OxyDex && env.OxyDex._bare && env.OxyDex._bare.detectDesatEvents;
+      if (typeof CB !== 'function') {
+        T.skip('computeCeilingBaselineArr reachable', 'not exposed in this lane');
+        return;
+      }
+      var WIN = 300;
+      var clean = [];
+      for (var i = 0; i < 900; i++) clean.push(94 + (i % 5)); // spans 94..98 — a percentile cannot be
+      // seen to move on a constant series.
+
+      // (a) THE COLD START. Index 0 has no history, so it has no ceiling. RED on the parent: 95.
+      T.eq('index 0 has no measured history, so it reports null', JSON.stringify(CB(clean, WIN, 90)[0]), 'null');
+
+      // (b) AND EVERY INDEX WHOSE WHOLE TRAILING WINDOW IS ABSENT. RED on the parent: all 500 read 95.
+      var holed = clean.slice();
+      for (var j = 0; j < 500; j++) holed[j] = null; // a dropout LONGER than WIN
+      var blH = CB(holed, WIN, 90);
+      var unsupported = 0;
+      for (var k = 0; k < 500; k++) if (blH[k] != null) unsupported++;
+      T.eq('no index inside a dropout longer than the window reports a ceiling', unsupported, 0);
+      T.eq('and the first index after it, whose window is still all absent, reports null', JSON.stringify(blH[499]), 'null');
+
+      // (c) THE DETECTOR PUBLISHES NO EVENT AGAINST A REFERENCE NOTHING MEASURED. This is the
+      // `minSec: 0` path that computeODI1 and dip3Count use, so it is a published count.
+      if (typeof det !== 'function') {
+        T.skip('detectDesatEvents reachable', 'not exposed in this lane');
+      } else {
+        var deep = holed.slice();
+        for (var m = 300; m < 360; m++) deep[m] = 88; // real readings inside the absent span
+        var evs = det(deep, { dropPct: 4, exitPct: 4, minSec: 0 });
+        var fabricated = evs.filter(function (e) {
+          return e.startIdx < 500 && e.baseline === 95;
+        });
+        // RED on the parent: one event, {startIdx: 300, baseline: 95, depth: 7}.
+        T.eq('no event is scored against a baseline no sample supports', fabricated.length, 0);
+        T.eq(
+          'and none of the published events starts inside the dropout at all',
+          evs.filter(function (e) {
+            return e.startIdx < 500;
+          }).length,
+          0
+        );
+      }
+
+      /* CONTROLS — these pass on the parent TOO, so a red above is the absence path and not the
+         harness. The first is the one that matters: the fix is "no supporting sample", NEVER
+         "the value happens to be 95". */
+      var flat95 = [];
+      for (var q = 0; q < 400; q++) flat95.push(95);
+      T.eq('CONTROL · a MEASURED ceiling of 95 is still reported as 95', CB(flat95, WIN, 90)[399], 95);
+      var blC = CB(clean, WIN, 90);
+      var missing = 0;
+      for (var r = 1; r < 900; r++) if (blC[r] == null) missing++;
+      T.eq('CONTROL · a null-free series reports a ceiling at every index from 1 on', missing, 0);
+      T.eq('CONTROL · absence does not shorten the series', blH.length, blC.length);
+
+      // The source carries the two call sites the fabrication reached. `match(/…/g)` counts
+      // OCCURRENCES — `grep -c` would count LINES and under-read a file that calls it twice.
+      if (typeof require !== 'undefined') {
+        var src = '';
+        try {
+          src = require('fs').readFileSync('oxydex-dsp.js', 'utf8');
+        } catch (_e) {}
+        if (src) {
+          var zero = src.match(/minSec:\s*0\b/g) || [];
+          T.ok('the primitive is called with minSec 0 at more than one site (ODI-1 and dip3)', zero.length >= 2, String(zero.length));
+          T.ok('the detector refuses an index with no baseline', /if \(bl == null\)/.test(src));
+        } else {
+          T.skip('source assertions', 'Node-only (require(fs))');
+        }
+      }
     });
 
     /* §∅ · A TERMINAL DESATURATION OBSERVED NO RESATURATION — item (B) of the 2026-10-06 batch, as
@@ -30211,6 +30411,41 @@
       T.eq('the engine declares the 30 s epoch', D.EPOCH_SEC, 30);
     });
 
+    group('EEGDex pins two refusals no assertion held: rms over an all-hole window, the four-epoch stretch floor', 'eegdex · refusals · mutation-pinned', function (T) {
+      /* Shrike's eegdex-dsp.js mutant run (2026-11-15, verified by Kestrel) found both guards unpinned:
+         each mutant passed all 19007 assertions. */
+      var D = env.EEGDSP;
+      /* rms returns null when no finite sample is in the window. A 0 there is the lowest muscle
+         tone, which is the REM arm's own requirement, so a hole would push an epoch toward REM. */
+      T.eq('rms over a window of holes → null, never 0', JSON.stringify(D.rms([NaN, NaN, NaN], 0, 3)), 'null');
+      T.eq('rms over an empty window → null', JSON.stringify(D.rms([1, 2], 1, 1)), 'null');
+      T.eq('CONTROL: rms over finite samples skips the hole and measures', JSON.stringify(D.rms([3, NaN, 4], 0, 3)), JSON.stringify(Math.sqrt(12.5)));
+      /* swaTrend excludes a stretch with fewer than SWA_MIN_EPOCHS (4) N2/N3 epochs. Three stretches:
+         4 N2, then 1 N2 among 11 N1, then 4 N2. The REM epochs sit 12 epochs apart, past the
+         10-epoch merge gap, so they are two REM periods and the middle stretch is a stretch. */
+      var st = [],
+        k;
+      for (k = 0; k < 4; k++) st.push('N2');
+      st.push('REM', 'N2');
+      for (k = 0; k < 11; k++) st.push('N1');
+      st.push('REM');
+      for (k = 0; k < 4; k++) st.push('N2');
+      var bands = st.map(function () {
+        return { abs: { delta: 10 } };
+      });
+      var sw = D.swaTrend(bands, st);
+      T.eq('a one-epoch stretch is excluded and counted, never measured', JSON.stringify(sw.population), JSON.stringify({ stretches: 3, measured: 2, excluded: 1 }));
+      T.eq(
+        'and only the two four-epoch stretches enter the trend',
+        JSON.stringify(
+          sw.periods.map(function (p) {
+            return p.epochs;
+          })
+        ),
+        '[4,4]'
+      );
+    });
+
     group('EEGDex scores the deterministic synthetic to its pinned values', 'eegdex · compute · known-answer', function (T) {
       var D = env.EEGDSP;
       if (!D) {
@@ -42143,6 +42378,13 @@
         );
         out = G.pearson([1, 2, 3], [4, 5, 6]);
         T.eq('G.pearson([1,2,3],[4,5,6]) → "1"', JSON.stringify(out), '1');
+        /* Three refusals no assertion held (Shrike mutants G1, G2 and G4, 2026-11-15). Each assertion tests `=== null`,
+           because `JSON.stringify(NaN)` also prints null and so cannot tell a refusal from a 0/0. */
+        T.eq('G.pearson over 2 pairs → null, never a two-point ±1', JSON.stringify(G.pearson([1, 2], [3, 5]) === null), 'true');
+        T.eq('G.pearson with a constant x series → null, never NaN', JSON.stringify(G.pearson([1, 1, 1], [1, 2, 3]) === null), 'true');
+        T.eq('G.pearson with a constant y series → null, never NaN', JSON.stringify(G.pearson([1, 2, 3], [4, 4, 4]) === null), 'true');
+        T.eq('G._mage over 3 readings → null (the four-reading floor)', JSON.stringify(G._mage([100, 200, 100], 10) === null), 'true');
+        T.eq('CONTROL: G._mage over 4 readings measures the excursions', JSON.stringify(G._mage([100, 200, 100, 200], 10)), '100');
 
         /* ── ROUND 2 (2026-08-25 bank) — 10 of 11 candidates adopted (the 11th was MANUAL-truncated).
          The seven `|| null` field pins below are the highest-value drafts in the whole bank: each
@@ -43581,6 +43823,41 @@
       T.ok('ANTI-VACUITY · buildLongitudinal returned a real block', D.buildLongitudinal(two).nights === 2 && typeof D.buildLongitudinal(two).compliancePct === 'number');
     });
 
+    group('∅ CPAPDex AHI-by-hour — an event with no time has no hour', 'cpapdex-dsp · cpapdex-render · absence', function (T) {
+      /* The browser env leaves CpapRender unset on purpose (its canvas groups are node-lane only), but this
+         helper is pure, so read the page global the suite already evaluated and pin it in both lanes. */
+      var CR = env.CpapRender || (typeof window !== 'undefined' ? window.CpapRender : null);
+      if (!CR || typeof CR.ahiByHourBuckets !== 'function') {
+        T.skip('CpapRender.ahiByHourBuckets', 'export the pure bucketing so the untimed case is pinned with no canvas');
+        return;
+      }
+      var T0 = Date.UTC(2026, 0, 1, 22, 0, 0);
+      var night = function (events) {
+        return { t0Ms: T0, therapyHours: 4, sessions: [{ t0Ms: T0, events: events }] };
+      };
+      /* The row's case: an event with neither an absolute stamp nor a session offset. The old code
+         read `(ev.timeSec || 0)` and placed it at the session start, i.e. the h1 bar. */
+      var b0 = CR.ahiByHourBuckets(night([{ type: 'OA' }, { type: 'H', tMs: null, timeSec: null }]));
+      T.eq('∅ two timeless events do not enter hour 1', b0.buckets[0], 0);
+      T.eq('∅ they travel beside the buckets instead', b0.untimed, 2);
+      T.eq('∅ and no other bucket invents them', b0.buckets.join(','), '0,0,0,0');
+      var b1 = CR.ahiByHourBuckets(night([{ type: 'OA', tMs: T0 + 2 * 3600000 + 5 }]));
+      T.eq('CONTROL · a measured event lands in its own hour', b1.buckets[2], 1);
+      T.eq('CONTROL · and nothing is left untimed', b1.untimed, 0);
+      var b2 = CR.ahiByHourBuckets(
+        night([
+          { type: 'OA', timeSec: 1800 },
+          { type: 'CA', timeSec: null }
+        ])
+      );
+      T.eq('a session-relative offset is a measured time', b2.buckets[0], 1);
+      T.eq('∅ a null timeSec is not a zero', b2.untimed, 1);
+      var b3 = CR.ahiByHourBuckets(night([{ type: 'OA', tMs: T0 + 9 * 3600000 }]));
+      T.eq('a timed event past the last hour is OUTSIDE, not untimed', [b3.untimed, b3.outside].join(','), '0,1');
+      T.eq('a RERA stays out of the count, as before', CR.ahiByHourBuckets(night([{ type: 'RE' }])).untimed, 0);
+      T.eq('∅ a night with no anchor places nothing and says so', CR.ahiByHourBuckets({ therapyHours: 4, sessions: [{ events: [{ type: 'OA', timeSec: 60 }] }] }).untimed, 1);
+    });
+
     /* ════ CPAPDex USAGE — a mask-on label draws mask-on hours ════
      `night.therapyHours` sums each session's `durMin`, and the full-set constructor sets `durMin`
      from the WALL span ("WALL duration (for off-mask gap math)"). The pooled MASK-ON figure lives
@@ -44287,6 +44564,25 @@
         'a row with no usable column map is COUNTED, in both nodes',
         pNo.length === 0 && pNo._unmappedDropped === 3 && mNo.length === 0 && mNo._unmappedDropped === 3,
         'ppg=' + pNo._unmappedDropped + ' motion=' + mNo._unmappedDropped
+      );
+      /* The tail map needs three numeric fields (Shrike mutant MUT-p3, 2026-11-15). With a floor of
+         one or two, a short row yields a map whose x or y column is `undefined`. That map is truthy,
+         so every row then drops as a NaN `x` and nothing counts it. */
+      var ONE_NUM = 'a;b;c;d;5\nf;g;h;i;6\nk;l;m;n;7\n',
+        TWO_NUM = 'a;b;c;4;5\nf;g;h;6;7\nk;l;m;8;9\n';
+      var p1 = P.parseSensorXYZ(ONE_NUM),
+        m1 = M.parseSensorXYZ(ONE_NUM),
+        p2 = P.parseSensorXYZ(TWO_NUM),
+        m2 = M.parseSensorXYZ(TWO_NUM);
+      T.ok(
+        'a headerless row with ONE numeric field maps nothing, and every row is COUNTED, in both nodes',
+        p1.length === 0 && p1._unmappedDropped === 3 && m1.length === 0 && m1._unmappedDropped === 3,
+        'ppg=' + p1.length + '/' + p1._unmappedDropped + ' motion=' + m1.length + '/' + m1._unmappedDropped
+      );
+      T.ok(
+        'a headerless row with TWO numeric fields maps nothing, and every row is COUNTED, in both nodes',
+        p2.length === 0 && p2._unmappedDropped === 3 && m2.length === 0 && m2._unmappedDropped === 3,
+        'ppg=' + p2.length + '/' + p2._unmappedDropped + ' motion=' + m2.length + '/' + m2._unmappedDropped
       );
       T.ok(
         '…and the count is UNCONDITIONAL, so a reader can tell 0 from "nobody counted"',
@@ -57003,6 +57299,189 @@
         } else T.skip('ecgdex-dsp.js source unavailable');
       }
     );
+    /* ── SIGNAL-QUALITY-TABLE §6, THE RENDER HALF (boxes 6, 7 and 8) ───────────────────────────────
+       The builders compute nothing. They read the `signalQuality` object the rich export carries, and
+       the §3d drift profile and host axis the record carries, and they draw them. So every leg here
+       pins what a READER sees: a badge on every row, a named reason under every absence, and a
+       reason in place of a chart that has too few points to draw. A render that silently drops a
+       cell is the failure this group exists to catch — EXPORT-PATH-UNREACHABLE-2026-08-01 is the
+       brief about an export path that broke in five nodes while every gate stayed green. */
+    group('SIGNAL-QUALITY-TABLE unit 2 — the render badges every row and names every absence', 'ecgdex-render · §6 · signalQuality · §∅', function (T) {
+      var UI = env.ECGUI;
+      if (!(UI && typeof UI.sqTable === 'function' && typeof UI.sqDriftPanels === 'function' && Array.isArray(UI.SQ_ROWS))) {
+        T.skip('env.ECGUI.sqTable + sqDriftPanels + SQ_ROWS available', 'ecgdex-render.js is co-loaded in this lane, so an absence here means the module stopped publishing the two builders');
+        return;
+      }
+
+      /* 1 · THE GRADE OF EVERY ROW LABEL. `badgeForLabel` FABRICATES an `experimental` disc for a
+         label the registry cannot resolve, and that branch prints no warning — so a typo in a row
+         label under-grades the row silently, and only a resolver leg can see it. */
+      var R = env.EcgRegistry,
+        REG = env.ECG_REGISTRY;
+      var DRIFT_LABELS = ['Host divergence', 'Per-window rate', 'Allan deviation'],
+        LEDGER_LABEL = 'Sidecar state';
+      if (R && typeof R.idForLabel === 'function' && REG) {
+        var allLabels = UI.SQ_ROWS.map(function (row) {
+          return row.label;
+        }).concat(DRIFT_LABELS, [LEDGER_LABEL]);
+        var unresolved = [],
+          ungraded = [];
+        for (var li = 0; li < allLabels.length; li++) {
+          var id = R.idForLabel(allLabels[li]);
+          if (!id) unresolved.push(allLabels[li]);
+          else if (((REG[id] || {}).evidence || null) !== 'measured') ungraded.push(allLabels[li] + '=' + ((REG[id] || {}).evidence || 'null'));
+        }
+        T.eq('every label this card draws resolves to a registry id', unresolved.join(' | '), '');
+        T.eq('…and each one is graded measured, because each row is a measurement this node makes', ungraded.join(' | '), '');
+        T.eq('CONTROL · an unregistered label resolves to null, so the two legs above can fail', R.idForLabel('Night drift of the fifth kind'), null);
+        T.ok('CONTROL · and an unregistered label still DRAWS a disc, which is why the legs above exist', /ev-experimental/.test('' + R.badgeForLabel('Night drift of the fifth kind', true)));
+      } else T.skip('env.EcgRegistry + env.ECG_REGISTRY available', 'the grade of a row label is a registry fact, and this lane binds neither half');
+
+      /* 2 · BOX 7 — A VENDOR EXPORT, RENDERED. The data half of this box is pinned in unit 1 above
+         (the ledger census reads {"not-applicable":25}). Here the same object goes through the
+         builder, because a cell that the table drops is invisible to every leg that reads the
+         object alone. */
+      var E = env.ECGDSP || env.ECGDex;
+      var eq = env.equiv && env.equiv.ecgdex_rich;
+      if (!(E && typeof E.compute === 'function' && typeof E.parseECG === 'function' && eq && eq.input)) {
+        T.skip('committed ECGDex rich input present', 'synthetic_ecgdex_h10.txt is COMMITTED, so this must run everywhere including CI');
+      } else {
+        var recPsl = E.parseECG(eq.input, { name: 'Polar_H10_D2A1B3C4_20260627_220000_ECG.txt' });
+        var sqPsl2 = (E.compute(recPsl, { rich: true }) || {}).signalQuality || null;
+        var html = UI.sqTable(sqPsl2, null);
+        T.ok('the vendor export renders a table rather than a reason', !/No cell of this table can be drawn/.test(html));
+        /* The ledger's own count line is the unambiguous read: the bare word also appears in the
+           reasons of the rows, so a substring count over the whole card measures prose too. */
+        T.ok('the ledger count line says all 25 rows are not-applicable and that none was read', /25 listed · 0 read · 25 not-applicable/.test(html));
+        T.ok('…and no row of a vendor export claims a sidecar was read', !/>read</.test(html));
+        var afterAll = (html.match(/→ after /g) || []).length,
+          afterNull = (html.match(/→ after <b>—<\/b> \(/g) || []).length;
+        T.ok('the table draws a before-and-after pair for the facts a sidecar can move', afterAll > 0, 'afterAll=' + afterAll);
+        T.eq('…and on a vendor export EVERY after value is an absence, because no host writer ran', afterNull, afterAll);
+        T.ok('CONTROL · no absence draws an empty parenthesis in place of its reason', !/<b>—<\/b> \(\)/.test(html));
+        T.ok('CONTROL · the unexplained-absence fallback string never reaches the page', html.indexOf('no reason travelled with this absence') < 0);
+        T.ok('every cell carries a measured disc, and none carries a fabricated one', /ev-measured/.test(html) && !/ev-experimental/.test(html));
+        /* THREE discs per fact, not two: the row-label column carries the grade of the measurement,
+           and each of the two channel columns carries it again on its own cell. Plus one per ledger
+           row. A disc that stops being drawn moves this count, which is the point of reading it. */
+        T.eq('one disc on every row label, every channel cell and every ledger row', (html.match(/class="ev ev-/g) || []).length, UI.SQ_ROWS.length * 3 + 25);
+      }
+
+      /* 3 · THE ABSENT OBJECT. An empty card is a question a reader cannot answer, so the builder
+         prints the reason the caller handed it (§∅: an absence travels with a named reason). */
+      T.ok('an absent object draws the reason it was handed', UI.sqTable(null, 'the node export threw while this card was built').indexOf('the node export threw while this card was built') > 0);
+      T.ok('…and it says what the card reads, so the reader knows the table computes nothing itself', /reads the <code>signalQuality<\/code> object/.test(UI.sqTable(null, 'x')));
+      T.ok('CONTROL · an absence that arrives with NO reason says the missing reason is itself a defect', /no reason travelled with this absence/.test(UI.sqTable(null, null)));
+
+      /* 4 · BOX 6 — THE THREE DRIFT SERIES. Synthetic inputs, because the builder is a pure function
+         of the two objects and a committed recording cannot carry the refusal cases below. */
+      var dp = {
+        night: 12.5,
+        windows: [
+          { tMin: 0, anchors: 40, ppm: 11, reason: null, residFirstMs: -2, residLastMs: 3, residRangeMs: 5 },
+          { tMin: 5, anchors: 40, ppm: 13, reason: null, residFirstMs: -1, residLastMs: 4, residRangeMs: 5 }
+        ]
+      };
+      var ax = {
+        ok: true,
+        independent: true,
+        ppm: 12.5,
+        n: 80,
+        stability: {
+          note: null,
+          curve: [
+            { tauSec: 60, adevPpm: 4, n: 20 },
+            { tauSec: 300, adevPpm: 2, n: 4 }
+          ]
+        }
+      };
+      var dh = UI.sqDriftPanels(dp, ax);
+      T.ok(
+        'the card draws the divergence panel, the per-window rate panel and the Allan panel',
+        DRIFT_LABELS.every(function (L) {
+          return dh.indexOf(L) >= 0;
+        }),
+        dh.slice(0, 0)
+      );
+      T.eq('each of the three series carries its own disc', (dh.match(/class="ev ev-measured/g) || []).length, 3);
+      T.eq('…and three charts are drawn, one per series', (dh.match(/<svg/g) || []).length, 3);
+
+      // 4b · THE REFUSALS. Each one prints the axis's OWN reason, never a borrowed one (§∅).
+      T.ok('no axis at all says so', /no host axis/.test(UI.sqDriftPanels(dp, null)));
+      T.ok(
+        'a refused axis prints the refusal the axis itself gave',
+        UI.sqDriftPanels(dp, { ok: false, reason: 'too-few-anchors: 2 of the 3 a rate needs', n: 2 }).indexOf('too-few-anchors: 2 of the 3 a rate needs') > 0
+      );
+      /* THE AXIS'S OWN REASONS, quoted by the panel. `deviceDrawn` and `independent` answer different
+         questions — the DEVICE column against the HOST column — and clock.js publishes `drawnReason`
+         and `inertReason` separately, because both can be non-null and neither implies the other. A
+         drawn axis still reads `independent: true`, so a ladder gating on `independent` alone prints
+         the wrong reason for a drawn stream. The strings below are the shapes clock.js publishes. */
+      var AX_INERT = {
+        ok: true,
+        independent: false,
+        n: 80,
+        stability: null,
+        inertReason: 'host \u2261 device \u2014 residual spread 0.97 ms \u2264 1 ms (one stamp quantum); this host column is not an independent clock'
+      };
+      var AX_DRAWN = {
+        ok: true,
+        independent: true,
+        deviceDrawn: true,
+        drawnShare: 1,
+        n: 80,
+        stability: null,
+        drawnReason:
+          'device axis is DRAWN \u2014 100.00 % of inter-sample deltas share one value (\u2265 67 %); this column is a synthesised counter, not a clock, so there is no second timebase to discipline against'
+      };
+      var AX_BOTH = {
+        ok: true,
+        independent: false,
+        deviceDrawn: true,
+        drawnShare: 1,
+        n: 80,
+        stability: null,
+        drawnReason: AX_DRAWN.drawnReason,
+        inertReason: AX_INERT.inertReason
+      };
+      T.ok('an axis with no second clock quotes the axis OWN inertReason', UI.sqDriftPanels(dp, AX_INERT).indexOf('this host column is not an independent clock') > 0);
+      T.ok('a DRAWN device axis quotes drawnReason, which says the DEVICE column is not a clock', UI.sqDriftPanels(dp, AX_DRAWN).indexOf('this column is a synthesised counter, not a clock') > 0);
+      T.eq('…and that drawn axis reads independent TRUE, so independent alone would have printed the wrong reason', AX_DRAWN.independent, true);
+      T.ok('CONTROL · an axis that is BOTH drawn and inert reports the DEVICE column first', UI.sqDriftPanels(dp, AX_BOTH).indexOf('synthesised counter') > 0);
+      T.ok('CONTROL · …and that panel does NOT also print the host-column reason', !/not an independent clock/.test(UI.sqDriftPanels(dp, AX_BOTH)));
+      T.ok(
+        '§∅ CONTROL · an inert axis that published NO reason says so rather than inventing one',
+        UI.sqDriftPanels(dp, { ok: true, independent: false, n: 80, stability: null }).indexOf('no reason travelled with this absence') > 0
+      );
+      T.ok(
+        'an axis that published no curve says that, rather than drawing an empty chart',
+        /published no Allan curve/.test(UI.sqDriftPanels(dp, { ok: true, independent: true, n: 80, stability: { note: null, curve: [] } }))
+      );
+      T.ok('a profile with one window cannot draw a line, and says why rather than drawing nothing', /\(/.test(UI.sqDriftPanels({ night: null, windows: [dp.windows[0]] }, ax)));
+      T.ok('CONTROL · no refusal path draws a chart', !/<svg/.test(UI.sqDriftPanels(null, null)));
+
+      /* 5 · BOX 8 — THE PLACEMENT. The owner's direction (agent board entry 6514) put the table at
+         the top of the EXISTING Signal Quality section, above that section's first result card. The
+         shell is the only place this fact lives, so the shell is where the leg reads it. */
+      var shell = (env.srcHtml || {})['ECGDex.src.html'] || '';
+      if (shell) {
+        var iT = shell.indexOf('id="sqTableCard"'),
+          iD = shell.indexOf('id="sqDriftCard"'),
+          iQ = shell.indexOf('id="qualityCard"');
+        T.ok('the shell defines both cards', iT > 0 && iD > 0, 'sqTableCard=' + iT + ' sqDriftCard=' + iD);
+        T.ok('…and both sit ABOVE the first result card of the Signal Quality section', iT < iQ && iD < iQ, 'qualityCard=' + iQ);
+        T.ok('the table card comes before the drift card, so the reader meets the cells first', iT < iD);
+        T.ok('both cards sit INSIDE the existing Signal Quality section, not above the page', shell.lastIndexOf('id="qualitySection"', iT) > 0);
+      } else T.skip('ECGDex.src.html readable', 'the placement fact lives in the shell, and this lane reads no shell');
+
+      /* 6 · SOURCE MIRRORS — the two call sites this card cannot work without. */
+      var aSrc = (env.sources && env.sources['ecgdex-app.js']) || '';
+      if (aSrc) {
+        T.ok('the card calls the export with opts.rich, because out.signalQuality is rich-gated', /buildNodeExport\(r, \{ kernel: window\.DexKernel \|\| null, rich: true \}\)/.test(aSrc));
+        T.ok('CONTROL · the Ganglior export the user downloads still calls it WITHOUT opts.rich', /buildNodeExport\(r, \{ kernel: window\.DexKernel \? \{/.test(aSrc) || /exportGanglior/.test(aSrc));
+        T.ok('every failure of that call prints its own message, and none is swallowed', /the node export threw while this card was built/.test(aSrc));
+      } else T.skip('ecgdex-app.js source unavailable');
+    });
 
     /* done-when 4, the four product-node legs (residue 2026-10-17-sample-parsers-called-without-their-sidecar).
        Each leg fails when the old 1-arg read comes back. PpgDex's ACC parser took no sidecar at all, so
@@ -99600,6 +100079,228 @@
           return r.device === 'Wellue O2Ring-S';
         })
       );
+    });
+
+    /* ════ ∅ · A READ CHAIN MUST NOT SKIP A MEASURED ZERO ════
+       Unit `glycv`, the opposite-direction sibling of the three absence rows PR 5100 fixed. The
+       adapter read five numeric summary fields as `_dig(a) || _dig(b) || …`, and `||` rejects 0.
+       Every one of these fields has 0 inside its domain: a flat CGM trace has cv 0, a night with no
+       dawn rise has medianDelta 0, and a drawn or constant RR series has rmssd 0. So a measured zero
+       fell through to the next key. Where a later key held a number from a DIFFERENT basis, the
+       adapter published that number instead, which is worse than the null. */
+    group('Integrator adapter keeps a measured zero in every read chain', 'integrator-dsp · adapter · measured-zero', function (T) {
+      var A = env.adaptEnvelopeNode;
+      T.ok('adaptEnvelopeNode is reachable', typeof A === 'function');
+      if (typeof A !== 'function') return;
+      var t0 = U(2026, 5, 7, 22, 0, 0);
+      var glu = function (body, label) {
+        var j = { schema: { node: 'GlucoDex' }, recording: { startEpochMs: t0, durationMin: 480, offsetMin: null } };
+        Object.keys(body).forEach(function (k) {
+          j[k] = body[k];
+        });
+        return A(j, 'GlucoDex', label || 'g.json')[0].summary;
+      };
+      var hrv = function (body, label) {
+        var j = { schema: { node: 'HRVDex' }, recording: { startEpochMs: t0, durationMin: 480, offsetMin: null } };
+        Object.keys(body).forEach(function (k) {
+          j[k] = body[k];
+        });
+        return A(j, 'HRVDex', label || 'h.json')[0].summary;
+      };
+
+      /* A FLAT CGM TRACE MEASURES cv 0. */
+      T.eq('a measured cv of 0 survives the chain', glu({ glucose: { cv: 0 } }).glucoseCV, 0);
+      T.eq('the FIRST path still wins over a later one', glu({ glucose: { cv: 0 }, glycemic: { cv: 34 } }).glucoseCV, 0);
+      T.eq('a later path still answers when the first is absent', glu({ glycemic: { cv: 34 } }).glucoseCV, 34);
+      T.eq('no cv anywhere is null', JSON.stringify(glu({ glucose: { mean: 5.4 } }).glucoseCV), 'null');
+
+      /* A NIGHT WITH NO DAWN RISE MEASURES medianDelta 0 — and the pre-fix chain published
+         `fusion.dawnSurge`, a number from another basis, in its place. */
+      T.eq('a measured dawn surge of 0 survives', glu({ glucose: { dawn: { medianDelta: 0 } } }).dawnSurge, 0);
+      T.eq('…even when a later path carries another basis’s number', glu({ glucose: { dawn: { medianDelta: 0 } }, fusion: { dawnSurge: 42 } }).dawnSurge, 0);
+      T.eq('…and that later path still answers on its own', glu({ fusion: { dawnSurge: 42 } }).dawnSurge, 42);
+      T.eq('no dawn key anywhere is null', JSON.stringify(glu({ glucose: { cv: 12 } }).dawnSurge), 'null');
+
+      /* A CONSTANT RR SERIES MEASURES rmssd 0. */
+      var flat = hrv({ hrv: { time: { rmssd: 0, sdnn: 0 }, frequency: { lfhf: 0 } } });
+      T.eq('a measured rmssd of 0 survives', flat.rmssd, 0);
+      T.eq('a measured sdnn of 0 survives', flat.sdnn, 0);
+      T.eq('a measured lf/hf of 0 survives', flat.lfhf, 0);
+      var legacy = hrv({ hrv: { rmssd: 41, sdnn: 58, lfhf: 1.4 } });
+      T.eq('the legacy bare path still answers for rmssd', legacy.rmssd, 41);
+      T.eq('…for sdnn', legacy.sdnn, 58);
+      T.eq('…and for lf/hf', legacy.lfhf, 1.4);
+      T.eq('an absent hrv block is null', JSON.stringify(hrv({}).rmssd), 'null');
+
+      /* WHAT THE WALK WILL NOT PUBLISH. A path holding something other than a finite number is not
+         a number this adapter can publish, so the field ends null rather than carrying the token on. */
+      T.eq('a numeric STRING is not a number, so the field is null', JSON.stringify(glu({ glucose: { cv: '34' } }).glucoseCV), 'null');
+      T.eq('NaN is not a measurement either', JSON.stringify(glu({ glucose: { cv: NaN } }).glucoseCV), 'null');
+      T.eq('…and a string does not block a later path that holds a number', glu({ glucose: { cv: '34' }, glycemic: { cv: 34 } }).glucoseCV, 34);
+    });
+
+    /* ════ ∅ · THE ACTIVITY ENVELOPE SAYS NOTHING FOR A SAMPLE IT COULD NOT DIFFERENCE ════
+       Row `2026-11-15-integrator-activityenvelope-nan-reads-as-zero`. `log1p(d)` is 0 for a finite
+       delta of 0, so 0 here MEANS a measurement: the limb held still between two samples. A
+       non-finite delta landed on that same 0, and index 0 — which owns no first difference at all —
+       did too. The consumer decides the difference: `_ncc` skips a pair where either side reads
+       non-finite and refuses below 8 of them, so an absence costs overlap, while a fabricated 0 is
+       correlated as signal and moves the lag. These legs pin both directions. */
+    group('Integrator activity envelope refuses a sample it could not difference', 'integrator-dsp · activity-envelope · absence', function (T) {
+      var I = env.IntegratorDSP;
+      var envl = I && I.activityEnvelope;
+      T.ok('activityEnvelope is reachable', typeof envl === 'function');
+      if (typeof envl !== 'function') return;
+
+      /* A STILL LIMB: every delta is a finite 0, which is a reading and not an absence. */
+      var still = envl([1, 1, 1, 1], [2, 2, 2, 2], [3, 3, 3, 3], 1);
+      T.eq('a MEASURED zero delta still reads 0 — the guard did not null a reading', still[1], 0);
+      T.eq('…and so does the one after it', still[2], 0);
+      T.ok('index 0 owns no first difference, so it reads NaN', Number.isNaN(still[0]), String(still[0]));
+
+      /* ONE ABSENT AXIS SAMPLE: two deltas cannot be computed, and neither is stillness. */
+      var hole = envl([1, 2, NaN, 4, 5], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], 1);
+      T.ok('the NaN sample reads NaN, never 0 activity', Number.isNaN(hole[2]), String(hole[2]));
+      T.ok('…and so does the sample after it, whose delta needs the absent one', Number.isNaN(hole[3]), String(hole[3]));
+      T.eq('a finite delta before the hole still reports its motion', hole[1], Math.log1p(1));
+      T.eq('…and one after it does too', hole[4], Math.log1p(1));
+      T.ok('the pre-fix spelling published stillness at both absent samples', hole[2] !== 0 && hole[3] !== 0);
+
+      /* THE CONSUMER'S VIEW — the reason this matters. `_ncc` is module-local, so drive the pair
+         through `alignEnvelopes`, which correlates the two envelopes it receives. A night that is
+         two thirds absent must not read as a confident alignment. */
+      var align = I && I.alignEnvelopes;
+      if (typeof align === 'function') {
+        var nSamp = 60;
+        var clean = new Float64Array(nSamp);
+        var gappy = new Float64Array(nSamp);
+        for (var i = 0; i < nSamp; i++) {
+          clean[i] = Math.log1p(i % 5);
+          gappy[i] = i < 10 ? Math.log1p(i % 5) : NaN;
+        }
+        var al = align(clean, gappy, 1, { maxLagSec: 5 });
+        T.ok('a mostly-absent envelope does not align as if it were measured', !al || al.ok !== true || al.nUsable == null || al.nUsable <= 10, JSON.stringify(al && { ok: al.ok, n: al.nUsable }));
+      }
+    });
+
+    /* ════ ∅ · A PAIR'S WORST CASE NEEDS BOTH SIDES TO HAVE REPORTED ════
+       Row `2026-11-15-integrator-arrival-offsets-span-zero-when-unmeasured`.
+       `Math.min(a.spanSec || 0, b.spanSec || 0)` answered 0 whenever EITHER device never reported a
+       span, and 0 is a legal span: a single-anchor clock measures exactly that. `madMs` one field up
+       carried the same spelling, where 0 states a perfectly precise pair. Both fields describe the
+       PAIR, so one side's silence leaves the pair's worst case unknown. */
+    group('Integrator pair offsets report an unmeasured span as null', 'integrator-dsp · arrival-offsets · absence', function (T) {
+      var I = env.IntegratorDSP;
+      T.ok('arrivalPairOffsets is reachable', !!(I && typeof I.arrivalPairOffsets === 'function'));
+      if (!(I && typeof I.arrivalPairOffsets === 'function')) return;
+      var dev = function (name, off, extra) {
+        var d = { device: name, ok: true, independent: true, plausibleCrystal: true, deviceDrawn: false, drawnShare: 0.01, ppm: -20, offsetMs: off };
+        Object.keys(extra || {}).forEach(function (k) {
+          d[k] = extra[k];
+        });
+        return d;
+      };
+
+      var both = I.arrivalPairOffsets([dev('Polar H10', 100, { spanSec: 3600, offsetMadMs: 12 }), dev('Polar VeritySense', 300, { spanSec: 1800, offsetMadMs: 30 })]);
+      T.ok('two reporting clocks pair', !!both && both.ok === true, JSON.stringify(both && both.reason));
+      T.eq('the pair span is the SHORTER measured span', both.pairs[0].spanSec, 1800);
+      T.eq('the pair spread is the WORSE measured spread', both.pairs[0].madMs, 30);
+
+      var oneSpan = I.arrivalPairOffsets([dev('Polar H10', 100, { spanSec: 3600, offsetMadMs: 12 }), dev('Polar VeritySense', 300, { offsetMadMs: 30 })]);
+      T.eq('one side reporting no span answers null, never 0', JSON.stringify(oneSpan.pairs[0].spanSec), 'null');
+      T.ok('…and the pre-fix 0 read as a measured zero-length span', oneSpan.pairs[0].spanSec !== 0);
+      T.eq('…while the spread both of them measured still reports', oneSpan.pairs[0].madMs, 30);
+
+      var noMad = I.arrivalPairOffsets([dev('Polar H10', 100, { spanSec: 3600 }), dev('Polar VeritySense', 300, { spanSec: 1800 })]);
+      T.eq('neither side measuring its spread answers null, never a perfect 0', JSON.stringify(noMad.pairs[0].madMs), 'null');
+      T.eq('…while the span both of them measured still reports', noMad.pairs[0].spanSec, 1800);
+
+      var oneMad = I.arrivalPairOffsets([dev('Polar H10', 100, { spanSec: 3600, offsetMadMs: 12 }), dev('Polar VeritySense', 300, { spanSec: 1800 })]);
+      T.eq('one measured spread cannot bound the PAIR, so it answers null', JSON.stringify(oneMad.pairs[0].madMs), 'null');
+    });
+
+    /* ════ ∅ · ONE CONFIDENCE CANNOT STAND FOR TWO ARMS ════
+       Row `2026-11-15-integrator-fusion-correlation-from-one-pair`. The
+       `glucose_autonomic_correlation` finding carries a Pearson r over >= 3 overlapping nights, or,
+       with fewer, the single-pair directional estimate `0.5 + clamp(slope)`. Both arms published one
+       hard-coded `conf: 0.6`, so a correlation over several nights and a one-night direction read
+       equally trustworthy. No committed fixture produces this finding — the only three hits for its
+       name in `uploads/` are the `handshakes.glucodex_ready` stub, which is null — so the suite is
+       its whole surface and these legs are what make the arm visible. */
+    group('Integrator names the arm behind a glucose-autonomic number', 'integrator-dsp · autogly · conf-arm', function (T) {
+      var A = env.adaptEnvelopeNode,
+        RF = env.runFusion;
+      if (typeof A !== 'function' || typeof RF !== 'function') {
+        T.ok('adaptEnvelopeNode + runFusion present', false);
+        return;
+      }
+      var U0 = U(2026, 5, 7, 22, 0, 0);
+      var ecgRec = function (t, slope, label) {
+        return A(
+          {
+            schema: { node: 'ECGDex' },
+            recording: { startEpochMs: t, durationMin: 480, offsetMin: null },
+            hrv: { time: { rmssd: 40, sdnn: 58 } },
+            hrvStability: { mean_lnRMSSD_slope: slope }
+          },
+          'ECGDex',
+          label
+        )[0];
+      };
+      var gluRec = function (t, cv, label) {
+        return A(
+          {
+            schema: { node: 'GlucoDex' },
+            recording: { startEpochMs: t, durationMin: 480, offsetMin: null },
+            glucose: { cv: cv }
+          },
+          'GlucoDex',
+          label
+        )[0];
+      };
+      var findOne = function (res) {
+        return ((res && res.findings) || []).filter(function (f) {
+          return f && f.type === 'glucose_autonomic_correlation';
+        })[0];
+      };
+
+      /* ONE overlapping night: r needs three pairs, so the directional arm answers. */
+      var one = RF([ecgRec(U0, 0.3, 'ecg1.json'), gluRec(U0, 22, 'glu1.json')]);
+      var f1 = findOne(one);
+      T.ok(
+        'one overlapping night still publishes the finding',
+        !!f1,
+        JSON.stringify(
+          ((one && one.findings) || []).map(function (f) {
+            return f.type;
+          })
+        )
+      );
+      if (f1) {
+        T.eq('…the arm is named in meta, so no reader parses the note', f1.meta && f1.meta.basis, 'directional');
+        T.eq('…its r is absent', JSON.stringify(f1.meta && f1.meta.r), 'null');
+        T.eq('…and nothing measured a confidence for it, so conf is null', JSON.stringify(f1.conf), 'null');
+        T.ok('…the pre-fix 0.6 claimed the same trust as a real correlation', f1.conf !== 0.6);
+        T.ok('…while the directional estimate itself still reports', f1.meta && f1.meta.directional != null, JSON.stringify(f1.meta));
+      }
+
+      /* THREE overlapping nights, each a separate pair: the Pearson arm answers, and it keeps the
+         stated 0.6 it always carried. This is the control — the fix must not null a real r. */
+      var day = 86400000;
+      var three = RF([
+        ecgRec(U0, 0.1, 'e1.json'),
+        gluRec(U0, 14, 'g1.json'),
+        ecgRec(U0 + day, 0.3, 'e2.json'),
+        gluRec(U0 + day, 22, 'g2.json'),
+        ecgRec(U0 + 2 * day, 0.5, 'e3.json'),
+        gluRec(U0 + 2 * day, 31, 'g3.json')
+      ]);
+      var f3 = findOne(three);
+      T.ok('three overlapping nights publish the finding', !!f3);
+      T.ok('…over a real r', f3 && f3.meta && f3.meta.r != null, JSON.stringify(f3 && f3.meta));
+      T.eq('…which names the pearson arm', f3.meta.basis, 'pearson');
+      T.eq('…and keeps the confidence this arm always stated', f3.conf, 0.6);
+      T.eq('…over the three pairs it read', f3.meta.n, 3);
     });
 
     /* THE SHAPE A COMMITTED ARTIFACT ACTUALLY CARRIES (residue

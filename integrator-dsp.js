@@ -504,19 +504,25 @@ function adaptEnvelopeNode(json, node, filename) {
        only knew the RICH summary's `glycemic{}`, so glucoseCV resolved to null on EVERY ganglior export,
        and fuseAutonomicGlycemic then published a glucose⟷autonomic coupling computed from the ECG slope
        ALONE — 0.44 with n=0 and no glucose value in it, surfaced as the "Autonomic⟷glycemic" KPI. */
-    summary.glucoseCV =
-      _dig(json, ['glucose', 'cv']) || _dig(json, ['glycemic', 'cv']) || _dig(json, ['variability', 'cv']) || _dig(json, ['glycemia', 'cv']) || (json.summary ? json.summary.cv : null);
+    summary.glucoseCV = _digNum(json, [
+      ['glucose', 'cv'],
+      ['glycemic', 'cv'],
+      ['variability', 'cv'],
+      ['glycemia', 'cv'],
+      ['summary', 'cv']
+    ]);
     summary.dawnSurge =
       // GlucoDex's light export writes glucose.dawn.medianDelta (present ⇒ ≥20 mg/dL, dawnPhenomenon);
       // the older read chain pointed only at pre-enrichment keys (riseMgdl is per-EVENT meta, not the
       // summary) and so resolved null for EVERY GlucoDex export — the un-fixed sibling of the §13
       // glucose.cv read-drift. medianDelta first, then the legacy shapes.
-      _dig(json, ['glucose', 'dawn', 'medianDelta']) ||
-      _dig(json, ['glucose', 'dawn', 'riseMgdl']) ||
-      _dig(json, ['fusion', 'dawnSurge']) ||
-      _dig(json, ['dawn', 'surge']) ||
-      (json.patterns && json.patterns.dawnPhenomenon ? json.patterns.dawnPhenomenon.medianRiseMgdl : null) ||
-      null;
+      _digNum(json, [
+        ['glucose', 'dawn', 'medianDelta'],
+        ['glucose', 'dawn', 'riseMgdl'],
+        ['fusion', 'dawnSurge'],
+        ['dawn', 'surge'],
+        ['patterns', 'dawnPhenomenon', 'medianRiseMgdl']
+      ]);
     summary.glucoseAutonomicCorrelation = json.reserved && json.reserved.glucoseAutonomicCorrelation != null ? json.reserved.glucoseAutonomicCorrelation : f.r != null ? f.r : null;
     summary.autonomicInstabilitySlope = json.reserved && json.reserved.autonomicInstabilitySlope != null ? json.reserved.autonomicInstabilitySlope : null;
     // CLAMP-SATURATION (GLUCODEX-FOLLOWUPS §2): a clipped CGM (Abbott Lingo 55–200, etc.) under-counts
@@ -569,9 +575,9 @@ function adaptEnvelopeNode(json, node, filename) {
   if (node === 'PulseDex' || node === 'HRVDex' || node === 'PpgDex') {
     // These nodes' bare hrv.time.{sdnn,rmssd} ARE whole-record (single-window or
     // short readings), so they're directly comparable to ECGDex's wholeRecord axis.
-    summary.rmssd = _dig(json, ['hrv', 'time', 'rmssd']) || _dig(json, ['hrv', 'rmssd']) || _dig(json, ['metrics', 'rmssd']) || (json.rmssd != null ? json.rmssd : null);
-    summary.sdnn = _dig(json, ['hrv', 'time', 'sdnn']) || _dig(json, ['hrv', 'sdnn']) || _dig(json, ['metrics', 'sdnn']) || (json.sdnn != null ? json.sdnn : null);
-    summary.lfhf = _dig(json, ['hrv', 'frequency', 'lfhf']) || _dig(json, ['hrv', 'lfhf']) || (json.lfhf != null ? json.lfhf : null);
+    summary.rmssd = _digNum(json, [['hrv', 'time', 'rmssd'], ['hrv', 'rmssd'], ['metrics', 'rmssd'], ['rmssd']]);
+    summary.sdnn = _digNum(json, [['hrv', 'time', 'sdnn'], ['hrv', 'sdnn'], ['metrics', 'sdnn'], ['sdnn']]);
+    summary.lfhf = _digNum(json, [['hrv', 'frequency', 'lfhf'], ['hrv', 'lfhf'], ['lfhf']]);
     summary.hrvWindow = 'wholeRecord';
     /* ── RESPIRATION FROM THE OPTICAL NODE (Heron's cross-family trace, verified 2026-09-02) ──
        PpgDex computes an RSA respiration rate and EXPORTS it at `hrv.frequency.respRate` with its
@@ -952,6 +958,22 @@ function _dig(o, path) {
     c = c[path[i]];
   }
   return c == null ? null : c;
+}
+
+/* ── ∅ A READ CHAIN STOPS AT THE FIRST VALUE PRESENT, NEVER AT THE FIRST TRUTHY ONE ─────────────
+   `_dig(a) || _dig(b)` skips a MEASURED 0 and reads the next key, so a real zero became either
+   another basis's number or null. The adapter's numeric summary fields all have 0 inside their
+   domain: a flat CGM trace has cv 0, a night with no dawn rise has medianDelta 0, and a drawn or
+   constant RR series has rmssd 0. `_digNum` walks the same paths in the same order and stops at
+   the first one holding a FINITE NUMBER, so a measured zero wins over every later alternative.
+   A path holding a string, a boolean or NaN is NOT a number this adapter can publish, so the walk
+   skips it and the field ends null — the §∅ answer, because nothing there was readable. */
+function _digNum(o, paths) {
+  for (var i = 0; i < paths.length; i++) {
+    var v = _dig(o, paths[i]);
+    if (typeof v === 'number' && isFinite(v)) return v;
+  }
+  return null;
 }
 
 /* ECGDex body-position series from acc / sleepStages.posture / timeseries posture. */
@@ -5230,10 +5252,19 @@ function activityEnvelope(x, y, z, dtSec) {
   var n = Math.min(x ? x.length : 0, y ? y.length : 0, z ? z.length : 0);
   if (n < 2 || !(dtSec > 0)) return new Float64Array(0);
   var out = new Float64Array(n);
-  out[0] = 0;
+  /* ── ∅ A SAMPLE WITH NO MEASURABLE CHANGE IS NOT A MOTIONLESS ONE ────────────────────
+     `log1p(d)` is 0 for a finite delta of 0, so 0 is a LEGAL reading here: the limb held still
+     between these two samples. A NON-finite delta landed on that same 0, so one absent axis, or a
+     NaN from the writer, published perfect stillness and `_ncc` correlated it as signal. Index 0
+     has no previous sample, so it owns no first difference at all, and it carried the same
+     fabricated 0. Both write NaN now. NaN sits outside this envelope's value domain, which is the
+     finite non-negative reals, so no reader can mistake it for a measurement. `_ncc` already skips
+     a pair where either side reads non-finite, and it refuses below 8 of them, so an absence
+     travels as a smaller overlap or as a refusal — never as a correlated zero. */
+  out[0] = NaN;
   for (var i = 1; i < n; i++) {
     var d = Math.abs(x[i] - x[i - 1]) + Math.abs(y[i] - y[i - 1]) + Math.abs(z[i] - z[i - 1]);
-    out[i] = isFinite(d) ? Math.log1p(d) : 0;
+    out[i] = isFinite(d) ? Math.log1p(d) : NaN;
   }
   return out;
 }
@@ -6647,16 +6678,30 @@ function arrivalPairOffsets(devices, opts) {
       var ca = a.offsetMs;
       var cb = b.offsetMs;
       var sameEpoch = Math.abs(ca - cb) < 3600000; // within an hour ⇒ the same counter origin
+      /* ── ∅ A PAIR'S WORST CASE NEEDS BOTH SIDES TO HAVE REPORTED ───────────────────────
+         `Math.min(a.spanSec || 0, b.spanSec || 0)` answered 0 whenever EITHER device never reported
+         its span, and 0 is a legal span: it is what a single-anchor clock measures. A span the pair
+         never measured cannot bound the pair, so it reads null. `Math.max(a.offsetMadMs || 0,
+         b.offsetMadMs || 0)` has the same shape one field up: with neither spread measured it
+         answered 0, which states a perfectly precise pair, and with one measured it reported that
+         one as the pair's worst case while the other side could be worse. Both fields need both
+         sides. `maxTolerableDriftPpm` already refuses a span that does not read above 0. */
+      var _madA = a.offsetMadMs,
+        _madB = b.offsetMadMs,
+        _spA = a.spanSec,
+        _spB = b.spanSec;
+      var _madBoth = _madA != null && isFinite(_madA) && _madB != null && isFinite(_madB);
+      var _spBoth = _spA != null && isFinite(_spA) && _spB != null && isFinite(_spB);
       pairs.push({
         a: a.device,
         b: b.device,
         offsetMs: sameEpoch ? Math.round((ca - cb) * 10) / 10 : null,
         sameEpoch: sameEpoch,
         reason: sameEpoch ? undefined : 'different counter epochs — the difference is not an offset',
-        madMs: Math.max(a.offsetMadMs || 0, b.offsetMadMs || 0),
+        madMs: _madBoth ? Math.max(_madA, _madB) : null,
         ppmA: a.ppm,
         ppmB: b.ppm,
-        spanSec: Math.min(a.spanSec || 0, b.spanSec || 0)
+        spanSec: _spBoth ? Math.min(_spA, _spB) : null
       });
     }
   }
@@ -7876,10 +7921,19 @@ function runFusion(recs, opts) {
     findings.push({
       tMs: startMs ?? null,
       type: 'glucose_autonomic_correlation',
-      conf: 0.6,
+      /* ── ∅ ONE CONFIDENCE CANNOT STAND FOR TWO ARMS ───────────────────────────────
+         `glucoseAutonomicCorrelation` carries a Pearson r over >=3 overlapping nights, or, with
+         fewer, the single-pair directional estimate `0.5 + clamp(slope)`. The two arms published
+         one hard-coded conf of 0.6, so a correlation over seven nights and a one-night direction
+         read equally trustworthy. Nothing measures a confidence for the directional arm, so it
+         reports null, which `integrator-render.js` already draws as an em dash. `meta.basis` names
+         the arm, so a reader no longer has to parse `note` to learn which one answered.
+         PROVENANCE: the 0.6 is a heuristic constant which predates this change, and no paper sets
+         it. This change narrows what it covers to the pearson arm alone. */
+      conf: autoGly.r != null ? 0.6 : null,
       nodes: ['ECGDex', 'GlucoDex'],
       sources: [],
-      meta: { r: autoGly.r, directional: autoGly.directional, n: autoGly.n },
+      meta: { r: autoGly.r, directional: autoGly.directional, n: autoGly.n, basis: autoGly.r != null ? 'pearson' : 'directional' },
       note: autoGly.note
     });
   }
