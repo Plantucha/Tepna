@@ -244,6 +244,39 @@ def start_sequence(preset: str) -> tuple[str, ...]:
 
 STOP_SEQUENCE = ("s", "h")
 
+# The presets the headband ACCEPTED in the probe of 2026-11-14 (reply `rc 0` and `ps` changed), with the
+# data records each one sent and the battery fall over about 22 s (brief §6.7). The ten it refused
+# (`rc 69`) are absent, so the Devices page cannot offer them. The two presets of each pair differ in
+# a way not identified; the label says so rather than inventing a difference.
+DEFAULT_PRESET = "p1045"  # EEG + 4 optics + motion: the night candidate of brief §6.6 (drain run owed)
+PRESETS: dict[str, str] = {
+    "p1045": "EEG + optics 0x34 + motion · 0.08–0.11 pt / 22 s (night default)",
+    "p1046": "EEG + optics 0x34 + motion · 0.08–0.11 pt / 22 s (pair of p1045)",
+    "p1043": "EEG + optics 0x35 + motion · 0.20–0.21 pt / 22 s",
+    "p1044": "EEG + optics 0x35 + motion · 0.20–0.21 pt / 22 s (pair of p1043)",
+    "p1041": "EEG + 16 optics + motion · 0.39–0.47 pt / 22 s",
+    "p1042": "EEG + 16 optics + motion · 0.39–0.47 pt / 22 s (pair of p1041)",
+    "p1025": "EEG + 16 optics + motion · 0.39–0.47 pt / 22 s",
+    "p1022": "EEG only · 0.06 pt / 22 s",
+    "p1024": "motion only · 0.05 pt / 22 s",
+    "p1023": "battery record only, 50 per s · 0.11 pt / 22 s",
+    "p21": "0x11 + motion · 0.10–0.11 pt / 22 s",
+    "p1021": "0x11 + motion · 0.10–0.11 pt / 22 s",
+    "p1031": "0x11 + 16 optics + motion · 0.34–0.45 pt / 22 s",
+    "p1032": "0x11 + 16 optics + motion · 0.34–0.45 pt / 22 s",
+    "p1033": "0x11 + optics 0x35 + motion · 0.20 pt / 22 s",
+    "p1034": "0x11 + optics 0x35 + motion · 0.20 pt / 22 s",
+    "p1035": "0x11 + optics 0x34 + motion · 0.10–0.11 pt / 22 s",
+    "p1036": "0x11 + optics 0x34 + motion · 0.10–0.11 pt / 22 s",
+}
+
+
+def preset_name(ps: object) -> str | None:
+    """The preset name of a `ps` control reply: 4161 = 0x1041 → `p1041` (brief §6.3). None when absent."""
+    if isinstance(ps, bool) or not isinstance(ps, int) or ps < 0:
+        return None
+    return f"p{ps:x}"
+
 
 class ControlReplies:
     """Joins the fragments of the control channel into whole JSON replies.
