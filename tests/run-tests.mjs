@@ -2886,6 +2886,7 @@ function readDocs() {
     'HRVDex Reference.html',
     'GlucoDex Reference.html',
     'MotionDex Reference.html',
+    'EEGDex Reference.html',
     'ORIENTATION.md',
     /* TRIO-POWER-N15-FINDINGS §181 — the sigma-triple gate calls the planted σ and this paper's
        published tables "ONE ATOMIC UNIT … change both, or neither", but it only ever compared three
@@ -2901,11 +2902,10 @@ function readDocs() {
     const p = join(ROOT, f);
     out[f] = existsSync(p) ? readFileSync(p, 'utf8') : null;
   }
-  // GENERATED EEGDex guide (codegen output) — keyed by the conventional doc name the
-  // cohesion-badges NODES list uses, read from its generated path. Proves the
-  // manifest→guide projection conforms to the generated registry (single-source).
-  const eegGuide = join(ROOT, 'codegen/generated/eegdex-reference.html');
-  out['EEGDex Reference.html'] = existsSync(eegGuide) ? readFileSync(eegGuide, 'utf8') : null;
+  /* 2026-11-15 — the EEGDex guide is AUTHORED at the repo root like its eight siblings, so it reads
+     through the loop above. The generator's own output at `codegen/generated/eegdex-reference.html`
+     stays as the scaffold it is: it carries a paste-the-design-system placeholder, no licence
+     stylesheet and no intended-use block, so it can never serve. */
   return out;
 }
 
