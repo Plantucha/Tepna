@@ -16,8 +16,8 @@ the child recorder tool. Fleet-Session: Finch builds it; Wren measures it on the
 
 ## 1 · Clean room
 
-- Every fact in §2 was measured from this project's own captures of the owner's headband. The capture is the evidence.
-- No third-party decoder source was read or copied for §2. The child recorder tool was used only to RECORD: its raw
+- We measured every fact in §2 from this project's own captures of the owner's headband. The capture is the evidence.
+- We did not read or copy any third-party decoder source for §2. We used the child recorder tool only to RECORD: its raw
   output is one line per notification (host time, characteristic, payload hex), which is the device's own bytes.
 - The GATT start sequence (§5) is not measured yet. It will be read from a BSD-3 library and credited in
   `THIRD-PARTY.md` § Device protocols when that step lands.
@@ -120,7 +120,7 @@ length-prefixed fragments on the control characteristic.
 - `h` halts. The classic start `d` answers `rc 255` and starts nothing.
 - **Start sequence, as the child tool sends it (black box):** subscribe to 0001, 0013, 0014; then `v6`, `s`, `h`,
   `p1041`, `s`, `dc001`, `dc001`, `L1`; at the end `s`, `h`. Our own client streams with `dc001` twice and `L1`.
-  What `L1` does, and whether the second `dc001` is needed, is not measured.
+  We have not measured what `L1` does, or whether the device needs the second `dc001`.
 
 **6.4 Battery, confirmed.** Record `0x88`: the first two data bytes, little-endian, divided by 256, are the battery
 percent. Against the device's own `bp`: 78.61 and 78.64, 76.27 and 76.27, 74.88 and 74.89 (18 presets, largest
@@ -141,7 +141,7 @@ Channels 4–6 move together (correlation 0.96–0.98) and are noisier; channel 
 time. Their meaning is not known. Worn, channels 0–2 are never at a rail (the unworn capture of §2: 9 %).
 
 **6.6 Optics in the worn capture (preset p1041, 16 values).** No value is ever 0 or at the rail. Ten values (0, 1, 8–15;
-levels 6 000–107 000) are dominated by slow drift and carry a line near 52 per minute: the tissue signal. They form two
+levels 6 000–107 000) show mostly slow drift and carry a line near 52 per minute: the tissue signal. They form two
 families that move together at 0.98–0.99 (even: 0, 8, 10, 12, 14; odd: 1, 9, 11, 13, 15). Values 4–7 sit near 337 000;
 2 and 3 near 250. Which value is which wavelength or detector is NOT measured.
 
@@ -163,14 +163,14 @@ Rejected (`rc 69`): p20, p22, p23, p31, p32, p50, p51, p60, p61, p63.
 
 - **Three more record tags**, sizes solved from single-record packets: `0x11` 33 bytes, `0x35` 45 bytes, `0x34` 35
   bytes. The sizes fit EEG without the four extra channels (4 × 4 samples × 14 bit), optics with 8 values (8 × 20 bit ×
-  2 samples) and optics with 4 values (4 × 20 bit × 3 samples). **Those layouts are inferred from the sizes only and are
-  not verified.**
-- The battery falls are from 22-second windows at a resolution near 0.05: a ranking, not a rate. Scaled, 16 optical
+  2 samples) and optics with 4 values (4 × 20 bit × 3 samples). **We inferred those layouts from the sizes only, and nobody
+  has verified them.**
+- The battery falls come from 22-second windows at a resolution near 0.05: they order the presets but give no rate. Scaled, 16 optical
   values cost about 55–75 % per hour, 8 about 30 %, 4 about 13–18 %, none about 8–16 %. The headband fell from 95.6 % to
   74.8 % in the 39 minutes of this session.
 - What separates the two presets of each pair is not identified.
 
-**6.8 Requirements stated by the owner on 2026-11-14.** The pulse signal of the optics is needed all night, as the
+**6.8 Requirements stated by the owner on 2026-11-14.** The estimate needs the pulse signal of the optics all night, as the
 fourth device of the reference-free noise estimate. So the night preset keeps optics. Candidates: p1045 / p1046 (EEG 8
 channels + 4 optical values + motion). Open before choosing: a drain run of at least 20 minutes, and a check that the
 4-value optics carry a usable pulse line.
