@@ -27,6 +27,7 @@ import { join, dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { positionalArgs, refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 import { primaryGitDir } from './home-paths.mjs';
+import { boundedFetch } from './net-bound.mjs';
 
 /* ONE spec, read twice: the guard refuses an undeclared flag with it, and `positionalArgs`
    skips each valued flag's VALUE with it, so a flag written before the positional cannot be
@@ -152,10 +153,14 @@ When you have enough evidence, STOP calling tools and write your final answer as
 }
 
 async function chat(messages, useTools) {
-  const res = await fetch(OLLAMA + '/api/chat', {
-    method: 'POST',
-    body: JSON.stringify({ model: MODEL, messages, tools: useTools ? TOOLS : undefined, think: false, stream: false, options: { temperature: 0.2, num_predict: 1400 } })
-  });
+  const res = await boundedFetch(
+    OLLAMA + '/api/chat',
+    {
+      method: 'POST',
+      body: JSON.stringify({ model: MODEL, messages, tools: useTools ? TOOLS : undefined, think: false, stream: false, options: { temperature: 0.2, num_predict: 1400 } })
+    },
+    { cls: 'model', label: 'the ollama chat call' }
+  );
   if (!res.ok) throw new Error('ollama HTTP ' + res.status);
   return (await res.json()).message || {};
 }

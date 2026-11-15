@@ -34,6 +34,7 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { boundedFetch } from './net-bound.mjs';
 
 /** Owner-directed pin (2026-08-27 A/B, n=41 paired, temp 0). `think:false` is load-bearing: a
  *  reasoning reply comes back EMPTY from this endpoint, which the idle driver's header documents. */
@@ -240,16 +241,20 @@ export function cleanReply(text) {
 }
 
 async function askModel(prompt) {
-  const res = await fetch(`${OLLAMA}/api/chat`, {
-    method: 'POST',
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [{ role: 'user', content: prompt }],
-      think: false, // load-bearing: a reasoning reply returns EMPTY from this endpoint
-      stream: false,
-      options: { temperature: 0, num_predict: 400 } // temp 0 — the bench that chose this model ran at 0
-    })
-  });
+  const res = await boundedFetch(
+    `${OLLAMA}/api/chat`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        think: false, // load-bearing: a reasoning reply returns EMPTY from this endpoint
+        stream: false,
+        options: { temperature: 0, num_predict: 400 } // temp 0 — the bench that chose this model ran at 0
+      })
+    },
+    { cls: 'model', label: 'the ollama chat call' }
+  );
   if (!res.ok) throw new Error(`ollama HTTP ${res.status}`);
   return String(((await res.json()).message || {}).content || '');
 }

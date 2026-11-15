@@ -38,6 +38,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
+import { boundedFetch } from './net-bound.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -200,11 +201,15 @@ async function bgeRank(query) {
 async function xerjRank(query, mode) {
   const xq = await import('./xerj-query.mjs');
   const ask = async (vec) => {
-    const res = await fetch(`${xq.DEFAULT_URL}/${xq.DEFAULT_INDEX}/_search`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(xq.searchBody(query, vec, 25))
-    });
+    const res = await boundedFetch(
+      `${xq.DEFAULT_URL}/${xq.DEFAULT_INDEX}/_search`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(xq.searchBody(query, vec, 25))
+      },
+      { cls: 'api', label: 'the xerj search' }
+    );
     if (!res.ok) throw new Error(`xerj HTTP ${res.status}`);
     const j = await res.json();
     return xq.collapseByPath(

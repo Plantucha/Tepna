@@ -43,6 +43,7 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { ResumeLedger, etaFromThroughput, fingerprint, fmtDuration } from './run-progress.mjs';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { boundedFetch } from './net-bound.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 /* MUTATION-SUITE-FOLLOWUPS §1: reads UNION both state dirs (shared git-common location first,
@@ -125,11 +126,15 @@ async function ask(c) {
     'Answer with a single line of JavaScript declaring the variables, e.g.  var v = "x", n = 3;',
     'Nothing else. Or the word NONE.'
   ].join('\n');
-  const r = await fetch(`${OLLAMA}/api/generate`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ model: MODEL, stream: false, think: false, prompt, options: { temperature: 0.2, num_predict: 90 } })
-  });
+  const r = await boundedFetch(
+    `${OLLAMA}/api/generate`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: MODEL, stream: false, think: false, prompt, options: { temperature: 0.2, num_predict: 90 } })
+    },
+    { cls: 'model', label: 'the ollama generate call' }
+  );
   const j = await r.json();
   return (
     String(j.response || '')

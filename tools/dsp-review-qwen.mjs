@@ -36,6 +36,7 @@ import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
 import { primaryGitDir } from './home-paths.mjs';
+import { boundedFetch } from './net-bound.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -274,10 +275,14 @@ export function parseFindings(reply) {
 }
 
 async function askQwen(prompt) {
-  const res = await fetch(OLLAMA + '/api/generate', {
-    method: 'POST',
-    body: JSON.stringify({ model: MODEL, prompt, think: false, stream: false, options: { temperature: 0.2, num_predict: 900, num_ctx: 8192 } })
-  });
+  const res = await boundedFetch(
+    OLLAMA + '/api/generate',
+    {
+      method: 'POST',
+      body: JSON.stringify({ model: MODEL, prompt, think: false, stream: false, options: { temperature: 0.2, num_predict: 900, num_ctx: 8192 } })
+    },
+    { cls: 'model', label: 'the ollama generate call' }
+  );
   if (!res.ok) throw new Error('ollama HTTP ' + res.status);
   return (await res.json()).response || '';
 }

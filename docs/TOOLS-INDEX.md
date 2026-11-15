@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**346 tools** · 345 with a purpose line · **1 without**
+**347 tools** · 346 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -166,6 +166,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`mutation-worklist.mjs`](../tools/mutation-worklist.mjs) | THE RANKED REMAINING WORK — regenerated, never transcribed. The target is 99 % OF DISTINGUISHABLE (owner-ratified 2026-08-11, raised from 90 %). |
 | [`name-lease.mjs`](../tools/name-lease.mjs) | WHO ALREADY HOLDS THIS FILENAME — run it BEFORE naming a new file. |
 | [`nearest-advocate.mjs`](../tools/nearest-advocate.mjs) | EVENT-BASED time-shift estimation, for the case where cross-correlation is known to fail. |
+| [`net-bound.mjs`](../tools/net-bound.mjs) | BOUND EVERY NETWORK WAIT A TOOL MAKES, so a stalled endpoint names itself instead of hanging. |
 | [`new-changeset.mjs`](../tools/new-changeset.mjs) | write a changeset whose `brief:` RESOLVES, at write time. WHY THIS EXISTS. |
 | [`night-rule-horizon.mjs`](../tools/night-rule-horizon.mjs) | THE YEAR A DECLARED NIGHT RULE STOPS SCORING — measured, never read off the digits. |
 | [`no-network-surface-parity.mjs`](../tools/no-network-surface-parity.mjs) | NO-NETWORK SURFACE PARITY — the gate's scope is closed, not remembered. |

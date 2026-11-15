@@ -43,6 +43,7 @@ import { createRequire } from 'node:module';
 import { isCliEntry } from './argv-guard.mjs';
 import { producedByOf } from './corpus-scope-core.mjs';
 import { stripElement, stripTags } from './strip-markup.mjs';
+import { boundedFetch } from './net-bound.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
@@ -150,7 +151,11 @@ function creds() {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function zfetch(c, path, init = {}) {
-  const r = await fetch(`${ZOTERO}${path}`, { ...init, headers: { 'Zotero-API-Key': c.key, 'Zotero-API-Version': '3', 'content-type': 'application/json', ...(init.headers || {}) } });
+  const r = await boundedFetch(
+    `${ZOTERO}${path}`,
+    { ...init, headers: { 'Zotero-API-Key': c.key, 'Zotero-API-Version': '3', 'content-type': 'application/json', ...(init.headers || {}) } },
+    { cls: 'api', label: 'the zotero api' }
+  );
   const text = await r.text();
   const scrub = (s) => String(s).split(c.key).join('<KEY>');
   if (!r.ok) throw new Error(`zotero ${init.method || 'GET'} ${path} → ${r.status}: ${scrub(text).slice(0, 200)}`);
@@ -161,7 +166,7 @@ async function crossref(doi) {
   const cache = join(dir, 'crossref.json');
   if (existsSync(cache)) return JSON.parse(readFileSync(cache, 'utf8'));
   await sleep(1000);
-  const r = await fetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}`, { headers: { 'user-agent': UA } });
+  const r = await boundedFetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}`, { headers: { 'user-agent': UA } }, { cls: 'api', label: 'the crossref lookup' });
   if (!r.ok) throw new Error(`crossref ${doi} → ${r.status}`);
   const j = await r.json();
   const msg = j.message;

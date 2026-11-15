@@ -48,6 +48,7 @@ import { CHUNKER, cacheHit, chunk, listExternalDocs, readDoc, readLines } from '
 import { resolveStatePath } from './mutation-map.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { escapeRe } from './regex-escape-core.mjs';
+import { boundedFetch } from './net-bound.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -717,11 +718,18 @@ export function selftest() {
 /* ── everything below is I/O; the core above is pure and is what the suite drives ── */
 
 async function req(url, path, method, body, ndjson = false) {
-  const res = await fetch(`${url}${path}`, {
-    method,
-    headers: body ? { 'content-type': ndjson ? 'application/x-ndjson' : 'application/json' } : {},
-    body
-  });
+  /* 300 s, not the 30 s api default: this one call carries a BULK body, and CLAUDE.md §4c measured
+     this tool's whole run at 108.7 s under load 44 against 25.5 s idle. A bound under that would abort
+     a request the repo has already recorded as normal. */
+  const res = await boundedFetch(
+    `${url}${path}`,
+    {
+      method,
+      headers: body ? { 'content-type': ndjson ? 'application/x-ndjson' : 'application/json' } : {},
+      body
+    },
+    { cls: 'api', ms: 300000, label: 'the xerj index request' }
+  );
   const text = await res.text();
   let json = null;
   try {

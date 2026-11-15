@@ -36,6 +36,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { makeVerdict, printVerdict } from './verdict-emit.mjs';
+import { boundedFetch } from './net-bound.mjs';
 
 const argv = process.argv.slice(2);
 const flag = (n) => argv.includes(n);
@@ -199,7 +200,7 @@ const run = (cmd, args, timeout = 20000) => execFileSync(cmd, args, { encoding: 
 
 async function readInstalled(src) {
   if (Array.isArray(src.installed)) return { version: normVersion(run(...src.installed)) };
-  const tags = await (await fetch('http://127.0.0.1:11434/api/tags')).json();
+  const tags = await (await boundedFetch('http://127.0.0.1:11434/api/tags', {}, { cls: 'api', label: 'the local ollama tag list' })).json();
   const m = (tags.models || []).find((x) => x.name === src.installed.ollamaDigest);
   return { version: m ? m.digest : null };
 }
@@ -222,9 +223,11 @@ async function readLatest(src) {
     return { version: normVersion(rel.tag_name), publishedMs: Date.parse(rel.published_at) || null, prerelease: !!rel.prerelease || /-/.test(rel.tag_name), notes: rel.html_url };
   }
   const [name, tag = 'latest'] = l.ollamaRegistry.split(':');
-  const r = await fetch(`https://registry.ollama.ai/v2/library/${name}/manifests/${tag}`, {
-    headers: { Accept: 'application/vnd.docker.distribution.manifest.v2+json' }
-  });
+  const r = await boundedFetch(
+    `https://registry.ollama.ai/v2/library/${name}/manifests/${tag}`,
+    { headers: { Accept: 'application/vnd.docker.distribution.manifest.v2+json' } },
+    { cls: 'api', label: 'the ollama registry manifest' }
+  );
   if (!r.ok) return { version: null };
   return {
     version: createHash('sha256')
