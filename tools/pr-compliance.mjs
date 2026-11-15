@@ -34,6 +34,11 @@
  *   PR_BODY="$(cat body.md)" PR_BASE_SHA=main PR_HEAD_SHA=HEAD node tools/pr-compliance.mjs
  */
 
+// THE WRITE-ROOT READING (brief WRITE-ROOT-ADOPTION-2026-11-03 §3, exempt arm). This gate writes no
+// product. Both `writeFileSync` calls sit in `selftest()`, which builds a two-changeset fixture repo
+// under `mkdtempSync(tmpdir())` and removes it. Nothing it writes lands under a checkout, so a wrong
+// checkout can lose no artifact here. Its reads keep their own reach.
+
 import { execSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';

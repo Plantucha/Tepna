@@ -48,7 +48,7 @@
  *   · A call reached through a variable, a map or a worker message is invisible to a source scan.
  *     The scan reads `consensusBeats(` as written.
  *
- * WRITE-ROOT, THE READING THIS TOOL OWES (brief §3, `pending` row 2026-11-12). The write shape
+ * WRITE-ROOT, THE READING THIS TOOL MADE (brief §3, `exempt` row 2026-11-15). The write shape
  * matches here because the selftest drives the vanished-entry guard: it makes one
  * `mkdtempSync(tmpdir())` sandbox, writes one file and one broken symlink inside it, and removes
  * that same directory. No write of this tool can reach a checkout, so `writeRoot` has no root to

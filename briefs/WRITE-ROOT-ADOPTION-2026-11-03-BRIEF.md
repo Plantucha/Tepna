@@ -5,7 +5,7 @@
   Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
-**Status:** PROPOSED (resolver BUILT with TWO arms, the ADOPTION GATE BUILT, the per-tool readings BEGUN — verified 2026-11-11 (Heron). `tools/write-root.mjs` ships `writeRoot` and `judgeRoot` over one pure decision, and its `--selftest` passes whole. `tools/new-changeset.mjs` writes through it, and `tools/write-root-adoption.json` names every judge-arm adopter beside its own answer. `tools/write-root-adoption.mjs --check` names both adopted sets in `tools/write-root-adoption.json` and reds an undeclared arrival, so §4's third box and §6.5's fourth are ticked. Both populations re-measure today, and §1 and §6.2 carry today's figures beside the old ones — `node tools/write-root-adoption.mjs --census` reprints them on demand, so this header asserts no count of its own. What stays open is one reading per remaining header, on both arms) · **Created:** 2026-11-03
+**Status:** PROPOSED (resolver BUILT with TWO arms, the ADOPTION GATE BUILT, a CENSUS INSTRUMENT BUILT, the per-tool readings UNDER WAY — verified 2026-11-15 (Heron). `tools/write-root.mjs` ships `writeRoot` and `judgeRoot` over one pure decision, and its `--selftest` passes whole. `tools/write-root-adoption.mjs --check` names both adopted sets in `tools/write-root-adoption.json` and reds an undeclared arrival, so §4's third box and §6.5's fourth are ticked. `tools/write-targets.mjs` now classifies HOW each named tool builds the path it writes, and its control holds every adopted row's own answer against that class. `node tools/write-targets.mjs` reprints that arm's own sets and the class of every tool it names, so this header asserts no count of its own. What stays open is one reading per remaining header, on both arms) · **Created:** 2026-11-03
 
 # Every writing tool resolves the checkout it writes from the run, not from its own path
 
@@ -64,6 +64,47 @@ of the remaining 55 writers needs one reading, not a blanket conversion:
 - Does it write a generated tree that a gate re-checks in CI? Convert it, because a stale generated
   tree in the wrong checkout reds a job nobody can read from the worktree that caused it.
 
+### 3.1 · The instrument that picks the class
+
+`tools/write-targets.mjs` reads every tool the manifest names and classifies HOW that tool builds the
+path it writes. It blanks comments and strings first. It then follows each `writeFileSync` and
+`appendFileSync` argument back to the declaration that built it.
+
+Seven classes answer §3. `own-root` and `own-root-default` build the path from the tool's own checkout.
+`guarded` already resolves the run. `outside-repo` writes a scratch base. `caller-cwd` and
+`caller-argv` take the path from the invocation. `undecidable` abstains, names its reason, and quotes
+the head of the declaration it could not follow.
+
+Census 2026-11-15, over the 60 tools the write arm names and their 202 write sites:
+
+| class | tools | sites |
+|---|---|---|
+| `own-root` | 19 | 43 |
+| `own-root-default` | 3 | 14 |
+| `guarded` | 3 | 13 |
+| `outside-repo` | 4 | 18 |
+| `caller-cwd` | 0 | 1 |
+| `caller-argv` | 0 | 0 |
+| `undecidable` | 31 | 113 |
+
+A tool takes the strongest class any of its own sites holds, so the two columns count different things.
+
+The control is the hand-authored `reading` of every adopted row, because that is the one population
+carrying an independent answer. It reads PASS at 7 checked of 8 eligible, with 0 contradictions. The
+census caught four calibration defects against those rows, and no test caught any of them.
+
+**A class narrows the question and never answers it.** A scratch base can carry a copy of the
+checkout: `tools/killcheck.mjs` clones `ROOT` by hard link under `mkdtempSync`, so the checkout the
+tool lives in still decides WHICH source its score describes. A scratch base can also carry a cache
+another reader trusts: `tools/repo-map.mjs --write` put the shared map in the git common dir of one
+checkout, and `doc-search` reads that file without rebuilding it. Both answers sit under
+`outside-repo`, and they owe opposite readings.
+
+The control carries one blind spot of its own. It cannot cross-check an adoption whose guard sits on a
+dispatch branch rather than at the write site, because the scan reads no scope. `tools/repo-map.mjs`
+is that case today, so the verdict excludes it BY NAME in `result.unexaminable` rather than counting
+it as agreement.
+
 ## 4 · Acceptance
 
 - [ ] Each of the 56 writers carries one of the three readings above, recorded in its own header.
@@ -73,6 +114,12 @@ of the remaining 55 writers needs one reading, not a blanket conversion:
       site, never at module scope. The write arm reads 5 adopted against 52 pending, and nine writers
       hold a resolvable tracked target. The scan left 46 targets unresolved, so this class is a floor
       rather than a sweep.
+      PROGRESS 2026-11-15: `repo-map` adopts, and `consensus-polarity-wiring`, `nsrr-effort-typing`
+      and `pr-compliance` answer with the scratch reading, so the write arm reads 8 adopted, 45
+      pending and 7 exempt. §3.1's census picked every class mechanically, which replaces the
+      literal-target scan that resolved nothing for 49 of 52 tools. `killcheck` keeps a pending row,
+      and its header now names an exposure the write arm cannot close. The 22 `own-root` and
+      `own-root-default` candidates convert in later slices, one gate run each.
 - [ ] Every writer of a tracked work-unit artifact calls `writeRootOrDie`.
 - [x] A gate names the adopted set, so a new writing tool joins it deliberately rather than by habit.
       Done 2026-11-11: `tools/write-root-adoption.mjs --check` reads every `tools/*.mjs` against §1's grep and
@@ -87,6 +134,8 @@ of the remaining 55 writers needs one reading, not a blanket conversion:
   nothing.
 - `tools/secret-scan.mjs` wired on the judge arm (#4384), with the cross-checkout run exiting 2 and
   publishing one `NOT_RUN` verdict that carries `result: null`.
+- `tools/write-targets.mjs`, the census instrument of §3.1, with 62 selftests, a planted-truth fixture
+  per class, and a control that holds every adopted row against the measured class.
 
 ## 6 · The second arm: a gate that judges a tree nobody asked it about
 
