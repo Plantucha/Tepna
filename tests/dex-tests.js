@@ -30300,6 +30300,41 @@
       T.eq('the engine declares the 30 s epoch', D.EPOCH_SEC, 30);
     });
 
+    group('EEGDex pins two refusals no assertion held: rms over an all-hole window, the four-epoch stretch floor', 'eegdex · refusals · mutation-pinned', function (T) {
+      /* Shrike's eegdex-dsp.js mutant run (2026-11-15, verified by Kestrel) found both guards unpinned:
+         each mutant passed all 19007 assertions. */
+      var D = env.EEGDSP;
+      /* rms returns null when no finite sample is in the window. A 0 there is the lowest muscle
+         tone, which is the REM arm's own requirement, so a hole would push an epoch toward REM. */
+      T.eq('rms over a window of holes → null, never 0', JSON.stringify(D.rms([NaN, NaN, NaN], 0, 3)), 'null');
+      T.eq('rms over an empty window → null', JSON.stringify(D.rms([1, 2], 1, 1)), 'null');
+      T.eq('CONTROL: rms over finite samples skips the hole and measures', JSON.stringify(D.rms([3, NaN, 4], 0, 3)), JSON.stringify(Math.sqrt(12.5)));
+      /* swaTrend excludes a stretch with fewer than SWA_MIN_EPOCHS (4) N2/N3 epochs. Three stretches:
+         4 N2, then 1 N2 among 11 N1, then 4 N2. The REM epochs sit 12 epochs apart, past the
+         10-epoch merge gap, so they are two REM periods and the middle stretch is a stretch. */
+      var st = [],
+        k;
+      for (k = 0; k < 4; k++) st.push('N2');
+      st.push('REM', 'N2');
+      for (k = 0; k < 11; k++) st.push('N1');
+      st.push('REM');
+      for (k = 0; k < 4; k++) st.push('N2');
+      var bands = st.map(function () {
+        return { abs: { delta: 10 } };
+      });
+      var sw = D.swaTrend(bands, st);
+      T.eq('a one-epoch stretch is excluded and counted, never measured', JSON.stringify(sw.population), JSON.stringify({ stretches: 3, measured: 2, excluded: 1 }));
+      T.eq(
+        'and only the two four-epoch stretches enter the trend',
+        JSON.stringify(
+          sw.periods.map(function (p) {
+            return p.epochs;
+          })
+        ),
+        '[4,4]'
+      );
+    });
+
     group('EEGDex scores the deterministic synthetic to its pinned values', 'eegdex · compute · known-answer', function (T) {
       var D = env.EEGDSP;
       if (!D) {
