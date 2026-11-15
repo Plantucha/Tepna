@@ -66,6 +66,7 @@
     "verify:verdict-adoption": "node tools/verdict-adoption.mjs --check",
     "verify:write-root-adoption": "node tools/write-root-adoption.mjs --check",
     "verify:absence-regression": "node tools/absence-regression.mjs --base origin/main",
+    "verify:absence-backlog": "node tools/absence-regression.mjs --full-tree",
   "verify:astgrep": "node tools/astgrep-gate.mjs",
     "verify:xss-sink": "node tools/xss-sink-gate.mjs --base origin/main",
     "verify:docs-constants": "node tools/docs-constants.mjs",
