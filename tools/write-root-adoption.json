@@ -112,7 +112,7 @@
    "enumeratedWith": "the brief \u00a76.2 grep: a verdict, `fileURLToPath(import.meta.url)`, and that root as a child `cwd`",
    "adoptedMeans": "the tool calls judgeRoot or judgeRootOrDie where the judge happens",
    "pendingMeans": "the tool matches the shape and owes one reading in its own header (brief \u00a76.4). A name leaves this list only by adopting, or with the file.",
-   "exemptMeans": "the regexes read the tool\u2019s own test data. Each row carries the sentence that says why, and a mute row reds.",
+   "exemptMeans": "the tool spawns no child that judges a tree. Its only child asks `git rev-parse` for a commit stamp, which names the code that produced the verdict and is right in the checkout of the tool itself. Each row carries the sentence that says why, and a mute row reds.",
    "adopted": {
     "tools/astgrep-gate.mjs": {
      "since": "2026-11-14",
@@ -143,6 +143,11 @@
      "since": "2026-11-14",
      "wrapper": "judgeRoot",
      "reading": "it reads integrator-dsp.js, every declared reader realm and the surface declaration of the tree it resolves, and it stamps producedBy.commit from a git call in that tree, so a cross-checkout run judged another work-unit's 148 keys and printed PASS at exit 0"
+    },
+    "tools/judge-targets.mjs": {
+     "since": "2026-11-15",
+     "wrapper": "judgeRoot",
+     "reading": "it reads the manifest of the judge arm and the tracked source of every tool the arm names, so a cross-checkout run would census the tools of another work-unit and attribute the answer to this branch"
     },
     "tools/killcheck.mjs": {
      "since": "2026-11-15",
@@ -175,19 +180,28 @@
      "reading": "it censuses the tool tree of the RUN\u2019s work-unit and publishes a verdict about it"
     }
    },
-   "exempt": {},
+   "exempt": {
+    "tools/archive-manifest.mjs": "The helper `gitHead` asks `git rev-parse HEAD` at the tool root and feeds `producedBy.commit`, which names the code that produced the verdict.",
+    "tools/board-share.mjs": "The helper `headCommit` asks `git rev-parse --short=8 HEAD` at the tool root and feeds `producedBy.commit`, with a named reason when git refuses.",
+    "tools/cohort-fit.mjs": "The helper `headCommit` asks `git rev-parse --short HEAD` at the tool root and stamps the `commit` field of the provenance record.",
+    "tools/estate-drift.mjs": "The helper `gitHead` asks `git rev-parse --short HEAD` at the tool root and feeds `producedBy.commit`, which names the code that produced the verdict.",
+    "tools/nsrr-score-pool.mjs": "The helper `headCommit` asks `git rev-parse --short HEAD` at the tool root and feeds the verdict meta `commit` field.",
+    "tools/nsrr-stage-validate.mjs": "The helper `gitCommitOf` asks `git rev-parse --short HEAD` at the tool root and feeds the `commit` field of the population verdict.",
+    "tools/pat-mode-posture.mjs": "The helper `gitCommitShort` asks `git rev-parse --short HEAD` at the tool root and feeds `producedBy.commit`, with a named reason when git refuses.",
+    "tools/ste-lint.mjs": "The helper `gitCommit` asks `git rev-parse --short HEAD` at the tool root and feeds `producedBy.commit`, which names the code that produced the verdict.",
+    "tools/tch-degeneracy-d7.mjs": "The helper `gitCommit` asks `git rev-parse --short HEAD` at the tool root and reaches every verdict through `verdicts(res, gitCommit())`.",
+    "tools/verdict-emit.mjs": "The shared helper `gitShort` asks `git rev-parse --short HEAD` at the tool root and stamps `producedBy.commit` for every verdict an adopter emits.",
+    "tools/verdict-undeclared.mjs": "The helper `headCommit` asks `git rev-parse --short HEAD` at the tool root and feeds `producedBy.commit`, which names the code that produced the verdict.",
+    "tools/xerj-load.mjs": "The inline stamp inside `verdictOf` asks `git rev-parse --short HEAD` at the tool root and feeds `producedBy.commit`, with a named reason when git refuses."
+   },
    "pending": [
-    "tools/archive-manifest.mjs",
-    "tools/board-share.mjs",
     "tools/board.mjs",
     "tools/brief-gaps.mjs",
     "tools/brief-header-claims.mjs",
-    "tools/cohort-fit.mjs",
     "tools/cvhr-edge-widen.mjs",
     "tools/cvhr-gap-edge.mjs",
     "tools/defect-bench-solve.mjs",
     "tools/defect-bench.mjs",
-    "tools/estate-drift.mjs",
     "tools/extreme-mutate.mjs",
     "tools/h10-session-rate.mjs",
     "tools/lomb-share-profile.mjs",
@@ -197,11 +211,8 @@
     "tools/mutation-crawl.mjs",
     "tools/mutation-suite.mjs",
     "tools/name-lease.mjs",
-    "tools/nsrr-score-pool.mjs",
-    "tools/nsrr-stage-validate.mjs",
     "tools/paper-claim-markers.mjs",
     "tools/paper-reference-use.mjs",
-    "tools/pat-mode-posture.mjs",
     "tools/ppg-autogain-e2.mjs",
     "tools/reanchor-equivalence.mjs",
     "tools/rebase-safe.mjs",
@@ -209,16 +220,11 @@
     "tools/required-contexts.mjs",
     "tools/residue-cite-drift.mjs",
     "tools/respcv-lomb-share.mjs",
-    "tools/ste-lint.mjs",
-    "tools/tch-degeneracy-d7.mjs",
     "tools/trio-batch.mjs",
     "tools/trio-eligible-nights.mjs",
     "tools/unit-health.mjs",
-    "tools/verdict-emit.mjs",
-    "tools/verdict-undeclared.mjs",
     "tools/verify-fixtures.mjs",
-    "tools/xerj-bench.mjs",
-    "tools/xerj-load.mjs"
+    "tools/xerj-bench.mjs"
    ]
   }
  }

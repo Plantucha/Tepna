@@ -33,6 +33,11 @@
      · citations (author, year, DOI) — the form is fixed by the source;
      · a PR body's `Rule 0:` evidence line and its `Fleet-Session:` trailer — a
        query plus its hits is a list, not a sentence, and the gate reads both by form.
+
+   JUDGE-ROOT READING (2026-11-15, brief WRITE-ROOT-ADOPTION §6.4): THIS TOOL JUDGES NO TREE. The one
+   child it spawns asks `git rev-parse` for a commit stamp at the tool root, and that stamp names the code
+   which produced the verdict, so it is right in the checkout of the tool itself. The judge-root wrapper is
+   not owed here, and `tools/write-root-adoption.json` carries the row under `arms.judge.exempt`.
    ════════════════════════════════════════════════════════════════════════ */
 import { readFileSync, existsSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

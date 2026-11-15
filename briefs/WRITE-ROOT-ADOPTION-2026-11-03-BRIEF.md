@@ -231,6 +231,15 @@ three tests held the path in this repo's own words. So each of the 49 remaining 
       NOT_RUN object, measured per tool. `tools/integrator-surface-gate.mjs` is the fifth of that class,
       and the unit that held the file converted it the same day — see the item below. The manifest
       carries the rest.
+      PROGRESS 2026-11-15: twelve more answer, with a reading this triage does not list. The new census
+      `tools/judge-targets.mjs` states, per named tool, which tree it hands its child and what the child
+      asks of that tree. A probe over all 53 named judge tools found 52 pass a root resolved from
+      `import.meta.url`, so the shape alone separates nothing. Twelve tools spawn one child only:
+      `git rev-parse` for a commit stamp, which names the code that produced the verdict. That stamp is
+      right in the checkout of the tool itself, and the §6.2 recipe's third grep catches it. Each of the
+      twelve carries the reading in its header beside a row under `arms.judge.exempt`, and the census
+      adopts `judgeRoot` itself. The arm then reads 13 adopted, 30 pending and 12 exempt over 52
+      candidates, measured beside `tools/killcheck.mjs`'s own adoption the same day.
 - [ ] Every gate judging an artifact of the run's work-unit calls `judgeRootOrDie`.
 - [x] `tools/run-check.mjs` carries its reading, because it runs the whole gate in the tree it resolves.
       Done 2026-11-05: it resolves through `judgeRoot` inside the CLI block and refuses a disagreement with exit 2.
