@@ -100046,6 +100046,170 @@
       );
     });
 
+    /* ════ ∅ · THE ACTIVITY ENVELOPE SAYS NOTHING FOR A SAMPLE IT COULD NOT DIFFERENCE ════
+       Row `2026-11-15-integrator-activityenvelope-nan-reads-as-zero`. `log1p(d)` is 0 for a finite
+       delta of 0, so 0 here MEANS a measurement: the limb held still between two samples. A
+       non-finite delta landed on that same 0, and index 0 — which owns no first difference at all —
+       did too. The consumer decides the difference: `_ncc` skips a pair where either side reads
+       non-finite and refuses below 8 of them, so an absence costs overlap, while a fabricated 0 is
+       correlated as signal and moves the lag. These legs pin both directions. */
+    group('Integrator activity envelope refuses a sample it could not difference', 'integrator-dsp · activity-envelope · absence', function (T) {
+      var I = env.IntegratorDSP;
+      var envl = I && I.activityEnvelope;
+      T.ok('activityEnvelope is reachable', typeof envl === 'function');
+      if (typeof envl !== 'function') return;
+
+      /* A STILL LIMB: every delta is a finite 0, which is a reading and not an absence. */
+      var still = envl([1, 1, 1, 1], [2, 2, 2, 2], [3, 3, 3, 3], 1);
+      T.eq('a MEASURED zero delta still reads 0 — the guard did not null a reading', still[1], 0);
+      T.eq('…and so does the one after it', still[2], 0);
+      T.ok('index 0 owns no first difference, so it reads NaN', Number.isNaN(still[0]), String(still[0]));
+
+      /* ONE ABSENT AXIS SAMPLE: two deltas cannot be computed, and neither is stillness. */
+      var hole = envl([1, 2, NaN, 4, 5], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], 1);
+      T.ok('the NaN sample reads NaN, never 0 activity', Number.isNaN(hole[2]), String(hole[2]));
+      T.ok('…and so does the sample after it, whose delta needs the absent one', Number.isNaN(hole[3]), String(hole[3]));
+      T.eq('a finite delta before the hole still reports its motion', hole[1], Math.log1p(1));
+      T.eq('…and one after it does too', hole[4], Math.log1p(1));
+      T.ok('the pre-fix spelling published stillness at both absent samples', hole[2] !== 0 && hole[3] !== 0);
+
+      /* THE CONSUMER'S VIEW — the reason this matters. `_ncc` is module-local, so drive the pair
+         through `alignEnvelopes`, which correlates the two envelopes it receives. A night that is
+         two thirds absent must not read as a confident alignment. */
+      var align = I && I.alignEnvelopes;
+      if (typeof align === 'function') {
+        var nSamp = 60;
+        var clean = new Float64Array(nSamp);
+        var gappy = new Float64Array(nSamp);
+        for (var i = 0; i < nSamp; i++) {
+          clean[i] = Math.log1p(i % 5);
+          gappy[i] = i < 10 ? Math.log1p(i % 5) : NaN;
+        }
+        var al = align(clean, gappy, 1, { maxLagSec: 5 });
+        T.ok('a mostly-absent envelope does not align as if it were measured', !al || al.ok !== true || al.nUsable == null || al.nUsable <= 10, JSON.stringify(al && { ok: al.ok, n: al.nUsable }));
+      }
+    });
+
+    /* ════ ∅ · A PAIR'S WORST CASE NEEDS BOTH SIDES TO HAVE REPORTED ════
+       Row `2026-11-15-integrator-arrival-offsets-span-zero-when-unmeasured`.
+       `Math.min(a.spanSec || 0, b.spanSec || 0)` answered 0 whenever EITHER device never reported a
+       span, and 0 is a legal span: a single-anchor clock measures exactly that. `madMs` one field up
+       carried the same spelling, where 0 states a perfectly precise pair. Both fields describe the
+       PAIR, so one side's silence leaves the pair's worst case unknown. */
+    group('Integrator pair offsets report an unmeasured span as null', 'integrator-dsp · arrival-offsets · absence', function (T) {
+      var I = env.IntegratorDSP;
+      T.ok('arrivalPairOffsets is reachable', !!(I && typeof I.arrivalPairOffsets === 'function'));
+      if (!(I && typeof I.arrivalPairOffsets === 'function')) return;
+      var dev = function (name, off, extra) {
+        var d = { device: name, ok: true, independent: true, plausibleCrystal: true, deviceDrawn: false, drawnShare: 0.01, ppm: -20, offsetMs: off };
+        Object.keys(extra || {}).forEach(function (k) {
+          d[k] = extra[k];
+        });
+        return d;
+      };
+
+      var both = I.arrivalPairOffsets([dev('Polar H10', 100, { spanSec: 3600, offsetMadMs: 12 }), dev('Polar VeritySense', 300, { spanSec: 1800, offsetMadMs: 30 })]);
+      T.ok('two reporting clocks pair', !!both && both.ok === true, JSON.stringify(both && both.reason));
+      T.eq('the pair span is the SHORTER measured span', both.pairs[0].spanSec, 1800);
+      T.eq('the pair spread is the WORSE measured spread', both.pairs[0].madMs, 30);
+
+      var oneSpan = I.arrivalPairOffsets([dev('Polar H10', 100, { spanSec: 3600, offsetMadMs: 12 }), dev('Polar VeritySense', 300, { offsetMadMs: 30 })]);
+      T.eq('one side reporting no span answers null, never 0', JSON.stringify(oneSpan.pairs[0].spanSec), 'null');
+      T.ok('…and the pre-fix 0 read as a measured zero-length span', oneSpan.pairs[0].spanSec !== 0);
+      T.eq('…while the spread both of them measured still reports', oneSpan.pairs[0].madMs, 30);
+
+      var noMad = I.arrivalPairOffsets([dev('Polar H10', 100, { spanSec: 3600 }), dev('Polar VeritySense', 300, { spanSec: 1800 })]);
+      T.eq('neither side measuring its spread answers null, never a perfect 0', JSON.stringify(noMad.pairs[0].madMs), 'null');
+      T.eq('…while the span both of them measured still reports', noMad.pairs[0].spanSec, 1800);
+
+      var oneMad = I.arrivalPairOffsets([dev('Polar H10', 100, { spanSec: 3600, offsetMadMs: 12 }), dev('Polar VeritySense', 300, { spanSec: 1800 })]);
+      T.eq('one measured spread cannot bound the PAIR, so it answers null', JSON.stringify(oneMad.pairs[0].madMs), 'null');
+    });
+
+    /* ════ ∅ · ONE CONFIDENCE CANNOT STAND FOR TWO ARMS ════
+       Row `2026-11-15-integrator-fusion-correlation-from-one-pair`. The
+       `glucose_autonomic_correlation` finding carries a Pearson r over >= 3 overlapping nights, or,
+       with fewer, the single-pair directional estimate `0.5 + clamp(slope)`. Both arms published one
+       hard-coded `conf: 0.6`, so a correlation over several nights and a one-night direction read
+       equally trustworthy. No committed fixture produces this finding — the only three hits for its
+       name in `uploads/` are the `handshakes.glucodex_ready` stub, which is null — so the suite is
+       its whole surface and these legs are what make the arm visible. */
+    group('Integrator names the arm behind a glucose-autonomic number', 'integrator-dsp · autogly · conf-arm', function (T) {
+      var A = env.adaptEnvelopeNode,
+        RF = env.runFusion;
+      if (typeof A !== 'function' || typeof RF !== 'function') {
+        T.ok('adaptEnvelopeNode + runFusion present', false);
+        return;
+      }
+      var U0 = U(2026, 5, 7, 22, 0, 0);
+      var ecgRec = function (t, slope, label) {
+        return A(
+          {
+            schema: { node: 'ECGDex' },
+            recording: { startEpochMs: t, durationMin: 480, offsetMin: null },
+            hrv: { time: { rmssd: 40, sdnn: 58 } },
+            hrvStability: { mean_lnRMSSD_slope: slope }
+          },
+          'ECGDex',
+          label
+        )[0];
+      };
+      var gluRec = function (t, cv, label) {
+        return A(
+          {
+            schema: { node: 'GlucoDex' },
+            recording: { startEpochMs: t, durationMin: 480, offsetMin: null },
+            glucose: { cv: cv }
+          },
+          'GlucoDex',
+          label
+        )[0];
+      };
+      var findOne = function (res) {
+        return ((res && res.findings) || []).filter(function (f) {
+          return f && f.type === 'glucose_autonomic_correlation';
+        })[0];
+      };
+
+      /* ONE overlapping night: r needs three pairs, so the directional arm answers. */
+      var one = RF([ecgRec(U0, 0.3, 'ecg1.json'), gluRec(U0, 22, 'glu1.json')]);
+      var f1 = findOne(one);
+      T.ok(
+        'one overlapping night still publishes the finding',
+        !!f1,
+        JSON.stringify(
+          ((one && one.findings) || []).map(function (f) {
+            return f.type;
+          })
+        )
+      );
+      if (f1) {
+        T.eq('…the arm is named in meta, so no reader parses the note', f1.meta && f1.meta.basis, 'directional');
+        T.eq('…its r is absent', JSON.stringify(f1.meta && f1.meta.r), 'null');
+        T.eq('…and nothing measured a confidence for it, so conf is null', JSON.stringify(f1.conf), 'null');
+        T.ok('…the pre-fix 0.6 claimed the same trust as a real correlation', f1.conf !== 0.6);
+        T.ok('…while the directional estimate itself still reports', f1.meta && f1.meta.directional != null, JSON.stringify(f1.meta));
+      }
+
+      /* THREE overlapping nights, each a separate pair: the Pearson arm answers, and it keeps the
+         stated 0.6 it always carried. This is the control — the fix must not null a real r. */
+      var day = 86400000;
+      var three = RF([
+        ecgRec(U0, 0.1, 'e1.json'),
+        gluRec(U0, 14, 'g1.json'),
+        ecgRec(U0 + day, 0.3, 'e2.json'),
+        gluRec(U0 + day, 22, 'g2.json'),
+        ecgRec(U0 + 2 * day, 0.5, 'e3.json'),
+        gluRec(U0 + 2 * day, 31, 'g3.json')
+      ]);
+      var f3 = findOne(three);
+      T.ok('three overlapping nights publish the finding', !!f3);
+      T.ok('…over a real r', f3 && f3.meta && f3.meta.r != null, JSON.stringify(f3 && f3.meta));
+      T.eq('…which names the pearson arm', f3.meta.basis, 'pearson');
+      T.eq('…and keeps the confidence this arm always stated', f3.conf, 0.6);
+      T.eq('…over the three pairs it read', f3.meta.n, 3);
+    });
+
     /* THE SHAPE A COMMITTED ARTIFACT ACTUALLY CARRIES (residue
        2026-10-25-the-committed-ring-folds-carry-no-drawn-axis-verdict)
        The group above pins the refusal over a LIVE parse, which has published `deviceDrawn` since
