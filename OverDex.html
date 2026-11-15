@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="827726fe4ee6" data-compute-hash="826b16f332b6"><head>
+<html lang="en" data-manifest-hash="db3deb40ce7c" data-compute-hash="d9ebe8053451"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-NmhOOy1eWo1a0Q4a5IUaMOCr0RXVD8rVFdEBdP5AzUw=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QM20xdlUZAnf/0Tm225UlYKJ5nwsXEsCKO4jy9YVIDY=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-SYhOYN70OcmPNUyQI3+XkzBPsDEkov/r8Qc03as7ooU=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-WCQTLVkSv1QgSOi2vvBHY7+NBC4URxQt6+ufi6R/3qU=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-i0Sm5seKz/22C1rTuIDz5PXWmQKSkXwkwamG+kYKUzQ=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qT2gxErYLyWfrqr0Cr8Ma4kOtl3Z78+i+xsmWwlRF1g=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-z4l2zX2D/RcAl/wpu0C/Z9GU6A/Rt5Gmh35gDByXOhQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-NmhOOy1eWo1a0Q4a5IUaMOCr0RXVD8rVFdEBdP5AzUw=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QM20xdlUZAnf/0Tm225UlYKJ5nwsXEsCKO4jy9YVIDY=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-SYhOYN70OcmPNUyQI3+XkzBPsDEkov/r8Qc03as7ooU=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-WCQTLVkSv1QgSOi2vvBHY7+NBC4URxQt6+ufi6R/3qU=' 'sha256-XMZC7nkLlz4f1vdzreDHqWQOzkLPVnYIK0wCn57icig=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-dVHmZXyP4XwTjEhlcHA5KAS8qlCtDlt15p8WXc7GPMw=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lOTY4TeKI95pd25ZHoEpk1WBMZgbmr2dfYcJOykSR/8=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-z4l2zX2D/RcAl/wpu0C/Z9GU6A/Rt5Gmh35gDByXOhQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -37091,25 +37091,58 @@ __exports.GlucoDex = window.GlucoDex;
   // ════════════════════════════════════════════════════════════════════════
   function beatConfidence(peaks, sqi, fs, t0Ms, winSec) {
     winSec = winSec || 60;
-    const n = peaks.length,
-      out = new Map();
+    const n = peaks.length;
+    /* The out-of-band marks the §∅ note below describes are OWN PROPERTIES on the returned Map, so
+       the per-second weights and the calibration verdict travel together without a wrapper object
+       that every caller would have to unpack. The cast states them; the Map itself is unchanged. */
+    const out = /** @type {Map<number, any> & { nBeats: number, nSqi: number, nQBelow: number, sqiMedian: number|null, sqiSource: string|null, calibrated: boolean, reason: string|null }} */ (
+      new Map()
+    );
     const t0 = t0Ms || 0;
     const secAbs = (k) => Math.floor((t0 + (peaks[k] / fs) * 1000) / 1000);
+    /* ∅ A TRUST OF 1 IS A MEASUREMENT, AND THESE THREE ARMS NEVER MEASURED IT. The statistic
+       calibrates against the RECORD'S OWN medians, so it reports perfect trust in three cases that
+       look identical to a clean record from the outside: under 20 beats (no calibration at all), no
+       per-beat SQI (the quality cue reads a substituted 1 for every beat), and an SQI with no spread
+       (every window sits AT the median, so `sQ` is 0 — a uniformly ZERO SQI reads as uniformly
+       fine). The returned values stay as they are, because 1 is the only safe weight for a beat
+       nobody examined. Validity travels OUT OF BAND instead — CLAUDE.md §∅, "a consumer cannot null
+       what it cannot distinguish" — as own properties on the Map. The ECGDex copy carries the same
+       code byte-for-byte, and the suite compares the two bodies. */
     if (n < 20) {
       for (let k = 0; k < n; k++) out.set(secAbs(k), 1);
+      out.nBeats = n;
+      out.nSqi = 0;
+      out.sqiMedian = null;
+      out.sqiSource = null;
+      out.calibrated = false;
+      out.reason = 'fewer than 20 beats — the trust statistic was never calibrated, so every second reads 1 by default';
       return out;
     } // too short to calibrate
     const s0 = secAbs(0),
       s1 = secAbs(n - 1),
       S = s1 - s0 + 1;
-    if (S < 1) return out;
+    if (S < 1) {
+      out.nBeats = n;
+      out.nSqi = 0;
+      out.sqiMedian = null;
+      out.sqiSource = null;
+      out.calibrated = false;
+      out.reason = 'the peak series spans under one second — there is no window to calibrate over';
+      return out;
+    }
     const cnt = new Float64Array(S),
       qsum = new Float64Array(S);
+    let nSqi = 0;
     for (let k = 0; k < n; k++) {
       const s = secAbs(k) - s0;
       if (s >= 0 && s < S) {
         cnt[s]++;
-        qsum[s] += sqi && Number.isFinite(sqi[k]) ? sqi[k] : 1;
+        /* The `: 1` substitutes a PERFECT quality for a beat that reported none. It stays, because
+           the window mean needs a number, and `nSqi` counts how many of them were real. */
+        const _hasQ = !!sqi && Number.isFinite(sqi[k]);
+        if (_hasQ) nSqi++;
+        qsum[s] += _hasQ ? sqi[k] : 1;
       }
     }
     const half = Math.max(1, Math.round(winSec / 2));
@@ -37161,6 +37194,25 @@ __exports.GlucoDex = window.GlucoDex;
       const sQ = Math.max(0, (qMed - winSqi[i]) / madQ); // SQI-depressed-below-median suspicion
       out.set(s0 + i, trust(Math.min(sD, sQ))); // AF-safe AND: both cues must fire
     }
+    /* The out-of-band verdict on the quality cue. `sQ` rises only where a window's mean SQI sits
+       BELOW the record's own median, so the cue's whole reach is the windows under `qMed`. With none
+       of them the AND holds `min(sD, sQ)` at 0 and every second reads 1, whatever the density cue
+       saw. Counting them IS that reach — a MAD proxy is not: a 15 min burst in an 8 h night leaves
+       the MEDIAN deviation at 0 while the cue fires hard on the burst windows (measured
+       2026-11-15 against the differential HRV group's injected-burst night). */
+    let nQBelow = 0;
+    for (const _qi of active) if (winSqi[_qi] < qMed) nQBelow++;
+    out.nBeats = n;
+    out.nSqi = nSqi;
+    out.nQBelow = nQBelow;
+    out.sqiMedian = nSqi ? qMed : null;
+    out.sqiSource = nSqi === 0 ? 'absent' : nSqi < n ? 'partial' : 'per-beat';
+    out.calibrated = nSqi > 0 && nQBelow > 0;
+    out.reason = out.calibrated
+      ? null
+      : nSqi === 0
+        ? 'no per-beat SQI reached the trust statistic — the quality cue never fired, so every second reads 1'
+        : 'no window sits below the median SQI in this record — the quality cue has nothing it can suspect';
     return out;
   }
 
@@ -39855,6 +39907,26 @@ __exports.GlucoDex = window.GlucoDex;
           rec.t0Ms || 0
         )
       : null;
+    /* ∅ THE CHANNEL HAS A THIRD STATE, AND IT USED TO LOOK LIKE THE FIRST. `ppiConf` was null under
+       a seam or an implausible span, and otherwise a measured weight — but `beatConfidence` also
+       returns a map of flat 1s when it could not calibrate, and that read as "every beat examined
+       and trusted". The mirror now marks the map out of band, so the reason key carries the state
+       on. The values stay, because 1 is the only safe weight for a beat nobody examined. */
+    const _pConfWhy = _pConfMap ? null : _clockSeam ? 'clock-seam' : 'implausible-span';
+    /* The two states travel in two fields. `ppiConfReason` stays the REFUSAL channel — it answers
+       why there is no series at all. The cue state is reduced COVERAGE of a series that exists, and
+       the owner's 2026-09-17 ruling separates the two: a discontinuity refuses, reduced coverage
+       annotates. One field for both would have put a cue note on every clean night's refusal key. */
+    const _pConfCue =
+      !_pConfMap || _pConfMap.calibrated
+        ? null
+        : _pConfMap.sqiSource == null
+          ? _pConfMap.nBeats < 20
+            ? 'too-few-beats'
+            : 'span-under-one-second'
+          : _pConfMap.sqiSource === 'absent'
+            ? 'sqi-absent'
+            : 'sqi-flat';
     const _t0 = rec.t0Ms || 0;
     const ppiConf = _pConfMap
       ? corr.tt.map((s) => {
@@ -40540,7 +40612,8 @@ __exports.GlucoDex = window.GlucoDex;
       ppiClean: cleanMask,
       // Aligned with nn/tt the same way — the fused-hat per-beat weight (see the block above).
       ppiConf,
-      ...(_confSpanOK ? {} : { ppiConfReason: _clockSeam ? 'clock-seam' : 'implausible-span' }), // F10 + seam — see the beatConfidence call
+      ...(_pConfWhy ? { ppiConfReason: _pConfWhy } : {}), // F10 + seam — see the beatConfidence call
+      ...(_pConfCue ? { ppiConfCue: _pConfCue } : {}), // the trust map exists and its quality cue could not calibrate
       poincareNN: nn,
       sd1: poin ? poin.sd1 : null,
       sd2: poin ? poin.sd2 : null,
@@ -42370,7 +42443,13 @@ __exports.PpgDex = window.PpgDex;
       d++;
       if (Math.abs(a[i] - a[i - 1]) > 50) n++;
     }
-    return d ? (n / d) * 100 : 0;
+    /* ∅ ABSENCE IS NULL. `d === 0` means NO successive pair entered the population — fewer than two
+       beats, or every pair separated by a dropout (`skip`). A 0 is a LEGAL pNN50 (no pair differs by
+       more than 50 ms), so a consumer handed 0 cannot tell a steady-but-measured record from one
+       that was never measured — CLAUDE.md §∅, "a consumer cannot null what it cannot distinguish".
+       Siblings `rmssd` and `median` already refuse the same case. Callers round through
+       `_rmOrNull`, because `+null.toFixed(1)` throws and `+null` is 0. */
+    return d ? (n / d) * 100 : null;
   };
   const nn50c = (a) => {
     let n = 0;
@@ -43560,26 +43639,60 @@ __exports.PpgDex = window.PpgDex;
   // ════════════════════════════════════════════════════════════════════════
   function beatConfidence(peaks, sqi, fs, t0Ms, winSec) {
     winSec = winSec || 60;
-    const n = peaks.length,
-      out = new Map();
+    const n = peaks.length;
+    /* The out-of-band marks the §∅ note below describes are OWN PROPERTIES on the returned Map, so
+       the per-second weights and the calibration verdict travel together without a wrapper object
+       that every caller would have to unpack. The cast states them; the Map itself is unchanged. */
+    const out = /** @type {Map<number, any> & { nBeats: number, nSqi: number, nQBelow: number, sqiMedian: number|null, sqiSource: string|null, calibrated: boolean, reason: string|null }} */ (
+      new Map()
+    );
     const t0 = t0Ms || 0;
     const secAbs = (k) => Math.floor((t0 + (peaks[k] / fs) * 1000) / 1000);
+    /* ∅ A TRUST OF 1 IS A MEASUREMENT, AND THESE THREE ARMS NEVER MEASURED IT. The statistic
+       calibrates against the RECORD'S OWN medians, so it reports perfect trust in three cases that
+       look identical to a clean record from the outside: under 20 beats (no calibration at all), no
+       per-beat SQI (the quality cue reads a substituted 1 for every beat), and an SQI with no spread
+       (every window sits AT the median, so `sQ` is 0 — a uniformly ZERO SQI reads as uniformly
+       fine). The returned values stay as they are, because 1 is the only safe weight for a beat
+       nobody examined. Validity travels OUT OF BAND instead — CLAUDE.md §∅, "a consumer cannot null
+       what it cannot distinguish" — as own properties on the Map. A consumer that reads
+       `calibrated` keeps a per-beat weight it can trust; one that counts artifact seconds refuses.
+       Mirrored byte-for-byte in `ppgdex-dsp.js`; the suite compares the two bodies. */
     if (n < 20) {
       for (let k = 0; k < n; k++) out.set(secAbs(k), 1);
+      out.nBeats = n;
+      out.nSqi = 0;
+      out.sqiMedian = null;
+      out.sqiSource = null;
+      out.calibrated = false;
+      out.reason = 'fewer than 20 beats — the trust statistic was never calibrated, so every second reads 1 by default';
       return out;
     } // too short to calibrate — trust all
     const s0 = secAbs(0),
       s1 = secAbs(n - 1),
       S = s1 - s0 + 1;
-    if (S < 1) return out;
+    if (S < 1) {
+      out.nBeats = n;
+      out.nSqi = 0;
+      out.sqiMedian = null;
+      out.sqiSource = null;
+      out.calibrated = false;
+      out.reason = 'the peak series spans under one second — there is no window to calibrate over';
+      return out;
+    }
     // bin beats into their second: count + SQI sum
     const cnt = new Float64Array(S),
       qsum = new Float64Array(S);
+    let nSqi = 0;
     for (let k = 0; k < n; k++) {
       const s = secAbs(k) - s0;
       if (s >= 0 && s < S) {
         cnt[s]++;
-        qsum[s] += sqi && Number.isFinite(sqi[k]) ? sqi[k] : 1;
+        /* The `: 1` substitutes a PERFECT quality for a beat that reported none. It stays, because
+           the window mean needs a number, and `nSqi` counts how many of them were real. */
+        const _hasQ = !!sqi && Number.isFinite(sqi[k]);
+        if (_hasQ) nSqi++;
+        qsum[s] += _hasQ ? sqi[k] : 1;
       }
     }
     // sliding ±half window → local beat count + local mean SQI, O(S)
@@ -43635,6 +43748,25 @@ __exports.PpgDex = window.PpgDex;
       // fires (min). High rate with clean QRS (AF / real tachycardia) → sQ≈0 → min≈0 → c=1, never dropped.
       out.set(s0 + i, trust(Math.min(sD, sQ)));
     }
+    /* The out-of-band verdict on the quality cue. `sQ` rises only where a window's mean SQI sits
+       BELOW the record's own median, so the cue's whole reach is the windows under `qMed`. With none
+       of them the AND holds `min(sD, sQ)` at 0 and every second reads 1, whatever the density cue
+       saw. Counting them IS that reach — a MAD proxy is not: a 15 min burst in an 8 h night leaves
+       the MEDIAN deviation at 0 while the cue fires hard on the burst windows (measured
+       2026-11-15 against the differential HRV group's injected-burst night). */
+    let nQBelow = 0;
+    for (const _qi of active) if (winSqi[_qi] < qMed) nQBelow++;
+    out.nBeats = n;
+    out.nSqi = nSqi;
+    out.nQBelow = nQBelow;
+    out.sqiMedian = nSqi ? qMed : null;
+    out.sqiSource = nSqi === 0 ? 'absent' : nSqi < n ? 'partial' : 'per-beat';
+    out.calibrated = nSqi > 0 && nQBelow > 0;
+    out.reason = out.calibrated
+      ? null
+      : nSqi === 0
+        ? 'no per-beat SQI reached the trust statistic — the quality cue never fired, so every second reads 1'
+        : 'no window sits below the median SQI in this record — the quality cue has nothing it can suspect';
     return out;
   }
 
@@ -43662,7 +43794,7 @@ __exports.PpgDex = window.PpgDex;
        object, because callers read `spec.respRate` on the result and a bare null would crash them;
        the absence has to be visible without breaking the shape. Same discipline `sqi` already uses
        a few hundred lines below — "an absent measurement, never a default". */
-    if (N < 12) return { tp: null, vlf: null, lf: null, hf: null, lfhf: null, respRate: null };
+    if (N < 12) return { tp: null, vlf: null, lf: null, hf: null, lfhf: null, respRate: null, respRateReason: 'fewer than 12 beats — the series cannot be transformed' };
     const t = times.slice(0, N);
     const dt = linfit(Array.from(t), Array.from(nn));
     const x = [];
@@ -43772,7 +43904,13 @@ __exports.PpgDex = window.PpgDex;
          lf/1 as if it were a measurement. PpgDex already does the honest thing (`hf > 0 ? lf/hf : null`).
          A ratio with no denominator is not a small ratio, it is no ratio. */
       lfhf: hf > 0 ? +(lf / hf).toFixed(3) : null,
-      respRate: +(peakF * 60).toFixed(1),
+      /* ∅ THE SAME REFUSAL ONE BRANCH ALONG. `peakF` holds 0 until a bin beats `peakP`, which
+         starts at 0 — so a series with NO power anywhere in the HF band (a flat or near-flat RR
+         record) left it at 0 and published `respRate: 0.0` br/min. A zero breath rate is not a
+         measurement, and the arm above already refuses the sibling case with its own reason. The
+         peak frequency itself cannot be 0 inside this band: the search starts at 0.15 Hz. */
+      respRate: peakP > 0 ? +(peakF * 60).toFixed(1) : null,
+      respRateReason: peakP > 0 ? null : 'no spectral peak in the 0.15–0.4 Hz band — respiration not recoverable from this RR series',
       hfAboveNyquist: fNyq < fHi,
       nyquistHz: +fNyq.toFixed(3)
     };
@@ -44050,7 +44188,7 @@ __exports.PpgDex = window.PpgDex;
           sdnn: +(/** @type {number} */ (std(seg)).toFixed(1)), // >= 20 scorable beats (refused below that)
           // vlf/tp carried too (DEEP-AUDIT §10): the exported spectrum is the 5-min epoch median, and it
           // must report ALL FOUR bands on that one scale — see the spec block in analyze().
-          pnn: +pnn50(seg, segSkip).toFixed(1),
+          pnn: _rmOrNull(pnn50(seg, segSkip), 1),
           lf: ls.lf,
           hf: ls.hf,
           vlf: ls.vlf,
@@ -44096,8 +44234,23 @@ __exports.PpgDex = window.PpgDex;
     if (windows.length < 3) return null;
 
     const pts = []; // { tMin, lnSD, lnVar, lnMean }
+    let _wDropped = 0;
     for (const w of windows) {
-      const lnR = w.epochs.map((e) => Math.log(Math.max(1, e.rmssd)));
+      /* ∅ A REFUSED EPOCH MUST NOT BECOME A ZERO. `e.rmssd` is null when no successive pair was
+         measured in that epoch, and `Math.log(Math.max(1, null))` is `Math.log(1)` — exactly 0. Two
+         costs, both measured in source: a window of ALL-null epochs gave every SD 0, every slope 0
+         and the night read 'Flat — no clear nocturnal trend'; and ONE null epoch inside a measuring
+         window injected a 0 beside values near 3.5 ln-units, which INFLATES that window's SD and
+         fabricates instability. So the absent epochs leave the population, and a window that cannot
+         field the same 3 epochs the grouping demands leaves the fit. */
+      const lnR = w.epochs
+        .map((e) => e.rmssd)
+        .filter((v) => v != null && isFinite(v))
+        .map((v) => Math.log(Math.max(1, v)));
+      if (lnR.length < 3) {
+        _wDropped++;
+        continue;
+      }
       const m = mean(lnR),
         sd = /** @type {number} */ (std(lnR)); // a window holds >= 3 epochs
       // n = epochs in this window. A trailing group is admitted with as few as 3
@@ -44105,8 +44258,12 @@ __exports.PpgDex = window.PpgDex;
       // so an under-sampled window is VISIBLE rather than silently equal-weighted
       // (DEEP-AUDIT-II #39). The slope fit is deliberately left unchanged — the
       // real-corpus effect is immaterial; surfacing n is the honest half.
-      pts.push({ tMin: w.tMin, lnSD: sd, lnVar: sd * sd, lnMean: m, n: w.epochs.length });
+      /* `n` is the population the SD describes, which is now the MEASURED epoch count. The held
+         count only appears when the two differ, so a clean night keeps its bytes (the §1.10 idiom). */
+      pts.push({ tMin: w.tMin, lnSD: sd, lnVar: sd * sd, lnMean: m, n: lnR.length, nHeld: w.epochs.length });
     }
+    // The fit needs the same 3 windows the grouping above demands — now counted over measured ones.
+    if (pts.length < 3) return null;
     const xs = pts.map((p) => p.tMin / 60); // hours
     const sdSlope = linfit(
       xs,
@@ -44146,7 +44303,14 @@ __exports.PpgDex = window.PpgDex;
       mean_lnRMSSD_slope: +meanSlope.toFixed(4),
       classification: cls,
       severity: sev,
-      series: pts.map((p) => ({ tMin: p.tMin, lnSD: +p.lnSD.toFixed(3), lnMean: +p.lnMean.toFixed(3), n: p.n }))
+      nWindowsDropped: _wDropped,
+      series: pts.map((p) => ({
+        tMin: p.tMin,
+        lnSD: +p.lnSD.toFixed(3),
+        lnMean: +p.lnMean.toFixed(3),
+        n: p.n,
+        ...(p.nHeld !== p.n ? { nExcluded: p.nHeld - p.n } : {})
+      }))
     };
   }
 
@@ -44404,7 +44568,13 @@ __exports.PpgDex = window.PpgDex;
         bestS = s;
       }
     }
-    const plv = plvCnt ? plvAcc / plvCnt : 0;
+    /* ∅ ABSENCE IS NULL. `plvCnt === 0` means the record never filled ONE 60 s window, so the
+       phase-locking value was never computed. A 0 is the most meaningful PLV there is — "no phase
+       lock at all" — so a consumer handed 0 cannot tell an uncoupled record from an unmeasured one.
+       The sibling fields `plvDuringSurges` and `plvBaseline` already refuse this case with
+       `sIn.length ? … : null`. The reason names the window, never a borrowed one (§∅). */
+    const plv = plvCnt ? plvAcc / plvCnt : null;
+    const plvReason = plvCnt ? null : 'no complete 60 s coupling window in the record — phase locking not computable';
     // 4) RSA amplitude = robust peak-to-trough of the resp-band HR oscillation (the RSA itself),
     // drift- and polarity-proof. Efficiency ratio = inspiratory:expiratory HR (Border 2025).
     const meanHRabs = mean(Array.from(hrAbsU));
@@ -44412,7 +44582,9 @@ __exports.PpgDex = window.PpgDex;
     const rsaAmp = Math.max(0, quant(hrBarr, 0.92) - quant(hrBarr, 0.08));
     const rsaRatio = meanHRabs - rsaAmp / 2 > 0 ? (meanHRabs + rsaAmp / 2) / (meanHRabs - rsaAmp / 2) : 1;
     const rsaAmpNorm = Math.min(1, rsaAmp / (0.1 * meanHRabs || 1));
-    const couplingStrength = Math.max(0, Math.min(1, 0.65 * plv + 0.35 * rsaAmpNorm));
+    /* 65 % of this number IS the PLV, so an absent PLV leaves no coupling strength to publish.
+       `0.65 * null` is 0, which would have published the RSA half alone under the coupling name. */
+    const couplingStrength = plv == null ? null : Math.max(0, Math.min(1, 0.65 * plv + 0.35 * rsaAmpNorm));
     // phase-averaged HR over the BEST-coherence 60 s window (a clean RSA loop for the chart)
     const NB = 16;
     const binSum = new Float64Array(NB),
@@ -44465,8 +44637,9 @@ __exports.PpgDex = window.PpgDex;
       gridGapFrac,
       rsaEfficiencyRatio: +rsaRatio.toFixed(2),
       rsaAmplitudeBpm: +rsaAmp.toFixed(1),
-      crcPLV: +plv.toFixed(3),
-      couplingStrength: +couplingStrength.toFixed(3),
+      crcPLV: _rmOrNull(plv, 3),
+      crcPLVReason: plvReason,
+      couplingStrength: _rmOrNull(couplingStrength, 3),
       phaseCurve,
       nbins: NB,
       nGrid: M,
@@ -45024,9 +45197,17 @@ __exports.PpgDex = window.PpgDex;
     }
 
     // ── activity evidence (all from ACC the node already computes) ──
-    let steps = 0,
-      briskPct = 0,
-      cadencePresentPct = 0,
+    /* ∅ ABSENCE IS NULL. `accEx` is null whenever the record carried no usable ACC stream
+       (line 3264 — no `deviceACC`, no `accFs`, or under 30 s of it). The four initializers below
+       then stood, `Math.max` over them is 0, and the node published `activityScore: 0.00` — "I
+       measured no activity" — over a channel it never held. A 0 is a LEGAL score, because a still
+       sleeper with a working ACC reads 0 too, so the consumer cannot tell the two apart. The same
+       absence also made `ambulatory: false` a conclusion with no evidence behind it. Both refuse
+       now, and every gate downstream keeps today's branch, because null is falsy where false was. */
+    const accPresent = !!accEx;
+    let steps = accPresent ? 0 : null,
+      briskPct = accPresent ? 0 : null,
+      cadencePresentPct = accPresent ? 0 : null,
       accWakePct = null;
     const gait = accEx && accEx.gait;
     if (gait && gait.walking) {
@@ -45044,19 +45225,26 @@ __exports.PpgDex = window.PpgDex;
     }
 
     // sustained activity → ambulatory. The duration/time-of-day heuristic CANNOT override this.
-    const sustainedGait = steps >= 500 && cadencePresentPct >= 30;
+    const sustainedGait = steps != null && cadencePresentPct != null && steps >= 500 && cadencePresentPct >= 30;
     const accWakeDominant = accWakePct != null && accWakePct >= 75;
-    const ambulatory = sustainedGait || accWakeDominant;
+    const ambulatory = accPresent ? sustainedGait || accWakeDominant : null;
 
     // auditable activity scalar 0..1 (any strong channel saturates it)
-    const sStep = Math.min(1, steps / 2500);
-    const sBrisk = Math.min(1, briskPct / 20);
-    const sCad = Math.min(1, cadencePresentPct / 50);
-    const sWake = accWakePct != null ? Math.min(1, accWakePct / 85) : 0;
-    const activityScore = +Math.max(sStep, sBrisk, sCad, sWake).toFixed(2);
+    const sStep = steps != null ? Math.min(1, steps / 2500) : null;
+    const sBrisk = briskPct != null ? Math.min(1, briskPct / 20) : null;
+    const sCad = cadencePresentPct != null ? Math.min(1, cadencePresentPct / 50) : null;
+    const sWake = accWakePct != null ? Math.min(1, accWakePct / 85) : null;
+    /* The score is the strongest channel that REPORTED, so one absent channel costs nothing and a
+       record with no channel at all refuses with its own reason. */
+    const _sMeasured = [sStep, sBrisk, sCad, sWake].filter((v) => v != null);
+    const activityScore = _sMeasured.length ? +Math.max(..._sMeasured).toFixed(2) : null;
+    const activityScoreReason = _sMeasured.length ? null : 'no usable accelerometer stream in the record — activity not measured';
 
     let mode, modeLabel, modeWhy, modeConf;
-    if (ambulatory) {
+    /* `ambulatory` is true only when the ACC stream reported, and a reporting stream always leaves
+       at least three measured channels in the score, so `activityScore` is never null in this arm.
+       The explicit test states that rather than substituting a number for a refusal. */
+    if (ambulatory && activityScore != null) {
       mode = 'ambulatory';
       modeLabel = '🚶 Ambulatory';
       const bits = [];
@@ -45080,7 +45268,18 @@ __exports.PpgDex = window.PpgDex;
       modeWhy = Math.round(durMin) + ' min reading';
       modeConf = 80;
     }
-    return { mode, modeLabel, modeWhy, modeConf, ambulatory, activityScore, suppressReason: 'high-activity / ambulatory', activity: { steps, briskPct, cadencePresentPct, accWakePct } };
+    return {
+      mode,
+      modeLabel,
+      modeWhy,
+      modeConf,
+      ambulatory,
+      accPresent,
+      activityScore,
+      activityScoreReason,
+      suppressReason: 'high-activity / ambulatory',
+      activity: { steps, briskPct, cadencePresentPct, accWakePct }
+    };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -45435,7 +45634,7 @@ __exports.PpgDex = window.PpgDex;
     let dispRm = _rmOrNull(rm, 1),
       dispSd = +sdnn.toFixed(1),
       dispHr = hr,
-      dispPn = +pn.toFixed(1),
+      dispPn = _rmOrNull(pn, 1),
       sdann = null,
       sdnnIdx = null;
     if (longRec && epochs.length >= 3) {
@@ -45447,7 +45646,11 @@ __exports.PpgDex = window.PpgDex;
       dispRm = _epRm.length ? +median(_epRm).toFixed(1) : null;
       dispSd = +median(epochs.map((e) => e.sdnn)).toFixed(1);
       dispHr = +median(epochs.map((e) => e.hr)).toFixed(1);
-      dispPn = +median(epochs.map((e) => e.pnn)).toFixed(1);
+      /* The same discipline as `_epRm`: an epoch with no eligible pair reports `pnn: null`, and it
+         must not vote. median() over nulls sorts them as neither high nor low, so a filter is the
+         only way the night's median stays a median of what was measured. */
+      const _epPn = epochs.map((e) => e.pnn).filter((v) => v != null);
+      dispPn = _epPn.length ? +median(_epPn).toFixed(1) : null;
       sdann = +(/** @type {number} */ (std(epochs.map((e) => e.meanRR))).toFixed(1)); // epochs.length >= 3
       sdnnIdx = +mean(epochs.map((e) => e.sdnn)).toFixed(1);
     }
@@ -45713,7 +45916,9 @@ __exports.PpgDex = window.PpgDex;
       modeWhy: modeInfo.modeWhy,
       modeConf: modeInfo.modeConf,
       ambulatory,
+      accPresent: modeInfo.accPresent,
       activityScore: modeInfo.activityScore,
+      activityScoreReason: modeInfo.activityScoreReason,
       activity: modeInfo.activity,
       sleepSuppressed,
       apneaSuppressed,
@@ -45764,7 +45969,16 @@ __exports.PpgDex = window.PpgDex;
          at them over the WHOLE record. `absent: true` + `samples: null` is "unmeasured", never clean. */
       ecgRail,
       nGaps: nnRes.nGaps,
-      artifactSec,
+      /* ∅ A COUNT OF ZERO MUST MEAN THE GATE LOOKED. `beatConfidence` reports every second at
+         trust 1 when it could not calibrate — no per-beat SQI reached it, or the SQI carries no
+         spread — so the `c >= 0.5` loop drops nothing and `artifactSec` read 0 over a record whose
+         artifact burden nobody measured. A 0 is the LEGAL answer for a clean night, which is why
+         the two cannot be told apart: CLAUDE.md §∅. The map now states its own calibration, so the
+         count refuses and names the cause. The dropped-beat FILTER is unchanged — trust 1 is the
+         only safe weight for a beat nobody examined, and no beat is removed on a guess. */
+      artifactSec: _conf.calibrated ? artifactSec : null,
+      artifactSecReason: _conf.calibrated ? null : _conf.reason,
+      artifactGate: { calibrated: !!_conf.calibrated, sqiSource: _conf.sqiSource || null, nSqi: _conf.nSqi != null ? _conf.nSqi : null },
       spanMin: +(spanSec / 60).toFixed(1),
       gapMin: +(nnRes.gapSec / 60).toFixed(1),
       activeMin: +(nnRes.activeSec / 60).toFixed(1),
@@ -45779,7 +45993,7 @@ __exports.PpgDex = window.PpgDex;
          :6561), so the export shape was protected while `analyze`'s OWN return — what the renderer
          reads — was not. This brings the direct consumer up to the standard the export path kept. */
       rmssd: _rmOrNull(rm, 1),
-      pnn50: +pn.toFixed(1),
+      pnn50: _rmOrNull(pn, 1),
       nn50: nn50c(nn),
       cv: +((sdnn / meanRR) * 100).toFixed(2),
       minRR: +arrMin(nn).toFixed(0),
@@ -45813,6 +46027,9 @@ __exports.PpgDex = window.PpgDex;
       vlf: spec.vlf,
       lfhf: spec.lfhf,
       respRate: spec.respRate,
+      /* The reason travels with the refusal, so a surface prints WHY rather than a blank. The epoch
+         path builds its own `spec`, so an absent median carries its own sentence. */
+      respRateReason: spec.respRate != null ? null : spec.respRateReason || 'no 5-min epoch produced a respiratory estimate',
       respStats,
       specWindow: /** @type {any} */ (spec).window || (longRec ? 'epochMedian5min' : 'representative5min'), // §10: name the scale
       /* 🔴 THE `|| 1` WAS THE WHOLE DEFECT, and it is worth naming precisely. With hf and lf both
@@ -45925,30 +46142,47 @@ __exports.PpgDex = window.PpgDex;
   function validateRR(selfNN, deviceRR) {
     if (!deviceRR || !deviceRR.length) return null;
     const devRaw = deviceRR.map((d) => d.rr);
-    const devC = _malikCorrect(devRaw); // correct device RR the same way as selfNN
+    /* ∅ THE DEVICE POPULATION IS THE FINITE INTERVALS, AND AN ALL-ABSENT SERIES VALIDATES NOTHING.
+       A null interval is not a beat interval, and three arithmetic steps turned a series of them
+       into a measured panel of zeros. `_malikCorrect` finds `null < 300` true, so it flags every
+       beat and replaces none (`med || out[i-1] || vals[i+1]` is falsy on an absent neighbourhood).
+       `rmssd` then counts each pair as eligible, because `null - null` is 0 and the squared sum
+       stays 0 — so it answered 0 rather than null, which is how the one refusal already in this
+       function was bypassed. `std` and `mean` answered 0 the same way, and `60000 / 0` published
+       `devHR: Infinity` through `.toFixed(1)`. A comparison against an unmeasured reference is not
+       a small difference, it is NO comparison (the `_pctDiff` note above states the same rule). */
+    const devFinite = devRaw.filter((v) => Number.isFinite(v));
+    const devAbsent = devRaw.length - devFinite.length;
+    const devC = _malikCorrect(devFinite); // correct device RR the same way as selfNN
     const devVals = devC.out;
+    const devOK = devVals.length > 0;
     const selfRMSSD = rmssd(selfNN),
-      devRMSSD = rmssd(devVals);
+      devRMSSD = devOK ? rmssd(devVals) : null;
     const selfSDNN = std(selfNN),
-      devSDNN = std(devVals);
-    const selfMean = mean(selfNN),
-      devMean = mean(devVals);
+      devSDNN = devOK ? std(devVals) : null;
+    const selfMean = selfNN.length ? mean(selfNN) : null,
+      devMean = devOK ? mean(devVals) : null;
     return {
       nSelf: selfNN.length,
       nDev: devVals.length,
-      devEctopyCorrected: devC.nc,
-      devRawRMSSD: _rmOrNull(rmssd(devRaw), 1),
+      /* Present only when the device series carried an absence, so a clean night keeps its bytes. */
+      ...(devAbsent ? { nDevAbsent: devAbsent } : {}),
+      ...(devOK ? {} : { devReason: 'no device interval in the series was finite — there is nothing to validate against' }),
+      devEctopyCorrected: devOK ? devC.nc : null,
+      devRawRMSSD: devOK ? _rmOrNull(rmssd(devFinite), 1) : null,
       selfRMSSD: _rmOrNull(selfRMSSD, 1),
       devRMSSD: _rmOrNull(devRMSSD, 1),
       dRMSSD: _pctDiff(selfRMSSD, devRMSSD, 1),
       selfSDNN: _rmOrNull(selfSDNN, 1),
       devSDNN: _rmOrNull(devSDNN, 1),
       dSDNN: _pctDiff(selfSDNN, devSDNN, 1),
-      selfMean: +selfMean.toFixed(1),
-      devMean: +devMean.toFixed(1),
+      selfMean: _rmOrNull(selfMean, 1),
+      devMean: _rmOrNull(devMean, 1),
       dMean: _pctDiff(selfMean, devMean, 2),
-      selfHR: +(60000 / selfMean).toFixed(1),
-      devHR: +(60000 / devMean).toFixed(1)
+      /* A rate over an absent or zero mean interval is a division, not a measurement — `60000 / 0`
+         is Infinity and `.toFixed(1)` stringifies it as "Infinity". */
+      selfHR: selfMean != null && selfMean > 0 ? +(60000 / selfMean).toFixed(1) : null,
+      devHR: devMean != null && devMean > 0 ? +(60000 / devMean).toFixed(1) : null
     };
   }
 
@@ -47328,6 +47562,12 @@ __exports.PpgDex = window.PpgDex;
     mean,
     std,
     rmssd,
+    /* Additive exports, same contract rule the blocks above state: the two §∅ refusals these carry
+       were reachable only through a full raw-ECG `analyze` run, which cannot hand the estimator an
+       empty successive-pair population or an epoch series whose rMSSD is null. Export-only — no call
+       site changes. */
+    pnn50,
+    hrvStability,
     partKey,
     mergeMultipart,
     lombScargle,
@@ -50259,6 +50499,10 @@ __exports.PpgDex = window.PpgDex;
           // intervals the node marked as straddling a dropout, excluded from BOTH legs of this block
           gapCutBeats: r.nn.length - _nnCut.length,
           nDevice: _v.nDev,
+          /* The refusal and the absent count travel WHEN PRESENT, the no-null-key discipline this
+             block already applies above, so a measuring night keeps today's bytes. */
+          ...(_v.devReason ? { devReason: _v.devReason } : {}),
+          ...(_v.nDevAbsent ? { nDeviceAbsent: _v.nDevAbsent } : {}),
           dMeanPct: _v.dMean,
           dRMSSDPct: _v.dRMSSD,
           dSDNNPct: _v.dSDNN,
@@ -50407,6 +50651,10 @@ __exports.PpgDex = window.PpgDex;
           window: r.specWindow || null,
           method: 'Lomb–Scargle',
           respRate: nz(r.respRate),
+          /* …and WHY, when there is no rate. The key rides the same conditional idiom
+             `respFromEDRReason` uses a few blocks down, so a measuring night keeps today's bytes and
+             a refused one names its cause instead of leaving a bare null. */
+          ...(r.respRate == null && r.respRateReason ? { respRateReason: r.respRateReason } : {}),
           respRateMethod: 'RSA (HF-peak of RR spectrum)',
           respFromEDR: r.crc && r.crc.respFromEDR != null ? nz(r.crc.respFromEDR) : null,
           /* §1.10: a null `respFromEDR` is a REFUSAL and the export says why — but the reason is
