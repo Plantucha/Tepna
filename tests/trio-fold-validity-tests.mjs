@@ -21,7 +21,7 @@ import {
   runsTextSpans,
   validityLine
 } from '../tools/trio-fold-validity.mjs';
-import { ecgRpeakTimes, getDsps, loadDsps, ppgFootTimes } from '../tools/pat-matchrate-strict.mjs';
+import { axisOpts, ecgRpeakTimes, getDsps, loadDsps, ppgFootTimes } from '../tools/pat-matchrate-strict.mjs';
 import { loadDsps as loadBc, ppgFootTimes as bcPpgFootTimes } from '../tools/beat-correspondence.mjs';
 
 let pass = 0;
@@ -490,6 +490,27 @@ function ecgRuns(spans, { stream = 'ecg', channel = 'ecg [uV]' } = {}) {
     twice = e.message;
   }
   ok(!!twice && /position two and position three/.test(twice), `opts in both slots refuses (${twice})`);
+
+  /* ── AN AXIS KNOB CANNOT SPELL THE DEFAULT ── */
+  ok(axisOpts('linear').axis === 'linear', 'axisOpts carries the name its caller asked for');
+  ok(axisOpts('counter', { refine: true }).refine === true, 'and it keeps the other opts beside that name');
+  ok(axisOpts('counter', { axis: 'linear' }).axis === 'counter', 'the named axis wins over an axis inside extra');
+  let nameless = null;
+  try {
+    axisOpts(undefined);
+  } catch (e) {
+    nameless = e.message;
+  }
+  ok(!!nameless && /never undefined/.test(nameless), `a nameless axis refuses by value (${nameless})`);
+  let viaOpts = null;
+  try {
+    ecgRpeakTimes(txt, { axis: undefined });
+  } catch (e) {
+    viaOpts = e.message;
+  }
+  ok(!!viaOpts && /never undefined/.test(viaOpts), `a hand-built {axis: undefined} refuses too (${viaOpts})`);
+  const onAxis = ecgRpeakTimes(txt, axisOpts('linear', { refine: true }));
+  ok(onAxis.refined === true, 'and axisOpts output is an opts object the extractor accepts');
 }
 
 /* ── ∅ AN UNCONFIRMED SPAN SET STILL HAS A SIZE, EXECUTED ─────────────────────────
