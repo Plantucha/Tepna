@@ -32,6 +32,8 @@
       "forwardBlindShare": null,
       "forwardDecidable": false
     },
+    "artifactPct": 0,
+    "nArtifact": 0,
     "spanMin": 30,
     "recordedMin": 30,
     "durationBasis": "envelope",
