@@ -370,8 +370,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "55ce50a6dd7e",
-        "computeHash": "60d418e5dcd2"
+        "manifestHash": "e96750b3f5ba",
+        "computeHash": "ffb60ced82d3"
       },
       "evidence": {
         "envelopeRef": null,
@@ -399,8 +399,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "55ce50a6dd7e",
-        "computeHash": "60d418e5dcd2"
+        "manifestHash": "e96750b3f5ba",
+        "computeHash": "ffb60ced82d3"
       },
       "evidence": {
         "envelopeRef": null,
@@ -428,8 +428,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "55ce50a6dd7e",
-        "computeHash": "60d418e5dcd2"
+        "manifestHash": "e96750b3f5ba",
+        "computeHash": "ffb60ced82d3"
       },
       "evidence": {
         "envelopeRef": null,
@@ -457,8 +457,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "55ce50a6dd7e",
-        "computeHash": "60d418e5dcd2"
+        "manifestHash": "e96750b3f5ba",
+        "computeHash": "ffb60ced82d3"
       },
       "evidence": {
         "envelopeRef": null,
@@ -1212,12 +1212,12 @@
     },
     "extras": {
       "spo2Range": 9,
-      "tir9499": 73,
-      "meanSpo2Early": 72.28,
-      "meanSpo2Late": 72.28,
+      "tir9499": 97.4,
+      "meanSpo2Early": 96.37,
+      "meanSpo2Late": 96.37,
       "hrRange": 16,
-      "meanHrEarly": 43.6,
-      "meanHrLate": 43.6,
+      "meanHrEarly": 58.1,
+      "meanHrLate": 58.1,
       "motionBursts": 0,
       "longestCleanRun": 27.6,
       "nadirDensity": 1.5,
@@ -1263,8 +1263,8 @@
       "reason": "absence-run"
     },
     "hrEnt": {
-      "sampEn": 0.0371,
-      "sampEnLabel": "Low (regular)"
+      "sampEn": 0.623,
+      "sampEnLabel": "Normal"
     },
     "ssi": {
       "ssi": 0.06,
@@ -1272,8 +1272,8 @@
       "ssiBasis": 1
     },
     "circHR": {
-      "circAmplitude": 26.45,
-      "circNadirHour": 1.2
+      "circAmplitude": 1.11,
+      "circNadirHour": 0.9
     },
     "spo2Ent": {
       "spo2SampEn": 0.0165,
