@@ -360,6 +360,29 @@
    "notes": "Both inner keys read `fusion.autoGly.glucoseAutonomicCorrelation`, so this subtree publishes one value twice under two node-specific names. A change to that source moves both.",
    "depthNote": "Each inner literal is written on one line, which no reader could take before this unit. `innerShape` now reads a one-line literal whose body holds no further literal, and section 20 of the brief carries the control that pins where it stops."
   },
+  "hrSource": {
+   "routes": [
+    {
+     "localVar": {
+      "fn": "runFusion",
+      "via": "hrSource"
+     }
+    }
+   ],
+   "enumeratedWith": "ONE export route, read in blanked code on 2026-11-15. `runFusion`'s return writes `hrSource: hrSource` at line 7980, the slim `var _exp = {` projection carries no `hrSource` key, and a scan of integrator-dsp.js for the name returns exactly those two lines: the binding at :7857 and the export at :7980. The object is built BEHIND A GUARD in the producer's own body, so none of the four earlier source forms reaches it — `inline` and `guarded` anchor on the export literal, `builtBy` needs a function whose return is the object, and `returnVar` needs the function to return the variable by name. The fifth form, `localVar`, reads the binding's own guarded literal at :7858 and names its five keys. `runFusion` binds the name once, which the reader requires, because a rebinding would mean two shapes.",
+   "readAs": "No realm reads this subtree. integrator-render.js, integrator-app.js and overdex-app.js name `hrSource` zero times each, and the depth-2 walk finds no alias site in any of them, so no read of an inner key is credited in any realm. Three of the five key names do match a bare token elsewhere in the render file — `node` 42 times, `note` 12 and `available` twice — and every one of those sites belongs to another object, which is exactly why the depth-2 read is ANCHORED and a bare token is not evidence. All five keys are therefore `export-only`, and the top-level `hrSource` cell already reads `export-only` for the same reason.",
+   "seededFrom": "Hand-checked against the binding literal and all three reader realms on 2026-11-15, from the read sites and not from a token match. The seed is DERIVED, so this first green proves nothing about today beyond the shape it read — the same limit the gate's own header states for the original 36 cells. What it catches from here is DRIFT: a key added to or dropped from the literal, a realm that starts to read one of these five, or a guard that grows a second literal behind the same key.",
+   "nullWhen": "Null whenever `hrLive` is empty — the guard at :7857 writes `: null` for a fusion with no live HR source. The absence rule, not a second shape: `null` carries no key, and the reader refuses a guard whose alternative opens its own literal.",
+   "surfaces": {
+    "authority": "export-only",
+    "available": "export-only",
+    "fellBack": "export-only",
+    "node": "export-only",
+    "note": "export-only"
+   },
+   "notes": "This subtree is the first one declared through `localVar`. Before this unit it sat in the shape-blind census with 10 other keys, where the verdict could name it and say nothing about it.",
+   "depthNote": "Depth 2 only. `available` is an array of node names and carries no element object, and `note` is a string, so neither owes an element or an inner layer."
+  },
   "kernel": {
    "routes": [
     {

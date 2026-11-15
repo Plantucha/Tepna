@@ -1137,8 +1137,269 @@ export function passThroughSites(dspText, key, pre = prepare) {
   return sites;
 }
 
+/* 🔴 A BARE VARIABLE IS NOT A DEAD END — IT IS ONE HOP FROM ITS BINDING. The census could say only
+   that 11 of the 36 top-level keys carry a bare variable or a call, and it printed them as a LIST
+   of names with no reason beside any of them. That is the §∅ shape moved from a measurement to a
+   gate's own remainder: a population reported as a count, where every member needs its own word.
+
+   This reader takes the one hop. It finds the binding of the exported variable inside the function
+   that holds the export route, or at module scope when that function binds nothing of the name,
+   and it reports what the binding PROVES:
+
+     a guarded or plain object literal   the shape is READ here, and its own keys are named
+     an array literal                    the element layer is what a declaration owes
+     a boolean expression                no object exists, so NO shape layer is owed at all
+     a literal, or a blanked string      the same — a scalar carries no key
+     a call to a local function          the shape sits in that function's return literal, which
+                                         `nestedShapes` already reads under `builtBy`
+     anything else                       stated as unread, with the binding's own text beside it
+
+   WHAT IT STILL CANNOT DO. It takes ONE hop. A call's return literal is a SECOND hop, so a key
+   bound to a call stays unresolved here — with its callee and that callee's definition line, which
+   is the word the old list owed and never carried. A binding it cannot find is reported ABSENT and
+   never as a shape, because §∅ binds a reader's own remainder too.
+
+   A `var` is hoisted, so a binding may sit AFTER the export route in the same function. The last
+   binding before the route wins, and with none before it the first inside the function does. */
+/** The top-level function whose body holds prepared line `at`, or null when `at` is at module scope. */
+export function enclosingFunction(lines, at) {
+  for (let i = Math.min(at - 1, lines.length - 1); i >= 0; i--) {
+    const m = lines[i].match(/^function\s+([A-Za-z_$][\w$]*)\s*\(/);
+    if (!m) continue;
+    const end = closeOf(lines, i);
+    return end >= at - 1 ? { name: m[1], start: i, end } : null;
+  }
+  return null;
+}
+
+/** The binding of exported variable `name` as seen from prepared line `at`, and what it proves. */
+export function localBindingShape(dspText, name, at, pre = prepare) {
+  const lines = pre(dspText).code.split('\n');
+  const fn = enclosingFunction(lines, at);
+  const inFunc = new RegExp('^\\s*(?:var|let|const)\\s+' + escapeRe(name) + '\\s*=(.*)$');
+  const atModule = new RegExp('^(?:var|let|const)\\s+' + escapeRe(name) + '\\s*=(.*)$');
+  let site = null;
+  let scope = null;
+  if (fn) {
+    const found = [];
+    for (let i = fn.start + 1; i < fn.end; i++) if (inFunc.test(lines[i])) found.push(i);
+    const before = found.filter((i) => i < at - 1);
+    const pick = before.length ? before[before.length - 1] : found[0];
+    if (pick != null) {
+      site = pick;
+      scope = 'function:' + fn.name;
+    }
+  }
+  if (site === null)
+    for (let i = 0; i < lines.length; i++)
+      if (atModule.test(lines[i])) {
+        site = i;
+        scope = 'module';
+        break;
+      }
+  const where = fn ? '`' + fn.name + '()`' : 'the export route’s own scope';
+  if (site === null)
+    return {
+      form: 'no-binding',
+      scope: null,
+      at: null,
+      text: null,
+      callee: null,
+      calleeAt: null,
+      keys: null,
+      pushes: null,
+      shapeOwed: null,
+      reason: 'no binding of `' + name + '` was found in ' + where + ' or at module scope, so this reader cannot say what the key carries'
+    };
+  const tail = (lines[site].match(inFunc) || lines[site].match(atModule))[1];
+  const head = tail.trim().replace(/;$/, '').trim();
+  /* A binding that ends its own line carried its whole value there, so an EMPTY head is a string
+     the preparer deleted. One that does not end is a value the source continues below, and the two
+     states take different readers — the same split `valueForm` measured for an export site. */
+  const openEnded = !/;\s*$/.test(tail);
+  let nx = -1;
+  if (openEnded)
+    for (let i = site + 1; i < lines.length; i++)
+      if (lines[i].trim() !== '') {
+        nx = i;
+        break;
+      }
+  const nxt = nx >= 0 ? lines[nx].trim() : '';
+  const base = { scope, at: site + 1, text: head, callee: null, calleeAt: null, keys: null, pushes: null };
+  const readLiteral = (open, form, note) => {
+    /* A literal that opens AND closes on its own line needs the one-line reader, where the depth
+       walk reads nothing: `literalKeys` dispatches on `start === end`, and `closeOf` answers a
+       LATER line for a literal that never raises the depth. */
+    const sameLine = /\{[^{}]*\}/.test(lines[open]);
+    const end = sameLine ? open : closeOf(lines, open);
+    if (end < 0)
+      return {
+        ...base,
+        form: 'unreadable',
+        shapeOwed: true,
+        reason: 'the literal `' + name + '` binds at integrator-dsp.js:' + (open + 1) + ' does not close, so this reader must not report a short key list'
+      };
+    const { keys, values } = literalKeys(lines, open, end);
+    if (!keys.length)
+      return { ...base, form: 'unreadable', shapeOwed: true, reason: 'the literal `' + name + '` binds at integrator-dsp.js:' + (open + 1) + ' holds no depth-1 key this reader can name' };
+    return {
+      ...base,
+      form,
+      at: open + 1,
+      keys: keys.slice().sort(),
+      values,
+      shapeOwed: true,
+      reason: note + ' at integrator-dsp.js:' + (open + 1) + ', and this reader names its ' + keys.length + ' key(s)'
+    };
+  };
+  if (head === '' && !openEnded)
+    return { ...base, form: 'blanked-string', shapeOwed: false, reason: '`' + name + '` binds a string literal the preparer deleted, so it carries no key and owes no shape layer' };
+  if (/^\{$/.test(head) || /^\{[^{}]*\}$/.test(head)) return readLiteral(site, 'literal', 'an object literal binds');
+  if (openEnded && /^\?\s*\{$/.test(nxt)) return readLiteral(nx, 'guarded-literal', 'a GUARDED object literal opens');
+  if (openEnded && /^\{$/.test(nxt)) return readLiteral(nx, 'literal', 'an object literal opens');
+  if (/^\[\s*\]$/.test(head)) {
+    const push = new RegExp('^\\s*' + escapeRe(name) + '\\.push\\(');
+    let pushes = 0;
+    const from = fn ? fn.start : 0;
+    const to = fn ? fn.end : lines.length - 1;
+    for (let i = from; i <= to; i++) if (push.test(lines[i])) pushes++;
+    return {
+      ...base,
+      form: 'array-literal',
+      pushes,
+      shapeOwed: true,
+      reason: '`' + name + '` binds an empty array at integrator-dsp.js:' + (site + 1) + ' and ' + pushes + ' site(s) push into it, so what a declaration owes is the ELEMENT layer and not a key list'
+    };
+  }
+  if (/^!!/.test(head) || (/\.(?:some|every|includes)\s*\(/.test(head) && !head.includes('?')))
+    return {
+      ...base,
+      form: 'boolean-expression',
+      shapeOwed: false,
+      reason: '`' + name + '` binds a boolean expression at integrator-dsp.js:' + (site + 1) + ', so no object exists and no shape layer is owed'
+    };
+  if (/^(-?\d+(?:\.\d+)?|true|false|null)$/.test(head))
+    return {
+      ...base,
+      form: 'scalar-literal',
+      shapeOwed: false,
+      reason: '`' + name + '` binds the scalar `' + head + '` at integrator-dsp.js:' + (site + 1) + ', so it carries no key and owes no shape layer'
+    };
+  const guardedCall = head.match(/\?\s*([A-Za-z_$][\w$]*)\s*\(/);
+  const plainCall = head.match(/^([A-Za-z_$][\w$]*)\s*\(/);
+  const callee = (plainCall || guardedCall || [])[1] || null;
+  if (callee) {
+    const defAt = lines.findIndex((l) => new RegExp('^function ' + escapeRe(callee) + '\\s*\\(').test(l));
+    const guarded = !plainCall;
+    return {
+      ...base,
+      form: guarded ? 'guarded-local-call' : 'local-call',
+      callee,
+      calleeAt: defAt >= 0 ? defAt + 1 : null,
+      shapeOwed: true,
+      reason:
+        defAt >= 0
+          ? '`' +
+            name +
+            '` binds ' +
+            (guarded ? 'a GUARDED call to ' : 'a call to ') +
+            '`' +
+            callee +
+            '()` at integrator-dsp.js:' +
+            (site + 1) +
+            ', whose own return literal at integrator-dsp.js:' +
+            (defAt + 1) +
+            ' is the shape — one hop further than this reader goes, and `nestedShapes` reads it under `builtBy`'
+          : '`' +
+            name +
+            '` binds a call to `' +
+            callee +
+            '()` at integrator-dsp.js:' +
+            (site + 1) +
+            ', which integrator-dsp.js does not define, so its shape is outside this file and this reader does not follow it'
+    };
+  }
+  return {
+    ...base,
+    form: 'unreadable',
+    shapeOwed: null,
+    reason:
+      '`' +
+      name +
+      '` binds `' +
+      (head || nxt) +
+      '` at integrator-dsp.js:' +
+      (site + 1) +
+      ', which is neither a literal, a call nor a boolean expression, so this reader states it rather than guessing a shape'
+  };
+}
+
+/** Every site of this key is a bare variable, a call or an expression no site reader can follow. */
+function shapeBlind(sites, forms) {
+  /* A `blanked-value` is NOT in this set. The preparer deleted a string, and a string carries no
+     object, so that key needs no shape layer and no resolver. */
+  return sites.length > 0 && forms.every((f) => f === 'variable' || f === 'call' || f === 'other');
+}
+
+/** What one shape-blind export site proves about its key: the binding hop, or the site itself. */
+function siteBinding(dspText, key, site, pre) {
+  /* 🔴 THE SITE TEXT CARRIES ITS OWN COMMA. `passThroughSites` keeps the raw value text, so a
+     property closing on its own line reads `hrSource,` — and a resolver handed that as an
+     identifier matches no binding and answers `no-binding` for every key. The first run of this
+     reader reported 11 of 11 absent for exactly that reason, while the same reader called with the
+     bare name read all 5 keys of `hrSource`. Normalise the text, never the binding scan. */
+  const named = site.text.replace(/,$/, '').trim();
+  if (site.form === 'variable') return { via: 'binding', ...localBindingShape(dspText, named, site.at, pre) };
+  if (site.form === 'call') {
+    const callee = (named.match(/^([A-Za-z_$][\w$]*)\s*\(/) || [])[1] || null;
+    const lines = pre(dspText).code.split('\n');
+    const defAt = callee ? lines.findIndex((l) => new RegExp('^function ' + escapeRe(callee) + '\\s*\\(').test(l)) : -1;
+    return {
+      via: 'site',
+      form: defAt >= 0 ? 'local-call' : 'call',
+      scope: site.route,
+      at: site.at,
+      text: site.text,
+      callee,
+      calleeAt: defAt >= 0 ? defAt + 1 : null,
+      keys: null,
+      pushes: null,
+      shapeOwed: true,
+      reason:
+        defAt >= 0
+          ? '`' +
+            key +
+            '` is written from a call to `' +
+            callee +
+            '()` in the ' +
+            site.route +
+            ' route, whose own return literal at integrator-dsp.js:' +
+            (defAt + 1) +
+            ' is the shape — one hop further than this reader goes, and `nestedShapes` reads it under `builtBy`'
+          : '`' + key + '` is written from the call `' + named + '` in the ' + site.route + ' route, and integrator-dsp.js defines no such function, so its shape is outside this file'
+    };
+  }
+  return {
+    via: 'site',
+    form: 'expression',
+    scope: site.route,
+    at: site.at,
+    text: named,
+    callee: null,
+    calleeAt: null,
+    keys: null,
+    pushes: null,
+    shapeOwed: null,
+    reason: '`' + key + '` is written from the expression `' + named + '` in the ' + site.route + ' route, which names no variable and no call, so this reader states it rather than guessing a shape'
+  };
+}
+
 /** One census row per top-level key with no `nested` declaration: what it carries, and who judges it. */
 export function passThroughCensus(dspText, keys, decl, pre = prepare) {
+  /* One prepare per census, not one per key. The resolver below re-prepares the same text for every
+     unresolved row, and `prepare` parses the whole file. */
+  let prepared = null;
+  const once = (t) => (prepared ??= pre(t));
   const nested = decl.nested || {};
   const judged = new Set();
   for (const [sub, d] of Object.entries(nested)) {
@@ -1148,7 +1409,7 @@ export function passThroughCensus(dspText, keys, decl, pre = prepare) {
   const rows = [];
   for (const k of keys) {
     if (nested[k]) continue;
-    const sites = passThroughSites(dspText, k, pre) || [];
+    const sites = passThroughSites(dspText, k, once) || [];
     const forms = [...new Set(sites.map((x) => x.form))];
     rows.push({
       key: k,
@@ -1159,15 +1420,20 @@ export function passThroughCensus(dspText, keys, decl, pre = prepare) {
       servedBy: [...new Set(sites.map((x) => x.target).filter((t) => t && judged.has(t)))],
       /* An inline literal the reader cannot range gets REPORTED, because a red with no remedy
          sends the next session looking for a declaration form that does not exist. */
-      readable: forms.includes('inline-literal') ? !!inlineShape(dspText, k, pre) : null,
+      readable: forms.includes('inline-literal') ? !!inlineShape(dspText, k, once) : null,
       /* Every site is a bare variable, a call or an expression this reader cannot follow, so the
          census cannot say whether the key holds an object at all. */
       /* A `blanked-value` is NOT in this set. The preparer deleted a string, and a string carries
          no object, so that key needs no shape layer and no resolver. */
-      unresolved: sites.length > 0 && forms.every((f) => f === 'variable' || f === 'call' || f === 'other'),
+      unresolved: shapeBlind(sites, forms),
       /* An empty value text that did not close on its own line is the one state `blanked-value`
          cannot read as a string, so the census names it rather than counting it either way. */
-      blankedOpen: sites.filter((x) => x.form === 'blanked-value' && !x.closedOnOwnLine).map((x) => x.route + ':' + x.at)
+      blankedOpen: sites.filter((x) => x.form === 'blanked-value' && !x.closedOnOwnLine).map((x) => x.route + ':' + x.at),
+      /* 🔴 §∅ BINDS A GATE'S OWN REMAINDER. Each shape-blind key now carries the one hop to its
+         binding, so the verdict states a REASON per key instead of a count and a list of names.
+         A row that is not shape-blind takes no hop, because its own site already carries the
+         shape, and `null` here says "not asked" rather than "nothing found". */
+      binding: shapeBlind(sites, forms) ? siteBinding(dspText, k, sites[0], once) : null
     });
   }
   return rows;
@@ -1285,6 +1551,53 @@ export function returnVarShape(dspText, fnName, varName, pre = prepare) {
   };
 }
 
+/* 🔴 A FIFTH SOURCE FORM: THE EXPORT CARRIES A LOCAL VARIABLE, AND ITS LITERAL IS THE SHAPE.
+   `hrSource` writes `hrSource: hrSource` in the fusion return, and the object itself is built
+   behind a guard in `runFusion`'s own body. None of the four readers before this one reaches it:
+   `inline` and `guarded` anchor on the export literal, `builtBy` needs a function whose return IS
+   the object, and `returnVar` needs the function to `return` that variable by name. So the key sat
+   in the shape-blind census with 10 others and nothing judged its 5 keys.
+
+   IT REFUSES RATHER THAN GUESSING, on all three states that make the literal less than the whole
+   shape: a function that binds the name TWICE (the same rule `returnVarShape` holds, because a
+   rebinding means two shapes), a binding that is not a literal at all, and a guard whose
+   ALTERNATIVE opens a second literal — which would be two key lists behind one key, and merging
+   them silently is what this gate must never do. */
+/** The shape of a local variable's own object literal inside `fnName`, as the export carries it. */
+export function localVarShape(dspText, fnName, varName, pre = prepare) {
+  const lines = pre(dspText).code.split('\n');
+  const start = lines.findIndex((l) => new RegExp('^function ' + escapeRe(fnName) + '\\s*\\(').test(l));
+  if (start < 0) return null;
+  const end = closeOf(lines, start);
+  if (end < 0) return null;
+  const bound = new RegExp('^\\s*(?:var|let|const)\\s+' + escapeRe(varName) + '\\s*=');
+  let bindings = 0;
+  for (let i = start + 1; i < end; i++) if (bound.test(lines[i])) bindings++;
+  if (bindings !== 1) return null;
+  const b = localBindingShape(dspText, varName, end, pre);
+  if (b.scope !== 'function:' + fnName) return null;
+  if (b.form !== 'guarded-literal' && b.form !== 'literal') return null;
+  if (!b.keys || !b.keys.length) return null;
+  const open = b.at - 1;
+  const close = closeOf(lines, open);
+  if (close >= 0)
+    for (let i = close + 1; i < end; i++)
+      if (lines[i].trim() !== '') {
+        if (/^:\s*\{/.test(lines[i].trim())) return null;
+        break;
+      }
+  const canBeUndefined = b.keys.filter((k) => /\bundefined\b/.test((b.values || {})[k] || ''));
+  return {
+    shapes: [{ at: b.at, keys: b.keys }],
+    union: b.keys.slice().sort(),
+    keys: b.keys.slice().sort(),
+    at: b.at,
+    partial: canBeUndefined,
+    partialKind: 'undefined-value',
+    shapeKind: 'local-var'
+  };
+}
+
 /* 🔴 ONE SUBTREE, TWO EXPORT ROUTES, TWO DIFFERENT SOURCE FORMS. `window` taught the gate that two
    anchors of the SAME form are the export's two routes and that the union is the surface.
    `apneaTyping` is the next state: the fusion object carries the producer's object through a
@@ -1300,11 +1613,12 @@ export function routeShapes(dspText, routes, pre = prepare) {
   const got = [];
   const undefPartial = new Set();
   for (const r of routes) {
-    const picked = [r.inline && 'inline', r.guarded && 'guarded', r.builtBy && 'builtBy', r.returnVar && 'returnVar'].filter(Boolean);
-    if (picked.length !== 1) throw new Error(`a route must declare exactly one of inline, guarded, builtBy or returnVar — this one declares ${picked.length ? picked.join(' and ') : 'none'}`);
+    const picked = [r.inline && 'inline', r.guarded && 'guarded', r.builtBy && 'builtBy', r.returnVar && 'returnVar', r.localVar && 'localVar'].filter(Boolean);
+    if (picked.length !== 1)
+      throw new Error(`a route must declare exactly one of inline, guarded, builtBy, returnVar or localVar — this one declares ${picked.length ? picked.join(' and ') : 'none'}`);
     const kind = picked[0];
-    const names = kind === 'returnVar' ? `${r.returnVar.fn}.${r.returnVar.via}` : String(r[kind]);
-    if (kind === 'returnVar' && (!r.returnVar.fn || !r.returnVar.via)) throw new Error('a returnVar route needs both fn and via');
+    const names = kind === 'returnVar' || kind === 'localVar' ? `${r[kind].fn}.${r[kind].via}` : String(r[kind]);
+    if ((kind === 'returnVar' || kind === 'localVar') && (!r[kind].fn || !r[kind].via)) throw new Error(`a ${kind} route needs both fn and via`);
     const s =
       kind === 'inline'
         ? inlineShape(dspText, r.inline, pre)
@@ -1312,7 +1626,9 @@ export function routeShapes(dspText, routes, pre = prepare) {
           ? guardedShape(dspText, r.guarded, pre)
           : kind === 'builtBy'
             ? nestedShapes(dspText, r.builtBy)
-            : returnVarShape(dspText, r.returnVar.fn, r.returnVar.via, pre);
+            : kind === 'returnVar'
+              ? returnVarShape(dspText, r.returnVar.fn, r.returnVar.via, pre)
+              : localVarShape(dspText, r.localVar.fn, r.localVar.via, pre);
     if (!s) return { failed: `${kind} \`${names}\`` };
     const keys = (s.union || s.keys || []).slice().sort();
     if (!keys.length) return { failed: `${kind} \`${names}\`` };
@@ -2276,6 +2592,14 @@ function main() {
   const ptRows = passThroughCensus(dsp, keys, decl);
   const ptForms = {};
   for (const row of ptRows) for (const site of row.sites) ptForms[site.form] = (ptForms[site.form] || 0) + 1;
+  /* 🔴 THE HOP SPLITS ONE REMAINDER INTO THREE ANSWERS. `passThroughUnresolved` named 11 keys and
+     said nothing about any of them. The binding reader answers each one: a shape READ at the
+     binding, a binding that proves NO object and so owes no shape at all, or a shape one hop
+     further on — and that last set keeps the word `unresolved` with a reason per member. */
+  const ptBlind = ptRows.filter((row) => row.binding);
+  const ptBound = ptBlind.filter((row) => (row.binding.keys || []).length);
+  const ptNoShape = ptBlind.filter((row) => row.binding.shapeOwed === false);
+  const ptStillOwed = ptBlind.filter((row) => !(row.binding.keys || []).length && row.binding.shapeOwed !== false);
   const ptInlineRed = ptRows.filter((row) => row.forms.includes('inline-literal') && row.readable);
   const ptInlineUnreadable = ptRows.filter((row) => row.forms.includes('inline-literal') && row.readable === false);
   const v = Verdict.make({
@@ -2379,10 +2703,20 @@ function main() {
          second shape, and the census states the pair rather than the key alone. */
       passThroughServed: ptRows.filter((row) => row.servedBy.length).length,
       passThroughServedWhere: ptRows.filter((row) => row.servedBy.length).map((row) => row.key + ' → ' + row.servedBy.join(' + ')),
-      /* Every site is a bare variable or a call, so the census cannot say whether the key holds an
-         object. This is the population board #5905's parked resolver would serve. */
-      passThroughUnresolved: ptRows.filter((row) => row.unresolved).length,
-      passThroughUnresolvedWhere: ptRows.filter((row) => row.unresolved).map((row) => row.key),
+      /* Every site is a bare variable or a call, so no SITE reader can say whether the key holds an
+         object. The binding hop below answers each member of that set. */
+      passThroughShapeBlind: ptBlind.length,
+      /* The shape is READ at the binding, so the remedy is a declaration and the keys are named. */
+      passThroughBindingResolved: ptBound.length,
+      passThroughBindingResolvedWhere: ptBound.map((row) => row.key + ' → ' + row.binding.keys.join(', ')),
+      /* The binding PROVES no object — a boolean, a scalar or a string — so no shape layer is owed
+         here at all, and this set is resolved rather than pending. */
+      passThroughNoShapeOwed: ptNoShape.length,
+      passThroughNoShapeOwedWhere: ptNoShape.map((row) => row.key + ': ' + row.binding.reason),
+      /* 🔴 §∅: NEVER A BARE LIST. What stays unresolved is one hop further on, and every member
+         carries the reason that says which hop and where it lands. */
+      passThroughUnresolved: ptStillOwed.length,
+      passThroughUnresolvedWhere: ptStillOwed.map((row) => row.key + ': ' + row.binding.reason),
       passThroughBlankedOpenWhere: ptRows.flatMap((row) => row.blankedOpen.map((site) => row.key + '@' + site)),
       blankedBy: r.blankedBy
     },
@@ -2467,9 +2801,10 @@ function main() {
       `  census: ${ptRows.length} top-level key(s) hold no shape layer — ${Object.entries(ptForms)
         .map(([f, n]) => n + ' ' + f)
         .join(' · ')} over ${ptRows.reduce((t, row) => t + row.sites.length, 0)} export site(s)` +
-        ` · ${ptRows.filter((row) => row.unresolved).length} key(s) this census cannot resolve (${ptRows
-          .filter((row) => row.unresolved)
-          .map((row) => row.key)
+        ` · ${ptBlind.length} key(s) no site reader can resolve, of which ${ptBound.length} read their shape at the binding (${ptBound
+          .map((row) => row.key + '{' + row.binding.keys.length + '} at :' + row.binding.at)
+          .join(', ')}), ${ptNoShape.length} own no object (${ptNoShape.map((row) => row.key + '=' + row.binding.form).join(', ')}) and ${ptStillOwed.length} sit one hop further on (${ptStillOwed
+          .map((row) => row.key + ' → ' + (row.binding.callee ? row.binding.callee + '() at :' + row.binding.calleeAt : row.binding.form))
           .join(', ')})` +
         (ptRows.filter((row) => row.servedBy.length).length
           ? ` · ${ptRows.filter((row) => row.servedBy.length).length} served by a declared path (${ptRows
@@ -3598,6 +3933,49 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('one route alone carries its own partial mechanism through', routeShapes(ATGU, [{ guarded: 'apneaTyping' }]).partialKind, 'undefined-value');
   ck('…and keeps the key it names', routeShapes(ATGU, [{ guarded: 'apneaTyping' }]).partial, ['usable']);
   ck('an empty route list refuses', routeShapes(ATSRC, []), null);
+  /* ── THE FIFTH SOURCE FORM: a local variable's own literal, which the export carries by name. */
+  const LV1 = [
+    'function runFusion(recs) {',
+    '  var hrSource = recs.length',
+    '    ? {',
+    '        node: null,',
+    '        note: null',
+    '      }',
+    '    : null;',
+    '  var plain = { lead: 1 };',
+    '  var built = buildOne(recs);',
+    '  return { hrSource: hrSource, plain: plain, built: built };',
+    '}'
+  ].join('\n');
+  ck('🔴 a GUARDED literal bound to a local variable has a shape, where all four earlier forms had none', localVarShape(LV1, 'runFusion', 'hrSource').union, ['node', 'note']);
+  ck('…the site it names is the line the literal OPENS on', localVarShape(LV1, 'runFusion', 'hrSource').at, 3);
+  ck('…and the reader says where the shape came from', localVarShape(LV1, 'runFusion', 'hrSource').shapeKind, 'local-var');
+  ck('…a guard whose alternative is `null` is the ABSENCE rule, so no key is partial', localVarShape(LV1, 'runFusion', 'hrSource').partial, []);
+  ck('a plain literal binding reads the same', localVarShape(LV1, 'runFusion', 'plain').union, ['lead']);
+  ck('a function that is not there refuses', localVarShape(LV1, 'nowhere', 'hrSource'), null);
+  ck('a variable that function does not bind refuses', localVarShape(LV1, 'runFusion', 'nope'), null);
+  ck('🔴 a binding that is a CALL refuses — the shape is one hop further on, and this reader does not take it', localVarShape(LV1, 'runFusion', 'built'), null);
+  ck(
+    '🔴 a SHADOWED binding refuses — two literals, one name, and the gate must not choose',
+    localVarShape(LV1.replace('  var plain = { lead: 1 };', '  var hrSource = { other: 1 };\n  var plain = { lead: 1 };'), 'runFusion', 'hrSource'),
+    null
+  );
+  ck(
+    '🔴 a guard whose ALTERNATIVE opens its own literal refuses — that is two key lists behind one key',
+    localVarShape(LV1.replace('    : null;', '    : {\n        other: 1\n      };'), 'runFusion', 'hrSource'),
+    null
+  );
+  ck('CONTROL · and the same text with the `null` alternative restored still reads', localVarShape(LV1, 'runFusion', 'hrSource').union, ['node', 'note']);
+  ck('a `localVar` route carries that shape into a route list', routeShapes(LV1, [{ localVar: { fn: 'runFusion', via: 'hrSource' } }]).union, ['node', 'note']);
+  ck('…and names its own form', routeShapes(LV1, [{ localVar: { fn: 'runFusion', via: 'hrSource' } }]).routes[0].via, 'localVar');
+  ck('…and a route whose variable moved names ITSELF', routeShapes(LV1, [{ localVar: { fn: 'runFusion', via: 'gone' } }]).failed, 'localVar `runFusion.gone`');
+  let LVHALF = 'no throw';
+  try {
+    routeShapes(LV1, [{ localVar: { fn: 'runFusion' } }]);
+  } catch (e) {
+    LVHALF = /needs both fn and via/.test(e.message) ? 'named the rule' : e.message;
+  }
+  ck('…and a `localVar` route missing half of its address throws', LVHALF, 'named the rule');
 
   const ATSURF = { obstructive: 'export-only', total: 'export-only', usable: 'export-only' };
   const ATDECL = (over) => ({ routes: [{ guarded: 'apneaTyping' }], aliasPath: 'fusion.apneaTyping', surfaces: ATSURF, ...(over || {}) });
@@ -3787,8 +4165,8 @@ if (DIRECT && process.argv.includes('--selftest')) {
   );
   ck('🔴 a member whose target a declared `inner` block judges is SERVED', PTC.find((row) => row.key === 'apneaNull').servedBy, ['apnea.nullModel']);
   ck('…and a member whose target nothing declares is not', PTC.find((row) => row.key === 'tagged').servedBy, []);
-  ck('a bare variable cannot be resolved', PTC.find((row) => row.key === 'hrSource').unresolved, true);
-  ck('a call cannot be resolved either', PTC.find((row) => row.key === 'nodes').unresolved, true);
+  ck('no SITE reader can resolve a bare variable', PTC.find((row) => row.key === 'hrSource').unresolved, true);
+  ck('…nor a call', PTC.find((row) => row.key === 'nodes').unresolved, true);
   ck('🔴 a STRING key is RESOLVED — it carries no object and needs no shape layer', PTC.find((row) => row.key === 'kind').unresolved, false);
   ck('a scalar key is resolved too', PTC.find((row) => row.key === 'ratio').unresolved, false);
   ck(
@@ -3797,6 +4175,112 @@ if (DIRECT && process.argv.includes('--selftest')) {
     []
   );
   ck('the census counts every key with no shape layer', PTC.length, fusionKeys(PT1).length - 1);
+  /* ── THE ONE HOP TO A BINDING. Every leg below is a form the 11 shape-blind keys actually carry,
+     plus the two controls that would have hidden today's defect. */
+  const PT2 = [
+    'function buildOne(recs) {',
+    '  return { only: 1 };',
+    '}',
+    "const busName = 'ganglior';",
+    'function runFusion(recs) {',
+    '  var pairs = [];',
+    '  pairs.push({ a: 1 });',
+    '  pairs.push({ a: 2 });',
+    '  var anyOverlap = pairs.some(function (p) {',
+    '    return p.a > 0;',
+    '  });',
+    '  var flat = { lead: 1, trail: 2 };',
+    '  var built = buildOne(recs);',
+    '  var guardedBuilt = anyOverlap ? buildOne(recs) : null;',
+    '  var foreign = outsideThisFile(recs);',
+    '  var ratio = 0.5;',
+    '  var hrSource = recs.length',
+    '    ? {',
+    '        node: null,',
+    '        note: null',
+    '      }',
+    '    : null;',
+    '  return {',
+    '    hrSource: hrSource,',
+    '    pairs: pairs,',
+    '    anyOverlap: anyOverlap,',
+    '    bus: busName,',
+    '    flat: flat,',
+    '    built: built,',
+    '    guardedBuilt: guardedBuilt,',
+    '    foreign: foreign,',
+    '    ratio: ratio,',
+    '    absentVar: nowhereBound',
+    '  };',
+    '}'
+  ].join('\n');
+  const P2L = prepare(PT2).code.split('\n');
+  /* The KEY and the VARIABLE are not the same word — `bus: busName` is the state that proves it —
+     so the helper follows the site's own text, exactly as the census does. */
+  const P2 = (key) => {
+    const site = passThroughSites(PT2, key)[0];
+    return localBindingShape(PT2, site.text.replace(/,$/, '').trim(), site.at);
+  };
+  ck('the enclosing function of an export site is named', enclosingFunction(P2L, P2L.findIndex((l) => /hrSource: hrSource/.test(l)) + 1).name, 'runFusion');
+  ck('…and a line at module scope has none', enclosingFunction(P2L, P2L.findIndex((l) => /const busName/.test(l)) + 1), null);
+  ck('🔴 a GUARDED literal binding reads its keys, where the site saw only a bare variable', P2('hrSource').keys, ['node', 'note']);
+  ck('…and its form says where the shape came from', P2('hrSource').form, 'guarded-literal');
+  ck('…and it names the scope it searched', P2('hrSource').scope, 'function:runFusion');
+  ck('a one-line literal binding is read by the one-line reader, not the depth walk', P2('flat').keys, ['lead', 'trail']);
+  ck('🔴 a boolean expression owes NO shape layer at all', P2('anyOverlap').shapeOwed, false);
+  ck('…and says so by form', P2('anyOverlap').form, 'boolean-expression');
+  ck('🔴 a module-scope string the preparer blanked owes none either', P2('bus').form, 'blanked-string');
+  ck('…and the module scope is the one that answered', P2('bus').scope, 'module');
+  ck('a scalar binding owes no shape', P2('ratio').shapeOwed, false);
+  ck('an array binding counts the sites that push into it', P2('pairs').pushes, 2);
+  ck('…and says the ELEMENT layer is what a declaration owes', /ELEMENT layer/.test(P2('pairs').reason), true);
+  ck('🔴 a call to a LOCAL function names the callee and the line its return literal opens', [P2('built').callee, P2('built').calleeAt], ['buildOne', 1]);
+  ck('…and a guarded call to the same function is still that call', P2('guardedBuilt').callee, 'buildOne');
+  ck('…with its own form', P2('guardedBuilt').form, 'guarded-local-call');
+  ck('🔴 a call this file does not define is stated as outside it, never as a shape', [P2('foreign').callee, P2('foreign').calleeAt], ['outsideThisFile', null]);
+  ck('…and its reason says so', /outside this file/.test(P2('foreign').reason), true);
+  ck('🔴 a variable nothing binds is reported ABSENT, and never as a shape', P2('absentVar').form, 'no-binding');
+  ck('…and the reason names the scope that was searched', /`runFusion\(\)`/.test(P2('absentVar').reason), true);
+  ck('…and it claims no keys', P2('absentVar').keys, null);
+  const PTC2 = passThroughCensus(PT2, fusionKeys(PT2), {});
+  const row2 = (k) => PTC2.find((row) => row.key === k);
+  ck('🔴 THE SITE TEXT CARRIES ITS OWN COMMA — a census that forwards it raw resolves NOTHING', row2('hrSource').binding.keys, ['node', 'note']);
+  ck('CONTROL · and the raw text is what would have broken it', passThroughSites(PT2, 'hrSource')[0].text, 'hrSource,');
+  ck(
+    'CONTROL · a row no site reader is blind to takes no hop at all',
+    PTC2.filter((row) => !row.unresolved).every((row) => row.binding === null),
+    true
+  );
+  ck('a shape-blind row carries a reason for its own key', /`guardedBuilt`/.test(row2('guardedBuilt').binding.reason), true);
+  ck(
+    '🔴 §∅: EVERY shape-blind key carries a reason, and none of them is empty',
+    PTC2.filter((row) => row.unresolved).every((row) => typeof row.binding.reason === 'string' && row.binding.reason.length > 20),
+    true
+  );
+  ck(
+    'the three answers partition the shape-blind set, with no key in two of them and none in none',
+    (() => {
+      const blind = PTC2.filter((row) => row.binding);
+      const bound = blind.filter((row) => (row.binding.keys || []).length);
+      const none = blind.filter((row) => row.binding.shapeOwed === false);
+      const owed = blind.filter((row) => !(row.binding.keys || []).length && row.binding.shapeOwed !== false);
+      return bound.length + none.length + owed.length === blind.length && blind.length > 0;
+    })(),
+    true
+  );
+  /* 🔴 A LITERAL THAT NEVER CLOSES NEEDS A TEXT WHOSE FUNCTION NEVER CLOSES EITHER, so this leg
+     binds at MODULE scope. Inside a function the two cannot disagree: an unbalanced literal leaves
+     the function's own brace open, `closeOf` answers -1 for the function, `enclosingFunction`
+     returns null and the reader never reaches the literal at all. The first spelling of this leg
+     put the open literal inside `function f()` and read `no-binding`, which is a control that
+     could not bite. The text is deliberately unparseable, so it takes the tokenizer route. */
+  ck('🔴 a literal that never closes refuses, rather than reporting a short key list', localBindingShape(['var open = {', '  a: 1,'].join('\n'), 'open', 1, PTOK).form, 'unreadable');
+  ck('…and so does one that closes holding no key at all', localBindingShape(['var empty = {', '};', 'var after = 1;'].join('\n'), 'empty', 1, PTOK).form, 'unreadable');
+  ck(
+    '…and neither of them claims a key',
+    [localBindingShape(['var open = {', '  a: 1,'].join('\n'), 'open', 1, PTOK).keys, localBindingShape(['var empty = {', '};'].join('\n'), 'empty', 1, PTOK).keys],
+    [null, null]
+  );
   /* THE JUDGE ARM. The refusal itself needs a second checkout, so it is verified by a cross-checkout
      run and recorded in the brief; what a selftest can hold is the object that run prints and the
      path that moves with the resolved root. */
