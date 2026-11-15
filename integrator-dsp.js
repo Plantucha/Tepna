@@ -5230,10 +5230,19 @@ function activityEnvelope(x, y, z, dtSec) {
   var n = Math.min(x ? x.length : 0, y ? y.length : 0, z ? z.length : 0);
   if (n < 2 || !(dtSec > 0)) return new Float64Array(0);
   var out = new Float64Array(n);
-  out[0] = 0;
+  /* ── ∅ A SAMPLE WITH NO MEASURABLE CHANGE IS NOT A MOTIONLESS ONE ────────────────────
+     `log1p(d)` is 0 for a finite delta of 0, so 0 is a LEGAL reading here: the limb held still
+     between these two samples. A NON-finite delta landed on that same 0, so one absent axis, or a
+     NaN from the writer, published perfect stillness and `_ncc` correlated it as signal. Index 0
+     has no previous sample, so it owns no first difference at all, and it carried the same
+     fabricated 0. Both write NaN now. NaN sits outside this envelope's value domain, which is the
+     finite non-negative reals, so no reader can mistake it for a measurement. `_ncc` already skips
+     a pair where either side reads non-finite, and it refuses below 8 of them, so an absence
+     travels as a smaller overlap or as a refusal — never as a correlated zero. */
+  out[0] = NaN;
   for (var i = 1; i < n; i++) {
     var d = Math.abs(x[i] - x[i - 1]) + Math.abs(y[i] - y[i - 1]) + Math.abs(z[i] - z[i - 1]);
-    out[i] = isFinite(d) ? Math.log1p(d) : 0;
+    out[i] = isFinite(d) ? Math.log1p(d) : NaN;
   }
   return out;
 }
@@ -6647,16 +6656,30 @@ function arrivalPairOffsets(devices, opts) {
       var ca = a.offsetMs;
       var cb = b.offsetMs;
       var sameEpoch = Math.abs(ca - cb) < 3600000; // within an hour ⇒ the same counter origin
+      /* ── ∅ A PAIR'S WORST CASE NEEDS BOTH SIDES TO HAVE REPORTED ───────────────────────
+         `Math.min(a.spanSec || 0, b.spanSec || 0)` answered 0 whenever EITHER device never reported
+         its span, and 0 is a legal span: it is what a single-anchor clock measures. A span the pair
+         never measured cannot bound the pair, so it reads null. `Math.max(a.offsetMadMs || 0,
+         b.offsetMadMs || 0)` has the same shape one field up: with neither spread measured it
+         answered 0, which states a perfectly precise pair, and with one measured it reported that
+         one as the pair's worst case while the other side could be worse. Both fields need both
+         sides. `maxTolerableDriftPpm` already refuses a span that does not read above 0. */
+      var _madA = a.offsetMadMs,
+        _madB = b.offsetMadMs,
+        _spA = a.spanSec,
+        _spB = b.spanSec;
+      var _madBoth = _madA != null && isFinite(_madA) && _madB != null && isFinite(_madB);
+      var _spBoth = _spA != null && isFinite(_spA) && _spB != null && isFinite(_spB);
       pairs.push({
         a: a.device,
         b: b.device,
         offsetMs: sameEpoch ? Math.round((ca - cb) * 10) / 10 : null,
         sameEpoch: sameEpoch,
         reason: sameEpoch ? undefined : 'different counter epochs — the difference is not an offset',
-        madMs: Math.max(a.offsetMadMs || 0, b.offsetMadMs || 0),
+        madMs: _madBoth ? Math.max(_madA, _madB) : null,
         ppmA: a.ppm,
         ppmB: b.ppm,
-        spanSec: Math.min(a.spanSec || 0, b.spanSec || 0)
+        spanSec: _spBoth ? Math.min(_spA, _spB) : null
       });
     }
   }
@@ -7876,10 +7899,19 @@ function runFusion(recs, opts) {
     findings.push({
       tMs: startMs ?? null,
       type: 'glucose_autonomic_correlation',
-      conf: 0.6,
+      /* ── ∅ ONE CONFIDENCE CANNOT STAND FOR TWO ARMS ───────────────────────────────
+         `glucoseAutonomicCorrelation` carries a Pearson r over >=3 overlapping nights, or, with
+         fewer, the single-pair directional estimate `0.5 + clamp(slope)`. The two arms published
+         one hard-coded conf of 0.6, so a correlation over seven nights and a one-night direction
+         read equally trustworthy. Nothing measures a confidence for the directional arm, so it
+         reports null, which `integrator-render.js` already draws as an em dash. `meta.basis` names
+         the arm, so a reader no longer has to parse `note` to learn which one answered.
+         PROVENANCE: the 0.6 is a heuristic constant which predates this change, and no paper sets
+         it. This change narrows what it covers to the pearson arm alone. */
+      conf: autoGly.r != null ? 0.6 : null,
       nodes: ['ECGDex', 'GlucoDex'],
       sources: [],
-      meta: { r: autoGly.r, directional: autoGly.directional, n: autoGly.n },
+      meta: { r: autoGly.r, directional: autoGly.directional, n: autoGly.n, basis: autoGly.r != null ? 'pearson' : 'directional' },
       note: autoGly.note
     });
   }
