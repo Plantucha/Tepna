@@ -2569,6 +2569,117 @@
       }
     });
 
+    /* ══ THE SLEEP-STABILITY SCORE GRADED A NIGHT IT DID NOT MEASURE ══
+       Three findings in one function family, measured 2026-11-15 on `origin/main` at 529f454a9.
+
+       1 · s2 GUARDED THE PARENT, NOT THE FIELD. Its five siblings each test their own field; s2 tested
+           `hrv` alone, so `(70 - null) / 18 * 100` is 389 and the clamp published a PERFECT HR-floor
+           subscore of 100. LATENT today and reported as latent: the one caller passes `computeHRV(rows)`,
+           which refuses under 120 rows and otherwise carries a finite floor. It is ONE PRODUCER CHANGE
+           FROM LIVE — the §∅ block at `computeHRNoctDip` records exactly that transition for the same
+           field, and the stored-night re-load writes `hrFloor: null` into a PRESENT `hrv` object.
+       2 · THE PB COUNT WAS 0 OVER A CHANNEL THAT NEVER REPORTED. `detectOscillations` returned
+           `episodeCount: 0` for a night of 900 rows carrying `spo2: null`, s4 read `(20 - 0) / 20` as a
+           perfect 100, it was the ONLY surviving component, and the night published
+           **score 100, grade "Good"** with no SpO2 at all. This one was REACHABLE through
+           `processNight`, which is why it is the headline.
+       3 · WITH EVERY COMPONENT NULL THE SCORE WAS NaN, GRADED "Poor". `0 / 0` is NaN, `NaN >= 60` is
+           false, and `oxydex-render.js` guards the KPI on `score != null`, which NaN passes.
+
+       EVERY LEG BELOW IS A PAIR: the absent case and a MEASURED control, because a consumer that simply
+       stopped answering would pass a one-sided leg. Each number was measured through the real module. */
+    group('OxyDex §∅ — the stability score refuses a night it did not measure (six field guards + the unexamined PB count)', 'oxydex-dsp · absence-as-value · stability-score', function (T) {
+      var _odS = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var OD = (_odS && _odS._bare) || _odS;
+      var needS = ['computeSleepStabilityScore', 'processNight', 'detectOscillations'];
+      var missS = needS.filter(function (k) {
+        return !OD || typeof OD[k] !== 'function';
+      });
+      if (missS.length) {
+        T.ok('OxyDSP exposes the stability-score family', false, 'absent: ' + missS.join(',') + ' — this group cannot run and must not read as a pass');
+        return;
+      }
+      var f = OD.computeSleepStabilityScore;
+      // Every field measured, and each one away from its clamp so a dropped component MOVES the score.
+      var ST = { spo2Std: 1.0, motionPct: 1.0, t95pct: 5 },
+        HRV = { hrFloor: 60 },
+        OSC = { episodeCount: 2 },
+        HB = { rate: 5 };
+      var all = f(ST, HRV, OSC, HB);
+      T.eq('CONTROL · a fully measured night scores 70 on the six subscores', all.score, 70);
+      T.eq('CONTROL · …and the HR-floor subscore is the MEASURED 56, not a clamp', all.components.hrFloor, 56);
+      T.eq('CONTROL · …over the whole weight', all.wMeasured, 1);
+      T.eq('CONTROL · …with no refusal reason', all.reason, null);
+
+      /* ── 1 · each subscore refuses on ITS OWN absent field, and the renormaliser scores the rest ── */
+      var sw = [
+        ['spo2Stab', f({ spo2Std: null, motionPct: 1.0, t95pct: 5 }, HRV, OSC, HB), 71, 0.8],
+        ['hrFloor', f(ST, { hrFloor: null }, OSC, HB), 72, 0.9],
+        ['motion', f({ spo2Std: 1.0, motionPct: null, t95pct: 5 }, HRV, OSC, HB), 73, 0.85],
+        ['pb', f(ST, HRV, { episodeCount: null }, HB), 65, 0.8],
+        ['hypoxicBurden', f(ST, HRV, OSC, { rate: null }), 71, 0.8],
+        ['t95', f({ spo2Std: 1.0, motionPct: 1.0, t95pct: null }, HRV, OSC, HB), 69, 0.85]
+      ];
+      sw.forEach(function (row) {
+        T.eq('§∅ · components.' + row[0] + ' is null on ITS OWN absent field, never a clamped 100', row[1].components[row[0]], null);
+        T.eq('§∅ · …and the night scores on the components it measured', row[1].score, row[2]);
+        T.eq('§∅ · …with the covered weight beside the value', row[1].wMeasured, row[3]);
+      });
+
+      /* ── 2 · s2's field guard, the arm this unit added. The parent guard already held. ── */
+      T.eq('§∅ · a PRESENT hrv carrying hrFloor null drops the subscore (the parent guard could not see it)', f(ST, { hrFloor: null }, OSC, HB).components.hrFloor, null);
+      T.eq('§∅ · …and a null hrv object reads the same, as it already did', f(ST, null, OSC, HB).components.hrFloor, null);
+      T.eq('§∅ · a NaN floor is dropped, not kept — `!= null` would have let one NaN poison the score', f(ST, { hrFloor: NaN }, OSC, HB).components.hrFloor, null);
+      T.eq('§∅ · …so the score stays a number', f(ST, { hrFloor: NaN }, OSC, HB).score, 72);
+      T.eq('§∅ · an infinite floor is dropped too, rather than clamping to the WORST floor of 0', f(ST, { hrFloor: Infinity }, OSC, HB).components.hrFloor, null);
+      T.eq('CONTROL · a measured floor of 70 scores 0 — the WORST the scale expresses, and not null', f(ST, { hrFloor: 70 }, OSC, HB).components.hrFloor, 0);
+
+      /* ── 3 · nothing measured: no score, no grade, and a named reason ── */
+      var none = f({ spo2Std: null, motionPct: null, t95pct: null }, null, null, null);
+      T.eq('§∅ · with every component absent the score is null, not NaN', none.score, null);
+      T.eq('§∅ · …and the night carries NO grade (the ref graded it "Poor" off a NaN)', none.grade, null);
+      T.eq('§∅ · …the refusal names its reason', none.reason, 'no-measured-component');
+      T.eq('§∅ · …and the covered weight says nothing was measured', none.wMeasured, 0);
+      T.ok('§∅ · …and the score is not a number the KPI guard would pass', none.score == null, String(none.score));
+
+      /* ── 4 · THE HEADLINE, through processNight on real rows: an unexamined SpO2 channel ── */
+      var t0 = Date.UTC(2026, 0, 1, 22, 0, 0);
+      var mkN = function (spo2, hr, withMotion) {
+        var rows = [];
+        for (var i = 0; i < 900; i++) {
+          var r = { tMs: t0 + i * 1000, t: new Date(t0 + i * 1000), spo2: spo2, hr: hr };
+          if (withMotion) r.motion = 0;
+          rows.push(r);
+        }
+        return rows;
+      };
+      var blank = OD.processNight(mkN(null, null, false), 'blank.csv');
+      T.eq('§∅ · a night whose SpO2 channel never reported has NO episode count — 0 was the detector saying nothing', blank.osc.episodeCount, null);
+      T.eq('§∅ · …nor a peak crossing count', blank.osc.peakCrossings, null);
+      T.eq('§∅ · …nor a crossing burden', blank.osc.totalCrossings, null);
+      T.eq('§∅ · so the night no longer scores 100 "Good" off the one component it never measured', blank.stab.score, null);
+      T.eq('§∅ · …and reports WHY it refused', blank.stab.reason, 'no-measured-component');
+      var flat = OD.processNight(mkN(96, 60, true), 'flat.csv');
+      T.eq('CONTROL · a MEASURED night with no periodic breathing still reports a real zero', flat.osc.episodeCount, 0);
+      T.eq('CONTROL · …and its stability score is unmoved from the ref', flat.stab.score, 96);
+      T.eq('CONTROL · …over the whole weight', flat.stab.wMeasured, 1);
+      /* The partially measured case: no SpO2, but the motion column DID report, reading 0 every second.
+         Every input the score used was measured, so a refusal would be wrong — and `wMeasured` is what
+         tells a reader the 100 rests on a seventh of the scale. A reader-facing coverage floor is a
+         separate decision; this field is what one would read. */
+      var motionOnly = OD.processNight(mkN(null, null, true), 'motion-only.csv');
+      T.eq('§∅ · a night measured on motion ALONE still scores, and says so', motionOnly.stab.score, 100);
+      T.eq('§∅ · …with the covered weight beside it, so the 100 is not read as a whole night', motionOnly.stab.wMeasured, 0.15);
+      T.eq(
+        '§∅ · …and the five unmeasured components stay null',
+        [motionOnly.stab.components.spo2Stab, motionOnly.stab.components.hrFloor, motionOnly.stab.components.pb, motionOnly.stab.components.hypoxicBurden, motionOnly.stab.components.t95].filter(
+          function (v) {
+            return v !== null;
+          }
+        ).length,
+        0
+      );
+    });
     group('OxyDex §∅ — processNight reports an unmeasured SpO2/HR night as null, never 0', 'oxydex-dsp · absence-as-value · primary-builder', function (T) {
       var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var OD = (_od && _od._bare) || _od;

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="0ca3412d5f30" data-compute-hash="92efec9a7853">
+<html lang="en" data-manifest-hash="a8602535390d" data-compute-hash="7fe1e6f130f0">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1GXN++OkM02KioWXqr41sn7DFt/p7OeiRsHDpnTpfhg=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-TAlEYjAMWyaUUQSt+Gg+O7yrgrH8mjL1Xmx0Eiw/adk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XI7FRvFas7ssmfY5fVxxgB4KWQ5K1qlk4nHCcnNvsqg=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-ZaHiS9VrHkfm17LTvu53y8EOtpEpqQbcQ5asQ0k0VB4=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-geMOrUS6awcQWde9C3+zk5b5rbj5BJN6DbPzNakgMQE=' 'sha256-jcYwIYHWEOkRho/6EL++KYsUTDIxL+gNUno4PTReee0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-mAhKYxE3T3uOlr1g1lsGOW8yP4i+mgrP+8APCOCZxjU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1GXN++OkM02KioWXqr41sn7DFt/p7OeiRsHDpnTpfhg=' 'sha256-4mWU7xSfZ5UKBY3u9ADrAJ4gCXrEL6DdbA/POnPo3Lk=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-TAlEYjAMWyaUUQSt+Gg+O7yrgrH8mjL1Xmx0Eiw/adk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XI7FRvFas7ssmfY5fVxxgB4KWQ5K1qlk4nHCcnNvsqg=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-b0AcoF8PXENyeo+wadvfj/CrOAuMK0i5ZahMKMjjnJE=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jcYwIYHWEOkRho/6EL++KYsUTDIxL+gNUno4PTReee0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.33.0</title>
@@ -17617,7 +17617,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     if (n.odi1 && n.odi1.odi1Rate != null) push('odi1', 'ODI-1/hr', n.odi1.odi1Rate, n.odi1.odi1Rate < 10 ? 0 : n.odi1.odi1Rate < 20 ? 2 : n.odi1.odi1Rate < 40 ? 5 : 8, n.odi1.odi1Rate + '/hr');
 
     // ── Breathing disruption ──
-    if (n.osc)
+    /* §∅ — `episodeCount` is null when the SpO2 channel reported nothing, and the guard matches the
+       `odi1` line above: `push` drops a null value, and the display string must not read "null eps". */
+    if (n.osc && n.osc.episodeCount != null)
       push(
         'pbEp',
         'PB Episodes',
@@ -19269,20 +19271,36 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var totalCross = flagged.reduce(function (s, w) {
       return s + w.cross;
     }, 0);
+    /* §∅ — THE DETECTOR EXAMINED NOTHING, SO ITS COUNTS ARE NOT ZERO. `flagged.length` reads 0 both
+       for a night of 900 measured seconds carrying no periodic breathing and for a night whose SpO2
+       channel never reported, and those are opposite findings. Measured 2026-11-15 through
+       `processNight` over 900 rows carrying `spo2: null`: `episodeCount: 0` reached
+       `computeSleepStabilityScore`, where s4 reads `(20 - 0) / 20` as a PERFECT 100. It was the ONLY
+       surviving component, so the renormaliser published `score: 100, grade: "Good"` over a night
+       with no SpO2 at all — the most reassuring answer the scale can express, from a channel that
+       reported nothing. The criterion is zero MEASURED samples, never zero rows and never a coverage
+       fraction: reduced coverage still describes one stretch of signal and keeps its value, while a
+       channel that never reported has nothing to describe (owner ruling 2026-09-17). `first` and
+       `last` already report null here, and the leading display keys keep their frozen shape. */
+    var _nMeasuredSpo2 = 0;
+    for (si = 0; si < n; si++) if (rows[si].spo2 != null && isFinite(rows[si].spo2)) _nMeasuredSpo2++;
+    var _oscExamined = _nMeasuredSpo2 > 0;
     // NOTE: the leading 5 keys are the FROZEN display shape (the export element serializes them
     // verbatim). `episodes` is added LAST and is stripped back off by processNight (→ oscEpisodes),
     // so the per-night export element stays byte-identical.
     return {
-      episodeCount: flagged.length,
-      peakCrossings: flagged.length
-        ? Math.max.apply(
-            null,
-            flagged.map(function (w) {
-              return w.cross;
-            })
-          )
-        : 0,
-      totalCrossings: totalCross,
+      episodeCount: _oscExamined ? flagged.length : null,
+      peakCrossings: !_oscExamined
+        ? null
+        : flagged.length
+          ? Math.max.apply(
+              null,
+              flagged.map(function (w) {
+                return w.cross;
+              })
+            )
+          : 0,
+      totalCrossings: _oscExamined ? totalCross : null,
       first: flagged.length ? flagged[0].start : null,
       last: flagged.length ? flagged[flagged.length - 1].start : null,
       // `windowSec` is now the episode's OWN duration, not the retired fixed 300 s scan window — an
@@ -19543,7 +19561,21 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // poor-but-measured floor (0 pts) by up to 5 score points. Instead drop it and renormalize the
     // remaining 0.9 of weight to 1.0 so the score reflects only the components actually measured,
     // and surface hrFloor=null so the absence is visible (gate on inputs PRESENT, never seed one).
-    var s2 = hrv ? Math.max(0, Math.min(100, Math.round(((70 - hrv.hrFloor) / 18) * 100))) : null;
+    /* §∅ s2field · THE GUARD TESTED THE PARENT OBJECT, AND ITS FIVE SIBLINGS TEST THE FIELD.
+       `70 - null` is `70`, so `(70 - null) / 18 * 100` is 389 and the clamp published a PERFECT
+       HR-floor subscore of 100 over a floor nobody measured. The note directly above states the rule
+       this line meant to follow — gate on inputs PRESENT, never seed one — and `s1`, `s3`, `s4`, `s5`
+       and `s6` each test their own field. The `isFinite` arm is part of the same guard: a non-finite
+       floor makes the subscore NaN, which `!= null` keeps, so one NaN poisons the whole score.
+       LATENT, NOT REACHABLE at the time of this change, and I state that rather than claim a live
+       fabrication. The one caller is `processNight`, which passes `computeHRV(rows)`. That function
+       refuses under 120 rows carrying a finite `hr` and takes the floor from the sorted array, so a
+       present `hrv` always carries a finite floor. The arm is ONE PRODUCER CHANGE FROM LIVE: the §∅
+       block at `computeHRNoctDip` records `hrv.hrFloor` becoming reachable as null when #2937 stopped
+       the JSONL re-load synthesising a 0, and that re-load writes `hrFloor: null` into a PRESENT
+       `hrv` object — this exact shape. The renormaliser below drops a null component, so the night
+       scores on what it measured. */
+    var s2 = hrv == null || hrv.hrFloor == null || !isFinite(hrv.hrFloor) ? null : Math.max(0, Math.min(100, Math.round(((70 - hrv.hrFloor) / 18) * 100)));
     /* §3 — the motion subscore inherits s2's rule, and must: `stats.motionPct` is now null on a
        faulted motion column, and `(2.0 - null)/1.8` is 1.11 → clamps to a PERFECT 100. A stuck
        sensor would have scored the night's stillness top marks, which is the same fabricated-absence
@@ -19580,6 +19612,22 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var _wSum = _parts.reduce(function (a, p) {
       return a + /** @type {number} */ (p[1]);
     }, 0);
+    /* §∅ — A NIGHT WITH NO MEASURED COMPONENT GETS NO SCORE AND NO GRADE. `_parts` is empty when all
+       six subscores are null, and `0 / 0` is NaN: `Math.round(NaN)` stays NaN, `NaN >= 80` and
+       `NaN >= 60` are both false, so the night graded "Poor" on a value that is not a number.
+       `oxydex-render.js` guards the KPI with `score != null`, which NaN passes, so it drew
+       "NaN/100". A refusal names its reason (§🧾). `reason` is null whenever a score was produced, so
+       the key is unconditional, and the `sleepStability` export projection reads only `score`,
+       `grade` and `components`, so no export byte moves on a measured night. */
+    if (!_parts.length)
+      return {
+        score: null,
+        grade: null,
+        gradeClass: null,
+        reason: 'no-measured-component',
+        wMeasured: 0,
+        components: { spo2Stab: s1, hrFloor: s2, motion: s3, pb: s4, hypoxicBurden: s5, t95: s6 }
+      };
     var score = Math.round(
       _parts.reduce(function (a, p) {
         return a + /** @type {number} */ (p[0]) * /** @type {number} */ (p[1]);
@@ -19587,7 +19635,19 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     );
     var grade = score >= 80 ? 'Good' : score >= 60 ? 'Fair' : 'Poor';
     var gradeClass = score >= 80 ? 'good' : score >= 60 ? 'warn' : 'bad';
-    return { score: score, grade: grade, gradeClass: gradeClass, components: { spo2Stab: s1, hrFloor: s2, motion: s3, pb: s4, hypoxicBurden: s5, t95: s6 } };
+    /* §∅ — REDUCED COVERAGE ANNOTATES, so the score carries the weight it was measured over (owner
+       ruling 2026-09-17). A night with no SpO2 but a measured motion column scores on s3 ALONE and
+       reads 100 "Good", and every input it used was measured, so refusing would be wrong — but
+       `wMeasured: 0.15` is what tells a reader the 100 rests on a seventh of the scale. A
+       reader-facing coverage floor is a separate decision, and this field is what one would read. */
+    return {
+      score: score,
+      grade: grade,
+      gradeClass: gradeClass,
+      reason: null,
+      wMeasured: +_wSum.toFixed(4),
+      components: { spo2Stab: s1, hrFloor: s2, motion: s3, pb: s4, hypoxicBurden: s5, t95: s6 }
+    };
   }
 
   // ═══════════════════════════════════════════
@@ -26905,8 +26965,8 @@ function renderAll() {
         _mnsHtml += '<div class="mns-row-label">Stability overview</div>';
         _mnsHtml +=
           '<div class="grid">' +
-          metric('Best Night', bestNight.date, 'score ' + (bestNight.stab ? bestNight.stab.score : '—'), 'good') +
-          metric('Worst Night', worstNight.date, 'score ' + (worstNight.stab ? worstNight.stab.score : '—'), 'bad') +
+          metric('Best Night', bestNight.date, 'score ' + (bestNight.stab && bestNight.stab.score != null ? bestNight.stab.score : '—'), 'good') +
+          metric('Worst Night', worstNight.date, 'score ' + (worstNight.stab && worstNight.stab.score != null ? worstNight.stab.score : '—'), 'bad') +
           metric('Stability R²', lr.r2, 'regression fit', '') +
           metric('Trend', lr.slope > 0 ? '+' + lr.slope : lr.slope, 'pts/night', lr.slope > 0 ? 'good' : lr.slope > -1 ? 'warn' : 'bad') +
           '</div>';
@@ -27474,7 +27534,8 @@ function renderSmartSummary(n) {
       html += '<div class="ss-note" style="grid-column:1/-1;opacity:.85;font-size:.82em;line-height:1.35">⚠ ' + escapeHTML(n.stageProxy.plausibilityNote) + '</div>';
     }
   }
-  if (n.osc) html += ssKPI('Osc Windows', cv(n.osc.episodeCount, 2, 5, ''), n.osc.episodeCount < 2 ? 'good' : n.osc.episodeCount < 5 ? 'warn' : 'bad');
+  /* §∅ — `null < 2` is TRUE, so an unexamined channel would have taken the GOOD class. */
+  if (n.osc) html += ssKPI('Osc Windows', cv(n.osc.episodeCount, 2, 5, ''), n.osc.episodeCount == null ? 'neutral' : n.osc.episodeCount < 2 ? 'good' : n.osc.episodeCount < 5 ? 'warn' : 'bad');
   if (n.spo2NadirT) html += ssKPI('SpO₂ Nadir', cv(n.spo2NadirT.spo2NadirValue, null, null, '%'), 'neutral');
   html += '</div>';
   html += ssIssuesBars(s.top5, 'sleep');
@@ -34220,8 +34281,10 @@ function exportCSV() {
       lines.push('Spike ' + (i + 1) + ',' + csvSafe(sp.time) + ',' + csvNum(sp.baseline) + ',' + csvNum(sp.peak) + ',' + csvNum(_rise) + ',' + csvNum(sp.duration) + ',' + csvNum(sp.spo2));
     });
     if (n.period) lines.push('HR Periodicity,' + n.period.pattern + ' avg ' + n.period.avg + 'min');
-    if (n.osc) lines.push('Oscillation Windows (5min),' + n.osc.episodeCount);
-    if (n.osc) lines.push('Total Crossings (burden),' + (n.osc.totalCrossings || 0));
+    /* §∅ — `csvNum` blanks an absent count and prints a measured 0 unchanged; `|| 0` could not tell
+       the two apart, and these counts are null when the SpO2 channel reported nothing. */
+    if (n.osc) lines.push('Oscillation Windows (5min),' + csvNum(n.osc.episodeCount));
+    if (n.osc) lines.push('Total Crossings (burden),' + csvNum(n.osc.totalCrossings));
     lines.push(
       '',
       'FLAGS,' +
@@ -34521,7 +34584,9 @@ function exportCSV() {
       lines.push('  Desaturation Asymmetry,' + n.desatAsym.desatAsym, '  Asym Label,' + n.desatAsym.asymLabel);
     }
     lines.push('', 'HYPOXIC BURDEN', 'Total (%-min),' + (n.hb && n.hb.total != null ? n.hb.total : ''), 'Rate (%-min/hr),' + (n.hb && n.hb.rate != null ? n.hb.rate : ''));
-    lines.push('', 'SLEEP STABILITY', 'Score (0-100),' + (n.stab ? n.stab.score : ''), 'Grade,' + (n.stab ? n.stab.grade : ''));
+    /* §∅ — the score is null when no component was measured, so the cell stays blank rather than
+       carrying the word "null" into a reader's spreadsheet. */
+    lines.push('', 'SLEEP STABILITY', 'Score (0-100),' + (n.stab ? csvNum(n.stab.score) : ''), 'Grade,' + (n.stab && n.stab.grade ? n.stab.grade : ''));
     // Stability component subscores (same as JSONL)
     if (n.stab && n.stab.components) {
       var c = n.stab.components;
@@ -34561,9 +34626,9 @@ function exportCSV() {
     lines.push(
       '',
       'OSCILLATION DETAIL',
-      '  Episode Count,' + (n.osc ? n.osc.episodeCount : ''),
-      '  Peak Crossings (max/window),' + (n.osc ? n.osc.peakCrossings || 0 : ''),
-      '  Total Crossings (burden),' + (n.osc ? n.osc.totalCrossings || 0 : ''),
+      '  Episode Count,' + (n.osc ? csvNum(n.osc.episodeCount) : ''),
+      '  Peak Crossings (max/window),' + (n.osc ? csvNum(n.osc.peakCrossings) : ''),
+      '  Total Crossings (burden),' + (n.osc ? csvNum(n.osc.totalCrossings) : ''),
       '  First Episode,' + (n.osc ? n.osc.first || '' : ''),
       '  Last Episode,' + (n.osc ? n.osc.last || '' : '')
     );
