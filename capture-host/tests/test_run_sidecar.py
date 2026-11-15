@@ -1407,3 +1407,82 @@ def test_the_ecg_sidecar_records_what_it_EXAMINED_not_only_what_it_found(tmp_pat
     text = open(_sidecar(p)).read()
     assert "runs=0" in text and "examined=12" in text, text
     assert "min_run=30" in text, "the header publishes the threshold it used"
+
+
+# ── the counter-gap rule: a raw-frame stream judged by its packet counter ─────────────────────────────
+def _muse(tmp_path, counters, step_ms=10):
+    p = tmp_path / "Muse_S-Athena_TEST0001_20261115010000_MUSE.txt"
+    w = StreamWriter(str(p), "muse", device_axis=writers.DEVICE_AXIS_CLOCK)
+    for i, c in enumerate(counters):
+        w.write_muse(_phone(i * step_ms, 1000.0), 1000 + i * 100, c, bytes([9, c or 0]) + bytes(7))
+    w.close()
+    return p, _sidecar(p)
+
+
+def test_a_muse_frame_is_written_verbatim_with_its_counter_and_clock(tmp_path):
+    p, _ = _muse(tmp_path, [1, None])
+    lines = open(p).read().splitlines()
+    assert lines[0] == "Phone timestamp;sensor timestamp [ns];counter;bytes;hex"
+    assert lines[1].split(";")[1:] == ["1000", "1", "9", "090100000000000000"]
+    assert lines[2].split(";")[1:] == ["1100", "", "9", "090000000000000000"]
+
+
+def test_a_counter_gap_writes_one_row_with_the_absent_frame_count(tmp_path):
+    _, sc = _muse(tmp_path, [1, 2, 3, 7, 8])
+    assert [r[1:] for r in _rows(sc)] == [
+        ["muse", "3", "7", "3", "10.0", "1", "counter-gap", "unavailable/unavailable", "none"]
+    ]
+    text = open(sc).read()
+    assert text.startswith("# stream=muse rule=counter-gap modulus=256 ")
+    assert text.rstrip().endswith("# final rule=counter-gap examined=4 rows=1 unexamined=1 errors=0")
+
+
+def test_the_counter_wraps_at_256_without_a_gap_and_a_gap_across_the_wrap_counts(tmp_path):
+    _, sc = _muse(tmp_path, [254, 255, 0, 3])
+    rows = _rows(sc)
+    assert [(r[2], r[3], r[4]) for r in rows] == [("0", "3", "2")]
+
+
+def test_a_repeated_counter_is_a_repeat_not_255_frames_lost(tmp_path):
+    _, sc = _muse(tmp_path, [5, 5, 6])
+    assert [(r[2], r[3], r[4], r[7]) for r in _rows(sc)] == [("5", "5", "0", "counter-repeat")]
+
+
+def test_a_frame_with_no_counter_breaks_the_chain_and_is_never_read_across(tmp_path):
+    """3 -> None -> 9 is not "5 frames lost": no step crosses a frame whose header did not hold."""
+    _, sc = _muse(tmp_path, [3, None, 9, 10])
+    assert _rows(sc) == []
+    assert "examined=1 rows=0 unexamined=3" in open(sc).read()
+
+
+def test_a_resumed_counter_gap_file_writes_no_second_header_and_its_first_frame_is_unexamined(tmp_path):
+    p, sc = _muse(tmp_path, [1, 2])
+    w = StreamWriter(str(p), "muse", device_axis=writers.DEVICE_AXIS_CLOCK)
+    w.write_muse(_phone(500, 1000.0), 9000, 9, bytes(9))
+    w.close()
+    text = open(sc).read()
+    assert text.count("Phone timestamp;stream;") == 1
+    assert text.count("rule=counter-gap modulus=") == 1
+    assert _rows(sc) == []  # 2 -> 9 across the resume is not judged
+    assert text.rstrip().endswith("examined=0 rows=0 unexamined=1 errors=0")
+
+
+def test_a_counter_gap_write_that_raises_is_counted_and_never_ends_the_recording(tmp_path):
+    sc = _RunSidecar(str(tmp_path / "x_MUSE.txt"), "muse", 1, rule=writers.COUNTER_GAP_RULE)
+    real = sc._fh
+
+    class _Boom:
+        def write(self, _):
+            raise OSError("disk")
+
+        def close(self):
+            raise OSError("disk")
+
+    sc._fh = _Boom()
+    sc.count_step(T0, 1, 5, 1.0)
+    assert (sc.errors, sc.runs, sc.steps) == (1, 0, 1)
+    sc.close()
+    assert sc.errors == 2 and sc._fh is None
+    sc.count_step(T0, 5, 9, 1.0)  # a closed sidecar takes no more steps
+    assert sc.steps == 1
+    real.close()

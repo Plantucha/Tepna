@@ -601,17 +601,17 @@ def test_RETRY_IS_CLEARED_EVEN_WHEN_THE_SLEEP_IS_CANCELLED(_fresh):
     assert capture.STATUS["devices"]["H10"]["retry"] is None
 
 
-def test_EVERY_ERROR_BACKOFF_SITE_IN_THE_THREE_RUNNERS_COUNTS_ATTEMPTS():
-    """Three runners, one schedule: each `backoff = 5` reset also resets `attempt`, and each error sleep
+def test_EVERY_ERROR_BACKOFF_SITE_IN_THE_FOUR_RUNNERS_COUNTS_ATTEMPTS():
+    """Four runners, one schedule (run_muse_athena joined on 2026-11-15): each `backoff = 5` reset also resets `attempt`, and each error sleep
     goes through `_retry_sleep(..., "backoff", attempt)`. A runner that kept a bare `asyncio.sleep(backoff)`
     would be the one whose card never shows a retry."""
     src = module_source("capture.py")
-    assert src.count("backoff: float = 5\n") == 3 or src.count("backoff: float = 5") == 3
-    assert src.count('await _retry_sleep(name, backoff, "backoff", attempt)') == 3
+    assert src.count("backoff: float = 5\n") == 4 or src.count("backoff: float = 5") == 4
+    assert src.count('await _retry_sleep(name, backoff, "backoff", attempt)') == 4
     # WHITESPACE-TOLERANT, not a pinned spelling: `ruff format` splits the `;` compound statement
     # these three sites used, so an exact-text count read 0 where the property still held. The
     # property is that the backoff reset and the attempt reset are ADJACENT, not how they are laid out.
-    assert len(re.findall(r"backoff = 5\s+attempt = 0", src)) == 3, "the data-flow resets clear the attempt count too"
+    assert len(re.findall(r"backoff = 5\s+attempt = 0", src)) == 4, "the data-flow resets clear the attempt count too"
     assert "asyncio.sleep(backoff)" not in src, "a bare backoff sleep publishes nothing"
 
 

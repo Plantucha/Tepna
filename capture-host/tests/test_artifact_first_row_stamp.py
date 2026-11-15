@@ -50,6 +50,7 @@ _ROW_BY_STREAM = {
     "mag": lambda w, t: w.write_mag(t, 1_000_000_000, 0.0, 0.5, 0.25, 0.125),
     "ppi": lambda w, t: w.write_ppi(t, 1_000_000_000, 61, 980, 3, 0),
     "hr": lambda w, t: w.write_hr(t, 1_000_000_000, 61, [980, 1002]),
+    "muse": lambda w, t: w.write_muse(t, 1_000_000_000, 7, b"\x01\x02"),
 }
 
 
@@ -175,6 +176,9 @@ class _FeedSpy:
     def feed(self, *args):
         self.calls.append(args)
 
+    def count_step(self, *args):  # the counter-gap rule (`muse`) takes a packet step, not a sample
+        self.calls.append(("count_step", *args))
+
     def close(self):
         pass
 
@@ -205,6 +209,8 @@ def _expected_feeds(t):
         "mag": {"seams": [(t, ns)], "runs": None},
         "ppi": {"seams": [(t, ns)], "runs": None},
         "hr": {"seams": [(t, ns)], "runs": None},
+        # The first frame has no previous counter and no previous stamp, so its step judges nothing.
+        "muse": {"seams": [(t, ns)], "runs": [("count_step", t, None, 7, None)]},
     }
 
 
