@@ -31,7 +31,8 @@
     "HRVDex: HRV summaries — Additive multi-day HRV ledger.",
     "GlucoDex: CGM — Continuous glucose → Time in Range, GMI.",
     "CPAPDex: CPAP therapy — EDF therapy data → pressure, leak, respiratory events.",
-    "MotionDex: IMU — Raw IMU → body position, actigraphy, motion quality."
+    "MotionDex: IMU — Raw IMU → body position, actigraphy, motion quality.",
+    "EEGDex: EEG — Raw EEG → band powers, hypnogram, sleep architecture."
   ],
   "softwareHelp": [
     {
@@ -73,6 +74,11 @@
       "@type": "WebPage",
       "name": "MotionDex technical reference",
       "url": "https://tepna.net/MotionDex%20Reference.html"
+    },
+    {
+      "@type": "WebPage",
+      "name": "EEGDex technical reference",
+      "url": "https://tepna.net/EEGDex%20Reference.html"
     }
   ]
 }
