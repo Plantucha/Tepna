@@ -55197,6 +55197,260 @@
         T.ok('the ledger is one literal table, which the census gate holds against its registry', /var _ECG_SIDECAR_LEDGER = \[/.test(src));
         T.ok('CONTROL · no cell builder defaults a value to 0', !/_sqCell\(\s*0\s*,/.test(src));
       } else T.skip('ecgdex-dsp.js source unavailable');
+
+      /* 5 · THE COMPUTED CELLS, OVER INPUTS THAT REACH THE ARITHMETIC. Sections 1 to 4 pin the SHAPE
+         of every cell, and they read the one committed recording, which carries no motion companion,
+         no run or seam sidecar, no device RR train and no saturation rail. Each of those four lanes
+         therefore answers with a named absence, and no arithmetic inside it ever runs. A diff-scoped
+         mutation sweep measured what that costs: 21 of 55 mutants on this table's own lines survived,
+         and every one of the 21 sits on a guard or a term that the committed input cannot reach. The
+         legs below feed each lane an input that produces a VALUE, so a changed term moves a number. */
+      var tableOf = function (prepare) {
+        var rec2 = E.parseECG(eq.input);
+        prepare(rec2);
+        var ex2 = E.compute(rec2, { rich: true });
+        return (ex2 && ex2.signalQuality) || { channels: {}, sidecars: [] };
+      };
+      var ledgerOf = function (t, key) {
+        var rows = (t && t.sidecars) || [];
+        for (var q = 0; q < rows.length; q++) if (rows[q].key === key) return rows[q];
+        return null;
+      };
+
+      /* 5a · THE MOTION RUN CENSUS, READ THROUGH ITS PRODUCER. The bytes below are `…_ACCRUNS.txt`
+         as the box writes it, and `parseDeviceACC` hangs the spans it parses on the row array it
+         returns. Building the census through the PARSER is the whole point of this leg. The shipped
+         reader took an `[a, b]` pair or `startMs`/`endMs`, shapes no producer in this repo emits, so
+         every real span read as malformed and the published share was a measured 0 % over runs the
+         node never read. Hand-written spans in those two phantom shapes are what let it pass
+         (board #6309). Two rows below are well formed and sum 3000 ms. The third carries a negative
+         duration and the fourth a non-numeric one, and the SIDECAR PARSER drops both. */
+      var RUNS_TEXT = [
+        '# stream=acc min_run=8',
+        'Phone timestamp;channel;class;a;b;dur_ms;c;d',
+        '2026-06-10T22:00:01.000;X [mg];held;0;0;1000;0;0',
+        '2026-06-10T22:00:10.000;Y [mg];held;0;0;2000;0;0',
+        '2026-06-10T22:00:20.000;Z [mg];held;0;0;-5;0;0',
+        '2026-06-10T22:00:30.000;Z [mg];held;0;0;x;0;0'
+      ].join('\n');
+      var ACC_TEXT = (function () {
+        var rows = [];
+        for (var k = 0; k < 60; k++) rows.push('2026-06-10T22:00:00.000;' + (600000000000000000 + k * 19230769) + ';0;0;1000');
+        return rows.join('\n');
+      })();
+      var accParsed = E.parseDeviceACC(ACC_TEXT, { runsText: RUNS_TEXT });
+      var accNoSc = E.parseDeviceACC(ACC_TEXT);
+      T.ok('the ACC parser accepted the planted stream and derived a rate from its device column', accParsed.acc !== null && accParsed.accFs > 0);
+      var SPANS = accParsed.acc._blankSpans;
+      T.eq('PRODUCER · the sidecar parser emitted the two well-formed runs and dropped the two unusable rows', SPANS.length, 2);
+      T.eq(
+        '…each as `{ t0Ms, t1Ms }` in floating ms, which is therefore the one shape this reader may take',
+        SPANS.map(function (s) {
+          return typeof s.t0Ms + '/' + typeof s.t1Ms + '/' + (s.t1Ms - s.t0Ms);
+        }).join(' '),
+        'number/number/1000 number/number/2000'
+      );
+      T.ok('PRODUCER · and the same call records that a sidecar was read at all, which no span can say', !!accParsed.acc._runsSidecar && accNoSc.acc._runsSidecar === undefined);
+      var accT = tableOf(function (rec2) {
+        rec2.deviceACC = accParsed.acc;
+        rec2.accFs = accParsed.accFs;
+      });
+      var mCov = (accT.channels && accT.channels.acc && accT.channels.acc.coverage) || {},
+        mFlat = (accT.channels && accT.channels.acc && accT.channels.acc.flatline) || {};
+      T.ok('the span the motion shares divide by is the record duration in ms', typeof mCov.spanMs === 'number' && isFinite(mCov.spanMs) && mCov.spanMs > 0);
+      T.eq('the two parsed runs are summed, in the shape their own parser wrote', mCov.blankMs, 3000);
+      var mPct = +((100 * 3000) / mCov.spanMs).toFixed(3);
+      T.ok('ANTI-VACUITY · that share is above zero, so the shipped reader’s 0 ms fails this leg', mPct > 0 && mFlat.value > 0);
+      T.eq('the flatline cell is the summed runs over that span', mFlat.value, mPct);
+      T.eq('the coverage cell is its complement, which is what the comment claims', mCov.value, +(100 - mPct).toFixed(3));
+      T.eq('both cells carry a value and no reason', (mFlat.reason === null) + '/' + (mCov.reason === null), 'true/true');
+      T.eq('the motion sample count and rate ride beside the share', mCov.samples + '@' + mCov.fs, accParsed.acc.length + '@' + accParsed.accFs);
+      T.eq('the run count is every span the sidecar parser handed over', mFlat.runs, SPANS.length);
+
+      /* 5a2 · THE READER’S OWN GUARDS, over rows this sidecar parser cannot produce but a future one
+         could. Only the first row is well formed, so the sum is 2000 ms however the rest are read.
+         The fourth row is the one that separates the two guards: `isFinite(null)` is TRUE, so
+         `typeof` is what rejects a null edge, and losing it would add 2000 ms of blanking the box
+         never reported. The sidecar record stays on the rows, because spans without it is a shape no
+         producer emits. */
+      var BAD_SPANS = [
+        { t0Ms: 1000, t1Ms: 3000 },
+        null,
+        { t0Ms: 10000, t1Ms: 9000 },
+        { t0Ms: null, t1Ms: 2000 },
+        { t0Ms: 1000, t1Ms: Number.NaN },
+        { t0Ms: Number.POSITIVE_INFINITY, t1Ms: 2000 },
+        { t0Ms: 5000, t1Ms: 5000 }
+      ];
+      var accBad = tableOf(function (rec2) {
+        var rows = accParsed.acc.slice();
+        rows._runsSidecar = accParsed.acc._runsSidecar;
+        rows._blankSpans = BAD_SPANS;
+        rec2.deviceACC = rows;
+        rec2.accFs = accParsed.accFs;
+      });
+      var bCov = (accBad.channels && accBad.channels.acc && accBad.channels.acc.coverage) || {},
+        bFlat = (accBad.channels && accBad.channels.acc && accBad.channels.acc.flatline) || {};
+      T.eq('only the one well-formed span is summed, so the null edge and the reversed row add nothing', bCov.blankMs, 2000);
+      T.eq('the run count is every row handed over, the unusable ones included', bFlat.runs, BAD_SPANS.length);
+      T.ok('ANTI-VACUITY · that share is above zero too, so a sum of 0 fails this leg as well', bFlat.value > 0);
+      var accAbs = tableOf(function (rec2) {
+        rec2.deviceACC = accNoSc.acc;
+        rec2.accFs = accNoSc.accFs;
+      });
+
+      /* 5b · THE MOTION LEDGER ROW. A loaded companion with no `_ACCRUNS.txt` beside it is `absent`,
+         which is NOT the `not-applicable` that a recording with no motion channel at all earns. */
+      var accRead = tableOf(function (rec2) {
+        var acc = [{ x: 0, y: 0, z: 1, tsMs: rec2.t0Ms || 0 }];
+        acc._runsSidecar = { stream: 'acc' };
+        rec2.deviceACC = acc;
+        rec2.accFs = 52;
+      });
+      T.eq('a motion companion the parser read with NO sidecar beside it reads absent', (ledgerOf(accAbs, 'ACCRUNS') || {}).state, 'absent');
+      T.eq(
+        '…and the one built from real sidecar bytes reads read, with no reason beside it',
+        (ledgerOf(accT, 'ACCRUNS') || {}).state + '/' + ((ledgerOf(accT, 'ACCRUNS') || {}).reason === null),
+        'read/true'
+      );
+      T.eq('a motion companion WITH one reads read, and names no reason', (ledgerOf(accRead, 'ACCRUNS') || {}).state + '/' + ((ledgerOf(accRead, 'ACCRUNS') || {}).reason === null), 'read/true');
+      T.eq('CONTROL · the committed recording carries no companion, so the row is not-applicable', (ledgerOf(sq, 'ACCRUNS') || {}).state, 'not-applicable');
+
+      /* 5c · THE ECG RUN AND SEAM LANES. `absent` is the box writing nothing, `not-read` is the reader
+         running and placing no row, and `read` is a placed census — three states, of which the
+         committed recording only ever shows the first. */
+      var unplaced = tableOf(function (rec2) {
+        rec2.runsSidecar = { placedNone: true, examined: 9, dataRows: 9, minRun: 5, stream: 'ecg' };
+        rec2.seamsSidecar = { placedNone: true, examined: 4, dataRows: 4, stream: 'ecg' };
+      });
+      var placed = tableOf(function (rec2) {
+        rec2.runsSidecar = { spans: [[1000, 2000]], examined: 3, rejected: 0, minRun: 5, stream: 'ecg' };
+        /* `rows: []` is the sidecar the box wrote with no seam in it — read, and measured
+           seam-free, which the reader's own comment separates from a file that never arrived. */
+        rec2.seamsSidecar = { rows: [], examined: 3, boundMs: 60000, stream: 'ecg' };
+      });
+      T.eq('a run sidecar that placed no row reads not-read, never absent', (ledgerOf(unplaced, 'ECGRUNS') || {}).state, 'not-read');
+      T.eq('a seam sidecar that placed no row reads not-read, never absent', (ledgerOf(unplaced, 'ECGSEAMS') || {}).state, 'not-read');
+      T.eq('a run sidecar that placed its rows reads read, and names no reason', (ledgerOf(placed, 'ECGRUNS') || {}).state + '/' + ((ledgerOf(placed, 'ECGRUNS') || {}).reason === null), 'read/true');
+      T.eq(
+        'a seam sidecar that placed its rows reads read, and names no reason',
+        (ledgerOf(placed, 'ECGSEAMS') || {}).state + '/' + ((ledgerOf(placed, 'ECGSEAMS') || {}).reason === null),
+        'read/true'
+      );
+
+      /* 5d · THE SATURATION RAIL. `ecgRails` keys on the sample histogram, so a record whose extreme
+         value repeats far more often than its neighbour has a rail, and the cell then carries the
+         COUNT of samples sitting at it. The committed recording has none, so `absent: true` is the
+         only state sections 1 to 4 ever read. */
+      var railT = tableOf(function (rec2) {
+        var hi = 0;
+        for (var ri = 0; ri < rec2.int16.length; ri++) if (rec2.int16[ri] > hi) hi = rec2.int16[ri];
+        var RAIL = Math.min(32767, hi + 100);
+        for (var rj = 0; rj < 40; rj++) rec2.int16[rj * 7] = RAIL;
+      });
+      var railCell = (railT.channels && railT.channels.ecg && railT.channels.ecg.rail) || {};
+      T.ok('a record whose extreme value repeats carries a rail, and the cell counts the samples at it', typeof railCell.value === 'number' && railCell.value >= 40);
+      T.eq('…and that cell names no reason, because it measured something', railCell.reason, null);
+      T.eq('…and the rail no longer reads as absent', railCell.absent, false);
+      T.eq('CONTROL · the committed recording holds no rail, so the count is null beside a named cause', sq.channels.ecg.rail.value + '/' + (sq.channels.ecg.rail.absent === true), 'null/true');
+
+      /* 5e · THE REFERENCE LANE. The cross-check pairs the two trains beat by beat, and its median
+         needs 300 pairs (`RR_ALIGN_MIN_PAIRS`). The committed recording carries 60 beats, so neither
+         the pairing nor its median can run over it, and `reference` is an absence there by
+         construction rather than by a defect — which is why this leg takes the node's own generator,
+         whose recording is long enough and carries a strap train of its own. */
+      var synth = E.genSynthetic({ durSec: 420, seed: 20261114 });
+      var synthT = (E.compute(synth, { rich: true }) || {}).signalQuality || { channels: {}, sidecars: [] };
+      var refCell = ((synthT.channels && synthT.channels.ecg) || {}).reference || {};
+      T.ok('ANTI-VACUITY · the generated recording clears the 300-pair floor the median needs', !!(synth.deviceRR && synth.deviceRR.length >= 301));
+      T.ok('a recording WITH a device RR train fills the reference cell with a number', typeof refCell.value === 'number' && isFinite(refCell.value));
+      T.eq('…and that cell names no reason, because the comparison ran', refCell.reason, null);
+      T.ok('…and the beats compared and the source ride beside the number', refCell.beatsCompared > 0 && refCell.source === 'device-rr');
+      T.eq(
+        'CONTROL · the committed recording has no train, so the cell is null beside no-reference',
+        sq.channels.ecg.reference.value + '/' + /^no-reference/.test(sq.channels.ecg.reference.reason || ''),
+        'null/true'
+      );
+
+      /* 5g · THE SPAN IS NOT THE RECORD FIELD. The motion share divides by a span, and the ∅ guard on
+         that divide reads `r.durSec`. That `r` is `analyze`'s RESULT and not the parsed record: the
+         duration it carries is the ACTIVE data seconds `analyze` computes (:3007), and the parsed
+         record's own field reaches it only as a third fallback, for a record that yields no beats at
+         all. The leg below writes a non-finite duration onto the parsed record and measures that the
+         published span does not move. The guard answers a value this path cannot deliver, which is why
+         the equivalence ledger classes it by input and not by proof. */
+      var injected = null;
+      var accInf = tableOf(function (rec2) {
+        rec2.deviceACC = accParsed.acc;
+        rec2.accFs = accParsed.accFs;
+        rec2.durSec = Number.POSITIVE_INFINITY;
+        injected = rec2.durSec;
+      });
+      var iCov = (accInf.channels && accInf.channels.acc && accInf.channels.acc.coverage) || {},
+        iFlat = (accInf.channels && accInf.channels.acc && accInf.channels.acc.flatline) || {};
+      T.eq('ANTI-VACUITY · the non-finite duration did land on the parsed record, so the absent effect is the finding', injected, Number.POSITIVE_INFINITY);
+      T.eq('a non-finite duration on the parsed record does not reach the published motion span', iCov.spanMs, mCov.spanMs);
+      T.eq('…so both shares stay the ones the untouched record published', iFlat.value + '/' + iCov.value, mFlat.value + '/' + mCov.value);
+      T.ok('…and that span is finite, because the duration comes from the active data seconds and never from the field', isFinite(iCov.spanMs) && iCov.spanMs > 0);
+
+      /* 5f · THE BICONDITIONAL AGAIN, over every cell of every table these legs built. A lane that now
+         produces a value must not carry a reason beside it, and none may fall to the fallback. */
+      var mixed = [];
+      var tabs = [accT, accRead, unplaced, placed, railT, synthT, accInf, accBad, accAbs];
+      for (var ti = 0; ti < tabs.length; ti++) {
+        var chs = (tabs[ti] && tabs[ti].channels) || {};
+        for (var cn in chs)
+          if (Object.prototype.hasOwnProperty.call(chs, cn))
+            for (var fj = 0; fj < FACTS.length; fj++) {
+              var cc = chs[cn][FACTS[fj]];
+              if (!cc) continue;
+              var fin = typeof cc.value === 'number' && isFinite(cc.value);
+              var nmd = typeof cc.reason === 'string' && cc.reason.length > 0;
+              if (fin === nmd) mixed.push(ti + ':' + cn + '.' + FACTS[fj]);
+              if (cc.reason === 'unmeasured-and-unexplained') mixed.push(ti + ':' + cn + '.' + FACTS[fj] + ' fell to the fallback');
+            }
+      }
+      T.eq('every cell of all ' + tabs.length + ' built tables is a value or a named absence, never both', mixed.join(' | '), '');
+      /* THE RICH EXPORT'S §∅ NORMALIZER — a non-finite input publishes `null`, never `NaN`.
+         `nz` in the rich block is the one place this builder turns a non-finite number into an
+         absence, and the table above ships in the same export. Two mutations of that line survived a
+         sweep that ran with no no-progress watchdog: the `typeof v === 'number'` test inverted, and
+         its `||` turned into `&&`. Both let a `NaN` reach `quality.*`, where a reader sees a
+         number-shaped absence — the ∅ defect in the headline numbers rather than the table. The
+         assertion reads the OBJECT, because `JSON.stringify(NaN)` is `null`, so a round-trip
+         through text hides exactly this defect. */
+      T.eq('the rich builder is reachable, so the normalizer legs below examine something', typeof E.buildNodeExport, 'function');
+      var nzOut =
+        (
+          E.buildNodeExport(
+            {
+              t0Ms: Date.UTC(2026, 5, 27, 22, 0, 0),
+              fs: 125,
+              n: 400,
+              ch: [new Float32Array(400)],
+              site: 'chest',
+              beats: [],
+              events: [],
+              analyzablePct: NaN,
+              cleanBeatPct: Number.POSITIVE_INFINITY,
+              coveragePct: Number.NEGATIVE_INFINITY
+            },
+            { rich: true }
+          ) || {}
+        ).quality || {};
+      T.eq('a non-finite quality input publishes null, never a number-shaped absence', [nzOut.analyzablePct, nzOut.cleanBeatPct, nzOut.coveragePct].map(String).join('|'), 'null|null|null');
+      T.eq(
+        'and a finite one still passes through the same normalizer untouched',
+        String(
+          (
+            (
+              E.buildNodeExport({ t0Ms: Date.UTC(2026, 5, 27, 22, 0, 0), fs: 125, n: 400, ch: [new Float32Array(400)], site: 'chest', beats: [], events: [], analyzablePct: 91.5 }, { rich: true }) ||
+              {}
+            ).quality || {}
+          ).analyzablePct
+        ),
+        '91.5'
+      );
     });
 
     /* done-when 4, the four product-node legs (residue 2026-10-17-sample-parsers-called-without-their-sidecar).
