@@ -60,7 +60,10 @@
           "formula": "median over epochs with a spectrum of P([16, 30) Hz) / Σ P(f) over (0, 45] Hz", "cite": "Relative beta power — established EEG band readout" },
         { "id": "alphaTheta", "abbr": "α/θ", "name": "Alpha/Theta Ratio", "fullName": "Ratio of alpha to theta band power",
           "tier": "secondary", "unit": "", "evidence": "emerging", "goodDirection": "neutral",
-          "formula": "median over epochs with nonzero theta power of P([8, 12) Hz) / P([4, 8) Hz)", "cite": "Alpha/theta ratio — published drowsiness/relaxation index, device-dependent" }
+          "formula": "median over epochs with nonzero theta power of P([8, 12) Hz) / P([4, 8) Hz)", "cite": "Alpha/theta ratio — published drowsiness/relaxation index, device-dependent" },
+        { "id": "sef95", "abbr": "SEF95", "name": "Spectral Edge 95 %", "fullName": "Frequency below which 95 % of the epoch's examined power sits",
+          "tier": "secondary", "unit": "Hz", "evidence": "measured", "goodDirection": "neutral",
+          "formula": "median over epochs of min{ f : Σ P(≤ f) ≥ 0.95 × Σ P over (0, 45] Hz }", "cite": "Spectral edge frequency — a definition over the same PSD the band shares divide, with no tuned constant and no stage assumption. The 45 Hz ceiling is this engine's own, so the answer is an edge of the EXAMINED band and never of the channel" }
       ]
     },
     {
@@ -72,9 +75,9 @@
         { "id": "remPct", "abbr": "REM %", "name": "REM Fraction", "fullName": "Fraction of total sleep time scored REM from EEG",
           "tier": "core", "unit": "%", "evidence": "emerging", "goodDirection": "neutral",
           "formula": "remEpochs / totalSleepEpochs", "cite": "REM fraction from the staged hypnogram — it inherits the single-channel stager's tier, never the reference standard's. PSG EEG staging is the reference standard; this stager is not PSG-validated" },
-        { "id": "spindleDensity", "abbr": "Spindles", "name": "Spindle Density", "fullName": "Sleep-spindle count per minute of N2",
-          "tier": "research", "unit": "/min", "evidence": "emerging", "goodDirection": "up",
-          "formula": "spindleCount / N2Minutes", "cite": "Sleep-spindle density (11–16 Hz bursts) — published memory-consolidation marker, device-dependent" },
+        { "id": "spindleDensity", "abbr": "Spindles", "name": "Spindle Density", "fullName": "Sleep-spindle count per minute of staged N2 and N3",
+          "tier": "research", "unit": "/min", "evidence": "heuristic", "goodDirection": "up",
+          "formula": "detections / staged NREM minutes, over an epoch-relative sigma envelope", "cite": "Sleep-spindle density (11–16 Hz bursts) — published memory-consolidation marker. The DETECTOR is a relative-envelope rule this suite wrote, and no expert-scored spindle has judged it, so the metric carries the suite's own tier and never the marker's. It dropped from `emerging` to `heuristic` when it stopped being a refusal" },
         { "id": "frontalAsym", "abbr": "FAA", "name": "Frontal Alpha Asymmetry", "fullName": "ln(α right) − ln(α left) over frontal channels (AF7/AF8)",
           "tier": "research", "unit": "", "evidence": "experimental", "goodDirection": "neutral",
           "formula": "ln(αAF8) − ln(αAF7)", "cite": "Frontal alpha asymmetry — affective-state composite, EEGDex-derived, weak consumer-grade support" },
@@ -92,7 +95,34 @@
           "formula": "100 × sleepEpochs / scoredEpochs", "cite": "Sleep efficiency over the scored population — an unscorable epoch is excluded, never counted as wake" },
         { "id": "n3Pct", "abbr": "N3 %", "name": "N3 Fraction", "fullName": "Fraction of total sleep time scored N3, the slow-wave share",
           "tier": "core", "unit": "%", "evidence": "emerging", "goodDirection": "neutral",
-          "formula": "100 × N3 / sleepEpochs", "cite": "N3 fraction from the staged hypnogram — single-channel stager, not a PSG score" }
+          "formula": "100 × N3 / sleepEpochs", "cite": "N3 fraction from the staged hypnogram — single-channel stager, not a PSG score" },
+        { "id": "n1Pct", "abbr": "N1 %", "name": "N1 Fraction", "fullName": "Fraction of total sleep time scored N1, the lightest stage",
+          "tier": "secondary", "unit": "%", "evidence": "emerging", "goodDirection": "neutral",
+          "formula": "100 × N1 / sleepEpochs", "cite": "N1 fraction from the staged hypnogram — the stage a band-power rule scores least reliably. Against the simulator's planted truth this engine over-reads N1, so the number carries the stager's tier and a stated shortfall" },
+        { "id": "n2Pct", "abbr": "N2 %", "name": "N2 Fraction", "fullName": "Fraction of total sleep time scored N2, the dominant NREM stage",
+          "tier": "core", "unit": "%", "evidence": "emerging", "goodDirection": "neutral",
+          "formula": "100 × N2 / sleepEpochs", "cite": "N2 fraction from the staged hypnogram — single-channel stager, not a PSG score" },
+        { "id": "wakePct", "abbr": "Wake %", "name": "Wake Fraction", "fullName": "Percent of SCORED epochs scored wake, not of the recording span",
+          "tier": "secondary", "unit": "%", "evidence": "emerging", "goodDirection": "down",
+          "formula": "100 × W / scoredEpochs", "cite": "Wake fraction over the scored population — an unscorable epoch is excluded, never counted as wake. It is the complement of sleep efficiency over the same denominator" },
+        { "id": "sleepLatency", "abbr": "SOL", "name": "Sleep Latency", "fullName": "Minutes of elapsed epochs before the first epoch scored as sleep",
+          "tier": "core", "unit": "min", "evidence": "emerging", "goodDirection": "down",
+          "formula": "0.5 × elapsed epochs before the first sleep epoch", "cite": "Sleep-onset latency from the staged hypnogram. It counts ELAPSED epochs, so an unscorable epoch before onset still costs the time it occupied — a latency is a clock fact rather than a scoring fact" },
+        { "id": "remLatency", "abbr": "REM Lat", "name": "REM Latency", "fullName": "Minutes from the first sleep epoch to the first epoch scored REM",
+          "tier": "secondary", "unit": "min", "evidence": "emerging", "goodDirection": "neutral",
+          "formula": "0.5 × (first REM epoch − first sleep epoch)", "cite": "REM latency from the staged hypnogram — it inherits the stager's REM tier, and a night with no REM epoch reports the absence with its own reason" },
+        { "id": "waso", "abbr": "WASO", "name": "Wake After Sleep Onset", "fullName": "Minutes scored wake strictly between the first and last sleep epoch",
+          "tier": "core", "unit": "min", "evidence": "emerging", "goodDirection": "down",
+          "formula": "0.5 × wake epochs between the first and last sleep epoch", "cite": "Wake after sleep onset from the staged hypnogram. The bounds are STRICT, so wake before onset and wake after the final sleep epoch are not WASO" },
+        { "id": "stageShifts", "abbr": "Shifts", "name": "Stage Shifts", "fullName": "Count of stage transitions over the scored series",
+          "tier": "secondary", "unit": "count", "evidence": "heuristic", "goodDirection": "down",
+          "formula": "transitions over the scored series, where an unscorable epoch BREAKS the run", "cite": "Stage-shift count from the staged hypnogram. Measured against the simulator's planted truth this engine reports roughly twice the planted transitions, because an epoch-independent rule set fragments a stable stage, so the number reads this stager's fragmentation as much as the night's" },
+        { "id": "remPeriods", "abbr": "REM Per", "name": "REM Periods", "fullName": "Count of REM runs, merged across a non-REM gap of up to 5 minutes",
+          "tier": "secondary", "unit": "count", "evidence": "emerging", "goodDirection": "neutral",
+          "formula": "maximal REM runs merged across a gap of ≤ 10 epochs", "cite": "REM period count from the staged hypnogram. It is NOT the Feinberg–Floyd NREM–REM cycle, which needs an NREM duration rule this engine does not apply, and the name says so" },
+        { "id": "swaDecay", "abbr": "SWA Decay", "name": "Slow-Wave Activity Decline", "fullName": "Change in NREM delta power per NREM stretch, against the first stretch",
+          "tier": "research", "unit": "%/period", "evidence": "heuristic", "goodDirection": "neutral",
+          "formula": "100 × leastSquaresSlope(median delta power vs stretch index) / first stretch's median", "cite": "The overnight fall of slow-wave activity. What this metric measures is the SLOPE over NREM delta power, and it claims nothing about sleep homeostasis: that reading rests on a citation this repo has not verified, so the metric carries the suite's own tier" }
       ]
     }
   ],
@@ -101,7 +131,13 @@
     "EEG": "Electroencephalography",
     "PSD": "Power Spectral Density",
     "FAA": "Frontal Alpha Asymmetry",
+    "N1": "Non-REM sleep stage 1",
     "N2": "Non-REM sleep stage 2",
-    "REM": "Rapid Eye Movement sleep"
+    "N3": "Non-REM sleep stage 3, slow-wave sleep",
+    "REM": "Rapid Eye Movement sleep",
+    "SOL": "Sleep-Onset Latency",
+    "WASO": "Wake After Sleep Onset",
+    "SWA": "Slow-Wave Activity",
+    "SEF95": "Spectral Edge Frequency, 95 %"
   }
 }

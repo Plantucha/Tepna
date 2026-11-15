@@ -37,17 +37,48 @@
   var BAND_LABEL = { delta: 'δ rel', theta: 'θ rel', alpha: 'α rel', sigma: 'σ rel', beta: 'β rel' };
   var BAND_EDGE = { delta: '[0.5, 4) Hz', theta: '[4, 8) Hz', alpha: '[8, 12) Hz', sigma: '[12, 16) Hz', beta: '[16, 30) Hz' };
 
-  /* The four refused metrics, with the SAME reason keys the DSP publishes (EEGDSP.REFUSALS). A key
+  /* The three refused metrics, with the SAME reason keys the DSP publishes (EEGDSP.REFUSALS). A key
      this table does not know prints the raw reason rather than a friendly sentence, because an
-     unknown reason is still the honest one. */
-  var REFUSAL_LABEL = { contactPct: '% Contact', frontalAsym: 'FAA', spindleDensity: 'Spindles', calmScore: 'Calm' };
-  var REFUSAL_ORDER = ['contactPct', 'frontalAsym', 'spindleDensity', 'calmScore'];
+     unknown reason is still the honest one.
+
+     `spindleDensity` LEFT this table when the detector landed: it is a measured row below, and a
+     surface that still refused it would say the engine cannot see what it now counts. */
+  var REFUSAL_LABEL = { contactPct: '% Contact', frontalAsym: 'FAA', calmScore: 'Calm' };
+  var REFUSAL_ORDER = ['contactPct', 'frontalAsym', 'calmScore'];
   var REFUSAL_WHY = {
     'no-contact-sidecar': 'no contact sidecar — the headband montage this metric needs is not ingested',
     'single-channel-ingest': 'one EEG channel — the frontal pair this metric needs is absent',
-    'no-spindle-detector': 'no spindle detector — sigma-band power is not a spindle count',
-    'depends-on-refused-inputs': 'a composite over the three refusals above'
+    'depends-on-refused-inputs': 'a derived score over the two refusals above'
   };
+
+  /* ∅ · WHY AN ARCHITECTURE NUMBER IS ABSENT, in the reader's words. The DSP's reason keys are the
+     authority and this map only translates them; an untranslated key prints raw. */
+  var ARCH_WHY = {
+    'no-scored-epoch': 'no epoch was scored',
+    'no-sleep-epoch': 'no epoch was scored as sleep',
+    'no-sleep-onset': 'sleep never began in this recording',
+    'no-rem-epoch': 'no epoch was scored REM',
+    'under-two-scored-epochs': 'under two scored epochs, so no transition exists'
+  };
+
+  /* The twelve architecture rows, in the order a reader walks a night: how much, how well, of what,
+     how long until, how broken. Each entry is [registry abbr, key, decimals, suffix]. The abbr IS
+     the badge key, so a row whose label is not a registry abbr would mint nothing and the coverage
+     gate would catch it. */
+  var ARCH_ROWS = [
+    ['TST', 'TST', 2, ' h'],
+    ['SE', 'SE', 1, ' %'],
+    ['Wake %', 'wakePct', 1, ' %'],
+    ['N1 %', 'n1Pct', 1, ' %'],
+    ['N2 %', 'n2Pct', 1, ' %'],
+    ['N3 %', 'n3Pct', 1, ' %'],
+    ['REM %', 'remPct', 1, ' %'],
+    ['SOL', 'latencySleepMin', 1, ' min'],
+    ['REM Lat', 'latencyRemMin', 1, ' min'],
+    ['WASO', 'wasoMin', 1, ' min'],
+    ['Shifts', 'stageShifts', 0, ''],
+    ['REM Per', 'remPeriods', 0, '']
+  ];
 
   function num(v, d) {
     return v == null || !isFinite(v) ? '—' : (+v).toFixed(d == null ? 1 : d);
@@ -187,6 +218,13 @@
       rows += row(BAND_LABEL[k], pct(rel[k]), BAND_EDGE[k]);
     }
     rows += row('α/θ', num(b.alphaTheta, 3), b.alphaTheta == null ? b.ratioReason || 'refused' : 'median over ' + (pop.ratioEpochs == null ? '—' : pop.ratioEpochs) + ' epochs with theta power');
+    /* The edge carries the CEILING in its own subtext, because 95 % of a 45 Hz band is a different
+       claim from 95 % of the channel, and a reader cannot see the ceiling in the number. */
+    rows += row(
+      'SEF95',
+      b.sef95 == null ? '—' : num(b.sef95, 2) + ' Hz',
+      b.sef95 == null ? b.sefReason || 'refused' : 'median over ' + (pop.sefEpochs == null ? '—' : pop.sefEpochs) + ' epochs · 95 % of (0, 45] Hz power'
+    );
     return (
       '<div class="eg-bar">' +
       bar +
@@ -199,6 +237,44 @@
       ' %, not 100 %. The unfilled part of the bar is the share that no band claims.</p>' +
       rows
     );
+  }
+
+  /* ── SLEEP ARCHITECTURE, AND THE TWO TREND NUMBERS BESIDE IT ────────────────────────
+     Twelve rows from one DSP function, then the spindle density and the slow-wave trend. Every
+     absent number prints its OWN reason from `architectureAbsence`, so a dash never reads as a zero
+     and never borrows the reason of the row above it. */
+  function archHtml(summary) {
+    if (!summary) return '<p class="eg-empty">Nothing analyzed.</p>';
+    var a = summary.architecture || {},
+      ab = summary.architectureAbsence || {},
+      sp = summary.spindles || null,
+      sw = summary.swa || null,
+      out = '',
+      i,
+      e,
+      why;
+    for (i = 0; i < ARCH_ROWS.length; i++) {
+      e = ARCH_ROWS[i];
+      if (a[e[1]] == null) {
+        why = ab[e[1]];
+        out += row(e[0], '—', why ? ARCH_WHY[why] || why : 'absent, with no reason given');
+      } else out += row(e[0], num(a[e[1]], e[2]) + e[3], '');
+    }
+    /* THE POPULATION TRAVELS WITH THE RATE. A density over 6 staged NREM minutes is a different
+       number from the same density over 360, and only the subtext can say which one this is. */
+    if (!sp) out += row('Spindles', '—', 'this summary carries no spindle answer');
+    else if (sp.density == null) out += row('Spindles', '—', sp.reason || 'absent, with no reason given');
+    else
+      out += row(
+        'Spindles',
+        num(sp.density, 2) + ' /min',
+        (sp.population ? sp.population.detections + ' detections over ' + num(sp.population.eligibleMin, 0) + ' staged NREM min' : '') +
+          (sp.byStage ? ' · N2 ' + num(sp.byStage.N2, 2) + ' · N3 ' + num(sp.byStage.N3, 2) : '')
+      );
+    if (!sw) out += row('SWA Decay', '—', 'this summary carries no slow-wave trend');
+    else if (sw.decayPctPerPeriod == null) out += row('SWA Decay', '—', sw.reason || 'absent, with no reason given');
+    else out += row('SWA Decay', num(sw.decayPctPerPeriod, 2) + ' %/period', 'least squares over ' + (sw.population ? sw.population.measured : '—') + ' NREM stretches, against the first');
+    return out + '<p class="chart-note">Every number here comes from the staged series, so each one inherits the stager and none of them is a polysomnogram score. A dash carries its own reason.</p>';
   }
 
   /* The power unit is the EDF header's own physical dimension. With no declared dimension the tile
@@ -261,6 +337,12 @@
     k += kpi('SE', pct(arch.SE), 'of scored epochs, not of the span');
     k += kpi('N3 %', pct(arch.n3Pct), 'of total sleep time');
     k += kpi('REM %', pct(arch.remPct), 'of total sleep time');
+    var spk = summary.spindles || null;
+    k += kpi(
+      'Spindles',
+      spk && spk.density != null ? num(spk.density, 2) + ' /min' : '—',
+      spk && spk.density != null ? 'over ' + num(spk.population ? spk.population.eligibleMin : null, 0) + ' staged NREM min' : (spk && spk.reason) || 'no spindle answer'
+    );
     k += kpi('Total Power', num(b.totalPower, 3), powerSub(summary));
     k += kpi('α/θ', num(b.alphaTheta, 3), b.alphaTheta == null ? b.ratioReason || 'refused' : 'median over ' + (pop.ratioEpochs == null ? '—' : pop.ratioEpochs) + ' epochs');
     var grid = $('egKpiGrid');
@@ -269,6 +351,7 @@
     if (title) title.style.display = '';
     var sn = synthNote(summary);
     fill('egHypnoCard', 'egHypno', sn + hypnoHtml(summary));
+    fill('egArchCard', 'egArch', sn + archHtml(summary));
     fill('egBandsCard', 'egBands', sn + bandHtml(summary));
     fill('egQualityCard', 'egQuality', sn + qualityHtml(summary));
     if (st) {
@@ -282,7 +365,16 @@
     }
   }
 
-  global.EEGUI = { synthNote: synthNote, renderSummary: renderSummary, hypnoHtml: hypnoHtml, bandHtml: bandHtml, qualityHtml: qualityHtml, powerSub: powerSub };
+  global.EEGUI = {
+    synthNote: synthNote,
+    renderSummary: renderSummary,
+    hypnoHtml: hypnoHtml,
+    archHtml: archHtml,
+    bandHtml: bandHtml,
+    qualityHtml: qualityHtml,
+    powerSub: powerSub,
+    ARCH_ROWS: ARCH_ROWS
+  };
 })(window);
 
 // ESM-from-birth dual-mode (mirrors motiondex-render): the IIFE attaches window.EEGUI for the
