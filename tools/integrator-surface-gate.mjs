@@ -267,9 +267,19 @@ export function oneLineObject(line, open) {
   return keys;
 }
 
+/* 🔴 THIS READER READ RAW SOURCE, SO A ONE-LINE RETURN CARRYING A STRING REFUSED THE WHOLE
+   SUBTREE. `oneLineObject` refuses any body that holds a quote, because it counts braces with no
+   string awareness, and that refusal is right for raw text. Every other reader in this file works
+   on PREPARED code, where the preparer has already deleted each string literal, so the quote guard
+   there only fires on a quote the preparer could not remove. `labelPositionalApnea:2657` is
+   `if (!posture.length) return { available: false, note: '…' };`, and reading it raw returned null,
+   which made `nestedShapes` return null and threw "its shape changed, and this gate must not
+   guess" over a builder that had never moved. The `positional` subtree was unreachable for that
+   reason alone, while six of the seven committed fusion fixtures carry its eight keys. Measured
+   2026-11-15. */
 /** Every `return {` inside one named function, as depth-1 key lists. Null when the shape moves. */
-export function nestedShapes(dspText, fnName) {
-  const lines = dspText.split('\n');
+export function nestedShapes(dspText, fnName, pre = prepare) {
+  const lines = pre(dspText).code.split('\n');
   const start = lines.findIndex((l) => new RegExp('^function ' + escapeRe(fnName) + '\\(').test(l));
   if (start < 0) return null;
   let d = 0;
@@ -1630,6 +1640,12 @@ export function readsElementKey(text, sites, elemKey, pre = prepare) {
   return null;
 }
 
+/** A shadowed alias site, narrowed to the lines where its binding is the only one. */
+export function narrowToBinding(site) {
+  if (!site.shadows.length) return site;
+  return Object.assign({}, site, { from: Math.max(site.from, site.line - 1), to: Math.min(...site.shadows) - 2 });
+}
+
 /** The same red conditions as depth 1, plus the undeclared partial shape, for ONE subtree. */
 export function evaluateNested(subtree, shapes, decl, renderText, extra) {
   const path = (decl && decl.aliasPath) || 'fusion.' + subtree;
@@ -1641,9 +1657,23 @@ export function evaluateNested(subtree, shapes, decl, renderText, extra) {
     const ap = r.aliasPath || path;
     const bl = prepare(r.text);
     const f = aliasSites(r.text, ap);
-    const dir = f.sites.filter((x) => !x.shadows.length);
+    /* 🔴 A SHADOWED SITE WAS DROPPED WHOLE, AND EVERY READ IN FRONT OF THE SHADOW DIED WITH
+       IT. `integrator-render.js:1045` binds `var p = fusion.positional`, reads `p.note` at :1054,
+       and only then meets two unrelated `.filter(function (p)` callbacks at :1062 and :1068. The
+       shadow scan is right about those callbacks, and dropping the site made `note` read as
+       unrendered although a card prints it. A binding is unambiguous from its own line up to the
+       line BEFORE its first shadow, so the site survives TRUNCATED to that range.
+
+       The window STARTS AT THE BINDING, not at the enclosing function. An unshadowed site spans the
+       whole scope, which is loose in the crediting direction and harmless, because `var` hoisting
+       makes a read above the binding read `undefined`. Once a shadow is in play that looseness turns
+       into a false credit: a shadow in FRONT of the binding would leave the lines above it usable,
+       and a read there belongs to whatever the shadow bound. So a shadowed site narrows at both
+       ends, and a shadow at or in front of its binding leaves an empty range that credits nothing.
+       Measured 2026-11-15. */
+    const dir = f.sites.map(narrowToBinding).filter((x) => x.to >= x.from);
     const fw = forwardedSites(bl.code.split('\n'), dir);
-    return { file: r.file, aliasPath: ap, text: r.text, blanked: bl, found: f, forwarded: fw, usable: dir.concat(fw.filter((x) => !x.shadows.length)) };
+    return { file: r.file, aliasPath: ap, text: r.text, blanked: bl, found: f, forwarded: fw, usable: dir.concat(fw.map(narrowToBinding).filter((x) => x.to >= x.from)) };
   });
   const first = readers[0];
   /* `found` survives for `blankedBy` ALONE — the parse route is realm-independent. Every
@@ -2532,6 +2562,10 @@ if (DIRECT && process.argv.includes('--selftest')) {
   );
   const NREN = ['function card(fusion) {', '  var a = fusion.thing;', '  if (a) {', '    show(a.alpha);', '    show(beta);', '  }', '}'].join('\n');
   const NSHADOW = NREN.replace('    show(beta);', '    rows.sort(function (a, b) { return a - b; });');
+  const NSHPRE = NREN.replace('function card(fusion) {', 'function card(fusion) {\n  rows.sort(function (a, b) { return a - b; });');
+  const SH_AFTER = { line: 2, from: 0, to: 6, shadows: [5] };
+  const SH_BEFORE = { line: 3, from: 0, to: 7, shadows: [2] };
+  const SH_NONE = { line: 2, from: 0, to: 6, shadows: [] };
   const NSHAPES = nestedShapes(NSRC, 'fuseThing');
   const NDECL = { builtBy: 'fuseThing', surfaces: { alpha: 'card', beta: 'export-only', gamma: 'export-only' }, partialShape: { gamma: 'the fused path only' } };
   const withDecl = (over, ren) => evaluateNested('thing', NSHAPES, { ...NDECL, ...over }, ren || NREN);
@@ -2552,12 +2586,24 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck("🔴 an 'export-only' nested key an anchored read reaches reds", withDecl({ surfaces: { alpha: 'export-only', beta: 'export-only', gamma: 'export-only' } }).exportOnlyRead, ['alpha']);
   ck('🔴 a key on some shapes only must declare WHY, or it reds', withDecl({ partialShape: {} }).undeclaredPartial, ['gamma']);
   ck('…and a partialShape naming a key every shape carries is stale, and reds', withDecl({ partialShape: { alpha: 'x', gamma: 'y' } }).stalePartial, ['alpha']);
-  /* 🔴 THE SHADOW. A comparator parameter rebinds the alias, so the scope credits nothing and the
-     subtree's `card` keys red — it fails CLOSED rather than crediting another object's property. */
+  /* 🔴 THE SHADOW, AND THE LINES IT DOES NOT OWN. A comparator parameter rebinds the alias at line
+     5, so the scope is ambiguous from there on. The site is NOT dropped whole for it: the lines
+     between the binding and the shadow name one object only, so the `a.alpha` read at line 4 stands.
+     Dropping the site whole lost the `note` read of `fusion.positional` at integrator-render.js:1054,
+     eight lines in front of its first shadow, and reported a card key as unrendered — measured
+     2026-11-15. The leg below it is the control: the same shadow in FRONT of the binding. */
   ck('🔴 a rebound alias shadows its scope', withDecl({}, NSHADOW).aliasSites[0].shadows.length > 0, true);
-  ck('…so no nested read is credited at all', withDecl({}, NSHADOW).noAlias, true);
-  ck('…and the subtree is not ok', withDecl({}, NSHADOW).ok, false);
-  ck('…and the reason names the binding, not the keys, first', nestedReasons(withDecl({}, NSHADOW))[0].includes('no usable binding'), true);
+  ck('…and a shadowed site narrows to the lines between its binding and the shadow', [narrowToBinding(SH_AFTER).from, narrowToBinding(SH_AFTER).to], [1, 3]);
+  ck('…so a read IN FRONT of the shadow is still credited', withDecl({}, NSHADOW).cardUnrendered, []);
+  ck('…and the subtree is ok', withDecl({}, NSHADOW).ok, true);
+  ck('…while an UNSHADOWED site is returned untouched', [narrowToBinding(SH_NONE).from, narrowToBinding(SH_NONE).to], [0, 6]);
+  /* 🔴 THE CONTROL. `var` hoisting makes a read above the binding read `undefined`, and the shadow
+     owns every line down to the binding, so a shadow in front of it leaves an EMPTY window and the
+     site still fails closed. Without the narrowed `from` those lines would read as usable. */
+  ck('🔴 a shadow in FRONT of the binding leaves an empty window', narrowToBinding(SH_BEFORE).to < narrowToBinding(SH_BEFORE).from, true);
+  ck('…so no nested read is credited at all', withDecl({}, NSHPRE).noAlias, true);
+  ck('…and the subtree is not ok', withDecl({}, NSHPRE).ok, false);
+  ck('…and the reason names the binding, not the keys, first', nestedReasons(withDecl({}, NSHPRE))[0].includes('no usable binding'), true);
   /* 🔴 THE CONTROL THE FIRST SHADOW TEST FAILED. `if (a) {` is not a parameter list; a test that
      cannot tell them apart reported both real alias sites shadowed and credited nothing. */
   ck('🔴 an `if (alias) {` guard is NOT a shadow', withDecl({}).aliasSites[0].shadows, []);
@@ -2764,6 +2810,18 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('…nor is a callback whose header ends its own line', nestedShapes(K1, 'buildK').union.includes('surge'), false);
   ck('oneLineShape refuses a quote in the body', oneLineShape('  return { a: 1, b: "x, y" };'), null);
   ck('oneLineShape refuses a spread', oneLineShape('  return { ...rest, a: 1 };'), null);
+  /* 🔴 THE READER MUST WORK ON PREPARED CODE, AND THIS IS WHY. `oneLineObject` brace-counts with no
+     string awareness, so it refuses any body holding a quote — right for raw text and wrong for a
+     reader whose caller hands it raw text. `nestedShapes` did exactly that, so one guard return
+     carrying a message string made the whole builder read as MOVED, and the gate threw "its shape
+     changed, and this gate must not guess" over `labelPositionalApnea`, which had never moved. The
+     `positional` subtree was unreachable for that reason alone while six of the seven committed
+     fusion fixtures carried its eight keys. Measured 2026-11-15. */
+  const K1S = ['function buildS(recs) {', "  if (!recs.length) return { available: false, note: 'no series' };", '  return { available: true, note: null, rate: 1 };', '}'].join('\n');
+  ck('🔴 a guard return carrying a STRING still reads, because the preparer deleted it first', nestedShapes(K1S, 'buildS').union, ['available', 'note', 'rate']);
+  ck('…so the builder has two shapes and no refusal', nestedShapes(K1S, 'buildS').shapes.length, 2);
+  ck('…and the key the guard route omits is conditional', nestedShapes(K1S, 'buildS').partial, ['rate']);
+  ck('…while the SAME line read raw is what oneLineShape refuses', oneLineShape("  if (!recs.length) return { available: false, note: 'no series' };"), null);
   ck('oneLineShape refuses a line whose braces do not balance', oneLineShape('  return { a: 1,'), null);
   ck('oneLineShape refuses an empty object', oneLineShape('  return {};'), null);
   ck('oneLineShape does not credit a nested object key', oneLineShape('  return { a: { b: 1 }, c: 2 };'), ['a', 'c']);
