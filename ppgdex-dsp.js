@@ -3348,25 +3348,58 @@
   // ════════════════════════════════════════════════════════════════════════
   function beatConfidence(peaks, sqi, fs, t0Ms, winSec) {
     winSec = winSec || 60;
-    const n = peaks.length,
-      out = new Map();
+    const n = peaks.length;
+    /* The out-of-band marks the §∅ note below describes are OWN PROPERTIES on the returned Map, so
+       the per-second weights and the calibration verdict travel together without a wrapper object
+       that every caller would have to unpack. The cast states them; the Map itself is unchanged. */
+    const out = /** @type {Map<number, any> & { nBeats: number, nSqi: number, nQBelow: number, sqiMedian: number|null, sqiSource: string|null, calibrated: boolean, reason: string|null }} */ (
+      new Map()
+    );
     const t0 = t0Ms || 0;
     const secAbs = (k) => Math.floor((t0 + (peaks[k] / fs) * 1000) / 1000);
+    /* ∅ A TRUST OF 1 IS A MEASUREMENT, AND THESE THREE ARMS NEVER MEASURED IT. The statistic
+       calibrates against the RECORD'S OWN medians, so it reports perfect trust in three cases that
+       look identical to a clean record from the outside: under 20 beats (no calibration at all), no
+       per-beat SQI (the quality cue reads a substituted 1 for every beat), and an SQI with no spread
+       (every window sits AT the median, so `sQ` is 0 — a uniformly ZERO SQI reads as uniformly
+       fine). The returned values stay as they are, because 1 is the only safe weight for a beat
+       nobody examined. Validity travels OUT OF BAND instead — CLAUDE.md §∅, "a consumer cannot null
+       what it cannot distinguish" — as own properties on the Map. The ECGDex copy carries the same
+       code byte-for-byte, and the suite compares the two bodies. */
     if (n < 20) {
       for (let k = 0; k < n; k++) out.set(secAbs(k), 1);
+      out.nBeats = n;
+      out.nSqi = 0;
+      out.sqiMedian = null;
+      out.sqiSource = null;
+      out.calibrated = false;
+      out.reason = 'fewer than 20 beats — the trust statistic was never calibrated, so every second reads 1 by default';
       return out;
     } // too short to calibrate
     const s0 = secAbs(0),
       s1 = secAbs(n - 1),
       S = s1 - s0 + 1;
-    if (S < 1) return out;
+    if (S < 1) {
+      out.nBeats = n;
+      out.nSqi = 0;
+      out.sqiMedian = null;
+      out.sqiSource = null;
+      out.calibrated = false;
+      out.reason = 'the peak series spans under one second — there is no window to calibrate over';
+      return out;
+    }
     const cnt = new Float64Array(S),
       qsum = new Float64Array(S);
+    let nSqi = 0;
     for (let k = 0; k < n; k++) {
       const s = secAbs(k) - s0;
       if (s >= 0 && s < S) {
         cnt[s]++;
-        qsum[s] += sqi && Number.isFinite(sqi[k]) ? sqi[k] : 1;
+        /* The `: 1` substitutes a PERFECT quality for a beat that reported none. It stays, because
+           the window mean needs a number, and `nSqi` counts how many of them were real. */
+        const _hasQ = !!sqi && Number.isFinite(sqi[k]);
+        if (_hasQ) nSqi++;
+        qsum[s] += _hasQ ? sqi[k] : 1;
       }
     }
     const half = Math.max(1, Math.round(winSec / 2));
@@ -3418,6 +3451,25 @@
       const sQ = Math.max(0, (qMed - winSqi[i]) / madQ); // SQI-depressed-below-median suspicion
       out.set(s0 + i, trust(Math.min(sD, sQ))); // AF-safe AND: both cues must fire
     }
+    /* The out-of-band verdict on the quality cue. `sQ` rises only where a window's mean SQI sits
+       BELOW the record's own median, so the cue's whole reach is the windows under `qMed`. With none
+       of them the AND holds `min(sD, sQ)` at 0 and every second reads 1, whatever the density cue
+       saw. Counting them IS that reach — a MAD proxy is not: a 15 min burst in an 8 h night leaves
+       the MEDIAN deviation at 0 while the cue fires hard on the burst windows (measured
+       2026-11-15 against the differential HRV group's injected-burst night). */
+    let nQBelow = 0;
+    for (const _qi of active) if (winSqi[_qi] < qMed) nQBelow++;
+    out.nBeats = n;
+    out.nSqi = nSqi;
+    out.nQBelow = nQBelow;
+    out.sqiMedian = nSqi ? qMed : null;
+    out.sqiSource = nSqi === 0 ? 'absent' : nSqi < n ? 'partial' : 'per-beat';
+    out.calibrated = nSqi > 0 && nQBelow > 0;
+    out.reason = out.calibrated
+      ? null
+      : nSqi === 0
+        ? 'no per-beat SQI reached the trust statistic — the quality cue never fired, so every second reads 1'
+        : 'no window sits below the median SQI in this record — the quality cue has nothing it can suspect';
     return out;
   }
 
@@ -6112,6 +6164,26 @@
           rec.t0Ms || 0
         )
       : null;
+    /* ∅ THE CHANNEL HAS A THIRD STATE, AND IT USED TO LOOK LIKE THE FIRST. `ppiConf` was null under
+       a seam or an implausible span, and otherwise a measured weight — but `beatConfidence` also
+       returns a map of flat 1s when it could not calibrate, and that read as "every beat examined
+       and trusted". The mirror now marks the map out of band, so the reason key carries the state
+       on. The values stay, because 1 is the only safe weight for a beat nobody examined. */
+    const _pConfWhy = _pConfMap ? null : _clockSeam ? 'clock-seam' : 'implausible-span';
+    /* The two states travel in two fields. `ppiConfReason` stays the REFUSAL channel — it answers
+       why there is no series at all. The cue state is reduced COVERAGE of a series that exists, and
+       the owner's 2026-09-17 ruling separates the two: a discontinuity refuses, reduced coverage
+       annotates. One field for both would have put a cue note on every clean night's refusal key. */
+    const _pConfCue =
+      !_pConfMap || _pConfMap.calibrated
+        ? null
+        : _pConfMap.sqiSource == null
+          ? _pConfMap.nBeats < 20
+            ? 'too-few-beats'
+            : 'span-under-one-second'
+          : _pConfMap.sqiSource === 'absent'
+            ? 'sqi-absent'
+            : 'sqi-flat';
     const _t0 = rec.t0Ms || 0;
     const ppiConf = _pConfMap
       ? corr.tt.map((s) => {
@@ -6797,7 +6869,8 @@
       ppiClean: cleanMask,
       // Aligned with nn/tt the same way — the fused-hat per-beat weight (see the block above).
       ppiConf,
-      ...(_confSpanOK ? {} : { ppiConfReason: _clockSeam ? 'clock-seam' : 'implausible-span' }), // F10 + seam — see the beatConfidence call
+      ...(_pConfWhy ? { ppiConfReason: _pConfWhy } : {}), // F10 + seam — see the beatConfidence call
+      ...(_pConfCue ? { ppiConfCue: _pConfCue } : {}), // the trust map exists and its quality cue could not calibrate
       poincareNN: nn,
       sd1: poin ? poin.sd1 : null,
       sd2: poin ? poin.sd2 : null,
