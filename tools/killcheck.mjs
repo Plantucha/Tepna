@@ -38,6 +38,14 @@
  *   node tools/killcheck.mjs --file … --fn … --group … --jobs 16 --list
  *   node tools/killcheck.mjs --selftest
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
+// THE WRITE-ROOT READING (brief WRITE-ROOT-ADOPTION-2026-11-03 §3, `pending` row 2026-11-15). The
+// write wrapper buys nothing here, and the exposure is real. Each worker writes the mutated file into
+// a `mkdtempSync(join(dirname(ROOT), '.killcheck-'))` hard-link clone, so no write lands under a
+// checkout. That clone copies `ROOT` itself, so the checkout this tool LIVES in decides which source
+// the score describes. Run by absolute path from another checkout, it scores that other tree and says
+// nothing about the caller's. The remedy belongs to the judge arm, which has never enumerated this
+// file, so this row stays pending rather than adopting a write wrapper that moves nothing.
+
 import { execFile, execFileSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
