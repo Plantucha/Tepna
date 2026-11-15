@@ -44530,6 +44530,25 @@
         pNo.length === 0 && pNo._unmappedDropped === 3 && mNo.length === 0 && mNo._unmappedDropped === 3,
         'ppg=' + pNo._unmappedDropped + ' motion=' + mNo._unmappedDropped
       );
+      /* The tail map needs three numeric fields (Shrike mutant MUT-p3, 2026-11-15). With a floor of
+         one or two, a short row yields a map whose x or y column is `undefined`. That map is truthy,
+         so every row then drops as a NaN `x` and nothing counts it. */
+      var ONE_NUM = 'a;b;c;d;5\nf;g;h;i;6\nk;l;m;n;7\n',
+        TWO_NUM = 'a;b;c;4;5\nf;g;h;6;7\nk;l;m;8;9\n';
+      var p1 = P.parseSensorXYZ(ONE_NUM),
+        m1 = M.parseSensorXYZ(ONE_NUM),
+        p2 = P.parseSensorXYZ(TWO_NUM),
+        m2 = M.parseSensorXYZ(TWO_NUM);
+      T.ok(
+        'a headerless row with ONE numeric field maps nothing, and every row is COUNTED, in both nodes',
+        p1.length === 0 && p1._unmappedDropped === 3 && m1.length === 0 && m1._unmappedDropped === 3,
+        'ppg=' + p1.length + '/' + p1._unmappedDropped + ' motion=' + m1.length + '/' + m1._unmappedDropped
+      );
+      T.ok(
+        'a headerless row with TWO numeric fields maps nothing, and every row is COUNTED, in both nodes',
+        p2.length === 0 && p2._unmappedDropped === 3 && m2.length === 0 && m2._unmappedDropped === 3,
+        'ppg=' + p2.length + '/' + p2._unmappedDropped + ' motion=' + m2.length + '/' + m2._unmappedDropped
+      );
       T.ok(
         '…and the count is UNCONDITIONAL, so a reader can tell 0 from "nobody counted"',
         Object.prototype.hasOwnProperty.call(p5, '_unmappedDropped') && p5._unmappedDropped === 0 && Object.prototype.hasOwnProperty.call(m5, '_unmappedDropped') && m5._unmappedDropped === 0,
