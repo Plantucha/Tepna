@@ -44456,9 +44456,9 @@
          never on, so every mask-on lane is empty and every event index divides by zero hours. */
       var dead = C.computeMetrics(C.prepare({ t0Ms: T0, fs: 1, pressure: new Float32Array(600), leak: null, events: [{ type: 'OA', timeSec: 10, durSec: 20 }] }));
       T.eq(
-        '∅ a mask never on publishes no pressure, no index and no leak — each with the reason beside it',
+        '∅ a mask never on publishes no pressure and no index — and an ABSENT leak lane names the lane, not the mask',
         pick(dead, LANES),
-        '{"usageHours":0,"maskOnLatency":null,"maskOnLatencyReason":"therapy-never-started","medianPressure":null,"p95Pressure":null,"pressureRange":null,"maskOnReason":"no-mask-on-pressure-sample","residualAHI":null,"centralIndex":null,"obstructiveIndex":null,"hypopneaIndex":null,"medianLeak":null,"p95Leak":null,"largeLeakPct":null,"leakCV":null,"leakReason":"no-mask-on-leak-sample"}'
+        '{"usageHours":0,"maskOnLatency":null,"maskOnLatencyReason":"therapy-never-started","medianPressure":null,"p95Pressure":null,"pressureRange":null,"maskOnReason":"no-mask-on-pressure-sample","residualAHI":null,"centralIndex":null,"obstructiveIndex":null,"hypopneaIndex":null,"medianLeak":null,"p95Leak":null,"largeLeakPct":null,"leakCV":null,"leakReason":"no-leak-lane"}'
       );
       T.eq('…and no field of the panel is a number-typed sentinel', JSON.stringify(nonFinite(dead, '')), '[]');
 
@@ -44485,6 +44485,43 @@
         'CONTROL · a MEASURED zero still publishes 0 — a flat pressure, a clean central index and a 0 % large-leak share',
         pick(live, LANES),
         '{"usageHours":2,"maskOnLatency":0,"maskOnLatencyReason":null,"medianPressure":10,"p95Pressure":10,"pressureRange":0,"maskOnReason":null,"residualAHI":1,"centralIndex":0,"obstructiveIndex":0.5,"hypopneaIndex":0.5,"medianLeak":5,"p95Leak":5,"largeLeakPct":0,"leakCV":0,"leakReason":null}'
+      );
+
+      /* ∅ A LIVE SESSION WITH NO LEAK CHANNEL. `prepare` substituted a zero-filled `Float32Array`
+         for an absent `raw.leak`, so `leakMaskOn` carried one zero per mask-on second and this
+         panel published `medianLeak: 0`, `p95Leak: 0` and `largeLeakPct: 0` with `leakReason: null`
+         beside them — the reading of a perfectly sealed mask over a lane the device never reported.
+         The EDF sibling `buildSessionFromEdf` answers `leakReason: 'no-leak-lane'` for the same
+         absence, so one node published two readings of one fact. */
+      var noLane = C.computeMetrics(C.prepare({ t0Ms: T0, fs: 1, pressure: press, events: [{ type: 'OA', timeSec: 10, durSec: 20 }] }));
+      T.eq(
+        '∅ a session with NO leak lane publishes no leak number, and the reason names the LANE',
+        pick(noLane, LANES),
+        '{"usageHours":2,"maskOnLatency":0,"maskOnLatencyReason":null,"medianPressure":10,"p95Pressure":10,"pressureRange":0,"maskOnReason":null,"residualAHI":0.5,"centralIndex":0,"obstructiveIndex":0.5,"hypopneaIndex":0,"medianLeak":null,"p95Leak":null,"largeLeakPct":null,"leakCV":null,"leakReason":"no-leak-lane"}'
+      );
+      T.eq('…and no field of the no-leak panel is a number-typed sentinel', JSON.stringify(nonFinite(noLane, '')), '[]');
+      /* INVERTED LEG · the lane is PRESENT and the mask never came on. That is a different fact and
+         it keeps its own reason, so the fix above must not collapse the two absences into one. */
+      var laneNoMask = C.computeMetrics(C.prepare({ t0Ms: T0, fs: 1, pressure: new Float32Array(600), leak: new Float32Array(600).fill(5), events: [] }));
+      T.eq(
+        'CONTROL · a PRESENT leak lane with no mask-on sample keeps the MASK reason',
+        JSON.stringify({ leakReason: laneNoMask.leakReason, medianLeak: laneNoMask.medianLeak, leakCV: laneNoMask.leakCV }),
+        '{"leakReason":"no-mask-on-leak-sample","medianLeak":null,"leakCV":null}'
+      );
+      /* THE DOWNSTREAM HALF. `leakSqi` already refuses an unassessable seal, and its own comment
+         reads "`largeLeakPct` is NaN when there is no leak channel". The zero-filled lane made that
+         value a finite 0 instead, so the guard never saw the case it exists for, and `buildSession`
+         published `sqi: 1` — the best possible signal quality — for a session with no leak channel.
+         A rule enforced at one layer is not enforced. */
+      T.eq(
+        '∅ a session with NO leak lane publishes NO seal quality, where it published 1',
+        JSON.stringify(C.buildSession(C.prepare({ t0Ms: T0, fs: 1, pressure: press, events: [] }), { fname: 'noleak.csv' }).sqi),
+        'null'
+      );
+      T.eq(
+        'CONTROL · a MEASURED well-sealed mask still scores exactly 1',
+        JSON.stringify(C.buildSession(C.prepare({ t0Ms: T0, fs: 1, pressure: press, leak: lk, events: [] }), { fname: 'sealed.csv' }).sqi),
+        '1'
       );
 
       /* ── 2 · buildLongitudinal ── the sample SD needs two nights. `0` claimed a measured
@@ -45830,6 +45867,61 @@
     // MID-FILE. That is the exact shape that made an O2Ring night ship durationMin = -254460 with
     // ODI-4 = 0/h — an apnea night reading as perfectly healthy. The same bare preference was still
     // being passed by HRVDex, PulseDex and the Integrator (DEEP-AUDIT-II §1.10).
+    /* ── §∅ — AN ABSENT PROFILE ELEVATION IS NULL, NOT SEA LEVEL ──────────────────────────────────
+       Residue `2026-09-15-profile-elevation-defaults-to-sea-level` reads `fixed #2854`, and that fix
+       reached four nodes with a `§∅ — absent ≠ sea level` comment. PulseDex kept the coercion at
+       four sites. 0 m is a LEGAL elevation, so `|| 0` made a coast night and an empty profile
+       identical, and the altitude factor then sat at 1 without saying whether a height was entered.
+       The producer is `pxProfile()` on both of its paths (shared record and DOM fallback). The two
+       consumers are the compute road and the re-render road. The suite cannot drive `calculate()`
+       (it reads the DOM), so these are source assertions on all four sites and the two banner reads —
+       the group above uses the same instrument on the same pair of roads. */
+    group('∅ PulseDex profile elevation — absent stays null, never sea level', 'pulsedex-overview · pulsedex-app · pulsedex-render · absence', function (T) {
+      var src = env.sources || {};
+      var ovw = src['pulsedex-overview.js'] || '',
+        app = src['pulsedex-app.js'] || '',
+        rnd = src['pulsedex-render.js'] || '';
+      if (!ovw.trim() || !app.trim() || !rnd.trim()) {
+        T.skip('the three PulseDex profile surfaces', 'sources not provided in this runner');
+        return;
+      }
+      // ── the producer: both paths of pxProfile() ──
+      T.ok(
+        'ANTI-VACUITY · both pxProfile() return objects are in the source this leg reads, so a pin cannot pass on a vanished path',
+        (ovw.match(/elev:\s*n\(p\.elevation/g) || []).length === 1 && (ovw.match(/elev:\s*v\('profElev'/g) || []).length === 1,
+        'DexProfile path: ' + (ovw.match(/elev:\s*n\(p\.elevation[^)]*\)/g) || ['absent'])[0] + ' · DOM path: ' + (ovw.match(/elev:\s*v\('profElev'[^)]*\)/g) || ['absent'])[0]
+      );
+      T.ok('the shared-record path keeps an absent elevation NULL', /elev:\s*n\(p\.elevation,\s*null\)/.test(ovw), (ovw.match(/elev:\s*n\(p\.elevation[^)]*\)/) || ['no site'])[0]);
+      T.ok('the DOM fallback path keeps an absent elevation NULL', /elev:\s*v\('profElev',\s*null\)/.test(ovw), (ovw.match(/elev:\s*v\('profElev'[^)]*\)/) || ['no site'])[0]);
+      // ── the two consumers ──
+      T.ok(
+        'the compute road keeps the null instead of publishing sea level',
+        /const elev = _pp\.elev == null \|\| !isFinite\(_pp\.elev\) \? null : \+_pp\.elev;/.test(app),
+        (app.match(/const elev = _pp\.elev[^;]*;/) || ['no site'])[0]
+      );
+      T.ok(
+        'the compute road names the no-correction case, so the factor is not read as a measured x1',
+        /const altFactor = elev == null \? 1 : altVO2Factor\(elev\);/.test(app),
+        (app.match(/const altFactor = elev[^;]*;/) || ['no site'])[0]
+      );
+      T.ok('the re-render road keeps the null', /r\.elev = _pp\.elev == null \|\| !isFinite\(_pp\.elev\) \? null : \+_pp\.elev;/.test(rnd), (rnd.match(/r\.elev = _pp\.elev[^;]*;/) || ['no site'])[0]);
+      T.ok(
+        'the re-render road names the no-correction case',
+        /r\.altFactor = r\.elev == null \? 1 : \+altVO2Factor\(r\.elev\)\.toFixed\(3\);/.test(rnd),
+        (rnd.match(/r\.altFactor = r\.elev[^;]*;/) || ['no site'])[0]
+      );
+      T.ok('neither road restores the `|| 0` spelling on an elevation', !/elev \|\| 0/.test(app + rnd), 'a `|| 0` on an elevation is back');
+      T.ok('the result object still publishes that same local', /^\s+elev,$/m.test(app), 'the published field and the null arm have parted ways');
+      // ── the banner reads: the threshold takes the null first, so no coercion is load-bearing ──
+      T.ok('the high-altitude banner refuses a null before its threshold', /if \(r\.elev != null && r\.elev >= 2500\) \{/.test(rnd), (rnd.match(/if \(r\.elev[^{]*\{/) || ['no site'])[0]);
+      T.ok('the moderate-altitude banner refuses a null before its threshold', /else if \(r\.elev != null && r\.elev > 1500\) \{/.test(rnd), (rnd.match(/else if \(r\.elev[^{]*\{/) || ['no site'])[0]);
+      T.eq('ANTI-VACUITY · the two `.toLocaleString()` calls a null would throw on are in the source this leg reads', (rnd.match(/r\.elev\.toLocaleString\(\)/g) || []).length, 2);
+      // ── the mechanism the coercion hid: null and 0 m are indistinguishable through a bare comparison ──
+      T.eq('CONTROL · the old expression turned an absent elevation into a measured 0 m', null || 0, 0);
+      T.ok('CONTROL · and 0 m then read as sea level to the altitude factor', 0 <= 1500 === true, '0 m takes the x1 branch');
+      T.ok('a null elevation cannot cross either banner threshold', !(null >= 2500) && !(null > 1500), 'null >= 2500 = ' + (null >= 2500) + ' · null > 1500 = ' + (null > 1500));
+    });
+
     group('DMY file-lock is threaded, not just preferred (DEEP-AUDIT-II §1.10)', 'hrvdex-dsp · pulsedex-overview · integrator-dsp · clock', function (T) {
       // A Welltory-shaped export spanning 12 -> 13 June: the 06/12 rows are AMBIGUOUS (both fields <= 12)
       // while 13/06 is not. A per-row decision reads the first as 6 Dec and the second as 13 Jun.

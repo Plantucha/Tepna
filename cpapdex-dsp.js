@@ -287,7 +287,15 @@
     var n = raw.pressure ? raw.pressure.length : 0;
     var maskOn = new Uint8Array(n);
     for (var i = 0; i < n; i++) maskOn[i] = raw.pressure[i] > 0 ? 1 : 0;
-    var leak = raw.leak || new Float32Array(n);
+    /* ∅ AN ABSENT LEAK LANE IS NOT A SEALED MASK. This line read `raw.leak || new Float32Array(n)`,
+       so a session with no leak channel carried one ZERO per sample into `leakMaskOn`, and
+       `computeMetrics` then published `medianLeak: 0`, `p95Leak: 0` and `largeLeakPct: 0` with
+       `leakReason: null` beside them — the panel of a perfectly sealed mask over a lane the device
+       never reported. `0` is a legal leak sample, so no consumer could tell the two apart. The EDF
+       sibling `buildSessionFromEdf` keeps `leak` null and answers `leakReason: 'no-leak-lane'`, so
+       one node published two readings of one absence. The lane's PRESENCE now travels out of band
+       in `leak`, exactly as the sibling carries it. */
+    var leak = raw.leak || null;
     return {
       t0Ms: raw.t0Ms,
       fs: raw.fs || 1,
@@ -297,7 +305,7 @@
       events: raw.events || [],
       maskOn: maskOn,
       pressureMaskOn: _filterBy(raw.pressure || [], maskOn),
-      leakMaskOn: _filterBy(leak, maskOn),
+      leakMaskOn: leak ? _filterBy(leak, maskOn) : [],
       usageHours:
         _countWhere(raw.pressure || [], function (v) {
           return v > 0;
@@ -381,7 +389,10 @@
       /* One condition empties the pressure percentiles and the event denominator together, and a
          second empties the leak lane. Named here, they leave the node with the nulls they explain. */
       maskOnReason: nMaskOn ? null : 'no-mask-on-pressure-sample',
-      leakReason: nLeakOn ? null : 'no-mask-on-leak-sample'
+      /* An absent LANE and a lane whose mask never came on are different facts, and the sibling
+         names both. A mask-on sample proves a lane, so a caller that hands this function a
+         hand-built `leakMaskOn` without the channel still reads the mask reason. */
+      leakReason: nLeakOn ? null : d.leak != null ? 'no-mask-on-leak-sample' : 'no-leak-lane'
     };
   }
 
