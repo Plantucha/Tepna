@@ -96766,6 +96766,48 @@
      filled epoch 0 — wall 0–10 s, before the chest started — and turned its `present` from null into a
      value. The Integrator reads that flag for apnea typing. The rows are now left out of every epoch and
      counted in `unstampedSamples`. Shrike found the site in its ABSENCE audit of motiondex-dsp.js. ════ */
+    group('OverDex status pill names read errors and draws only defined tones', 'overdex-app · status pill', function (T) {
+      var oa = (env.sources || {})['overdex-app.js'] || '';
+      var shell = (env.srcHtml || {})['OverDex.src.html'] || '';
+      T.ok('sources carry overdex-app.js and OverDex.src.html', oa.length > 0 && shell.length > 0, 'a missing source would make every leg below vacuous');
+      if (!oa || !shell) return;
+      // 1 · every tone a setStatus call passes has a .pill rule ('idle' is the base look by design)
+      var tones = {};
+      var re = /setStatus\(/g,
+        m;
+      while ((m = re.exec(oa))) {
+        var depth = 1,
+          j = m.index + m[0].length;
+        while (j < oa.length && depth > 0) {
+          var ch = oa[j++];
+          if (ch === '(') depth++;
+          else if (ch === ')') depth--;
+        }
+        var call = oa.slice(m.index, j);
+        var tail = call.slice(call.lastIndexOf(','));
+        (tail.match(/'([a-z]+)'/g) || []).forEach(function (q) {
+          tones[q.slice(1, -1)] = true;
+        });
+      }
+      delete tones.cls; // the definition's own parameter, not a call
+      var names = Object.keys(tones);
+      T.ok('the scan found the status tones', names.length >= 3, 'found ' + names.join(','));
+      var undefinedTones = names.filter(function (t) {
+        return t !== 'idle' && !new RegExp('\\.pill\\.' + t + '\\b').test(shell);
+      });
+      T.eq('every setStatus tone has a .pill rule in OverDex.src.html', undefinedTones.join(','), '');
+      // 2 · the classification line names the error count (behaviour, from the function's own text)
+      var fm = oa.match(/function classifyStatus\(counts\) \{[\s\S]*?\n  \}/);
+      T.ok('overdex-app.js defines classifyStatus', !!fm, 'the status line is still built inline');
+      if (!fm) return;
+      var classifyStatus = new Function(fm[0] + '\nreturn classifyStatus;')();
+      var withErr = classifyStatus({ raw: 1, export: 0, ambiguous: 0, unknown: 0, error: 2 });
+      var clean = classifyStatus({ raw: 1, export: 0, ambiguous: 0, unknown: 0, error: 0 });
+      T.ok('a drop with 2 unreadable files says so', /2 unreadable/.test(withErr), withErr);
+      T.ok('a clean drop does not mention unreadable files', !/unreadable/.test(clean), clean);
+      T.ok('the classification pill takes the bad tone when a file is unreadable', /setStatus\(classifyStatus\(counts\), counts\.error \? 'bad' : 'idle'\)/.test(oa), 'the tone ignores counts.error');
+    });
+
     group('MotionDex effort epochs never place an unstamped chest sample (§∅)', 'motiondex-dsp · effort · timing', function (T) {
       var MD = env.MOTIONDSP;
       if (!(MD && typeof MD.respiratoryEffort === 'function')) {
