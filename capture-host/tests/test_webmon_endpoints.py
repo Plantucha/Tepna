@@ -765,6 +765,21 @@ def test_remember_gives_a_new_muse_the_athena_protocol(tmp_path):
     assert saved["protocol"] == "athena"
 
 
+def test_remember_makes_a_new_muse_optional(tmp_path):
+    """The solid-night judge has no stream map for a Muse, and a required device it cannot read made
+    every night UNKNOWN (vigil 2026-11-16: 32 of 78 stored verdicts). The page sends no `optional` key (`_KEYS`
+    drops one), so the remember path sets it, and a config edit is the way to make a Muse required."""
+    app, cfg, *_ = _mk(tmp_path, devices=[])
+
+    async def go(c):
+        r = await c.post("/api/remember", json=MUSE)
+        return r.status
+
+    assert _serve(app, go) == 200
+    saved = next(d for d in cfg["devices"] if d["address"] == MUSE["address"])
+    assert saved["optional"] is True
+
+
 def test_remember_keeps_the_protocol_of_a_known_muse_and_adds_none_to_other_vendors(tmp_path):
     known = dict(MUSE, protocol="legacy-test")
     app, cfg, *_ = _mk(tmp_path, devices=[known])
@@ -778,7 +793,8 @@ def test_remember_keeps_the_protocol_of_a_known_muse_and_adds_none_to_other_vend
     assert _serve(app, go) == (200, 200)
     by_addr = {d["address"]: d for d in cfg["devices"]}
     assert by_addr[MUSE["address"]]["protocol"] == "legacy-test"
-    assert "protocol" not in by_addr[h10["address"]]
+    assert "optional" not in by_addr[MUSE["address"]], "a known Muse keeps its own entry"
+    assert "protocol" not in by_addr[h10["address"]] and "optional" not in by_addr[h10["address"]]
 
 
 # ── The Muse preset picker on the Devices page ─────────────────────────────────────────────────────
