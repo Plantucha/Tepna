@@ -1567,6 +1567,87 @@
        the running median reads 0.000 ms, a stream carrying payload bytes where a
        stamp belongs, a `null` jitter that is smaller than 2 in JS, and one corrupt
        anchor that both of the spine's median statistics walk straight past. */
+    /* ∅ G6 N1-33/N1-34/N1-35 — three fabrications in one node, each a zero standing in for an
+       absence. N1-33: `pdComputeResult` read `artifactClean().clean` alone, so the share it replaced
+       never left the function, while the app road published both keys. N1-34: `lombScargle` reported
+       a 0.0 br/min breath rate when no bin rose in the HF band. N1-35: the five published estimators
+       reached a number from nulls — `stressEst(null, null)` answered the clamped 100. */
+    group('∅ PulseDex — the artifact share, the absent respiration peak and the bare estimators (N1-33/34/35)', 'pulsedex-dsp · absence · named', function (T) {
+      var P = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!P || typeof P.pdComputeResult !== 'function') {
+        T.skip('PulseDex._bare.pdComputeResult exposed', 'PulseDex not co-loaded in this runner');
+      } else {
+        // ── N1-34 · a peak that never rose is not a peak at 0 Hz ───────────────────────
+        var flat = [];
+        for (var i = 0; i < 64; i++) flat.push(1000);
+        var spFlat = P.lombScargle(flat);
+        T.eq('respRate over a flat RR series is null, never 0.0 br/min', spFlat.respRate, null);
+        T.ok('…and the reason names the absent peak', typeof spFlat.respRateReason === 'string' && /peak/.test(spFlat.respRateReason), String(spFlat.respRateReason));
+        T.eq('…the global peak frequency is null too, never 0.0000 Hz', spFlat.peakHz, null);
+        T.eq('…and its band is null, never the slowest band of a spectrum with no peak', spFlat.peakBand, null);
+        T.eq('CONTROL · the LF/HF arm beside them already refused, and still does', spFlat.lfhf, null);
+        var rsa = [];
+        for (var i2 = 0; i2 < 256; i2++) rsa.push(900 + 40 * Math.sin(i2 / 5));
+        var spRsa = P.lombScargle(rsa);
+        T.ok(
+          'CONTROL · a 0.22 Hz RSA series answers a finite rate and carries no reason',
+          spRsa.respRate > 0 && spRsa.respRateReason === null,
+          JSON.stringify({ rate: spRsa.respRate, why: spRsa.respRateReason })
+        );
+        T.ok('CONTROL · and its peak keeps a frequency and a band', spRsa.peakHz > 0 && typeof spRsa.peakBand === 'string', JSON.stringify({ hz: spRsa.peakHz, band: spRsa.peakBand }));
+
+        // ── N1-35 · the published estimators answer null, and still answer numbers ─────
+        T.eq('stressEst over two absent inputs is null, never the clamped 100', P.stressEst(null, null), null);
+        T.eq('hrvEst over an absent rMSSD is null, never the clamped 0', P.hrvEst(null, null, null), null);
+        T.eq('energyEst over two absent inputs is null, never 1', P.energyEst(null, null), null);
+        T.eq('focusEst over a zero SDNN is null, because zero has no logarithm', P.focusEst(0, 30), null);
+        T.eq('cohEst over a zero SDNN is null, never the 100 that Infinity clamps to', P.cohEst(30, 0), null);
+        T.eq('cohEst over two absent inputs is null, never NaN', P.cohEst(null, null), null);
+        T.eq('nu over a zero band total is null, never 0 nu', P.nu(0, 0), null);
+        T.eq('lfHf over a zero HF is null, never 0', P.lfHf(120, 0), null);
+        T.eq('CONTROL · stressEst keeps its calibrated answer over real summary HRV', P.stressEst(50, 30), 58);
+        T.eq('CONTROL · hrvEst answers from rMSSD alone, so an absent SDNN does not silence it', P.hrvEst(null, 30, null), 31);
+        T.eq('CONTROL · energyEst keeps its answer', P.energyEst(50, 30), 37);
+        T.eq('CONTROL · focusEst keeps its answer', P.focusEst(50, 30), 57);
+        T.eq('CONTROL · cohEst keeps its answer', P.cohEst(30, 50), 42);
+        T.eq('CONTROL · nu keeps its share', P.nu(100, 400), 25);
+        T.eq('CONTROL · lfHf keeps its quotient', P.lfHf(120, 60), 2);
+
+        // ── N1-35 on the EVENT road · one measured number and one absent one is not a peak ──
+        var evWins = function (sd) {
+          return [
+            { tMin: 10, rmssd: 25, sdnn: sd, hr: 60, meanRR: 1000, pnn: 5 },
+            { tMin: 20, rmssd: 26, sdnn: sd, hr: 60, meanRR: 1000, pnn: 5 },
+            { tMin: 30, rmssd: 24, sdnn: sd, hr: 60, meanRR: 1000, pnn: 5 }
+          ];
+        };
+        var evAbs = P.pdEventsFromResult({ t0Ms: Date.UTC(2026, 5, 10, 22, 0, 0), windows: evWins(null), rmssd: 25 });
+        var nPeak = function (ev) {
+          return ev.filter(function (e) {
+            return e.impulse === 'stress_peak';
+          }).length;
+        };
+        T.eq('a window whose SDNN refused emits no stress_peak onto the bus', nPeak(evAbs), 0);
+        var evOk = P.pdEventsFromResult({ t0Ms: Date.UTC(2026, 5, 10, 22, 0, 0), windows: evWins(20), rmssd: 25 });
+        T.eq('CONTROL · the same three windows with a measured SDNN emit three', nPeak(evOk), 3);
+        T.eq('CONTROL · and the impulse carries the stress it measured', evOk[0].meta.stress, 72);
+
+        // ── N1-33 · the cleaner's own count leaves the function and the node ──────────
+        var rr33 = [];
+        for (var i3 = 0; i3 < 600; i3++) rr33.push(900 + 40 * Math.sin(i3 / 5));
+        var rClean = P.pdComputeResult({ vals: rr33, tsMs: null, t0Ms: null });
+        T.eq('CONTROL · a clean record publishes a MEASURED zero share, present and 0', rClean.artifactPct, 0);
+        T.eq('CONTROL · and the count beside it', rClean.nArtifact, 0);
+        var rr33b = rr33.slice();
+        for (var j = 0; j < 60; j++) rr33b[j * 10] = 2400;
+        var rDirty = P.pdComputeResult({ vals: rr33b, tsMs: null, t0Ms: null });
+        T.ok('a record the cleaner repaired publishes the share it replaced', rDirty.artifactPct > 5 && rDirty.nArtifact > 0, JSON.stringify({ pct: rDirty.artifactPct, n: rDirty.nArtifact }));
+        var exp33 = P.pdBuildNodeExport(rDirty, { provenance: null, kernel: null });
+        T.eq('…and the share reaches the node-export beside the metrics it shaped', exp33.recording.artifactPct, rDirty.artifactPct);
+        T.eq('…with the count', exp33.recording.nArtifact, rDirty.nArtifact);
+      }
+    });
+
     group('∅ radio-clock sidecar — the under-2 ms band, and the four streams that would have forged it', 'clock · radio-clock · absence', function (T) {
       var DR = env.DexRadio || (typeof DexRadio !== 'undefined' ? DexRadio : null);
       if (!DR || typeof DR.radioAxis !== 'function') {

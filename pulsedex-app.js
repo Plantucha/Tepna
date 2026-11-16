@@ -784,7 +784,7 @@ function calculate() {
         sl.push(w.lf);
         sv.push(w.vlf);
         if (w.lfhf != null && isFinite(w.lfhf)) slh.push(w.lfhf); // §5.2 — per-segment RATIO
-        if (w.respRate > 0) srr.push(w.respRate);
+        if (w.respRate != null && w.respRate > 0) srr.push(w.respRate); // ∅ N1-34: a window with no HF peak carries null, and null is not a rate
       }
       /* TOTAL POWER IS THE SUM OF THE BANDS IT RENDERS (DEEP-AUDIT-III §5.1). This took a FOURTH
          independent median — `median(tp_i)` — which does not equal `median(vlf_i)+median(lf_i)+
@@ -806,7 +806,7 @@ function calculate() {
          ECGDex (`median(epochs.map(e => e.lfhf))`) and PpgDex (`median(lhA)`) already do this; PulseDex
          was the 1-of-3 outlier, and the Integrator read all three into ONE `hrvConsensus.lfhf` spread —
          publishing a purely DEFINITIONAL gap as sensor disagreement on identical beat truth. */
-      winSpec = { hf: _wh, lf: _wl, vlf: _wv, tp: _wv + _wl + _wh, lfhf: slh.length ? +medianOf(slh).toFixed(3) : null, respRate: srr.length ? +medianOf(srr).toFixed(1) : 0 };
+      winSpec = { hf: _wh, lf: _wl, vlf: _wv, tp: _wv + _wl + _wh, lfhf: slh.length ? +medianOf(slh).toFixed(3) : null, respRate: srr.length ? +medianOf(srr).toFixed(1) : null }; // ∅ N1-34: no window produced a rate, which is not a rate of 0
     }
   }
 
@@ -852,8 +852,12 @@ function calculate() {
     sd2v = sdnn == null || rm == null ? null : +sd2(sdnn, rm).toFixed(2);
   const lnrm = cRm == null ? null : +lnR(cRm).toFixed(3);
   const lfhfv = winSpec ? winSpec.lfhf : ls.lfhf;
-  const hfnu = +nu(sp.hf, sp.hf + sp.lf).toFixed(1),
-    lfnu = +nu(sp.lf, sp.hf + sp.lf).toFixed(1);
+  /* ∅ N1-35: `nu` answers null over a zero denominator, and `.toFixed` on null throws, so the
+     denominator is read ONCE here and the pair refuses together. `hf + lf === 0` says neither band
+     carried power, so neither band has a normalized share — the render row prints an em-dash. */
+  const _nuDen = sp.hf + sp.lf;
+  const hfnu = _nuDen > 0 ? +nu(sp.hf, _nuDen).toFixed(1) : null,
+    lfnu = _nuDen > 0 ? +nu(sp.lf, _nuDen).toFixed(1) : null;
   const ell = sd1v == null || sd2v == null ? null : +(Math.PI * sd1v * sd2v).toFixed(1);
   /* `.toFixed()` on an uncomputable index would throw, so each of these three now null-guards at the
      call site (DA-V §2.6 F16). Absence propagates as null all the way to the render row, which prints

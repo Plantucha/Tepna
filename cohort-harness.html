@@ -13399,8 +13399,12 @@ const OxyDex = window.OxyDex;
     return std(d);
   };
   const lnR = (r) => Math.log(r);
-  const lfHf = (lf, hf) => (hf ? lf / hf : 0);
-  const nu = (v, tp) => (tp ? (v / tp) * 100 : 0);
+  /* ∅ N1-35: a quotient with no denominator is not 0, it is no quotient — the line `lfhf` and
+     `ansBalance` already draw. `nu` reports a band in normalized units, and `hf + lf === 0` says NO
+     power was measured in either band, never 0 nu of it. Both are a published surface
+     (`PulseDex._bare`), so the guard sits here at the producer. */
+  const lfHf = (lf, hf) => (hf > 0 ? lf / hf : null);
+  const nu = (v, tp) => (tp > 0 ? (v / tp) * 100 : null);
 
   // spectral() (crude rmssd²-proxy PSD: hf≈rmssd², arbitrary 0.35/0.1 LF split) REMOVED 2026-06-30
   // (DEEP-AUDIT-FIXES §1). It was the pre–Lomb–Scargle estimator; its only surfaced use — the
@@ -13441,19 +13445,32 @@ const OxyDex = window.OxyDex;
     };
   }
   // Welltory-style composite estimates — calibrated to 30+ Welltory readings (least-squares)
+  /* ∅ N1-35 — THE GUARD BELONGS AT THE PRODUCER. These five used to reach a number from nulls:
+     `stressEst(null, null)` read 107.68 and clamped to 100 (maximum stress), `hrvEst` 0, `energyEst`
+     1, `focusEst` 0 because `Math.log(0)` is −Infinity, and `cohEst` NaN — or 100 over a zero SD,
+     where `rm / 0` is Infinity. Each one is a published surface (`PulseDex._bare`), and a caller
+     outside this file cannot tell a fabricated 100 from a measured one. Each guards the arguments it
+     READS, so `hrvEst` still answers from rMSSD alone. The two in-tree call sites keep their own
+     `_hrvRefused` arm: it names the refusal in `hrvReason`, and the suite pins its shape. */
+  const _estOk = (v) => typeof v === 'number' && isFinite(v);
   function stressEst(sd, rm) {
+    if (!_estOk(sd) || !_estOk(rm)) return null;
     return Math.round(Math.max(0, Math.min(100, 107.68 - 0.2525 * sd - 1.2295 * rm)));
   } // R²=0.92 vs Welltory Stress(HRV)
   function hrvEst(sd, rm, pn) {
+    if (!_estOk(rm)) return null;
     return Math.round(Math.max(0, Math.min(100, 1.494 * rm - 13.37)));
   } // calibrated to Welltory HRV Score: linear in rMSSD, R²=0.997
   function energyEst(sd, rm) {
+    if (!_estOk(sd) || !_estOk(rm)) return null;
     return Math.round(Math.max(0, Math.min(100, 1.27 + 0.4314 * sd + 0.485 * rm)));
   } // R²=0.67 vs Welltory Energy(HRV)
   function focusEst(sd, rm) {
+    if (!_estOk(sd) || sd <= 0) return null; // a zero SDNN has no logarithm, and no focus score
     return Math.round(Math.max(0, Math.min(100, -67.51 + 31.94 * Math.log(sd))));
   } // R²=0.45 vs Welltory Focus (SDNN-driven)
   function cohEst(rm, sd) {
+    if (!_estOk(rm) || !_estOk(sd) || sd <= 0) return null; // `rm / 0` is Infinity, which used to clamp to a perfect 100
     return Math.round(Math.min(100, (rm / sd) * 100 * 0.7));
   } // PulseDex-native — Welltory Coherence index is not derivable from summary HRV (R²≈0)
   // VO2 / BP / cognitive
@@ -13863,11 +13880,21 @@ const OxyDex = window.OxyDex;
          lf/1 as if it were a measurement. PpgDex already does the honest thing (`hf > 0 ? lf/hf : null`).
          A ratio with no denominator is not a small ratio, it is no ratio. */
       lfhf: hf > 0 ? +(lf / hf).toFixed(3) : null,
-      peakHz: +gPeakF.toFixed(4), // frequency (Hz) of the GLOBAL spectral peak
-      peakBand: gPeakF < 0.04 ? 'VLF' : gPeakF < 0.15 ? 'LF' : 'HF',
+      /* ∅ N1-35's sibling, one branch along: `gPeakP` starts at 0, so a series with NO power
+         anywhere left `gPeakF` at 0 and this published 0.0000 Hz in band 'VLF' — a peak nobody
+         measured, named as the slowest band. The two booleans below already read `gPeakF > 0`, which
+         is the same judgment stated once. ECGDex draws the same line (`ecgdex-dsp.js:1575`). */
+      peakHz: gPeakP > 0 ? +gPeakF.toFixed(4) : null, // frequency (Hz) of the GLOBAL spectral peak
+      peakBand: gPeakP > 0 ? (gPeakF < 0.04 ? 'VLF' : gPeakF < 0.15 ? 'LF' : 'HF') : null,
       peakBelowHF: gPeakF > 0 && gPeakF < 0.15, // dominant oscillation sits BELOW the HF/RSA band — combine with periodicBreathingIndex (band-fraction) for a PB/CSR judgment; on its own it can also be slow VLF drift
       respBelowHF: gPeakF > 0 && gPeakF < 0.15 && gPeakP > peakP * 2, // STRICT: the sub-HF peak clearly dominates the HF peak → the HF-derived respRate is unreliable
-      respRate: +(peakF * 60).toFixed(1) // breaths/min from HF peak
+      /* ∅ N1-34: `peakF` holds 0 until a bin beats `peakP`, which starts at 0, so a flat or
+         near-flat RR record published `respRate: 0.0` br/min — a breath rate of zero. The `lfhf`
+         arm above already refuses the sibling case. The reason travels beside the null, and the peak
+         frequency itself can never be 0 inside this band, because the HF search starts at 0.15 Hz.
+         Identical to `ecgdex-dsp.js:1574`, so the two nodes refuse the same case the same way. */
+      respRate: peakP > 0 ? +(peakF * 60).toFixed(1) : null, // breaths/min from HF peak
+      respRateReason: peakP > 0 ? null : 'no spectral peak in the 0.15–0.4 Hz band — respiration not recoverable from this RR series'
     };
   }
 
@@ -15129,7 +15156,7 @@ const OxyDex = window.OxyDex;
           sl.push(w.lf);
           sv.push(w.vlf);
           if (w.lfhf != null && isFinite(w.lfhf)) slh.push(w.lfhf); // §5.2 — per-segment RATIO
-          if (w.respRate > 0) srr.push(w.respRate);
+          if (w.respRate != null && w.respRate > 0) srr.push(w.respRate); // ∅ N1-34: a window with no HF peak carries null, and null is not a rate
         }
         // DEEP-AUDIT-2026-07-14 §3: define tp as the band SUM, not a 4th independent median — the
         // Task-Force identity vlf+lf+hf==totalPower must hold EXACTLY (median(tp_i) ≠ Σ median(band_i)),
@@ -15148,7 +15175,7 @@ const OxyDex = window.OxyDex;
          ECGDex (`median(epochs.map(e => e.lfhf))`) and PpgDex (`median(lhA)`) already do this; PulseDex
          was the 1-of-3 outlier, and the Integrator read all three into ONE `hrvConsensus.lfhf` spread —
          publishing a purely DEFINITIONAL gap as sensor disagreement on identical beat truth. */
-        winSpec = { hf: _wh, lf: _wl, vlf: _wv, tp: _wv + _wl + _wh, lfhf: slh.length ? +medianOf(slh).toFixed(3) : null, respRate: srr.length ? +medianOf(srr).toFixed(1) : 0 };
+        winSpec = { hf: _wh, lf: _wl, vlf: _wv, tp: _wv + _wl + _wh, lfhf: slh.length ? +medianOf(slh).toFixed(3) : null, respRate: srr.length ? +medianOf(srr).toFixed(1) : null }; // ∅ N1-34: no window produced a rate, which is not a rate of 0
       }
     }
 
@@ -15215,6 +15242,14 @@ const OxyDex = window.OxyDex;
       durationBasis: timedAxis ? 'envelope' : 'beat-sum',
       coverage,
       N,
+      /* ∅ N1-33 — THE CLEANER'S OWN COUNT, PUBLISHED, UNDER THE APP ROAD'S OWN TWO NAMES.
+         `artifactClean` returns `{ clean, flags, nArt, pct }` and this road used to read `.clean`
+         alone, so a record with a fifth of its intervals replaced read exactly like a clean one.
+         `pulsedex-app.js:936` already publishes both keys, so the two roads differed on a measured
+         fact; one shape now travels from both. The keys are ALWAYS present, because the cleaner
+         always ran over every parsed interval — a clean record reads 0, and 0 here is measured. */
+      artifactPct: cleanR.pct,
+      nArtifact: cleanR.nArt,
       windows: win ? win.wins : null,
       meanRR: +meanRR.toFixed(1),
       hr,
@@ -15278,7 +15313,11 @@ const OxyDex = window.OxyDex;
               conf: +Math.max(0.4, Math.min(0.92, (0.7 * med - w.rmssd) / (0.7 * med))).toFixed(2),
               meta: { rmssd: w.rmssd, medianRMSSD: +med.toFixed(1), hr: w.hr, position: null }
             });
-          if (st >= 70)
+          /* ∅ N1-34's sibling on the EVENT road. `w.sdnn` is nullable, and `stressEst(null, rmssd)`
+             used to answer 107.68 − 1.2295·rmssd — 76.9 at an rMSSD of 25 — so a window whose SDNN
+             refused published a `stress_peak` impulse onto the bus from one measured number and one
+             absent one. The estimator answers null now, and this road emits nothing. */
+          if (st != null && st >= 70)
             ev.push({
               tMs,
               t: _pdClockS(tMs),
@@ -15376,6 +15415,10 @@ const OxyDex = window.OxyDex;
         clockSeamScan: r.clockSeamScan ?? null,
         ...(r.clockSeams ? { clockSeams: r.clockSeams } : {}),
         ...(r.clockGaps ? { clockGaps: r.clockGaps } : {}),
+        /* N1-33: the share the cleaner replaced travels WITH the metrics it shaped. Both roads set
+           these, so a `null` here names a result object from neither — never a clean record. */
+        artifactPct: r.artifactPct ?? null,
+        nArtifact: r.nArtifact ?? null,
         ...(r.clockSeamWindows ? { clockSeamWindows: r.clockSeamWindows } : {}),
         /* FOLLOWUPS-II §1 — `durationMin` is kept for the envelope consumers that already read it
            (`adaptEnvelopeNode`), and these three say what it actually IS. `spanMin` null ⇒ the stream

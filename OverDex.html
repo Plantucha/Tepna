@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="9f1165f4e71d" data-compute-hash="4e871df15dbc"><head>
+<html lang="en" data-manifest-hash="bd4d1f4f7c94" data-compute-hash="4888af398150"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0Z8eIjo38Bg1VfAEHKIHaPb1S9BeP7hSsHfX3qwXhsE=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HAXbchwkH2w0sxN5WvjWCMLbxsfGGclNPzL9K/ePBeM=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SYhOYN70OcmPNUyQI3+XkzBPsDEkov/r8Qc03as7ooU=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-WCQTLVkSv1QgSOi2vvBHY7+NBC4URxQt6+ufi6R/3qU=' 'sha256-aXQspUY+jpRLy8rLwDHxtP62krExNOtmqvTjG/48o/c=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-dVHmZXyP4XwTjEhlcHA5KAS8qlCtDlt15p8WXc7GPMw=' 'sha256-hhAoGg57lrPWGgAzhQrdLAb8dx0UDyoZ1mV4dczwNqs=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-reD8OJCOK6dVFBFrprIvBBXFVEJEh4/trLKBGPLfLXk=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0Z8eIjo38Bg1VfAEHKIHaPb1S9BeP7hSsHfX3qwXhsE=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SYhOYN70OcmPNUyQI3+XkzBPsDEkov/r8Qc03as7ooU=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-WCQTLVkSv1QgSOi2vvBHY7+NBC4URxQt6+ufi6R/3qU=' 'sha256-aXQspUY+jpRLy8rLwDHxtP62krExNOtmqvTjG/48o/c=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-dVHmZXyP4XwTjEhlcHA5KAS8qlCtDlt15p8WXc7GPMw=' 'sha256-gA6/rghZPDdnGh8rDgNkZObDLZMj5bvp5tUvUPIhyYU=' 'sha256-hhAoGg57lrPWGgAzhQrdLAb8dx0UDyoZ1mV4dczwNqs=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-reD8OJCOK6dVFBFrprIvBBXFVEJEh4/trLKBGPLfLXk=' 'sha256-uS0BO9FA6T7Ej0PgYdFgmhKAD7wWWUv6IRvThTzY6lc=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -29226,8 +29226,12 @@ __exports.HRVDex = window.HRVDex;
     return std(d);
   };
   const lnR = (r) => Math.log(r);
-  const lfHf = (lf, hf) => (hf ? lf / hf : 0);
-  const nu = (v, tp) => (tp ? (v / tp) * 100 : 0);
+  /* ∅ N1-35: a quotient with no denominator is not 0, it is no quotient — the line `lfhf` and
+     `ansBalance` already draw. `nu` reports a band in normalized units, and `hf + lf === 0` says NO
+     power was measured in either band, never 0 nu of it. Both are a published surface
+     (`PulseDex._bare`), so the guard sits here at the producer. */
+  const lfHf = (lf, hf) => (hf > 0 ? lf / hf : null);
+  const nu = (v, tp) => (tp > 0 ? (v / tp) * 100 : null);
 
   // spectral() (crude rmssd²-proxy PSD: hf≈rmssd², arbitrary 0.35/0.1 LF split) REMOVED 2026-06-30
   // (DEEP-AUDIT-FIXES §1). It was the pre–Lomb–Scargle estimator; its only surfaced use — the
@@ -29268,19 +29272,32 @@ __exports.HRVDex = window.HRVDex;
     };
   }
   // Welltory-style composite estimates — calibrated to 30+ Welltory readings (least-squares)
+  /* ∅ N1-35 — THE GUARD BELONGS AT THE PRODUCER. These five used to reach a number from nulls:
+     `stressEst(null, null)` read 107.68 and clamped to 100 (maximum stress), `hrvEst` 0, `energyEst`
+     1, `focusEst` 0 because `Math.log(0)` is −Infinity, and `cohEst` NaN — or 100 over a zero SD,
+     where `rm / 0` is Infinity. Each one is a published surface (`PulseDex._bare`), and a caller
+     outside this file cannot tell a fabricated 100 from a measured one. Each guards the arguments it
+     READS, so `hrvEst` still answers from rMSSD alone. The two in-tree call sites keep their own
+     `_hrvRefused` arm: it names the refusal in `hrvReason`, and the suite pins its shape. */
+  const _estOk = (v) => typeof v === 'number' && isFinite(v);
   function stressEst(sd, rm) {
+    if (!_estOk(sd) || !_estOk(rm)) return null;
     return Math.round(Math.max(0, Math.min(100, 107.68 - 0.2525 * sd - 1.2295 * rm)));
   } // R²=0.92 vs Welltory Stress(HRV)
   function hrvEst(sd, rm, pn) {
+    if (!_estOk(rm)) return null;
     return Math.round(Math.max(0, Math.min(100, 1.494 * rm - 13.37)));
   } // calibrated to Welltory HRV Score: linear in rMSSD, R²=0.997
   function energyEst(sd, rm) {
+    if (!_estOk(sd) || !_estOk(rm)) return null;
     return Math.round(Math.max(0, Math.min(100, 1.27 + 0.4314 * sd + 0.485 * rm)));
   } // R²=0.67 vs Welltory Energy(HRV)
   function focusEst(sd, rm) {
+    if (!_estOk(sd) || sd <= 0) return null; // a zero SDNN has no logarithm, and no focus score
     return Math.round(Math.max(0, Math.min(100, -67.51 + 31.94 * Math.log(sd))));
   } // R²=0.45 vs Welltory Focus (SDNN-driven)
   function cohEst(rm, sd) {
+    if (!_estOk(rm) || !_estOk(sd) || sd <= 0) return null; // `rm / 0` is Infinity, which used to clamp to a perfect 100
     return Math.round(Math.min(100, (rm / sd) * 100 * 0.7));
   } // PulseDex-native — Welltory Coherence index is not derivable from summary HRV (R²≈0)
   // VO2 / BP / cognitive
@@ -29690,11 +29707,21 @@ __exports.HRVDex = window.HRVDex;
          lf/1 as if it were a measurement. PpgDex already does the honest thing (`hf > 0 ? lf/hf : null`).
          A ratio with no denominator is not a small ratio, it is no ratio. */
       lfhf: hf > 0 ? +(lf / hf).toFixed(3) : null,
-      peakHz: +gPeakF.toFixed(4), // frequency (Hz) of the GLOBAL spectral peak
-      peakBand: gPeakF < 0.04 ? 'VLF' : gPeakF < 0.15 ? 'LF' : 'HF',
+      /* ∅ N1-35's sibling, one branch along: `gPeakP` starts at 0, so a series with NO power
+         anywhere left `gPeakF` at 0 and this published 0.0000 Hz in band 'VLF' — a peak nobody
+         measured, named as the slowest band. The two booleans below already read `gPeakF > 0`, which
+         is the same judgment stated once. ECGDex draws the same line (`ecgdex-dsp.js:1575`). */
+      peakHz: gPeakP > 0 ? +gPeakF.toFixed(4) : null, // frequency (Hz) of the GLOBAL spectral peak
+      peakBand: gPeakP > 0 ? (gPeakF < 0.04 ? 'VLF' : gPeakF < 0.15 ? 'LF' : 'HF') : null,
       peakBelowHF: gPeakF > 0 && gPeakF < 0.15, // dominant oscillation sits BELOW the HF/RSA band — combine with periodicBreathingIndex (band-fraction) for a PB/CSR judgment; on its own it can also be slow VLF drift
       respBelowHF: gPeakF > 0 && gPeakF < 0.15 && gPeakP > peakP * 2, // STRICT: the sub-HF peak clearly dominates the HF peak → the HF-derived respRate is unreliable
-      respRate: +(peakF * 60).toFixed(1) // breaths/min from HF peak
+      /* ∅ N1-34: `peakF` holds 0 until a bin beats `peakP`, which starts at 0, so a flat or
+         near-flat RR record published `respRate: 0.0` br/min — a breath rate of zero. The `lfhf`
+         arm above already refuses the sibling case. The reason travels beside the null, and the peak
+         frequency itself can never be 0 inside this band, because the HF search starts at 0.15 Hz.
+         Identical to `ecgdex-dsp.js:1574`, so the two nodes refuse the same case the same way. */
+      respRate: peakP > 0 ? +(peakF * 60).toFixed(1) : null, // breaths/min from HF peak
+      respRateReason: peakP > 0 ? null : 'no spectral peak in the 0.15–0.4 Hz band — respiration not recoverable from this RR series'
     };
   }
 
@@ -30956,7 +30983,7 @@ __exports.HRVDex = window.HRVDex;
           sl.push(w.lf);
           sv.push(w.vlf);
           if (w.lfhf != null && isFinite(w.lfhf)) slh.push(w.lfhf); // §5.2 — per-segment RATIO
-          if (w.respRate > 0) srr.push(w.respRate);
+          if (w.respRate != null && w.respRate > 0) srr.push(w.respRate); // ∅ N1-34: a window with no HF peak carries null, and null is not a rate
         }
         // DEEP-AUDIT-2026-07-14 §3: define tp as the band SUM, not a 4th independent median — the
         // Task-Force identity vlf+lf+hf==totalPower must hold EXACTLY (median(tp_i) ≠ Σ median(band_i)),
@@ -30975,7 +31002,7 @@ __exports.HRVDex = window.HRVDex;
          ECGDex (`median(epochs.map(e => e.lfhf))`) and PpgDex (`median(lhA)`) already do this; PulseDex
          was the 1-of-3 outlier, and the Integrator read all three into ONE `hrvConsensus.lfhf` spread —
          publishing a purely DEFINITIONAL gap as sensor disagreement on identical beat truth. */
-        winSpec = { hf: _wh, lf: _wl, vlf: _wv, tp: _wv + _wl + _wh, lfhf: slh.length ? +medianOf(slh).toFixed(3) : null, respRate: srr.length ? +medianOf(srr).toFixed(1) : 0 };
+        winSpec = { hf: _wh, lf: _wl, vlf: _wv, tp: _wv + _wl + _wh, lfhf: slh.length ? +medianOf(slh).toFixed(3) : null, respRate: srr.length ? +medianOf(srr).toFixed(1) : null }; // ∅ N1-34: no window produced a rate, which is not a rate of 0
       }
     }
 
@@ -31042,6 +31069,14 @@ __exports.HRVDex = window.HRVDex;
       durationBasis: timedAxis ? 'envelope' : 'beat-sum',
       coverage,
       N,
+      /* ∅ N1-33 — THE CLEANER'S OWN COUNT, PUBLISHED, UNDER THE APP ROAD'S OWN TWO NAMES.
+         `artifactClean` returns `{ clean, flags, nArt, pct }` and this road used to read `.clean`
+         alone, so a record with a fifth of its intervals replaced read exactly like a clean one.
+         `pulsedex-app.js:936` already publishes both keys, so the two roads differed on a measured
+         fact; one shape now travels from both. The keys are ALWAYS present, because the cleaner
+         always ran over every parsed interval — a clean record reads 0, and 0 here is measured. */
+      artifactPct: cleanR.pct,
+      nArtifact: cleanR.nArt,
       windows: win ? win.wins : null,
       meanRR: +meanRR.toFixed(1),
       hr,
@@ -31105,7 +31140,11 @@ __exports.HRVDex = window.HRVDex;
               conf: +Math.max(0.4, Math.min(0.92, (0.7 * med - w.rmssd) / (0.7 * med))).toFixed(2),
               meta: { rmssd: w.rmssd, medianRMSSD: +med.toFixed(1), hr: w.hr, position: null }
             });
-          if (st >= 70)
+          /* ∅ N1-34's sibling on the EVENT road. `w.sdnn` is nullable, and `stressEst(null, rmssd)`
+             used to answer 107.68 − 1.2295·rmssd — 76.9 at an rMSSD of 25 — so a window whose SDNN
+             refused published a `stress_peak` impulse onto the bus from one measured number and one
+             absent one. The estimator answers null now, and this road emits nothing. */
+          if (st != null && st >= 70)
             ev.push({
               tMs,
               t: _pdClockS(tMs),
@@ -31203,6 +31242,10 @@ __exports.HRVDex = window.HRVDex;
         clockSeamScan: r.clockSeamScan ?? null,
         ...(r.clockSeams ? { clockSeams: r.clockSeams } : {}),
         ...(r.clockGaps ? { clockGaps: r.clockGaps } : {}),
+        /* N1-33: the share the cleaner replaced travels WITH the metrics it shaped. Both roads set
+           these, so a `null` here names a result object from neither — never a clean record. */
+        artifactPct: r.artifactPct ?? null,
+        nArtifact: r.nArtifact ?? null,
         ...(r.clockSeamWindows ? { clockSeamWindows: r.clockSeamWindows } : {}),
         /* FOLLOWUPS-II §1 — `durationMin` is kept for the envelope consumers that already read it
            (`adaptEnvelopeNode`), and these three say what it actually IS. `spanMin` null ⇒ the stream
