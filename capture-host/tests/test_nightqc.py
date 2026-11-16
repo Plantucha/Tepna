@@ -669,6 +669,69 @@ def test_the_VERDICT_OBJECT_carries_the_absence_and_its_reason(tmp_path, _tz):
     assert "Verity:ppi" not in r["coverage"] and "Verity:ppi" not in r["coverage_session_basis"], r
 
 
+# ── rows and NO RATE: no coverage, and a reason instead of an absent key (`2026-11-16-coverage-no-rate`) ──
+
+#: The live instance: the Muse S Athena writes rows under `_RAW.txt`, configures no rate, and matches no
+#: marker in `_MODEL_MARKERS` — so `_expected_hz` answers None and the stream had no coverage claim.
+_MUSE_NO_RATE = {"name": "Muse", "device_id": "TEST0001", "streams": ["eeg"]}
+
+
+def _muse_no_rate_night(tmp_path):
+    """A Muse RAW file with rows, beside a recognised H10 that gives the session a span. The span matters:
+    without it the coverage arm never runs and the fixture would prove nothing."""
+    night = str(tmp_path / "2026-07-19")
+    os.makedirs(night)
+    base = _stamp_epoch()
+    _utime(_cap(night, "Muse_S-Athena_TEST0001_20260719220000_RAW.txt", 900), base)
+    _utime(_cap(night, "Polar_H10_02849638_20260719220000_HR.txt", 1000), base + 1000)
+    devs = [_MUSE_NO_RATE, {"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    return night, devs
+
+
+def test_a_stream_with_ROWS_and_NO_RATE_gets_NO_coverage_and_NAMES_WHY(tmp_path, _tz):
+    """🔴 THE ROW. `nightqc.py` states its own invariant beside `coverage_absent`: a stream is in exactly
+    one of it and `coverage_basis`. The rate arm broke it — `hz, basis = _expected_hz(...)` answers None
+    for a device with no configured rate and no model marker, and both writes sit under `if hz and
+    _span`. So a Muse night put `eeg` in NEITHER map, and the reader met an absent key, which §∅ names
+    exactly: an absent key reads as a stream this reader never reached.
+
+    The reason carries both halves, because either one alone points at the wrong repair — a rate
+    measured off the file would settle it, and so would a reference rate for this device.
+    """
+    night, devs = _muse_no_rate_night(tmp_path)
+    s = _summarize_floating(night, devs)
+    muse = next(d for d in s["devices"] if d["name"] == "Muse")
+    assert muse["streams"]["eeg"] == 900, (muse["streams"], "the rows are still counted")
+    assert "eeg" not in muse["coverage"], (muse["coverage"], "no rate, so no coverage claim")
+    assert "eeg" not in muse["coverage_basis"], (muse["coverage_basis"], "no number, so no basis for one")
+    reason = muse["coverage_absent"]["eeg"]
+    assert "no rate could be measured" in reason, reason
+    assert "no reference rate" in reason, reason
+    # THE INVARIANT, on the stream that just moved: exactly one of the two maps.
+    assert ("eeg" in muse["coverage_basis"]) != ("eeg" in muse["coverage_absent"]), muse
+    # CONTROL: the recognised sibling keeps its own basis, is judged exactly as before, and is not in
+    # the absence map — this arm is about a stream with no reference rate, never about coverage itself.
+    h10 = next(d for d in s["devices"] if d["name"] == "H10")
+    assert h10["coverage"] == {"hr": 1.0}, h10["coverage"]
+    assert h10["coverage_basis"] == {"hr": "expected"}, h10["coverage_basis"]
+    assert not (h10.get("coverage_absent") or {}), h10.get("coverage_absent")
+    # The verdict object is the API: a reader of the verdict alone must meet the reason too.
+    r = nightqc.qc_verdict(s, devs, night_dir=night)["result"]
+    assert "no reference rate" in (r["coverage_absent"] or {})["Muse:eeg"], r.get("coverage_absent")
+    assert "Muse:eeg" not in r["coverage"], r["coverage"]
+
+
+def test_the_EVENT_reason_still_WINS_over_the_no_rate_reason(tmp_path, _tz):
+    """The ordering, pinned. `ppi` has no rate either, so a new arm placed BEFORE the `_EVENT_STREAMS`
+    guard would relabel it with the wrong cause: PPI's absence is structural (one row per beat — a row
+    count measures heart rate), not a missing reference rate that a config could supply. The beat reason
+    is the one an operator can act on."""
+    night, devs = _verity_ppi_night(tmp_path)
+    v = _summarize_floating(night, devs)["devices"][0]
+    assert "one row per beat" in v["coverage_absent"]["ppi"], v["coverage_absent"]
+    assert "no reference rate" not in v["coverage_absent"]["ppi"], v["coverage_absent"]
+
+
 def test_summarize_no_data_files_span_is_none(tmp_path, _tz):
     """A night with only a sidecar has no capture span to measure — coverage stays unknown, not zero."""
     night = str(tmp_path / "2026-07-19")
