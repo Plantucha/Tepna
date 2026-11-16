@@ -329,7 +329,7 @@
       },
       function (e) {
         setRunReady(ITEMS.length > 0);
-        setStatus('could not read the files: ' + ((e && e.message) || e), 'err');
+        setStatus('could not read the files: ' + ((e && e.message) || e), 'bad'); // 'err' had no .pill rule, so a failure drew the neutral pill
       }
     );
   }
@@ -371,8 +371,17 @@
       renderManifest();
       setRunReady(ITEMS.length > 0);
       var counts = tally();
-      setStatus(counts.raw + ' raw · ' + counts.export + ' node-export · ' + counts.ambiguous + ' ambiguous · ' + counts.unknown + ' set aside', 'idle');
+      setStatus(classifyStatus(counts), counts.error ? 'bad' : 'idle');
     });
+  }
+
+  // The status line after classification names EVERY klass tally() counts. It used to print four of the
+  // five and omit `error`, so a drop where a file failed to read or a seal was refused read as a clean
+  // count in a neutral pill. The manifest listed the item; the summary hid it.
+  function classifyStatus(counts) {
+    var t = counts.raw + ' raw · ' + counts.export + ' node-export · ' + counts.ambiguous + ' ambiguous · ' + counts.unknown + ' set aside';
+    if (counts.error) t += ' · ' + counts.error + ' unreadable';
+    return t;
   }
 
   function tally() {
