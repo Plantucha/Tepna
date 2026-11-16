@@ -35935,6 +35935,34 @@
       else T.skip('ecgdex-app.js source in env.sources', 'not available in this runner');
     });
 
+    group('ECGDex late motion load re-renders the quality table (§∅)', 'ecgdex-app · loadDeviceACC · signal quality', function (T) {
+      /* A motion file loaded AFTER the analysis attaches `deviceACC` to RESULT. The quality table reads
+         `r.deviceACC` (`ecgSignalQuality`), and `renderQuality` is the only path that rebuilds it. Before
+         this fix `loadDeviceACC` re-rendered the comparison panel alone, so the table kept its ACC-less
+         verdict while the panel above it drew the motion channel. */
+      var app = (env.sources && env.sources['ecgdex-app.js']) || '';
+      var dsp = (env.sources && env.sources['ecgdex-dsp.js']) || '';
+      if (!app || !dsp) {
+        T.skip('ecgdex-app.js and ecgdex-dsp.js sources in env.sources', 'not available in this runner');
+        return;
+      }
+      var a = app.indexOf('function loadDeviceACC'),
+        b = a >= 0 ? app.indexOf('fr.readAsText(file)', a) : -1;
+      var body = a >= 0 && b > a ? app.slice(a, b) : '';
+      T.ok('ANTI-VACUITY · the loadDeviceACC body was located in the source', body.length > 500, body.length + ' chars');
+      var attach = body.indexOf('RESULT.deviceACC = DEVICE_ACC'),
+        panel = body.indexOf('renderACCComparison(RESULT)'),
+        table = body.indexOf('renderQuality(RESULT)');
+      T.ok('loadDeviceACC attaches the motion stream to RESULT', attach >= 0);
+      T.ok('loadDeviceACC re-renders the quality table after a late motion load', table >= 0, 'no renderQuality(RESULT) call in the body');
+      T.ok('the table re-render follows the attach, so it reads the new stream', table > attach && attach >= 0, 'attach@' + attach + ' table@' + table);
+      T.ok('the table re-render follows the panel re-render, so both describe one RESULT', table > panel && panel >= 0, 'panel@' + panel + ' table@' + table);
+      var ifR = body.lastIndexOf('if (RESULT)', attach);
+      T.ok('the table re-render sits inside the same `if (RESULT)` block as the attach', ifR >= 0 && table > ifR, 'if@' + ifR);
+      var sq = dsp.slice(dsp.indexOf('function ecgSignalQuality'), dsp.indexOf('function ecgSignalQuality') + 12000);
+      T.ok('CONTROL · ecgSignalQuality reads r.deviceACC, so a re-render can change the motion cells', /r\.deviceACC/.test(sq));
+    });
+
     group('ECGDSP frequency-domain HRV — LF/HF band split known-answer (deep-scout §EP)', 'ecgdex-dsp · spectral · known-answer', function (T) {
       var D = env.ECGDSP;
       if (!D || typeof D.lombScargle !== 'function') {
