@@ -308,7 +308,13 @@
 
   /* event rate over a denominator (events/hr) */
   function _eventRate(events, types, denomHours) {
-    if (!(denomHours > 0)) return NaN;
+    /* ∅ AN EVENT RATE OVER NO THERAPY HOUR WAS NEVER MEASURED. `NaN` is a number-typed
+       sentinel: it passes a `!= null` guard, it survives arithmetic, and `JSON.stringify` writes it
+       as `null`, so the absence became visible only at the export boundary and never inside the
+       node. The EDF sibling `buildSessionFromEdf` answers `null` for the same case, so one node
+       published two spellings of one absence. Row
+       `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`. */
+    if (!(denomHours > 0)) return null;
     var set = {};
     types.forEach(function (t) {
       set[t] = 1;
@@ -326,39 +332,56 @@
   function computeMetrics(d) {
     var uh = d.usageHours,
       fs = d.fs;
+    /* ∅ AN EMPTY MASK-ON LANE IS NOT A MEASUREMENT. `_p` answers `NaN` over an empty array and
+       `_iqr` subtracts two of them, and this path published that `NaN` as the metric while the EDF
+       sibling answered `null` for the same session. Each lane now refuses, and the two reason
+       fields below name the cause so a consumer reports the absence instead of inferring it from a
+       field of nulls. Row `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`. */
+    var nPress = d.pressure ? d.pressure.length : 0;
+    var nMaskOn = d.pressureMaskOn ? d.pressureMaskOn.length : 0;
+    var nLeakOn = d.leakMaskOn ? d.leakMaskOn.length : 0;
+    var onset = -1;
+    for (var i = 0; i < nPress; i++)
+      if (d.pressure[i] > 0) {
+        onset = i;
+        break;
+      }
+    var num = function (v) {
+      return v != null && isFinite(v) ? v : null;
+    };
     return {
       // ── Usage & Adherence ──
       usageHours: uh,
       compliancePct: null, // longitudinal (≥4h nights / 30d) — needs night history; computed in buildLongitudinal()
-      maskOnLatency: (function () {
-        var idx = -1;
-        for (var i = 0; i < d.pressure.length; i++)
-          if (d.pressure[i] > 0) {
-            idx = i;
-            break;
-          }
-        return idx === -1 ? NaN : idx / (fs * 60);
-      })(),
+      maskOnLatency: onset === -1 ? null : onset / (fs * 60),
+      /* The two absences are DIFFERENT FACTS and the node says which: an absent pressure lane is
+         unknown, and a lane that never rose is a session where therapy never started. Neither one
+         is a latency, so neither publishes a number. */
+      maskOnLatencyReason: onset !== -1 ? null : nPress ? 'therapy-never-started' : 'no-pressure-lane',
       // ── Pressure Profile ──
-      medianPressure: _p(d.pressureMaskOn, 50),
-      p95Pressure: _p(d.pressureMaskOn, 95),
-      pressureRange: _iqr(d.pressureMaskOn),
+      medianPressure: num(_p(d.pressureMaskOn, 50)),
+      p95Pressure: num(_p(d.pressureMaskOn, 95)),
+      pressureRange: num(_iqr(d.pressureMaskOn)),
       // ── Residual Events ──
       residualAHI: _eventRate(d.events, ['OA', 'CA', 'H', 'UA'], uh),
       centralIndex: _eventRate(d.events, ['CA'], uh),
       obstructiveIndex: _eventRate(d.events, ['OA'], uh),
       hypopneaIndex: _eventRate(d.events, ['H'], uh),
       // ── Leak Dynamics ──
-      medianLeak: _p(d.leakMaskOn, 50),
-      p95Leak: _p(d.leakMaskOn, 95),
-      largeLeakPct: d.leakMaskOn.length
+      medianLeak: num(_p(d.leakMaskOn, 50)),
+      p95Leak: num(_p(d.leakMaskOn, 95)),
+      largeLeakPct: nLeakOn
         ? (_countWhere(d.leakMaskOn, function (v) {
             return v > 24;
           }) /
-            d.leakMaskOn.length) *
+            nLeakOn) *
           100
-        : NaN,
-      leakCV: _leakCV(d.leakMaskOn) // floor-guarded like the real paths (§ near-zero-leak); raw _cov blows up on a well-sealed mask
+        : null,
+      leakCV: _leakCV(d.leakMaskOn), // floor-guarded like the real paths (§ near-zero-leak); raw _cov blows up on a well-sealed mask
+      /* One condition empties the pressure percentiles and the event denominator together, and a
+         second empties the leak lane. Named here, they leave the node with the nulls they explain. */
+      maskOnReason: nMaskOn ? null : 'no-mask-on-pressure-sample',
+      leakReason: nLeakOn ? null : 'no-mask-on-leak-sample'
     };
   }
 
@@ -513,7 +536,19 @@
       .filter(function (v) {
         return v != null && isFinite(v);
       });
-    var ahiTrend30d = last30.length ? { mean: +_mean(last30).toFixed(2), sd: last30.length > 1 ? +_sd(last30).toFixed(2) : 0, n: last30.length } : null;
+    /* ∅ A DISPERSION OVER ONE NIGHT WAS NEVER MEASURED. The SD read `0` at `n: 1`, which is the
+       value a perfectly stable month earns, so a single loaded night reported ideal night-to-night
+       consistency. Reduced coverage ANNOTATES (CLAUDE.md §∅): the mean and `n` still publish over
+       what they cover, and the SD alone refuses with its own token. Row
+       `2026-11-15-cpapdex-longitudinal-sd-zero-over-one-night`. */
+    var ahiTrend30d = last30.length
+      ? {
+          mean: +_mean(last30).toFixed(2),
+          sd: last30.length > 1 ? +_sd(last30).toFixed(2) : null,
+          sdReason: last30.length > 1 ? null : 'single-night',
+          n: last30.length
+        }
+      : null;
     // CPAPCross resolution mirrors the EDF dep at the top of this file: browser global
     // FIRST (the bundled realm has no require), CommonJS fallback SECOND. Before this it
     // was browser-global ONLY, so a plain `require()` consumer got crossNight:null with no
@@ -1159,19 +1194,46 @@
       }).length;
     };
     var nApnea = aCount('OA') + aCount('CA') + aCount('H') + aCount('UA'); // UA = device-scored untyped apnea, counted toward AHI (kept out of the OA/CA split)
+    /* F8 — no pressure lane at all is unknown, not "never". The onset index is computed here so
+       that both the latency and its reason read the same scan. */
+    /* ∅ A CORRELATION OVER A CONSTANT LANE IS UNDEFINED, NOT ZERO. `_pearson` divides by
+       the product of the two spreads, so a fixed-pressure night — every CPAP-mode night — made
+       `da` zero and published `NaN`, which `JSON.stringify` writes as `null`. The lane was already
+       guarded for LENGTH and never for VARIANCE. Row
+       `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`. */
+    var snPressR = null;
+    var pressOnset = -1;
+    if (pressureSource) {
+      for (var oi = 0; oi < pressure.length; oi++)
+        if (pressure[oi] > 0) {
+          pressOnset = oi;
+          break;
+        }
+    }
+    var snPressRaw = snMaskOn.length && pressureMaskOn.length ? _pearson(snMaskOn, pressureMaskOn) : null;
+    if (snPressRaw != null && isFinite(snPressRaw)) snPressR = +snPressRaw.toFixed(2);
     var metrics = {
       // Usage & Adherence
       usageHours: usageHours == null ? null : +usageHours.toFixed(3),
       compliancePct: null, // longitudinal (buildLongitudinal)
-      maskOnLatency: (function () {
-        if (!pressureSource) return null; // F8 — no pressure lane at all: unknown, not "never"
-        for (var i = 0; i < pressure.length; i++) if (pressure[i] > 0) return +(i / (fs * 60)).toFixed(2);
-        return NaN;
-      })(),
+      /* ∅ A LATENCY OVER A LANE THAT NEVER ROSE WAS NEVER MEASURED. The old arm answered
+         `NaN`, and `JSON.stringify` writes `NaN` as `null`, so the absence became visible only at
+         the export boundary and never inside the node. The F8 note above already named this lane
+         (`maskOnLatency NaN`, `medianPressure NaN`) for a set that lost its PLD file, and the
+         note records real nights that did. The reason now leaves the node, as `usageReason` and
+         `pbObserved` do. Row `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`. */
+      maskOnLatency: pressOnset === -1 ? null : +(pressOnset / (fs * 60)).toFixed(2),
+      maskOnLatencyReason: pressOnset !== -1 ? null : pressureSource ? 'therapy-never-started' : 'no-pressure-lane',
       // Pressure
-      medianPressure: +_p(pressureMaskOn, 50).toFixed(2),
-      p95Pressure: +_p(pressureMaskOn, 95).toFixed(2),
-      pressureRange: +pressIqr.toFixed(2),
+      /* ∅ A PERCENTILE OVER AN EMPTY LANE IS NOT A PRESSURE. `_p` answers `NaN` over no
+         sample and `_iqr` subtracts two of them. The F8 note above leaves `pressureMaskOn` EMPTY
+         BY DESIGN for a BRP-sourced set, so those three lanes published a NaN panel that reads as
+         `null` only after `JSON.stringify`. Every other lane of this object already guards on its
+         own length. Row `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`. */
+      medianPressure: pressureMaskOn.length ? +_p(pressureMaskOn, 50).toFixed(2) : null,
+      p95Pressure: pressureMaskOn.length ? +_p(pressureMaskOn, 95).toFixed(2) : null,
+      pressureRange: pressureMaskOn.length ? +pressIqr.toFixed(2) : null,
+      maskOnReason: pressureMaskOn.length ? null : pressureSource === 'BRP' ? 'pressure-source-brp' : 'no-mask-on-pressure-sample',
       // the EPR-immune, minutes-scale spread the mode call is actually made on (§F2). Surfaced so a
       // consumer can see WHY mode is CPAP/APAP/null instead of trusting a bare label.
       pressureEnvIqr: modeCls.envIqr,
@@ -1215,9 +1277,17 @@
       periodicBreathingPct: pbObserved && durSec > 0 ? +((pbSec / durSec) * 100).toFixed(2) : null,
       pbObserved: pbObserved,
       // Leak (converted to L/min)
-      medianLeak: leak ? +_p(leakMaskOn, 50).toFixed(2) : null,
-      p95Leak: leak ? +_p(leakMaskOn, 95).toFixed(2) : null,
-      maxLeak: leak ? +Math.max.apply(null, leakMaskOn.length ? leakMaskOn : [0]).toFixed(2) : null,
+      /* ∅ The lane's PRESENCE is not a sample: `leak` alone passed an empty `leakMaskOn`
+         into `_p`, which answers `NaN`. The `maxLeak` sibling below guards on the length.
+         Row `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`. */
+      medianLeak: leak && leakMaskOn.length ? +_p(leakMaskOn, 50).toFixed(2) : null,
+      p95Leak: leak && leakMaskOn.length ? +_p(leakMaskOn, 95).toFixed(2) : null,
+      /* ∅ A MAXIMUM OVER NO SAMPLE IS NOT A ZERO LEAK. `Math.max` over the planted `[0]`
+         published a measured peak of `0.00` L/min for a session whose mask was never on, which
+         reads as the best seal the device can record. The pooled sibling below already answers
+         `L.length ? … : null`. Row
+         `2026-11-15-cpapdex-session-maxleak-zero-from-no-mask-on-sample`. */
+      maxLeak: leak && leakMaskOn.length ? +Math.max.apply(null, leakMaskOn).toFixed(2) : null,
       largeLeakPct: leakMaskOn.length
         ? +(
             (_countWhere(leakMaskOn, function (v) {
@@ -1228,6 +1298,7 @@
           ).toFixed(2)
         : null,
       leakCV: leak ? _leakCV(leakMaskOn) : null,
+      leakReason: !leak ? 'no-leak-lane' : leakMaskOn.length ? null : 'no-mask-on-leak-sample',
       // Ventilation
       respRateMedian: rrMaskOn.length ? +_p(rrMaskOn, 50).toFixed(1) : null,
       respRateRange: rrMaskOn.length ? +_iqr(rrMaskOn).toFixed(1) : null,
@@ -1255,7 +1326,8 @@
             100
           ).toFixed(2)
         : null,
-      snorePressureCorr: snMaskOn.length && pressureMaskOn.length ? +_pearson(snMaskOn, pressureMaskOn).toFixed(2) : null,
+      snorePressureCorr: snPressR,
+      snorePressureCorrReason: snPressR != null ? null : snMaskOn.length && pressureMaskOn.length ? 'no-lane-variance' : 'no-mask-on-sample',
       // Breath detection (flow-derived — validates device RespRate)
       breathCount: breath ? breath.breathCount : null,
       breathRate: breath ? breath.breathRate : null,
@@ -1429,9 +1501,14 @@
       periodicBreathingPct: pbDurSec > 0 ? +((pbSec / pbDurSec) * 100).toFixed(2) : null,
       pbObservedHours: +(pbDurSec / 3600).toFixed(3),
       pbObservedSessions: pbSessions,
-      medianPressure: +_p(P, 50).toFixed(2),
-      p95Pressure: +_p(P, 95).toFixed(2),
-      pressureRange: +_iqr(P).toFixed(2),
+      /* ∅ The night pools the sessions' mask-on pressure, so an empty pool is the same
+         absence as the session twin above and the same three lanes were the only unguarded ones
+         here. This is the level the UI draws. Row
+         `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`. */
+      medianPressure: P.length ? +_p(P, 50).toFixed(2) : null,
+      p95Pressure: P.length ? +_p(P, 95).toFixed(2) : null,
+      pressureRange: P.length ? +_iqr(P).toFixed(2) : null,
+      maskOnReason: P.length ? null : 'no-mask-on-pressure-sample',
       // ⛔ THE PER-NIGHT MODE LABEL IS RETIRED — always null. (CPAP-REAL-CORPUS-FOLLOWUPS §1,
       // measured on the real 182-night corpus 2026-07-12.)
       //
@@ -1509,7 +1586,11 @@
         : null,
       // Pearson needs paired samples: only valid when every session contributed BOTH lanes,
       // i.e. the pooled arrays line up 1:1. A session missing Snore would shift the pairing.
-      snorePressureCorr: SN.length && SN.length === P.length ? +_pearson(SN, P).toFixed(2) : null,
+      snorePressureCorr: (function () {
+        if (!SN.length || SN.length !== P.length) return null;
+        var r = _pearson(SN, P);
+        return r != null && isFinite(r) ? +r.toFixed(2) : null;
+      })(),
       // ── Breath detection (flow-derived) ──
       breathCount: haveBreaths ? breaths : null,
       /* Rate over the MEASURED (mask-on) time — not a mean of per-session rates, and NOT over wall
