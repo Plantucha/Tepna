@@ -466,7 +466,14 @@ import { PPGUI } from './ppgdex-render.js';
     }
     items.push(
       { l: '% Analyzable', v: r.analyzablePct + '%', sub: r.cleanBeatPct + '% clean beats', s: r.analyzablePct >= 90 ? 'ok' : r.analyzablePct >= 75 ? 'warn' : 'bad' },
-      { l: 'Correction', v: r.correctionRate + '%', sub: 'PPIs fixed', s: r.correctionRate < 5 ? 'ok' : r.correctionRate < 12 ? 'warn' : 'bad' },
+      /* §∅ — `null < 5` is `true`, so an unmeasured correction rate graded 'ok' in this KPI and
+         printed `null%`. ECGDex's twin already reads `r.correctionRate == null ? '—'` (ecgdex-app.js). */
+      {
+        l: 'Correction',
+        v: r.correctionRate == null ? '—' : r.correctionRate + '%',
+        sub: r.correctionRate == null ? 'no intervals' : 'PPIs fixed',
+        s: r.correctionRate == null ? 'neutral' : r.correctionRate < 5 ? 'ok' : r.correctionRate < 12 ? 'warn' : 'bad'
+      },
       { l: 'Mean SQI', v: r.meanSQI, sub: '0–1 · conf', s: r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad' },
       { l: 'DFA α1', v: r.dfa1 == null ? '—' : r.dfa1, sub: '0.9–1.2', s: r.dfa1 == null ? 'neutral' : r.dfa1 >= 0.9 && r.dfa1 <= 1.2 ? 'ok' : 'warn' }
     );
@@ -912,7 +919,13 @@ import { PPGUI } from './ppgdex-render.js';
       ['Clean beats', r.cleanBeatPct, '%', 'SQI≥0.5', r.cleanBeatPct >= 85 ? 'ok' : r.cleanBeatPct >= 65 ? 'warn' : 'bad'],
       ['Mean SQI', r.meanSQI, '', '0–1 · conf', r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad'],
       ['Motion-rejected', r.motionRejectedPct, '%', r.motion && r.motion.hasData ? 'ACC+GYRO' : 'n/a', r.motionRejectedPct < 10 ? 'ok' : r.motionRejectedPct < 30 ? 'warn' : 'bad'],
-      ['Correction rate', r.correctionRate, '%', 'PPIs fixed', r.correctionRate < 5 ? 'ok' : r.correctionRate < 12 ? 'warn' : 'bad']
+      [
+        'Correction rate',
+        r.correctionRate == null ? '—' : r.correctionRate,
+        '%',
+        r.correctionRate == null ? 'no intervals' : 'PPIs fixed',
+        r.correctionRate == null ? 'neutral' : r.correctionRate < 5 ? 'ok' : r.correctionRate < 12 ? 'warn' : 'bad'
+      ]
     ]);
     html += '</tbody></table>';
     $('metricsTable').innerHTML = html;

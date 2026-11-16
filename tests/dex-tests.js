@@ -24073,6 +24073,136 @@
       T.ok('the agreement KPI can go warn AND bad, not just ok', /ppiAgreementPct >= 97 \? 'ok'/.test(app) && /'warn' : 'bad'/.test(app), 'no failing band — the panel could never report a problem');
     });
 
+    /* ════ §∅ — ONE ABSENCE, THREE DIFFERENT NUMBERS. `buildPPI` answers `{ rr: [], tt: [] }` for a
+       run with fewer than two detected beats and never null, so a record with no intervals arrived at
+       four sites that each defaulted the absence to a number: the two exported spine rates 100 % (the
+       WORST value on the repair scale), the fiducial agreement 0 % (the WORST value on the agreement
+       scale) and the correction rate 0 % (the BEST value). `footSpineOK` must KEEP its 100 sentinel —
+       an unmeasured spine has to lose that comparison — so the arbiter and the export are split.
+       Measured before the fix on a 0.5 s synthetic: ppiCorrFootPct 100, ppiCorrPeakPct 100,
+       ppiAgreementPct 0, correctionRatePct 0, over nInputIntervals 0. ════ */
+    group('PpgDex answers an empty interval series with null, not a number at either end of the scale', 'ppgdex-dsp · absence · ppi-spine', function (T) {
+      var P = env.PpgDex || env.PPGDSP;
+      if (!(P && typeof P.compute === 'function' && typeof P.parsePPG === 'function' && typeof P.analyze === 'function')) {
+        T.skip('PpgDex.compute + parsePPG + analyze available', 'PpgDex not co-loaded in this runner');
+        return;
+      }
+      /* The documented Polar Sense `_PPG.txt` layout at 55 Hz — phone stamp; sensor ns; ch0..ch2;
+         ambient. LENGTH is the only variable: the same pulse shape, so the detector sees the same
+         waveform whether the file runs one beat or four hundred and the difference is the absence. */
+      var mk = function (sec) {
+        var hz = 55,
+          rows = [],
+          n = Math.round(sec * hz),
+          step = 1000 / hz,
+          devMs = 0,
+          ph = 0,
+          rr = 60000 / 69,
+          p2 = function (v) {
+            return String(v).padStart(2, '0');
+          };
+        for (var i = 0; i < n; i++) {
+          devMs += step;
+          ph += step / rr;
+          if (ph >= 1) {
+            ph -= 1;
+            rr = 60000 / 69;
+          }
+          var w = Math.exp(-Math.pow((ph - 0.15) / 0.07, 2)) + 0.35 * Math.exp(-Math.pow((ph - 0.42) / 0.1, 2)) - 0.15 * Math.exp(-Math.pow((ph - 0.75) / 0.25, 2));
+          var v = 20000 + 800 * w;
+          var t = new Date(Date.UTC(2026, 8, 15, 0, 0, 0) + Math.round(devMs));
+          var ts =
+            t.getUTCFullYear() +
+            '-' +
+            p2(t.getUTCMonth() + 1) +
+            '-' +
+            p2(t.getUTCDate()) +
+            ' ' +
+            p2(t.getUTCHours()) +
+            ':' +
+            p2(t.getUTCMinutes()) +
+            ':' +
+            p2(t.getUTCSeconds()) +
+            '.' +
+            String(t.getUTCMilliseconds()).padStart(3, '0');
+          rows.push(ts + ';' + Math.round(devMs * 1e6) + ';' + Math.round(v) + ';' + Math.round(v * 0.95 + 30) + ';' + Math.round(v * 1.03 - 25) + ';400');
+        }
+        return rows.join('\n');
+      };
+      var read = function (sec) {
+        var text = mk(sec);
+        return { an: P.analyze(P.parsePPG(text), null), ex: P.compute({ text: text }, { rich: true }) };
+      };
+
+      var dead = read(0.5);
+      var qd = (dead.ex && dead.ex.quality) || {};
+      /* ANTI-VACUITY FIRST — if the plant still yields an interval, nothing below is about absence. */
+      T.eq('the 0.5 s plant really has NO input interval', dead.an && dead.an.nInputIntervals, 0);
+      T.eq('…and no corrected interval either, so both spines are empty', dead.an && dead.an.nn && dead.an.nn.length, 0);
+      T.eq(
+        'all four fields export null: foot rate, peak rate, agreement, correction rate',
+        JSON.stringify([qd.ppiCorrFootPct, qd.ppiCorrPeakPct, qd.ppiAgreementPct, qd.correctionRatePct]),
+        '[null,null,null,null]'
+      );
+      T.eq('…and the winner is still the FOOT spine, because footSpineOK keeps its 100 sentinel', dead.an && dead.an.ppiSpine, 'foot');
+      T.eq('…and the correction rate carries its own cause into the export', qd.correctionRateReason, 'no interval series — no population to correct');
+      /* THE COVERAGE ARM. With no beats the coverage is a REAL measurement (0 %), so the reason must
+         name coverage — never a fabricated "correction 0 %". */
+      T.ok('flags hrvLowConfidence from the coverage it measured', dead.an && dead.an.hrvLowConfidence === true);
+      T.ok(
+        '…and the reason names coverage, not a fabricated correction 0 %',
+        /^low coverage — analyzable 0%/.test(dead.an && dead.an.hrvLowConfidenceReason) && !/correction 0%/.test(dead.an && dead.an.hrvLowConfidenceReason),
+        dead.an && dead.an.hrvLowConfidenceReason
+      );
+      /* THE UNMEASURED-CORRECTION ARM. A record whose coverage clears the gate but whose interval
+         series is empty published `lowConfidence: false` — the null scored as CLEAN. */
+      var thin = read(0.8);
+      T.ok('the 0.8 s plant clears the coverage gate, so only the correction term is left', thin.an && thin.an.analyzablePct >= 60, 'analyzablePct ' + (thin.an && thin.an.analyzablePct));
+      T.ok('…and it is no longer scored clean (published false before)', thin.an && thin.an.hrvLowConfidence === true);
+      T.ok('…with a reason that names the unmeasured rate', /unmeasured/.test(thin.an && thin.an.hrvLowConfidenceReason), thin.an && thin.an.hrvLowConfidenceReason);
+      /* THE CONTROL — a record WITH intervals keeps its numbers, so no arm above fires unconditionally. */
+      var ok = read(400);
+      var qo = (ok.ex && ok.ex.quality) || {};
+      T.ok(
+        'a 400 s record still publishes all four as NUMBERS',
+        [qo.ppiCorrFootPct, qo.ppiCorrPeakPct, qo.ppiAgreementPct, qo.correctionRatePct].every(function (v) {
+          return typeof v === 'number';
+        }),
+        JSON.stringify([qo.ppiCorrFootPct, qo.ppiCorrPeakPct, qo.ppiAgreementPct, qo.correctionRatePct])
+      );
+      T.eq('…keeps its foot spine', ok.an && ok.an.ppiSpine, 'foot');
+      T.eq('…and carries no refusal reason', qo.correctionRateReason, undefined);
+      /* THE CONSUMER — the app's two Correction readers. `null < 5` is `true`, so an absence graded
+         'ok' in the KPI and in the metrics table; both must read neutral and print a dash. */
+      var srcApp = (env.sources || {})['ppgdex-app.js'] || '';
+      T.ok('app source available', srcApp.length > 0);
+      if (srcApp.length) {
+        /* The two readers are asserted INSIDE the KPI object, not across one source line: Biome
+           reflowed both of them into multi-line literals, which broke a one-line regex. */
+        var kpiCorr = /\{\s*l: 'Correction',([\s\S]{0,400}?)\}/.exec(srcApp);
+        T.ok(
+          'the Correction KPI does not grade an absence ok',
+          !!kpiCorr && /v: r\.correctionRate == null \? '—'/.test(kpiCorr[1]) && /s: r\.correctionRate == null \? 'neutral'/.test(kpiCorr[1]),
+          kpiCorr ? 'KPI object read' : 'no Correction KPI object in the source'
+        );
+        T.ok('…nor does the metrics-table row', /'Correction rate',\s*r\.correctionRate == null \? '—' : r\.correctionRate/.test(srcApp));
+      }
+      /* THE ARBITER/EXPORT SPLIT is what lets both halves be true at once; and two refusals that no
+         runtime leg can reach, because `qCorr` needs `epochs.length` and an empty spine cannot make
+         an epoch — so the coercion the task names is pinned here at its source instead. */
+      var srcDsp = (env.sources || {})['ppgdex-dsp.js'] || '';
+      T.ok('dsp source available', srcDsp.length > 0);
+      if (srcDsp.length) {
+        T.ok(
+          'the arbiter keeps 100 while the exported rate answers null',
+          /const _rateFootArb = _ppiFoot\.rr\.length \? \(100 \* _corrFoot\.nCorr\) \/ _ppiFoot\.rr\.length : 100;/.test(srcDsp) &&
+            /const _rateFoot = _ppiFoot\.rr\.length \? _rateFootArb : null;/.test(srcDsp)
+        );
+        T.ok('the correction driver refuses rather than coercing a null to 1.0', /const qCorr = correctionRate == null \? null : Math\.max\(0, 1 - correctionRate \/ 25\);/.test(srcDsp));
+        T.ok('…and the refusal propagates instead of rounding to 0', /correctionOK: qCorr == null \? null : r2\(qCorr\),/.test(srcDsp));
+      }
+    });
+
     /* EXPORT-PATH-UNREACHABLE-FOLLOWUPS-IV — the APP's export builder is not the DSP's, and nothing
        executes it: the equiv gate runs `PpgDex.compute`, so a divergence in ppgdex-app.js's own
        `recording` block is invisible to every dynamic leg. It hardcoded `device: 'Polar Sense'`, so a
@@ -86613,6 +86743,145 @@
 
       // ── dqLabel (GlucoDex) · the human reading of dataQualityConf, which WAS pinned ──
       T.ok('GLU · dataQualityConf carries a human label', typeof gT.dqLabel === 'string' && gT.dqLabel.length > 0, 'dqLabel=' + gT.dqLabel);
+
+      P._setStore(mk()); // leave a pristine record for later groups (mirrors §19)
+    });
+
+    /* ════ A PRIOR IS NOT AN ENTERED AGE (residue 2026-11-16-the-profile-card-grades-against-a-prior-
+       only-the-export-discloses) ════
+       `getProfile` clamps an absent age to 42, so `expectedRmssd`/`expectedRHR` answer a number for
+       EVERY profile, and the card printed "age norm ~61" and "typical for age 42" over a person who
+       typed nothing — while the node export already filed the same 42 under `assumedDefaults`.
+       The fix carries the field's cascade origin onto the result as `ageEntered` (the export's own
+       `_ent` predicate: `you` or `detected`; `pop`, `none` and legacy `_origins: null` all read not
+       entered) and routes every label and colour to its existing honest arm.
+       ⚠ The render surfaces (hero note · two subscores · two KPI tiles · two table rows) sit behind a
+       DOM, so the source legs below assert on the SHIPPED guard text rather than on rendered HTML.
+       That is weaker than a render, and it is said here rather than dressed up: a mutant that drops a
+       guard reds these legs; a mutant that renders something else would not be caught by them.
+       ⚠ The `detected` arm of the predicate is unreachable for AGE — `DexProfile.resolve('age')` can
+       only answer `you` or `pop` (it never consults the detected tier) — so it is kept for symmetry
+       with the export's predicate and no leg can exercise it. */
+    group('ECGDex grades against the age entered, not the population prior behind it', 'ecgdex-profile · ecgdex-app · absence · age-prior', function (T) {
+      var P = env.DexProfile,
+        PF = env.ECGProfile;
+      var ready = !!(P && PF && typeof P._setStore === 'function' && typeof PF.personalize === 'function');
+      T.ok('DexProfile + ECGProfile are wired into env', ready, 'DexProfile/ECGProfile missing');
+      if (!ready) return;
+      var mk = function () {
+        var m = {};
+        return {
+          getItem: function (k) {
+            return k in m ? m[k] : null;
+          },
+          setItem: function (k, v) {
+            m[k] = String(v);
+          },
+          removeItem: function (k) {
+            delete m[k];
+          }
+        };
+      };
+      /* REVIEW EDIT (Heron): the patch declared `rec` and then inlined the same literal three
+         times, which reds `npm run lint` on `noUnusedVariables`. Each leg takes its OWN copy,
+         because `personalize` writes its result INTO the record it is handed. */
+      var rec = { hr: 55, longRec: false, dispRm: 40, ambulatory: false };
+      var fresh = function () {
+        return Object.assign({}, rec);
+      };
+
+      // ── 1 · origin `pop` — nothing entered ───────────────────────────────────────────────────
+      P._setStore(mk());
+      var pop = PF.personalize(fresh());
+      T.eq('a profile nobody filled in reads ageEntered=false (cascade origin pop)', pop.ageEntered, false);
+      T.eq('…while the population prior is still what COMPUTE ran on (age 42 ⇒ 39 ms)', pop.expRmssd, 39);
+      T.eq('…and the rest-HR prior (age 42 ⇒ 61 bpm)', pop.expRHR, 61);
+      T.eq('…the profile still carries that substituted age', pop.profile.age, 42);
+      T.ok(
+        '…and BOTH priors survive as numbers on the result, so the export keeps them',
+        typeof pop.expRmssd === 'number' && typeof pop.expRHR === 'number',
+        JSON.stringify([pop.expRmssd, pop.expRHR])
+      );
+
+      // ── 2 · origin `you` — entered, so the norm and its grade are honest ─────────────────────
+      P._setStore(mk());
+      P.setManual('age', 30);
+      var you = PF.personalize(fresh());
+      T.eq('an age the user entered reads ageEntered=true (cascade origin you)', you.ageEntered, true);
+      T.eq("…and the norm it drives is the entered age's (30 ⇒ 48 ms)", you.expRmssd, 48);
+      T.eq('…and 30 ⇒ 60 bpm resting', you.expRHR, 60);
+
+      // ── 3 · legacy / headless — `_origins: null` behaves as the `pop` case ────────────────────
+      /* `env.realmGlobal` is the object the co-loaded modules hang their globals on. In the node lane
+         that is the vm context; this file's `globalThis` is the HOST one, so hiding the store there
+         hides nothing (measured here first: the leg read age 30 from the previous store). */
+      var realm = env.realmGlobal || (typeof globalThis !== 'undefined' ? globalThis : null);
+      var saved = realm && realm.DexProfile,
+        leg = null,
+        threw = null;
+      T.ok('the bundle realm is reachable and carries DexProfile', !!saved, 'no realmGlobal.DexProfile');
+      try {
+        if (realm) realm.DexProfile = undefined; // the branch where no panel and no record exist
+        leg = PF.personalize(fresh());
+      } catch (e) {
+        threw = e;
+      } finally {
+        if (realm) realm.DexProfile = saved;
+      }
+      T.ok('the legacy path (no DexProfile store) still personalises', threw == null, threw && String(threw));
+      T.eq('…_origins null — nothing was ever entered — reads ageEntered=false', leg && leg.ageEntered, false);
+      T.eq('…and the same prior still drives compute there (age 42 ⇒ 39 ms)', leg && leg.expRmssd, 39);
+
+      // ── 4 · the disclosure and the grades, pinned on the shipped source ──────────────────────
+      var profSrc = (env.sources && env.sources['ecgdex-profile.js']) || '';
+      var appSrc = (env.sources && env.sources['ecgdex-app.js']) || '';
+      T.ok('both card sources are readable in this lane', profSrc.length > 1000 && appSrc.length > 1000, profSrc.length + '/' + appSrc.length);
+      T.ok(
+        'the hero note prints no age-norm sentence unless the age was entered',
+        /let ageNote = 'No age entered, so this card shows no age-relative HRV comparison\.';\s*\n\s*if \(r\.ageEntered\) \{/.test(profSrc),
+        'hero guard missing'
+      );
+      /* ── REVIEW EDITS (Heron, on top of the patch) ─────────────────────────────────────────
+         1 · A BLANK NOTE IS NOT A DISCLOSURE. The patch left `ageNote` empty over an unentered
+             age, so the hero's most-read line said nothing at all. It now carries the sentence
+             the detail rows already use.
+         2 · `renderHrvBench` GRADED THE WHOLE CARD AGAINST THE SAME PRIOR. `const exp =
+             r.expRmssd || 30` set `proj-good/warn/bad` on the card and the rMSSD value's
+             colour. Shrike named the site and left the ruling to the reviewer. It is the same
+             card, the same prior and the same row, so it lands here. Over an unentered age the
+             card grades against the node's own 30 ms floor and the unit line names it. That
+             also brings the dead `|| 30` arm to life, since `expectedRmssd` never answers a
+             falsy value. */
+      T.ok('the hero note discloses the absence rather than rendering a blank line', /No age entered, so this card shows no age-relative HRV comparison/.test(profSrc), 'hero disclosure missing');
+      T.ok('the HRV bench card grades against the node floor over an unentered age', /const exp = r\.ageEntered \? r\.expRmssd : 30;/.test(profSrc), 'bench guard missing');
+      T.ok('…and the bench unit line names that floor to the reader', /vs ≥30 ms, age not entered/.test(profSrc), 'bench disclosure missing');
+      T.ok('no bench surface grades the card against the prior unconditionally any more', !/const exp = r\.expRmssd \|\| 30;/.test(profSrc), 'bench prior unguarded');
+      /* 3 · ONE PREDICATE, TWO READERS. The patch wrote the same cascade-origin test in
+            `personalize` and in `renderDerived`. Two copies of one rule drift apart under a
+            later edit, and the hero would then grade on a rule the detail rows deny. */
+      T.eq('one predicate serves both readers, so the two surfaces cannot drift', (profSrc.match(/ageEnteredIn\(p\)/g) || []).length, 2);
+      T.ok(
+        '…and it tests the cascade ORIGIN, never the truthiness of the age itself',
+        /const ageEnteredIn = \(p\) => !!\(p\._origins && \(p\._origins\.age === 'you' \|\| p\._origins\.age === 'detected'\)\);/.test(profSrc),
+        'predicate shape moved'
+      );
+      T.eq('both hero subscores route to neutral over an unentered age', (profSrc.match(/cls: r\.ageEntered \?/g) || []).length, 2);
+      T.eq('both detail rows disclose the prior by name', (profSrc.match(/population default, age not entered/g) || []).length, 2);
+      T.ok('the Rest-HR tile labels the prior only when the age was entered', /sub: r\.ageEntered && r\.expRHR \? 'age norm ~'/.test(appSrc), 'label guard missing');
+      T.eq('both Rest-HR grades read neutral otherwise (KPI + table row)', (appSrc.match(/!r\.rhrEff \|\| !r\.ageEntered \? 'neutral'/g) || []).length, 2);
+      T.ok(
+        'the rMSSD tile and its grade read the same field',
+        /sub: r\.ageEntered && r\.expRmssd \? 'age norm ~'/.test(appSrc) && /s: r\.ageEntered && r\.expRmssd \?/.test(appSrc),
+        'rMSSD guard missing'
+      );
+      T.ok('the Rest-HR table row prints no target over an unentered age', /r\.ageEntered && r\.expRHR \? '~' \+ r\.expRHR : '—'/.test(appSrc), 'table target guard missing');
+      T.ok('the rMSSD table row prints no prior as a target either', /r\.ageEntered \? r\.expRmssd : '—'/.test(appSrc), 'rMSSD row guard missing');
+      T.ok('no card surface reintroduces the unguarded age-norm label', !/sub: r\.expRHR \? 'age norm/.test(appSrc) && !/sub: r\.expRmssd \? 'age norm/.test(appSrc), 'unguarded label present');
+      T.ok(
+        'the export still maps both priors under their own keys',
+        /expectedRMSSDForAge: r\.expRmssd \?\? null/.test(appSrc) && /expectedRestHRForAge: r\.expRHR \?\? null/.test(appSrc),
+        'export keys moved'
+      );
 
       P._setStore(mk()); // leave a pristine record for later groups (mirrors §19)
     });
