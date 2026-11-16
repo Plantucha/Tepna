@@ -949,6 +949,45 @@
     };
   }
 
+  /* ── §6 · the consumer rebuild of a date-less event stamp ────────────────────────────
+     `ganglior_events[]` carries `t` as a date-less wall-clock string, and §6 tells a consumer to rebuild
+     `tMs` from the recording's own `startEpochMs` date, rolling past midnight. Six review timelines keyed
+     their sort on `(a.tMs || 0)` instead, so an event the node could not place sorted to 1970-01-01 and
+     led the list — §∅, an absent value read as a number.
+     Promoted from `glucodex-dsp.js`, where this pair shipped first and still carries its own suite legs.
+     GlucoDex keeps that node-local copy, because the GlucoDex bundle inlines no `clock.js` by design
+     (CLAUDE.md §✅). That is the one duplicate of this pair which stays, and it is deliberate. */
+  var _CK_EV_HHMM = /^(\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?$/;
+  function eventSortKeyMs(ev, t0Ms) {
+    if (ev && typeof ev.tMs === 'number' && isFinite(ev.tMs)) return ev.tMs; // §6: an absolute stamp wins
+    if (!ev || ev.t == null || typeof t0Ms !== 'number' || !isFinite(t0Ms)) return null;
+    var m = String(ev.t).trim().match(_CK_EV_HHMM);
+    if (!m) return null;
+    var a = new Date(t0Ms); // §5: a floating tMs reads back through getUTC* only
+    var k = _ckMk(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate(), +m[1], +m[2], m[3] ? +m[3] : 0, m[4] ? +(m[4] + '00').slice(0, 3) : 0);
+    if (k == null) return null;
+    if (k < t0Ms - 60000) k += 86400000; // the event window is [t0 − 60 s, t0 + 24 h)
+    return k;
+  }
+  /* Stable and absence-last over that key, in BOTH directions: two placeable events compare on the key,
+     two unplaceable events keep their arrival order, and an unplaceable event never sorts ahead of a
+     placeable one. `opts.desc` reverses only the placeable comparison, so a newest-first table still
+     reads its unplaceable rows at the end rather than at the top. A caller with no anchor passes `null`
+     and reads its arrival order back unchanged. */
+  function sortEventsByClock(evs, t0Ms, opts) {
+    var desc = !!(opts && opts.desc);
+    var dec = (evs || []).map(function (e, i) {
+      return { e: e, i: i, k: eventSortKeyMs(e, t0Ms) };
+    });
+    dec.sort(function (a, b) {
+      if (a.k == null || b.k == null) return a.k == null && b.k == null ? a.i - b.i : a.k == null ? 1 : -1;
+      return (desc ? b.k - a.k : a.k - b.k) || a.i - b.i;
+    });
+    return dec.map(function (d) {
+      return d.e;
+    });
+  }
+
   root.DexClock = {
     tzOffset: tzOffset,
     _ckP2: _ckP2,
@@ -959,6 +998,8 @@
     parseTimestamp: parseTimestamp,
     fileStamp: fileStamp,
     hostAxis: hostAxis,
+    eventSortKeyMs: eventSortKeyMs,
+    sortEventsByClock: sortEventsByClock,
     // Promoted from ppgdex-dsp.js so the fleet has ONE JS core (HOSTAXIS-STABILITY §4.3). Nodes
     // delegate by name, the way they already do for parseTimestamp.
     allanFromPhase: _ckAllanFromPhase,

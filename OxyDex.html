@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="409463d917ed" data-compute-hash="3482ccfc1a0e">
+<html lang="en" data-manifest-hash="d5996a06d1e4" data-compute-hash="ea127e24bf00">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1GXN++OkM02KioWXqr41sn7DFt/p7OeiRsHDpnTpfhg=' 'sha256-4mWU7xSfZ5UKBY3u9ADrAJ4gCXrEL6DdbA/POnPo3Lk=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-TAlEYjAMWyaUUQSt+Gg+O7yrgrH8mjL1Xmx0Eiw/adk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XI7FRvFas7ssmfY5fVxxgB4KWQ5K1qlk4nHCcnNvsqg=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-b0AcoF8PXENyeo+wadvfj/CrOAuMK0i5ZahMKMjjnJE=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jcYwIYHWEOkRho/6EL++KYsUTDIxL+gNUno4PTReee0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1GXN++OkM02KioWXqr41sn7DFt/p7OeiRsHDpnTpfhg=' 'sha256-4mWU7xSfZ5UKBY3u9ADrAJ4gCXrEL6DdbA/POnPo3Lk=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QYcfW3eQP6+aYrtsuhLs/sXg9FnkZlzYrq8cohp0GNU=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-RcYiWwOsSLQ9atXZ5NhpJjMYwl9z5q3/VpKuho2pI/0=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-TAlEYjAMWyaUUQSt+Gg+O7yrgrH8mjL1Xmx0Eiw/adk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XI7FRvFas7ssmfY5fVxxgB4KWQ5K1qlk4nHCcnNvsqg=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jcYwIYHWEOkRho/6EL++KYsUTDIxL+gNUno4PTReee0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.33.0</title>
@@ -13318,6 +13318,45 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     };
   }
 
+  /* ── §6 · the consumer rebuild of a date-less event stamp ────────────────────────────
+     `ganglior_events[]` carries `t` as a date-less wall-clock string, and §6 tells a consumer to rebuild
+     `tMs` from the recording's own `startEpochMs` date, rolling past midnight. Six review timelines keyed
+     their sort on `(a.tMs || 0)` instead, so an event the node could not place sorted to 1970-01-01 and
+     led the list — §∅, an absent value read as a number.
+     Promoted from `glucodex-dsp.js`, where this pair shipped first and still carries its own suite legs.
+     GlucoDex keeps that node-local copy, because the GlucoDex bundle inlines no `clock.js` by design
+     (CLAUDE.md §✅). That is the one duplicate of this pair which stays, and it is deliberate. */
+  var _CK_EV_HHMM = /^(\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?$/;
+  function eventSortKeyMs(ev, t0Ms) {
+    if (ev && typeof ev.tMs === 'number' && isFinite(ev.tMs)) return ev.tMs; // §6: an absolute stamp wins
+    if (!ev || ev.t == null || typeof t0Ms !== 'number' || !isFinite(t0Ms)) return null;
+    var m = String(ev.t).trim().match(_CK_EV_HHMM);
+    if (!m) return null;
+    var a = new Date(t0Ms); // §5: a floating tMs reads back through getUTC* only
+    var k = _ckMk(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate(), +m[1], +m[2], m[3] ? +m[3] : 0, m[4] ? +(m[4] + '00').slice(0, 3) : 0);
+    if (k == null) return null;
+    if (k < t0Ms - 60000) k += 86400000; // the event window is [t0 − 60 s, t0 + 24 h)
+    return k;
+  }
+  /* Stable and absence-last over that key, in BOTH directions: two placeable events compare on the key,
+     two unplaceable events keep their arrival order, and an unplaceable event never sorts ahead of a
+     placeable one. `opts.desc` reverses only the placeable comparison, so a newest-first table still
+     reads its unplaceable rows at the end rather than at the top. A caller with no anchor passes `null`
+     and reads its arrival order back unchanged. */
+  function sortEventsByClock(evs, t0Ms, opts) {
+    var desc = !!(opts && opts.desc);
+    var dec = (evs || []).map(function (e, i) {
+      return { e: e, i: i, k: eventSortKeyMs(e, t0Ms) };
+    });
+    dec.sort(function (a, b) {
+      if (a.k == null || b.k == null) return a.k == null && b.k == null ? a.i - b.i : a.k == null ? 1 : -1;
+      return (desc ? b.k - a.k : a.k - b.k) || a.i - b.i;
+    });
+    return dec.map(function (d) {
+      return d.e;
+    });
+  }
+
   root.DexClock = {
     tzOffset: tzOffset,
     _ckP2: _ckP2,
@@ -13328,6 +13367,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     parseTimestamp: parseTimestamp,
     fileStamp: fileStamp,
     hostAxis: hostAxis,
+    eventSortKeyMs: eventSortKeyMs,
+    sortEventsByClock: sortEventsByClock,
     // Promoted from ppgdex-dsp.js so the fleet has ONE JS core (HOSTAXIS-STABILITY §4.3). Nodes
     // delegate by name, the way they already do for parseTimestamp.
     allanFromPhase: _ckAllanFromPhase,
@@ -25460,12 +25501,14 @@ function _oxyEventMeta(e) {
 }
 
 // §4 · the clinical event timeline — chronological ganglior_events[] with evidence badges, capped for print.
-function oxyEventTimeline(events, multiNight) {
+function oxyEventTimeline(events, multiNight, t0Ms) {
   var evs = Array.isArray(events) ? events.slice() : [];
   if (!evs.length) return '<div class="ocl-none">No scored events in this export.</div>';
-  evs.sort(function (a, b) {
-    return (a.tMs || 0) - (b.tMs || 0);
-  });
+  /* ∅ §6 — `ganglior_events[]` may carry `t` alone, and the former `(a.tMs || 0)` key read that
+     absence as 1970-01-01, so an event this view could not place LED a chronological timeline.
+     `t0Ms` is the export's own `recording.startEpochMs`, and it is a trailing optional parameter so
+     an older caller still compiles. The shared key sorts an unplaceable event last. */
+  evs = DexClock.sortEventsByClock(evs, t0Ms);
   var desN = evs.filter(function (e) {
     return e.impulse === 'desat_event';
   }).length;
@@ -25546,7 +25589,7 @@ function oxyClinicalSummary(review, nights) {
     h += '<div class="ocl-none">No per-night summary is included in this export — nothing to review here. (An events-only export carries the event timeline below but no clinical KPIs.)</div>';
     var evN0 = (review.events || []).length;
     h += '<div class="ocl-sec">Event timeline' + (evN0 ? ' · ' + evN0 + ' events' : '') + '</div>';
-    h += oxyEventTimeline(review.events, !!review.multiNight);
+    h += oxyEventTimeline(review.events, !!review.multiNight, review.recording && review.recording.startEpochMs);
     h += '<div class="ocl-disc">';
     h +=
       '<span class="ocl-dxl">Tepna · OxyDex</span> — wellness &amp; research tool. ' +
@@ -25646,7 +25689,7 @@ function oxyClinicalSummary(review, nights) {
   // ── event timeline (each event badged) ──
   var evN = (review.events || []).length;
   h += '<div class="ocl-sec">Event timeline' + (evN ? ' · ' + evN + ' events' : '') + '</div>';
-  h += oxyEventTimeline(review.events, !!review.multiNight);
+  h += oxyEventTimeline(review.events, !!review.multiNight, review.recording && review.recording.startEpochMs);
 
   // ── intended-use disclaimer + dxl- license stamp (§4) ──
   h += '<div class="ocl-disc">';

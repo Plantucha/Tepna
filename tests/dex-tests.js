@@ -8409,6 +8409,86 @@
        of an honest null. Each now routes through an `_ckMk`-style round-trip validator. This group locks
        that: out-of-range → null; a valid stamp → tMs UNCHANGED; ISO `24:00:00` end-of-day → next-day
        00:00 stays valid (a bare `h>23` guard would wrongly reject it). Contract-provenance-drift finding C. */
+    /* ── §∅ · §6 — AN ABSENT EVENT STAMP IS NEVER A SORT POSITION ──────────────────────
+       Six review timelines keyed their sort on `(a.tMs || 0)`. §6 lets an export carry `t` alone, so
+       that key read an absence as 1970-01-01 and the one event the view could not place LED the list.
+       GlucoDex repaired its own pair first; `clock.js` now carries the promoted pair and the six sites
+       read it. GlucoDex keeps its node-local copy, because that bundle inlines no `clock.js` by design.
+       The census half is TEXT on purpose: the defect is a comparator inside a render string builder,
+       and no committed export reaches it. The scan drops comment lines, because the repair itself
+       QUOTES the old key in prose and a value-keyed census would read the fix as the defect. */
+    group('Clock §6 · an absent event stamp sorts LAST, never to 1970', 'clock · absence · census', function (T) {
+      var C = env.DexClock;
+      T.ok('DexClock.eventSortKeyMs present', typeof (C && C.eventSortKeyMs) === 'function');
+      T.ok('DexClock.sortEventsByClock present', typeof (C && C.sortEventsByClock) === 'function');
+      if (!C || typeof C.eventSortKeyMs !== 'function' || typeof C.sortEventsByClock !== 'function') return;
+      var K = C.eventSortKeyMs,
+        S = C.sortEventsByClock;
+      var t0 = U(2026, 5, 10, 22, 30, 0, 0); // 2026-06-10 22:30, floating
+
+      /* ── the key ── */
+      T.eq('an absolute tMs wins over the anchor (§6)', K({ tMs: 1234, t: '23:00:00' }, t0), 1234);
+      T.eq('a `t`-only event rebuilds on the anchor date', K({ t: '23:15:00' }, t0), U(2026, 5, 10, 23, 15, 0, 0));
+      T.eq('a `t` past midnight rolls to the next day', K({ t: '01:05:00' }, t0), U(2026, 5, 11, 1, 5, 0, 0));
+      T.eq('a `t` inside the 60 s pre-roll stays on the anchor day', K({ t: '22:29:30' }, t0), U(2026, 5, 10, 22, 29, 30, 0));
+      T.eq('ms travel with the rebuild', K({ t: '23:15:00.5' }, t0), U(2026, 5, 10, 23, 15, 0, 500));
+      T.eq('a stamp-less event is null, never 0', K({ impulse: 'x' }, t0), null);
+      T.eq('a `t`-only event with NO anchor is null, never 0', K({ t: '23:15:00' }, null), null);
+      T.eq('a NaN tMs is null, never 0', K({ tMs: NaN }, t0), null);
+      T.eq('an out-of-range component is null (§2.7)', K({ t: '25:00:00' }, t0), null);
+
+      /* ── the sorter ── */
+      var evs = [{ id: 'c', t: '01:00:00' }, { id: 'u1' }, { id: 'a', t: '22:40:00' }, { id: 'u2' }, { id: 'b', tMs: U(2026, 5, 10, 23, 0, 0, 0) }];
+      var ids = function (a) {
+        return a
+          .map(function (e) {
+            return e.id;
+          })
+          .join(',');
+      };
+      T.eq('ascending · placeable in clock order, unplaceable LAST', ids(S(evs, t0)), 'a,b,c,u1,u2');
+      T.eq('descending · reversed, and unplaceable STILL last', ids(S(evs, t0, { desc: true })), 'c,b,a,u1,u2');
+      T.eq("the caller's array is not reordered in place", evs[0].id, 'c');
+      T.eq('a null list answers an empty array', S(null, t0).length, 0);
+      T.eq(
+        'equal keys keep arrival order (stable)',
+        ids(
+          S(
+            [
+              { id: 'p', t: '23:00:00' },
+              { id: 'q', t: '23:00:00' }
+            ],
+            t0
+          )
+        ),
+        'p,q'
+      );
+      /* With no anchor only an ABSOLUTE stamp still places, so `b` leads and every `t`-only event
+         keeps its arrival order behind it. A view with no `recording.startEpochMs` therefore loses
+         the clock order it never had, and it never gains a fabricated one. */
+      T.eq('with NO anchor only the absolute stamp places, the rest keep arrival order', ids(S(evs, null)), 'b,c,u1,a,u2');
+
+      /* ── the census: no repaired site may regrow the 1970 key ── */
+      var srcNoComments = function (f) {
+        return ((env.sources || {})[f] || '')
+          .split('\n')
+          .filter(function (ln) {
+            var t = ln.trim();
+            return t.indexOf('//') !== 0 && t.indexOf('*') !== 0 && t.indexOf('/*') !== 0;
+          })
+          .join('\n');
+      };
+      var SITES = ['hrvdex-app.js', 'oxydex-render.js', 'ppgdex-app.js', 'pulsedex-render.js', 'pulsedex-overview.js'];
+      SITES.forEach(function (f) {
+        var raw = (env.sources || {})[f];
+        T.ok(f + ' is wired into env.sources', typeof raw === 'string' && raw.length > 0, 'unwired ⇒ the census reads nothing');
+        if (typeof raw !== 'string' || !raw.length) return;
+        var hits = (srcNoComments(f).match(/\(\s*[ab]\.(?:tMs|_tMs|startMs)\s*\|\|\s*0\s*\)/g) || []).length;
+        T.eq(f + ' carries no `(x.tMs || 0)` sort key outside prose', hits, 0);
+        T.ok(f + ' reads DexClock.sortEventsByClock', srcNoComments(f).indexOf('DexClock.sortEventsByClock') >= 0);
+      });
+    });
+
     group('Clock §2.7 — node-local parsers reject out-of-range', 'node-local-clock', function (T) {
       // ── GlucoDex `_ckParse` (exposed on GLUDSP for this gate) ──
       var GP = (env.GLUDSP && env.GLUDSP._ckParse) || (env.GlucoDex && env.GlucoDex._ckParse);

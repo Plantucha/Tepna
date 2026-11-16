@@ -301,12 +301,12 @@ function hrvReviewView(review) {
   // per-measurement table (most recent first, capped)
   h += '<div class="hrvrv-sec">Per-measurement table</div>';
   if (ms.length) {
-    var rowsDesc = ms
-      .slice()
-      .sort(function (a, b) {
-        return (b.tMs || 0) - (a.tMs || 0);
-      })
-      .slice(0, 16);
+    /* ∅ §6 — the former `(b.tMs || 0)` key read a measurement whose stamp never parsed as
+       1970-01-01. This table is NEWEST-first, so that row sorted to the END and read as the oldest
+       measurement in the export. `hrvdex-dsp.js:387` writes `tMs: null` for exactly that row, so the
+       absence is real and not defensive. The shared key keeps an unplaceable row last in BOTH
+       directions, which is why the sorter takes `desc` instead of a reversed comparison. */
+    var rowsDesc = DexClock.sortEventsByClock(ms, rec.startEpochMs, { desc: true }).slice(0, 16);
     h +=
       '<table class="hrvrv-tbl"><thead><tr><th>Date</th><th>rMSSD</th><th>SDNN</th><th>HR</th><th>pNN50</th></tr></thead><tbody>' +
       rowsDesc
@@ -321,9 +321,10 @@ function hrvReviewView(review) {
   } else h += '<div class="hrvrv-none">No per-measurement rows in this export.</div>';
   // event timeline
   h += '<div class="hrvrv-sec">Event timeline</div>';
-  var evs = (review.events || []).slice().sort(function (a, b) {
-    return (a.tMs || 0) - (b.tMs || 0);
-  });
+  /* ∅ §6 — a `t`-only event carries no `tMs`, and the former key read that absence as 1970-01-01,
+     so an event this view could not place LED the timeline. The shared key rebuilds the stamp from
+     `recording.startEpochMs`, rolling past midnight, and sorts an unplaceable event last. */
+  var evs = DexClock.sortEventsByClock(review.events, rec.startEpochMs);
   if (evs.length) {
     h +=
       '<div class="hrvrv-tl">' +
