@@ -35,6 +35,11 @@
   // fields (HRmax / RHR / VO₂) map to the record's manual layer; everything else resolves
   // through the cascade. A DOM-only fallback is retained for defence-in-depth.
   const DP = () => global.DexProfile;
+  /* REVIEW EDIT (Heron): one predicate, two readers. The patch wrote the same test in
+     `personalize` and in `renderDerived`, so the two surfaces could drift apart under a later
+     edit. `ageEntered` means the cascade origin is `you` or `detected`; `pop`, `none` and a
+     legacy `_origins: null` all read not entered. It mirrors the export's own `_ent`. */
+  const ageEnteredIn = (p) => !!(p._origins && (p._origins.age === 'you' || p._origins.age === 'detected'));
   function getProfile() {
     const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
     if (DP()) {
@@ -272,6 +277,13 @@
       vo2adj: vo2a,
       vo2gt: p.vo2gt > 0 ? p.vo2gt : null,
       hrvScore: hrvScore(r.dispRm),
+      /* ∅ — A PRIOR IS NOT AN ENTERED AGE (residue 2026-11-16-the-profile-card-grades-against-a-
+         prior-only-the-export-discloses). `getProfile` clamps an absent age to 42, so `expectedRmssd`
+         and `expectedRHR` always answer a number, and every card below graded the reader against age
+         42 while the export already filed it under `assumedDefaults`. The predicate is the export's
+         own (`_ent` in ecgdex-app.js): entered means origin `you` or `detected`; `pop`, `none` and the
+         legacy `_origins: null` all read not entered. The priors themselves stay in the export. */
+      ageEntered: ageEnteredIn(p),
       expRmssd: expectedRmssd(p.age),
       expRHR: expectedRHR(p.age)
     });
@@ -318,12 +330,18 @@
     }
     const css = color === 'good' ? 'var(--status-ok)' : color === 'warn' ? 'var(--status-caution)' : 'var(--status-concern)';
 
-    // age-relative HRV note — the personalization payoff
-    const ratio = r.dispRm / r.expRmssd;
-    let ageNote;
-    if (ratio >= 1.15) ageNote = `rMSSD ${r.dispRm} ms is <b>above</b> the ~${r.expRmssd} ms typical for age ${p.age} — favourable parasympathetic tone.`;
-    else if (ratio >= 0.85) ageNote = `rMSSD ${r.dispRm} ms is <b>about typical</b> for age ${p.age} (~${r.expRmssd} ms expected).`;
-    else ageNote = `rMSSD ${r.dispRm} ms is <b>below</b> the ~${r.expRmssd} ms typical for age ${p.age} — watch recovery & load.`;
+    // age-relative HRV note — the personalization payoff, and ONLY over an age the user entered (§∅).
+    // An absent age is the population 42 (getProfile clamps it), so the sentence called that 42 "your
+    // age" over a person who typed nothing — the very substitution the export calls assumedDefaults.
+    /* REVIEW EDIT (Heron): a blank note is not a disclosure. Over an unentered age the hero says
+       so, in the words the detail rows below already use. */
+    let ageNote = 'No age entered, so this card shows no age-relative HRV comparison.';
+    if (r.ageEntered) {
+      const ratio = r.dispRm / r.expRmssd;
+      if (ratio >= 1.15) ageNote = `rMSSD ${r.dispRm} ms is <b>above</b> the ~${r.expRmssd} ms typical for age ${p.age} — favourable parasympathetic tone.`;
+      else if (ratio >= 0.85) ageNote = `rMSSD ${r.dispRm} ms is <b>about typical</b> for age ${p.age} (~${r.expRmssd} ms expected).`;
+      else ageNote = `rMSSD ${r.dispRm} ms is <b>below</b> the ~${r.expRmssd} ms typical for age ${p.age} — watch recovery & load.`;
+    }
     /* The apnea clauses that stood here ("flags moderate sleep-apnea risk", "therapy isn't fully
        controlling events") were all gated on `apneaRisk.sev`, i.e. on CVHR crossing AHI's
        cut-points — the mapping §9 refuted. They are removed rather than reworded: every branch made
@@ -331,9 +349,9 @@
        corpus licenses. `cvhrIndex` still renders as itself in the subscore below. */
 
     const subs = [
-      { v: r.dispRm, fmt: (v) => v.toFixed(0), label: 'rMSSD', cls: (v) => (v >= r.expRmssd ? 'ok' : v > r.expRmssd * 0.7 ? 'warn' : 'bad') },
+      { v: r.dispRm, fmt: (v) => v.toFixed(0), label: 'rMSSD', cls: r.ageEntered ? (v) => (v >= r.expRmssd ? 'ok' : v > r.expRmssd * 0.7 ? 'warn' : 'bad') : () => 'neutral' },
       { v: r.dispSd, fmt: (v) => v.toFixed(0), label: 'SDNN', cls: (v) => (v > 50 ? 'ok' : v > 35 ? 'warn' : 'bad') },
-      { v: r.rhrEff, fmt: (v) => v.toFixed(0), label: 'Rest HR', cls: (v) => (v <= r.expRHR ? 'ok' : v <= r.expRHR + 8 ? 'warn' : 'bad') },
+      { v: r.rhrEff, fmt: (v) => v.toFixed(0), label: 'Rest HR', cls: r.ageEntered ? (v) => (v <= r.expRHR ? 'ok' : v <= r.expRHR + 8 ? 'warn' : 'bad') : () => 'neutral' },
       /* Label was 'Apnea/h' with a severity colour from `apneaRisk` — both asserted these events ARE
          apneas at AHI's thresholds. Now 'CVHR/h', the quantity actually computed, and `neutral`:
          colouring it would need a validated cut-point, which is exactly what §9 could not find. */
@@ -417,7 +435,11 @@
       sd2 = r.sd2,
       pn = r.longRec ? r.dispPn : r.pnn50;
     const qtc = r.morph && r.morph.delin && r.morph.delin.valid ? r.morph.delin.qtcBazett : null;
-    const exp = r.expRmssd || 30;
+    /* REVIEW EDIT (Heron): the same prior graded this card's border AND its rMSSD colour, and the
+       row's table named neither. Over an unentered age the card grades against the node's own
+       floor of 30 ms, and the unit line names that floor. The `|| 30` arm was dead, because
+       `expectedRmssd` answers a number for every profile; it is now the honest arm. */
+    const exp = r.ageEntered ? r.expRmssd : 30;
     const sev = rm >= exp ? 'proj-good' : rm >= exp * 0.7 ? 'proj-warn' : 'proj-bad';
     const vc = rm >= exp ? 'proj-val-good' : rm >= exp * 0.7 ? 'proj-val-warn' : 'proj-val-bad';
     const eb = (l) => (typeof evBadge === 'function' ? evBadge(l) : '');
@@ -429,7 +451,7 @@
       `<div class="proj-card ${sev}">` +
       `<div class="proj-header"><span class="proj-icon">💓</span><span class="proj-title">HRV Bench · Time-Domain</span>` +
       `<span class="proj-badge proj-good">validated</span></div>` +
-      `<div class="proj-main"><div class="proj-value ${vc}">${rm != null && !isNaN(rm) ? rm : '—'}</div><div class="proj-unit">ms · ${eb('rMSSD')}rMSSD (vagal tone)</div></div>` +
+      `<div class="proj-main"><div class="proj-value ${vc}">${rm != null && !isNaN(rm) ? rm : '—'}</div><div class="proj-unit">ms · ${eb('rMSSD')}rMSSD (vagal tone)${r.ageEntered ? '' : ' · vs ≥30 ms, age not entered'}</div></div>` +
       `<div class="proj-waterfall">` +
       f('SDNN', 'norm 50–100 ms', sd, 'ms', sd > 50 ? 'good' : sd > 35 ? 'warn' : 'bad') +
       f('SD1', 'Poincaré short-axis', sd1 != null ? sd1.toFixed(1) : null, 'ms', sd1 >= 20 ? 'good' : sd1 >= 10 ? 'warn' : 'bad') +
@@ -448,6 +470,9 @@
     const d = $('profileDerived');
     if (!d) return;
     const p = getProfile();
+    // Same predicate as `personalize` (and the export's `_ent`): a prior is disclosed, not presented
+    // as a median for an age nobody entered.
+    const ageEntered = ageEnteredIn(p);
     // Body-composition formulas delegate to the shared engine (DuBois BSA, Mifflin/
     // Katch RMR, ACSM VO₂ cat) so every node computes them identically; the BSA label
     // shifts Mosteller→DuBois (panel-display only, not exported — brief §3). The
@@ -485,8 +510,8 @@
       grp(
         'Age-relative norms',
         di('HRmax', hrmax + ' bpm', p.hrmax > 0 ? 'your entry' : 'Tanaka: 208−0.7·' + p.age) +
-          di('Expected rMSSD', expectedRmssd(p.age) + ' ms', 'age ' + p.age + ' median (Nunan trend)') +
-          di('Expected rest HR', expectedRHR(p.age) + ' bpm', 'age-typical resting HR')
+          di('Expected rMSSD', expectedRmssd(p.age) + ' ms', ageEntered ? 'age ' + p.age + ' median (Nunan trend)' : 'population default, age not entered') +
+          di('Expected rest HR', expectedRHR(p.age) + ' bpm', ageEntered ? 'age-typical resting HR' : 'population default, age not entered')
       );
   }
 

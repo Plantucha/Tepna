@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="61180c4ba1ab" data-compute-hash="45fc5ce34abc">
+<html lang="en" data-manifest-hash="9cb668be27f8" data-compute-hash="45fc5ce34abc">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1tyQo4CppsC4mM8e/tB74Z/hxkeD1dDwj8X584GUEKA=' 'sha256-66BIiIp6XLrsmwVD2lgkj9tNC/7Nv6tqpize9N6LBEw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QYcfW3eQP6+aYrtsuhLs/sXg9FnkZlzYrq8cohp0GNU=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-bo6raE46Nns2YugBQDX8OC7Qw5dlpqlhpUm7g9fQibw=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jU+dw+IT2rwtLcI6NYHxMA0+3qLsJNGkAHJkagoo0D4=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1tyQo4CppsC4mM8e/tB74Z/hxkeD1dDwj8X584GUEKA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HP+npD7TDJQA1GWNoKqzz+yyx/qyYLDSbr6LD6+rxbM=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QYcfW3eQP6+aYrtsuhLs/sXg9FnkZlzYrq8cohp0GNU=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-UstViQEL0i1ZbppLSE+kSzTD9rlm5mBDO4jlLKK0Vvk=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-bo6raE46Nns2YugBQDX8OC7Qw5dlpqlhpUm7g9fQibw=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jU+dw+IT2rwtLcI6NYHxMA0+3qLsJNGkAHJkagoo0D4=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.33.0</title>
@@ -21737,6 +21737,11 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
   // fields (HRmax / RHR / VO₂) map to the record's manual layer; everything else resolves
   // through the cascade. A DOM-only fallback is retained for defence-in-depth.
   const DP = () => global.DexProfile;
+  /* REVIEW EDIT (Heron): one predicate, two readers. The patch wrote the same test in
+     `personalize` and in `renderDerived`, so the two surfaces could drift apart under a later
+     edit. `ageEntered` means the cascade origin is `you` or `detected`; `pop`, `none` and a
+     legacy `_origins: null` all read not entered. It mirrors the export's own `_ent`. */
+  const ageEnteredIn = (p) => !!(p._origins && (p._origins.age === 'you' || p._origins.age === 'detected'));
   function getProfile() {
     const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
     if (DP()) {
@@ -21974,6 +21979,13 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
       vo2adj: vo2a,
       vo2gt: p.vo2gt > 0 ? p.vo2gt : null,
       hrvScore: hrvScore(r.dispRm),
+      /* ∅ — A PRIOR IS NOT AN ENTERED AGE (residue 2026-11-16-the-profile-card-grades-against-a-
+         prior-only-the-export-discloses). `getProfile` clamps an absent age to 42, so `expectedRmssd`
+         and `expectedRHR` always answer a number, and every card below graded the reader against age
+         42 while the export already filed it under `assumedDefaults`. The predicate is the export's
+         own (`_ent` in ecgdex-app.js): entered means origin `you` or `detected`; `pop`, `none` and the
+         legacy `_origins: null` all read not entered. The priors themselves stay in the export. */
+      ageEntered: ageEnteredIn(p),
       expRmssd: expectedRmssd(p.age),
       expRHR: expectedRHR(p.age)
     });
@@ -22020,12 +22032,18 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
     }
     const css = color === 'good' ? 'var(--status-ok)' : color === 'warn' ? 'var(--status-caution)' : 'var(--status-concern)';
 
-    // age-relative HRV note — the personalization payoff
-    const ratio = r.dispRm / r.expRmssd;
-    let ageNote;
-    if (ratio >= 1.15) ageNote = `rMSSD ${r.dispRm} ms is <b>above</b> the ~${r.expRmssd} ms typical for age ${p.age} — favourable parasympathetic tone.`;
-    else if (ratio >= 0.85) ageNote = `rMSSD ${r.dispRm} ms is <b>about typical</b> for age ${p.age} (~${r.expRmssd} ms expected).`;
-    else ageNote = `rMSSD ${r.dispRm} ms is <b>below</b> the ~${r.expRmssd} ms typical for age ${p.age} — watch recovery & load.`;
+    // age-relative HRV note — the personalization payoff, and ONLY over an age the user entered (§∅).
+    // An absent age is the population 42 (getProfile clamps it), so the sentence called that 42 "your
+    // age" over a person who typed nothing — the very substitution the export calls assumedDefaults.
+    /* REVIEW EDIT (Heron): a blank note is not a disclosure. Over an unentered age the hero says
+       so, in the words the detail rows below already use. */
+    let ageNote = 'No age entered, so this card shows no age-relative HRV comparison.';
+    if (r.ageEntered) {
+      const ratio = r.dispRm / r.expRmssd;
+      if (ratio >= 1.15) ageNote = `rMSSD ${r.dispRm} ms is <b>above</b> the ~${r.expRmssd} ms typical for age ${p.age} — favourable parasympathetic tone.`;
+      else if (ratio >= 0.85) ageNote = `rMSSD ${r.dispRm} ms is <b>about typical</b> for age ${p.age} (~${r.expRmssd} ms expected).`;
+      else ageNote = `rMSSD ${r.dispRm} ms is <b>below</b> the ~${r.expRmssd} ms typical for age ${p.age} — watch recovery & load.`;
+    }
     /* The apnea clauses that stood here ("flags moderate sleep-apnea risk", "therapy isn't fully
        controlling events") were all gated on `apneaRisk.sev`, i.e. on CVHR crossing AHI's
        cut-points — the mapping §9 refuted. They are removed rather than reworded: every branch made
@@ -22033,9 +22051,9 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
        corpus licenses. `cvhrIndex` still renders as itself in the subscore below. */
 
     const subs = [
-      { v: r.dispRm, fmt: (v) => v.toFixed(0), label: 'rMSSD', cls: (v) => (v >= r.expRmssd ? 'ok' : v > r.expRmssd * 0.7 ? 'warn' : 'bad') },
+      { v: r.dispRm, fmt: (v) => v.toFixed(0), label: 'rMSSD', cls: r.ageEntered ? (v) => (v >= r.expRmssd ? 'ok' : v > r.expRmssd * 0.7 ? 'warn' : 'bad') : () => 'neutral' },
       { v: r.dispSd, fmt: (v) => v.toFixed(0), label: 'SDNN', cls: (v) => (v > 50 ? 'ok' : v > 35 ? 'warn' : 'bad') },
-      { v: r.rhrEff, fmt: (v) => v.toFixed(0), label: 'Rest HR', cls: (v) => (v <= r.expRHR ? 'ok' : v <= r.expRHR + 8 ? 'warn' : 'bad') },
+      { v: r.rhrEff, fmt: (v) => v.toFixed(0), label: 'Rest HR', cls: r.ageEntered ? (v) => (v <= r.expRHR ? 'ok' : v <= r.expRHR + 8 ? 'warn' : 'bad') : () => 'neutral' },
       /* Label was 'Apnea/h' with a severity colour from `apneaRisk` — both asserted these events ARE
          apneas at AHI's thresholds. Now 'CVHR/h', the quantity actually computed, and `neutral`:
          colouring it would need a validated cut-point, which is exactly what §9 could not find. */
@@ -22119,7 +22137,11 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
       sd2 = r.sd2,
       pn = r.longRec ? r.dispPn : r.pnn50;
     const qtc = r.morph && r.morph.delin && r.morph.delin.valid ? r.morph.delin.qtcBazett : null;
-    const exp = r.expRmssd || 30;
+    /* REVIEW EDIT (Heron): the same prior graded this card's border AND its rMSSD colour, and the
+       row's table named neither. Over an unentered age the card grades against the node's own
+       floor of 30 ms, and the unit line names that floor. The `|| 30` arm was dead, because
+       `expectedRmssd` answers a number for every profile; it is now the honest arm. */
+    const exp = r.ageEntered ? r.expRmssd : 30;
     const sev = rm >= exp ? 'proj-good' : rm >= exp * 0.7 ? 'proj-warn' : 'proj-bad';
     const vc = rm >= exp ? 'proj-val-good' : rm >= exp * 0.7 ? 'proj-val-warn' : 'proj-val-bad';
     const eb = (l) => (typeof evBadge === 'function' ? evBadge(l) : '');
@@ -22131,7 +22153,7 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
       `<div class="proj-card ${sev}">` +
       `<div class="proj-header"><span class="proj-icon">💓</span><span class="proj-title">HRV Bench · Time-Domain</span>` +
       `<span class="proj-badge proj-good">validated</span></div>` +
-      `<div class="proj-main"><div class="proj-value ${vc}">${rm != null && !isNaN(rm) ? rm : '—'}</div><div class="proj-unit">ms · ${eb('rMSSD')}rMSSD (vagal tone)</div></div>` +
+      `<div class="proj-main"><div class="proj-value ${vc}">${rm != null && !isNaN(rm) ? rm : '—'}</div><div class="proj-unit">ms · ${eb('rMSSD')}rMSSD (vagal tone)${r.ageEntered ? '' : ' · vs ≥30 ms, age not entered'}</div></div>` +
       `<div class="proj-waterfall">` +
       f('SDNN', 'norm 50–100 ms', sd, 'ms', sd > 50 ? 'good' : sd > 35 ? 'warn' : 'bad') +
       f('SD1', 'Poincaré short-axis', sd1 != null ? sd1.toFixed(1) : null, 'ms', sd1 >= 20 ? 'good' : sd1 >= 10 ? 'warn' : 'bad') +
@@ -22150,6 +22172,9 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
     const d = $('profileDerived');
     if (!d) return;
     const p = getProfile();
+    // Same predicate as `personalize` (and the export's `_ent`): a prior is disclosed, not presented
+    // as a median for an age nobody entered.
+    const ageEntered = ageEnteredIn(p);
     // Body-composition formulas delegate to the shared engine (DuBois BSA, Mifflin/
     // Katch RMR, ACSM VO₂ cat) so every node computes them identically; the BSA label
     // shifts Mosteller→DuBois (panel-display only, not exported — brief §3). The
@@ -22187,8 +22212,8 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
       grp(
         'Age-relative norms',
         di('HRmax', hrmax + ' bpm', p.hrmax > 0 ? 'your entry' : 'Tanaka: 208−0.7·' + p.age) +
-          di('Expected rMSSD', expectedRmssd(p.age) + ' ms', 'age ' + p.age + ' median (Nunan trend)') +
-          di('Expected rest HR', expectedRHR(p.age) + ' bpm', 'age-typical resting HR')
+          di('Expected rMSSD', expectedRmssd(p.age) + ' ms', ageEntered ? 'age ' + p.age + ' median (Nunan trend)' : 'population default, age not entered') +
+          di('Expected rest HR', expectedRHR(p.age) + ' bpm', ageEntered ? 'age-typical resting HR' : 'population default, age not entered')
       );
   }
 
@@ -24245,8 +24270,11 @@ self.onmessage = async (e) => {
       {
         l: 'Rest HR',
         v: r.rhrEff ? r.rhrEff + 'bpm' : '—',
-        sub: r.expRHR ? 'age norm ~' + r.expRHR : 'awake est',
-        s: !r.rhrEff ? 'neutral' : r.rhrEff <= (r.expRHR || 62) ? 'ok' : r.rhrEff <= (r.expRHR || 62) + 8 ? 'warn' : 'bad'
+        /* Over an age nobody entered the prior is a default, not this person's norm (§∅, residue
+           2026-11-16-the-profile-card-grades-against-a-prior-only-the-export-discloses). `ageEntered`
+           comes from `ECGProfile.personalize` and is the export's own `_ent` predicate. */
+        sub: r.ageEntered && r.expRHR ? 'age norm ~' + r.expRHR : 'awake est',
+        s: !r.rhrEff || !r.ageEntered ? 'neutral' : r.rhrEff <= (r.expRHR || 62) ? 'ok' : r.rhrEff <= (r.expRHR || 62) + 8 ? 'warn' : 'bad'
       },
       { l: 'VO₂max Est', v: r.vo2adj != null ? r.vo2adj : '—', sub: 'ml/kg/min · HR-ratio', s: r.vo2adj == null ? 'neutral' : r.vo2adj >= 45 ? 'ok' : r.vo2adj >= 38 ? 'warn' : 'bad' }
     ];
@@ -24287,8 +24315,8 @@ self.onmessage = async (e) => {
       {
         l: 'rMSSD' + (r.longRec ? ' (med)' : ''),
         v: r.dispRm + 'ms',
-        sub: r.expRmssd ? 'age norm ~' + r.expRmssd : '≥30 good',
-        s: r.expRmssd ? (r.dispRm >= r.expRmssd ? 'ok' : r.dispRm > r.expRmssd * 0.7 ? 'warn' : 'bad') : sc(r.dispRm, 30, 20)
+        sub: r.ageEntered && r.expRmssd ? 'age norm ~' + r.expRmssd : '≥30 good',
+        s: r.ageEntered && r.expRmssd ? (r.dispRm >= r.expRmssd ? 'ok' : r.dispRm > r.expRmssd * 0.7 ? 'warn' : 'bad') : sc(r.dispRm, 30, 20)
       },
       { l: 'SDNN' + (r.longRec ? ' (med)' : ''), v: r.dispSd + 'ms', sub: r.tier === 'ultra-short' ? 'needs ≥5min' : '≥50 good', s: r.tier === 'ultra-short' ? 'neutral' : sc(r.dispSd, 50, 30) },
       {
@@ -25318,11 +25346,13 @@ self.onmessage = async (e) => {
         'Resting HR',
         r.rhrEff || '—',
         'bpm',
-        r.expRHR ? '~' + r.expRHR : '—',
-        !r.rhrEff ? 'neutral' : r.rhrEff <= (r.expRHR || 62) ? 'ok' : r.rhrEff <= (r.expRHR || 62) + 8 ? 'warn' : 'bad',
+        r.ageEntered && r.expRHR ? '~' + r.expRHR : '—',
+        !r.rhrEff || !r.ageEntered ? 'neutral' : r.rhrEff <= (r.expRHR || 62) ? 'ok' : r.rhrEff <= (r.expRHR || 62) + 8 ? 'warn' : 'bad',
         r.longRec ? 'Nocturnal floor + 8 (awake est)' : 'Measured'
       ],
-      ['Expected rMSSD', r.expRmssd || '—', 'ms', 'age norm', 'neutral', 'Age-typical rMSSD for comparison'],
+      /* The rMSSD twin of the row above — the table named only the Rest-HR copy, but this row printed
+         `expRmssd` (a prior) under the target "age norm". Same predicate, same disclosure. */
+      ['Expected rMSSD', r.ageEntered ? r.expRmssd : '—', 'ms', r.ageEntered ? 'age norm' : '—', 'neutral', r.ageEntered ? 'Age-typical rMSSD for comparison' : 'population default, age not entered'],
       ['VO₂max base', r.vo2base == null ? '—' : r.vo2base, 'ml/kg/min', '—', 'neutral', 'Uth–Sørensen HRmax/HRrest' + (r.altFactor && r.altFactor < 1 ? ' · alt ×' + r.altFactor : '')],
       ['VO₂max adj', r.vo2adj == null ? '—' : r.vo2adj, 'ml/kg/min', '≥40', r.vo2adj == null ? 'neutral' : r.vo2adj >= 45 ? 'ok' : r.vo2adj >= 38 ? 'warn' : 'bad', 'HRV-adjusted estimate'],
       ...(r.vo2gt ? [['VO₂max GT', r.vo2gt, 'ml/kg/min', 'lab', 'neutral', 'Your entered ground truth']] : []),
