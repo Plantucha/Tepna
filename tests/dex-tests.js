@@ -63752,13 +63752,20 @@
                a row could not name its own origin, and the author had to borrow a PR number or a
                brief. That moves the stated origin away from the file which holds the defect — the one
                edit CLAUDE.md §📌 names as making a real defect disappear.
-               Measured 2026-11-16 at `c1767bfbf` over 3559 tracked names: exactly THREE characters
-               fall outside the old class, and every one of them is a real filename, not a typo —
-               the space (69 names, 23 of them at the root, among them `OxyDex Reference.html` and
-               `Data Unifier.html`), the apostrophe (26 names, every `docs/wiring/How It's Wired -
-               *.html`) and one `@` (`capture-host/systemd/tepna-btattach@.service`, a systemd
-               template unit). The old class accepted 0 of those 70; this one accepts 70 of 70, and
-               it changes the verdict on NO name which carries none of the three.
+               Measured 2026-11-16 over the 3524 names of `git ls-tree -r --name-only origin/main`
+               at `cebad7dfa`: exactly THREE characters fall outside the old class, and every one of
+               them is a real filename, not a typo — the space (72 names, 24 of them at the root,
+               among them `OxyDex Reference.html` and `Data Unifier.html`), the apostrophe (26 names,
+               every `docs/wiring/How It's Wired - *.html`) and one `@`
+               (`capture-host/systemd/tepna-btattach@.service`, a systemd template unit). 73 names
+               carry at least one of the three; the old class accepted 0 of them, this one accepts
+               73 of 73, and it changes the verdict on NO name which carries none of the three.
+               ⚠️ THE POPULATION MUST COME FROM THE REF. My first count ran `git ls-files` in the
+               shared primary checkout, whose `main` sat at `e7cddc898`, and it answered 3559 names
+               under the label `c1767bfbf` — a count and a commit which never held together. The gap
+               of 35 is almost all `changes/`, because a release deletes changesets and every landing
+               PR adds one. CLAUDE.md §📌 says read a ROW STATE from the ref; a POPULATION read from
+               a working copy rots the same way (Magpie caught it, board 6820).
                Still SHAPE ONLY, and the shape still bites: the lead character may not be a space, so
                a padded cell reds, and the tail is an extension, so `two files, one gate.md` reds on
                the comma and `see the note in docs` reds for having no extension at all. check8d
