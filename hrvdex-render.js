@@ -806,6 +806,23 @@ function barChart(id, labels, datasets, opts = {}) {
   mkChart(id, labels, datasets, opts);
 }
 
+/* §∅ `d_hile` is NaN on a night without subjective scores (hrvdex-dsp.js, test-pinned). The old sum
+   added it, so one such night made its month NaN, and the next night's `|| 0` reset the month to 0 and
+   dropped every day counted before it. Count measured nights only; a month that measured none is
+   null, which the bar chart draws as a gap. Kept pure so tests/dex-tests.js can slice it out. */
+function hileByMonth(rows) {
+  const monthly = {};
+  rows.forEach((r) => {
+    const mo = r._date.toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' });
+    const m = monthly[mo] || (monthly[mo] = { days: 0, measured: 0 });
+    if (typeof r.d_hile === 'number' && isFinite(r.d_hile)) {
+      m.measured++;
+      m.days += r.d_hile;
+    }
+  });
+  return { labels: Object.keys(monthly), counts: Object.values(monthly).map((m) => (m.measured ? m.days : null)) };
+}
+
 /* ===== RENDER ALL CHARTS ===== */
 function renderAllCharts(rows, sm) {
   const labs = rows.map((r) => r._date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }));
@@ -1175,12 +1192,8 @@ function renderAllCharts(rows, sm) {
     { label: 'Zero', data: rows.map(() => 0), borderColor: rgba('yellow', 0.4), borderDash: [4, 2], pointRadius: 0 }
   ]);
   // High-stress/low-energy bar
-  const monthly = {};
-  rows.forEach((r) => {
-    const mo = r._date.toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' });
-    monthly[mo] = (monthly[mo] || 0) + r.d_hile;
-  });
-  barChart('ch_hile', Object.keys(monthly), [{ label: 'High-Stress/Low-Energy Days', data: Object.values(monthly), backgroundColor: rgba('red', 0.6), borderColor: rgba('red', 1), borderWidth: 1 }], {
+  const hile = hileByMonth(rows);
+  barChart('ch_hile', hile.labels, [{ label: 'High-Stress/Low-Energy Days', data: hile.counts, backgroundColor: rgba('red', 0.6), borderColor: rgba('red', 1), borderWidth: 1 }], {
     type: 'bar'
   });
 

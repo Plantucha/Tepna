@@ -1108,7 +1108,10 @@
   function smooth(arr, k) {
     if (k === 0) return arr;
     return arr.map((v, i, a) => {
-      const slice = a.slice(Math.max(0, i - k), i + 1).filter((x) => !isNaN(x)); // v2.9: trailing MA only
+      /* §∅ `isNaN(null)` is false, so the old `!isNaN` filter kept an absent reading and `mean` summed
+         it as 0: a 60 beside an absent night plotted 30, and an all-absent window plotted 0, not a gap.
+         Only a finite number is a reading. */
+      const slice = a.slice(Math.max(0, i - k), i + 1).filter((x) => typeof x === 'number' && isFinite(x)); // v2.9: trailing MA only
       return slice.length ? mean(slice) : NaN;
     });
   }

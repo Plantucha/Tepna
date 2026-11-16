@@ -40990,6 +40990,49 @@
     // stampless-path work and the stamped-control work on different shards (each half already used its
     // OWN separately-generated 6 h record, so this adds no compute — it only lowers the indivisible
     // floor; TEST-COVERAGE-ANALYSIS 2026-07-15). The two halves are independent by construction.
+    group('HRVDex charts — an absent reading is a gap, never a 0 (§∅)', 'hrvdex-render', function (T) {
+      var B = env.HRVDex && env.HRVDex._bare;
+      T.ok('HRVDex._bare.smooth is reachable', !!(B && typeof B.smooth === 'function'), 'namespace not wired into env');
+      if (B && typeof B.smooth === 'function') {
+        var sm = B.smooth([60, null, 40], 1);
+        T.eq('a 60 beside an absent reading smooths to 60, not 30', sm[1], 60);
+        T.eq('a window of one absent and one measured reading holds the measured one', sm[2], 40);
+        var allAbs = B.smooth([null, null, undefined], 1);
+        T.ok(
+          'an all-absent window is NaN (a gap), never 0',
+          allAbs.every(function (v) {
+            return isNaN(v);
+          }),
+          JSON.stringify(allAbs)
+        );
+        T.eq('two measured readings average (control)', B.smooth([10, 30], 1)[1], 20);
+        T.eq('a measured 0 is a reading (control)', B.smooth([0, 10], 1)[1], 5);
+        T.eq('k = 0 returns the array untouched', B.smooth([1, null], 0)[1], null);
+      }
+      var src = env.sources && env.sources['hrvdex-render.js'];
+      T.ok('the HRVDex render source is readable in this lane', !!src, 'hrvdex-render.js not in env.sources');
+      if (!src) return;
+      var a = src.indexOf('function hileByMonth(rows) {');
+      var b = a >= 0 ? src.indexOf('\n}\n', a) : -1;
+      T.ok('hileByMonth is sliceable out of the render', a >= 0 && b > a, 'the slice markers moved — update this group with them');
+      if (!(a >= 0 && b > a)) return;
+      var hb = null;
+      try {
+        hb = new Function(src.slice(a, b + 3) + '\nreturn hileByMonth;')();
+      } catch (_e) {
+        hb = null;
+      }
+      T.ok('the sliced hileByMonth evaluates on its own', typeof hb === 'function', 'hileByMonth now depends on render state — keep it pure');
+      if (typeof hb !== 'function') return;
+      var d = function (iso, v) {
+        return { _date: new Date(iso + 'T00:00:00Z'), d_hile: v };
+      };
+      var out = hb([d('2026-01-03', 1), d('2026-01-04', NaN), d('2026-01-05', 1), d('2026-01-06', 0), d('2026-02-01', NaN), d('2026-02-02', NaN)]);
+      T.eq('the months keep their order', out.labels.join(','), 'Jan 26,Feb 26');
+      T.eq('an unmeasured night drops out and keeps the days counted before it', out.counts[0], 2);
+      T.eq('a month that measured no night is null (a gap), never 0', out.counts[1], null);
+      T.eq('a month of measured zeros counts 0 (control)', hb([d('2026-03-01', 0), d('2026-03-02', 0)]).counts[0], 0);
+    });
     group('ECGDex app sorts — an undated record sorts last, never as 1970 (§∅)', 'ecgdex-app', function (T) {
       /* ecgdex-app.js attaches its sort to no global, so the comparator is cut from the source and
          run. Before the fix both sorts read an or-zero key, so an undated recording took first place. */
@@ -97881,6 +97924,96 @@
       T.ok('3 supine / 1 non-supine from the position track', !!lab && lab.supine === 3 && lab.nonsupine === 1, lab ? lab.supine + '/' + lab.nonsupine : '');
       T.ok('postureSource surfaced as motion-acc', !!lab && lab.postureSource === 'motion-acc', lab ? String(lab.postureSource) : '');
       T.ok('note discloses the UNCALIBRATED frame (no over-claim)', !!lab && /uncalibrated/i.test(String(lab.note)));
+    });
+
+    /* §∅ — AN UNMEASURED POSTURE IS NOT A NON-SUPINE POSTURE (row
+       2026-11-15-integrator-positional-apnea-counts-unknown-as-non-supine). The B·3a group above pins the
+       NO-SAMPLE absence: posAt() finds nothing inside its 10-min window, returns null, and the event lands
+       in `unknown`. It never pinned the other absence — the posture label `unknown` ITSELF, which both
+       posture nodes write for an epoch they READ and would not name (MotionDex: gravity magnitude outside
+       0.4–2.0 g; ECGDex: a blanked or thin ACC window). `/supine|back/.test(p)` is false for that string, so
+       every refused epoch fell to `nonsupine++`. Measured on HEAD 938a5d686: nine refused epochs read
+       `supine 0 / nonsupine 9`, `supineRate 0`, `positional false`, with the note "No strong supine
+       clustering of confirmed events" — a MEASURED NEGATIVE about a night where body position was never
+       measured. It also inverted a real finding: six supine events beside three refused epochs scored
+       6/3 = 0.67 and missed the 0.70 cut, where the six measured events alone read 1.00 and declare
+       provisional positional apnea. The fix classifies the label, counts the three absences apart, and
+       refuses `positional` as null with a reason when the measured population is empty. */
+    group('Integrator positional apnea: a refused posture label is unmeasured, not non-supine', 'integrator-dsp · positional · absence', function (T) {
+      var LP = env.labelPositionalApnea;
+      if (typeof LP !== 'function') {
+        T.ok('labelPositionalApnea present', false);
+        return;
+      }
+      var tb = U(2026, 5, 7, 22, 0, 0);
+      // hand-built like the #55 boundary leg above: LP reads findings[].tMs + ECGDex summary.posture
+      var lab = function (labels) {
+        var f = [],
+          pts = [];
+        for (var i = 0; i < labels.length; i++) {
+          var t = tb + i * 300000;
+          f.push({ tMs: t, type: 'confirmed_apnea_event' });
+          pts.push({ tMs: t, pos: labels[i] });
+        }
+        return LP([{ node: 'ECGDex', summary: { posture: pts } }], { findings: f });
+      };
+      var rep = function (v, n) {
+        var a = [];
+        for (var i = 0; i < n; i++) a.push(v);
+        return a;
+      };
+
+      /* ── 1 · ALL REFUSED — nine epochs the node read and would not name ── */
+      var dead = lab(rep('unknown', 9));
+      T.eq('all-refused: the measured counts are 0/0, not 0/9', dead.supine + '/' + dead.nonsupine, '0/0');
+      T.eq('all-refused: all nine land in unknown', dead.unknown, 9);
+      T.eq('all-refused: and the cause is named as REFUSED, not a missing sample', dead.unknownRefused + '/' + dead.unknownNoSample + '/' + dead.unknownUnrecognised, '9/0/0');
+      T.eq('all-refused: supineRate REFUSES — a share over an empty population', dead.supineRate, null);
+      T.eq('all-refused: positional REFUSES as null, never the false that claims we looked', dead.positional, null);
+      T.ok(
+        'all-refused: positionalReason names the split',
+        /no confirmed event carries a measured body position/.test(String(dead.positionalReason)) && /9 refused by the node/.test(String(dead.positionalReason)),
+        String(dead.positionalReason)
+      );
+      T.ok(
+        'all-refused: the note says unmeasured, not "no strong supine clustering"',
+        /never measured/.test(String(dead.note)) && !/No strong supine clustering/.test(String(dead.note)),
+        String(dead.note).slice(0, 140)
+      );
+      T.ok('all-refused: the subtree still reports available — the series exists, the labels refuse', dead.available === true);
+
+      /* ── 2 · THE INVERTED FINDING — six supine beside three refused epochs ── */
+      var flip = lab(rep('supine', 6).concat(rep('unknown', 3)));
+      T.eq('6 supine + 3 refused: the refused three leave the denominator', flip.supine + '/' + flip.nonsupine + '/' + flip.unknown, '6/0/3');
+      T.eq('6 supine + 3 refused: supineRate is 1 over what was measured (HEAD read 0.67)', flip.supineRate, 1);
+      T.eq('6 supine + 3 refused: positional DECLARES (HEAD read false — the refused epochs vetoed it)', flip.positional, true);
+      T.eq('6 supine + 3 refused: a real verdict carries no reason', flip.positionalReason, null);
+
+      /* ── 3 · NO SAMPLE IN THE WINDOW — the OTHER absence, counted apart ── */
+      var far = LP([{ node: 'ECGDex', summary: { posture: [{ tMs: tb, pos: 'supine' }] } }], { findings: [{ tMs: tb + 60 * 60000 }] });
+      T.eq('no sample within 10 min: counted as noSample, not refused', far.unknownNoSample + '/' + far.unknownRefused, '1/0');
+      T.eq('no sample within 10 min: positional refuses', far.positional, null);
+
+      /* ── 4 · A LABEL THIS LAYER CANNOT PLACE is unmeasured, never non-supine ── */
+      var odd = lab(rep('zzz-not-a-posture', 9));
+      T.eq('unplaceable label: 0 measured, 9 unrecognised', odd.supine + '/' + odd.nonsupine + '/' + odd.unknownUnrecognised, '0/0/9');
+      T.ok('unplaceable label: the reason says so', /9 with an unplaceable label/.test(String(odd.positionalReason)), String(odd.positionalReason));
+
+      /* ── 5 · CONTROL — the measured vocabulary is untouched ── */
+      var ctl = lab(rep('supine', 6).concat(rep('lateral', 3)));
+      T.eq('control 6 supine + 3 lateral: counts unchanged', ctl.supine + '/' + ctl.nonsupine + '/' + ctl.unknown, '6/3/0');
+      T.eq('control: supineRate still 0.67', ctl.supineRate, 0.67);
+      T.eq('control: still NOT positional at 0.67, and that false is earned', ctl.positional, false);
+      T.eq('control: an earned false carries no reason', ctl.positionalReason, null);
+      var vocab = lab(['prone', 'left', 'right', 'upright', 'lateral', 'Supine', 'back']);
+      T.eq('the measured vocabulary still splits 5 non-supine / 2 supine (case-insensitive)', vocab.nonsupine + '/' + vocab.supine + '/' + vocab.unknown, '5/2/0');
+
+      /* ── 6 · THE RENDER HALVES — a null must not take the tone or the colour of an earned false ── */
+      var rsrc = (env.sources || {})['integrator-render.js'] || '';
+      T.ok('render: the KPI tone holds a null arm', /p\.positional == null \? 'neutral'/.test(rsrc));
+      T.ok('render: the KPI subtitle prints the reason when the verdict refuses', /p\.positionalReason \|\| 'body position unmeasured at every confirmed event'/.test(rsrc));
+      T.ok('render: the KPI subtitle names the unmeasured count beside the two measured ones', /p\.unknown \? ' · ' \+ p\.unknown \+ ' unmeasured'/.test(rsrc));
+      T.ok('render: the finding card holds a null arm before the warn/good pair', /p\.positional == null \? '#8FB8FF' : p\.positional \? '#FFB84D' : '#3DE0D0'/.test(rsrc));
     });
 
     /* AUDIT B·3a (TOP severity — a MANUFACTURED clinical finding). The MotionDex posture leg must be
