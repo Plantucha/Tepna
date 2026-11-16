@@ -63747,7 +63747,28 @@
                neighbour instead (the failure CLAUDE.md §📌 warns about: check8d verifies EXISTENCE and
                the back-reference, never responsibility). Shape only; check8d still requires the path to
                be in the tree. */
-            var srcPath = !srcBrief && c[2].match(/^`((?:[A-Za-z0-9._\/-]+\.[A-Za-z0-9]+)|(?:(?:[A-Za-z0-9._\/-]+\/)?\.[A-Za-z0-9_-]+))`$/);
+            /* A REPO PATH MAY CARRY A SPACE, AN APOSTROPHE OR AN `@`. The class above was enumerated
+               from the paths rows happened to cite, so it refused the names this repo actually keeps:
+               a row could not name its own origin, and the author had to borrow a PR number or a
+               brief. That moves the stated origin away from the file which holds the defect — the one
+               edit CLAUDE.md §📌 names as making a real defect disappear.
+               Measured 2026-11-16 at `c1767bfbf` over 3559 tracked names: exactly THREE characters
+               fall outside the old class, and every one of them is a real filename, not a typo —
+               the space (69 names, 23 of them at the root, among them `OxyDex Reference.html` and
+               `Data Unifier.html`), the apostrophe (26 names, every `docs/wiring/How It's Wired -
+               *.html`) and one `@` (`capture-host/systemd/tepna-btattach@.service`, a systemd
+               template unit). The old class accepted 0 of those 70; this one accepts 70 of 70, and
+               it changes the verdict on NO name which carries none of the three.
+               Still SHAPE ONLY, and the shape still bites: the lead character may not be a space, so
+               a padded cell reds, and the tail is an extension, so `two files, one gate.md` reds on
+               the comma and `see the note in docs` reds for having no extension at all. check8d
+               continues to require the path to be in the tree, which is what refuses a well-shaped
+               invention.
+               ⚠️ A name with NO extension — `LICENSE`, `NOTICE`, `capture-host/Caddyfile`,
+               `tools/systemd/tepna-update` — is STILL uncitable here, because the shape test needs a
+               dot. That is a different root from this one and it needs its own ruling, so it rides a
+               residue row rather than a silent widening. */
+            var srcPath = !srcBrief && c[2].match(/^`((?:[A-Za-z0-9._\/'@-][A-Za-z0-9._\/'@ -]*\.[A-Za-z0-9]+)|(?:(?:[A-Za-z0-9._\/'@-][A-Za-z0-9._\/'@ -]*\/)?\.[A-Za-z0-9_-]+))`$/);
             var srcPr = !srcBrief && !srcPath && c[2].match(/^`(#\d+)`$/);
             var src = srcBrief || srcPath || srcPr;
             var srcKind = srcBrief ? 'brief' : srcPath ? 'path' : srcPr ? 'pr' : null;
@@ -64231,6 +64252,31 @@
         T.ok('self-test · …and a dotfile in a subdirectory', nestedDot.malformed.length === 0);
         var notAPath = residueRows('| 2026-01-02-k9 | 2026-01-02 | `just some prose` | d | ev | OPEN |');
         T.ok('self-test · …while prose is STILL rejected, so the shape rule is not merely wider', notAPath.malformed.length === 1, JSON.stringify({ malformed: notAPath.malformed.length }));
+        /* ── A SOURCE CELL MAY NAME A FILE WHOSE NAME CARRIES A SPACE, AN APOSTROPHE OR AN `@` ──
+           Each accepted path below is a tracked file of this repo, so a defect which starts in one
+           of them can state its own origin. The three refusals beside them hold the shape rule: a
+           wider class which accepts prose is the same defect one level up. */
+        var mkSrc = function (cell) {
+          return residueRows('| 2026-01-02-k9 | 2026-01-02 | ' + cell + ' | d | ev | OPEN |');
+        };
+        /* ⚠️ READ EVERY LEG OFF A PARSED ROW, NEVER OFF `rows[0]` DIRECTLY. Measured 2026-11-16 by
+           planting the old pattern back: `rows[0].srcKind` THREW on the rejected row, the whole group
+           aborted at that line, and the six legs below it never ran — so the plant reported 3 of 9
+           when 9 of 9 were owed. A leg which crashes hides the legs beside it. */
+        var spacedRow = mkSrc('`OxyDex Reference.html`');
+        var apostRow = mkSrc("`docs/wiring/How It's Wired - OxyDex.html`");
+        var atRow = mkSrc('`capture-host/systemd/tepna-btattach@.service`');
+        var padRow = mkSrc('` OxyDex Reference.html`');
+        T.ok('self-test · check8b ACCEPTS a ROOT path whose name carries a space', spacedRow.malformed.length === 0, spacedRow.malformed.length ? spacedRow.malformed[0] : 'accepted');
+        T.ok('self-test · …a nested path with a space AND an apostrophe', apostRow.malformed.length === 0, apostRow.malformed.length ? apostRow.malformed[0] : 'accepted');
+        T.ok('self-test · …and a systemd template unit, which carries an `@`', atRow.malformed.length === 0, atRow.malformed.length ? atRow.malformed[0] : 'accepted');
+        T.eq('self-test · check8b reads the spaced path as a PATH source, not a brief or a PR', (spacedRow.rows[0] || {}).srcKind || 'REJECTED', 'path');
+        T.ok('CONTROL · a LEADING space in the cell is still REJECTED', padRow.malformed.length === 1, JSON.stringify({ malformed: padRow.malformed.length }));
+        T.ok('CONTROL · prose which ends in an extension is still REJECTED on its comma', mkSrc('`two files, one gate.md`').malformed.length === 1);
+        T.ok('CONTROL · prose which carries spaces and no extension is still REJECTED', mkSrc('`see the note in docs`').malformed.length === 1);
+        /* check8d still answers the OTHER question: a well-shaped path which is not in the tree. */
+        T.eq('self-test · check8d RESOLVES a spaced path which the walk holds', residueVerdict(spacedRow.rows, {}, ['OxyDex Reference.html']).badSrc.length, 0);
+        T.eq('CONTROL · check8d FIRES on a spaced path the walk does NOT hold', residueVerdict(spacedRow.rows, {}, ['some/other/file.html']).badSrc.length, 1);
         var bareRow = residueRows(mkRow('a bare | pipe'));
         T.ok(
           'self-test · …and still REJECTS a bare pipe, so the check is not loosened',
