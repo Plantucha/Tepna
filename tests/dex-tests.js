@@ -35430,6 +35430,18 @@
       out = P.poincare([812.7, 913.9, 812.7, 913.9]);
       T.eq('a floating-point residue SD2 refuses the ratio (published 61266038.35 before)', JSON.stringify([out.sd2, out.sd1sd2, out.reason]), '[0,null,"sd2-below-published-precision"]');
 
+      /* N1-24 · THE TRIANGULAR INDEX BINS A HISTOGRAM AND DIVIDES A COUNT, AND BOTH MUST COME FROM THE
+         KEPT POPULATION. Until 2026-11-15 the bins looped `nn` and the numerator was `nn.length`, so an
+         interval the caller had omitted moved both sides of the quotient. Measured at 35d3b01d6: triIdx
+         1.5 over two occurrences of one bin plus one omitted interval, where the kept population gives 1. */
+      out = P.timeDomain([1000, 1400, 1000], null, [false, true, false], null);
+      T.eq('triangular index bins the KEPT population (measured 1.5 before)', JSON.stringify([out.triIdx, out.nDispersionIntervals]), '[1,2]');
+
+      /* THE CONTROL. A blanket change to the divisor would move this leg too, so an omission that leaves
+         a three-interval kept population must still count three. */
+      out = P.timeDomain([1000, 1100, 1200, 1300], null, [false, false, true, false], null);
+      T.eq('  ... and the index counts the kept intervals, not the raw ones (4 before)', JSON.stringify(out.triIdx), '3');
+
       /* THE CONTROLS. A refusal that fires unconditionally measures nothing, so each arm must still
          publish over input that supports it. */
       out = P.poincare([700, 725, 735, 765, 775, 805]);
@@ -35444,6 +35456,24 @@
          regression there reds here, and it reds nowhere else. */
       out = P.timeDomain([800, 1200, 790, 1300], [true, false, false, true]);
       T.eq('a refused rMSSD rounds to null, never to 0', JSON.stringify(out.rmssd) === '0' ? 'ROUNDED TO ZERO' : JSON.stringify(out.rmssd), 'null');
+
+      /* N1-23 · AN OMITTED INTERVAL INSIDE A POPULATION THAT STILL SUPPORTS DISPERSION. `omit` marks an
+         interval that straddles a time discontinuity. The beat-to-beat arm consulted `cleanMask` and
+         `adj` and never `omit`, so the omitted interval's own pairs entered rMSSD and pNN50. Measured
+         at 35d3b01d6: rmssd 400, pnn50 100 and nBeatPairs 2 over one measured pair. */
+      out = P.timeDomain([1000, 1400, 1000], null, [false, true, false], null);
+      T.eq('an omitted interval does not enter the beat-to-beat arm (measured rmssd 400 before)', JSON.stringify([out.rmssd, out.pnn50, out.nBeatPairs]), '[null,null,0]');
+      T.eq('  ... both survivors touch it, so no pair is measured, and the arm names that', JSON.stringify(out.beatPairReason), '"no-clean-adjacent-pair"');
+      T.eq('  ... and the arm says how many pairs the omission removed', JSON.stringify(out.nBeatPairsOmitted), '2');
+
+      /* THE CONTROL. The legs above also pass on a blanket refusal, so an omission that leaves a
+         measured pair in place must publish that pair and skip exactly two. */
+      out = P.timeDomain([1000, 1100, 1200, 1300], null, [false, false, true, false], null);
+      T.eq(
+        'an omission that leaves one measured pair still publishes it, and counts the two it removed',
+        JSON.stringify([out.rmssd, out.pnn50, out.nBeatPairs, out.nBeatPairsOmitted]),
+        '[100,100,1,2]'
+      );
     });
 
     /* ── INSUFFICIENT INPUT REFUSES; IT DOES NOT REPORT ZERO (Clock Contract §2.6) ──────────────
