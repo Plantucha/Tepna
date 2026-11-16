@@ -86,6 +86,23 @@ export const SUPERSEDES = 'analysis/published-numbers/tch-firmware-reference-202
 export const BRIEF = 'briefs/TCH-REFERENCE-POPULATIONS-2026-10-13-BRIEF.md';
 
 const r3 = (x) => (Number.isFinite(x) ? Math.round(x * 1000) / 1000 : null);
+/* ∅ THE MAXIMUM BIAS OF NOTHING IS NOT ZERO. Until 2026-11-15 `buildRecord` reduced every absent key
+   to 0 before the maximum, so a run that scored no night published `maxAbsBias: 0` beside siblings
+   that read null (`claims.h10Measured`, `dateFirst`, `rhoVO`) — an absence wearing the shape of a
+   measured zero. The reduction runs over the keys that SCORED, and a measured bias of 0 stays 0:
+   `Number.isFinite(0)` is true, so 0 is kept and only "no number at all" is refused. */
+export function maxAbsBiasOf(med) {
+  const scored = KEYS.filter((k) => med && med[k] && Number.isFinite(med[k].bias));
+  return scored.length ? Math.max(...scored.map((k) => Math.abs(med[k].bias))) : null;
+}
+
+/* ∅ A RECORD THAT SCORED NO NIGHT IS A TEMPLATE, NOT A MEASUREMENT. `scrubVerdict`'s population is the
+   record's LEAVES, so it reads PASS over a record with no scored night, and `main()` would write that
+   file — a PASS over zero scored nights is invalid. */
+export function nothingScored(rec) {
+  const n = rec && rec.claims && rec.claims.nightsScored;
+  return !(n > 0);
+}
 const mean = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : null);
 
 export function okRows(run) {
@@ -413,15 +430,26 @@ export function privateDataFindings(rec) {
 
 export function scrubVerdict(rec, meta = {}) {
   const p = privateDataFindings(rec);
+  /* ∅ A PASS OVER ZERO SCORED NIGHTS IS THE EXAMINED-NOTHING SHAPE. This gate's population is the
+     record's LEAVES, never its nights, so it certified a record that scored nothing and `main()` wrote
+     the file. §∅ makes an absent population NOT_RUN with a named reason, and verdict.js refuses a
+     `result` on a NOT_RUN, so the three fields move together. A leak still reads FAIL: the leaves were
+     examined and a finding outranks the absence, so a NOT_RUN never hides it. */
+  const empty = nothingScored(rec);
+  const nights = rec && rec.claims ? rec.claims.nightsScored : null;
   return V.make({
     gate: 'tch-reference-record:no-private-data',
-    status: p.findings.length ? 'FAIL' : 'PASS',
+    status: p.findings.length ? 'FAIL' : empty ? 'NOT_RUN' : 'PASS',
     scope: 'publishable',
     population: { name: 'record leaves', checked: p.leaves, eligible: p.leaves, excluded: 0 },
     criterion: { name: 'record_leaves_free_of_corpus_paths_night_lists_and_per_night_rows', threshold: 0, unit: 'findings', direction: 'lte' },
-    result: { findings: p.findings.length, rules: 3 },
+    result: !p.findings.length && empty ? null : { findings: p.findings.length, rules: 3 },
     evidence: ['tools/tch-reference-record.mjs', meta.out || 'analysis/published-numbers/tch-firmware-reference-<date>.json'],
-    reason: p.findings.length ? p.findings.slice(0, 6).join(' · ') : null,
+    reason: p.findings.length
+      ? p.findings.slice(0, 6).join(' · ')
+      : empty
+        ? 'no night scored: claims.nightsScored reads ' + JSON.stringify(nights) + ', so this record carries no measurement to certify — a PASS over zero scored nights is invalid'
+        : null,
     producedBy: { tool: 'tools/tch-reference-record.mjs', commit: meta.commit || null, ...(meta.commit ? {} : { commitReason: 'not run from a git checkout' }) },
     at: meta.at
   });
@@ -519,7 +547,7 @@ export function buildRecord(runs, meta = {}) {
   const scored = okRows(runs.host)
     .map((r) => r.night)
     .sort();
-  const maxAbsBias = Math.max(...KEYS.map((k) => Math.abs((med[k] && med[k].bias) || 0)));
+  const maxAbsBias = maxAbsBiasOf(med);
   const rec = {
     schema: SCHEMA,
     producer: 'tools/tch-reference-record.mjs',
@@ -575,6 +603,7 @@ export function buildRecord(runs, meta = {}) {
       o2Hat: r3(med.o2 && med.o2.classic),
       rhoVO: r3(Hres.rho && Hres.rho.vo),
       maxAbsBias: r3(maxAbsBias),
+      maxAbsBiasReason: maxAbsBias == null ? 'no-key-scored' : null,
       solidNightsScored: (axes.host && axes.host.populations.solid && axes.host.populations.solid.population.checked) || null,
       solidClassicPassFraction: r3(axes.host && axes.host.populations.solid && axes.host.populations.solid.result && axes.host.populations.solid.result.classicPassFraction),
       driftMedianAbs: { h10: drift.corners.h10 && drift.corners.h10.medianAbs, verity: drift.corners.verity && drift.corners.verity.medianAbs, o2: drift.corners.o2 && drift.corners.o2.medianAbs }
@@ -1063,6 +1092,40 @@ function selftest() {
     ok(false, 'codegen/generated/tch-reference-record.js is not beside this tool — the field-set legs examined nothing (§4b)');
   }
 
+  /* ∅ THE MAXIMUM BIAS OF NOTHING (Muse N5-1, residue 2026-11-15-tch-reference-record-maxabsbias-zero-when-nothing-scored). */
+  ok(maxAbsBiasOf({}) === null, 'a record with no scored key reads maxAbsBias null, never 0 (got ' + JSON.stringify(maxAbsBiasOf({})) + ')');
+  ok(maxAbsBiasOf({ h10: { bias: null }, verity: {} }) === null, 'a key present but unmeasured contributes nothing to the maximum');
+  ok(maxAbsBiasOf({ h10: { bias: 0 } }) === 0, 'ANTI-VACUITY · a MEASURED bias of 0 stays 0: the fix refuses absence, not zero');
+  ok(maxAbsBiasOf({ h10: { bias: -1.25 }, verity: { bias: 0.5 } }) === 1.25, 'the maximum is over the absolute biases of the keys that scored');
+  /* END TO END over the producer, not the helper: a helper-only test still passes when `buildRecord`
+     keeps its old reduction, so the two lower legs are what actually hold the fix in place. */
+  const emptyRuns = { host: { detail: { nights: [] }, verdicts: [] }, wall: { detail: { nights: [] }, verdicts: [] } };
+  let emptyRec = null;
+  try {
+    emptyRec = buildRecord(emptyRuns, {});
+  } catch (e) {
+    ok(false, 'buildRecord over a run pair that scored nothing (threw ' + e.message + ')');
+  }
+  ok(
+    !!emptyRec && emptyRec.claims.maxAbsBias === null,
+    'END TO END · a record that scored no night publishes maxAbsBias null, never 0 (got ' + JSON.stringify(emptyRec && emptyRec.claims.maxAbsBias) + ')'
+  );
+  ok(!!emptyRec && emptyRec.claims.maxAbsBiasReason === 'no-key-scored', 'the absent maximum names its reason beside the value');
+  ok(
+    !!emptyRec && emptyRec.result.verdicts[0].status === 'NOT_RUN',
+    'END TO END · the scrub verdict over zero scored nights is NOT_RUN, never PASS (got ' + JSON.stringify(emptyRec && emptyRec.result.verdicts[0].status) + ')'
+  );
+  const emptyLeak = JSON.parse(JSON.stringify(emptyRec || {}));
+  if (emptyLeak.axes && emptyLeak.axes.host) emptyLeak.axes.host.nightList = ['2026-09-01', '2026-09-02', '2026-09-03'];
+  else emptyLeak.nightList = ['2026-09-01', '2026-09-02', '2026-09-03'];
+  ok(
+    scrubVerdict(emptyLeak).status === 'FAIL',
+    'CONTROL · a leak in a record that scored nothing still FAILs: the NOT_RUN never hides a finding (got ' + JSON.stringify(scrubVerdict(emptyLeak).status) + ')'
+  );
+  ok(
+    nothingScored({ claims: { nightsScored: null } }) && nothingScored({ claims: { nightsScored: 0 } }) && !nothingScored({ claims: { nightsScored: 24 } }),
+    'the refusal reads zero and null as nothing scored, and 24 as scored'
+  );
   console.log(fails.length ? `SELFTEST FAIL (${fails.length}/${ran})\n  ${fails.join('\n  ')}` : `SELFTEST PASS (${ran}/${ran})`);
   return fails.length ? 1 : 0;
 }
