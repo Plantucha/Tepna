@@ -45190,6 +45190,13 @@
           });
           T.eq('∅ every snore-pressure token the DSP writes has prose a reader can read', JSON.stringify([written.length, unglossed]), '[4,[]]');
           T.eq('ANTI-VACUITY · the table is load-bearing: an unglossed token falls through to itself', CR.reasonText('zz-no-such-reason'), 'zz-no-such-reason');
+          /* The usage absence tokens the session and night arms write (unit `cpapzr`). They sit in
+             THIS group, which already guards on a co-loaded `cpapdex-render.js` and already carries
+             the browser realm's one skip, so pinning their prose costs that realm no second skip. */
+          ['no-records', 'empty-pressure-lane', 'mixed-absences', 'unstated'].forEach(function (k) {
+            var _gl = CR.reasonText(k);
+            T.ok('∅ the render map gives `' + k + '` prose, so the token reaches a reader with words', _gl !== k && _gl.indexOf(' (' + k + ')') > 0, _gl);
+          });
         } else {
           T.skip('CpapRender.reasonText', 'cpapdex-render.js not co-loaded in this runner');
         }
@@ -54649,19 +54656,6 @@
       T.eq('∅ a night meeting two different absences borrows neither', nMixedTok.usageReason, 'mixed-absences');
       T.eq('∅ …and names both', JSON.stringify(nMixedTok.usageReasonSet), '["no-pressure-channel","no-records"]');
       T.eq('control — a night of one absence still reports that one token', nMixed.usageReason, 'no-pressure-channel');
-
-      /* A REASON THAT REACHES NO READER IS THE SAME DEFECT ONE LAYER OUT. Every token this DSP can
-         write for usage carries prose in the render map. */
-      var _rt = env.CpapRender && env.CpapRender.reasonText;
-      if (typeof _rt === 'function') {
-        ['no-records', 'empty-pressure-lane', 'mixed-absences', 'unstated'].forEach(function (k) {
-          var txt = _rt(k);
-          T.ok('∅ the render map gives `' + k + '` prose, so the token reaches a reader with words', txt !== k && txt.indexOf('(' + k + ')') !== -1, txt);
-        });
-        T.eq('control — an unknown token still prints verbatim, borrowing no story', _rt('an-unmapped-token'), 'an-unmapped-token');
-      } else {
-        T.ok('env.CpapRender.reasonText available for the token-prose legs', false, 'not wired');
-      }
     });
 
     /* ════ A bare device-scored "Apnea" TEXT must reach residualAHI (DEEP-AUDIT-2026-07-22 §CPAPDex)
