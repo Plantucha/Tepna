@@ -2259,12 +2259,26 @@ self.onmessage = async (e) => {
     st.textContent = css;
     (document.head || document.documentElement).appendChild(st);
   }
+  /* §∅ AN ABSENT STAMP IS NOT 1970. Both sorts below once read an or-zero stamp key, so an undated
+     recording or event took the first place in the list. A record with no finite stamp now sorts
+     AFTER every dated one and keeps its insertion order; a measured stamp of 0 is still a stamp.
+     Kept pure so tests/dex-tests.js can slice it out and run it. */
+  function _byStamp(key) {
+    return function (a, b) {
+      var x = a ? a[key] : undefined,
+        y = b ? b[key] : undefined;
+      var fx = typeof x === 'number' && isFinite(x),
+        fy = typeof y === 'number' && isFinite(y);
+      if (fx && fy) return x - y;
+      if (fx) return -1;
+      if (fy) return 1;
+      return 0;
+    };
+  }
   function ecgReviewTimeline(events) {
     var evs = Array.isArray(events) ? events.slice() : [];
     if (!evs.length) return '<div class="erv-none">No scored events in this export.</div>';
-    evs.sort(function (a, b) {
-      return (a.tMs || 0) - (b.tMs || 0);
-    });
+    evs.sort(_byStamp('tMs'));
     var CAP = 40,
       shown = evs.slice(0, CAP);
     var nm = function (e) {
@@ -2469,7 +2483,7 @@ self.onmessage = async (e) => {
     if (_loadQueue.length) loadECGFile(_loadQueue[0]);
   }
   function recordingsSorted() {
-    return Object.values(allRecordings).sort((a, b) => (a.t0Ms || 0) - (b.t0Ms || 0));
+    return Object.values(allRecordings).sort(_byStamp('t0Ms'));
   }
 
   function renderRecSwitcher() {

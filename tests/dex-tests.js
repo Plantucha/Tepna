@@ -40990,6 +40990,56 @@
     // stampless-path work and the stamped-control work on different shards (each half already used its
     // OWN separately-generated 6 h record, so this adds no compute — it only lowers the indivisible
     // floor; TEST-COVERAGE-ANALYSIS 2026-07-15). The two halves are independent by construction.
+    group('ECGDex app sorts — an undated record sorts last, never as 1970 (§∅)', 'ecgdex-app', function (T) {
+      /* ecgdex-app.js attaches its sort to no global, so the comparator is cut from the source and
+         run. Before the fix both sorts read an or-zero key, so an undated recording took first place. */
+      var src = env.sources && env.sources['ecgdex-app.js'];
+      T.ok('the ECGDex app source is readable in this lane', !!src, 'ecgdex-app.js not in env.sources');
+      if (!src) return;
+      var a = src.indexOf('  function _byStamp(key) {');
+      var b = a >= 0 ? src.indexOf('\n  }\n', a) : -1;
+      T.ok('the comparator is sliceable out of the app', a >= 0 && b > a, 'the slice markers moved — update this group with them');
+      if (!(a >= 0 && b > a)) return;
+      var by = null;
+      try {
+        by = new Function(src.slice(a, b + 4) + '\nreturn _byStamp;')();
+      } catch (_e) {
+        by = null;
+      }
+      T.ok('the sliced comparator evaluates on its own', typeof by === 'function', 'the comparator now depends on app state — keep it pure');
+      if (typeof by !== 'function') return;
+      var ids = function (list) {
+        return list
+          .map(function (r) {
+            return r.id;
+          })
+          .join(',');
+      };
+      var recs = [{ id: 'u1', t0Ms: null }, { id: 'd5', t0Ms: 5000 }, { id: 'u2' }, { id: 'd2', t0Ms: 2000 }, { id: 'nan', t0Ms: NaN }];
+      T.eq('dated records sort by stamp, then undated ones keep insertion order', ids(recs.slice().sort(by('t0Ms'))), 'd2,d5,u1,u2,nan');
+      T.eq(
+        'a measured stamp of 0 is a stamp and sorts first (control)',
+        ids(
+          [
+            { id: 'd1', tMs: 1 },
+            { id: 'z', tMs: 0 }
+          ].sort(by('tMs'))
+        ),
+        'z,d1'
+      );
+      T.eq(
+        'two dated records keep plain ascending order (control)',
+        ids(
+          [
+            { id: 'b', tMs: 9 },
+            { id: 'a', tMs: 3 }
+          ].sort(by('tMs'))
+        ),
+        'a,b'
+      );
+      T.eq('an all-undated list keeps its order', ids([{ id: 'x' }, { id: 'y', tMs: null }].sort(by('tMs'))), 'x,y');
+      T.ok('no sort in the app reads an or-zero stamp key', !/\((?:a|b)\.(?:t0Ms|tMs) \|\| 0\)/.test(src), 'an or-zero stamp key is back in ecgdex-app.js');
+    });
     group('ECGDex stampless events — null clock + determinism (Clock §2.6)', 'ecgdex-dsp', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function')) {
