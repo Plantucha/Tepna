@@ -96,6 +96,42 @@
     return d.getUTCFullYear() + '-' + (d.getUTCMonth() + 1) + '-' + d.getUTCDate();
   }
 
+  /* ── _dayWindow: the LAST `days` CALENDAR DAYS ending on row `i`'s own day ──────────
+     Row `2026-11-15-hrvdex-seven-day-window-has-no-span-bound`: the four rolling passes
+     below each walked backwards collecting `days` DISTINCT day keys and stopped at that
+     count, with no bound on how far back those days sat. A table holding three rows in
+     January and four in November therefore gave November a "7-day" mean over 10 months,
+     and `d_hrv_momentum` regressed ln(rMSSD) against `_tMs` over a year under a 14-day
+     name. Every consumer reads the label, so the number described a span nobody asked for.
+
+     CLAUDE.md §∅, owner ruling 2026-09-17: a DISCONTINUITY refuses, reduced COVERAGE
+     annotates. Days inside the span that carry no row are coverage — the `.length >= N`
+     guards at each call site already refuse or annotate those. Days OUTSIDE the span are a
+     discontinuity, so they leave the window rather than stretch it.
+
+     One row per calendar day, the latest at or before `i`, ascending — the shape the four
+     inline walks produced. An undated row (`_tMs` not finite) can anchor no span, so its
+     window is EMPTY and every rolling metric on that row reports absent. A dated row skips
+     undated neighbours exactly as the day-key test did. The array is ascending by `_tMs`,
+     so the first row older than the floor ends the walk. */
+  function _dayWindow(arr, i, days) {
+    const out = [];
+    const anchor = arr[i] && isFinite(arr[i]._tMs) ? Math.floor(arr[i]._tMs / 86400000) : null;
+    if (anchor == null) return out;
+    const seen = new Set();
+    for (let j = i; j >= 0; j--) {
+      const t = arr[j]._tMs;
+      if (!isFinite(t)) continue;
+      if (anchor - Math.floor(t / 86400000) > days - 1) break;
+      const k = utcDayKey(t);
+      if (!seen.has(k)) {
+        seen.add(k);
+        out.unshift(arr[j]);
+      }
+    }
+    return out;
+  }
+
   // PURE summary-CSV parser (Phase-9, SIGNAL-ADAPTER-FOLLOWUPS §4): READING split from
   // COMMITTING. Returns the parsed per-measurement rows ({_tMs, _rmssd, _sdnn, …}) with
   // NO DOM / localStorage / global mutation, so the welltory-summary adapter + HRVDex.compute
@@ -873,18 +909,8 @@
       const rmssd_adj = r._rmssd > 0 ? 1 + 0.08 * (Math.log(r._rmssd) - ln_rmssd_ref) : 1;
       r.d_vo2_hrv = !isNaN(r.d_vo2_base) ? r.d_vo2_base * rmssd_adj : NaN;
       // 7-day rolling VO2max mean
-      // v2.9: date-keyed VO2 7-day window
-      const _vo2win7 = [];
-      {
-        const _seenvo2 = new Set();
-        for (let j = i; j >= 0 && _vo2win7.length < 7; j--) {
-          const _dk = isFinite(arr[j]._tMs) ? utcDayKey(arr[j]._tMs) : '';
-          if (_dk && !_seenvo2.has(_dk)) {
-            _seenvo2.add(_dk);
-            _vo2win7.unshift(arr[j]);
-          }
-        }
-      }
+      // v2.9 date-keyed, SPAN-BOUNDED since the row cited in `_dayWindow`
+      const _vo2win7 = _dayWindow(arr, i, 7);
       const vo2_win = _vo2win7.map((x) => x.d_vo2_hrv).filter((v) => !isNaN(v) && v > 0);
       r.d_vo2_roll7 = vo2_win.length >= 3 ? vo2_win.reduce((a, b) => a + b, 0) / vo2_win.length : NaN;
       // VO2max fitness category for age 49 male
@@ -963,18 +989,8 @@
 
     // Rolling windows  (`_rows`, not `allRows` — see the note on the pass above)
     _rows.forEach((r, i, arr) => {
-      // v2.9: collect exactly 7 distinct calendar days backwards from row i
-      const window7 = [];
-      {
-        const _seen7 = new Set();
-        for (let j = i; j >= 0 && window7.length < 7; j--) {
-          const _dk = isFinite(arr[j]._tMs) ? utcDayKey(arr[j]._tMs) : '';
-          if (_dk && !_seen7.has(_dk)) {
-            _seen7.add(_dk);
-            window7.unshift(arr[j]);
-          }
-        }
-      }
+      // v2.9 date-keyed, SPAN-BOUNDED since the row cited in `_dayWindow`
+      const window7 = _dayWindow(arr, i, 7);
       const rmssd7 = window7.map((x) => x._rmssd).filter((v) => !isNaN(v) && v > 0);
       const sdnn7 = window7.map((x) => x._sdnn).filter((v) => !isNaN(v) && v > 0); // Finding 1: symmetric w/ rmssd7 — drop null/≤0 (absent SDNN) so a fabricated 0 never biases meanSDNN7/stdSDNN7
       /* §∅ — `!isNaN(null)` is TRUE (null coerces to 0), so an ABSENT subjective Stress survived this
@@ -1003,18 +1019,8 @@
       r.d_sdnn_z = r._sdnn > 0 && stdSDNN7 > 0 ? (r._sdnn - meanSDNN7) / stdSDNN7 : NaN; // Finding 1: an absent-SDNN row has no z (guard the row's OWN value, not just the baseline)
 
       // Stress autocorrelation lag-1 (14-day window)
-      // v2.9: date-keyed 14-day window for autocorrelation
-      const _win14ac = [];
-      {
-        const _seen14ac = new Set();
-        for (let j = i; j >= 0 && _win14ac.length < 14; j--) {
-          const _dk = isFinite(arr[j]._tMs) ? utcDayKey(arr[j]._tMs) : '';
-          if (_dk && !_seen14ac.has(_dk)) {
-            _seen14ac.add(_dk);
-            _win14ac.unshift(arr[j]);
-          }
-        }
-      }
+      // v2.9 date-keyed, SPAN-BOUNDED since the row cited in `_dayWindow`
+      const _win14ac = _dayWindow(arr, i, 14);
       const ac_raw = _win14ac.map((x) => x._stress);
       const ac_pairs = [];
       for (let j = 0; j < ac_raw.length - 1; j++) {
@@ -1038,18 +1044,8 @@
         r.d_pnn50_slope = linRegSlope(win_dates, win_pnn);
       } else r.d_pnn50_slope = NaN;
 
-      // v2.9: HRV Momentum — date-keyed 14-day window
-      const window14 = [];
-      {
-        const _seen14 = new Set();
-        for (let j = i; j >= 0 && window14.length < 14; j--) {
-          const _dk = isFinite(arr[j]._tMs) ? utcDayKey(arr[j]._tMs) : '';
-          if (_dk && !_seen14.has(_dk)) {
-            _seen14.add(_dk);
-            window14.unshift(arr[j]);
-          }
-        }
-      }
+      // v2.9 date-keyed, SPAN-BOUNDED since the row cited in `_dayWindow`
+      const window14 = _dayWindow(arr, i, 14);
       const lnrmssd14 = window14.filter((x) => x._rmssd > 0).map((x) => Math.log(x._rmssd));
       if (lnrmssd14.length >= 5) {
         const dates14 = window14.filter((x) => x._rmssd > 0).map((x) => x._tMs / 86400000);
@@ -1608,6 +1604,7 @@
     fmtDate,
     fmtDateTime,
     utcDayKey,
+    _dayWindow,
     _hrvParseSummaryRows,
     parseCSV,
     HRV_STORE_KEY,

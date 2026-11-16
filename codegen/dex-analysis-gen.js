@@ -161,7 +161,8 @@ function genPrepare() {
     `    const d = {`,
     `      timestamps: raw.timestamps,`,
     `      pressure:   raw.pressure,`,
-    `      leak:       raw.leak || new Float32Array(n),`,
+    // ∅ an absent leak lane is not a sealed mask — see the same fix in cpapdex-dsp.js prepare().
+    `      leak:       raw.leak || null,`,
     `      flow:       raw.flow || null,`,
     `      maskOn,`,
     `      events:     raw.events || [],`,

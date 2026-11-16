@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="83ebb168d068" data-compute-hash="b29006272980"><head>
+<html lang="en" data-manifest-hash="fed26df062de" data-compute-hash="6c51a6889844"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0Z8eIjo38Bg1VfAEHKIHaPb1S9BeP7hSsHfX3qwXhsE=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6EBVfq2enNNtgDctVgupl+XOlkSF7/O9vv+RExrsaGs=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-Y6k6jfwoCKOQ0r//iIm1UFe85Mj5Yzi65QwtU1jWUoY=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-gA6/rghZPDdnGh8rDgNkZObDLZMj5bvp5tUvUPIhyYU=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jXqI/zPtSTNKqcXyZf2TWEgHFkhBEYTAJOpvrVagUuQ=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-nsuZe4LPEGOVzA/Tj0v7xjibkLxuO6ucM1M3zE0aXtg=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-s1I+Wec4rNvlD7cQEkiyj4tZrFF7mpS5mIYu5DJu/HM=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-yv7HWl4tXs1NL9lhU0AmLGqNx/aCujqQmJygHxLbEL8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0Z8eIjo38Bg1VfAEHKIHaPb1S9BeP7hSsHfX3qwXhsE=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-ICMddmpea9QApQQSg7U2658TwB71/0lAeKxUVnqurkY=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UX7aBEim6eaSJRuFyp7TxqgAe7hlYHBlX6WDGl1pOIw=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-gA6/rghZPDdnGh8rDgNkZObDLZMj5bvp5tUvUPIhyYU=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jXqI/zPtSTNKqcXyZf2TWEgHFkhBEYTAJOpvrVagUuQ=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-nsuZe4LPEGOVzA/Tj0v7xjibkLxuO6ucM1M3zE0aXtg=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-s1I+Wec4rNvlD7cQEkiyj4tZrFF7mpS5mIYu5DJu/HM=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-yv7HWl4tXs1NL9lhU0AmLGqNx/aCujqQmJygHxLbEL8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -27519,6 +27519,42 @@ __exports.OxyDex = window.OxyDex;
     return d.getUTCFullYear() + '-' + (d.getUTCMonth() + 1) + '-' + d.getUTCDate();
   }
 
+  /* ── _dayWindow: the LAST `days` CALENDAR DAYS ending on row `i`'s own day ──────────
+     Row `2026-11-15-hrvdex-seven-day-window-has-no-span-bound`: the four rolling passes
+     below each walked backwards collecting `days` DISTINCT day keys and stopped at that
+     count, with no bound on how far back those days sat. A table holding three rows in
+     January and four in November therefore gave November a "7-day" mean over 10 months,
+     and `d_hrv_momentum` regressed ln(rMSSD) against `_tMs` over a year under a 14-day
+     name. Every consumer reads the label, so the number described a span nobody asked for.
+
+     CLAUDE.md §∅, owner ruling 2026-09-17: a DISCONTINUITY refuses, reduced COVERAGE
+     annotates. Days inside the span that carry no row are coverage — the `.length >= N`
+     guards at each call site already refuse or annotate those. Days OUTSIDE the span are a
+     discontinuity, so they leave the window rather than stretch it.
+
+     One row per calendar day, the latest at or before `i`, ascending — the shape the four
+     inline walks produced. An undated row (`_tMs` not finite) can anchor no span, so its
+     window is EMPTY and every rolling metric on that row reports absent. A dated row skips
+     undated neighbours exactly as the day-key test did. The array is ascending by `_tMs`,
+     so the first row older than the floor ends the walk. */
+  function _dayWindow(arr, i, days) {
+    const out = [];
+    const anchor = arr[i] && isFinite(arr[i]._tMs) ? Math.floor(arr[i]._tMs / 86400000) : null;
+    if (anchor == null) return out;
+    const seen = new Set();
+    for (let j = i; j >= 0; j--) {
+      const t = arr[j]._tMs;
+      if (!isFinite(t)) continue;
+      if (anchor - Math.floor(t / 86400000) > days - 1) break;
+      const k = utcDayKey(t);
+      if (!seen.has(k)) {
+        seen.add(k);
+        out.unshift(arr[j]);
+      }
+    }
+    return out;
+  }
+
   // PURE summary-CSV parser (Phase-9, SIGNAL-ADAPTER-FOLLOWUPS §4): READING split from
   // COMMITTING. Returns the parsed per-measurement rows ({_tMs, _rmssd, _sdnn, …}) with
   // NO DOM / localStorage / global mutation, so the welltory-summary adapter + HRVDex.compute
@@ -28296,18 +28332,8 @@ __exports.OxyDex = window.OxyDex;
       const rmssd_adj = r._rmssd > 0 ? 1 + 0.08 * (Math.log(r._rmssd) - ln_rmssd_ref) : 1;
       r.d_vo2_hrv = !isNaN(r.d_vo2_base) ? r.d_vo2_base * rmssd_adj : NaN;
       // 7-day rolling VO2max mean
-      // v2.9: date-keyed VO2 7-day window
-      const _vo2win7 = [];
-      {
-        const _seenvo2 = new Set();
-        for (let j = i; j >= 0 && _vo2win7.length < 7; j--) {
-          const _dk = isFinite(arr[j]._tMs) ? utcDayKey(arr[j]._tMs) : '';
-          if (_dk && !_seenvo2.has(_dk)) {
-            _seenvo2.add(_dk);
-            _vo2win7.unshift(arr[j]);
-          }
-        }
-      }
+      // v2.9 date-keyed, SPAN-BOUNDED since the row cited in `_dayWindow`
+      const _vo2win7 = _dayWindow(arr, i, 7);
       const vo2_win = _vo2win7.map((x) => x.d_vo2_hrv).filter((v) => !isNaN(v) && v > 0);
       r.d_vo2_roll7 = vo2_win.length >= 3 ? vo2_win.reduce((a, b) => a + b, 0) / vo2_win.length : NaN;
       // VO2max fitness category for age 49 male
@@ -28386,18 +28412,8 @@ __exports.OxyDex = window.OxyDex;
 
     // Rolling windows  (`_rows`, not `allRows` — see the note on the pass above)
     _rows.forEach((r, i, arr) => {
-      // v2.9: collect exactly 7 distinct calendar days backwards from row i
-      const window7 = [];
-      {
-        const _seen7 = new Set();
-        for (let j = i; j >= 0 && window7.length < 7; j--) {
-          const _dk = isFinite(arr[j]._tMs) ? utcDayKey(arr[j]._tMs) : '';
-          if (_dk && !_seen7.has(_dk)) {
-            _seen7.add(_dk);
-            window7.unshift(arr[j]);
-          }
-        }
-      }
+      // v2.9 date-keyed, SPAN-BOUNDED since the row cited in `_dayWindow`
+      const window7 = _dayWindow(arr, i, 7);
       const rmssd7 = window7.map((x) => x._rmssd).filter((v) => !isNaN(v) && v > 0);
       const sdnn7 = window7.map((x) => x._sdnn).filter((v) => !isNaN(v) && v > 0); // Finding 1: symmetric w/ rmssd7 — drop null/≤0 (absent SDNN) so a fabricated 0 never biases meanSDNN7/stdSDNN7
       /* §∅ — `!isNaN(null)` is TRUE (null coerces to 0), so an ABSENT subjective Stress survived this
@@ -28426,18 +28442,8 @@ __exports.OxyDex = window.OxyDex;
       r.d_sdnn_z = r._sdnn > 0 && stdSDNN7 > 0 ? (r._sdnn - meanSDNN7) / stdSDNN7 : NaN; // Finding 1: an absent-SDNN row has no z (guard the row's OWN value, not just the baseline)
 
       // Stress autocorrelation lag-1 (14-day window)
-      // v2.9: date-keyed 14-day window for autocorrelation
-      const _win14ac = [];
-      {
-        const _seen14ac = new Set();
-        for (let j = i; j >= 0 && _win14ac.length < 14; j--) {
-          const _dk = isFinite(arr[j]._tMs) ? utcDayKey(arr[j]._tMs) : '';
-          if (_dk && !_seen14ac.has(_dk)) {
-            _seen14ac.add(_dk);
-            _win14ac.unshift(arr[j]);
-          }
-        }
-      }
+      // v2.9 date-keyed, SPAN-BOUNDED since the row cited in `_dayWindow`
+      const _win14ac = _dayWindow(arr, i, 14);
       const ac_raw = _win14ac.map((x) => x._stress);
       const ac_pairs = [];
       for (let j = 0; j < ac_raw.length - 1; j++) {
@@ -28461,18 +28467,8 @@ __exports.OxyDex = window.OxyDex;
         r.d_pnn50_slope = linRegSlope(win_dates, win_pnn);
       } else r.d_pnn50_slope = NaN;
 
-      // v2.9: HRV Momentum — date-keyed 14-day window
-      const window14 = [];
-      {
-        const _seen14 = new Set();
-        for (let j = i; j >= 0 && window14.length < 14; j--) {
-          const _dk = isFinite(arr[j]._tMs) ? utcDayKey(arr[j]._tMs) : '';
-          if (_dk && !_seen14.has(_dk)) {
-            _seen14.add(_dk);
-            window14.unshift(arr[j]);
-          }
-        }
-      }
+      // v2.9 date-keyed, SPAN-BOUNDED since the row cited in `_dayWindow`
+      const window14 = _dayWindow(arr, i, 14);
       const lnrmssd14 = window14.filter((x) => x._rmssd > 0).map((x) => Math.log(x._rmssd));
       if (lnrmssd14.length >= 5) {
         const dates14 = window14.filter((x) => x._rmssd > 0).map((x) => x._tMs / 86400000);
@@ -29031,6 +29027,7 @@ __exports.OxyDex = window.OxyDex;
     fmtDate,
     fmtDateTime,
     utcDayKey,
+    _dayWindow,
     _hrvParseSummaryRows,
     parseCSV,
     HRV_STORE_KEY,
@@ -54878,7 +54875,15 @@ __exports.MotionDex = window.MotionDex;
     var n = raw.pressure ? raw.pressure.length : 0;
     var maskOn = new Uint8Array(n);
     for (var i = 0; i < n; i++) maskOn[i] = raw.pressure[i] > 0 ? 1 : 0;
-    var leak = raw.leak || new Float32Array(n);
+    /* ∅ AN ABSENT LEAK LANE IS NOT A SEALED MASK. This line read `raw.leak || new Float32Array(n)`,
+       so a session with no leak channel carried one ZERO per sample into `leakMaskOn`, and
+       `computeMetrics` then published `medianLeak: 0`, `p95Leak: 0` and `largeLeakPct: 0` with
+       `leakReason: null` beside them — the panel of a perfectly sealed mask over a lane the device
+       never reported. `0` is a legal leak sample, so no consumer could tell the two apart. The EDF
+       sibling `buildSessionFromEdf` keeps `leak` null and answers `leakReason: 'no-leak-lane'`, so
+       one node published two readings of one absence. The lane's PRESENCE now travels out of band
+       in `leak`, exactly as the sibling carries it. */
+    var leak = raw.leak || null;
     return {
       t0Ms: raw.t0Ms,
       fs: raw.fs || 1,
@@ -54888,7 +54893,7 @@ __exports.MotionDex = window.MotionDex;
       events: raw.events || [],
       maskOn: maskOn,
       pressureMaskOn: _filterBy(raw.pressure || [], maskOn),
-      leakMaskOn: _filterBy(leak, maskOn),
+      leakMaskOn: leak ? _filterBy(leak, maskOn) : [],
       usageHours:
         _countWhere(raw.pressure || [], function (v) {
           return v > 0;
@@ -54972,7 +54977,10 @@ __exports.MotionDex = window.MotionDex;
       /* One condition empties the pressure percentiles and the event denominator together, and a
          second empties the leak lane. Named here, they leave the node with the nulls they explain. */
       maskOnReason: nMaskOn ? null : 'no-mask-on-pressure-sample',
-      leakReason: nLeakOn ? null : 'no-mask-on-leak-sample'
+      /* An absent LANE and a lane whose mask never came on are different facts, and the sibling
+         names both. A mask-on sample proves a lane, so a caller that hands this function a
+         hand-built `leakMaskOn` without the channel still reads the mask reason. */
+      leakReason: nLeakOn ? null : d.leak != null ? 'no-mask-on-leak-sample' : 'no-leak-lane'
     };
   }
 
