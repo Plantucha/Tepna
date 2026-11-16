@@ -465,6 +465,12 @@ self.onmessage = async (e) => {
           });
         }
         renderACCComparison(RESULT);
+        /* §∅ — THE QUALITY TABLE DESCRIBES THE RESULT AS IT IS NOW. `renderQuality` is the only path
+           that rebuilds the table, and the first render ran while the motion stream was absent. So a
+           late load must re-render it, or its motion cells keep stating an absence the comparison
+           panel above them now contradicts. A review-mode RESULT carries its ingested object, and
+           `_sqObject` returns that object unchanged. */
+        renderQuality(RESULT);
       }
     };
     fr.readAsText(file);
