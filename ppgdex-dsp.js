@@ -6126,12 +6126,25 @@
       _ppiPeak = buildPPI(peakSec);
     const _corrFoot = correctRR(_ppiFoot.rr, _ppiFoot.tt),
       _corrPeak = correctRR(_ppiPeak.rr, _ppiPeak.tt);
-    const _rateFoot = _ppiFoot.rr.length ? (100 * _corrFoot.nCorr) / _ppiFoot.rr.length : 100;
-    const _ratePeak = _ppiPeak.rr.length ? (100 * _corrPeak.nCorr) / _ppiPeak.rr.length : 100;
-    const footSpineOK = !(_ratePeak < _rateFoot - PPI_SPINE_MARGIN_PP);
+    /* §∅ — TWO NUMBERS, TWO JOBS. `buildPPI` answers `{ rr: [], tt: [] }` for a run with fewer than
+       two detected beats and never `null`, so an empty spine arrives here as an ABSENCE that the
+       arithmetic below cannot see. The ARBITER keeps the `100` sentinel: an unmeasured spine has to
+       LOSE the comparison on the next line, and a `null` there coerces to 0 — which would make it
+       win. The EXPORTED rate answers `null`, because a repair rate over no intervals is not "0 %
+       repaired" but unmeasured, and 0 % is the best grade on this scale. Measured on a 0.5 s
+       synthetic before this change: ppiCorrFootPct 100, ppiCorrPeakPct 100, ppiAgreementPct 0 over
+       ZERO intervals. The same split, for the same reason, as `ecgdex-dsp.js:1292-1293`. */
+    const _rateFootArb = _ppiFoot.rr.length ? (100 * _corrFoot.nCorr) / _ppiFoot.rr.length : 100;
+    const _ratePeakArb = _ppiPeak.rr.length ? (100 * _corrPeak.nCorr) / _ppiPeak.rr.length : 100;
+    const footSpineOK = !(_ratePeakArb < _rateFootArb - PPI_SPINE_MARGIN_PP);
+    const _rateFoot = _ppiFoot.rr.length ? _rateFootArb : null;
+    const _ratePeak = _ppiPeak.rr.length ? _ratePeakArb : null;
     const _mFoot = median(_corrFoot.nn),
       _mPeak = median(_corrPeak.nn);
-    const ppiAgreement = _mFoot > 0 && _mPeak > 0 ? Math.min(_mFoot, _mPeak) / Math.max(_mFoot, _mPeak) : 0;
+    /* `median([])` is NaN, so a spine with no corrected interval fails both comparisons below and
+       landed on the old `: 0` — published as MAXIMAL DISAGREEMENT between two fiducials that were
+       never both measured. Absent here, not zero. */
+    const ppiAgreement = _mFoot > 0 && _mPeak > 0 ? Math.min(_mFoot, _mPeak) / Math.max(_mFoot, _mPeak) : null;
     const ppiSpine = footSpineOK ? 'foot' : 'peak';
     const { rr } = footSpineOK ? _ppiFoot : _ppiPeak;
     const corr = footSpineOK ? _corrFoot : _corrPeak;
@@ -6492,7 +6505,12 @@
     const cleanBeatPct = sqi.length ? Math.round((100 * cleanBeats) / sqi.length) : 0;
     const motionRejected = motion.hasData ? det.peaks.filter((p, k) => /** @type {any} */ (motionAt)(p) > 0.5).length : 0;
     const motionRejectedPct = det.peaks.length ? r1((100 * motionRejected) / det.peaks.length) : 0;
-    const correctionRate = rr.length ? r1((100 * corr.nCorr) / rr.length) : 0;
+    /* §∅ — the refusal ECGDex published at `ecgdex-dsp.js:1292-1293`: an interval series with
+       nothing in it has no population to repair, so the rate is `null` WITH A REASON, never `0`.
+       `0` is the BEST value on this scale — `correctionRate > 20` is one of the `hrvLowConfidence`
+       tests — so a fabricated 0 reads as "nothing needed repair". */
+    const correctionRate = rr.length ? r1((100 * corr.nCorr) / rr.length) : null;
+    const correctionRateReason = rr.length ? null : 'no interval series — no population to correct';
     const analyzablePct = Math.round(cleanBeatPct * (1 - motionRejectedPct / 100));
     // magnetometer interference coverage (informational — does not alter SQI/conf)
     // §3a: epochs with no posture datum leave the DENOMINATOR — they are not evidence of a clean field.
@@ -6600,7 +6618,11 @@
       // Each metric family is scored by the cause that predicts ITS error (validated on paired night):
       // motion→hf, posture/baseline drift→vlf/sdnn, coverage+correction→beat-to-beat.
       const qCov = Math.max(0, Math.min(1, analyzablePct / 100));
-      const qCorr = Math.max(0, 1 - correctionRate / 25);
+      /* §∅ — `null` coerces to 0 in arithmetic, so `1 - null / 25` answers 1.0: an unmeasured
+         correction rate would publish the PERFECT driver, and `c()` would round the product into a
+         confident grade. A driver that was never measured makes its metrics unknown — the rule this
+         block's own comment states for motion and posture. */
+      const qCorr = correctionRate == null ? null : Math.max(0, 1 - correctionRate / 25);
       // §3a: the rate among epochs that HAVE motion evidence — null when none do.
       const qLowMotion = motKnown.length ? lowMot.length / motKnown.length : null;
       /* Posture stability over ADJACENT PAIRS THAT ARE BOTH KNOWN. Counting `'unknown'` as a position
@@ -6633,17 +6655,17 @@
         epochs: epochs.length
       };
       hrvConfidence = {
-        beatToBeat: c(qCov * qCorr), // rmssd, sd1, pnn50 — already ECG-accurate; no inertial driver
+        beatToBeat: qCorr == null ? null : c(qCov * qCorr), // rmssd, sd1, pnn50 — already ECG-accurate; no inertial driver
         // + sd2 (robust); posture-drift aware
-        sdnn: qPosture == null ? null : c(qCov * qCorr * (0.6 + 0.4 * qPosture)),
-        lf: c(qCov * qCorr),
+        sdnn: qPosture == null || qCorr == null ? null : c(qCov * qCorr * (0.6 + 0.4 * qPosture)),
+        lf: qCorr == null ? null : c(qCov * qCorr),
         hf: qLowMotion == null ? null : c(qLowMotion * qCov), // motion-graded (the earned part)
         // capped: single-site optical VLF inherently baseline-limited
         vlf: qPosture == null ? null : c(Math.min(0.7, qPosture * durFactor)),
         evidence,
         drivers: {
           analyzableFrac: r2(qCov),
-          correctionOK: r2(qCorr),
+          correctionOK: qCorr == null ? null : r2(qCorr),
           lowMotionFrac: qLowMotion == null ? null : r2(qLowMotion),
           postureStableFrac: qPosture == null ? null : r2(qPosture),
           motionCoveredFrac: motion.hasData && motion.motionCoveredFrac != null ? motion.motionCoveredFrac : null
@@ -6705,16 +6727,28 @@
        a record too short for the robust median (`sdnnRobust` null) simply does not get the test,
        because an absent comparand is not evidence of good shape. */
     const hrvShapeViolation = hrvShapeViolates(td.rmssd, sdnnRobust);
-    const hrvLowConfidence = analyzablePct < 60 || correctionRate > 20 || hrvShapeViolation;
+    /* §∅ — an unmeasured correction rate is not a clean one: `null > 20` is `false`, so the old
+       expression CLEARED a record whose interval series was never built. Measured on a 0.8 s
+       synthetic, which published `hrvLowConfidence: false` over zero intervals. The absent arm is
+       explicit rather than left to coercion, and the reason below names the arm that fired. */
+    const hrvLowConfidence = analyzablePct < 60 || correctionRate == null || correctionRate > 20 || hrvShapeViolation;
     const hrvLowConfidenceReason = hrvShapeViolation
       ? 'interval-shape violation — rMSSD ' +
         r1(td.rmssd) +
         ' ms exceeds sdnnRobust ' +
         r1(sdnnRobust) +
         ' ms, which a whole night cannot do physiologically; the interval series is alternating (detector artifact, not autonomic tone) → whole-record short-term HRV unusable; use per-5-min epochs[] and prefer a chest-ECG leg'
-      : hrvLowConfidence
-        ? 'low coverage — analyzable ' + analyzablePct + '% / correction ' + correctionRate + '% → whole-record short-term HRV down-weighted; use per-5-min epochs[] + ledAgreementPct'
-        : null;
+      : analyzablePct < 60
+        ? 'low coverage — analyzable ' +
+          analyzablePct +
+          '%' +
+          (correctionRate == null ? '' : ' / correction ' + correctionRate + '%') +
+          ' → whole-record short-term HRV down-weighted; use per-5-min epochs[] + ledAgreementPct'
+        : correctionRate == null
+          ? 'no interval series — the correction rate is unmeasured, so nothing clears the whole-record short-term HRV on that axis; use per-5-min epochs[] and prefer a chest-ECG leg'
+          : hrvLowConfidence
+            ? 'heavy correction — ' + correctionRate + '% of intervals repaired → whole-record short-term HRV down-weighted; use per-5-min epochs[] + ledAgreementPct'
+            : null;
 
     // tier (mirror ECGDex)
     const durMin = rec.durSec / 60;
@@ -6921,6 +6955,7 @@
       deviceBeats,
       coveragePct: cleanBeatPct,
       correctionRate,
+      correctionRateReason,
       nCorrected: corr.nCorr,
       // PPI-spine cross-check (see the PPI SPINE note in analyze()). Export BOTH spines' correction rates,
       // not just the winner's: the loser's rate is the most discriminating number the node has, and a
@@ -6936,9 +6971,9 @@
       // on records where all 3 LEDs mis-detect — bimodal, with nothing in between. These four fields are
       // what let that consumer make the call with evidence instead of a guess.
       ppiSpine,
-      ppiAgreementPct: Math.round(100 * ppiAgreement),
-      ppiCorrFootPct: r1(_rateFoot),
-      ppiCorrPeakPct: r1(_ratePeak),
+      ppiAgreementPct: ppiAgreement == null ? null : Math.round(100 * ppiAgreement),
+      ppiCorrFootPct: r1n(_rateFoot),
+      ppiCorrPeakPct: r1n(_ratePeak),
       ledAgreementPct,
       ledAgree3of3Pct,
       ledSeries,
@@ -8110,6 +8145,9 @@
         coveragePct: nz(r.coveragePct),
         motionRejectedPct: nz(r.motionRejectedPct),
         correctionRatePct: nz(r.correctionRate),
+        /* Published only when the rate is ABSENT: the refusal is the part a reader cannot
+           reconstruct, and an unconditional `null` key would restamp every golden to say nothing. */
+        ...(r.correctionRateReason ? { correctionRateReason: r.correctionRateReason } : {}),
         ledAgreementPct: nz(r.ledAgreementPct),
         ppiSpine: r.ppiSpine || null,
         ppiAgreementPct: nz(r.ppiAgreementPct),
