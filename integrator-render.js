@@ -508,12 +508,17 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     }
     if (fusion.positional && fusion.positional.available) {
       var p = fusion.positional;
+      /* §∅ — `positional` is TRI-STATE: null means no confirmed event carried a measured body
+         position. A null took the 'good' tone here and the teal card below, so a night that
+         measured no posture at all read exactly like one measured and found not positional. */
       k.push(
         kpi(
           'Supine event rate',
           p.supineRate != null ? Math.round(p.supineRate * 100) + '%' : '—',
-          p.supine + ' supine · ' + p.nonsupine + ' non-supine',
-          p.positional ? 'warn' : 'good',
+          p.positional == null
+            ? p.positionalReason || 'body position unmeasured at every confirmed event'
+            : p.supine + ' supine · ' + p.nonsupine + ' non-supine' + (p.unknown ? ' · ' + p.unknown + ' unmeasured' : ''),
+          p.positional == null ? 'neutral' : p.positional ? 'warn' : 'good',
           'positional_apnea'
         )
       );
@@ -1047,7 +1052,8 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       cards.push(
         findingCard(
           'Positional apnea',
-          p.positional ? '#FFB84D' : '#3DE0D0',
+          // the informational hue this file already uses, for the state that measured nothing
+          p.positional == null ? '#8FB8FF' : p.positional ? '#FFB84D' : '#3DE0D0',
           p.available
             ? '<div class="fc-big">' + (p.supineRate != null ? Math.round(p.supineRate * 100) + '%' + '<span class="fc-unit"> supine</span>' : '—') + '</div>'
             : '<div class="fc-big fc-na">N/A</div>',
