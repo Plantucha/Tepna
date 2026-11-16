@@ -76,8 +76,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "abde5716adda",
-        "computeHash": "989eaf739340"
+        "manifestHash": "1a9d3d83472c",
+        "computeHash": "41e471d11fd5"
       },
       "evidence": {
         "envelopeRef": null,
@@ -106,8 +106,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "abde5716adda",
-        "computeHash": "989eaf739340"
+        "manifestHash": "1a9d3d83472c",
+        "computeHash": "41e471d11fd5"
       },
       "evidence": {
         "envelopeRef": null,
@@ -136,8 +136,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "abde5716adda",
-        "computeHash": "989eaf739340"
+        "manifestHash": "1a9d3d83472c",
+        "computeHash": "41e471d11fd5"
       },
       "evidence": {
         "envelopeRef": null,
@@ -166,8 +166,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "abde5716adda",
-        "computeHash": "989eaf739340"
+        "manifestHash": "1a9d3d83472c",
+        "computeHash": "41e471d11fd5"
       },
       "evidence": {
         "envelopeRef": null,
@@ -198,8 +198,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "abde5716adda",
-        "computeHash": "989eaf739340"
+        "manifestHash": "1a9d3d83472c",
+        "computeHash": "41e471d11fd5"
       },
       "evidence": {
         "envelopeRef": null,
@@ -293,15 +293,16 @@
           "cleanBeatPct": 100
         },
         "timing": {
-          "value": -6.6680440095983435,
+          "value": null,
           "unit": "ppm of the device rate against the host axis",
-          "reason": null,
+          "reason": "host ≡ device — residual spread 0.92 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock",
           "independent": false,
           "timingSource": "device",
           "spreadMs": 0.9232177734375,
           "anchors": 16,
           "spanMs": 57684.615478515625,
           "applied": false,
+          "ppmUncertainty": null,
           "spanPpm": -10.669716882384908,
           "maxStepMs": 0.0384521484375,
           "resyncs": 0,
@@ -412,7 +413,7 @@
       },
       "acc": {
         "stream": "H10:acc",
-        "scopeNote": "This node places the motion samples against the ECG start and scores quality through the beat series, so it establishes no timing and no waveform quality of the motion stream’s own. A motion companion fills only the two shares the box’s run census feeds.",
+        "scopeNote": "The motion stream carries its own host axis, built from its own two clocks before anything rewrites them: the rate, its uncertainty at this span, the anchor count and the timing source below are the motion stream’s own, and no beat enters any of them. Its waveform facts are read from the samples alone. The epoch, score and in-band rows stay absent for a structural reason, because the window walk and the quality score of this node run over the ECG beat series.",
         "inputNote": "this node ingests no motion channel on this recording",
         "coverage": {
           "value": null,
@@ -430,8 +431,15 @@
         },
         "rail": {
           "value": null,
-          "unit": "samples at the rail",
-          "reason": "not-measured: this node runs no rail census on the motion stream"
+          "unit": "samples at the rail over the whole record",
+          "reason": "this node ingests no motion channel on this recording",
+          "samples": null,
+          "magMedian": null,
+          "magUnit": null,
+          "magUnitReason": null,
+          "magSampled": null,
+          "magStride": null,
+          "source": "no declared full-scale range reaches this node; the unit is INFERRED from gravity and is not a declared scale"
         },
         "flatline": {
           "value": null,
@@ -439,6 +447,11 @@
           "reason": "this node ingests no motion channel on this recording",
           "runs": null,
           "source": "the box’s run sidecar, not a census this node computes",
+          "nodeFlatPct": null,
+          "nodeFlatSamples": null,
+          "nodeFlatMinSamples": null,
+          "nodeFlatWindowSec": null,
+          "nodeFlatSource": "runs of identical x, y and z in the samples, counted by LENGTH against this file’s own rate",
           "before": null,
           "beforeReason": "the box’s run census is the only source of this fact, so before the sidecar applies it is unknown, never 0",
           "after": null,
@@ -462,7 +475,22 @@
         "timing": {
           "value": null,
           "unit": "ppm of the device rate against the host axis",
-          "reason": "no own axis: this node places motion samples against the ECG start, so the motion stream carries no rate of its own here"
+          "reason": "this node ingests no motion channel on this recording",
+          "independent": null,
+          "timingSource": null,
+          "timingSourceReason": null,
+          "spreadMs": null,
+          "anchors": null,
+          "spanMs": null,
+          "ppmUncertainty": null,
+          "anchorsEligible": null,
+          "anchorStride": null,
+          "anchorsDroppedPreStep": null,
+          "deviceDrawn": null,
+          "drawnShare": null,
+          "resyncs": null,
+          "maxStepMs": null,
+          "applied": null
         },
         "reference": {
           "value": null,
@@ -477,7 +505,7 @@
         "drift": {
           "value": null,
           "unit": "ppm against a §3d reference",
-          "reason": "no own axis: the motion samples are placed against the ECG start, so no host anchor of their own exists to drift against"
+          "reason": "no-reference: the motion stream now carries a host axis of its own, and the rate reads in the timing row above; this node runs no §3d drift profile over the motion stream, so that rate has no second reference to drift against"
         },
         "sidecarEffect": {
           "changed": [

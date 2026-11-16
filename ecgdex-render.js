@@ -844,6 +844,29 @@ window.evBadge = evBadge;
     var span = typeof cell.spanMs === 'number' ? _sqSpanTxt(cell.spanMs) : null;
     if (span) bits.push('over ' + span);
     if (typeof cell.ppmUncertainty === 'number' && isFinite(cell.ppmUncertainty)) bits.push('\u00b1 ' + _sqNum(cell.ppmUncertainty, 'ppm') + ' ppm at this span');
+    /* NAME THE ESTIMATOR, because the number is an END-POINT READ and a short span reads high.
+       `DexClock.hostAxis` publishes `ppm = sm[n-1] / span`, where `sm` is the running median of the
+       divergence taken against the FIRST anchor's own raw residual. That origin carries the first
+       anchor's jitter undiminished, so the rate holds an additive bias of about jitter / span.
+       Measured 2026-11-16 against a PLANTED 50 ppm with 5 ms of host jitter at 26 Hz:
+
+         span      hostAxis.ppm     published band     the same medians, read end to end
+          60 s        166.42            ± 259.26                   49.62
+         120 s        108.22            ± 164.41                   49.84
+         400 s         67.47            ±  39.13                   49.96
+        1800 s         53.88            ±   8.09                   49.99
+        7200 s         50.97            ±   2.66                   50.00
+
+       A least-squares fit reads 50.064, 50.080, 50.001, 50.000 and 50.000 ppm over the same five
+       streams, so the stream carries the planted rate and the estimator loses it. The published band
+       covers the truth at every span above, and on the node's own 391-anchor geometry over 60 s it
+       reads 139.84 ± 64.14, which does NOT cover 50. So the band alone does not make the figure
+       readable, and this clause states what the figure is. The repair belongs in `clock.js`, which
+       6 of 9 bundles carry, so it is logged and not made here.
+
+       The clause rides the two cells whose unit names the host axis, which are the two this
+       measurement covers. The §3d night-drift cell runs a different estimator and says nothing here. */
+    if (cell.unit === 'ppm of the device rate against the host axis' && bits.length) bits.push('an end-point read against the first anchor, so a short span reads high');
     if (!bits.length) return '';
     return '<div class="sq-qual" style="font-size:10px;color:var(--text3);margin-top:2px">' + bits.join(' \u00b7 ') + '</div>';
   }
@@ -933,48 +956,65 @@ window.evBadge = evBadge;
     });
     var TH = 'text-align:left;vertical-align:top;padding:7px 14px 8px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)';
     var head =
-      '<tr>' +
-      '<th style="' +
+      '<tr><th style="' +
       TH +
       '">Fact</th>' +
       chans
         .map(function (ck) {
-          var ch = sq.channels[ck] || {};
-          var st = ch.stream || ck;
-          /* A CHANNEL-LEVEL NOTE OUTRANKS A CELL-LEVEL ONE. The node publishes `scopeNote` for a
-             channel whose facts are bounded by how this node derives them, and `inputNote` for an
-             input that did not arrive. Both govern the whole column, so both stand at its head —
-             above the per-cell reasons and above the majority hoist, which only ever speaks for the
-             cells that still share one sentence. */
-          var notes = [];
-          if (ch.scopeNote) notes.push(ch.scopeNote);
-          if (ch.inputNote) notes.push(ch.inputNote);
-          return (
-            '<th style="' +
-            TH +
-            '">' +
-            st +
-            notes
-              .map(function (n) {
-                /* ONE LINE PER FACT. The scope of the channel and the arrival of its input are two
-                   different statements, and run together they read as one paragraph a reader skims. */
-                return '<div class="sq-col-note" style="' + _SQ_PROSE + ';text-transform:none;letter-spacing:0;font-weight:400;white-space:normal;margin-top:7px">' + n + '</div>';
-              })
-              .join('') +
-            (colWhy[ck]
-              ? '<div class="sq-col-why" style="' +
-                _SQ_PROSE +
-                ';text-transform:none;letter-spacing:0;font-weight:400;white-space:normal;margin-top:7px">' +
-                (colWhy[ck].n === colWhy[ck].of ? 'every absence here' : colWhy[ck].n + ' of the ' + colWhy[ck].of + ' absences here') +
-                ' \u2014 ' +
-                colWhy[ck].body +
-                '</div>'
-              : '') +
-            '</th>'
-          );
+          return '<th style="' + TH + '">' + ((sq.channels[ck] || {}).stream || ck) + '</th>';
         })
         .join('') +
       '</tr>';
+    /* THE CHANNEL NOTES RIDE THEIR OWN ROW, NOT THE HEADER. Each note is a paragraph, and a
+       paragraph inside a `<th>` drove the header to about 200 px tall while the Fact cell and every
+       channel without a note stayed one word tall. That reads as a hole in the table rather than as
+       space. The note now sits directly under the header, in its own column, above every cell it
+       governs — so what governs what did not change — and the first column carries a SCOPE label,
+       which gives the widest empty cell something to say.
+
+       A CHANNEL-LEVEL NOTE OUTRANKS A CELL-LEVEL ONE. The node publishes `scopeNote` for a channel
+       whose facts are bounded by how this node derives them, and `inputNote` for an input that did
+       not arrive. Both govern the whole column. The majority hoist (`colWhy`) speaks only for the
+       cells that still share one sentence, so it follows them.
+
+       ONE LINE PER FACT: the scope of the channel and the arrival of its input are two different
+       statements, and run together they read as one paragraph a reader skims. */
+    var _sqNoteCell = function (ck) {
+      var ch = sq.channels[ck] || {};
+      var notes = [];
+      if (ch.scopeNote) notes.push(ch.scopeNote);
+      if (ch.inputNote) notes.push(ch.inputNote);
+      var body =
+        notes
+          .map(function (n, i) {
+            return '<div class="sq-col-note" style="' + _SQ_PROSE + ';white-space:normal' + (i ? ';margin-top:7px' : '') + '">' + n + '</div>';
+          })
+          .join('') +
+        (colWhy[ck]
+          ? '<div class="sq-col-why" style="' +
+            _SQ_PROSE +
+            ';white-space:normal;margin-top:7px">' +
+            (colWhy[ck].n === colWhy[ck].of ? 'every absence here' : colWhy[ck].n + ' of the ' + colWhy[ck].of + ' absences here') +
+            ' \u2014 ' +
+            colWhy[ck].body +
+            '</div>'
+          : '');
+      return body;
+    };
+    var _sqNoteBodies = chans.map(_sqNoteCell);
+    var scopeRow = _sqNoteBodies.some(function (b) {
+      return b;
+    })
+      ? '<tr><td style="' +
+        TH +
+        ';border-top:1px solid var(--border)">Scope</td>' +
+        _sqNoteBodies
+          .map(function (b) {
+            return '<td style="padding:7px 14px 9px;border-top:1px solid var(--border);vertical-align:top">' + b + '</td>';
+          })
+          .join('') +
+        '</tr>'
+      : '';
     /* A FACT NO CHANNEL MEASURED SINKS BELOW THE RULE. It is still drawn, with its own reason — an
        absence is a result (§∅) — but it stops standing between two rows that carry numbers. The
        split is computed from the cells of THIS recording, so nothing here hardcodes which facts
@@ -1096,6 +1136,7 @@ window.evBadge = evBadge;
         .join('') +
       '</colgroup>' +
       head +
+      scopeRow +
       rows +
       '</table></div>' +
       '<div class="mini-h" style="margin-top:12px">Validity sidecars <span class="mini-sub">' +
