@@ -632,8 +632,11 @@ consume `correctionAt()`.
   divergence relative to the first anchor.
 - **≥3 anchors** (refuse below); **running median width 21, never a fit**
   (CLAIM axisMedianWidth = 21 FROM clock.js#CK_AXIS_WIN; host stamps carry BLE jitter; the O2Ring's
-  divergence is the LINK stalling, non-linear); **linear between anchors, FLAT outside them**; the end-clamp biases the ends by 5 anchors' drift, so `ppm` under-reads by
-  `1 − 5/(n−1)`.
+  divergence is the LINK stalling, non-linear); **linear between anchors, FLAT outside them**;
+  **read `ppmEstimator` before you read `ppm`.** The end-clamp pulls each end inward by 5 anchors'
+  drift. `'end-to-end-median'` divides that clamp out and carries no such bias; `'single-window'`
+  (n ≤ 21, or a degenerate span) still under-reads by `1 − 5/(n−1)`, and
+  `correctionAt(firstAnchor)` carries the bias under both.
 - **`CK_AXIS_MAX_PPM = 50000` is a refusal bound, not a clamp.** A refusal returns `{ ok:false, reason,
   n }` with no `correctionAt`; the node keeps the device axis and says so. **A refusal guards the RATE,
   not the AXIS** — a stepped device counter still spans the step in `relSec`; step detection and
