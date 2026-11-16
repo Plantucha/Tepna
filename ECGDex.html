@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="61180c4ba1ab" data-compute-hash="45fc5ce34abc">
+<html lang="en" data-manifest-hash="409f8f0666d0" data-compute-hash="f80a9e3874ad">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1tyQo4CppsC4mM8e/tB74Z/hxkeD1dDwj8X584GUEKA=' 'sha256-66BIiIp6XLrsmwVD2lgkj9tNC/7Nv6tqpize9N6LBEw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QYcfW3eQP6+aYrtsuhLs/sXg9FnkZlzYrq8cohp0GNU=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-bo6raE46Nns2YugBQDX8OC7Qw5dlpqlhpUm7g9fQibw=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jU+dw+IT2rwtLcI6NYHxMA0+3qLsJNGkAHJkagoo0D4=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1tyQo4CppsC4mM8e/tB74Z/hxkeD1dDwj8X584GUEKA=' 'sha256-66BIiIp6XLrsmwVD2lgkj9tNC/7Nv6tqpize9N6LBEw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-WjE+KPmr/bMYSvj3pOawC8ymAYKqmwzlpuWouIuT/Mc=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jU+dw+IT2rwtLcI6NYHxMA0+3qLsJNGkAHJkagoo0D4=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.33.0</title>
@@ -8316,6 +8316,18 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
   }
 
+  /* DEVICE TIME AT A FRACTIONAL ANCHOR INDEX, by linear interpolation between the two anchors it
+     falls between. `hostAxis` needs it because a running median's CLAMPED end window has its centre
+     between two anchors, and the anchors are not evenly spaced. It reads the real `pts[].d` rather
+     than assuming a spacing. Out of range it clamps, which is what an end window needs. */
+  function _ckDevAtIdx(pts, c) {
+    var n = pts.length;
+    if (!(c > 0)) return pts[0].d;
+    if (c >= n - 1) return pts[n - 1].d;
+    var i = Math.floor(c);
+    return pts[i].d + (pts[i + 1].d - pts[i].d) * (c - i);
+  }
+
   /* anchors: [{ devMs, hostMs }, …] — BOTH relative to the same first row, in device order.
      Returns { ok, correctionAt(devMs) → ms to ADD to the device axis, n, maxStepMs, rawMaxStepMs,
      totalMs, ppm }.
@@ -8343,8 +8355,11 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
        ⚠ This comment used to add "so the correction must be 0 at the start and grow". IT IS NOT 0 —
        measured, and now stated in CLAUDE.md §7. The running median's clamped window pulls each end
        INWARD by exactly ⌊win/2⌋/2 = 5 anchors' worth of drift, so `correctionAt(firstAnchor)` is that
-       bias and `ppm` under-reads by 1 − 5/(n−1): 12.5 % at n=41, 0.17 % on the real 2873-anchor O2Ring
-       geometry. Subtracting r0 sets the ORIGIN of the measurement, which is what this line does; it
+       bias and `ppm` under-read by 1 − 5/(n−1): 12.5 % at n=41, 0.17 % on the real 2873-anchor
+       O2Ring geometry. ⚠ Past tense since 2026-11-16: the `ppm` block below divides the END-TO-END
+       median read by the distance between the two end windows' centres, which removes that factor
+       exactly wherever n > win. It still binds `correctionAt(firstAnchor)`, which is not 0, and it
+       still binds `ppm` in the `'single-window'` arm. Read `ppmEstimator` to know which. Subtracting r0 sets the ORIGIN of the measurement, which is what this line does; it
        does not make the smoothed series start at zero. (Found by `tools/guarantees.mjs` — the promise
        was both ungated and false.) */
     var r0 = pts[0].r;
@@ -8401,7 +8416,63 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     if (!(span > 0)) {
       return { ok: false, reason: 'device axis has zero span across ' + n + ' anchors — the device column is not a clock, so there is no rate to measure', n: n, spanMs: span };
     }
-    var ppm = (sm[n - 1] / span) * 1e6;
+    /* THE RATE IS READ END TO END OVER THE MEDIANS, OVER THE DISTANCE THOSE MEDIANS ACTUALLY SPAN.
+       This line used to read `sm[n - 1] / span`, and that form carried a DETERMINISTIC SCALE ERROR.
+       Every `sm[k]` is a median of `r_j − r0`, so the old numerator measured drift from the raw first
+       anchor out to the centre of the clamped LAST window, which sits ⌊win/2⌋/2 = 5 anchors short of
+       the end, while the denominator was the full `span` of n−1 anchors. The block at `r0` above
+       states that under-read as 1 − 5/(n−1) and nothing corrected it.
+       MEASURED 2026-11-16 THROUGH THIS FUNCTION, zero jitter, a PLANTED 50 ppm at 4 s spacing, so the
+       only term left is the clamp geometry:
+         n      16      22      31      41     101     451
+         old 33.333  38.095  41.667  43.750  47.500  49.444   ← exactly 50·(n−1−5)/(n−1)
+         new 33.333  50.000  50.000  50.000  50.000  50.000
+       The old column reproduces the documented factor to three decimals at every n, and the new
+       column recovers the plant EXACTLY wherever the end-to-end arm runs. Two changes do that
+       together, and neither works alone. The numerator becomes `sm[n-1] − sm[0]`, which cancels `r0`
+       and spends two medians instead of one median and one raw sample. The denominator becomes
+       `effSpan`, the device time between the two end windows' CENTRES, read off the real anchor times
+       by `_ckDevAtIdx` and never an assumed spacing. ⚠ Cancelling `r0` ALONE makes the near end
+       suffer the clamp too, so the drift then spans n−1−10 anchors against a span of n−1 and the
+       under-read DOUBLES: dividing the new numerator by `span` reads 31.90 at n=31, 44.46 at n=101
+       and 48.77 at n=451 against the same plant, worse than the form it replaces.
+       WHAT IT COSTS. Measured the same day, 400 draws of uniform ±5 ms jitter at 4 s spacing against
+       a planted 2000 ppm, which is large enough against the jitter for the drift to be resolvable:
+         span     n     old mean ± SE      old sd    new mean ± SE     new sd
+          120 s   31    1687.2 ± 1.20       24.0     2000.2 ± 2.50      49.9
+          400 s  101    1906.2 ± 0.36        7.2     2000.1 ± 0.56      11.3
+         1800 s  451    1979.2 ± 0.08        1.6     2000.0 ± 0.12       2.3
+       The new form sits on the plant at every span and the old sits 1.0 % to 16 % below it. The new
+       form also carries 1.4× to 2.1× the standard deviation, because the baseline shrinks from n−1
+       to n−1−10 anchors and a second median brings its own noise. By root-mean-square error against
+       the plant the new form still wins by 6× to 9× (49.9 against 313.7 at n=31, 11.3 against 94.1 at
+       n=101, 2.3 against 20.9 at n=451), so this trades a small amount of spread for a bias that no
+       averaging removes. ⚠ A READER SIZING THE SPREAD MUST NOT USE A 50 ppm PLANT: over 60 s at 4 s
+       spacing a 50 ppm drift is 3 ms against ±5 ms of jitter, so neither form measures anything there
+       and both read noise. That is a separate defect — `ok` is true over an unresolvable rate — and
+       this block does not touch it.
+       ⚠ RESIDUE ROW `2026-11-16-host-axis-rate-reads-against-the-first-raw-anchor` names `r0` as the
+       mechanism and says a short recording reads HIGH. The bias is real and the row found it. The
+       mechanism is the clamp geometry rather than `r0`'s jitter, which is zero-mean and cannot lean,
+       and the lean is LOW rather than high. Cancelling `r0` is still the right first half, because it
+       is what lets the denominator shrink to match.
+       ∅ AND THE REPAIR CANNOT RUN ON ITS OWN AT SMALL n. When the window covers the whole series
+       (n ≤ win), every `sm[k]` is the median of the SAME set, `sm[n-1] − sm[0]` is exactly 0, and
+       both end windows share one centre so `effSpan` is 0 too. Measured at 4 s spacing: the bare
+       end-to-end form reads 0.00 ppm at n = 3, 5 and 10. That is the fabricated zero of CLAUDE.md §∅,
+       and it is not harmless here, because `ppm` feeds the ±CK_AXIS_MAX_PPM refusal below: a ns
+       column read as ms reads 5.0e11 ppm today at n = 3 and n = 10 and is REFUSED, and under the bare
+       repair it reads 0 and is ACCEPTED — residue `2026-09-02-hostaxis-accepts-drawn-axis` rebuilt.
+       So the end-to-end read runs only where the two end windows differ, and below that the function
+       keeps the estimator it has always published, unchanged. Verified through this function after
+       the guard: the refusal fires at n = 3, 5, 10, 21, 22 and 60 on that ns column, and no arm
+       publishes a 0. `ppmEstimator` names which arm ran, because the number alone cannot say and the
+       two arms carry neither the same bias nor the same spread. */
+    var _ckWinC0 = Math.min(n - 1, win >> 1) / 2;
+    var _ckWinC1 = (Math.max(0, n - 1 - (win >> 1)) + (n - 1)) / 2;
+    var effSpan = _ckDevAtIdx(pts, _ckWinC1) - _ckDevAtIdx(pts, _ckWinC0);
+    var ppmEstimator = n > win && effSpan > 0 ? 'end-to-end-median' : 'single-window';
+    var ppm = (ppmEstimator === 'end-to-end-median' ? (sm[n - 1] - sm[0]) / effSpan : sm[n - 1] / span) * 1e6;
     /* IS THERE ACTUALLY A SECOND CLOCK HERE? (PAT-NO-VALID-ANCHOR §10, last item.)
        A ppm of ~0 has two completely different meanings and this function used to report them
        identically: (a) two INDEPENDENT clocks that happen to agree — the good case, and (b) the host
@@ -8533,6 +8604,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
             ', so the columns ARE host+device and the axis carries a resync',
           n: n,
           ppm: ppm,
+          ppmEstimator: ppmEstimator,
           spanMs: span,
           epochStepMs: epStep,
           epochAtDevMs: pts[rawStepIdx].d,
@@ -8540,7 +8612,13 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
           ppmExEpoch: epPpm
         };
       }
-      return { ok: false, reason: 'implausible host/device rate ' + Math.round(ppm) + ' ppm (bound ±' + CK_AXIS_MAX_PPM + ') — columns are probably not host+device', n: n, ppm: ppm };
+      return {
+        ok: false,
+        reason: 'implausible host/device rate ' + Math.round(ppm) + ' ppm (bound ±' + CK_AXIS_MAX_PPM + ') — columns are probably not host+device',
+        n: n,
+        ppm: ppm,
+        ppmEstimator: ppmEstimator
+      };
     }
     return {
       ok: true,
@@ -8548,6 +8626,13 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       maxStepMs: maxStep,
       totalMs: sm[n - 1],
       ppm: ppm,
+      /* WHICH ARM PRODUCED `ppm`. `'end-to-end-median'` is `(sm[n-1] − sm[0]) / span`, the form
+         with about 39 % less spread. `'single-window'` is the older `sm[n-1] / span`, which runs
+         where the width-`win` median covers the whole series (n ≤ win) and the end-to-end
+         difference is identically 0. The number alone cannot say which arm ran, and the two do
+         not carry the same spread, so a consumer comparing fragments reads this first.
+         Additive — no existing field moves. */
+      ppmEstimator: ppmEstimator,
       /* THE SPAN THE `ppm` ABOVE WAS MEASURED OVER. §7 says a ppm never travels without its anchor
          count and its span, and until now this function published `n` and left the span to the
          caller: the refusal path three blocks up returns `spanMs`, the SUCCESS path did not. Measured
@@ -8557,11 +8642,16 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
          moves, and a consumer that ignores this reads exactly what it read before. */
       spanMs: span,
       /* THE SAME RATE WITHOUT THE SMOOTHER, so a reader can size what the smoother did HERE.
-         `ppm` above is `sm[n-1] / span`: an END-POINT RATIO of the median-smoothed divergence, not a
-         fit across the anchors. `spanPpm` is that ratio over the RAW divergence,
-         `(pts[n-1].r − r0) / span`. The DIFFERENCE between them is therefore exactly what the width-21
-         running median did to the final window — the end-clamp bias §7 describes as 5 anchors' drift,
-         which no consumer could previously measure on its own fragment.
+         `ppm` above reads the median-smoothed divergence end to end, `(sm[n-1] − sm[0]) / span`, and
+         not a fit across the anchors. `spanPpm` is the same ratio over the RAW divergence,
+         `(pts[n-1].r − r0) / span`.
+         ⚠ READ THE DIFFERENCE WITH CARE, BECAUSE IT CHANGED ON 2026-11-16. This block used to say the
+         difference is EXACTLY what the width-21 running median did to the final window. That held
+         while `ppm` was `sm[n-1] / span`, where both numbers took their origin from `r0` and only the
+         far end differed. `ppm` now cancels `r0`, so the difference carries the smoother at BOTH ends
+         and the near-end term is no longer shared. It still sizes the smoother, and it is no longer
+         the one-window reading the older sentence promised. In the `'single-window'` arm
+         (`ppmEstimator`, n ≤ win) the older identity still holds exactly.
          ⚠ NEITHER NUMBER IS THE BETTER ONE, and `spanPpm` is NOT a rate to apply. The median is here
          on purpose: one 470 ms host-stamp slip (VIGIL-OBSERVED-ERRORS E8) moves an end-point ratio by
          470 ms / span and leaves the median alone, which is why the correction reads `sm`. Over an
@@ -20192,29 +20282,42 @@ window.evBadge = evBadge;
     var span = typeof cell.spanMs === 'number' ? _sqSpanTxt(cell.spanMs) : null;
     if (span) bits.push('over ' + span);
     if (typeof cell.ppmUncertainty === 'number' && isFinite(cell.ppmUncertainty)) bits.push('\u00b1 ' + _sqNum(cell.ppmUncertainty, 'ppm') + ' ppm at this span');
-    /* NAME THE ESTIMATOR, because the number is an END-POINT READ and a short span reads high.
-       `DexClock.hostAxis` publishes `ppm = sm[n-1] / span`, where `sm` is the running median of the
-       divergence taken against the FIRST anchor's own raw residual. That origin carries the first
-       anchor's jitter undiminished, so the rate holds an additive bias of about jitter / span.
-       Measured 2026-11-16 against a PLANTED 50 ppm with 5 ms of host jitter at 26 Hz:
+    /* NAME WHAT LIMITS THE NUMBER, because a short span reads high for a reason the estimator does
+       not own. This block used to say the figure is an end-point read against the FIRST anchor's own
+       raw residual, and that `r0` origin gives the rate an additive bias of about jitter / span. The
+       repair it asked for has landed in `clock.js`, and measuring it corrected the reason. Two
+       separate terms sat behind the one sentence, and which one dominates depends on ANCHOR DENSITY:
 
-         span      hostAxis.ppm     published band     the same medians, read end to end
-          60 s        166.42            ± 259.26                   49.62
-         120 s        108.22            ± 164.41                   49.84
-         400 s         67.47            ±  39.13                   49.96
-        1800 s         53.88            ±   8.09                   49.99
-        7200 s         50.97            ±   2.66                   50.00
+         · `r0`'s jitter — VARIANCE, not bias. One raw sample sets the origin, so its full jitter
+           reaches the rate. It is zero-mean, so it cannot lean, and re-drawing the noise is what
+           shows that. Cancelling `r0` removes it.
+         · the running median's END CLAMP — a deterministic LOW bias of 5/(n−1) relative, because the
+           old numerator stopped 5 anchors short of the end while the denominator ran the full span.
+           Dividing by the distance between the two end windows' centres removes it exactly.
 
-       A least-squares fit reads 50.064, 50.080, 50.001, 50.000 and 50.000 ppm over the same five
-       streams, so the stream carries the planted rate and the estimator loses it. The published band
-       covers the truth at every span above, and on the node's own 391-anchor geometry over 60 s it
-       reads 139.84 ± 64.14, which does NOT cover 50. So the band alone does not make the figure
-       readable, and this clause states what the figure is. The repair belongs in `clock.js`, which
-       6 of 9 bundles carry, so it is logged and not made here.
+       `clock.js` now does both, and publishes `ppmEstimator` to name the arm. Measured 2026-11-16
+       with zero jitter, so only the clamp term is left, against a PLANTED 50 ppm:
 
-       The clause rides the two cells whose unit names the host axis, which are the two this
-       measurement covers. The §3d night-drift cell runs a different estimator and says nothing here. */
-    if (cell.unit === 'ppm of the device rate against the host axis' && bits.length) bits.push('an end-point read against the first anchor, so a short span reads high');
+         n            16      22      31      41     101     451
+         before   33.333  38.095  41.667  43.750  47.500  49.444   ← exactly 50·(n−1−5)/(n−1)
+         after    33.333  50.000  50.000  50.000  50.000  50.000
+
+       ⚠ THE TABLE THAT USED TO SIT HERE PLANTED 50 ppm AT 5 ms OF JITTER, and that is why it read a
+       bias of the wrong sign. Over 60 s a 50 ppm drift is 3 ms against ±5 ms of jitter, so the figure
+       there is noise and a single draw of it says nothing about a lean. Those rows reported one draw
+       each, and the repair's own first measurement repeated the mistake.
+
+       WHAT STILL LIMITS A SHORT SPAN, measured the same day over 400 draws at the node's own
+       391-anchor geometry: the published rate reads 56.80 ± 1.25 before the repair and 53.60 ± 1.56
+       after it, against the same planted 50. The clamp term is only 1.28 % of the span at that
+       density, so almost all of what is left is host jitter swamping a 3 ms drift. A node cannot fix
+       that by estimating better. It needs a longer span, and the §∅ question of whether `ok` should be
+       true at all over an unresolvable rate is logged and not answered here.
+
+       So this clause names the LIMIT rather than the estimator's origin. It rides the two cells whose
+       unit names the host axis, which are the two the measurement covers. The §3d night-drift cell
+       runs a different estimator and says nothing here. */
+    if (cell.unit === 'ppm of the device rate against the host axis' && bits.length) bits.push('a median read, so a span this short is limited by host jitter rather than by drift');
     if (!bits.length) return '';
     return '<div class="sq-qual" style="font-size:10px;color:var(--text3);margin-top:2px">' + bits.join(' \u00b7 ') + '</div>';
   }
