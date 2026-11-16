@@ -96787,12 +96787,17 @@
       // ANTI-VACUITY — the spectral stage still CLAIMS a rate on this input, so the test exercises
       // the live path. Were this leg to go quiet the group would pass over a detector that refused
       // for its own reasons, and would say nothing about the summary.
-      var spec = MD.respiratoryRate(flat, t0K, 'mg') || {};
+      /* The criterion now sits in `respiratoryRate` as well (row
+         `2026-11-15-motiondex-respiratoryrate-fabricates-on-a-still-chest`), so the plain call refuses.
+         Hand it a PLANTED measure to cross that refusal: the prior's ridge is still underneath, and
+         this group still exercises the live path it was written to exercise. */
+      var spec = MD.respiratoryRate(flat, t0K, 'mg', { effortMeasure: { breaths: 2, presentEpochs: 2, rms: 1 } }) || {};
       T.ok(
-        'the ridge tracker still reports a rate on the flat signal (the defect is live)',
+        'the ridge tracker still reports a rate on the flat signal (the defect is live beneath the refusal)',
         spec.hasData === true && spec.medianBrpm != null && isFinite(spec.medianBrpm),
         'specHasData=' + spec.hasData + ' median=' + spec.medianBrpm
       );
+      T.eq('and the plain call now refuses it by name', (MD.respiratoryRate(flat, t0K, 'mg') || {}).reason, 'no-respiratory-effort');
 
       // the self-contradiction that identified the row
       T.eq('no breath crosses zero on a constant signal', eff.nBreaths, 0);
@@ -96848,6 +96853,145 @@
         T.ok('its absence sublabel reads the named reason', /respAbsenceWhy\(eff\)/.test(kpiLine), kpiLine.trim() || 'line not found');
         T.ok('…and no longer hardcodes a sensor-absence string', !/no chest ACC/.test(kpiLine), kpiLine.trim() || 'line not found');
         T.ok('the helper answers for a flat chest stream', /function respAbsenceWhy/.test(rsrc) && /no respiratory effort/.test(rsrc), 'no flat-signal arm in respAbsenceWhy');
+      } else {
+        T.skip('motiondex-render.js source available', 'source text not wired in this lane');
+      }
+    });
+
+    /* ════ MotionDex · `respiratoryRate` ITSELF abstains on a still chest (§∅) ════
+     Row `2026-11-15-motiondex-respiratoryrate-fabricates-on-a-still-chest`. The 2026-11-08 repair put
+     the absence criterion in `respiratoryEffort`, which is what `compute()` and the node export read —
+     and left the estimator fabricating for every OTHER caller. `MOTIONDSP.respiratoryRate` is on the
+     public API surface and `resp-acc-analysis-app.js` calls it as the shipped estimator; on a still
+     chest it answered 9.6 br/min at confidence 0.751, and on a 12-minute constant input 19 br/min.
+
+     THE CRITERION DID NOT CHANGE, IT MOVED DOWN. `chestEffortAbsent` now states the conjunction once,
+     `chestEffortMeasure` bands the stream once, and both layers read that one copy — so the summary a
+     consumer sees and the estimator a tool calls cannot disagree. The summary passes its measure in,
+     so no stream is banded twice, and `opts.effortMeasure` is that hand-off, never a switch: a caller
+     that supplies a measure is asserting it took one.
+
+     EVERY REFUSAL IS NAMED, and the names are distinct — the flat stream clears the row-count guard,
+     so a reader can tell "I looked and found no respiration" from "there was not enough to look at". ════ */
+    group('MotionDex respiratoryRate refuses a rate on a chest with no effort (§∅)', 'motiondex-dsp · resp-rate · §∅', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.respiratoryRate === 'function' && typeof MD.respiratoryEffort === 'function' && typeof MD.parseSensorXYZ === 'function' && typeof MD.genSyntheticACC === 'function')) {
+        T.skip('MOTIONDSP.respiratoryRate + respiratoryEffort + parseSensorXYZ + genSyntheticACC available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      // 15 min of a perfectly constant chest reading at 26 Hz — the row's own shape.
+      var hzS = 26,
+        secS = 900,
+        t0S = Date.UTC(2026, 5, 11, 23, 0, 0),
+        flatS = [];
+      for (var i = 0; i < hzS * secS; i++) {
+        flatS.push({ relNs: i * (1e9 / hzS), tMs: t0S + (i * 1000) / hzS, x: 12, y: -4, z: 1000 });
+      }
+      T.ok('ANTI-VACUITY · the flat stream clears the row-count guard, so the effort term is what decides', flatS.length >= 400, 'rows=' + flatS.length);
+
+      var out = MD.respiratoryRate(flatS, t0S, 'mg') || {};
+      T.eq('hasData is false', out.hasData, false);
+      T.eq('medianBrpm is null — not 9.6, and not 0', out.medianBrpm, null);
+      T.eq('the reason is NAMED, never borrowed', out.reason, 'no-respiratory-effort');
+      T.eq('no method is claimed for a rate that was not measured', out.method, null);
+      T.eq('the per-epoch rate track goes with it — every entry was the prior', (out.series || []).length, 0);
+      T.eq('and no coverage is quoted for windows whose ridge was the prior', out.coverage, null);
+
+      // the refusals are DISTINGUISHABLE — a short stream states its own cause
+      var few = MD.respiratoryRate(flatS.slice(0, 100), t0S, 'mg') || {};
+      T.eq('a 100-row stream names the row count, not the effort', few.reason, 'too-few-chest-rows');
+      T.ok('…and the two reasons differ', few.reason !== out.reason, 'few=' + few.reason + ' flat=' + out.reason);
+
+      // ONE COPY OF THE CRITERION — the whole point of the move
+      var dsrcS = (env.sources || {})['motiondex-dsp.js'] || '';
+      if (dsrcS) {
+        T.eq('the conjunction is written exactly once', (dsrcS.match(/m\.breaths === 0 && m\.presentEpochs === 0/g) || []).length, 1);
+        T.eq('and both layers call it', (dsrcS.match(/chestEffortAbsent\(/g) || []).length, 3);
+        T.eq('the band measure is written exactly once', (dsrcS.match(/function chestEffortMeasure\(/g) || []).length, 1);
+      } else {
+        T.skip('motiondex-dsp.js source available', 'source text not wired in this lane');
+      }
+
+      // THE TWO LAYERS AGREE, on both inputs — the defect was that they did not
+      var effS = MD.respiratoryEffort(flatS, t0S, secS, 'mg') || {};
+      T.eq('the summary refuses the same stream for the same named reason', effS.respRateReason, 'no-respiratory-effort');
+      T.eq('and reports no rate', effS.rateBrpm, null);
+
+      // CONTROL — a planted 15 br/min night keeps its rate through BOTH layers.
+      var realS = MD.parseSensorXYZ(MD.genSyntheticACC({ sec: 900, hz: 26, brpm: 15, seed: 17 }));
+      var outR = MD.respiratoryRate(realS, realS[0].tMs, 'mg') || {};
+      T.ok('CONTROL · a planted 15 br/min night still publishes its rate', outR.hasData === true && outR.medianBrpm != null && Math.abs(outR.medianBrpm - 15) <= 1.0, 'median=' + outR.medianBrpm);
+      T.ok('CONTROL · and claims no absence reason', outR.reason == null, 'reason=' + outR.reason);
+      var effR2 = MD.respiratoryEffort(realS, realS[0].tMs, 900, 'mg') || {};
+      T.approx('CONTROL · the summary over the same night is unmoved by the extraction', effR2.rateBrpm, outR.medianBrpm, 1e-9);
+      T.ok('CONTROL · and its effort epochs still clear the floor', (effR2.series || []).length > 0 && effR2.amplitudeG > effR2.floorG, 'amp=' + effR2.amplitudeG + ' floor=' + effR2.floorG);
+    });
+
+    /* ════ MotionDex · no covered epoch publishes NO posture distribution (§∅) ════
+     Row `2026-11-15-motiondex-bodyposition-zero-distribution-over-no-epoch`. `covered` counts only the
+     epochs that HELD samples (DEEP-AUDIT-II §7.4), and the denominator guard then published 0 for every
+     posture AND a `supineFrac` of 0. The KPI drew `Supine time 0%` under the sublabel
+     "positional-OSA target ↓" — a target MET, over a night nothing was read.
+
+     THE INPUT IS A REAL CASE, not a contrivance: an ACC stream with no usable stamp. `relSecOf` returns
+     null for such a row, every row leaves the epoch grid, and `covered` is 0 while the rows themselves
+     are perfectly good gravity vectors. That is the Clock Contract working — a stamp-less row is null,
+     never a fabricated time — meeting a fraction that had no denominator.
+
+     `hasData` STAYS TRUE and `dwellEpochs` STAYS A COUNT. The epoch count and the track describe this
+     stream truthfully, and each count is published beside the `coveredEpochs: 0` that gives it its
+     population, so the pair says "0 of 0" rather than claiming a proportion. The FRACTION is the
+     fabrication, because a reader reads it as a share of the night. ════ */
+    group('MotionDex body position publishes no distribution over no covered epoch (§∅)', 'motiondex-dsp · motiondex-render · position · §∅', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.bodyPosition === 'function' && typeof MD.parseSensorXYZ === 'function' && typeof MD.genSyntheticACC === 'function')) {
+        T.skip('MOTIONDSP.bodyPosition + parseSensorXYZ + genSyntheticACC available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      var t0P = Date.UTC(2026, 5, 12, 23, 0, 0),
+        unstamped = [];
+      for (var i = 0; i < 300; i++) unstamped.push({ x: 20, y: -30, z: 1000 }); // supine gravity, NO stamp
+      var posN = MD.bodyPosition(unstamped, t0P, 300, 'mg') || {};
+      T.eq('ANTI-VACUITY · the rows clear the 10-row guard, so coverage is what decides', posN.hasData, true);
+      T.eq('no epoch is covered', posN.coveredEpochs, 0);
+      T.eq('the track still spans the recording', (posN.track || []).length, 10);
+      T.eq('supineFrac is null — not 0, which the KPI drew as a target MET', posN.supineFrac, null);
+      var nulls = 0,
+        keys = Object.keys(posN.dwellFrac || {});
+      for (var k = 0; k < keys.length; k++) if (posN.dwellFrac[keys[k]] === null) nulls++;
+      T.ok('every posture fraction is null', keys.length === 6 && nulls === 6, 'keys=' + keys.length + ' nulls=' + nulls);
+      T.eq('and the reason is NAMED, never borrowed', posN.dwellFracReason, 'no-covered-epoch');
+      T.eq('the dwell COUNTS stay counts — each one has `coveredEpochs: 0` beside it', posN.dwellEpochs.supine, 0);
+
+      // CONTROL — the same gravity, stamped, still publishes its distribution.
+      var stamped = [];
+      for (i = 0; i < 300; i++) stamped.push({ relNs: i * (1e9 / 26), tMs: t0P + (i * 1000) / 26, x: 20, y: -30, z: 1000 });
+      var posC = MD.bodyPosition(stamped, t0P, 300, 'mg') || {};
+      T.ok('CONTROL · a stamped stream covers its epochs', posC.coveredEpochs > 0, 'covered=' + posC.coveredEpochs);
+      T.ok('CONTROL · and publishes a real supine fraction', posC.supineFrac != null && posC.supineFrac > 0.99, 'supineFrac=' + posC.supineFrac);
+      T.eq('CONTROL · claiming no absence reason', posC.dwellFracReason, null);
+
+      // THE REASON HAS TO LEAVE THE NODE, or a consumer invents one.
+      var dsrcP = (env.sources || {})['motiondex-dsp.js'] || '';
+      if (dsrcP) {
+        T.ok('the node export carries dwellFracReason beside dwellFrac', /dwellFracReason:\s*summary\.position/.test(dsrcP), 'no dwellFracReason in the export reshape');
+      } else {
+        T.skip('motiondex-dsp.js source available', 'source text not wired in this lane');
+      }
+      /* An EMPTY bar reads as "nothing happened". `positionBar` skips a segment whose fraction is not
+         above zero, so null fractions drew a blank strip under a live card. The reader states the
+         reason instead. */
+      var rsrcP = (env.sources || {})['motiondex-render.js'] || '';
+      if (rsrcP) {
+        var posLine = (rsrcP.match(/var posBody = [\s\S]*?;/) || [''])[0];
+        T.ok('the position card decides on the named reason, not on an empty bar', /pos\.dwellFracReason/.test(posLine), posLine.trim() || 'no posBody line in motiondex-render.js');
+        T.ok('…and still draws the bar on a measured night', /positionBar\(pos\.dwellFrac\)/.test(posLine), posLine.trim() || 'line not found');
+        /* §🎫 — THE REFUSAL CARRIES NO BADGE. `row()` badges its first argument, so a new literal
+           label there renders an evidence tier no registry assigned and the badge ratchet reds it.
+           `mxNote` is the house form for a refused figure beside the figures that stand, and it
+           badges nothing. */
+        T.ok('…and the refusal states itself through mxNote, which assigns no evidence tier', /mxNote\(/.test(posLine) && !/row\(/.test(posLine), posLine.trim() || 'line not found');
+        T.ok('…naming the node\u2019s own reason, never a borrowed sentence', /pos\.dwellFracReason,/.test(posLine), posLine.trim() || 'line not found');
       } else {
         T.skip('motiondex-render.js source available', 'source text not wired in this lane');
       }
