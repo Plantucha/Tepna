@@ -11362,7 +11362,7 @@ async def loss_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" =
                 why = None
                 current = os.path.exists(vpath) and os.path.getmtime(vpath) >= newest
                 if current and rejudge > 0:
-                    why = await asyncio.to_thread(solid_night.code_moved, nd, commit)
+                    why = await asyncio.to_thread(solid_night.rejudge_why, nd, commit, cfg.get("devices", []))
                     if why:
                         rejudge -= 1
                         current = False

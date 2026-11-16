@@ -175,6 +175,15 @@
   function expectedRHR(age) {
     return Math.round(60 + Math.max(0, age - 30) * 0.12);
   }
+  /* §∅ — is the age a MEASUREMENT, or the population prior that compute needs? ONE predicate, so the
+     hero note, the two graded subscores, the bench card, the derived-norms list and the app's KPI tiles
+     cannot drift apart under a later edit. The cascade answers `you` only for a value the user entered
+     and `detected` for one another node measured; `pop`/`none` — and `_origins: null` on the legacy or
+     headless path — mean the 42 below is a prior, not a fact about this person. The priors themselves
+     stay: compute still runs on them. */
+  function ageEntered(p) {
+    return !!(p && p._origins && (p._origins.age === 'you' || p._origins.age === 'detected'));
+  }
   function perfusionBand(pi) {
     if (pi == null) return { sev: 'neutral', txt: '—' };
     if (pi >= 4) return { sev: 'ok', txt: 'strong' };
@@ -214,7 +223,10 @@
       cpapInUse: p.cpap,
       hrvScore: rmOk ? hrvScore(r.dispRm) : null,
       expRmssd: expectedRmssd(p.age),
-      expRHR: expectedRHR(p.age)
+      expRHR: expectedRHR(p.age),
+      // The ONE field every age-relative surface reads (task 07). Published beside the two priors it
+      // qualifies, so a card can grade against them only after it says whether the age was entered.
+      ageEntered: ageEntered(p)
     });
     // Publish DETECTED physiology to the shared detected tier (NOT manual identity) —
     // cross-node handoff + lights up the cascade's middle tier in the unified panel.
@@ -256,16 +268,27 @@
     const css = color === 'none' ? 'var(--text2)' : color === 'good' ? 'var(--status-ok)' : color === 'warn' ? 'var(--status-caution)' : 'var(--status-concern)';
     const ratio = Number.isFinite(r.dispRm) ? r.dispRm / r.expRmssd : null;
     let ageNote;
-    if (ratio == null) ageNote = `This session has no rMSSD, so it is not compared with the ~${r.expRmssd} ms typical for age ${p.age}.`;
+    if (!r.ageEntered) {
+      /* §∅ — the clamp in `getProfile` makes an absent age 42, so `ratio` always has a norm to divide by.
+         Before this arm, a reader who never entered an age was told their rMSSD was "about typical for
+         age 42" — a comparison against a population prior, stated as a personal fact. The note names
+         the absence and never renders blank. */
+      ageNote =
+        `This session is not compared with an age norm: no age is entered, so the analysis ran on the population prior of ${p.age} years.` +
+        /* REVIEW (Heron): the remedy only holds where a measurement waits for it. A first-run
+           session with no usable PPI reaches this arm with `ratio == null`, and there "enter your
+           age to unlock the comparison" promised a comparison that has no input. */
+        (ratio == null ? '' : ' Enter your age in the profile to unlock the comparison.');
+    } else if (ratio == null) ageNote = `This session has no rMSSD, so it is not compared with the ~${r.expRmssd} ms typical for age ${p.age}.`;
     else if (ratio >= 1.15) ageNote = `rMSSD ${r.dispRm} ms is <b>above</b> the ~${r.expRmssd} ms typical for age ${p.age} — favourable parasympathetic tone.`;
     else if (ratio >= 0.85) ageNote = `rMSSD ${r.dispRm} ms is <b>about typical</b> for age ${p.age} (~${r.expRmssd} ms expected).`;
     else ageNote = `rMSSD ${r.dispRm} ms is <b>below</b> the ~${r.expRmssd} ms typical for age ${p.age} — watch recovery &amp; load.`;
     ageNote += ` <span style="opacity:.75">Derived from wrist <b>PPI</b> (optical pulse intervals), not ECG RR — validated against the device's own PP-intervals.</span>`;
     const pb = perfusionBand(r.perfusionIndex);
     const subs = [
-      { v: r.dispRm, fmt: (v) => v.toFixed(0), label: 'rMSSD', cls: (v) => (v >= r.expRmssd ? 'ok' : v > r.expRmssd * 0.7 ? 'warn' : 'bad') },
+      { v: r.dispRm, fmt: (v) => v.toFixed(0), label: 'rMSSD', cls: (v) => (!r.ageEntered ? 'neutral' : v >= r.expRmssd ? 'ok' : v > r.expRmssd * 0.7 ? 'warn' : 'bad') },
       { v: r.dispSd, fmt: (v) => v.toFixed(0), label: 'SDNN', cls: (v) => (v > 50 ? 'ok' : v > 35 ? 'warn' : 'bad') },
-      { v: r.rhrEff, fmt: (v) => v.toFixed(0), label: 'Pulse HR', cls: (v) => (v <= r.expRHR ? 'ok' : v <= r.expRHR + 8 ? 'warn' : 'bad') },
+      { v: r.rhrEff, fmt: (v) => v.toFixed(0), label: 'Pulse HR', cls: (v) => (!r.ageEntered ? 'neutral' : v <= r.expRHR ? 'ok' : v <= r.expRHR + 8 ? 'warn' : 'bad') },
       { v: r.perfusionIndex, fmt: (v) => (v == null ? '—' : v.toFixed(1)), label: 'Perfusion %', cls: () => pb.sev }
     ];
     let subsHtml = '';
@@ -333,7 +356,9 @@
       sd2 = r.sd2,
       pn = r.dispPn,
       pi = r.perfusionIndex;
-    const exp = r.expRmssd || 30;
+    // No entered age means no personal band: the flat 30 ms arm that the clamp made dead is the honest
+    // fallback here, and the subline below says so (the `|| 30` never fired while age always resolved).
+    const exp = r.ageEntered ? r.expRmssd : 30;
     const sev = rm >= exp ? 'proj-good' : rm >= exp * 0.7 ? 'proj-warn' : 'proj-bad';
     const vc = rm >= exp ? 'proj-val-good' : rm >= exp * 0.7 ? 'proj-val-warn' : 'proj-val-bad';
     const eb = (l) => (typeof bdg === 'function' ? bdg(l) : '');
@@ -356,7 +381,7 @@
       st('pNN50', pn, '%', pn >= 15 ? 'good' : pn >= 3 ? 'warn' : 'bad') +
       st('Perfusion', pi != null ? pi.toFixed(1) : null, '%', piSev === 'neutral' ? 'warn' : piSev) +
       `</div>` +
-      `<div class="proj-subline" style="margin-top:auto;opacity:.8">Validated HRV bench from optical PPI — RMSSD · SDNN · Poincaré SD1/SD2 · pNN50 (Task Force 1996; Schäfer 2013). The reference-grade autonomic summary.</div>` +
+      `<div class="proj-subline" style="margin-top:auto;opacity:.8">Validated HRV bench from optical PPI — RMSSD · SDNN · Poincaré SD1/SD2 · pNN50 (Task Force 1996; Schäfer 2013). ${r.ageEntered ? '' : 'Bench bands use a flat 30 ms because no age is entered. '}The reference-grade autonomic summary.</div>` +
       `</div>`;
   }
 
@@ -396,8 +421,8 @@
       grp(
         'Age-relative norms',
         di('HRmax', hrmax + ' bpm', p.hrmax > 0 ? 'your entry' : 'Tanaka 208−0.7·' + p.age) +
-          di('Expected rMSSD', expectedRmssd(p.age) + ' ms', 'age ' + p.age + ' median') +
-          di('Expected pulse HR', expectedRHR(p.age) + ' bpm', 'age-typical resting')
+          di('Expected rMSSD', expectedRmssd(p.age) + ' ms', ageEntered(p) ? 'age ' + p.age + ' median' : 'population prior · age not entered') +
+          di('Expected pulse HR', expectedRHR(p.age) + ' bpm', ageEntered(p) ? 'age-typical resting' : 'population prior · age not entered')
       );
   }
 
