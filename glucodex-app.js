@@ -249,12 +249,13 @@ import './glucodex-profile.js';
     st.textContent = css;
     (document.head || document.documentElement).appendChild(st);
   }
-  function glucoReviewTimeline(events) {
+  function glucoReviewTimeline(events, t0Ms) {
     var evs = Array.isArray(events) ? events.slice() : [];
     if (!evs.length) return '<div class="grv-none">No scored events in this export.</div>';
-    evs.sort(function (a, b) {
-      return (a.tMs || 0) - (b.tMs || 0);
-    });
+    // Clock Contract §6 + §∅ — the producer ordered these on the rebuilt key already. The former
+    // `(a.tMs || 0)` key here sorted a `t`-only event as 1970-01-01 and undid that order, so this view
+    // reads the DSP's own function. With no key function reachable the producer's order stands.
+    if (DSP && typeof DSP.sortEventsByClock === 'function') evs = DSP.sortEventsByClock(evs, typeof t0Ms === 'number' && isFinite(t0Ms) ? t0Ms : null);
     var CAP = 40,
       shown = evs.slice(0, CAP);
     var nm = function (e) {
@@ -350,7 +351,8 @@ import './glucodex-profile.js';
         })
         .join('') +
       '</div>';
-    h += '<div class="grv-sec">Event timeline</div>' + glucoReviewTimeline(review.events);
+    var _rvT0 = review.recording && typeof review.recording.startEpochMs === 'number' ? review.recording.startEpochMs : null;
+    h += '<div class="grv-sec">Event timeline</div>' + glucoReviewTimeline(review.events, _rvT0);
     h +=
       '<div class="grv-sec">Raw signal</div>' +
       '<div class="grv-greyed"><strong>Full-resolution CGM trace not included</strong>Per-reading glucose samples are not carried in the export \u2014 review mode shows the derived glycemic summary only. Re-run the original CGM file for the full AGP + daily-overlay charts.</div>';
