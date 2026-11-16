@@ -742,6 +742,17 @@ const NOTE_NO_ROW = 'note:no such row on main';
 /* merged: [{ number, body }]; done: { key: 'pr:<n>' | 'failed:…@<ms>' | 'absent:…@<ms>' | 'note:<why>' }.
    Returns the rows to close, a note for each declared key that cannot close (said once, never looped
    on), and every key whose row is absent this pass, which the caller re-stamps so it comes back. */
+/* 🔴 A CLOSURE PR MUST NOT JUMP A READY PR THAT WAITS ON ITS CHECKS (measured 2026-11-16, board
+   #6670). After #5108 merged, this pass opened closure PR #5112. It ran fast CI, the pass readied it,
+   and Kodiak merged it while #5094 waited on the capture-host mutation job. That merge put #5094
+   behind main, and the base merge cancelled the mutation run a sixth time. A `do-not-merge` hold on a
+   fix PR does not cover a PR this tool opens itself. So the closure waits while any out-of-draft PR,
+   other than a walker closure PR, reads `pending`. A closure costs nothing to delay; the pass after
+   that PR merges opens it. Returns the row it waits on, or null. */
+export function closureWaitsOn(rows) {
+  return (rows || []).find((r) => r && !r.draft && r.state === 'pending' && !(r.branch || '').startsWith(CLOSE_BRANCH_PREFIX)) || null;
+}
+
 export function planClosures(merged, residueText, done, nowMs, retryMin = 60) {
   const states = residueStates(residueText);
   const close = [];
@@ -839,7 +850,9 @@ export function pass(opts) {
     }
     if (pc.close.length) {
       const inFlight = snap.prs.find((p) => (p.branch || '').startsWith(CLOSE_BRANCH_PREFIX));
+      const waitOn = closureWaitsOn(rows);
       if (inFlight) resLines.push(`RESIDUE ${pc.close.length} closure(s) wait: walker closure PR #${inFlight.number} is open`);
+      else if (waitOn) resLines.push(`RESIDUE ${pc.close.length} closure(s) wait: #${waitOn.number} is out of draft and its required checks run`);
       else if (opts.dryRun) resLines.push(`RESIDUE would close: ${pc.close.map((c) => `${c.key} → fixed #${c.number}`).join(' · ')}`);
       else {
         const cr = closeResidue(pc.close, opts.worktree, now);

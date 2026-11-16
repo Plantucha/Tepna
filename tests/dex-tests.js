@@ -60899,6 +60899,20 @@
         }
       } else T.skip('residue closure wired', 'pwPlanClosures absent in this lane');
 
+      /* ── a closure PR waits while a ready PR runs its checks (measured 2026-11-16, board #6670:
+         closure PR #5112 merged ahead of #5094 and cancelled its capture-host mutation run) ───── */
+      var cwo = env.pwClosureWaitsOn;
+      T.ok('the closure hold reaches this lane — its absence is a wiring failure', typeof cwo === 'function');
+      if (typeof cwo === 'function') {
+        var readyPending = { number: 5094, draft: false, state: 'pending', branch: 'claude/qcpool-hrn' };
+        T.eq('a ready PR whose required checks run holds the closure', (cwo([readyPending]) || {}).number, 5094);
+        T.eq('CONTROL: a draft that runs its checks does not hold it', cwo([{ number: 7, draft: true, state: 'pending', branch: 'claude/x' }]), null);
+        T.eq('CONTROL: a ready green PR does not hold it', cwo([{ number: 8, draft: false, state: 'green', branch: 'claude/x' }]), null);
+        T.eq('CONTROL: a held PR does not hold it', cwo([{ number: 9, draft: false, state: 'held', branch: 'claude/x' }]), null);
+        T.eq('CONTROL: the walker closure PR itself does not hold it', cwo([{ number: 10, draft: false, state: 'pending', branch: 'claude/residue-close-walker-20201231' }]), null);
+        T.eq('an empty or unreadable row list holds nothing', [cwo([]), cwo(null)].join(), ',');
+      }
+
       /* ── the signature comment (owner, 2020-01-01: "it will sign everything what it does") ──── */
       var sg = env.pwSignature;
       var AT = '2020-01-01T11:45:09.000Z';
