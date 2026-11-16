@@ -45278,6 +45278,13 @@
           });
           T.eq('∅ every snore-pressure token the DSP writes has prose a reader can read', JSON.stringify([written.length, unglossed]), '[4,[]]');
           T.eq('ANTI-VACUITY · the table is load-bearing: an unglossed token falls through to itself', CR.reasonText('zz-no-such-reason'), 'zz-no-such-reason');
+          /* The usage absence tokens the session and night arms write (unit `cpapzr`). They sit in
+             THIS group, which already guards on a co-loaded `cpapdex-render.js` and already carries
+             the browser realm's one skip, so pinning their prose costs that realm no second skip. */
+          ['no-records', 'empty-pressure-lane', 'mixed-absences', 'unstated'].forEach(function (k) {
+            var _gl = CR.reasonText(k);
+            T.ok('∅ the render map gives `' + k + '` prose, so the token reaches a reader with words', _gl !== k && _gl.indexOf(' (' + k + ')') > 0, _gl);
+          });
         } else {
           T.skip('CpapRender.reasonText', 'cpapdex-render.js not co-loaded in this runner');
         }
@@ -54691,6 +54698,52 @@
           })
         )
       );
+
+      /* ∅ A LANE THE FILE CARRIES AND NEVER FILLED. The three fixtures above all turn on whether
+         a pressure CHANNEL exists. These two carry the channel and no sample: a header-only or
+         power-loss file (`recordsRead` 0) and a header whose `spr` is 0 while the record count is
+         positive. The second one is why the guard reads `pressure.length` and not `recordsRead`:
+         a guard keyed on the record count passes that file through to a measured-looking 0.000. */
+      var _emptyPld = function (records) {
+        var set = D._synthEdfSet({});
+        Object.keys(set.PLD.signals).forEach(function (k) {
+          set.PLD.signals[k].data = new Float32Array(0);
+        });
+        set.PLD.recordsRead = records;
+        set.PLD.numRecords = records;
+        return set;
+      };
+      var sZeroRec = D.buildSessionFromEdf(_emptyPld(0), {});
+      var sEmptyLane = D.buildSessionFromEdf(_emptyPld(10), {});
+      var mZeroRec = (sZeroRec && sZeroRec.metrics) || {},
+        mEmptyLane = (sEmptyLane && sEmptyLane.metrics) || {};
+      T.eq('∅ a file with no data record → usageHours null, not a measured 0.000', mZeroRec.usageHours, null);
+      T.eq('∅ …and names the record count, never the lane', mZeroRec.usageReason, 'no-records');
+      T.eq('∅ …and never claims therapy-never-started from an absence of records', mZeroRec.maskOnLatencyReason, 'no-records');
+      T.eq('∅ a lane with no sample and a POSITIVE record count → usageHours null', mEmptyLane.usageHours, null);
+      T.eq('∅ …and the reason separates it from the empty file', mEmptyLane.usageReason, 'empty-pressure-lane');
+      T.eq('∅ …and the latency reason agrees with it', mEmptyLane.maskOnLatencyReason, 'empty-pressure-lane');
+
+      /* CONTROL — the human fact stays reachable. This lane holds every sample it should and none
+         of them rose, which IS a night the mask stayed off: a measured 0 and the old reason. */
+      var maskOff = D._synthEdfSet({});
+      var _pk = maskOff.PLD.signals['Press.2s'];
+      _pk.data = new Float32Array(_pk.data.length);
+      var mMaskOff = (D.buildSessionFromEdf(maskOff, {}) || {}).metrics || {};
+      T.eq('control — a full lane that never rose still MEASURES 0 usage', mMaskOff.usageHours, 0);
+      T.eq('control — …and keeps the human fact in the latency reason', mMaskOff.maskOnLatencyReason, 'therapy-never-started');
+      T.eq('control — …and states no usageReason, because this is a measurement', mMaskOff.usageReason, undefined);
+
+      /* THE NIGHT LAYER READ ONE CAUSE FOR EVERY ABSENCE. It wrote a literal `no-pressure-channel`,
+         so a night holding the zero-record session above published a sentence about a lane the file
+         carries. The token now travels in `_pool`, and a night that met several says so. */
+      var nZeroRec = D.buildNight([sFull, sZeroRec]).metrics || {};
+      T.eq('∅ night with a zero-record session names THAT, not the absent lane', nZeroRec.usageReason, 'no-records');
+      T.eq('∅ …and publishes the set it met', JSON.stringify(nZeroRec.usageReasonSet), '["no-records"]');
+      var nMixedTok = D.buildNight([sNone, sZeroRec]).metrics || {};
+      T.eq('∅ a night meeting two different absences borrows neither', nMixedTok.usageReason, 'mixed-absences');
+      T.eq('∅ …and names both', JSON.stringify(nMixedTok.usageReasonSet), '["no-pressure-channel","no-records"]');
+      T.eq('control — a night of one absence still reports that one token', nMixed.usageReason, 'no-pressure-channel');
     });
 
     /* ════ A bare device-scored "Apnea" TEXT must reach residualAHI (DEEP-AUDIT-2026-07-22 §CPAPDex)

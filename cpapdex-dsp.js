@@ -1130,6 +1130,14 @@
     var t0Ms = therapy.clock.t0Ms;
     var recDur = therapy.recDurSec || 60;
     var durSec = (therapy.recordsRead || 0) * recDur;
+    /* ∅ A FILE THAT CARRIED NO RECORD IS NOT A NIGHT THE MASK STAYED OFF. `recordsRead` reads 0
+       for a header-only or power-loss file, because `cpapdex-edf.js:277` computes it from the bytes
+       actually present. The record count explains an empty lane, and it does not detect one: the
+       same parser allocates `spr * recordsRead` samples at `cpapdex-edf.js:295`, so a header with a
+       zero `spr` gives an empty lane while this count stays positive. The guard below therefore
+       reads the SAMPLE count, and this count only names which upstream fact is absent. */
+    var nRecords = therapy.recordsRead;
+    var hasRecords = nRecords != null && isFinite(nRecords) && nRecords > 0;
 
     // ── PLD detail channels (0.5 Hz) ──
     var pressCh = chan(set.PLD, 'Press') || chan(set.PLD, 'MaskPress');
@@ -1171,19 +1179,27 @@
     }
     var fs = pressCh ? pressCh.fs : 0.5;
     var pressure = pressCh ? pressCh.data : new Float32Array(0);
+    /* ∅ THE TWO SOURCE ARMS DISAGREED ON WHAT A LANE IS. The BRP arm above requires
+       `brpPress.data.length`, and the PLD arm requires only that the channel exists, so a PLD lane
+       that carries no sample set `pressureSource` and then counted zero mask-on samples over a
+       denominator. One sample is what a mask-on count needs, so the count is the criterion here. */
+    var hasPressureSample = !!pressureSource && pressure.length > 0;
 
     // mask-on = delivered pressure > 0
     var maskOn = new Uint8Array(pressure.length);
     for (var i = 0; i < pressure.length; i++) maskOn[i] = pressure[i] > 0 ? 1 : 0;
     var pressureMaskOn = pressureSource === 'BRP' ? [] : _filterBy(pressure, maskOn); // F8 — mask pressure is not set pressure
     var leakMaskOn = leak ? _filterBy(leak, maskOn) : [];
-    var usageHours = pressureSource
+    var usageHours = hasPressureSample
       ? _countWhere(pressure, function (v) {
           return v > 0;
         }) /
         ((fs || 0.5) * 3600)
       : null;
-    var usageReason = pressureSource ? null : 'no-pressure-channel';
+    /* The arm order names the upstream fact first: an absent LANE, then an empty FILE, then a lane
+       the file carried with no sample in it. A reason token is a claim, and these three are the
+       only claims this file supports. */
+    var usageReason = !pressureSource ? 'no-pressure-channel' : hasPressureSample ? null : hasRecords ? 'empty-pressure-lane' : 'no-records';
     // the index denominator: measured hours, or 0 when there is no measurement (every index → null)
     var idxHours = usageHours == null ? 0 : usageHours;
 
@@ -1262,7 +1278,9 @@
          note records real nights that did. The reason now leaves the node, as `usageReason` and
          `pbObserved` do. Row `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`. */
       maskOnLatency: pressOnset === -1 ? null : +(pressOnset / (fs * 60)).toFixed(2),
-      maskOnLatencyReason: pressOnset !== -1 ? null : pressureSource ? 'therapy-never-started' : 'no-pressure-lane',
+      /* ∅ `therapy-never-started` IS A HUMAN FACT, so only a lane with a sample in it may carry
+         that reason. An empty lane and a file with no record each name themselves instead. */
+      maskOnLatencyReason: pressOnset !== -1 ? null : !pressureSource ? 'no-pressure-lane' : hasPressureSample ? 'therapy-never-started' : hasRecords ? 'empty-pressure-lane' : 'no-records',
       // Pressure
       /* ∅ A PERCENTILE OVER AN EMPTY LANE IS NOT A PRESSURE. `_p` answers `NaN` over no
          sample and `_iqr` subtracts two of them. The F8 note above leaves `pressureMaskOn` EMPTY
@@ -1431,7 +1449,13 @@
         eprDelta: eprDelta,
         maskOnLatency: metrics.maskOnLatency,
         mode: mode,
-        pressureEnvIqr: modeCls.envIqr
+        pressureEnvIqr: modeCls.envIqr,
+        /* ∅ THE NIGHT LAYER NAMED ONE CAUSE FOR EVERY ABSENT USAGE. `nightMetrics` wrote a
+           literal `no-pressure-channel` whenever any session's usage read null, so a file that
+           carries a pressure lane and no record published a sentence about a lane it holds. The
+           comment above states the mechanism: a field on `metrics` alone never reaches the night.
+           The token travels here, and the night reports the set it actually met. */
+        usageReason: usageReason
       }
     };
   }
@@ -1471,6 +1495,7 @@
       ieW = 0,
       ieWsum = 0;
     var usageUnknown = 0; // F8 — sessions whose usage is null (no pressure lane), not zero
+    var usageTokens = {}; // the DISTINCT reasons those sessions gave, so the night borrows none
     pools.forEach(function (p) {
       for (var i = 0; i < p.pressureMaskOn.length; i++) P.push(p.pressureMaskOn[i]);
       if (p.epapMaskOn) for (var k = 0; k < p.epapMaskOn.length; k++) E.push(p.epapMaskOn[k]);
@@ -1479,8 +1504,10 @@
          happened over hours nobody measured, so counting them over the OTHER sessions' hours
          doubles the rate (measured on the synthetic pair: 24 → 48 events/h). Numerator and
          denominator move together, the same way the §3a PB lane below handles an unscored session. */
-      if (p.usageHours == null) usageUnknown++;
-      else {
+      if (p.usageHours == null) {
+        usageUnknown++;
+        if (p.usageReason) usageTokens[p.usageReason] = 1;
+      } else {
         totHours += p.usageHours;
         nA += p.nApnea;
         nOA += p.nOA;
@@ -1642,8 +1669,12 @@
       ieRatio: ieW > 0 ? +(ieWsum / ieW).toFixed(2) : null
     };
     if (usageUnknown) {
-      night.usageReason = 'no-pressure-channel';
+      /* One token when every unmeasured session gave the same one, `mixed-absences` when they gave
+         several, and `unstated` when a session nulled its usage and named nothing. */
+      var uTok = Object.keys(usageTokens);
+      night.usageReason = uTok.length === 1 ? uTok[0] : uTok.length > 1 ? 'mixed-absences' : 'unstated';
       night.usageUnknownSessions = usageUnknown;
+      night.usageReasonSet = uTok.length ? uTok.slice().sort() : null;
     }
     return night;
   }
