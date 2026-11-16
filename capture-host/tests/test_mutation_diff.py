@@ -3604,9 +3604,17 @@ def test_EVERY_TERMINAL_IN_main_EMITS_A_VERDICT_OBJECT():
 # BYTE-FOR-BYTE, so pid reuse between the kill and the check cannot read as a survivor — and a zombie,
 # whose cmdline is empty, reads as dead rather than alive.
 
+# THE ARGV TOKEN EACH PLANT'S OWN PROCESS CARRIES. A recorded `/proc/<pid>/cmdline` proves that
+# SOMETHING was running; it does not prove WHICH process was running. Between fork and exec a child
+# shares the forking parent's argv through the copied address space, so a read that lands in that
+# window hands back the parent's command line under the child's pid. The marker separates the two.
+# Measured below, at the SIGHUP plant, from CI run 43821191385.
+_PLANT_MARK_GRANDCHILD = b"tepna-plant-grandchild"
+_PLANT_MARK_SIGHUP_CHILD = b"tepna-plant-sighup-child"
+
 _GRANDCHILD_INHERITS_THE_PIPE = (
     "import os, subprocess, sys, time\n"
-    "g = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(300)'])\n"
+    "g = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(300)', 'tepna-plant-grandchild'])\n"
     "open(sys.argv[1], 'w').write(f'{os.getpid()}\\n{g.pid}\\n')\n"
     "sys.stdout.write('parent up\\n'); sys.stdout.flush()\n"
     "time.sleep(300)\n"
@@ -3620,6 +3628,35 @@ def _cmdline(pid):
             return fh.read() or None
     except OSError:
         return None
+
+
+def _await_cmdline(pid, marker, timeout=5.0, _read=None):
+    """The pid's argv once the sample NAMES the expected process, else the last sample read.
+
+    🔴 A NON-EMPTY CMDLINE IS NOT PROOF OF IDENTITY. Between fork and exec, `/proc/<pid>/cmdline` does
+    not yet describe the child: it reads EMPTY, or it reads the FORKING PARENT's argv out of the copied
+    address space. Both shapes mean "this process has not exec'd yet", and only the second one looks
+    like a valid sample. The plants below record a cmdline and then compare it byte-for-byte, so a
+    sample taken in that window identifies the WRONG process for the rest of the test.
+
+    Measured, CI run 43821191385: the `test (py3.14)` leg failed the SIGHUP plant's live comparison with
+    two operands naming different programs. The recorded value held the test runner's own argv, and the
+    live read held the child's `python -c import time; time.sleep(30)`. The child never died. 400
+    `Popen` trials on an idle rig gave the child argv 400 times and the parent argv 0 times, which is
+    why the 3.12 and 3.13 legs stayed green in that same run. Load opens the window.
+
+    The caller gives its own process a distinctive argv marker, and this poll waits for a sample that
+    carries it. `_read` exists so a test can drive the window without a race.
+    """
+    import time as _t
+
+    read = _read or (lambda: _cmdline(pid))
+    end = _t.monotonic() + timeout
+    was = read()
+    while (was is None or marker not in was) and _t.monotonic() < end:
+        _t.sleep(0.02)
+        was = read()
+    return was
 
 
 def _gone(pid, was):
@@ -3655,6 +3692,42 @@ def _reap_by_pid(*pids):
                 pass  # deliberate: already gone, or not a group leader — the next form covers it
 
 
+def test_the_identity_POLL_waits_for_the_CHILD_and_not_for_any_non_empty_argv():
+    """🔴 THE PLANTS' OWN BITE, pinned. Both plants above record a `/proc/<pid>/cmdline` and then
+    compare it byte-for-byte, so the recorded sample decides what every later assertion means. A poll
+    that stops at the first NON-EMPTY read accepts the forking parent's argv under the child's pid, and
+    the two directions of that error are both silent:
+
+      - the SIGHUP plant then compares the parent's argv against the live child and REDS a run in which
+        nothing went wrong (CI run 43821191385, the py3.14 leg);
+      - the deadline plant's `_gone(grandchild, was_g)` answers True at once, because the live argv
+        already differs from the recorded one — so the #3202 orphan reads as reaped while it LIVES.
+
+    The fake reader below opens the window deliberately, which an idle rig will not do: 400 `Popen`
+    trials gave the child argv 400 times and the parent argv 0 times."""
+    parent_argv = b"/usr/bin/python\x00-u\x00-c\x00import sys;exec(eval(sys.stdin.readline()))\x00"
+    child_argv = b"/usr/bin/python\x00-c\x00import time; time.sleep(30)\x00" + _PLANT_MARK_SIGHUP_CHILD
+
+    def reader(window):
+        seq = iter([None] + [parent_argv] * window + [child_argv] * 8)
+        return lambda: next(seq)
+
+    for window in (0, 1, 4):
+        got = _await_cmdline(1, _PLANT_MARK_SIGHUP_CHILD, _read=reader(window))
+        assert got == child_argv, (
+            f"the poll stopped on a sample that is not the child after {window} parent read(s): {got!r}"
+        )
+
+    # The deadline: a window that never closes must hand back the last sample, not loop forever, and the
+    # caller's own assertion then names the wrong-identity failure instead of hanging the suite.
+    stuck = _await_cmdline(1, _PLANT_MARK_SIGHUP_CHILD, timeout=0.05, _read=lambda: parent_argv)
+    assert _PLANT_MARK_SIGHUP_CHILD not in stuck, "the parent's argv must never satisfy the marker"
+
+    # And the marker is what separates them: neither plant's marker appears in the other's argv.
+    assert _PLANT_MARK_GRANDCHILD not in child_argv
+    assert _PLANT_MARK_SIGHUP_CHILD not in parent_argv
+
+
 def test_PLANT_the_deadline_leaves_NO_DESCENDANT_alive(tmp_path):
     """🔴 THE #3202 ORPHAN, pinned. A child in its own session with a grandchild that inherits the pipe:
     the deadline must end BOTH. Under `proc.kill()` the grandchild survives this assertion — which is
@@ -3681,8 +3754,21 @@ def test_PLANT_the_deadline_leaves_NO_DESCENDANT_alive(tmp_path):
     lines = pids.read_text().splitlines() if pids.exists() else []
     assert len(lines) == 2, f"the plant never reported its pids; got {lines!r} — the test proves nothing"
     parent, grandchild = int(lines[0]), int(lines[1])
-    was_p, was_g = _cmdline(parent), _cmdline(grandchild)
+    was_p = _cmdline(parent)
+    # The grandchild's pid reached us the moment the plant's own `Popen` returned, so this read can land
+    # inside ITS fork-exec window and hand back the PLANT's argv instead. A sample that is not the
+    # grandchild makes `_gone` below answer True at once, which reports the #3202 orphan as reaped. So
+    # poll until the sample carries the grandchild's marker. The parent exec'd before it wrote the pids
+    # file, so its own argv is already current; assert it names that file rather than trusting the read.
+    was_g = _await_cmdline(grandchild, _PLANT_MARK_GRANDCHILD)
     assert was_p and was_g, f"the plant is not running: parent={was_p!r} grandchild={was_g!r}"
+    assert _PLANT_MARK_GRANDCHILD in was_g, (
+        f"the grandchild sample {was_g!r} does not name the grandchild, so `_gone` cannot tell a reaped "
+        f"orphan from a live one (pid {grandchild})"
+    )
+    assert str(pids).encode() in was_p, (
+        f"the parent sample {was_p!r} does not name its own pids file, so it is not the plant's parent"
+    )
     assert parent == proc.pid, (parent, proc.pid)
 
     try:
@@ -4018,7 +4104,7 @@ def test_PLANT_a_signal_that_was_already_IGNORED_stays_ignored_and_the_child_LIV
 
     prev = _sig.getsignal(_sig.SIGHUP)
     proc = _sp.Popen(
-        [_sys.executable, "-c", "import time; time.sleep(30)"],
+        [_sys.executable, "-c", "import time; time.sleep(30)", _PLANT_MARK_SIGHUP_CHILD.decode()],
         # DEVNULL, not inherited: a child of this test must never hold the test RUNNER's stdout. Under
         # mutmut that stdout is the worker's result pipe, and a child that outlives a failing reap keeps
         # the whole run from finishing (see `_reap_by_pid`).
@@ -4028,15 +4114,13 @@ def test_PLANT_a_signal_that_was_already_IGNORED_stays_ignored_and_the_child_LIV
     )
     try:
         _sig.signal(_sig.SIGHUP, _sig.SIG_IGN)  # the disposition `nohup` leaves behind
-        # Polled, because between fork and exec the child's `/proc/<pid>/cmdline` is EMPTY — a freshly
-        # spawned process reads as "not running" for a few ms, which is the same shape this file uses to
-        # mean dead. Waiting for the argv to appear is what makes "alive" and "dead" distinguishable.
-        _end = _t.monotonic() + 5.0
-        was = _cmdline(proc.pid)
-        while was is None and _t.monotonic() < _end:
-            _t.sleep(0.02)
-            was = _cmdline(proc.pid)
-        assert was, "the plant's child never reached exec; the test proves nothing"
+        # The recorded sample must NAME the child, never merely be non-empty — `_await_cmdline` holds
+        # the measurement, and the earlier comment here was wrong about which shapes that window takes.
+        was = _await_cmdline(proc.pid, _PLANT_MARK_SIGHUP_CHILD)
+        assert was and _PLANT_MARK_SIGHUP_CHILD in was, (
+            f"the plant's child never reached exec; the sample {was!r} does not name the child, so "
+            f"neither the live comparison below nor `_gone` proves anything (pid {proc.pid})"
+        )
         with M.reap_group_on_signal(proc) as guard:
             assert _sig.SIGHUP not in guard._prev, (
                 "SIGHUP was SIG_IGN and a handler was installed over it — a stray HUP now reaps the job "
