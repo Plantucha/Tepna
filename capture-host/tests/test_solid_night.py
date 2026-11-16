@@ -1180,6 +1180,62 @@ def test_CODE_MOVED_asks_git_in_the_repo_root_once_per_distinct_pair(tmp_path, m
     assert len(calls) == 2 and "aa11bb22" in calls[1], calls
 
 
+H10_CFG = {"name": "Polar H10 0284", "model": "H10"}
+MUSE_CFG = {"name": "Muse TEST0001", "model": "S-Athena"}
+
+
+def _judged(tmp_path, result, commit=SHA):
+    night = tmp_path / "2026-11-15"
+    night.mkdir(exist_ok=True)
+    pb = {"tool": sn.TOOL, "commit": commit}
+    v = {"status": "UNKNOWN", "reason": "r", "at": AT, "producedBy": pb, "result": result}
+    (night / sn.VERDICT_NAME).write_text(json.dumps(v))
+    return str(night)
+
+
+def test_DEVICES_MOVED_re_judges_a_night_whose_expected_devices_differ_from_the_judged_ones(tmp_path):
+    """The 2026-11-16 regression: a Muse joined the config as a required device the judge has no map for,
+    and 32 stored verdicts read UNKNOWN. Marking it optional moves no judge file, so only the device set can
+    tell the poller that the stored verdicts are stale."""
+    night = _judged(tmp_path, {"devices": {"Polar H10 0284": {}}, "not_applicable": {}})
+    why = sn.devices_moved(night, [H10_CFG, MUSE_CFG])
+    assert why == sn.DEVICES_MOVED.format(old="Polar H10 0284", new="Muse TEST0001, Polar H10 0284"), why
+    assert sn.devices_moved(night, [H10_CFG, dict(MUSE_CFG, optional=True)]) is None, "optional, no files"
+    assert sn.devices_moved(night, [H10_CFG]) is None
+    both = _judged(tmp_path, {"devices": {"Muse TEST0001": {}, "Polar H10 0284": {}}})
+    why = sn.devices_moved(both, [H10_CFG, dict(MUSE_CFG, optional=True)])
+    assert why == sn.DEVICES_MOVED.format(old="Muse TEST0001, Polar H10 0284", new="Polar H10 0284"), why
+
+
+def test_DEVICES_MOVED_counts_a_not_applicable_device_as_judged_and_names_a_device_by_its_model(tmp_path):
+    night = _judged(tmp_path, {"devices": {}, "not_applicable": {"H10": "worn by nobody"}})
+    assert sn.devices_moved(night, [{"model": "H10"}]) is None
+    why = sn.devices_moved(night, [])
+    assert why == sn.DEVICES_MOVED.format(old="H10", new="none"), why
+    empty = _judged(tmp_path, {"devices": {}, "not_applicable": None})
+    assert sn.devices_moved(empty, [{"model": "H10"}]) == sn.DEVICES_MOVED.format(old="none", new="H10")
+
+
+def test_DEVICES_MOVED_stands_down_with_no_verdict_or_no_device_map(tmp_path):
+    bare = tmp_path / "2026-11-14"
+    bare.mkdir()
+    assert sn.devices_moved(str(bare), [H10_CFG]) is None, "no verdict yet: the first-verdict path composes it"
+    assert sn.devices_moved(_judged(tmp_path, None), [H10_CFG]) is None, "NOT_APPLICABLE carries result null"
+    assert sn.devices_moved(_judged(tmp_path, {"devices": None}), [H10_CFG]) is None
+    assert sn.devices_moved(_judged(tmp_path, ["devices"]), [H10_CFG]) is None
+
+
+def test_rejudge_why_asks_the_judge_code_first_and_the_device_set_second(tmp_path, monkeypatch):
+    monkeypatch.setattr(sn, "_moved", {("700811f5", "bdbe3741"): True})
+    night = _judged(tmp_path, {"devices": {"Polar H10 0284": {}}}, commit="700811f5")
+    code = sn.CODE_MOVED.format(old="700811f5", new="bdbe3741")
+    assert sn.rejudge_why(night, "bdbe3741", [H10_CFG, MUSE_CFG]) == code
+    dev = sn.DEVICES_MOVED.format(old="Polar H10 0284", new="Muse TEST0001, Polar H10 0284")
+    assert sn.rejudge_why(night, "700811f5", [H10_CFG, MUSE_CFG]) == dev, "same commit: the device set decides"
+    assert sn.rejudge_why(night, None, [H10_CFG, MUSE_CFG]) == dev, "no running commit still reads the set"
+    assert sn.rejudge_why(night, "700811f5", [H10_CFG]) is None
+
+
 def test_CODE_MOVED_stands_down_when_the_judge_did_not_change_or_nothing_is_stored(tmp_path, monkeypatch):
     monkeypatch.setattr(sn, "_moved", {})
     night = _stored(tmp_path, "700811f5")

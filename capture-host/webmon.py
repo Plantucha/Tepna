@@ -1106,8 +1106,13 @@ def make_app(
             # native recorder (`protocol: athena`, capture.run_muse_athena) is the only Muse path this box
             # has exercised; without the key the dispatcher hands the device to the child-tool supervisor,
             # whose tools are not installed. An existing entry keeps whatever protocol it already has.
+            # AND A NEW MUSE IS OPTIONAL. The solid-night judge has no stream map for it, and a required
+            # device the judge cannot read makes every night UNKNOWN: measured on vigil 2026-11-16, 32 of
+            # 78 stored verdicts carried "no stream map for model 'S-Athena'". An optional device counts
+            # only on a night it captured, and the judge skips one it has no map for.
             if incoming.get("vendor") == "Muse":
                 incoming["protocol"] = "athena"
+                incoming["optional"] = True
             cfg["devices"].append(incoming)
             saved = incoming
         if not _save():
