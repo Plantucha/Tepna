@@ -844,29 +844,42 @@ window.evBadge = evBadge;
     var span = typeof cell.spanMs === 'number' ? _sqSpanTxt(cell.spanMs) : null;
     if (span) bits.push('over ' + span);
     if (typeof cell.ppmUncertainty === 'number' && isFinite(cell.ppmUncertainty)) bits.push('\u00b1 ' + _sqNum(cell.ppmUncertainty, 'ppm') + ' ppm at this span');
-    /* NAME THE ESTIMATOR, because the number is an END-POINT READ and a short span reads high.
-       `DexClock.hostAxis` publishes `ppm = sm[n-1] / span`, where `sm` is the running median of the
-       divergence taken against the FIRST anchor's own raw residual. That origin carries the first
-       anchor's jitter undiminished, so the rate holds an additive bias of about jitter / span.
-       Measured 2026-11-16 against a PLANTED 50 ppm with 5 ms of host jitter at 26 Hz:
+    /* NAME WHAT LIMITS THE NUMBER, because a short span reads high for a reason the estimator does
+       not own. This block used to say the figure is an end-point read against the FIRST anchor's own
+       raw residual, and that `r0` origin gives the rate an additive bias of about jitter / span. The
+       repair it asked for has landed in `clock.js`, and measuring it corrected the reason. Two
+       separate terms sat behind the one sentence, and which one dominates depends on ANCHOR DENSITY:
 
-         span      hostAxis.ppm     published band     the same medians, read end to end
-          60 s        166.42            ± 259.26                   49.62
-         120 s        108.22            ± 164.41                   49.84
-         400 s         67.47            ±  39.13                   49.96
-        1800 s         53.88            ±   8.09                   49.99
-        7200 s         50.97            ±   2.66                   50.00
+         · `r0`'s jitter — VARIANCE, not bias. One raw sample sets the origin, so its full jitter
+           reaches the rate. It is zero-mean, so it cannot lean, and re-drawing the noise is what
+           shows that. Cancelling `r0` removes it.
+         · the running median's END CLAMP — a deterministic LOW bias of 5/(n−1) relative, because the
+           old numerator stopped 5 anchors short of the end while the denominator ran the full span.
+           Dividing by the distance between the two end windows' centres removes it exactly.
 
-       A least-squares fit reads 50.064, 50.080, 50.001, 50.000 and 50.000 ppm over the same five
-       streams, so the stream carries the planted rate and the estimator loses it. The published band
-       covers the truth at every span above, and on the node's own 391-anchor geometry over 60 s it
-       reads 139.84 ± 64.14, which does NOT cover 50. So the band alone does not make the figure
-       readable, and this clause states what the figure is. The repair belongs in `clock.js`, which
-       6 of 9 bundles carry, so it is logged and not made here.
+       `clock.js` now does both, and publishes `ppmEstimator` to name the arm. Measured 2026-11-16
+       with zero jitter, so only the clamp term is left, against a PLANTED 50 ppm:
 
-       The clause rides the two cells whose unit names the host axis, which are the two this
-       measurement covers. The §3d night-drift cell runs a different estimator and says nothing here. */
-    if (cell.unit === 'ppm of the device rate against the host axis' && bits.length) bits.push('an end-point read against the first anchor, so a short span reads high');
+         n            16      22      31      41     101     451
+         before   33.333  38.095  41.667  43.750  47.500  49.444   ← exactly 50·(n−1−5)/(n−1)
+         after    33.333  50.000  50.000  50.000  50.000  50.000
+
+       ⚠ THE TABLE THAT USED TO SIT HERE PLANTED 50 ppm AT 5 ms OF JITTER, and that is why it read a
+       bias of the wrong sign. Over 60 s a 50 ppm drift is 3 ms against ±5 ms of jitter, so the figure
+       there is noise and a single draw of it says nothing about a lean. Those rows reported one draw
+       each, and the repair's own first measurement repeated the mistake.
+
+       WHAT STILL LIMITS A SHORT SPAN, measured the same day over 400 draws at the node's own
+       391-anchor geometry: the published rate reads 56.80 ± 1.25 before the repair and 53.60 ± 1.56
+       after it, against the same planted 50. The clamp term is only 1.28 % of the span at that
+       density, so almost all of what is left is host jitter swamping a 3 ms drift. A node cannot fix
+       that by estimating better. It needs a longer span, and the §∅ question of whether `ok` should be
+       true at all over an unresolvable rate is logged and not answered here.
+
+       So this clause names the LIMIT rather than the estimator's origin. It rides the two cells whose
+       unit names the host axis, which are the two the measurement covers. The §3d night-drift cell
+       runs a different estimator and says nothing here. */
+    if (cell.unit === 'ppm of the device rate against the host axis' && bits.length) bits.push('a median read, so a span this short is limited by host jitter rather than by drift');
     if (!bits.length) return '';
     return '<div class="sq-qual" style="font-size:10px;color:var(--text3);margin-top:2px">' + bits.join(' \u00b7 ') + '</div>';
   }
