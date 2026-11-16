@@ -651,6 +651,27 @@ def test_build_pools_when_the_neighbour_RAN_PAST_MIDNIGHT_and_this_folder_is_a_d
     )
 
 
+def test_build_pools_a_crossing_when_this_folder_OPENS_AFTER_NOON(tmp_path):
+    """The picture follows the verdict through the same hole. Row
+    `2026-11-15-nightqc-prev-probe-window-reaches-noon-only`: `nightqc.prev_probe_window` reached noon,
+    so neither module asked the neighbour for a folder whose first capture opened after it. This is the
+    sibling above with the sitting moved from 11:34 to 14:00, and the night still ran 23:24 to 07:23 into
+    this date.
+
+    Observable for the same reason the sibling is: the night carries MORE rows than the sitting, so
+    `judged_session` publishes the pooled window rather than this folder's own."""
+    _crossing_day(tmp_path, "2026-07-24", "232400", "2026-07-25T07:23:00", rows=20)
+    tonight = _crossing_day(tmp_path, "2026-07-25", "140000", "2026-07-25T14:00:09")
+    frame = _reader_frame("20260725140000")
+    out = timeline.build(str(tonight), _DEV, writer_offset=frame)
+    assert out["t0"] == _floating_epoch("20260724232400") + frame["offset_sec"], (
+        f"the afternoon folder never asked next door; window opens at {out['t0']}"
+    )
+    assert out["t1"] == _floating_epoch("20260725072300") + frame["offset_sec"], (
+        f"the pooled window must CLOSE on the night's last row; closes at {out['t1']}"
+    )
+
+
 def test_build_does_not_pool_a_neighbour_that_STOPPED_BEFORE_MIDNIGHT(tmp_path):
     """The refusing arm. An evening sitting that closed at 23:26 crossed nothing, so this folder's
     daytime session is the whole window and yesterday keeps its own.
