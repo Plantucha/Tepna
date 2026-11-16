@@ -27393,6 +27393,21 @@
       T.ok('a non-boolean verdict is UNMEASURED, never a truthy yes-or-no', junkOut.ppm === null && /UNMEASURED/.test(junkOut.reason || ''), JSON.stringify(junkOut));
       var measOut = DE.timingBlock({ hostAxis: axDrawnFalse, resyncs: [], seams: [] });
       T.ok('CONTROL · a column measured to be real still quotes its rate, to the digit', measOut.ppm === 12.5 && measOut.spanPpm === 11.9, JSON.stringify(measOut));
+
+      /* ── 4d · §∅ THE INDEPENDENCE TRI-STATE HAS A THIRD VALUE, AND NOTHING PINNED IT ───────
+         A Shrike audit found both arms unpinned on 2026-11-16, and they sit at `dex-export.js:388-392`
+         and `:396`. No ledger row carries the finding: this fix ships with its changeset instead.
+         The block publishes three states: TRUE (a second clock was measured), FALSE (it was measured
+         and is not a clock) and NULL (nobody measured it). No producer reaches the third today, because
+         `clock.js` writes a boolean beside every `ok:true`. So a mutant that collapsed NULL into FALSE
+         passed the whole suite, and so did one that deleted the sentence. The two legs below pin the
+         third state and its sentence, which is the contract a ninth node inherits. The CONTROL keeps
+         a mutant that nulled every verdict honest. */
+      var noVerdict = DE.timingBlock({ hostAxis: { ok: true, n: 40, spanMs: 2.8e4, ppm: 12.5, spanPpm: 11.9 }, resyncs: [], seams: [] });
+      T.ok('§∅ an axis with no independence verdict publishes null, never false', noVerdict.independent === null, String(noVerdict.independent));
+      T.ok('…and the null is not bare — the unmeasured verdict is named', /the host axis published no independence verdict/.test(noVerdict.reason || ''), String(noVerdict.reason));
+      var measuredVerdict = DE.timingBlock({ hostAxis: { ok: true, n: 40, spanMs: 2.8e4, ppm: 12.5, spanPpm: 11.9, independent: false }, resyncs: [], seams: [] });
+      T.ok('CONTROL · a measured non-clock verdict stays false, not null', measuredVerdict.independent === false, String(measuredVerdict.independent));
       T.ok('CONTROL · …and a node-supplied drawn:false quotes it over a drawn axis, as the source does', DE.timingBlock({ hostAxis: axDrawnTrue, drawn: false, resyncs: [], seams: [] }).ppm === 12.5);
       T.ok('CONTROL · the twelve keys are unchanged — the guard adds no conditional key', String(Object.keys(drawnOut)) === String(KEYS), String(Object.keys(drawnOut)));
       /* A REFUSED AXIS IS A THIRD STATE, and it was already null: the guard must not borrow its
