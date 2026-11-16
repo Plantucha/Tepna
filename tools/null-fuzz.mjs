@@ -312,7 +312,15 @@ function buildVerdict(b, s) {
     status,
     population: { checked: b.stats.iters_run, eligible: plannedIters, excluded: Math.max(0, plannedIters - b.stats.iters_run) },
     criterion: { name: 'fabrication_groups', threshold: 0, unit: 'groups', direction: 'eq' },
-    result: { groups: s.groups, novel: s.novel_groups.length, known: s.known_groups.length, failures: s.failures, seeds_run: s.seeds_run, skipped: b.stats.skipped || {} },
+    result: {
+      groups: s.groups,
+      novel: s.novel_groups.length,
+      known: s.known_groups.length,
+      failures: s.failures,
+      seeds_run: s.seeds_run,
+      skipped: b.stats.skipped || {},
+      absentP1: b.stats.absentP1 || {}
+    },
     evidence: ['tools/null-fuzz.mjs', OUT_PATH.replace(/^.*\//, '')],
     reason,
     producedBy: { tool: 'tools/null-fuzz.mjs', commit: null, commitReason: 'the bundle is a scratch artefact; the commit is the checkout that ran it' }
@@ -336,6 +344,12 @@ function renderReport(b, s, v, narrative) {
     : '';
   L.push(`Seeds ${s.seeds_run}/${s.seeds_planned} · iters ${s.iters_run} · ${s.failures} failing assertions in ${s.groups} group(s) · ${s.ms_per_iter} ms/iter · bundle \`${OUT_PATH}\``);
   if (sk) L.push(`Skipped, NOT examined (index-dependent metric above ${INDEX_DEP_MAX_NULL_FRAC * 100} % nulls — the comparison premise does not hold): ${sk}`);
+  const ab = b.stats.absentP1
+    ? Object.entries(b.stats.absentP1)
+        .map(([k, n]) => `${k} ×${n}`)
+        .join(', ')
+    : '';
+  if (ab) L.push(`Absent, NOT examined (the all-null night never wrote this key, so its P1 leg judged nothing): ${ab}`);
   L.push('');
   const table = (title, gs) => {
     L.push(`## ${title} (${gs.length})`);
@@ -557,7 +571,18 @@ function nullMask(len) {
   }
   return mask;
 }
-const isFabricated = (v) => v !== null && v !== undefined && (typeof v !== 'number' || Number.isNaN(v) || !Number.isFinite(v) || v !== 0);
+/* ∅ A VALUE OVER AN ALL-NULL NIGHT IS FABRICATED FROM NOTHING, AND 0 IS A VALUE. The earlier form
+ * ended in `|| v !== 0`, so it exempted the one reading §∅ exists to catch: an unmeasured night that
+ * answers 0. The tool states the opposite criterion in its own report ("a number here is fabricated
+ * from nothing"), and the eight named SpO2 and HR keys beside this one already test `!== null`.
+ * `null` and `undefined` are absences, never fabrications. An ABSENT KEY examined nothing, so the
+ * caller counts it through `countAbsent` instead of reading the silence as a pass. */
+const isFabricated = (v) => v !== null && v !== undefined;
+/** ∅ Count a key the all-null night never wrote, so the report says what the leg did not judge. */
+const countAbsent = (k) => {
+  bundle.stats.absentP1 = bundle.stats.absentP1 || {};
+  bundle.stats.absentP1[k] = (bundle.stats.absentP1[k] || 0) + 1;
+};
 const same = (a, b) => {
   if (a === null && b === null) return true;
   if (typeof a === 'number' && typeof b === 'number') return Math.abs(a - b) < 1e-6;
@@ -632,6 +657,22 @@ const TARGETS = {
         };
       };
       return {
+        /** ∅ Selftest plant for P1: the all-null night answers 0 for one metric, and the leg must red.
+         *  Before this plant, `--selftest` ran `p2()` only, so NO P1 leg had a proof it can fail. */
+        plantP1() {
+          const orig = OD.processNight;
+          OD.processNight = (...a) => {
+            const r = orig.apply(null, a);
+            /* the projection reads this key from `desat`, not from `stats` — a plant into the wrong
+               sub-object reads as VACUOUS and says nothing about the leg. */
+            r.desat = r.desat || {};
+            r.desat.auc90Total = 0;
+            return r;
+          };
+          return () => {
+            OD.processNight = orig;
+          };
+        },
         p1() {
           const out = metrics(
             OD.processNight(
@@ -640,9 +681,16 @@ const TARGETS = {
             )
           );
           const f = [];
-          for (const k of ['meanSpo2', 'minSpo2', 'maxSpo2', 'spo2Std']) if (out[k] !== null) f.push({ property: 'P1', metric: k, fuzzed: out[k], clean: null, note: 'all-null night, want null' });
-          for (const k of ['auc90Total', 'spo2IQR', 'condMeanBelow94', 'condPctBelow94'])
-            if (isFabricated(out[k])) f.push({ property: 'P1', metric: k, fuzzed: out[k], clean: null, note: 'all-null night, fabricated' });
+          for (const k of ['meanSpo2', 'minSpo2', 'maxSpo2', 'spo2Std', 't95pct', 't90pct'])
+            if (out[k] !== null) f.push({ property: 'P1', metric: k, fuzzed: out[k], clean: null, note: 'all-null night, want null' });
+          /* ∅ P1 judged 11 of the 14 keys this projection carries. `t95pct` and `t90pct` answer null
+             over the all-null night and joined the strict leg above; `auc90Rate` is absent there, so it
+             joins this one. All 14 now owe an answer, and the three that owed none could have returned a
+             number from a night with no measured sample. */
+          for (const k of ['auc90Total', 'auc90Rate', 'spo2IQR', 'condMeanBelow94', 'condPctBelow94']) {
+            if (out[k] === undefined) countAbsent(k);
+            else if (isFabricated(out[k])) f.push({ property: 'P1', metric: k, fuzzed: out[k], clean: null, note: 'all-null night, fabricated' });
+          }
           /* ∅ the HR half of the same night: its `hr` column is null throughout, so these owe null too. */
           for (const k of ['meanHr', 'minHr', 'maxHr']) if (out[k] !== null) f.push({ property: 'P1', metric: k, fuzzed: out[k], clean: null, note: 'all-null night, want null' });
           /* ∅ a night whose MOTION column carries no measured value, beside a measured SpO2 and a
@@ -658,7 +706,8 @@ const TARGETS = {
           if (mst.motionPct !== null) f.push({ property: 'P1', metric: 'motionPct', fuzzed: mst.motionPct, clean: null, note: 'motion column absent, want null' });
           if (mst.motionColumnAbsent !== true)
             f.push({ property: 'P1', metric: 'motionColumnAbsent', fuzzed: mst.motionColumnAbsent, clean: true, note: 'motion column absent, want the named reason' });
-          if (isFabricated(mo.motion)) f.push({ property: 'P1', metric: 'motion', fuzzed: typeof mo.motion, clean: null, note: 'motion profile over an absent column' });
+          if (mo.motion === undefined) countAbsent('motion');
+          else if (isFabricated(mo.motion)) f.push({ property: 'P1', metric: 'motion', fuzzed: typeof mo.motion, clean: null, note: 'motion profile over an absent column' });
           return f;
         },
         /* ∅ TWO legs now. `coupled` is the mask this target always had: the whole row drops, so the
@@ -905,6 +954,18 @@ if (has('selftest')) {
       restore();
       plantMsg = ` · plant red ${hit}${hit > 0 ? '' : ' ✗ VACUOUS'}`;
       if (hit === 0) bad++;
+    }
+    /* ∅ The P1 arm. The control above compares a night with its own twin, which tests P2 only, so a
+       P1 leg that can never fire reads exactly like a clean one. A target that owns a P1 plant must
+       red under it. */
+    if (typeof r.plantP1 === 'function') {
+      ran += 1;
+      const restoreP1 = r.plantP1();
+      reseed(1);
+      const hitP1 = r.p1().length;
+      restoreP1();
+      plantMsg += ` · P1 plant red ${hitP1}${hitP1 > 0 ? '' : ' ✗ VACUOUS'}`;
+      if (hitP1 === 0) bad++;
     }
     ran += 1;
     if (ctl !== 0) bad++;
