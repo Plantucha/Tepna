@@ -1440,8 +1440,16 @@
        saw. Counting them IS that reach — a MAD proxy is not: a 15 min burst in an 8 h night leaves
        the MEDIAN deviation at 0 while the cue fires hard on the burst windows (measured
        2026-11-15 against the differential HRV group's injected-burst night). */
+    /* ∅ AND A FLAT SQI MUST NOT READ AS SPREAD. The window mean is a RUNNING add/subtract, so a
+       record whose per-beat SQI never varies still lands windows a few ulps apart: a flat 0.7 over
+       120 beats measures nQBelow 58 of 120 with qMed 0.7000000000000004 (measured 2026-11-16), and
+       `calibrated` then reads TRUE over a cue that has nothing it can suspect. The margin is
+       pre-stated: nine orders below any SQI difference a sensor resolves, and far above the residue
+       of a few hundred accumulations. It moves no trust value — `sQ` is already ~0 here — only the
+       verdict that says whether the cue was calibrated at all. */
+    const _Q_EPS = 1e-9;
     let nQBelow = 0;
-    for (const _qi of active) if (winSqi[_qi] < qMed) nQBelow++;
+    for (const _qi of active) if (winSqi[_qi] < qMed - _Q_EPS) nQBelow++;
     out.nBeats = n;
     out.nSqi = nSqi;
     out.nQBelow = nQBelow;
@@ -3535,7 +3543,20 @@
           }
         }
         morph = global.ECGMorph.analyze(int16, bp, fs, refIdx, rr, _sqiMorph);
-        if (morph) morph.beatsArtifactMasked = _maskedBeats;
+        /* ∅ A MASKED COUNT OF ZERO MUST MEAN THE GATE LOOKED — the same rule the export block
+           below applies to `artifactSec`, at the second site that reads the same map. `_conf`
+           answers trust 1 for every second when it could not calibrate (no per-beat SQI reached it,
+           or the SQI carries no spread), so the `_c < 0.5` test above masks nothing and
+           `beatsArtifactMasked` published 0 over a record whose artifact burden nobody measured. A
+           0 is the legal answer for a worn clean night, which is why the two cannot be told apart:
+           CLAUDE.md §∅. The MASK itself is unchanged — trust 1 is the only safe weight for a beat
+           nobody examined, and no beat leaves the classifier on a guess. What refuses is the COUNT,
+           which is a claim about what the gate found. The reason is `beatConfidence`'s own sentence,
+           never a borrowed one, and `ecgBuildMeasurementBlocks` carries it to a reader. */
+        if (morph) {
+          morph.beatsArtifactMasked = _conf.calibrated ? _maskedBeats : null;
+          morph.beatsArtifactMaskedReason = _conf.calibrated ? null : _conf.reason;
+        }
       } catch {
         morph = null;
       }
@@ -7515,7 +7536,14 @@
             analyzablePct: quality.analyzablePct,
             coveragePct: quality.coveragePct,
             unassessedBeats: _m.beatsUnassessed != null ? _m.beatsUnassessed : null,
-            artifactMaskedBeats: _m.beatsArtifactMasked != null ? _m.beatsArtifactMasked : null
+            artifactMaskedBeats: _m.beatsArtifactMasked != null ? _m.beatsArtifactMasked : null,
+            /* THE READER THE MARKS NEVER REACHED. `beatConfidence` states its own calibration and
+               carries a sentence for the absence, and `artifactGate` published three marks that no
+               render, app, fusion or gate read (row
+               `2026-11-16-the-ecgdex-artifactgate-marks-reach-no-reader`, board #6894). An absent
+               count with no reason beside it is the silent absence `_sqCell` exists to forbid, so
+               the sentence travels with the count into the view a reader meets. */
+            artifactMaskedBeatsReason: _m.beatsArtifactMaskedReason != null ? _m.beatsArtifactMaskedReason : null
           }
         : null;
     var out = {};

@@ -3457,8 +3457,16 @@
        saw. Counting them IS that reach — a MAD proxy is not: a 15 min burst in an 8 h night leaves
        the MEDIAN deviation at 0 while the cue fires hard on the burst windows (measured
        2026-11-15 against the differential HRV group's injected-burst night). */
+    /* ∅ AND A FLAT SQI MUST NOT READ AS SPREAD. The window mean is a RUNNING add/subtract, so a
+       record whose per-beat SQI never varies still lands windows a few ulps apart: a flat 0.7 over
+       120 beats measures nQBelow 58 of 120 with qMed 0.7000000000000004 (measured 2026-11-16), and
+       `calibrated` then reads TRUE over a cue that has nothing it can suspect. The margin is
+       pre-stated: nine orders below any SQI difference a sensor resolves, and far above the residue
+       of a few hundred accumulations. It moves no trust value — `sQ` is already ~0 here — only the
+       verdict that says whether the cue was calibrated at all. */
+    const _Q_EPS = 1e-9;
     let nQBelow = 0;
-    for (const _qi of active) if (winSqi[_qi] < qMed) nQBelow++;
+    for (const _qi of active) if (winSqi[_qi] < qMed - _Q_EPS) nQBelow++;
     out.nBeats = n;
     out.nSqi = nSqi;
     out.nQBelow = nQBelow;
