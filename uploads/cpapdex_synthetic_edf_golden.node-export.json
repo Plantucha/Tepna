@@ -101,6 +101,7 @@
     "flowLimitedPct": 0,
     "snorePct": 0,
     "snorePressureCorr": 0.15,
+    "snorePressureCorrReason": null,
     "breathCount": 2520,
     "breathRate": 16.9,
     "breathMaskOnSec": 8940,

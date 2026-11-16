@@ -19,7 +19,7 @@
       "synth-gen.js": "a653cf5afb78",
       "cohort-gen.js": "f80cbb02a8f6",
       "kernel-constants.js": "0050ad3f9dc7",
-      "clock.js": "47a0dcff15d0",
+      "clock.js": "41871f5b7790",
       "clock-seam.js": "eca421bd5c5e",
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "46faf431bb51",
@@ -30,7 +30,7 @@
       "synth-gen.js": "a653cf5afb78",
       "cohort-gen.js": "f80cbb02a8f6",
       "kernel-constants.js": "0050ad3f9dc7",
-      "clock.js": "47a0dcff15d0",
+      "clock.js": "41871f5b7790",
       "clock-seam.js": "eca421bd5c5e",
       "pulsedex-dsp.js": "3ff585370feb"
     }
@@ -256,11 +256,18 @@
       "old": "069be5978f5d",
       "new": "3ff585370feb",
       "reason": "Unit g6pul (board claims #6586 to #6588, rows N1-33 to N1-35): PulseDex publishes its artifact share and refuses an estimate it cannot measure. lombScargle answers respRate null with a named reason over a series carrying no spectral power, the five bare estimators answer null on a null argument or a zero denominator, the lfHf and nu quotients answer null on a zero denominator, and pdComputeResult carries artifactPct and nArtifact into the node-export. This run RE-CUT the cohort at paper scale rather than re-stamping on an inertness argument, because the change moves an output exactly on absent or zero input. The yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped, so no synthetic patient changed arm and the three node-export goldens diff on recording.artifactPct and recording.nArtifact alone."
+    },
+    {
+      "date": "2026-11-16",
+      "file": "clock.js",
+      "old": "47a0dcff15d0",
+      "new": "41871f5b7790",
+      "reason": "Unit sortkey (board claim #6814): clock.js gains DexClock.eventSortKeyMs and DexClock.sortEventsByClock, which are the Clock Contract section 6 rebuild of a date-less event stamp. Neither realm calls them, measured as 0 hits over the 11 closure sources. The paper-scale re-cut at nSubj 900 / minN 10 returned 233 tx / 239 flat in 535 s, so the counts did not change."
     }
   ],
-  "measuredAt": "2026-11-15T20:42:22.321Z",
+  "measuredAt": "2026-11-16T16:32:23.364Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "1a6ac21d7"
+    "commit": "b48b9583b"
   }
 }

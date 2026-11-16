@@ -1464,12 +1464,13 @@ import { PPGUI } from './ppgdex-render.js';
     st.textContent = css;
     (document.head || document.documentElement).appendChild(st);
   }
-  function ppgReviewTimeline(events) {
+  function ppgReviewTimeline(events, t0Ms) {
     var evs = Array.isArray(events) ? events.slice() : [];
     if (!evs.length) return '<div class="pgrv-none">No scored events in this export.</div>';
-    evs.sort(function (a, b) {
-      return (a.tMs || 0) - (b.tMs || 0);
-    });
+    /* ∅ §6 — a `t`-only event has no `tMs`, and the former key read that absence as 1970-01-01, so
+       an unplaceable event LED this timeline. `t0Ms` is the export's `recording.startEpochMs` and
+       trails the existing parameter. The shared key sorts an unplaceable event last. */
+    evs = DexClock.sortEventsByClock(evs, t0Ms);
     var nm = function (e) {
       var i = e.impulse || 'event';
       if (i === 'autonomic_surge') return 'Autonomic surge';
@@ -1568,7 +1569,7 @@ import { PPGUI } from './ppgdex-render.js';
         })
         .join('') +
       '</div>';
-    h += '<div class="pgrv-sec">Event timeline</div>' + ppgReviewTimeline(review.events);
+    h += '<div class="pgrv-sec">Event timeline</div>' + ppgReviewTimeline(review.events, review.recording && review.recording.startEpochMs);
     h +=
       '<div class="pgrv-sec">Raw signal</div>' +
       '<div class="pgrv-greyed"><strong>Optical waveform, LED-agreement ribbon &amp; Poincaré not included</strong>Raw optical samples are not carried in the export \u2014 review mode shows the derived HRV/quality layer only. Re-run the original *_PPG.txt for the waveform + morphology charts.</div>';

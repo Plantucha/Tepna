@@ -2948,10 +2948,57 @@ def test_a_GENUINELY_absent_acc_is_still_reported_missing(tmp_path, _tz):
     assert s["missing"] == ["Ring:acc"]
 
 
+def test_a_MUSE_raw_frame_file_reads_the_eeg_stream_present(tmp_path, _tz):
+    """`nights_index.py:71` already maps EEGDex to `Muse_*_RAW.txt`, and `capture.py` writes exactly that
+    tag — but the QC side read the stream as absent, because `stream_file_tags("eeg")` answered `EEG`
+    and no Muse file is called that. The device was reported absent on every night it recorded."""
+    night = str(tmp_path / "2026-09-05")
+    os.makedirs(night)
+    _cap(night, "Muse_S-Athena_TEST0001_20260905220000_RAW.txt", 900)
+    s = nightqc.summarize(night, [{"name": "Muse", "device_id": "TEST0001", "streams": ["eeg"]}])
+    assert s["missing"] == []
+    row = [d for d in (s.get("devices") or []) if d.get("name") == "Muse"][0]
+    assert row["streams"]["eeg"] > 0
+
+
+def test_a_muse_night_with_NO_raw_file_still_reports_eeg_missing(tmp_path, _tz):
+    """The control: the union is what makes the stream present. The same configured device over a night
+    that holds no Muse file at all must still report `Muse:eeg` missing, or the widening would have
+    become an unconditional pass — the failure this check exists to announce."""
+    night = str(tmp_path / "2026-09-05")
+    os.makedirs(night)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905220000_SPO2.csv", 900)
+    s = nightqc.summarize(night, [{"name": "Muse", "device_id": "TEST0001", "streams": ["eeg"]}])
+    assert s["missing"] == ["Muse:eeg"]
+
+
+def test_rate_reality_reads_the_muse_frame_rate_out_of_a_RAW_file(tmp_path):
+    """The SILENT half of the same cause, as `acc` had it. With `eeg` absent from the tag table this
+    function found no candidate file and emitted NO ROW, so the Muse rate was never checked at all and
+    an absent row reads exactly like a stream nobody configured.
+
+    The rate asserted here is the FRAME cadence this fixture writes, never an EEG sample rate: the Muse
+    frame file carries one row per BLE frame. `matches_config` is None because no reference rate for
+    this device exists - `_NOMINAL_HZ` holds no Muse and this fixture configures none, which
+    `rate_reality` names as the right answer for a sensor the suite has never seen."""
+    step = int(1e9 / 10.0)
+    p = os.path.join(tmp_path, "Muse_S-Athena_TEST0001_20260905220000_RAW.txt")
+    with open(p, "w") as fh:
+        fh.write("Phone timestamp;sensor timestamp [ns];counter;bytes;hex\n")
+        for i in range(1000):
+            fh.write(f"2026-09-05T22:00:00.000;{500_000_000_000 + i * step};{i + 1};9;09\n")
+    dev = {"name": "Muse", "device_id": "TEST0001", "streams": ["eeg"]}
+    rows = nightqc.rate_reality(str(tmp_path), [dev])
+    assert len(rows) == 1, "no row at all is the silent failure - the frame rate was never checked"
+    assert abs(rows[0]["measured_hz"] - 10.0) < 0.5, rows[0]
+    assert rows[0]["matches_config"] is None, rows[0]
+
+
 def test_stream_file_tags_defaults_to_the_upper_cased_name():
     assert nightqc.stream_file_tags("ecg") == ("ECG",)
     assert nightqc.stream_file_tags("ppg2w") == ("PPG2W",)
     assert set(nightqc.stream_file_tags("acc")) == {"ACC", "ACCRAW"}
+    assert set(nightqc.stream_file_tags("eeg")) == {"EEG", "RAW"}
 
 
 def test_rate_reality_reads_the_ring_acc_rate_out_of_an_ACCRAW_file(tmp_path):

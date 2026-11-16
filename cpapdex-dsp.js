@@ -621,9 +621,12 @@
     for (var i = 0; i < ch.data.length; i++) out[i] = ch.data[i] * k;
     return out;
   }
+  /* `_pearson` refuses below this many PAIRS. `_snPressCorr` reads the same constant, so the
+     refusal and the reason beside it can never disagree. */
+  var _PEARSON_MIN_N = 3;
   function _pearson(a, b) {
     var n = Math.min(a.length, b.length);
-    if (n < 3) return NaN;
+    if (n < _PEARSON_MIN_N) return NaN;
     var sa = 0,
       sb = 0;
     for (var i = 0; i < n; i++) {
@@ -643,6 +646,29 @@
       db += y * y;
     }
     return da > 0 && db > 0 ? num / Math.sqrt(da * db) : NaN;
+  }
+
+  /* ∅ ONE NULL CARRIED FOUR DIFFERENT FACTS, and a bare null let a reader read any of them as a
+     measured zero correlation. The arms, in the order a scan meets them:
+       · `no-mask-on-sample`     — a lane produced no mask-on sample, so nothing was paired.
+       · `unpaired-lane-pool`    — the pooled lanes differ in length, so the pairing is unknown.
+                                   This is a POOLING fault and not an absence, which is why it
+                                   carries its own token (§∅ forbids a borrowed reason).
+       · `too-few-paired-samples`— fewer pairs than `_PEARSON_MIN_N`, so r is not estimable.
+       · `no-lane-variance`      — a lane is constant, so r is undefined and never zero.
+     `pairStrict` is the pooled site's rule: a session that carried Snore and no Pressure would
+     shift the pairing, so the pool refuses rather than truncate. The per-session site filters both
+     lanes from one mask-on index set, so it pairs by construction and takes the shorter overlap.
+     Row `2026-11-16-cpapdex-nulls-the-snore-pressure-correlation-with-no-reason`. */
+  function _snPressCorr(sn, press, pairStrict) {
+    var SN = sn || [],
+      PR = press || [];
+    if (!SN.length || !PR.length) return { r: null, reason: 'no-mask-on-sample' };
+    if (pairStrict && SN.length !== PR.length) return { r: null, reason: 'unpaired-lane-pool' };
+    if (Math.min(SN.length, PR.length) < _PEARSON_MIN_N) return { r: null, reason: 'too-few-paired-samples' };
+    var r = _pearson(SN, PR);
+    if (r == null || !isFinite(r)) return { r: null, reason: 'no-lane-variance' };
+    return { r: +r.toFixed(2), reason: null };
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -1211,8 +1237,11 @@
        the product of the two spreads, so a fixed-pressure night — every CPAP-mode night — made
        `da` zero and published `NaN`, which `JSON.stringify` writes as `null`. The lane was already
        guarded for LENGTH and never for VARIANCE. Row
-       `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`. */
-    var snPressR = null;
+       `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`.
+       The scan now sits in `_snPressCorr`, which the POOLED site reads too, so one absence cannot
+       wear two different reasons at the two layers. It also splits the n < 3 refusal out of
+       `no-lane-variance`, which this site borrowed for it. Row
+       `2026-11-16-cpapdex-nulls-the-snore-pressure-correlation-with-no-reason`. */
     var pressOnset = -1;
     if (pressureSource) {
       for (var oi = 0; oi < pressure.length; oi++)
@@ -1221,8 +1250,7 @@
           break;
         }
     }
-    var snPressRaw = snMaskOn.length && pressureMaskOn.length ? _pearson(snMaskOn, pressureMaskOn) : null;
-    if (snPressRaw != null && isFinite(snPressRaw)) snPressR = +snPressRaw.toFixed(2);
+    var snPress = _snPressCorr(snMaskOn, pressureMaskOn, false);
     var metrics = {
       // Usage & Adherence
       usageHours: usageHours == null ? null : +usageHours.toFixed(3),
@@ -1337,8 +1365,8 @@
             100
           ).toFixed(2)
         : null,
-      snorePressureCorr: snPressR,
-      snorePressureCorrReason: snPressR != null ? null : snMaskOn.length && pressureMaskOn.length ? 'no-lane-variance' : 'no-mask-on-sample',
+      snorePressureCorr: snPress.r,
+      snorePressureCorrReason: snPress.reason,
       // Breath detection (flow-derived — validates device RespRate)
       breathCount: breath ? breath.breathCount : null,
       breathRate: breath ? breath.breathRate : null,
@@ -1491,6 +1519,7 @@
        as non-compliant. The night's usage is then null, with the session count that made it so;
        the event INDICES still divide by the hours that were measured (a rate over known time is a
        rate), and every pooled distribution is unaffected. */
+    var nightSnPress = _snPressCorr(SN, P, true);
     var night = {
       usageHours: usageUnknown ? null : +totHours.toFixed(3),
       // maskOnLatency is a NIGHT-onset fact: how long until therapy started. Sessions are
@@ -1595,13 +1624,12 @@
             100
           ).toFixed(2)
         : null,
-      // Pearson needs paired samples: only valid when every session contributed BOTH lanes,
-      // i.e. the pooled arrays line up 1:1. A session missing Snore would shift the pairing.
-      snorePressureCorr: (function () {
-        if (!SN.length || SN.length !== P.length) return null;
-        var r = _pearson(SN, P);
-        return r != null && isFinite(r) ? +r.toFixed(2) : null;
-      })(),
+      /* Pearson needs paired samples: only valid when every session contributed BOTH lanes, i.e.
+         the pooled arrays line up 1:1. A session carrying no Snore would shift the pairing, so the
+         pool refuses and NAMES which of the four facts it met — the value and the reason come from
+         one scan, so they cannot disagree. */
+      snorePressureCorr: nightSnPress.r,
+      snorePressureCorrReason: nightSnPress.reason,
       // ── Breath detection (flow-derived) ──
       breathCount: haveBreaths ? breaths : null,
       /* Rate over the MEASURED (mask-on) time — not a mean of per-session rates, and NOT over wall
@@ -2585,7 +2613,7 @@
     _synthRaw: _synthRaw,
     _synthEdfSet: _synthEdfSet,
     selfTest: selfTest,
-    _kernel: { _mean: _mean, _sd: _sd, _cov: _cov, _p: _p, _iqr: _iqr, _pearson: _pearson }
+    _kernel: { _mean: _mean, _sd: _sd, _cov: _cov, _p: _p, _iqr: _iqr, _pearson: _pearson, _snPressCorr: _snPressCorr }
   };
   // ESM-MIGRATION: the former `module.exports = api` (CJS dual-mode) is dropped — a top-level ESM
   // `export` below makes this a module, and nothing `require()`s it; the api reaches Node/vm/browser

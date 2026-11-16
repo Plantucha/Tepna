@@ -8409,6 +8409,86 @@
        of an honest null. Each now routes through an `_ckMk`-style round-trip validator. This group locks
        that: out-of-range → null; a valid stamp → tMs UNCHANGED; ISO `24:00:00` end-of-day → next-day
        00:00 stays valid (a bare `h>23` guard would wrongly reject it). Contract-provenance-drift finding C. */
+    /* ── §∅ · §6 — AN ABSENT EVENT STAMP IS NEVER A SORT POSITION ──────────────────────
+       Six review timelines keyed their sort on `(a.tMs || 0)`. §6 lets an export carry `t` alone, so
+       that key read an absence as 1970-01-01 and the one event the view could not place LED the list.
+       GlucoDex repaired its own pair first; `clock.js` now carries the promoted pair and the six sites
+       read it. GlucoDex keeps its node-local copy, because that bundle inlines no `clock.js` by design.
+       The census half is TEXT on purpose: the defect is a comparator inside a render string builder,
+       and no committed export reaches it. The scan drops comment lines, because the repair itself
+       QUOTES the old key in prose and a value-keyed census would read the fix as the defect. */
+    group('Clock §6 · an absent event stamp sorts LAST, never to 1970', 'clock · absence · census', function (T) {
+      var C = env.DexClock;
+      T.ok('DexClock.eventSortKeyMs present', typeof (C && C.eventSortKeyMs) === 'function');
+      T.ok('DexClock.sortEventsByClock present', typeof (C && C.sortEventsByClock) === 'function');
+      if (!C || typeof C.eventSortKeyMs !== 'function' || typeof C.sortEventsByClock !== 'function') return;
+      var K = C.eventSortKeyMs,
+        S = C.sortEventsByClock;
+      var t0 = U(2026, 5, 10, 22, 30, 0, 0); // 2026-06-10 22:30, floating
+
+      /* ── the key ── */
+      T.eq('an absolute tMs wins over the anchor (§6)', K({ tMs: 1234, t: '23:00:00' }, t0), 1234);
+      T.eq('a `t`-only event rebuilds on the anchor date', K({ t: '23:15:00' }, t0), U(2026, 5, 10, 23, 15, 0, 0));
+      T.eq('a `t` past midnight rolls to the next day', K({ t: '01:05:00' }, t0), U(2026, 5, 11, 1, 5, 0, 0));
+      T.eq('a `t` inside the 60 s pre-roll stays on the anchor day', K({ t: '22:29:30' }, t0), U(2026, 5, 10, 22, 29, 30, 0));
+      T.eq('ms travel with the rebuild', K({ t: '23:15:00.5' }, t0), U(2026, 5, 10, 23, 15, 0, 500));
+      T.eq('a stamp-less event is null, never 0', K({ impulse: 'x' }, t0), null);
+      T.eq('a `t`-only event with NO anchor is null, never 0', K({ t: '23:15:00' }, null), null);
+      T.eq('a NaN tMs is null, never 0', K({ tMs: NaN }, t0), null);
+      T.eq('an out-of-range component is null (§2.7)', K({ t: '25:00:00' }, t0), null);
+
+      /* ── the sorter ── */
+      var evs = [{ id: 'c', t: '01:00:00' }, { id: 'u1' }, { id: 'a', t: '22:40:00' }, { id: 'u2' }, { id: 'b', tMs: U(2026, 5, 10, 23, 0, 0, 0) }];
+      var ids = function (a) {
+        return a
+          .map(function (e) {
+            return e.id;
+          })
+          .join(',');
+      };
+      T.eq('ascending · placeable in clock order, unplaceable LAST', ids(S(evs, t0)), 'a,b,c,u1,u2');
+      T.eq('descending · reversed, and unplaceable STILL last', ids(S(evs, t0, { desc: true })), 'c,b,a,u1,u2');
+      T.eq("the caller's array is not reordered in place", evs[0].id, 'c');
+      T.eq('a null list answers an empty array', S(null, t0).length, 0);
+      T.eq(
+        'equal keys keep arrival order (stable)',
+        ids(
+          S(
+            [
+              { id: 'p', t: '23:00:00' },
+              { id: 'q', t: '23:00:00' }
+            ],
+            t0
+          )
+        ),
+        'p,q'
+      );
+      /* With no anchor only an ABSOLUTE stamp still places, so `b` leads and every `t`-only event
+         keeps its arrival order behind it. A view with no `recording.startEpochMs` therefore loses
+         the clock order it never had, and it never gains a fabricated one. */
+      T.eq('with NO anchor only the absolute stamp places, the rest keep arrival order', ids(S(evs, null)), 'b,c,u1,a,u2');
+
+      /* ── the census: no repaired site may regrow the 1970 key ── */
+      var srcNoComments = function (f) {
+        return ((env.sources || {})[f] || '')
+          .split('\n')
+          .filter(function (ln) {
+            var t = ln.trim();
+            return t.indexOf('//') !== 0 && t.indexOf('*') !== 0 && t.indexOf('/*') !== 0;
+          })
+          .join('\n');
+      };
+      var SITES = ['hrvdex-app.js', 'oxydex-render.js', 'ppgdex-app.js', 'pulsedex-render.js', 'pulsedex-overview.js'];
+      SITES.forEach(function (f) {
+        var raw = (env.sources || {})[f];
+        T.ok(f + ' is wired into env.sources', typeof raw === 'string' && raw.length > 0, 'unwired ⇒ the census reads nothing');
+        if (typeof raw !== 'string' || !raw.length) return;
+        var hits = (srcNoComments(f).match(/\(\s*[ab]\.(?:tMs|_tMs|startMs)\s*\|\|\s*0\s*\)/g) || []).length;
+        T.eq(f + ' carries no `(x.tMs || 0)` sort key outside prose', hits, 0);
+        T.ok(f + ' reads DexClock.sortEventsByClock', srcNoComments(f).indexOf('DexClock.sortEventsByClock') >= 0);
+      });
+    });
+
     group('Clock §2.7 — node-local parsers reject out-of-range', 'node-local-clock', function (T) {
       // ── GlucoDex `_ckParse` (exposed on GLUDSP for this gate) ──
       var GP = (env.GLUDSP && env.GLUDSP._ckParse) || (env.GlucoDex && env.GlucoDex._ckParse);
@@ -44748,6 +44828,39 @@
         JSON.stringify([offSess.metrics.snorePressureCorr, offSess.metrics.snorePressureCorrReason]),
         '[null,"no-mask-on-sample"]'
       );
+      /* ── 4b · ONE NULL CARRIED FOUR FACTS. The pooled site published a bare null, and this
+         site borrowed `no-lane-variance` for a pool of one or two pairs, which has no variance
+         to speak of either way. Each arm now names itself, and both sites read one scan. ── */
+      if (C._kernel && typeof C._kernel._snPressCorr === 'function') {
+        var SP = C._kernel._snPressCorr;
+        var arm = function (sn, pr, strict) {
+          return JSON.stringify(SP(sn, pr, strict));
+        };
+        T.eq('∅ helper · an empty snore lane is no-mask-on-sample', arm([], [5, 7, 9], false), '{"r":null,"reason":"no-mask-on-sample"}');
+        T.eq('∅ helper · an empty pressure lane is the same fact', arm([0.1, 0.4, 0.2], [], false), '{"r":null,"reason":"no-mask-on-sample"}');
+        T.eq('∅ helper · a pooled pair of unequal length is unpaired-lane-pool, not an absence', arm([0.1, 0.4, 0.2, 0.3], [5, 7, 9], true), '{"r":null,"reason":"unpaired-lane-pool"}');
+        T.eq('∅ helper · two pairs is too-few-paired-samples, which this site used to call no-lane-variance', arm([0.1, 0.4], [5, 9], false), '{"r":null,"reason":"too-few-paired-samples"}');
+        T.eq('∅ helper · three pairs over a constant lane is no-lane-variance', arm([0.1, 0.4, 0.2], [8, 8, 8], false), '{"r":null,"reason":"no-lane-variance"}');
+        T.eq('CONTROL · helper · a measured correlation carries a null reason', arm([1, 2, 3, 4, 5], [1, 2, 3, 4, 5], true), '{"r":1,"reason":null}');
+        T.ok(
+          'ANTI-VACUITY · the pairing rule is the POOLED rule only: the per-session site takes the overlap',
+          SP([0.1, 0.4, 0.2, 0.3], [1, 2, 3, 4], false).r !== null && SP([0.1, 0.4, 0.2, 0.3], [1, 2, 3], false).r !== null,
+          JSON.stringify([SP([0.1, 0.4, 0.2, 0.3], [1, 2, 3], false), SP([0.1, 0.4, 0.2, 0.3], [1, 2, 3], true)])
+        );
+        /* Every token the helper can write carries prose. The list is DRIVEN out of the helper,
+           never typed here, so a fifth arm added without prose reds this leg. */
+        var CR = env.CpapRender || (typeof window !== 'undefined' ? window.CpapRender : null);
+        if (CR && typeof CR.reasonText === 'function') {
+          var written = [SP([], [1, 2, 3], false).reason, SP([0.1, 0.2, 0.3, 0.4], [1, 2, 3], true).reason, SP([0.1, 0.2], [1, 2], false).reason, SP([0.1, 0.2, 0.3], [8, 8, 8], false).reason];
+          var unglossed = written.filter(function (t) {
+            return CR.reasonText(t).indexOf(' (' + t + ')') < 1;
+          });
+          T.eq('∅ every snore-pressure token the DSP writes has prose a reader can read', JSON.stringify([written.length, unglossed]), '[4,[]]');
+          T.eq('ANTI-VACUITY · the table is load-bearing: an unglossed token falls through to itself', CR.reasonText('zz-no-such-reason'), 'zz-no-such-reason');
+        } else {
+          T.skip('CpapRender.reasonText', 'cpapdex-render.js not co-loaded in this runner');
+        }
+      }
       if (C._kernel && typeof C._kernel._pearson === 'function') {
         var flat = [1, 1, 1, 1, 1],
           rising = [1, 2, 3, 4, 5];
@@ -53980,6 +54093,7 @@
       T.eq('S · flowLimitedPct counts v > 0.3 only (3 of 7; the 0.3 itself is not limited)', S.flowLimitedPct, 42.86);
       T.eq('S · snorePct counts v > 0.2 only (3 of 8; the 0.2s are not snore)', S.snorePct, 37.5);
       T.eq('S · snorePressureCorr pairs the pooled lanes 1:1', S.snorePressureCorr, 0.18);
+      T.eq('S · a measured correlation carries no reason', S.snorePressureCorrReason, null);
       T.eq('S · breathCount pools', S.breathCount, 1200);
       T.eq('S · breathRate = 1200 over the measured 5400 s', S.breathRate, 13.3);
       T.eq('S · breathMaskOnSec pools', S.breathMaskOnSec, 5400);
@@ -54063,12 +54177,25 @@
          outruns its pressure lane leaves the correlation absent, never mis-paired. ── */
       var C = D.nightMetrics([pool({ pressureMaskOn: [5, 7, 9], snMaskOn: [0.5, 0.1, 0.4, 0.2] })]);
       T.eq('C · snorePressureCorr is null when the lanes do not pair 1:1', C.snorePressureCorr, null);
+      T.eq('C · and the pooled null NAMES the pairing fault, which is not an absence', C.snorePressureCorrReason, 'unpaired-lane-pool');
       T.eq('C · snorePct still reads its own lane (2 of 4 over 0.2)', C.snorePct, 50);
+
+      /* ── The other two pooled refusals. A pool of two pairs and a pool over a constant
+         pressure lane both published the same bare null as an unpaired pool did, so a
+         consumer could not tell any of the three from a measured zero correlation. Row
+         `2026-11-16-cpapdex-nulls-the-snore-pressure-correlation-with-no-reason`. ── */
+      var C2 = D.nightMetrics([pool({ pressureMaskOn: [5, 9], snMaskOn: [0.5, 0.1] })]);
+      T.eq('C2 · two paired samples leave the correlation absent', C2.snorePressureCorr, null);
+      T.eq('C2 · …and the reason is the sample floor, not a lane without variance', C2.snorePressureCorrReason, 'too-few-paired-samples');
+      var C3 = D.nightMetrics([pool({ pressureMaskOn: [8, 8, 8], snMaskOn: [0.5, 0.1, 0.4] })]);
+      T.eq('C3 · a constant pressure lane leaves the correlation absent', C3.snorePressureCorr, null);
+      T.eq('C3 · …and names the constant lane', C3.snorePressureCorrReason, 'no-lane-variance');
 
       /* ── Both lanes empty: the correlation guard reads length AND equality — with the
          && weakened to || the empty pair would compute a NaN correlation. ── */
       var E0 = D.nightMetrics([pool({ pressureMaskOn: [], leakMaskOn: [], usageHours: 2, durSec: 7200 })]);
       T.eq('E0 · snorePressureCorr is null with both lanes empty', E0.snorePressureCorr, null);
+      T.eq('E0 · …and says so, which a bare null could not', E0.snorePressureCorrReason, 'no-mask-on-sample');
       /* ── The four empty lanes stay null, not NaN: each loop's off-by-one appends one
          undefined, which flips the length gate and lets the percentile return NaN
          (Kestrel #5178). ── */

@@ -178,12 +178,14 @@ function _oxyEventMeta(e) {
 }
 
 // §4 · the clinical event timeline — chronological ganglior_events[] with evidence badges, capped for print.
-function oxyEventTimeline(events, multiNight) {
+function oxyEventTimeline(events, multiNight, t0Ms) {
   var evs = Array.isArray(events) ? events.slice() : [];
   if (!evs.length) return '<div class="ocl-none">No scored events in this export.</div>';
-  evs.sort(function (a, b) {
-    return (a.tMs || 0) - (b.tMs || 0);
-  });
+  /* ∅ §6 — `ganglior_events[]` may carry `t` alone, and the former `(a.tMs || 0)` key read that
+     absence as 1970-01-01, so an event this view could not place LED a chronological timeline.
+     `t0Ms` is the export's own `recording.startEpochMs`, and it is a trailing optional parameter so
+     an older caller still compiles. The shared key sorts an unplaceable event last. */
+  evs = DexClock.sortEventsByClock(evs, t0Ms);
   var desN = evs.filter(function (e) {
     return e.impulse === 'desat_event';
   }).length;
@@ -264,7 +266,7 @@ function oxyClinicalSummary(review, nights) {
     h += '<div class="ocl-none">No per-night summary is included in this export — nothing to review here. (An events-only export carries the event timeline below but no clinical KPIs.)</div>';
     var evN0 = (review.events || []).length;
     h += '<div class="ocl-sec">Event timeline' + (evN0 ? ' · ' + evN0 + ' events' : '') + '</div>';
-    h += oxyEventTimeline(review.events, !!review.multiNight);
+    h += oxyEventTimeline(review.events, !!review.multiNight, review.recording && review.recording.startEpochMs);
     h += '<div class="ocl-disc">';
     h +=
       '<span class="ocl-dxl">Tepna · OxyDex</span> — wellness &amp; research tool. ' +
@@ -364,7 +366,7 @@ function oxyClinicalSummary(review, nights) {
   // ── event timeline (each event badged) ──
   var evN = (review.events || []).length;
   h += '<div class="ocl-sec">Event timeline' + (evN ? ' · ' + evN + ' events' : '') + '</div>';
-  h += oxyEventTimeline(review.events, !!review.multiNight);
+  h += oxyEventTimeline(review.events, !!review.multiNight, review.recording && review.recording.startEpochMs);
 
   // ── intended-use disclaimer + dxl- license stamp (§4) ──
   h += '<div class="ocl-disc">';

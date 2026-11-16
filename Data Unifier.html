@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="06dd1a3b80d4" data-compute-hash="681cc268731a"><head>
+<html lang="en" data-manifest-hash="dcbdf2665111" data-compute-hash="6474dc25d2bb"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Aqb8GASMBaVFfonlv4Ztb/qk9t6bBzgtvl6z53P+ieU=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-ICMddmpea9QApQQSg7U2658TwB71/0lAeKxUVnqurkY=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-P6us49/SzENxycQkT7umtGVyr4YZvPIVJAxVizjWnGE=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UX7aBEim6eaSJRuFyp7TxqgAe7hlYHBlX6WDGl1pOIw=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-gA6/rghZPDdnGh8rDgNkZObDLZMj5bvp5tUvUPIhyYU=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-s1I+Wec4rNvlD7cQEkiyj4tZrFF7mpS5mIYu5DJu/HM=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-yv7HWl4tXs1NL9lhU0AmLGqNx/aCujqQmJygHxLbEL8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Aqb8GASMBaVFfonlv4Ztb/qk9t6bBzgtvl6z53P+ieU=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-P6us49/SzENxycQkT7umtGVyr4YZvPIVJAxVizjWnGE=' 'sha256-QYcfW3eQP6+aYrtsuhLs/sXg9FnkZlzYrq8cohp0GNU=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UX7aBEim6eaSJRuFyp7TxqgAe7hlYHBlX6WDGl1pOIw=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-gA6/rghZPDdnGh8rDgNkZObDLZMj5bvp5tUvUPIhyYU=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pkCw7+XkE2VfGAXTOvUhg7KnWbTOfd0mB+ew9AqQHP4=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-s1I+Wec4rNvlD7cQEkiyj4tZrFF7mpS5mIYu5DJu/HM=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-yv7HWl4tXs1NL9lhU0AmLGqNx/aCujqQmJygHxLbEL8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -4153,6 +4153,45 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     };
   }
 
+  /* ── §6 · the consumer rebuild of a date-less event stamp ────────────────────────────
+     `ganglior_events[]` carries `t` as a date-less wall-clock string, and §6 tells a consumer to rebuild
+     `tMs` from the recording's own `startEpochMs` date, rolling past midnight. Six review timelines keyed
+     their sort on `(a.tMs || 0)` instead, so an event the node could not place sorted to 1970-01-01 and
+     led the list — §∅, an absent value read as a number.
+     Promoted from `glucodex-dsp.js`, where this pair shipped first and still carries its own suite legs.
+     GlucoDex keeps that node-local copy, because the GlucoDex bundle inlines no `clock.js` by design
+     (CLAUDE.md §✅). That is the one duplicate of this pair which stays, and it is deliberate. */
+  var _CK_EV_HHMM = /^(\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?$/;
+  function eventSortKeyMs(ev, t0Ms) {
+    if (ev && typeof ev.tMs === 'number' && isFinite(ev.tMs)) return ev.tMs; // §6: an absolute stamp wins
+    if (!ev || ev.t == null || typeof t0Ms !== 'number' || !isFinite(t0Ms)) return null;
+    var m = String(ev.t).trim().match(_CK_EV_HHMM);
+    if (!m) return null;
+    var a = new Date(t0Ms); // §5: a floating tMs reads back through getUTC* only
+    var k = _ckMk(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate(), +m[1], +m[2], m[3] ? +m[3] : 0, m[4] ? +(m[4] + '00').slice(0, 3) : 0);
+    if (k == null) return null;
+    if (k < t0Ms - 60000) k += 86400000; // the event window is [t0 − 60 s, t0 + 24 h)
+    return k;
+  }
+  /* Stable and absence-last over that key, in BOTH directions: two placeable events compare on the key,
+     two unplaceable events keep their arrival order, and an unplaceable event never sorts ahead of a
+     placeable one. `opts.desc` reverses only the placeable comparison, so a newest-first table still
+     reads its unplaceable rows at the end rather than at the top. A caller with no anchor passes `null`
+     and reads its arrival order back unchanged. */
+  function sortEventsByClock(evs, t0Ms, opts) {
+    var desc = !!(opts && opts.desc);
+    var dec = (evs || []).map(function (e, i) {
+      return { e: e, i: i, k: eventSortKeyMs(e, t0Ms) };
+    });
+    dec.sort(function (a, b) {
+      if (a.k == null || b.k == null) return a.k == null && b.k == null ? a.i - b.i : a.k == null ? 1 : -1;
+      return (desc ? b.k - a.k : a.k - b.k) || a.i - b.i;
+    });
+    return dec.map(function (d) {
+      return d.e;
+    });
+  }
+
   root.DexClock = {
     tzOffset: tzOffset,
     _ckP2: _ckP2,
@@ -4163,6 +4202,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     parseTimestamp: parseTimestamp,
     fileStamp: fileStamp,
     hostAxis: hostAxis,
+    eventSortKeyMs: eventSortKeyMs,
+    sortEventsByClock: sortEventsByClock,
     // Promoted from ppgdex-dsp.js so the fleet has ONE JS core (HOSTAXIS-STABILITY §4.3). Nodes
     // delegate by name, the way they already do for parseTimestamp.
     allanFromPhase: _ckAllanFromPhase,
@@ -45172,9 +45213,12 @@ __exports.MotionDex = window.MotionDex;
     for (var i = 0; i < ch.data.length; i++) out[i] = ch.data[i] * k;
     return out;
   }
+  /* `_pearson` refuses below this many PAIRS. `_snPressCorr` reads the same constant, so the
+     refusal and the reason beside it can never disagree. */
+  var _PEARSON_MIN_N = 3;
   function _pearson(a, b) {
     var n = Math.min(a.length, b.length);
-    if (n < 3) return NaN;
+    if (n < _PEARSON_MIN_N) return NaN;
     var sa = 0,
       sb = 0;
     for (var i = 0; i < n; i++) {
@@ -45194,6 +45238,29 @@ __exports.MotionDex = window.MotionDex;
       db += y * y;
     }
     return da > 0 && db > 0 ? num / Math.sqrt(da * db) : NaN;
+  }
+
+  /* ∅ ONE NULL CARRIED FOUR DIFFERENT FACTS, and a bare null let a reader read any of them as a
+     measured zero correlation. The arms, in the order a scan meets them:
+       · `no-mask-on-sample`     — a lane produced no mask-on sample, so nothing was paired.
+       · `unpaired-lane-pool`    — the pooled lanes differ in length, so the pairing is unknown.
+                                   This is a POOLING fault and not an absence, which is why it
+                                   carries its own token (§∅ forbids a borrowed reason).
+       · `too-few-paired-samples`— fewer pairs than `_PEARSON_MIN_N`, so r is not estimable.
+       · `no-lane-variance`      — a lane is constant, so r is undefined and never zero.
+     `pairStrict` is the pooled site's rule: a session that carried Snore and no Pressure would
+     shift the pairing, so the pool refuses rather than truncate. The per-session site filters both
+     lanes from one mask-on index set, so it pairs by construction and takes the shorter overlap.
+     Row `2026-11-16-cpapdex-nulls-the-snore-pressure-correlation-with-no-reason`. */
+  function _snPressCorr(sn, press, pairStrict) {
+    var SN = sn || [],
+      PR = press || [];
+    if (!SN.length || !PR.length) return { r: null, reason: 'no-mask-on-sample' };
+    if (pairStrict && SN.length !== PR.length) return { r: null, reason: 'unpaired-lane-pool' };
+    if (Math.min(SN.length, PR.length) < _PEARSON_MIN_N) return { r: null, reason: 'too-few-paired-samples' };
+    var r = _pearson(SN, PR);
+    if (r == null || !isFinite(r)) return { r: null, reason: 'no-lane-variance' };
+    return { r: +r.toFixed(2), reason: null };
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -45762,8 +45829,11 @@ __exports.MotionDex = window.MotionDex;
        the product of the two spreads, so a fixed-pressure night — every CPAP-mode night — made
        `da` zero and published `NaN`, which `JSON.stringify` writes as `null`. The lane was already
        guarded for LENGTH and never for VARIANCE. Row
-       `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`. */
-    var snPressR = null;
+       `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`.
+       The scan now sits in `_snPressCorr`, which the POOLED site reads too, so one absence cannot
+       wear two different reasons at the two layers. It also splits the n < 3 refusal out of
+       `no-lane-variance`, which this site borrowed for it. Row
+       `2026-11-16-cpapdex-nulls-the-snore-pressure-correlation-with-no-reason`. */
     var pressOnset = -1;
     if (pressureSource) {
       for (var oi = 0; oi < pressure.length; oi++)
@@ -45772,8 +45842,7 @@ __exports.MotionDex = window.MotionDex;
           break;
         }
     }
-    var snPressRaw = snMaskOn.length && pressureMaskOn.length ? _pearson(snMaskOn, pressureMaskOn) : null;
-    if (snPressRaw != null && isFinite(snPressRaw)) snPressR = +snPressRaw.toFixed(2);
+    var snPress = _snPressCorr(snMaskOn, pressureMaskOn, false);
     var metrics = {
       // Usage & Adherence
       usageHours: usageHours == null ? null : +usageHours.toFixed(3),
@@ -45888,8 +45957,8 @@ __exports.MotionDex = window.MotionDex;
             100
           ).toFixed(2)
         : null,
-      snorePressureCorr: snPressR,
-      snorePressureCorrReason: snPressR != null ? null : snMaskOn.length && pressureMaskOn.length ? 'no-lane-variance' : 'no-mask-on-sample',
+      snorePressureCorr: snPress.r,
+      snorePressureCorrReason: snPress.reason,
       // Breath detection (flow-derived — validates device RespRate)
       breathCount: breath ? breath.breathCount : null,
       breathRate: breath ? breath.breathRate : null,
@@ -46042,6 +46111,7 @@ __exports.MotionDex = window.MotionDex;
        as non-compliant. The night's usage is then null, with the session count that made it so;
        the event INDICES still divide by the hours that were measured (a rate over known time is a
        rate), and every pooled distribution is unaffected. */
+    var nightSnPress = _snPressCorr(SN, P, true);
     var night = {
       usageHours: usageUnknown ? null : +totHours.toFixed(3),
       // maskOnLatency is a NIGHT-onset fact: how long until therapy started. Sessions are
@@ -46146,13 +46216,12 @@ __exports.MotionDex = window.MotionDex;
             100
           ).toFixed(2)
         : null,
-      // Pearson needs paired samples: only valid when every session contributed BOTH lanes,
-      // i.e. the pooled arrays line up 1:1. A session missing Snore would shift the pairing.
-      snorePressureCorr: (function () {
-        if (!SN.length || SN.length !== P.length) return null;
-        var r = _pearson(SN, P);
-        return r != null && isFinite(r) ? +r.toFixed(2) : null;
-      })(),
+      /* Pearson needs paired samples: only valid when every session contributed BOTH lanes, i.e.
+         the pooled arrays line up 1:1. A session carrying no Snore would shift the pairing, so the
+         pool refuses and NAMES which of the four facts it met — the value and the reason come from
+         one scan, so they cannot disagree. */
+      snorePressureCorr: nightSnPress.r,
+      snorePressureCorrReason: nightSnPress.reason,
       // ── Breath detection (flow-derived) ──
       breathCount: haveBreaths ? breaths : null,
       /* Rate over the MEASURED (mask-on) time — not a mean of per-session rates, and NOT over wall
@@ -47136,7 +47205,7 @@ __exports.MotionDex = window.MotionDex;
     _synthRaw: _synthRaw,
     _synthEdfSet: _synthEdfSet,
     selfTest: selfTest,
-    _kernel: { _mean: _mean, _sd: _sd, _cov: _cov, _p: _p, _iqr: _iqr, _pearson: _pearson }
+    _kernel: { _mean: _mean, _sd: _sd, _cov: _cov, _p: _p, _iqr: _iqr, _pearson: _pearson, _snPressCorr: _snPressCorr }
   };
   // ESM-MIGRATION: the former `module.exports = api` (CJS dual-mode) is dropped — a top-level ESM
   // `export` below makes this a module, and nothing `require()`s it; the api reaches Node/vm/browser

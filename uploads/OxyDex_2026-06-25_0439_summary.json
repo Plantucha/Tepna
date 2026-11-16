@@ -378,8 +378,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "409463d917ed",
-          "computeHash": "3482ccfc1a0e"
+          "manifestHash": "d5996a06d1e4",
+          "computeHash": "ea127e24bf00"
         },
         "evidence": {
           "envelopeRef": null,
@@ -407,8 +407,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "409463d917ed",
-          "computeHash": "3482ccfc1a0e"
+          "manifestHash": "d5996a06d1e4",
+          "computeHash": "ea127e24bf00"
         },
         "evidence": {
           "envelopeRef": null,
@@ -436,8 +436,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "409463d917ed",
-          "computeHash": "3482ccfc1a0e"
+          "manifestHash": "d5996a06d1e4",
+          "computeHash": "ea127e24bf00"
         },
         "evidence": {
           "envelopeRef": null,
@@ -465,8 +465,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "409463d917ed",
-          "computeHash": "3482ccfc1a0e"
+          "manifestHash": "d5996a06d1e4",
+          "computeHash": "ea127e24bf00"
         },
         "evidence": {
           "envelopeRef": null,

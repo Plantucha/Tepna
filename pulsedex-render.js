@@ -561,12 +561,13 @@ function _pulseInjectReviewCSS() {
   st.textContent = css;
   (document.head || document.documentElement).appendChild(st);
 }
-function pulseReviewTimeline(events) {
+function pulseReviewTimeline(events, t0Ms) {
   var evs = Array.isArray(events) ? events.slice() : [];
   if (!evs.length) return '<div class="prv-none">No scored events in this export.</div>';
-  evs.sort(function (a, b) {
-    return (a.tMs || 0) - (b.tMs || 0);
-  });
+  /* ∅ §6 — a `t`-only event has no `tMs`, and the former key read that absence as 1970-01-01, so
+     an unplaceable event LED this timeline. `t0Ms` is the export's `recording.startEpochMs` and
+     trails the existing parameter. The shared key sorts an unplaceable event last. */
+  evs = DexClock.sortEventsByClock(evs, t0Ms);
   var CAP = 40,
     shown = evs.slice(0, CAP);
   var name = function (e) {
@@ -662,7 +663,7 @@ function pulseReviewView(review) {
       })
       .join('') +
     '</div>';
-  h += '<div class="prv-sec">Event timeline</div>' + pulseReviewTimeline(review.events);
+  h += '<div class="prv-sec">Event timeline</div>' + pulseReviewTimeline(review.events, review.recording && review.recording.startEpochMs);
   h +=
     '<div class="prv-sec">Raw signal</div>' +
     '<div class="prv-greyed"><strong>RR tachogram &amp; Poincaré scatter not included</strong>Per-beat RR intervals are not carried in the export — review mode shows the derived HRV layer only. Re-run the original RR/IBI recording for the beat-by-beat charts.</div>';
