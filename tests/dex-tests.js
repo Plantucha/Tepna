@@ -11811,7 +11811,7 @@
       var src = env.sources || {};
       var UNDECLARED = {
         cpapdex: '',
-        ecgdex: 'accPosture analyzable cpcHfc deepMin edrDisagree edrResp remMin rraccRate rsaAmplitude sigmaLnRmssd stageConsensus varLnRmssd',
+        ecgdex: 'accPosture cpcHfc deepMin edrDisagree edrResp remMin rraccRate rsaAmplitude sigmaLnRmssd stageConsensus varLnRmssd',
         /* `timeAbove` and `timeBelow` LEFT this baseline on 2026-11-11: glucodex-cross.js gave
            GlucoDex a *_DEFS table, and both ids are keys in it with a get: accessor naming the
            real per-day key (`tar`, `tbr`) — route 2. The set ratchets DOWN only. */
@@ -56581,12 +56581,21 @@
       for (var ci = 0; ci < chanNames.length; ci++) {
         var ch = chans[chanNames[ci]];
         T.eq(chanNames[ci] + ' names its stream', typeof (ch && ch.stream), 'string');
+        /* `scopeNote` and `inputNote` are not FACTS — they carry no value, no unit and no badge.
+           They state what this node can establish about the channel at all, which is why the ACC
+           column needed them: six of its cells are absent for a reason no input can change. They
+           are listed here rather than dropped from the check, so a stray key still reds. */
+        var CHAN_META = ['stream', 'sidecarEffect', 'scopeNote', 'inputNote'];
         var got = Object.keys(ch || {})
           .filter(function (k) {
-            return k !== 'stream' && k !== 'sidecarEffect';
+            return CHAN_META.indexOf(k) < 0;
           })
           .sort();
         T.eq(chanNames[ci] + ' carries the ten facts the brief names, and no others', got.join(','), FACTS.slice().sort().join(','));
+        var notes = ['scopeNote', 'inputNote'].filter(function (k) {
+          return ch && ch[k] != null;
+        });
+        for (var mi = 0; mi < notes.length; mi++) T.eq(chanNames[ci] + ' · `' + notes[mi] + '` is prose', typeof ch[notes[mi]], 'string');
         /* §6's before-and-after record is NOT a cell — it carries no value and no unit, so it rides
            beside the cells and the biconditional below does not read it. It is required on every row,
            because a row that omits it is a row claiming nothing about what the sidecars moved. */
@@ -57480,11 +57489,17 @@
            reasons of the rows, so a substring count over the whole card measures prose too. */
         T.ok('the ledger count line says all 25 rows are not-applicable and that none was read', /25 listed · 0 read · 25 not-applicable/.test(html));
         T.ok('…and no row of a vendor export claims a sidecar was read', !/>read</.test(html));
-        var afterAll = (html.match(/→ after /g) || []).length,
-          afterNull = (html.match(/→ after <b>—<\/b> \(/g) || []).length;
+        /* READ THE STRUCTURE, NEVER THE PROSE. The pair is now two labelled rows carrying
+           `data-ba` (which side) and `data-abs` (whether that side holds a number), because the
+           old single-run form (`123 → after —`) could only be counted by a substring search that
+           also matched the reason sentences around it. */
+        var afterAll = (html.match(/data-ba="after"/g) || []).length,
+          afterNull = (html.match(/data-ba="after" data-abs="1"/g) || []).length,
+          beforeAll = (html.match(/data-ba="before"/g) || []).length;
         T.ok('the table draws a before-and-after pair for the facts a sidecar can move', afterAll > 0, 'afterAll=' + afterAll);
+        T.eq('…and every after side has a before side beside it, so no half pair is drawn', beforeAll, afterAll);
         T.eq('…and on a vendor export EVERY after value is an absence, because no host writer ran', afterNull, afterAll);
-        T.ok('CONTROL · no absence draws an empty parenthesis in place of its reason', !/<b>—<\/b> \(\)/.test(html));
+        T.ok('CONTROL · an absent side draws a reason span rather than a bare dash', /class="sq-ba-r"/.test(html));
         T.ok('CONTROL · the unexplained-absence fallback string never reaches the page', html.indexOf('no reason travelled with this absence') < 0);
         T.ok('every cell carries a measured disc, and none carries a fabricated one', /ev-measured/.test(html) && !/ev-experimental/.test(html));
         /* THREE discs per fact, not two: the row-label column carries the grade of the measurement,
@@ -57637,7 +57652,13 @@
           iD = shell.indexOf('id="sqDriftCard"'),
           iQ = shell.indexOf('id="qualityCard"');
         T.ok('the shell defines both cards', iT > 0 && iD > 0, 'sqTableCard=' + iT + ' sqDriftCard=' + iD);
-        T.ok('…and both sit ABOVE the first result card of the Signal Quality section', iT < iQ && iD < iQ, 'qualityCard=' + iQ);
+        /* TWO SEPARATE FACTS, and they used to ride one assertion. The owner's direction is that the
+           per-channel TABLE opens the section (agent board entry 6514), and that still holds. Where
+           the drift panels sit was never part of it: they are the deepest detail in the section, so
+           they now sit below the four-stat summary card rather than above it, and the section reads
+           table, then summary, then the series behind it. */
+        T.ok('the per-channel table opens the Signal Quality section (owner direction, board 6514)', iT < iQ && iT < iD, 'sqTableCard=' + iT + ' qualityCard=' + iQ);
+        T.ok('…and the drift panels are the deepest detail, so they come last', iQ < iD, 'qualityCard=' + iQ + ' sqDriftCard=' + iD);
         T.ok('the table card comes before the drift card, so the reader meets the cells first', iT < iD);
         T.ok('both cards sit INSIDE the existing Signal Quality section, not above the page', shell.lastIndexOf('id="qualitySection"', iT) > 0);
       } else T.skip('ECGDex.src.html readable', 'the placement fact lives in the shell, and this lane reads no shell');

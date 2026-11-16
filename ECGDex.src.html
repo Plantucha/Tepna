@@ -186,8 +186,20 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
 .q-note b{color:var(--text2)}
 
 /* ── chart grid ── */
-.ch-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
-@media(max-width:900px){.ch-grid{grid-template-columns:1fr}}
+/* A STRETCHED CARD LEAVES ITS CHART BEHIND. The row height comes from the tallest card, and an
+   `align-items` default of `stretch` grows the SHORT card's border box while its svg keeps the
+   intrinsic height its own viewBox gives it. Measured 2026-11-15 on the HRV row: the Poincare svg
+   is clamped square at 340 px (about 319 px tall) and carries a stats line under it, against a
+   tachogram svg of viewBox 680x170 that draws about 105 px in the same column. That left about
+   250 px of empty bordered surface under the tachogram. `start` ends each card where its content
+   ends. Stretching the svg instead is the WRONG repair: `lineChart` draws with
+   `preserveAspectRatio="none"`, so a non-uniform scale distorts every tick label it prints. */
+.ch-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;align-items:start}
+/* A NIGHT-LONG TIME SERIES WANTS WIDTH, A SCATTER WANTS A SQUARE. The tachogram's x axis is the
+   whole recording, so each pixel of width is time it can resolve; the Poincare plot is square by
+   construction and uses no more than 340 px plus the card's two 20 px paddings. */
+.ch-grid-wide{grid-template-columns:minmax(0,1fr) 380px}
+@media(max-width:900px){.ch-grid,.ch-grid-wide{grid-template-columns:1fr}}
 .mini-h{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px}
 .mini-sub{font-weight:500;color:var(--text3);font-size:11px;margin-left:6px}
 /* Defect-C (BADGE-PLACEMENT-SWEEP): inline evidence disc gets a small trailing gap
@@ -341,11 +353,11 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       <a class="sb-item" href="#scopeSection">~ Waveform Explorer</a>
       <a class="sb-item" href="#sec-profile">👤 Profile</a>
       <a class="sb-item" href="#slKPI">📊 Key Metrics</a>
-      <a class="sb-item" href="#qualitySection">🛡 Signal Quality</a>
       <a class="sb-item" href="#chartsSection">📈 HRV Charts</a>
       <a class="sb-item" href="#morphSection">❤️‍🩹 Morphology &amp; Ectopy</a>
-      <a class="sb-item" href="#hypnoCard">🌙 Sleep &amp; CVHR</a>
+      <a class="sb-item" href="#slDyn">🌙 Sleep &amp; Dynamics</a>
       <a class="sb-item" href="#crossNightSection">🌙 Cross-Night Trends</a>
+      <a class="sb-item" href="#qualitySection">🛡 Signal Quality</a>
       <a class="sb-item" href="#valCard">✓ RR Validation</a>
       <a class="sb-item" href="#hrCard">🫀 HR Cross-Check</a>
       <a class="sb-item" href="#accCard">📈 ACC Cross-Check</a>
@@ -381,11 +393,11 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       <a class="mobile-nav-item" href="#scopeSection"><span class="mobile-nav-icon">~</span>Waveform</a>
       <a class="mobile-nav-item" href="#sec-profile"><span class="mobile-nav-icon">👤</span>Profile</a>
       <a class="mobile-nav-item" href="#slKPI"><span class="mobile-nav-icon">📊</span>Metrics</a>
-      <a class="mobile-nav-item" href="#qualitySection"><span class="mobile-nav-icon">🛡</span>Quality</a>
       <a class="mobile-nav-item" href="#chartsSection"><span class="mobile-nav-icon">📈</span>Charts</a>
       <a class="mobile-nav-item" href="#morphSection"><span class="mobile-nav-icon">❤️‍🩹</span>Morphology</a>
-      <a class="mobile-nav-item" href="#hypnoCard"><span class="mobile-nav-icon">🌙</span>Sleep</a>
+      <a class="mobile-nav-item" href="#slDyn"><span class="mobile-nav-icon">🌙</span>Sleep</a>
       <a class="mobile-nav-item" href="#crossNightSection"><span class="mobile-nav-icon">🌙</span>Cross-Night</a>
+      <a class="mobile-nav-item" href="#qualitySection"><span class="mobile-nav-icon">🛡</span>Quality</a>
       <a class="mobile-nav-item" href="#valCard"><span class="mobile-nav-icon">✓</span>RR</a>
       <a class="mobile-nav-item" href="#hrCard"><span class="mobile-nav-icon">🫀</span>HR</a>
       <a class="mobile-nav-item" href="#accCard"><span class="mobile-nav-icon">📈</span>ACC</a>
@@ -572,21 +584,16 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     <!-- KPI -->
     <div class="section-title" id="slKPI" style="display:none">Key Metrics <span class="st-note">computed from the ECG · long records show per-epoch medians</span></div>
     <div class="kpi-grid" id="kpiGrid"></div>
-
-    <!-- QUALITY -->
-    <div id="qualitySection" style="display:none">
-      <div class="section-title">Signal Quality <span class="st-note">per-beat SQI → Ganglior conf</span></div>
-      <!-- SIGNAL-QUALITY-TABLE-2026-11-14 §6: the per-channel table sits ABOVE the first result card
-           of this section, which is where the owner's direction put it (agent board entry 6514). -->
-      <div class="card" id="sqTableCard"></div>
-      <div class="card" id="sqDriftCard"></div>
-      <div class="card" id="qualityCard"></div>
-    </div>
+    <!-- THE TRUST LINE. Signal Quality now sits BELOW the results, which is the right reading order and
+         the wrong place to find out that a night was barely measured. This one line carries the three
+         numbers that decide whether the panels under it mean anything, and links down to the section
+         that shows the work. Filled by `renderQuality`, which owns the only read of `signalQuality`. -->
+    <div id="kpiQuality" style="display:none"></div>
 
     <!-- CHARTS -->
     <div id="chartsSection" style="display:none">
       <div class="section-title">HRV Charts</div>
-      <div class="ch-grid">
+      <div class="ch-grid ch-grid-wide">
         <div class="card"><div class="card-h">RR Tachogram</div><div id="tachoBody"></div></div>
         <div class="card"><div class="card-h">Poincaré Plot</div><div id="poincareBody"></div><div class="poincare-stats" id="poincareStats"></div></div>
       </div>
@@ -610,6 +617,10 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       <div class="card" id="morphCard"><div class="card-h">Intervals &amp; AF Screen</div><div id="morphIntervals"></div></div>
     </div>
 
+    <!-- SLEEP &amp; AUTONOMIC DYNAMICS — the four cards below carried no heading of their own, so they
+         read as loose cards after the morphology grid. The heading is shown by `_syncBandTitles`
+         only when one of its four cards is visible, so an absent band leaves no empty title. -->
+    <div class="section-title" id="slDyn" style="display:none">Sleep &amp; Autonomic Dynamics <span class="st-note">cyclic variation · cardiorespiratory coupling · staging · ln(RMSSD) trend</span></div>
     <!-- SLEEP + CVHR -->
     <div class="card" id="cvhrCard" style="display:none"><div class="card-h">CVHR — Cyclic Variation of Heart Rate</div><div id="cvhrBody"></div></div>
     <div class="card" id="crcCard" style="display:none">
@@ -628,6 +639,32 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       <div id="stabilityBody"></div>
     </div>
 
+    <!-- CROSS-NIGHT TRENDS (≥2 recordings only) -->
+    <div id="crossNightSection" style="display:none">
+      <div class="section-title">Cross-Night Trends <span class="st-note">shared crossNight() engine · OLS · Mann–Kendall · z-scores · coverage-weighted</span></div>
+      <div class="cn-headline" id="crossNightHeadline"></div>
+      <div class="card"><div id="crossNightTable" style="overflow-x:auto"></div><div class="q-note" id="crossNightNote" style="margin-top:12px"></div></div>
+    </div>
+
+    <!-- QUALITY -->
+    <div id="qualitySection" style="display:none">
+      <div class="section-title">Signal Quality <span class="st-note">per-beat SQI → Ganglior conf</span></div>
+      <!-- SIGNAL-QUALITY-TABLE-2026-11-14 §6: the per-channel table sits ABOVE the first result card
+           of this section, which is where the owner's direction put it (agent board entry 6514). -->
+      <div class="card" id="sqTableCard"></div>
+      <!-- THE HEADLINE OF THIS SECTION STANDS ABOVE ITS DEEPEST DETAIL. The four quality KPIs used to
+           sit under the three clock-drift panels, so a reader met the Allan deviation of the host
+           divergence before the coverage figure that decides whether to read any of it. The owner's
+           direction (agent board entry 6514) is that the per-channel table opens the section, and it
+           still does. -->
+      <div class="card" id="qualityCard"></div>
+      <div class="card" id="sqDriftCard"></div>
+    </div>
+
+    <!-- DEVICE CROSS-CHECKS — agreement between this node’s own derivation and what the strap
+         firmware reported. It is a trust band, not a result band: §🎙️ forbids reading a firmware
+         summary as ground truth, so the heading says agreement. Shown by `_syncBandTitles`. -->
+    <div class="section-title" id="slXchk" style="display:none">Device Cross-Checks <span class="st-note">this node’s own derivation against the firmware’s — agreement, never ground truth</span></div>
     <!-- VALIDATION -->
     <div class="card val-card" id="valCard" style="display:none">
       <div class="card-h">Device RR — HRV Validation <span style="font-size:11px;font-weight:500;color:var(--text3);margin-left:6px">self-computed vs firmware RR</span></div>
@@ -644,13 +681,6 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     <div class="card val-card" id="accCard" style="display:none">
       <div class="card-h">Device ACC — Breathing &amp; Motion Cross-Check <span style="font-size:11px;font-weight:500;color:var(--text3);margin-left:6px">accelerometer ⟷ EDR breathing · sleep stages</span></div>
       <div id="accBody"></div>
-    </div>
-
-    <!-- CROSS-NIGHT TRENDS (≥2 recordings only) -->
-    <div id="crossNightSection" style="display:none">
-      <div class="section-title">Cross-Night Trends <span class="st-note">shared crossNight() engine · OLS · Mann–Kendall · z-scores · coverage-weighted</span></div>
-      <div class="cn-headline" id="crossNightHeadline"></div>
-      <div class="card"><div id="crossNightTable" style="overflow-x:auto"></div><div class="q-note" id="crossNightNote" style="margin-top:12px"></div></div>
     </div>
 
     <!-- GANGLIOR -->

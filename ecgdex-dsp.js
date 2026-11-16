@@ -7718,6 +7718,12 @@
         timingSource: ax && ax.timingSource ? ax.timingSource : r.hostAxis ? null : 'device',
         spreadMs: ax ? ax.spreadMs : null,
         anchors: ax ? ax.anchors : null,
+        /* THE SPAN THE RATE WAS MEASURED OVER. §7 names the anchor count AND the span, and this cell
+           published only the count, so every reader of this table got half the qualification. The
+           figure is already on `hostAxis` (`spanMs`, forwarded from the spine since 2026-10-29);
+           nothing here computes it. Measured 2026-11-15: the table printed `-6.67 ppm · from 16
+           anchors` with no span anywhere in the cell. */
+        spanMs: ax && ax.spanMs != null ? ax.spanMs : null,
         applied: ax ? ax.applied : null,
         spanPpm: ax && ax.spanPpm !== undefined ? ax.spanPpm : null,
         maxStepMs: ax && ax.maxStepMs !== undefined ? ax.maxStepMs : null,
@@ -7910,26 +7916,35 @@
         },
         acc: {
           stream: 'H10:acc',
+          /* THE MOTION STREAM IS NOT A SECOND HEARTBEAT, AND SIX OF ITS TEN CELLS WERE SAYING IT WAS.
+             Each of those six is absent for a STRUCTURAL reason — this node places motion samples
+             against the ECG start and scores quality through the beat series, so the stream has no
+             rate, no epoch and no score of its own — and each of the six stays absent when a motion
+             companion DOES arrive, which the `acc` branch of those same cells proves line by line.
+             Writing `this node ingests no motion channel` over them when no companion arrived told a
+             reader the opposite: bring the file and a number appears. It does not. The file-dependent
+             reason now stands only on the two cells the box's run census really fills, the structural
+             reason stands on the rest whatever arrives, and the channel states the two facts that
+             govern the whole column ONCE, here, instead of ten times down it. */
+          scopeNote:
+            'This node places the motion samples against the ECG start and scores quality through the beat series, so it establishes no timing and no waveform quality of the motion stream\u2019s own. A motion companion fills only the two shares the box\u2019s run census feeds.',
+          inputNote: acc ? null : NO_ACC,
           coverage: accCov,
-          rail: _sqCell(null, 'samples at the rail', acc ? 'not-measured: this node runs no rail census on the motion stream' : NO_ACC),
+          rail: _sqCell(null, 'samples at the rail', 'not-measured: this node runs no rail census on the motion stream'),
           flatline: accFlat,
-          snr: _sqCell(null, 'dB', acc ? 'not-measured: this node computes no in-band SNR for the motion stream' : NO_ACC),
+          snr: _sqCell(null, 'dB', 'not-measured: this node computes no in-band SNR for the motion stream'),
           mains: _sqCell(null, 'ratio to in-band power', NOT_MEASURED_MAINS),
-          nodeSqi: _sqCell(null, 'mean per-beat score, 0 to 1', acc ? 'no-score: this node computes no quality score for the motion stream' : NO_ACC),
+          nodeSqi: _sqCell(null, 'mean per-beat score, 0 to 1', 'no-score: this node scores quality through the ECG beat series, so it computes none for the motion stream'),
           timing: _sqCell(
             null,
             'ppm of the device rate against the host axis',
-            acc ? 'no own axis: this node places motion samples against the ECG start, so the motion stream carries no rate of its own here' : NO_ACC
+            'no own axis: this node places motion samples against the ECG start, so the motion stream carries no rate of its own here'
           ),
           reference: _sqCell(null, 'ms', 'no-reference: no second motion stream reaches this node'),
           /* The epoch population is walked over the ECG BEAT series, so the motion row cannot carry a
              count of its own — stated rather than left as a hole in the row. */
-          epochs: _sqCell(null, 'windows of ' + _SQ_EPOCH_SEC + ' s', acc ? 'no own epochs: the window walk runs over the ECG beat series, and the motion stream contributes no window to it' : NO_ACC),
-          drift: _sqCell(
-            null,
-            'ppm against a §3d reference',
-            acc ? 'no own axis: the motion samples are placed against the ECG start, so no host anchor of their own exists to drift against' : NO_ACC
-          ),
+          epochs: _sqCell(null, 'windows of ' + _SQ_EPOCH_SEC + ' s', 'no own epochs: the window walk runs over the ECG beat series, and the motion stream contributes no window to it'),
+          drift: _sqCell(null, 'ppm against a §3d reference', 'no own axis: the motion samples are placed against the ECG start, so no host anchor of their own exists to drift against'),
           /* The acc half of §6's before-and-after. Here the sidecar CREATES the two facts rather than
              moving them: without the box's run census the covered and held shares are unknown. */
           sidecarEffect: {
