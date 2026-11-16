@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="679036df3805" data-compute-hash="afd1e60516a8"><head>
+<html lang="en" data-manifest-hash="198a40a5c58e" data-compute-hash="eb88387e3970"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0Z8eIjo38Bg1VfAEHKIHaPb1S9BeP7hSsHfX3qwXhsE=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6EBVfq2enNNtgDctVgupl+XOlkSF7/O9vv+RExrsaGs=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-WCQTLVkSv1QgSOi2vvBHY7+NBC4URxQt6+ufi6R/3qU=' 'sha256-aXQspUY+jpRLy8rLwDHxtP62krExNOtmqvTjG/48o/c=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-gA6/rghZPDdnGh8rDgNkZObDLZMj5bvp5tUvUPIhyYU=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-reD8OJCOK6dVFBFrprIvBBXFVEJEh4/trLKBGPLfLXk=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-s1I+Wec4rNvlD7cQEkiyj4tZrFF7mpS5mIYu5DJu/HM=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0Z8eIjo38Bg1VfAEHKIHaPb1S9BeP7hSsHfX3qwXhsE=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6EBVfq2enNNtgDctVgupl+XOlkSF7/O9vv+RExrsaGs=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-WCQTLVkSv1QgSOi2vvBHY7+NBC4URxQt6+ufi6R/3qU=' 'sha256-aXQspUY+jpRLy8rLwDHxtP62krExNOtmqvTjG/48o/c=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-gA6/rghZPDdnGh8rDgNkZObDLZMj5bvp5tUvUPIhyYU=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-nsuZe4LPEGOVzA/Tj0v7xjibkLxuO6ucM1M3zE0aXtg=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-s1I+Wec4rNvlD7cQEkiyj4tZrFF7mpS5mIYu5DJu/HM=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -33337,10 +33337,30 @@ __exports.PpgDex = window.PpgDex;
       } else activeSec += d;
     }
     const spanSec = n > 1 ? tt[n - 1] - tt[0] : 0;
-    const coveragePct = spanSec > 0 ? +((activeSec / spanSec) * 100).toFixed(1) : 100;
-    const cleanBeatPct = +((nGood / n) * 100).toFixed(1);
+    /* §∅ — A COVERAGE OVER A ZERO SPAN IS UNMEASURED, NOT COMPLETE ────────────────────────────────
+       `activeSec / spanSec` has no value when the beat series spans no time, and this line published
+       **100** for it: a full-coverage claim about a record that measured no span. Two inputs reach it.
+       Fewer than two intervals leaves `spanSec` at its 0 initialiser, and a device counter that never
+       advances gives `tt[n-1] === tt[0]` over any number of beats — the device axis above is adopted
+       on FINITE stamps alone (it never asks whether they advance), so a stuck counter arrives here
+       through `analyze` itself.
+
+       THE PRODUCT MUST TRAVEL WITH IT. `analyzablePct` is `cleanBeatPct × coverage/100`, and
+       `null / 100` is 0 in JavaScript, so nulling the coverage alone would convert a fabricated
+       100 % into a fabricated 0 % — the same bug with a worse number. The two fields are one
+       measurement and one product of it, so they refuse together, each naming its own cause.
+       `cleanBeatPct` and `correctionRate` divide by `n` and answered NaN over an empty series;
+       `analyze` refuses under 12 peaks, so that input arrives only through the exported
+       `_kernel.buildNN`, and a NaN there still reads as `null` once exported. */
+    const coveragePct = spanSec > 0 ? +((activeSec / spanSec) * 100).toFixed(1) : null;
+    const coveragePctReason =
+      spanSec > 0 ? null : n > 1 ? 'the beat series spans no time — no span to divide the covered time by' : 'fewer than two beat intervals — no span exists to measure coverage over';
+    const cleanBeatPct = n ? +((nGood / n) * 100).toFixed(1) : null;
+    const cleanBeatPctReason = n ? null : 'no beat intervals — no population to score';
     // Honest headline: clean-beat fraction discounted by how much of the span is covered.
-    const analyzablePct = +(cleanBeatPct * Math.min(1, coveragePct / 100)).toFixed(1);
+    const analyzablePct = coveragePct == null || cleanBeatPct == null ? null : +(cleanBeatPct * Math.min(1, coveragePct / 100)).toFixed(1);
+    const analyzablePctReason =
+      analyzablePct != null ? null : coveragePct == null ? 'beat coverage is unmeasured, so the clean-beat share cannot be discounted by it' : 'no beat intervals — no clean-beat share to discount';
     return {
       nn,
       tt,
@@ -33351,10 +33371,14 @@ __exports.PpgDex = window.PpgDex;
          All-zero on a contiguous recording, which is every committed fixture. */
       spansGap,
       nSpansGap: spansGap.reduce((a, b) => a + b, 0),
-      correctionRate: +((nCorr / n) * 100).toFixed(2),
+      correctionRate: n ? +((nCorr / n) * 100).toFixed(2) : null,
+      correctionRateReason: n ? null : 'no beat intervals — no population to correct',
       analyzablePct,
+      analyzablePctReason,
       cleanBeatPct,
+      cleanBeatPctReason,
       coveragePct,
+      coveragePctReason,
       nCorrected: nCorr,
       nEctopyCorrected: nEctopy,
       activeSec,
@@ -35700,11 +35724,15 @@ __exports.PpgDex = window.PpgDex;
       nnSpansGap,
       // quality
       analyzablePct: nnRes.analyzablePct,
+      /* §∅ — the refusals travel with the two fields they describe, because a surface that draws a
+         dash owes the reader the cause of it. `buildNN` names each one. */
+      analyzablePctReason: nnRes.analyzablePctReason,
       correctionRate: nnRes.correctionRate,
       nCorrected: nnRes.nCorrected,
       nEctopyCorrected: nnRes.nEctopyCorrected,
       cleanBeatPct: nnRes.cleanBeatPct,
       coveragePct: nnRes.coveragePct,
+      coveragePctReason: nnRes.coveragePctReason,
       /* Per-term means of the composite per-beat SQI (Do 5 step 1). Additive: `cleanBeatPct` above is
          a THRESHOLD count of the composite and cannot say WHICH term moved it, so a term pinned at 0
          and a term doing real work produce the same `cleanBeatPct` story. */

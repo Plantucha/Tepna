@@ -72795,10 +72795,14 @@
       // ── 4 · DFA BOX LADDER runs 4..16 INCLUSIVE — dropping the 16-beat box moves alpha1.
       T.eq('the near-constant probe series reads alpha1 0.341 with the full ladder', E.dfaAlpha1([16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 17], null), 0.341);
 
-      // ── 5 · buildNN COVERAGE — spanSec > 0 STRICT picks the computed path; zero span falls back
-      //      to 100 by declaration, and >= would send 0/0 (NaN) through instead.
-      T.eq('no beats: coverage declared 100, corrected 0', JSON.stringify({ c: E.buildNN(null, []).coveragePct, n: E.buildNN(null, []).nCorrected }), '{"c":100,"n":0}');
-      T.eq('a real 8-beat train: coverage COMPUTED 100', E.buildNN('buildNN', [440, 480, 500, 550, 600, 650, 700, 750], 0.3, 0.2).coveragePct, 100);
+      // ── 5 · buildNN COVERAGE — spanSec > 0 STRICT picks the computed path; a span of zero now
+      //      REFUSES instead of declaring 100, and >= would send 0/0 (NaN) through instead. Both legs
+      //      read 100 until 2026-11-16, so the suite defended a full-coverage claim over a record
+      //      that measured no span — and the second leg passed its times as the STRING 'buildNN',
+      //      which makes every stamp NaN, so it took the fallback it claimed to prove computed.
+      T.eq('no beats: coverage REFUSES, corrected 0', JSON.stringify({ c: E.buildNN(null, []).coveragePct, n: E.buildNN(null, []).nCorrected }), '{"c":null,"n":0}');
+      T.eq('a real 8-beat train over 7 s: coverage COMPUTED 100', E.buildNN([0, 1, 2, 3, 4, 5, 6, 7], [440, 480, 500, 550, 600, 650, 700, 750], [1, 1, 1, 1, 1, 1, 1, 1], 0.3, 0.2).coveragePct, 100);
+      T.eq('…and NaN stamps refuse too — a non-finite span is no span', E.buildNN('buildNN', [440, 480, 500, 550, 600, 650, 700, 750], [1, 1, 1, 1, 1, 1, 1, 1], 0.3, 0.2).coveragePct, null);
 
       // ── 6 · classifyMode DURATION — 300 s is a 5 min reading; zeroing the /60 makes it Infinity.
       T.eq('300 seconds reads as 5 min', E.classifyMode(300).modeWhy, '5 min reading');
@@ -72886,6 +72890,81 @@
       T.eq('no ECG clock: offset 0, both epochs observed', JSON.stringify(Array.from(emNoClock.keys())), '["0.0","5.0"]');
       var emShift = E.epochMotion(mkAcc(271000), 4, 1000, 600, two);
       T.eq('ACC 270 s late against a real ECG clock: epoch 0 is DROPPED, not stilled', JSON.stringify(Array.from(emShift.keys())), '["5.0"]');
+    });
+
+    /* ════ 21b · buildNN ABSENCE — A COVERAGE OVER A ZERO SPAN IS UNMEASURED, NOT COMPLETE ════
+     Residue 2026-11-15-ecgdex-buildnn-coverage-100-over-zero-span. `coveragePct` published **100**
+     whenever `spanSec` was 0, which is a full-coverage claim about a record that measured no span,
+     and `analyzablePct` carried it to the KPI card as "100 % analyzable". Two inputs reach it:
+     fewer than two intervals, and a device counter that never advances (`tt[n-1] === tt[0]` over
+     any number of beats — the device axis is adopted on FINITE stamps alone, so a stuck counter
+     arrives through `analyze` itself). The PRODUCT must refuse with its factor, because
+     `null / 100` is 0 in JavaScript: nulling the coverage alone would have turned a fabricated
+     100 % into a fabricated 0 %, the same bug with a worse number. */
+    group('ECGDex buildNN absence: a coverage over a zero span refuses and names its cause', 'ecgdex-dsp · absence', function (T) {
+      var E = env.ECGDSP || env.EcgDsp;
+      if (!E || typeof E.buildNN !== 'function') {
+        T.skip('ECGDSP.buildNN available', 'ECGDex not co-loaded in this runner');
+        return;
+      }
+      var nonFinite = function (o) {
+        var bad = [];
+        Object.keys(o).forEach(function (k) {
+          if (typeof o[k] === 'number' && !isFinite(o[k])) bad.push(k);
+        });
+        return bad.join(',');
+      };
+
+      // ── 1 · DEAD — no beats at all. Every RATIO refuses and names its own cause. The COUNTS stay
+      //      counts: a count has no denominator, so 0 corrections over no beats is measured.
+      var dead = E.buildNN(null, [], []);
+      T.eq('no beats: all four ratios refuse', JSON.stringify({ c: dead.coveragePct, b: dead.cleanBeatPct, a: dead.analyzablePct, r: dead.correctionRate }), '{"c":null,"b":null,"a":null,"r":null}');
+      T.eq('…coverage names its cause', dead.coveragePctReason, 'fewer than two beat intervals — no span exists to measure coverage over');
+      T.eq('…the clean-beat share names its own', dead.cleanBeatPctReason, 'no beat intervals — no population to score');
+      T.eq('…the product names the factor it lost', dead.analyzablePctReason, 'beat coverage is unmeasured, so the clean-beat share cannot be discounted by it');
+      T.eq('…the correction rate names its own', dead.correctionRateReason, 'no beat intervals — no population to correct');
+      T.eq('the counts are still counts', JSON.stringify({ n: dead.nCorrected, e: dead.nEctopyCorrected }), '{"n":0,"e":0}');
+      T.eq('and no field of the refused panel is NaN or Infinity', nonFinite(dead), '');
+
+      // ── 2 · ONE BEAT — the clean-beat share IS measured (one beat is a population of one) and the
+      //      coverage is not. The product must refuse as NULL, never as the 0 that `null / 100` gives.
+      var one = E.buildNN([10], [800], [1]);
+      T.eq('one beat: clean-beat measured, coverage and product refuse', JSON.stringify({ b: one.cleanBeatPct, c: one.coveragePct, a: one.analyzablePct }), '{"b":100,"c":null,"a":null}');
+      T.ok('the product is null, not the 0 that nulling its factor alone would publish', one.analyzablePct === null, 'analyzablePct=' + one.analyzablePct);
+      T.eq('…and it names the unmeasured factor', one.analyzablePctReason, 'beat coverage is unmeasured, so the clean-beat share cannot be discounted by it');
+
+      // ── 3 · A STUCK DEVICE COUNTER — five real beats on one stamp. This is the input that reaches
+      //      here through `analyze`, since the 12-peak floor is met and the stamps are all finite.
+      var stuck = E.buildNN([7, 7, 7, 7, 7], [800, 810, 790, 805, 800], [1, 1, 1, 1, 1]);
+      T.eq('five beats, one stamp: span 0 and coverage refuses', JSON.stringify({ s: stuck.spanSec, c: stuck.coveragePct, a: stuck.analyzablePct }), '{"s":0,"c":null,"a":null}');
+      T.eq('…and the cause is the span, not the beat count', stuck.coveragePctReason, 'the beat series spans no time — no span to divide the covered time by');
+      T.eq('…the clean-beat share over five real beats is still measured', stuck.cleanBeatPct, 100);
+      T.eq('and no field of that panel is NaN or Infinity', nonFinite(stuck), '');
+
+      // ── 4 · CONTROL, so none of the three above is vacuous: a 5-beat train spanning 4 s computes
+      //      every one of the four, and no reason is written beside a measured number.
+      var ok = E.buildNN([0, 1, 2, 3, 4], [800, 810, 790, 805, 800], [1, 1, 1, 1, 1]);
+      T.eq('a 4-second train computes all four', JSON.stringify({ c: ok.coveragePct, b: ok.cleanBeatPct, a: ok.analyzablePct, r: ok.correctionRate }), '{"c":100,"b":100,"a":100,"r":0}');
+      T.eq(
+        '…and every reason is null',
+        JSON.stringify({ c: ok.coveragePctReason, b: ok.cleanBeatPctReason, a: ok.analyzablePctReason, r: ok.correctionRateReason }),
+        '{"c":null,"b":null,"a":null,"r":null}'
+      );
+      T.eq('…over the measured 4 s span', ok.spanSec, 4);
+
+      // ── 5 · `analyze` PUBLISHES THE REASONS, or the KPI card falls back to its own prose and the
+      //      node's named cause never reaches the reader (source mirror — `analyze` needs a record).
+      var dsrc = (env.sources || {})['ecgdex-dsp.js'] || '';
+      T.ok('analyze publishes coveragePctReason', /coveragePctReason:\s*nnRes\.coveragePctReason/.test(dsrc));
+      T.ok('analyze publishes analyzablePctReason', /analyzablePctReason:\s*nnRes\.analyzablePctReason/.test(dsrc));
+
+      // ── 6 · THE RENDER PRINTS A DASH, NEVER `null%` — `pv` is the value half of the rule whose
+      //      grade half is `sc`, and the KPI sub-line prints the node's own cause.
+      var asrc = (env.sources || {})['ecgdex-app.js'] || '';
+      T.ok('pv() refuses a null or non-finite value with an em dash', /const pv = \(v, u\) => \(v == null \|\| !isFinite\(v\) \? '—'/.test(asrc));
+      T.ok('the analyzable KPI value goes through pv', /v: pv\(r\.analyzablePct, '%'\)/.test(asrc));
+      T.ok('the KPI sub-line prints the node cause when coverage is absent', /r\.coveragePct == null \? r\.coveragePctReason/.test(asrc));
+      T.ok('the correction rate grades through scLo, so a refusal is neutral', /scLo\(r\.correctionRate, 3, 8\)/.test(asrc));
     });
 
     /* ════ 22 · OXIMETER SELF-GATE & CONSEQUENCE-COROBORATION ════

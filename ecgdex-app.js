@@ -527,7 +527,13 @@ self.onmessage = async (e) => {
         document.body.classList.add('has-data');
         $('exportBar').classList.add('show');
         showOK(
-          'Analyzed ' + r.nBeats + ' beats from ' + (r.durSec >= 3600 ? (r.durSec / 3600).toFixed(1) + ' h' : (r.durSec / 60).toFixed(0) + ' min') + ' of ECG · ' + r.analyzablePct + '% analyzable'
+          'Analyzed ' +
+            r.nBeats +
+            ' beats from ' +
+            (r.durSec >= 3600 ? (r.durSec / 3600).toFixed(1) + ' h' : (r.durSec / 60).toFixed(0) + ' min') +
+            ' of ECG · ' +
+            pv(r.analyzablePct, '%') +
+            ' analyzable'
         );
         setTimeout(() => {
           $('prog').classList.remove('show');
@@ -583,8 +589,8 @@ self.onmessage = async (e) => {
       ' bpm · ' +
       (r.durSec >= 3600 ? (r.durSec / 3600).toFixed(1) + ' h' : (r.durSec / 60).toFixed(0) + ' min') +
       '<br>' +
-      r.analyzablePct +
-      '% analyzable';
+      pv(r.analyzablePct, '%') +
+      ' analyzable';
   }
 
   function updateScopeReadout(view, fs, N) {
@@ -607,6 +613,14 @@ self.onmessage = async (e) => {
      RED rather than neutral"). A refusal is `neutral`, and the value cell prints an em dash.
      A real 0 still grades, because 0 is a legal value for every metric this helper reads. */
   const sc = (v, ok, warn) => (v == null || !isFinite(v) ? 'neutral' : v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
+  /* The value half of the same rule: a refusal prints an em dash, never `null%`, and never a number
+     this node did not measure. `buildNN` publishes a null `coveragePct` and a null `analyzablePct`
+     when the beat series spans no time, so every surface that printed them by concatenation read
+     `null%` and graded the absence against a threshold. */
+  const pv = (v, u) => (v == null || !isFinite(v) ? '—' : v + (u || ''));
+  /* …and the same two halves where LOWER is better. The correction rate repeated this ternary at
+     three surfaces with no refusal arm, so a null correction rate graded `bad` and printed `null%`. */
+  const scLo = (v, ok, warn) => (v == null || !isFinite(v) ? 'neutral' : v < ok ? 'ok' : v < warn ? 'warn' : 'bad');
   const hrStat = (v) => (v < 35 ? 'bad' : v <= 80 ? 'ok' : v <= 95 ? 'warn' : 'bad');
 
   function renderContext(r) {
@@ -689,12 +703,12 @@ self.onmessage = async (e) => {
       { l: 'SDNN' + (r.longRec ? ' (med)' : ''), v: r.dispSd + 'ms', sub: r.tier === 'ultra-short' ? 'needs ≥5min' : '≥50 good', s: r.tier === 'ultra-short' ? 'neutral' : sc(r.dispSd, 50, 30) },
       {
         l: '% Analyzable',
-        v: r.analyzablePct + '%',
-        sub: r.coveragePct != null && r.coveragePct < 99 ? r.coveragePct + '% covered · ' + r.cleanBeatPct + '% clean' : 'night usable',
-        s: r.analyzablePct >= 90 ? 'ok' : r.analyzablePct >= 75 ? 'warn' : 'bad'
+        v: pv(r.analyzablePct, '%'),
+        sub: r.coveragePct == null ? r.coveragePctReason || 'beat coverage unmeasured' : r.coveragePct < 99 ? r.coveragePct + '% covered · ' + pv(r.cleanBeatPct, '%') + ' clean' : 'night usable',
+        s: sc(r.analyzablePct, 90, 75)
       },
       ...(r.lowCoverage ? [{ l: 'Coverage', v: r.coveragePct + '%', sub: r.gapMin + ' min off-body · ' + r.nGaps + ' gap' + (r.nGaps === 1 ? '' : 's'), s: 'bad' }] : []),
-      { l: 'Correction', v: r.correctionRate + '%', sub: 'beats fixed', s: r.correctionRate < 3 ? 'ok' : r.correctionRate < 8 ? 'warn' : 'bad' },
+      { l: 'Correction', v: pv(r.correctionRate, '%'), sub: 'beats fixed', s: scLo(r.correctionRate, 3, 8) },
       {
         l: 'CVHR Index',
         v: r.longRec && !r.ambulatory && r.cvhr ? r.cvhr.index : '—',
@@ -728,9 +742,9 @@ self.onmessage = async (e) => {
   function renderQuality(r) {
     $('qualityCard').innerHTML = `
     <div class="q-grid">
-      <div class="q-stat">${evBadge('Analyzable')}<div class="q-val ${r.analyzablePct >= 90 ? 'ok' : r.analyzablePct >= 75 ? 'warn' : 'bad'}">${r.analyzablePct}%</div><div class="q-lbl">Analyzable</div><div class="q-sub">clean-beat × coverage</div></div>
-      <div class="q-stat">${evBadge('Beat coverage')}<div class="q-val ${r.coveragePct >= 90 ? 'ok' : r.coveragePct >= 75 ? 'warn' : 'bad'}">${r.coveragePct == null ? '—' : r.coveragePct + '%'}</div><div class="q-lbl">Beat coverage</div><div class="q-sub">${r.activeMin} of ${r.spanMin} min span${r.nGaps ? ` · ${r.nGaps} gap${r.nGaps === 1 ? '' : 's'}` : ''}</div></div>
-      <div class="q-stat">${evBadge('Correction rate')}<div class="q-val ${r.correctionRate < 3 ? 'ok' : r.correctionRate < 8 ? 'warn' : 'bad'}">${r.correctionRate}%</div><div class="q-lbl">Correction rate</div><div class="q-sub">${r.nCorrected.toLocaleString()} of ${r.nBeats.toLocaleString()}${r.nEctopyCorrected ? ' · ' + r.nEctopyCorrected + ' ectopic' : ''}</div></div>
+      <div class="q-stat">${evBadge('Analyzable')}<div class="q-val ${sc(r.analyzablePct, 90, 75)}">${pv(r.analyzablePct, '%')}</div><div class="q-lbl">Analyzable</div><div class="q-sub">clean-beat × coverage</div></div>
+      <div class="q-stat">${evBadge('Beat coverage')}<div class="q-val ${sc(r.coveragePct, 90, 75)}">${pv(r.coveragePct, '%')}</div><div class="q-lbl">Beat coverage</div><div class="q-sub">${r.activeMin} of ${r.spanMin} min span${r.nGaps ? ` · ${r.nGaps} gap${r.nGaps === 1 ? '' : 's'}` : ''}</div></div>
+      <div class="q-stat">${evBadge('Correction rate')}<div class="q-val ${scLo(r.correctionRate, 3, 8)}">${pv(r.correctionRate, '%')}</div><div class="q-lbl">Correction rate</div><div class="q-sub">${r.nCorrected.toLocaleString()} of ${r.nBeats.toLocaleString()}${r.nEctopyCorrected ? ' · ' + r.nEctopyCorrected + ' ectopic' : ''}</div></div>
       <div class="q-stat">${evBadge('Mean SQI')}<div class="q-val ${r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad'}">${r.meanSQI}</div><div class="q-lbl">Mean SQI</div><div class="q-sub">→ Ganglior conf</div></div>
     </div>
     ${r.lowCoverage ? `<div class="q-note" style="color:var(--amber);border:1px solid rgba(255,184,77,.25);background:rgba(255,184,77,.06);border-radius:8px;padding:10px 12px;margin-bottom:10px">⚠ <b>Low coverage:</b> beats span ${r.spanMin} min but only ${r.activeMin} min is continuously covered — ${r.gapMin} min of off-body / dropout across ${r.nGaps} gap${r.nGaps === 1 ? '' : 's'}. All metrics describe the usable signal only; duration and tier use active time, not the raw span.</div>` : ''}
@@ -1688,8 +1702,8 @@ self.onmessage = async (e) => {
       ['Duration', r.durMin, 'min', '—', 'neutral', r.epochs.length + ' × 5-min epochs'],
       ['Sample rate', _fsReadable(r.fs), 'Hz', '130', 'neutral', 'Polar-H10-style chest sensor · measured rate at two decimals; the export keeps every digit'],
       ['Beats (NN)', r.nBeats, 'beats', '—', 'neutral', 'After SQI gate + interpolation'],
-      ['Analyzable', r.analyzablePct, '%', '≥90', r.analyzablePct >= 90 ? 'ok' : r.analyzablePct >= 75 ? 'warn' : 'bad', '% night above SQI threshold'],
-      ['Correction', r.correctionRate, '%', '<3', r.correctionRate < 3 ? 'ok' : r.correctionRate < 8 ? 'warn' : 'bad', 'Beats interpolated'],
+      ['Analyzable', r.analyzablePct == null ? '—' : r.analyzablePct, '%', '≥90', sc(r.analyzablePct, 90, 75), '% night above SQI threshold'],
+      ['Correction', r.correctionRate == null ? '—' : r.correctionRate, '%', '<3', scLo(r.correctionRate, 3, 8), 'Beats interpolated'],
       ['Mean SQI', r.meanSQI, '0–1', '≥0.7', r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad', '→ Ganglior conf'],
       ['— Personalised —', '', '', '', 'neutral', 'derived against your profile (age ' + (r.profile ? r.profile.age : '—') + ')'],
       [
@@ -2477,7 +2491,7 @@ self.onmessage = async (e) => {
         .map((s) => {
           const k = s._key,
             active = k === activeKey,
-            q = s.analyzablePct >= 90 ? 'ok' : s.analyzablePct >= 75 ? 'warn' : 'bad';
+            q = sc(s.analyzablePct, 90, 75);
           return (
             '<button class="rec-item ' +
             (active ? 'active' : '') +
@@ -2489,8 +2503,8 @@ self.onmessage = async (e) => {
             '</span><span class="ri-q ' +
             q +
             '">' +
-            s.analyzablePct +
-            '%</span></div>' +
+            pv(s.analyzablePct, '%') +
+            '</span></div>' +
             '<div class="ri-sub">' +
             (s.durSec >= 3600 ? (s.durSec / 3600).toFixed(1) + ' h' : (s.durSec / 60).toFixed(0) + ' min') +
             ' · ' +
