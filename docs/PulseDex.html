@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="cf3d70943bae" data-compute-hash="6add6ed152d8"><head>
+<html lang="en" data-manifest-hash="4554b497f31e" data-compute-hash="204fe67fea1c"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BwIEG5e/Uapft+skD25nEc+0xQkfGrQBUo+6rpvO7F0=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-ewYaE58B+JltvzBuoT2iK76Q0j70W3Z6w8XW2xY6/KE=' 'sha256-gA6/rghZPDdnGh8rDgNkZObDLZMj5bvp5tUvUPIhyYU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-sT1+vtq8jPdjKLkkjRhD7sO4xD2UufB5H3vGsoX0ImA=' 'sha256-vQAa9K1phNeQfSzojI5eOIZcjOYOuGV6Ah0tJNUZIyw=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-2sr3vR/hmKkI6/kbcITX6kd8lNKdAYo3B6+vqfNAc34=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BwIEG5e/Uapft+skD25nEc+0xQkfGrQBUo+6rpvO7F0=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QYcfW3eQP6+aYrtsuhLs/sXg9FnkZlzYrq8cohp0GNU=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-bCPDj6a+6bTdhnxj8blByWpAC4axVkKliMEn9I/EH/U=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-gA6/rghZPDdnGh8rDgNkZObDLZMj5bvp5tUvUPIhyYU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-sT1+vtq8jPdjKLkkjRhD7sO4xD2UufB5H3vGsoX0ImA=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.33.0</title>
@@ -7072,6 +7072,45 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     };
   }
 
+  /* ── §6 · the consumer rebuild of a date-less event stamp ────────────────────────────
+     `ganglior_events[]` carries `t` as a date-less wall-clock string, and §6 tells a consumer to rebuild
+     `tMs` from the recording's own `startEpochMs` date, rolling past midnight. Six review timelines keyed
+     their sort on `(a.tMs || 0)` instead, so an event the node could not place sorted to 1970-01-01 and
+     led the list — §∅, an absent value read as a number.
+     Promoted from `glucodex-dsp.js`, where this pair shipped first and still carries its own suite legs.
+     GlucoDex keeps that node-local copy, because the GlucoDex bundle inlines no `clock.js` by design
+     (CLAUDE.md §✅). That is the one duplicate of this pair which stays, and it is deliberate. */
+  var _CK_EV_HHMM = /^(\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?$/;
+  function eventSortKeyMs(ev, t0Ms) {
+    if (ev && typeof ev.tMs === 'number' && isFinite(ev.tMs)) return ev.tMs; // §6: an absolute stamp wins
+    if (!ev || ev.t == null || typeof t0Ms !== 'number' || !isFinite(t0Ms)) return null;
+    var m = String(ev.t).trim().match(_CK_EV_HHMM);
+    if (!m) return null;
+    var a = new Date(t0Ms); // §5: a floating tMs reads back through getUTC* only
+    var k = _ckMk(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate(), +m[1], +m[2], m[3] ? +m[3] : 0, m[4] ? +(m[4] + '00').slice(0, 3) : 0);
+    if (k == null) return null;
+    if (k < t0Ms - 60000) k += 86400000; // the event window is [t0 − 60 s, t0 + 24 h)
+    return k;
+  }
+  /* Stable and absence-last over that key, in BOTH directions: two placeable events compare on the key,
+     two unplaceable events keep their arrival order, and an unplaceable event never sorts ahead of a
+     placeable one. `opts.desc` reverses only the placeable comparison, so a newest-first table still
+     reads its unplaceable rows at the end rather than at the top. A caller with no anchor passes `null`
+     and reads its arrival order back unchanged. */
+  function sortEventsByClock(evs, t0Ms, opts) {
+    var desc = !!(opts && opts.desc);
+    var dec = (evs || []).map(function (e, i) {
+      return { e: e, i: i, k: eventSortKeyMs(e, t0Ms) };
+    });
+    dec.sort(function (a, b) {
+      if (a.k == null || b.k == null) return a.k == null && b.k == null ? a.i - b.i : a.k == null ? 1 : -1;
+      return (desc ? b.k - a.k : a.k - b.k) || a.i - b.i;
+    });
+    return dec.map(function (d) {
+      return d.e;
+    });
+  }
+
   root.DexClock = {
     tzOffset: tzOffset,
     _ckP2: _ckP2,
@@ -7082,6 +7121,8 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     parseTimestamp: parseTimestamp,
     fileStamp: fileStamp,
     hostAxis: hostAxis,
+    eventSortKeyMs: eventSortKeyMs,
+    sortEventsByClock: sortEventsByClock,
     // Promoted from ppgdex-dsp.js so the fleet has ONE JS core (HOSTAXIS-STABILITY §4.3). Nodes
     // delegate by name, the way they already do for parseTimestamp.
     allanFromPhase: _ckAllanFromPhase,
@@ -10582,12 +10623,13 @@ function _pulseInjectReviewCSS() {
   st.textContent = css;
   (document.head || document.documentElement).appendChild(st);
 }
-function pulseReviewTimeline(events) {
+function pulseReviewTimeline(events, t0Ms) {
   var evs = Array.isArray(events) ? events.slice() : [];
   if (!evs.length) return '<div class="prv-none">No scored events in this export.</div>';
-  evs.sort(function (a, b) {
-    return (a.tMs || 0) - (b.tMs || 0);
-  });
+  /* ∅ §6 — a `t`-only event has no `tMs`, and the former key read that absence as 1970-01-01, so
+     an unplaceable event LED this timeline. `t0Ms` is the export's `recording.startEpochMs` and
+     trails the existing parameter. The shared key sorts an unplaceable event last. */
+  evs = DexClock.sortEventsByClock(evs, t0Ms);
   var CAP = 40,
     shown = evs.slice(0, CAP);
   var name = function (e) {
@@ -10683,7 +10725,7 @@ function pulseReviewView(review) {
       })
       .join('') +
     '</div>';
-  h += '<div class="prv-sec">Event timeline</div>' + pulseReviewTimeline(review.events);
+  h += '<div class="prv-sec">Event timeline</div>' + pulseReviewTimeline(review.events, review.recording && review.recording.startEpochMs);
   h +=
     '<div class="prv-sec">Raw signal</div>' +
     '<div class="prv-greyed"><strong>RR tachogram &amp; Poincaré scatter not included</strong>Per-beat RR intervals are not carried in the export — review mode shows the derived HRV layer only. Re-run the original RR/IBI recording for the beat-by-beat charts.</div>';
@@ -10866,7 +10908,7 @@ function pxHistory() {
       : { dmy: true, locked: false };
   // §1.1 — pass the contradiction through so the ambiguous slash shapes refuse instead of guessing
   const _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked, dmyContradictory: _order.contradictory === true };
-  const rows = welltoryData.rows
+  const _rowsParsed = welltoryData.rows
     .map((r) => {
       const p = parseTimestamp(r[iDt] || '', _tsOpts); // CLOCK-UNIFY floating wall-clock
       return {
@@ -10879,8 +10921,12 @@ function pxHistory() {
         energy: parseFloat(r[iEn])
       };
     })
-    .filter((r) => isFinite(r.rmssd))
-    .sort((a, b) => (a.tMs || 0) - (b.tMs || 0)); // oldest→newest
+    .filter((r) => isFinite(r.rmssd));
+  /* ∅ §6 — the map above writes `tMs: p ? p.tMs : NaN`, so the absence is explicit, and `NaN || 0`
+     then read it as 1970-01-01. A row whose Welltory stamp never parsed therefore LED this
+     oldest-first series and became the earliest point on every overview chart. The shared key sorts
+     an unplaceable row last and leaves the placeable order unchanged. */
+  const rows = DexClock.sortEventsByClock(_rowsParsed, null); // oldest→newest
   if (!rows.length) return null;
   return { rows, prev: rows[rows.length - 1] };
 }

@@ -106,7 +106,7 @@ function pxHistory() {
       : { dmy: true, locked: false };
   // §1.1 — pass the contradiction through so the ambiguous slash shapes refuse instead of guessing
   const _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked, dmyContradictory: _order.contradictory === true };
-  const rows = welltoryData.rows
+  const _rowsParsed = welltoryData.rows
     .map((r) => {
       const p = parseTimestamp(r[iDt] || '', _tsOpts); // CLOCK-UNIFY floating wall-clock
       return {
@@ -119,8 +119,12 @@ function pxHistory() {
         energy: parseFloat(r[iEn])
       };
     })
-    .filter((r) => isFinite(r.rmssd))
-    .sort((a, b) => (a.tMs || 0) - (b.tMs || 0)); // oldest→newest
+    .filter((r) => isFinite(r.rmssd));
+  /* ∅ §6 — the map above writes `tMs: p ? p.tMs : NaN`, so the absence is explicit, and `NaN || 0`
+     then read it as 1970-01-01. A row whose Welltory stamp never parsed therefore LED this
+     oldest-first series and became the earliest point on every overview chart. The shared key sorts
+     an unplaceable row last and leaves the placeable order unchanged. */
+  const rows = DexClock.sortEventsByClock(_rowsParsed, null); // oldest→newest
   if (!rows.length) return null;
   return { rows, prev: rows[rows.length - 1] };
 }
