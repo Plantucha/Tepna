@@ -44456,9 +44456,9 @@
          never on, so every mask-on lane is empty and every event index divides by zero hours. */
       var dead = C.computeMetrics(C.prepare({ t0Ms: T0, fs: 1, pressure: new Float32Array(600), leak: null, events: [{ type: 'OA', timeSec: 10, durSec: 20 }] }));
       T.eq(
-        '∅ a mask never on publishes no pressure, no index and no leak — each with the reason beside it',
+        '∅ a mask never on publishes no pressure and no index — and an ABSENT leak lane names the lane, not the mask',
         pick(dead, LANES),
-        '{"usageHours":0,"maskOnLatency":null,"maskOnLatencyReason":"therapy-never-started","medianPressure":null,"p95Pressure":null,"pressureRange":null,"maskOnReason":"no-mask-on-pressure-sample","residualAHI":null,"centralIndex":null,"obstructiveIndex":null,"hypopneaIndex":null,"medianLeak":null,"p95Leak":null,"largeLeakPct":null,"leakCV":null,"leakReason":"no-mask-on-leak-sample"}'
+        '{"usageHours":0,"maskOnLatency":null,"maskOnLatencyReason":"therapy-never-started","medianPressure":null,"p95Pressure":null,"pressureRange":null,"maskOnReason":"no-mask-on-pressure-sample","residualAHI":null,"centralIndex":null,"obstructiveIndex":null,"hypopneaIndex":null,"medianLeak":null,"p95Leak":null,"largeLeakPct":null,"leakCV":null,"leakReason":"no-leak-lane"}'
       );
       T.eq('…and no field of the panel is a number-typed sentinel', JSON.stringify(nonFinite(dead, '')), '[]');
 
@@ -44485,6 +44485,43 @@
         'CONTROL · a MEASURED zero still publishes 0 — a flat pressure, a clean central index and a 0 % large-leak share',
         pick(live, LANES),
         '{"usageHours":2,"maskOnLatency":0,"maskOnLatencyReason":null,"medianPressure":10,"p95Pressure":10,"pressureRange":0,"maskOnReason":null,"residualAHI":1,"centralIndex":0,"obstructiveIndex":0.5,"hypopneaIndex":0.5,"medianLeak":5,"p95Leak":5,"largeLeakPct":0,"leakCV":0,"leakReason":null}'
+      );
+
+      /* ∅ A LIVE SESSION WITH NO LEAK CHANNEL. `prepare` substituted a zero-filled `Float32Array`
+         for an absent `raw.leak`, so `leakMaskOn` carried one zero per mask-on second and this
+         panel published `medianLeak: 0`, `p95Leak: 0` and `largeLeakPct: 0` with `leakReason: null`
+         beside them — the reading of a perfectly sealed mask over a lane the device never reported.
+         The EDF sibling `buildSessionFromEdf` answers `leakReason: 'no-leak-lane'` for the same
+         absence, so one node published two readings of one fact. */
+      var noLane = C.computeMetrics(C.prepare({ t0Ms: T0, fs: 1, pressure: press, events: [{ type: 'OA', timeSec: 10, durSec: 20 }] }));
+      T.eq(
+        '∅ a session with NO leak lane publishes no leak number, and the reason names the LANE',
+        pick(noLane, LANES),
+        '{"usageHours":2,"maskOnLatency":0,"maskOnLatencyReason":null,"medianPressure":10,"p95Pressure":10,"pressureRange":0,"maskOnReason":null,"residualAHI":0.5,"centralIndex":0,"obstructiveIndex":0.5,"hypopneaIndex":0,"medianLeak":null,"p95Leak":null,"largeLeakPct":null,"leakCV":null,"leakReason":"no-leak-lane"}'
+      );
+      T.eq('…and no field of the no-leak panel is a number-typed sentinel', JSON.stringify(nonFinite(noLane, '')), '[]');
+      /* INVERTED LEG · the lane is PRESENT and the mask never came on. That is a different fact and
+         it keeps its own reason, so the fix above must not collapse the two absences into one. */
+      var laneNoMask = C.computeMetrics(C.prepare({ t0Ms: T0, fs: 1, pressure: new Float32Array(600), leak: new Float32Array(600).fill(5), events: [] }));
+      T.eq(
+        'CONTROL · a PRESENT leak lane with no mask-on sample keeps the MASK reason',
+        JSON.stringify({ leakReason: laneNoMask.leakReason, medianLeak: laneNoMask.medianLeak, leakCV: laneNoMask.leakCV }),
+        '{"leakReason":"no-mask-on-leak-sample","medianLeak":null,"leakCV":null}'
+      );
+      /* THE DOWNSTREAM HALF. `leakSqi` already refuses an unassessable seal, and its own comment
+         reads "`largeLeakPct` is NaN when there is no leak channel". The zero-filled lane made that
+         value a finite 0 instead, so the guard never saw the case it exists for, and `buildSession`
+         published `sqi: 1` — the best possible signal quality — for a session with no leak channel.
+         A rule enforced at one layer is not enforced. */
+      T.eq(
+        '∅ a session with NO leak lane publishes NO seal quality, where it published 1',
+        JSON.stringify(C.buildSession(C.prepare({ t0Ms: T0, fs: 1, pressure: press, events: [] }), { fname: 'noleak.csv' }).sqi),
+        'null'
+      );
+      T.eq(
+        'CONTROL · a MEASURED well-sealed mask still scores exactly 1',
+        JSON.stringify(C.buildSession(C.prepare({ t0Ms: T0, fs: 1, pressure: press, leak: lk, events: [] }), { fname: 'sealed.csv' }).sqi),
+        '1'
       );
 
       /* ── 2 · buildLongitudinal ── the sample SD needs two nights. `0` claimed a measured
