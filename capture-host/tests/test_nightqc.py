@@ -908,6 +908,122 @@ def test_summarize_pools_when_the_neighbour_was_still_writing_at_wake(tmp_path):
     assert s["span_sec"] > 5 * 3600  # the night's span, not the fragment's
 
 
+def test_summarize_pools_when_the_neighbour_RAN_PAST_MIDNIGHT_and_this_folder_is_a_daytime_sitting(tmp_path):
+    """FOURTH FAILED ASSUMPTION IN THIS GUARD'S FAMILY. Contiguity with THIS folder's earliest session
+    assumes that session is night signal, and a daytime sitting is not. Real case, 2026-11-15 (board
+    #6552): the night ran 23:24 -> 07:23 on three devices with 0 gaps, so every file of it is named into
+    yesterday's folder, and this folder's first capture opened at 11:34 — an unrelated daytime sitting.
+    The contiguity test measures 4 h 11 m between the two and refuses, RIGHTLY, because they are not one
+    session. The night still crossed midnight into this date. QC judged 18:00 -> 10:00 against a daytime
+    file, found no row, and answered UNKNOWN over a flawless tri-device night. A neighbour write after
+    this folder's midnight IS the crossing, and every session test here is only a proxy for it."""
+    from datetime import datetime as _dt
+
+    d14 = str(tmp_path / "2026-11-14")
+    os.makedirs(d14)
+    d15 = str(tmp_path / "2026-11-15")
+    os.makedirs(d15)
+    night = _dt.strptime("20261114232400", "%Y%m%d%H%M%S").timestamp()  # 23:24 -> 07:23, all next door
+    day = _dt.strptime("20261115113400", "%Y%m%d%H%M%S").timestamp()  # 11:34, in the band's daylight hole
+    _utime(_cap(d14, "Polar_H10_02849638_20261114232400_HR.txt", 28740), night + 28740)
+    _utime(_cap(d15, "Polar_H10_02849638_20261115113400_HR.txt", 600), day + 600)
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    s = _summarize(d15, devs)
+    assert s["searched_dirs"] == ["2026-11-15", "2026-11-14"], s["searched_dirs"]  # it ASKED next door
+    assert s["devices"][0]["streams"]["hr"] == 28740, s["devices"][0]["streams"]  # the night, judged here too
+    assert s["span_sec"] > 7 * 3600, s["span_sec"]  # ~8 h of night, not a 10 min sitting
+    assert s["missing"] == []
+
+
+def test_summarize_does_not_pool_when_the_neighbour_STOPPED_BEFORE_MIDNIGHT(tmp_path):
+    """THE CONTROL, and it kills the clause above read as "pool whenever the probe runs". An evening
+    sitting that closed at 23:26 crossed nothing, so this folder's daytime session owns its own verdict
+    and yesterday keeps its own. The neighbour's last write sits BEFORE this folder's midnight, which is
+    the whole difference from the case above — the probe runs in both, and only one pools."""
+    from datetime import datetime as _dt
+
+    d14 = str(tmp_path / "2026-11-14")
+    os.makedirs(d14)
+    d15 = str(tmp_path / "2026-11-15")
+    os.makedirs(d15)
+    ev = _dt.strptime("20261114200000", "%Y%m%d%H%M%S").timestamp()  # 20:00 -> 23:26, ends before midnight
+    day = _dt.strptime("20261115113400", "%Y%m%d%H%M%S").timestamp()  # the same 11:34 sitting
+    _utime(_cap(d14, "Polar_H10_02849638_20261114200000_HR.txt", 12360), ev + 12360)
+    _utime(_cap(d15, "Polar_H10_02849638_20261115113400_HR.txt", 600), day + 600)
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    s = _summarize(d15, devs)
+    assert s["searched_dirs"] == ["2026-11-15"], s["searched_dirs"]
+
+
+def test_summarize_does_not_pool_a_crossing_when_THIS_folder_HOLDS_night_signal(tmp_path):
+    """THE OTHER HALF OF THE CLAUSE, and a 2026-11-15 measurement forced it: pooling on the crossing
+    alone made `timeline.build` pool across a RECORDED DAEMON RESTART, which its own
+    `test_a_daemon_restart_between_the_two_folders_keeps_the_probe_from_pooling` refuses. A folder whose
+    session opens IN the band has a session question to answer, and the clock test and the contiguity
+    test answer it. Here the neighbour crossed midnight (23:24 → 00:30) and this folder opened at 05:00,
+    4 h 30 m later — in band, so the crossing clause stays out of it and the existing answer stands."""
+    from datetime import datetime as _dt
+
+    d14 = str(tmp_path / "2026-11-14")
+    os.makedirs(d14)
+    d15 = str(tmp_path / "2026-11-15")
+    os.makedirs(d15)
+    night = _dt.strptime("20261114232400", "%Y%m%d%H%M%S").timestamp()  # 23:24 -> 00:30, it DOES cross
+    five = _dt.strptime("20261115050000", "%Y%m%d%H%M%S").timestamp()  # 05:00 — inside the night band
+    _utime(_cap(d14, "Polar_H10_02849638_20261114232400_HR.txt", 3960), night + 3960)
+    _utime(_cap(d15, "Polar_H10_02849638_20261115050000_HR.txt", 600), five + 600)
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    assert nightqc.in_night_band(5 * 3600.0) and not nightqc.in_night_band(11.5 * 3600.0)  # the premise
+    s = _summarize(d15, devs)
+    assert s["searched_dirs"] == ["2026-11-15"], s["searched_dirs"]
+
+
+def test_in_night_band_is_CLOSED_at_its_start_and_OPEN_at_its_end():
+    """The two boundaries of the admission band, which no other test pins (mutants
+    `x_in_night_band__mutmut_3` and `_4`, run 43748619887).
+
+    18:00:00 is night signal and 10:00:00 is not, because the band a stamp is attributed to is
+    `[18:00, 10:00)` and the 8 h hole between those two is what makes containment a real question —
+    `night_band`'s own note carries the measurement. Either boundary read the other way moves a whole
+    hour of real evening, or of real morning, across the line between "this folder holds night signal"
+    and "this folder is a daytime sitting", which is what the pooling clause decides on."""
+    f = nightqc.floating_stamp_s
+    assert nightqc.in_night_band(f("20261115180000")) is True, "the band opens AT 18:00"
+    assert nightqc.in_night_band(f("20261115100000")) is False, "and closes BEFORE 10:00"
+    assert nightqc.in_night_band(f("20261115095959")) is True, "the last second inside it"
+    assert nightqc.in_night_band(f("20261115113400")) is False, "the daylight hole"
+
+
+def test_summarize_reads_the_crossing_in_a_DECLARED_frame_AND_at_the_exact_midnight(tmp_path):
+    """TWO BOUNDARIES OF `midnight + offset_sec` THAT THE READER'S OWN ZONE HIDES.
+
+    ⚠️ THE FRAME MUST BE NONZERO AND DECLARED. CI runs under UTC, where this fixture's offset is 0 and
+    `midnight + offset` equals `midnight - offset` exactly — so the SIGN of the frame correction is
+    unobservable there, and the mutation gate reported it unkillable (run 43748619887, mutant
+    `x_summarize__mutmut_94`). The same mutant died in 29 s under a zone whose offset is 5 h. A declared
+    3600 s frame states the frame these two legs build in, so both decide the same way in every zone.
+    The sibling `_summarize` reads the READER's frame, which is why it cannot answer this.
+
+    ⚠️ AND THE COMPARISON IS STRICT (mutant `x_summarize__mutmut_93`). A neighbour whose last write
+    lands EXACTLY at this folder's midnight has not crossed into it. The clause asks for evidence that
+    part of the judged window lives next door, and a write at the boundary instant is the last moment
+    of its own day, not the first of this one."""
+    off = 3600.0
+    mid = nightqc.floating_stamp_s("20261115000000")
+    day = nightqc.floating_stamp_s("20261115113400")
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    for leg, prev_close in (("stopped AT midnight", mid + off), ("stopped an hour before it", mid)):
+        root = tmp_path / leg.replace(" ", "-")
+        d14 = str(root / "2026-11-14")
+        os.makedirs(d14)
+        d15 = str(root / "2026-11-15")
+        os.makedirs(d15)
+        _utime(_cap(d14, "Polar_H10_02849638_20261114200000_HR.txt", 600), prev_close)
+        _utime(_cap(d15, "Polar_H10_02849638_20261115113400_HR.txt", 600), day + off + 600)
+        s = nightqc.summarize(d15, devs, None, writer_offset=nightqc.declared_offset(off))
+        assert s["searched_dirs"] == ["2026-11-15"], (leg, s["searched_dirs"])
+
+
 def test_summarize_does_not_pool_a_non_contiguous_small_hours_session(tmp_path):
     """The probe widens WHERE we ask, never WHAT we accept. A 02:00 sitting whose neighbour stopped at
     18:00 yesterday is not last night's session, and pooling it would fuse two unrelated sittings — the
@@ -4756,6 +4872,9 @@ _CLOCKLESS_BY_DESIGN = {
     "test_summarize_pools_when_the_reconnect_took_longer_than_the_gap": "pooling by contiguity",
     "test_summarize_pools_when_the_neighbour_was_still_writing_at_wake": "pooling by overlap",
     "test_summarize_does_not_pool_a_non_contiguous_small_hours_session": "pooling refusal by contiguity",
+    "test_summarize_pools_when_the_neighbour_RAN_PAST_MIDNIGHT_and_this_folder_is_a_daytime_sitting": "pooling by the crossing itself — a filename stamp, a midnight from the folder name and an mtime; no device clock takes part",
+    "test_summarize_does_not_pool_when_the_neighbour_STOPPED_BEFORE_MIDNIGHT": "the refusing arm of the same session-level claim",
+    "test_summarize_does_not_pool_a_crossing_when_THIS_folder_HOLDS_night_signal": "the band half of the same session-level claim; the band is read from a filename stamp alone",
     "test_span_at_exactly_the_minimum_is_judgeable": "the SESSION span floor _MIN_SPAN_SEC",
     # The mirror of the entry above, and it is listed for the same reason: the claim is that a span
     # UNDER the floor names why it cannot be judged. The shortness is produced by filename stamp +
@@ -4767,6 +4886,10 @@ _CLOCKLESS_BY_DESIGN = {
     "test_the_night_band_is_chosen_by_the_sessions_MIDPOINT": "which band a gap is judged against",
     "test_a_foreign_device_file_sorting_FIRST_does_not_end_the_sidecar_scan": "file-scan continuation",
     "test_the_cross_midnight_pool_is_EXCLUSIVE_at_exactly_the_gap": "pooling boundary, exclusive",
+    # Its claim is the POOLING DECISION, which runs on filename stamps, mtimes and the DECLARED frame
+    # alone — the strict boundary and the sign of `midnight + offset_sec`. No device clock takes part,
+    # and a timed fixture would add a span basis the two legs never read.
+    "test_summarize_reads_the_crossing_in_a_DECLARED_frame_AND_at_the_exact_midnight": "pooling boundary at midnight, and the frame SIGN that UTC hides",
     "test_the_night_window_and_arrival_are_computed_from_THIS_night": "collaborator scoping",
     # NO FILES AT ALL — there is no span to carry.
     "test_summarize_no_data_files_span_is_none": "a night of only a sidecar has no capture span",
