@@ -206,7 +206,15 @@ function renderTable(r) {
     ['DateTime', r.datetime || '—', '—', '—', 'neutral', 'Measurement timestamp'],
     ['Recording', r.modeLabel, '—', '—', 'neutral', r.modeWhy + (r.overridden ? ' · manual override' : ' · auto ' + r.modeConf + '%')],
     ['Duration', r.durMin, 'min', '—', 'neutral', r.nWindows ? r.nWindows + ' × 5-min windows' : 'single segment'],
-    ['Coverage', r.coverage, '%', '≥95', r.coverage >= 95 ? 'ok' : r.coverage >= 85 ? 'warn' : 'bad', 'RR-sum vs wall-clock (dropped-beat check)'],
+    // §∅ — an absent coverage gets no grade: a verdict about the recording may not come from a number that does not exist.
+    [
+      'Coverage',
+      r.coverage,
+      '%',
+      '≥95',
+      r.coverage == null ? 'neutral' : r.coverage >= 95 ? 'ok' : r.coverage >= 85 ? 'warn' : 'bad',
+      r.coverage == null ? 'No wall clock — coverage not measurable' : 'RR-sum vs wall-clock (dropped-beat check)'
+    ],
     ['Artifacts', r.artifactPct + ' (' + r.nArtifact + ')', '%', '<2', r.artifactPct < 2 ? 'ok' : r.artifactPct < 8 ? 'warn' : 'bad', 'Beats corrected to local median'],
     ['N (beats)', r.N, 'beats', '60–300+', 'neutral', 'Sample size (after cleaning)'],
     ['Mean RR', r.meanRR, 'ms', '700–1100', 'neutral', 'Average RR interval'],
@@ -350,7 +358,7 @@ function renderTable(r) {
       '0–100',
       '≥90 OK',
       r.artifactPct < 2 ? 'ok' : r.artifactPct < 8 ? 'warn' : 'bad',
-      'Real integrity = 100 − 2×artifact% (' + r.artifactPct + '% corrected, ' + r.coverage + '% coverage)'
+      'Real integrity = 100 − 2×artifact% (' + r.artifactPct + '% corrected, ' + (r.coverage == null ? 'coverage not measurable' : r.coverage + '% coverage') + ')'
     ]
   ];
   window.__summaryRows = rows; // structured source for the tidy CSV export (not a DOM scrape)

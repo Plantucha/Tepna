@@ -691,14 +691,18 @@ function calculate() {
   }
 
   // ── timing & coverage ──
+  /* §∅ — an RR stream with no stamp column has no envelope, so it has no coverage. `pulsedex-dsp.js`
+     `pdComputeResult` already publishes null for this input and its comment states the rule; this
+     road kept the old 100, which is the worst in-band default because a full bar looks healthy. A
+     zero span is the same absence: it is not a measured envelope either. */
   const times = beatTimes(a, parsed.tsMs);
   const durSec = times[N - 1] || (N * mean(a)) / 1000;
-  let coverage = 100;
+  let coverage = null;
   if (parsed.tsMs && isFinite(parsed.tsMs[0]) && isFinite(parsed.tsMs[N - 1])) {
     const wall = (parsed.tsMs[N - 1] - parsed.tsMs[0]) / 1000;
     let rrSum = 0;
     for (let i = 0; i < N; i++) rrSum += a[i] / 1000;
-    coverage = wall > 0 ? +Math.min(100, (rrSum / wall) * 100).toFixed(1) : 100;
+    coverage = wall > 0 ? +Math.min(100, (rrSum / wall) * 100).toFixed(1) : null;
   }
 
   // ── classify (auto) + manual override ──
@@ -1141,7 +1145,7 @@ function renderRecSwitcherPx() {
       .map((s) => {
         const k = s._key,
           active = k === activeKey,
-          q = s.coverage >= 90 ? 'ok' : s.coverage >= 70 ? 'warn' : 'bad';
+          q = s.coverage == null ? 'neutral' : s.coverage >= 90 ? 'ok' : s.coverage >= 70 ? 'warn' : 'bad';
         return (
           '<button class="rec-item-px ' +
           (active ? 'active' : '') +
@@ -1240,7 +1244,11 @@ function renderCrossNightPx() {
     { label: 'DFA α1', unit: '', good: 'up', get: (s) => s.dfa1 },
     { label: 'Baevsky SI', unit: '', good: 'down', get: (s) => s.si }
   ];
-  const cov = list.map((s) => Math.max(0.05, (s.coverage != null ? s.coverage : 100) / 100));
+  /* §∅ — an absent coverage weights the FLOOR, never a complete recording: a recording with no clock
+     has not earned the say a complete one has. `covAbsentPx` is named in the note below, so a reader
+     can see how many items the baseline was built on partial evidence from. */
+  const covAbsentPx = list.filter((s) => s.coverage == null).length;
+  const cov = list.map((s) => (s.coverage != null ? Math.max(0.05, s.coverage / 100) : 0.05));
   const tCol = (l) => (l === 'improving' ? 'ok' : l === 'declining' ? 'bad' : 'neutral');
   const C = { green: '#34d399', red: '#f87171', blue: '#60a5fa' };
   let rows = '',
@@ -1313,6 +1321,7 @@ function renderCrossNightPx() {
     list.length +
     ' recordings over ' +
     _pxNightSpan(list) +
+    (covAbsentPx ? ' · ' + covAbsentPx + ' without coverage (weighted at the floor)' : '') +
     ' · OLS slope vs date + non-parametric <b>Mann–Kendall</b> (τ, p) · personal-baseline <b>z-scores</b> · coverage-weighted. Same <code>crossNight()</code> engine as PpgDex/ECGDex/OxyDex.';
 }
 
