@@ -78,14 +78,14 @@ function renderContext(r) {
   else if (r.longRec) note = 'Per-window medians are the representative "daily" value; whole-night figures are shown too and feed the long-recording indices (SDANN, SDNN-index).';
   // ── altitude caveats ──
   let alt = '';
-  if (r.elev >= 2500) {
+  if (r.elev != null && r.elev >= 2500) {
     alt =
       '🏔 <b>High altitude (' +
       r.elev.toLocaleString() +
       ' m).</b> HRV reference ranges below are <b>sea-level norms</b> — chronic hypoxia legitimately lowers HRV, raises HR and shifts LF/HF sympathetic, so red flags here may be adaptive, not pathological. VO₂max is altitude-corrected (×' +
       r.altFactor +
       ').';
-  } else if (r.elev > 1500) {
+  } else if (r.elev != null && r.elev > 1500) {
     alt = '⛰ <b>Moderate altitude (' + r.elev.toLocaleString() + ' m).</b> VO₂max altitude-corrected (×' + r.altFactor + '); HRV norms still broadly apply.';
   }
   let pbNote = '';
@@ -154,8 +154,8 @@ function reRender() {
     r.hrmaxEff = hrmaxValid ? Math.round(hrmaxIn) : tanaka;
     r.tanaka = tanaka;
     r.hrmaxRejected = hrmaxIn > 0 && !hrmaxValid;
-    r.elev = _pp.elev || 0;
-    r.altFactor = +altVO2Factor(r.elev).toFixed(3);
+    r.elev = _pp.elev == null || !isFinite(_pp.elev) ? null : +_pp.elev; // §∅ — absent ≠ sea level
+    r.altFactor = r.elev == null ? 1 : +altVO2Factor(r.elev).toFixed(3); // no elevation entered ⇒ no correction
     r.vo2base = +(vo2Base(r.rhrEff, r.hrmaxEff) * r.altFactor).toFixed(1);
     r.vo2adj = r.lnrmssd == null ? null : +vo2Adj(r.vo2base, r.lnrmssd).toFixed(1);
     const gtIn = _pp.vo2gt;
