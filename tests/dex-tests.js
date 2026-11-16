@@ -35430,6 +35430,18 @@
       out = P.poincare([812.7, 913.9, 812.7, 913.9]);
       T.eq('a floating-point residue SD2 refuses the ratio (published 61266038.35 before)', JSON.stringify([out.sd2, out.sd1sd2, out.reason]), '[0,null,"sd2-below-published-precision"]');
 
+      /* N1-24 · THE TRIANGULAR INDEX BINS A HISTOGRAM AND DIVIDES A COUNT, AND BOTH MUST COME FROM THE
+         KEPT POPULATION. Until 2026-11-15 the bins looped `nn` and the numerator was `nn.length`, so an
+         interval the caller had omitted moved both sides of the quotient. Measured at 35d3b01d6: triIdx
+         1.5 over two occurrences of one bin plus one omitted interval, where the kept population gives 1. */
+      out = P.timeDomain([1000, 1400, 1000], null, [false, true, false], null);
+      T.eq('triangular index bins the KEPT population (measured 1.5 before)', JSON.stringify([out.triIdx, out.nDispersionIntervals]), '[1,2]');
+
+      /* THE CONTROL. A blanket change to the divisor would move this leg too, so an omission that leaves
+         a three-interval kept population must still count three. */
+      out = P.timeDomain([1000, 1100, 1200, 1300], null, [false, false, true, false], null);
+      T.eq('  ... and the index counts the kept intervals, not the raw ones (4 before)', JSON.stringify(out.triIdx), '3');
+
       /* THE CONTROLS. A refusal that fires unconditionally measures nothing, so each arm must still
          publish over input that supports it. */
       out = P.poincare([700, 725, 735, 765, 775, 805]);

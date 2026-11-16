@@ -3897,16 +3897,18 @@
     const hr = meanRR == null ? null : 60000 / meanRR;
     // triangular index
     const bins = {};
-    for (const v of nn) {
+    for (const v of keep) {
       const b = Math.round(v / 7.8125);
       bins[b] = (bins[b] || 0) + 1;
     }
     let mx = 0;
     for (const k in bins) if (bins[k] > mx) mx = bins[k];
-    /* The histogram bins `nn`, so it counts the omitted intervals too. That population is unchanged
-       here, and it is a SEPARATE defect from N1-21: this line only declines to publish an index whose
-       dispersion arm has already refused. */
-    const triIdx = dispersionReason ? null : mx ? nn.length / mx : null;
+    /* 🔴 §∅ — THE INDEX BINS THE KEPT POPULATION, NEVER `nn`. Until 2026-11-15 this loop binned every
+       interval and divided `nn.length`, so an interval the caller had omitted moved BOTH sides of the
+       quotient: it added a sample to the histogram and a beat to the numerator. The bins and the count
+       now come from the same set, and `nDispersionIntervals` already names that set beside the value.
+       (Muse N1-24.) */
+    const triIdx = dispersionReason ? null : mx ? keep.length / mx : null;
     return {
       meanRR: meanRR == null ? null : Math.round(meanRR),
       sdnn: r1n(sdnn),
