@@ -978,6 +978,36 @@ def test_summarize_does_not_pool_a_crossing_when_THIS_folder_HOLDS_night_signal(
     assert s["searched_dirs"] == ["2026-11-15"], s["searched_dirs"]
 
 
+def test_summarize_pools_a_crossing_when_this_folder_OPENS_AFTER_NOON(tmp_path):
+    """THE COST GUARD WAS CLOSING THE CLAUSE. Row `2026-11-15-nightqc-prev-probe-window-reaches-noon-only`:
+    `prev_probe_window` reached noon, so the clause that pools a daylight-only folder never ran for a
+    folder whose first capture opened after it. The shape is the sibling above with the sitting moved
+    from 11:34 to 14:00 — the night ran 23:24 to 07:23 next door, this folder holds an unrelated
+    afternoon sitting, and QC judged the night against that sitting and answered UNKNOWN.
+
+    The clock arm is RIGHT that a 14:00 capture cannot be last night's session. It was answering the
+    wrong question: whether to ASK the neighbour at all. The control is the sibling named
+    `does_not_pool_a_mid_day_session` — an afternoon folder that now probes and still refuses, because
+    its neighbour stopped before this folder's midnight."""
+    from datetime import datetime as _dt
+
+    d14 = str(tmp_path / "2026-11-14")
+    os.makedirs(d14)
+    d15 = str(tmp_path / "2026-11-15")
+    os.makedirs(d15)
+    night = _dt.strptime("20261114232400", "%Y%m%d%H%M%S").timestamp()  # 23:24 -> 07:23, all next door
+    aft = _dt.strptime("20261115140000", "%Y%m%d%H%M%S").timestamp()  # 14:00 — PAST the old noon guard
+    _utime(_cap(d14, "Polar_H10_02849638_20261114232400_HR.txt", 28740), night + 28740)
+    _utime(_cap(d15, "Polar_H10_02849638_20261115140000_HR.txt", 600), aft + 600)
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    assert not nightqc.prev_probe_window(aft, nightqc._midnight_of(d15)), "the premise: the clock arm refuses"
+    s = _summarize(d15, devs)
+    assert s["searched_dirs"] == ["2026-11-15", "2026-11-14"], s["searched_dirs"]  # it ASKED next door
+    assert s["devices"][0]["streams"]["hr"] == 28740, s["devices"][0]["streams"]  # the night, judged here too
+    assert s["span_sec"] > 7 * 3600, s["span_sec"]  # ~8 h of night, not a 10 min sitting
+    assert s["missing"] == []
+
+
 def test_in_night_band_is_CLOSED_at_its_start_and_OPEN_at_its_end():
     """The two boundaries of the admission band, which no other test pins (mutants
     `x_in_night_band__mutmut_3` and `_4`, run 43748619887).
@@ -1054,6 +1084,12 @@ def test_prev_probe_window_is_a_cost_guard_only():
     assert nightqc.prev_probe_window(mid + 15 * 3600, mid) is False  # 15:00 — never pays for the scan
     assert nightqc.prev_probe_window(mid - 1, mid) is False  # before this folder's midnight
     assert nightqc.prev_probe_window(mid, None) is False  # undatable folder name
+    # THE SECOND ARM, and row `2026-11-15-nightqc-prev-probe-window-reaches-noon-only` is why it exists.
+    # A folder with no night signal at all gets asked whatever the clock says, because the clock arm
+    # answers "can this be last night's SESSION" and the night's FILES are a different question.
+    assert nightqc.prev_probe_window(mid + 15 * 3600, mid, no_night_here=True) is True  # 15:00, asked
+    assert nightqc.prev_probe_window(mid + 4101, mid, no_night_here=True) is True  # already True, unchanged
+    assert nightqc.prev_probe_window(mid, None, no_night_here=True) is False  # an undatable folder still refuses
 
 
 # ── the stamp regex must be the ANCHORED sibling, not a bare 14-digit run (audit F5, 2026-08-01) ──────
@@ -4873,6 +4909,7 @@ _CLOCKLESS_BY_DESIGN = {
     "test_summarize_pools_when_the_neighbour_was_still_writing_at_wake": "pooling by overlap",
     "test_summarize_does_not_pool_a_non_contiguous_small_hours_session": "pooling refusal by contiguity",
     "test_summarize_pools_when_the_neighbour_RAN_PAST_MIDNIGHT_and_this_folder_is_a_daytime_sitting": "pooling by the crossing itself — a filename stamp, a midnight from the folder name and an mtime; no device clock takes part",
+    "test_summarize_pools_a_crossing_when_this_folder_OPENS_AFTER_NOON": "the same crossing, asked from an afternoon folder; the same three inputs and no device clock",
     "test_summarize_does_not_pool_when_the_neighbour_STOPPED_BEFORE_MIDNIGHT": "the refusing arm of the same session-level claim",
     "test_summarize_does_not_pool_a_crossing_when_THIS_folder_HOLDS_night_signal": "the band half of the same session-level claim; the band is read from a filename stamp alone",
     "test_span_at_exactly_the_minimum_is_judgeable": "the SESSION span floor _MIN_SPAN_SEC",

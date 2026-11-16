@@ -572,7 +572,15 @@ def build(
         # (the cost guard `summarize` already uses) the previous folder is scanned and `merge_sessions`
         # itself — not a second copy of its rule — says whether any of ITS files share a session with one
         # of this folder's. Additive: the clock test still pools on its own, so nothing that pooled stops.
-        if not _pool and earliest is not None and nightqc.prev_probe_window(earliest, midnight):
+        # HOISTED ABOVE THE PROBE for the same reason `nightqc.summarize` hoists it: a folder holding no
+        # night signal is the SECOND REASON TO ASK, and reading it only inside the answer kept an
+        # afternoon folder out. Row `2026-11-15-nightqc-prev-probe-window-reaches-noon-only`.
+        _no_night_here = not any(nightqc.in_night_band(x) for x in _stamped)
+        if (
+            not _pool
+            and earliest is not None
+            and nightqc.prev_probe_window(earliest, midnight, no_night_here=_no_night_here)
+        ):
             if prev and os.path.isdir(prev):
                 prev_data = [f for f in nightqc.scan_night(prev) if not nightqc.is_sidecar(f["stream"])]
                 _prev_ids = {id(f) for f in prev_data}
@@ -587,7 +595,6 @@ def build(
                 # recorded daemon restart and the test below reded, because `merge_sessions` would then
                 # split again and `judged_session` would take the row-heavier neighbour.
                 _prev_last = max((f["mtime"] for f in prev_data), default=None)
-                _no_night_here = not any(nightqc.in_night_band(x) for x in _stamped)
                 _pool = (
                     _no_night_here
                     and _offset is not None
