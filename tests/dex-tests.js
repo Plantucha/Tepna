@@ -97926,6 +97926,96 @@
       T.ok('note discloses the UNCALIBRATED frame (no over-claim)', !!lab && /uncalibrated/i.test(String(lab.note)));
     });
 
+    /* §∅ — AN UNMEASURED POSTURE IS NOT A NON-SUPINE POSTURE (row
+       2026-11-15-integrator-positional-apnea-counts-unknown-as-non-supine). The B·3a group above pins the
+       NO-SAMPLE absence: posAt() finds nothing inside its 10-min window, returns null, and the event lands
+       in `unknown`. It never pinned the other absence — the posture label `unknown` ITSELF, which both
+       posture nodes write for an epoch they READ and would not name (MotionDex: gravity magnitude outside
+       0.4–2.0 g; ECGDex: a blanked or thin ACC window). `/supine|back/.test(p)` is false for that string, so
+       every refused epoch fell to `nonsupine++`. Measured on HEAD 938a5d686: nine refused epochs read
+       `supine 0 / nonsupine 9`, `supineRate 0`, `positional false`, with the note "No strong supine
+       clustering of confirmed events" — a MEASURED NEGATIVE about a night where body position was never
+       measured. It also inverted a real finding: six supine events beside three refused epochs scored
+       6/3 = 0.67 and missed the 0.70 cut, where the six measured events alone read 1.00 and declare
+       provisional positional apnea. The fix classifies the label, counts the three absences apart, and
+       refuses `positional` as null with a reason when the measured population is empty. */
+    group('Integrator positional apnea: a refused posture label is unmeasured, not non-supine', 'integrator-dsp · positional · absence', function (T) {
+      var LP = env.labelPositionalApnea;
+      if (typeof LP !== 'function') {
+        T.ok('labelPositionalApnea present', false);
+        return;
+      }
+      var tb = U(2026, 5, 7, 22, 0, 0);
+      // hand-built like the #55 boundary leg above: LP reads findings[].tMs + ECGDex summary.posture
+      var lab = function (labels) {
+        var f = [],
+          pts = [];
+        for (var i = 0; i < labels.length; i++) {
+          var t = tb + i * 300000;
+          f.push({ tMs: t, type: 'confirmed_apnea_event' });
+          pts.push({ tMs: t, pos: labels[i] });
+        }
+        return LP([{ node: 'ECGDex', summary: { posture: pts } }], { findings: f });
+      };
+      var rep = function (v, n) {
+        var a = [];
+        for (var i = 0; i < n; i++) a.push(v);
+        return a;
+      };
+
+      /* ── 1 · ALL REFUSED — nine epochs the node read and would not name ── */
+      var dead = lab(rep('unknown', 9));
+      T.eq('all-refused: the measured counts are 0/0, not 0/9', dead.supine + '/' + dead.nonsupine, '0/0');
+      T.eq('all-refused: all nine land in unknown', dead.unknown, 9);
+      T.eq('all-refused: and the cause is named as REFUSED, not a missing sample', dead.unknownRefused + '/' + dead.unknownNoSample + '/' + dead.unknownUnrecognised, '9/0/0');
+      T.eq('all-refused: supineRate REFUSES — a share over an empty population', dead.supineRate, null);
+      T.eq('all-refused: positional REFUSES as null, never the false that claims we looked', dead.positional, null);
+      T.ok(
+        'all-refused: positionalReason names the split',
+        /no confirmed event carries a measured body position/.test(String(dead.positionalReason)) && /9 refused by the node/.test(String(dead.positionalReason)),
+        String(dead.positionalReason)
+      );
+      T.ok(
+        'all-refused: the note says unmeasured, not "no strong supine clustering"',
+        /never measured/.test(String(dead.note)) && !/No strong supine clustering/.test(String(dead.note)),
+        String(dead.note).slice(0, 140)
+      );
+      T.ok('all-refused: the subtree still reports available — the series exists, the labels refuse', dead.available === true);
+
+      /* ── 2 · THE INVERTED FINDING — six supine beside three refused epochs ── */
+      var flip = lab(rep('supine', 6).concat(rep('unknown', 3)));
+      T.eq('6 supine + 3 refused: the refused three leave the denominator', flip.supine + '/' + flip.nonsupine + '/' + flip.unknown, '6/0/3');
+      T.eq('6 supine + 3 refused: supineRate is 1 over what was measured (HEAD read 0.67)', flip.supineRate, 1);
+      T.eq('6 supine + 3 refused: positional DECLARES (HEAD read false — the refused epochs vetoed it)', flip.positional, true);
+      T.eq('6 supine + 3 refused: a real verdict carries no reason', flip.positionalReason, null);
+
+      /* ── 3 · NO SAMPLE IN THE WINDOW — the OTHER absence, counted apart ── */
+      var far = LP([{ node: 'ECGDex', summary: { posture: [{ tMs: tb, pos: 'supine' }] } }], { findings: [{ tMs: tb + 60 * 60000 }] });
+      T.eq('no sample within 10 min: counted as noSample, not refused', far.unknownNoSample + '/' + far.unknownRefused, '1/0');
+      T.eq('no sample within 10 min: positional refuses', far.positional, null);
+
+      /* ── 4 · A LABEL THIS LAYER CANNOT PLACE is unmeasured, never non-supine ── */
+      var odd = lab(rep('zzz-not-a-posture', 9));
+      T.eq('unplaceable label: 0 measured, 9 unrecognised', odd.supine + '/' + odd.nonsupine + '/' + odd.unknownUnrecognised, '0/0/9');
+      T.ok('unplaceable label: the reason says so', /9 with an unplaceable label/.test(String(odd.positionalReason)), String(odd.positionalReason));
+
+      /* ── 5 · CONTROL — the measured vocabulary is untouched ── */
+      var ctl = lab(rep('supine', 6).concat(rep('lateral', 3)));
+      T.eq('control 6 supine + 3 lateral: counts unchanged', ctl.supine + '/' + ctl.nonsupine + '/' + ctl.unknown, '6/3/0');
+      T.eq('control: supineRate still 0.67', ctl.supineRate, 0.67);
+      T.eq('control: still NOT positional at 0.67, and that false is earned', ctl.positional, false);
+      T.eq('control: an earned false carries no reason', ctl.positionalReason, null);
+      var vocab = lab(['prone', 'left', 'right', 'upright', 'lateral', 'Supine', 'back']);
+      T.eq('the measured vocabulary still splits 5 non-supine / 2 supine (case-insensitive)', vocab.nonsupine + '/' + vocab.supine + '/' + vocab.unknown, '5/2/0');
+
+      /* ── 6 · THE RENDER HALVES — a null must not take the tone or the colour of an earned false ── */
+      var rsrc = (env.sources || {})['integrator-render.js'] || '';
+      T.ok('render: the KPI tone holds a null arm', /p\.positional == null \? 'neutral'/.test(rsrc));
+      T.ok('render: the KPI subtitle prints the reason when the verdict refuses', /p\.positionalReason \|\| 'body position unmeasured at every confirmed event'/.test(rsrc));
+      T.ok('render: the KPI subtitle names the unmeasured count beside the two measured ones', /p\.unknown \? ' · ' \+ p\.unknown \+ ' unmeasured'/.test(rsrc));
+      T.ok('render: the finding card holds a null arm before the warn/good pair', /p\.positional == null \? '#8FB8FF' : p\.positional \? '#FFB84D' : '#3DE0D0'/.test(rsrc));
+    });
+
     /* AUDIT B·3a (TOP severity — a MANUFACTURED clinical finding). The MotionDex posture leg must be
        TRI-STATE like the effort (_motionEffortSeries.present) and movement (_motionActivitySeries.moving)
        legs: a sensor-off gap must NOT fabricate a posture. MotionDex exports posture as sparse run-length

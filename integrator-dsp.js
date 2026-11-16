@@ -2628,6 +2628,32 @@ function _poissonSf(k, lam) {
   return Math.max(0, Math.min(1, 1 - cum));
 }
 
+/* §∅ — AN UNMEASURED POSTURE IS NOT A NON-SUPINE POSTURE ────────────────────────
+   `posAt` answers with the node's own posture LABEL, and that vocabulary carries `unknown` for an
+   epoch the node LOOKED AT and would not name: MotionDex writes it when gravity magnitude falls
+   outside 0.4–2.0 g (moving or off-body), ECGDex when the ACC window is blanked or too thin. The
+   old test `/supine|back/.test(p)` sent every one of those to `nonsupine`, so nine refused epochs
+   read as nine MEASURED non-supine postures: `supineRate` 0 over an empty population, with the note
+   "No strong supine clustering of confirmed events" — a measured negative about a night where body
+   position was never measured. It also inverted a real finding: six supine events beside three
+   refused epochs scored 0.67 and missed the 0.70 cut, where the six measured events alone read 1.00
+   and declare positional apnea. The Integrator already holds this rule one layer up —
+   `_ecgPostureSeries` skips an `unknown` epoch so it never outvotes a real posture — and this
+   consumer never got it. A label this layer cannot place is unmeasured for the same reason: nothing
+   here read it as a posture. The three absences are counted apart, because "no sample within the
+   window", "the node refused the epoch" and "a label we do not know" are different facts. */
+var _POS_SUPINE_RE = /supine|back/; // the substring form this function has always used — narrowed by nothing
+var _POS_NONSUPINE_RE = /prone|lateral|left|right|upright|sitting|standing|side|front/;
+function _postureClass(pos) {
+  if (typeof pos !== 'string') return 'no-sample';
+  var s = pos.trim().toLowerCase();
+  if (!s) return 'no-sample';
+  if (s === 'unknown') return 'refused';
+  if (_POS_SUPINE_RE.test(s)) return 'supine';
+  if (_POS_NONSUPINE_RE.test(s)) return 'nonsupine';
+  return 'unrecognised';
+}
+
 /* 2 — positional apnea via ECGDex ACC body-position lookup at each confirmed event. */
 function labelPositionalApnea(recs, apneaResult) {
   if (!apneaResult || !apneaResult.findings.length) return null;
@@ -2691,24 +2717,51 @@ function labelPositionalApnea(recs, apneaResult) {
   }
   var supine = 0,
     nonsupine = 0,
-    unknown = 0;
+    unknownNoSample = 0,
+    unknownRefused = 0,
+    unknownUnrecognised = 0;
   apneaResult.findings.forEach(function (f) {
     var p = posAt(f.tMs);
     f.meta = f.meta || {};
     f.meta.position = p;
-    if (p == null) unknown++;
-    else if (/supine|back/.test(p)) supine++;
-    else nonsupine++;
+    var cls = _postureClass(p);
+    if (cls === 'supine') supine++;
+    else if (cls === 'nonsupine') nonsupine++;
+    else if (cls === 'refused') unknownRefused++;
+    else if (cls === 'unrecognised') unknownUnrecognised++;
+    else unknownNoSample++;
   });
-  var rate = supine + nonsupine > 0 ? supine / (supine + nonsupine) : null;
-  var positional = rate != null && supine >= 3 && rate >= 0.7 && (nonsupine === 0 || supine / Math.max(nonsupine, 1) >= 2);
+  var unknown = unknownNoSample + unknownRefused + unknownUnrecognised;
+  var measured = supine + nonsupine;
+  var rate = measured > 0 ? supine / measured : null;
+  /* `positional` is a CLAIM about posture, so it refuses when no confirmed event carries a measured
+     one. The old expression evaluated to `false` there, which reads as "we looked and the events do
+     not cluster supine" — the one thing the data cannot say. */
+  var positional = rate == null ? null : supine >= 3 && rate >= 0.7 && (nonsupine === 0 || supine / Math.max(nonsupine, 1) >= 2);
+  var positionalReason =
+    positional != null
+      ? null
+      : unknown > 0
+        ? 'no confirmed event carries a measured body position (' +
+          unknownRefused +
+          ' refused by the node, ' +
+          unknownNoSample +
+          ' with no posture sample inside the 10-min window, ' +
+          unknownUnrecognised +
+          ' with an unplaceable label) — nothing to cluster'
+        : 'no confirmed events to place against a body position';
   return {
     available: true,
     supine: supine,
     nonsupine: nonsupine,
     unknown: unknown,
+    // the three absences apart — a reader cannot act on one total
+    unknownRefused: unknownRefused,
+    unknownNoSample: unknownNoSample,
+    unknownUnrecognised: unknownUnrecognised,
     supineRate: rate != null ? +rate.toFixed(2) : null,
     positional: positional,
+    positionalReason: positionalReason,
     postureSource: src,
     note:
       'Provisional — body position is ' +
@@ -2718,7 +2771,11 @@ function labelPositionalApnea(recs, apneaResult) {
           ? 'MotionDex IMU gravity-vector position (uncalibrated device frame — the posture label is a convention, experimental tier)'
           : 'chest-ACC-derived') +
       ', not PSG. ' +
-      (positional ? 'Confirmed events cluster supine (provisional positional apnea).' : 'No strong supine clustering of confirmed events.')
+      (positional == null
+        ? 'Body position was never measured at a confirmed event, so positional clustering is unmeasured, not absent: ' + positionalReason + '.'
+        : positional
+          ? 'Confirmed events cluster supine (provisional positional apnea).'
+          : 'No strong supine clustering of confirmed events.')
   };
 }
 
