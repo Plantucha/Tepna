@@ -52,7 +52,9 @@ function pxProfile() {
       vo2gt: detOr0('vo2'),
       hrmax: n(man.hrMax, 0) > 0 ? n(man.hrMax, 0) : 0,
       rhr: detOr0('hrRest'),
-      elev: n(p.elevation, 0)
+      /* §∅ — absent ≠ sea level. `n(p.elevation, 0)` published a coast night for an empty profile:
+         0 m is a LEGAL elevation, so no reader could tell the two apart. Null, always. */
+      elev: n(p.elevation, null)
     };
   }
   const v = (id, d) => {
@@ -71,7 +73,7 @@ function pxProfile() {
     vo2gt: v('profVO2', 0),
     hrmax: v('profHRmax', 0),
     rhr: v('profRHR', 0),
-    elev: v('profElev', 0)
+    elev: v('profElev', null) // §∅ — absent ≠ sea level, the same rule as the DexProfile path above
   };
 }
 
