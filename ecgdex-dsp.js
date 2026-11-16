@@ -7080,20 +7080,24 @@
         : { ok: false, reason: 'clock-module-absent: this bundle carries no clock.js, so no host axis can be built', n: accAnchors.length };
     var _accDrawn = accAx.deviceDrawn === true;
     /* ── WHAT THE RATE IS WORTH AT THIS SPAN ───────────────────────────────────────────────────────
-       §7: "a consumer reading `.ppm` quotes a rate and needs a baseline". `hostAxis` deliberately
-       enforces no span gate, so the baseline is the consumer's to supply — and a GATE is the wrong
-       shape here, because a hidden rate teaches a reader nothing while a qualified one teaches them
-       the span. Measured on a constructed 52 Hz stream with a planted +50 ppm host and 3 ms of host
-       jitter: over 600 s the block reads 52.95 ppm, and over the first 0.8 s of the same stream it
-       reads 2974 ppm. Both are what the anchors say; only the second is useless, and the figure that
-       says so is the uncertainty.
+       §7: "a consumer reading `.ppm` quotes a rate and needs a baseline". TWO DIFFERENT NUMBERS
+       ANSWER THAT QUESTION, AND THIS BLOCK KEEPS THEM APART UNDER TWO NAMES.
 
-       The estimate is this stream's own: the divergence of each anchor from the first, differenced
-       between neighbours, median absolute. That is the host column's jitter and it does NOT include
-       the drift the rate is measuring, so dividing it by the span gives the rate's own noise floor in
-       ppm. `spreadMs` cannot stand in for it: that is max minus min over the whole file, which is
-       drift and jitter added together. The render prints it as "± N ppm at this span". */
-    var accPpmUnc = null;
+       `ppmUncertainty` is the clock module's own σ_y(τ) at the recording's own span, read from
+       `hostAxis.stability` exactly as the three other cells of this file read it. The module returns
+       it as null whenever it refuses the curve: on a host column that is the device counter rounded,
+       and on an anchor set too short for three τ points. This cell publishes that null.
+
+       `hostJitterPpm` is this block's own floor: the divergence of each anchor from the first,
+       differenced between neighbours, median absolute, divided by the span. That is the host
+       column's jitter at ONE sample interval, so it is a lower bound on σ_y and not a stand-in for
+       it. Measured on a constructed 52 Hz stream with a planted +50 ppm host and 3 ms of host
+       jitter: over 600 s σ_y reads 20.47 ppm and this floor reads 3.10 ppm, and over 60 s they read
+       204.68 ppm and 30.48 ppm. The floor under-reads the module by about 6.6x in both, so a reader
+       who meets it as "the uncertainty" spends a confidence the anchors do not carry. `spreadMs` is
+       a third thing again: max minus min over the whole file, drift and jitter added together.
+       `ecgdex-render.js` prints "± N ppm at this span" from `ppmUncertainty` alone. */
+    var accJitPpm = null;
     if (accAnchors.length >= 3) {
       var _d0 = accAnchors[0],
         _dif = [];
@@ -7107,7 +7111,7 @@
       });
       var _jit = _dif.length ? _dif[_dif.length >> 1] : null,
         _spanMs = accAnchors[accAnchors.length - 1].devMs - accAnchors[0].devMs;
-      if (_jit != null && _spanMs > 0) accPpmUnc = +((1e6 * _jit) / _spanMs).toFixed(2);
+      if (_jit != null && _spanMs > 0) accJitPpm = +((1e6 * _jit) / _spanMs).toFixed(2);
     }
     var accTiming = {
       ok: accAx.ok === true,
@@ -7129,7 +7133,16 @@
          reason. The ECG channel's cell shows the rate with `independent` beside it; this one refuses
          it, because a reader who meets a number spends it. */
       ppm: accAx.ok === true && accAx.independent !== false && accAx.ppm != null ? accAx.ppm : null,
-      ppmUncertainty: accPpmUnc,
+      /* THE UNCERTAINTY FOLLOWS THE VALUE IT QUALIFIES. `ppm` above is null when this input carries
+         no second clock, so a figure here would put an error bar beside a number the same cell
+         refused to publish, and the render would append it to a refusal. Gated on the same three
+         conditions as `ppm`, and READ from the module rather than recomputed. */
+      ppmUncertainty: accAx.ok === true && accAx.independent !== false && accAx.stability && accAx.stability.ppmUncertainty != null ? accAx.stability.ppmUncertainty : null,
+      /* The τ0 floor, under its own name, and gated exactly as the two figures above are. On a host
+         column that is the device counter copied the divergence is identically zero, so an ungated
+         floor publishes 0.00 ppm — the most confident number this cell can print, standing for the
+         one thing it must never say. A column that is not a clock gets no floor either. */
+      hostJitterPpm: accAx.ok === true && accAx.independent !== false ? accJitPpm : null,
       spreadMs: accAx.spreadMs != null ? accAx.spreadMs : null,
       independent: accAx.independent != null ? accAx.independent : null,
       deviceDrawn: accAx.deviceDrawn != null ? accAx.deviceDrawn : null,
@@ -8297,6 +8310,7 @@
             anchors: accT ? accT.anchors : null,
             spanMs: accT ? accT.spanMs : null,
             ppmUncertainty: accT ? accT.ppmUncertainty : null,
+            hostJitterPpm: accT ? accT.hostJitterPpm : null,
             anchorsEligible: accT ? accT.anchorsEligible : null,
             anchorStride: accT ? accT.anchorStride : null,
             anchorsDroppedPreStep: accT ? accT.anchorsDroppedPreStep : null,

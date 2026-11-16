@@ -47971,7 +47971,7 @@
             rows +=
               d.toISOString().replace('Z', '').slice(0, 23) +
               ';' +
-              (o.noNs ? '' : (ns + jump + BigInt(i) * BigInt(step) + BigInt(dj) * BigInt(1000000)).toString()) +
+              (o.noNs || o.noNsAt === i || (o.nsOnly && o.nsOnly.indexOf(i) < 0) ? '' : (ns + jump + BigInt(i) * BigInt(step) + BigInt(dj) * BigInt(1000000)).toString()) +
               ';' +
               f(ax) +
               ';' +
@@ -48032,9 +48032,49 @@
         /* THE RATE NEEDS A BASELINE, AND THE HONEST FORM IS AN UNCERTAINTY, NOT A GATE. The same
              constructed stream reads 52.95 ppm over 600 s and 2974.28 ppm over its first 0.8 s. Both
              are what the anchors say; only the second is useless, and the figure that says so is the
-             uncertainty — median absolute neighbour-to-neighbour divergence over the span. */
-        T.ok('a 400 s span qualifies its rate tightly', tt.ppmUncertainty != null && tt.ppmUncertainty < Math.abs(tt.ppm) / 2, 'ppm=' + tt.ppm + ' ±' + tt.ppmUncertainty);
+             uncertainty.
+   🔴 TWO ESTIMATORS ANSWERED TO ONE NAME AND THEY DISAGREE BY 4x ON THIS STREAM. This cell published
+   a median absolute neighbour-to-neighbour divergence over the span, while the other three cells of
+   the file publish the clock module's sigma_y(tau) from `hostAxis.stability`. Over these 400 s of
+   anchors the local figure reads 7.5 ppm and the module reads 32.37 ppm, and white-phase theory over
+   a 5 ms uniform jitter puts sigma_y at sqrt(3) x sigma_x / tau, which is about 12.6 ppm. The local
+   figure was therefore the OPTIMISTIC of the two. `ppmUncertainty` now reads the module at every cell
+   of this node, and the local floor keeps its own name. */
+        T.ok(
+          'a 400 s span qualifies its rate, and the band is the module’s own sigma_y',
+          tt.ppmUncertainty != null && tt.ppmUncertainty > 0 && tt.ppmUncertainty < Math.abs(tt.ppm),
+          'ppm=' + tt.ppm + ' ±' + tt.ppmUncertainty
+        );
+        T.ok(
+          '…and the tau0 jitter floor is the SMALLER of the two, under its own name',
+          tt.hostJitterPpm != null && tt.hostJitterPpm < tt.ppmUncertainty,
+          'floor=' + tt.hostJitterPpm + ' sigma_y=' + tt.ppmUncertainty
+        );
         T.ok('a 1.6 s span publishes a rate its own uncertainty swamps', tsh.ppmUncertainty > tt.ppmUncertainty * 10, 'short ±' + tsh.ppmUncertainty + ' vs long ±' + tt.ppmUncertainty);
+        /* 🔴 AN UNCERTAINTY MUST NOT OUTLIVE THE VALUE IT QUALIFIES. The cell already refuses the rate
+             when the host column is the device counter rounded, and `ecgdex-render.js` appends
+             "+- N ppm at this span" to whatever this field carries, so the error bar was printing
+             beside a refusal. The module answers null for that input, and the cell now says so. */
+        T.eq('a refused rate carries NO error bar', td.ppmUncertainty, null);
+        /* 🔴 AND THE FLOOR CANNOT STAND IN FOR IT EITHER. On a host column that is the device counter
+             copied the divergence is identically zero, so the ungated floor read 0.00 ppm — a cell
+             that refuses the rate, prints no band, and then publishes the most confident number in
+             the table. Measured here before the gate went in. */
+        T.eq('…and the tau0 floor publishes no 0.00 ppm for it either', td.hostJitterPpm, null);
+        T.eq('a REFUSED axis publishes neither figure', tn.ppmUncertainty, null);
+        /* The anchor loops carry four boundaries that no leg read, so a mutant flipping each survived
+           the suite — 10 of the 19 mutants the diff-scoped gate reached on #5142. */
+        var hf = D.parseDeviceACC(accText({ n: 400, noNsAt: 7 })).accTiming;
+        T.eq('a row with a host stamp and no device counter is NOT an anchor', hf.anchorsEligible, 399);
+        T.eq('the row AT the resync is the first anchor, so the dropped count is exact', tr.anchorsDroppedPreStep, 200);
+        /* 🔴 THE LAST ELIGIBLE ROW RIDES PAST THE STRIDE, and the span is what proves it: 10000 rows
+             at 40 ms with a stride of 20 push index 9980, which is 760 ms short of the file. */
+        T.ok('the strided anchor set still spans the whole file', tt.anchorStride > 1 && tt.spanMs > 399900, 'stride=' + tt.anchorStride + ' span=' + tt.spanMs);
+        /* The parser needs 30 rows before it reports anything, so the 3-anchor boundary is reached by
+           leaving the device counter off every row but three. */
+        var n3 = D.parseDeviceACC(accText({ n: 60, nsOnly: [4, 30, 57] })).accTiming;
+        T.eq('three eligible rows are three anchors', n3.anchorsEligible, 3);
+        T.ok('…and three is enough for the tau0 floor, which is the axis own refusal bound', n3.hostJitterPpm != null, 'floor=' + n3.hostJitterPpm + ' anchors=' + n3.anchors);
 
         // ── waveform: read from the samples alone, with no beat anywhere in it ──
         var qg = two.accQuality,

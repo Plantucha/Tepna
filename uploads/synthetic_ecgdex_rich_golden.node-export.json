@@ -76,8 +76,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "e37e89bab425",
-        "computeHash": "41e471d11fd5"
+        "manifestHash": "de3d6fa57fbc",
+        "computeHash": "c1d875d11a23"
       },
       "evidence": {
         "envelopeRef": null,
@@ -106,8 +106,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "e37e89bab425",
-        "computeHash": "41e471d11fd5"
+        "manifestHash": "de3d6fa57fbc",
+        "computeHash": "c1d875d11a23"
       },
       "evidence": {
         "envelopeRef": null,
@@ -136,8 +136,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "e37e89bab425",
-        "computeHash": "41e471d11fd5"
+        "manifestHash": "de3d6fa57fbc",
+        "computeHash": "c1d875d11a23"
       },
       "evidence": {
         "envelopeRef": null,
@@ -166,8 +166,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "e37e89bab425",
-        "computeHash": "41e471d11fd5"
+        "manifestHash": "de3d6fa57fbc",
+        "computeHash": "c1d875d11a23"
       },
       "evidence": {
         "envelopeRef": null,
@@ -198,8 +198,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "e37e89bab425",
-        "computeHash": "41e471d11fd5"
+        "manifestHash": "de3d6fa57fbc",
+        "computeHash": "c1d875d11a23"
       },
       "evidence": {
         "envelopeRef": null,
@@ -483,6 +483,7 @@
           "anchors": null,
           "spanMs": null,
           "ppmUncertainty": null,
+          "hostJitterPpm": null,
           "anchorsEligible": null,
           "anchorStride": null,
           "anchorsDroppedPreStep": null,
