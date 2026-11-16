@@ -92328,8 +92328,12 @@
       // span-aware (brief §2.4): first night + N-day span instead of a misleading single HHMM
       T.eq('span window name (HRVDex)', EN({ node: 'HRVDex', t0Ms: U(2026, 4, 1, 7, 0, 0), kind: 'summary', ext: 'csv', spanDays: 29 }), 'HRVDex_2026-05-01_29d_summary.csv');
       T.eq('spanDays rounds to integer days', EN({ node: 'HRVDex', t0Ms: U(2026, 4, 1, 7, 0, 0), kind: 'series', ext: 'jsonl', spanDays: 6.8 }), 'HRVDex_2026-05-01_7d_series.jsonl');
-      // controlled vocabulary is CLOSED (collapses the _summary/_multi<N>/_ganglior/.node-export drift)
-      T.eq('EXPORT_KINDS vocabulary is closed', JSON.stringify(DX.EXPORT_KINDS), JSON.stringify(['ganglior', 'summary', 'series', 'report']));
+      // controlled vocabulary is CLOSED (collapses the _summary/_multi<N>/_ganglior/.node-export drift).
+      // `hypnogram` joined on 2026-11-16: two call sites had shipped it since HypnoExport arrived, and
+      // the array — enumerated in June 2026 — had no reader. The census group below is what now holds
+      // this list against the call sites; this line pins the list itself.
+      T.eq('EXPORT_KINDS vocabulary is closed', JSON.stringify(DX.EXPORT_KINDS), JSON.stringify(['ganglior', 'summary', 'series', 'report', 'hypnogram']));
+      T.eq('hypnogram csv name', EN({ node: 'ECGDex', t0Ms: t0, kind: 'hypnogram', ext: 'csv' }), 'ECGDex_2026-06-13_2044_hypnogram.csv');
       // EXPORT-HYGIENE-FOLLOWUPS-II §1: OPTIONAL recording.contentId disambiguator — appended `_<contentId>`
       // AFTER the kind segment, BEFORE the extension (the brief's worked example). Suffix present IFF given.
       T.eq(
@@ -92365,6 +92369,139 @@
       } else {
         T.ok('dex-export.js source available (env.sources)', false, 'add it to both runners');
       }
+    });
+
+    /* ════ EXPORT-HYGIENE §2.3 — the `kind` vocabulary is CLOSED OVER ITS CALL SITES ════
+       `exportName` reads `opts.kind || 'summary'` and never consults EXPORT_KINDS, so the array was a
+       comment with an export statement. It was enumerated in June 2026 over four kinds; HypnoExport
+       arrived later, and two call sites shipped `hypnogram` for months with every gate green. An
+       enumerated vocabulary is a POPULATION CLAIM in disguise — it encodes the call sites that existed
+       the day someone typed it. This leg holds the array against the SITES, not against a reader.
+
+       A runtime throw was rejected: an export is the one moment a reader holds the data in hand, so a
+       kind outside the vocabulary reds in CI and never on the reader's click.
+
+       Population is DERIVED, not curated: root `*.js` minus `dex-export.js`, which DEFINES the function
+       and names the kinds in prose. Measured 2026-11-16 over the 522 tracked `*.js`/`*.mjs` files — all
+       26 call sites sit in root `*.js`, and nothing under `tools/`, `adapters/` or `experiments/` calls
+       exportName. A kind expression this parser cannot resolve to literals REDS rather than passing,
+       because an unjudged site is not a judged one.
+       Node-lane only — env.exportKindScan is fs-read; the browser lane SKIPs. */
+    group('EXPORT-HYGIENE §2.3 — the exportName kind vocabulary is closed over its call sites', 'dex-export · source-scan · census', function (T) {
+      var FILES = env.exportKindScan;
+      if (!FILES) {
+        T.skip('env.exportKindScan provided to the runner', 'Node-lane only — wire env.exportKindScan (run-tests.mjs readExportKindScan)');
+        return;
+      }
+      var DXC = env.DexExport || (env.EXPORT_KINDS ? { EXPORT_KINDS: env.EXPORT_KINDS, exportName: env.exportName } : null);
+      if (!DXC || !DXC.EXPORT_KINDS) {
+        T.ok('dex-export.js loaded (EXPORT_KINDS present)', false, 'add dex-export.js to both runners');
+        return;
+      }
+      var KINDS = DXC.EXPORT_KINDS;
+
+      function blank(s) {
+        return s.replace(/[^\n]/g, '');
+      }
+      /* comments out, newlines kept, so a reported line number is the file's own */
+      function strip(t) {
+        return String(t || '')
+          .replace(/\/\*[\s\S]*?\*\//g, blank)
+          .replace(/(^|[^:'"\\])\/\/.*$/gm, '$1');
+      }
+      /* every exportName( site in one text → { line, expr }. `expr` is the kind expression verbatim,
+         or null when the call names no kind (exportName then defaults it). A paren with no object
+         literal within 40 characters is prose or a no-arg call, not a site this census can read. */
+      function sites(text) {
+        var src = strip(text),
+          out = [],
+          i = 0;
+        while ((i = src.indexOf('exportName(', i)) !== -1) {
+          var open = src.indexOf('{', i);
+          if (open === -1 || open - i > 40) {
+            i += 11;
+            continue;
+          }
+          var depth = 0,
+            j = open;
+          for (; j < src.length; j++) {
+            if (src[j] === '{') depth++;
+            else if (src[j] === '}') {
+              depth--;
+              if (depth === 0) break;
+            }
+          }
+          var body = src.slice(open, j + 1);
+          var m = body.match(/\bkind:\s*([^,\n}]+)/);
+          out.push({ line: src.slice(0, i).split('\n').length, expr: m ? m[1].trim() : null });
+          i = j >= src.length ? i + 11 : j;
+        }
+        return out;
+      }
+      /* an expression → the literal kinds it can produce. A ternary yields BOTH arms, so a site that
+         switches kind is judged on each. No quoted literal at all → null, meaning unresolvable. */
+      function values(expr) {
+        if (expr === null) return ['summary'];
+        var lits = expr.match(/['"][^'"]*['"]/g);
+        return lits
+          ? lits.map(function (q) {
+              return q.slice(1, -1);
+            })
+          : null;
+      }
+
+      /* ── the parser must be shown to DISCRIMINATE, in both directions, before it judges ── */
+      var P1 = sites("dl(x, exportName({ node: 'OxyDex', t0Ms: t, kind: 'summary', ext: 'json' }), 'a');");
+      T.eq('a plain site is found exactly once', P1.length, 1);
+      T.eq('its kind resolves to the literal', JSON.stringify(values(P1[0].expr)), JSON.stringify(['summary']));
+      var P2 = sites("exportName({ node: 'ECGDex', kind: 'nosuchkind', ext: csv ? 'csv' : 'json' });");
+      T.eq('an out-of-vocabulary kind is READ, not skipped', JSON.stringify(values(P2[0].expr)), JSON.stringify(['nosuchkind']));
+      T.ok('and it is judged out of the vocabulary', KINDS.indexOf(values(P2[0].expr)[0]) === -1);
+      var P3 = sites("exportName({ node: 'X', kind: csv ? 'series' : 'summary', ext: 'json' });");
+      T.eq('a ternary yields BOTH arms', JSON.stringify(values(P3[0].expr)), JSON.stringify(['series', 'summary']));
+      T.eq('a prose mention inside a block comment is NOT a site', sites('/* exportName({ a: 1 }) is where the kind segment comes from */\nvar a = { b: 1 };').length, 0);
+      T.eq('a prose mention in a line comment is NOT a site', sites("// exportName({ kind: 'nosuchkind' })\nvar a = 1;").length, 0);
+      T.eq('a no-argument call is NOT a site', sites('var n = exportName();').length, 0);
+      var P5 = sites("exportName({ node: 'X', ext: 'json' });");
+      T.eq('a site naming no kind resolves to the default', JSON.stringify(values(P5[0].expr)), JSON.stringify(['summary']));
+      var P6 = sites("exportName({ node: 'X', kind: KIND_FROM_STATE, ext: 'json' });");
+      T.eq('a kind this parser cannot resolve reports unresolvable', values(P6[0].expr), null);
+      /* the assumed default is tied to BEHAVIOUR, not to a comment: run the function with no kind */
+      var ENC = DXC.exportName || env.exportName;
+      if (typeof ENC === 'function') {
+        T.eq('the default this parser assumes is the one exportName applies', ENC({ node: 'OxyDex', t0Ms: null, ext: 'json' }), 'OxyDex_undated_summary.json');
+      }
+
+      /* ── the census over the real sources ── */
+      var names = Object.keys(FILES),
+        resolved = [],
+        unresolved = [],
+        outside = [];
+      names.forEach(function (f) {
+        sites(FILES[f]).forEach(function (s) {
+          var vs = values(s.expr);
+          if (vs === null) {
+            unresolved.push(f + ':' + s.line + ' kind: ' + s.expr);
+            return;
+          }
+          vs.forEach(function (v) {
+            resolved.push(v);
+            if (KINDS.indexOf(v) === -1) outside.push(f + ':' + s.line + " kind '" + v + "'");
+          });
+        });
+      });
+      /* a scan that matched nothing passes vacuously, so the population is asserted first */
+      T.ok('the scan read the root sources', names.length > 50, 'scanned ' + names.length + ' file(s)');
+      T.ok('the scan found the call sites', resolved.length >= 25, 'resolved ' + resolved.length + ' site-value(s) over ' + names.length + ' file(s)');
+      T.eq('every exportName kind sits in EXPORT_KINDS', outside.join(' | '), '');
+      T.eq('no kind expression is unresolvable (an unjudged site is not a pass)', unresolved.join(' | '), '');
+      /* the other direction — a declared kind nobody produces is dead vocabulary. `report` is declared
+         and produced by no call site (measured 2026-11-16 over all 26 sites); that is logged, not
+         repaired here, so the set is RATCHETED: wiring a report export lowers this pin in the same PR. */
+      var dead = KINDS.filter(function (k) {
+        return resolved.indexOf(k) === -1;
+      });
+      T.eq('the declared-but-unproduced set is the one measured', dead.join(','), 'report');
     });
 
     /* ════ EXPORT-IDENTITY-FOLLOWUPS §2 — provenance inputs[].name PHI scrub ════
