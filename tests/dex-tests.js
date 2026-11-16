@@ -96760,6 +96760,52 @@
       T.ok('present-track is coverage-honest — ≥3 null epochs, not the pre-fix all-present track', nNull >= 3, 'null epochs=' + nNull + ' of ' + series.length);
     });
 
+    /* ════ MotionDex effort epochs never place an UNSTAMPED chest sample at its index time (§∅) ════
+     A chest row whose device counter and host stamp both failed to parse has no instant. `chestEffortMeasure`
+     placed it at `i / hz`, an instant nobody measured, so a block of such rows at the front of the stream
+     filled epoch 0 — wall 0–10 s, before the chest started — and turned its `present` from null into a
+     value. The Integrator reads that flag for apnea typing. The rows are now left out of every epoch and
+     counted in `unstampedSamples`. Shrike found the site in its ABSENCE audit of motiondex-dsp.js. ════ */
+    group('MotionDex effort epochs never place an unstamped chest sample (§∅)', 'motiondex-dsp · effort · timing', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.respiratoryEffort === 'function')) {
+        T.skip('MOTIONDSP.respiratoryEffort available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      var HZ = 26,
+        T0 = Date.UTC(2026, 5, 10, 22, 0, 0),
+        START = T0 + 30000; // the chest begins 30 s after t0Ms, so wall 0-30 s has no coverage
+      function row(tMs, tRel) {
+        var breath = Math.sin(2 * Math.PI * 0.25 * tRel);
+        return { relNs: NaN, tMs: tMs, x: 5, y: 1000 * (1 + 0.03 * breath), z: 20 };
+      }
+      var stamped = [];
+      for (var i = 0; i < HZ * 90; i++) stamped.push(row(START + Math.round((i / HZ) * 1000), i / HZ));
+      var unstamped = [];
+      for (var j = 0; j < 200; j++) unstamped.push(row(null, j / HZ));
+      var withU = MD.respiratoryEffort(unstamped.concat(stamped), T0, 130, 'mg') || {};
+      var ctrl = MD.respiratoryEffort(stamped, T0, 130, 'mg') || {};
+      var s = withU.series || [],
+        c = ctrl.series || [];
+      T.ok('CONTROL · without unstamped rows, epoch 0 (before the chest) reads present:null', c[0] && c[0].present === null, 'ep0=' + (c[0] && c[0].present));
+      T.ok('CONTROL · a covered breathing epoch reads present:true', c[5] && c[5].present === true, 'ep5=' + (c[5] && c[5].present));
+      T.ok('200 unstamped rows do NOT fill epoch 0 — it stays present:null', s[0] && s[0].present === null, 'ep0=' + (s[0] && s[0].present));
+      T.ok('…and its amplitude stays null, not a measured value', s[0] && s[0].amp === null, 'amp0=' + (s[0] && s[0].amp));
+      T.ok(
+        'the epochs before the chest started all stay null (0-30 s)',
+        s.length > 2 && s[1].present === null && s[2].present === null,
+        'ep1=' + (s[1] && s[1].present) + ' ep2=' + (s[2] && s[2].present)
+      );
+      T.eq('the unstamped rows are counted, not dropped silently', withU.unstampedSamples, 200);
+      T.eq('a fully stamped stream counts 0 unstamped samples', ctrl.unstampedSamples, 0);
+      function flags(arr) {
+        return arr.map(function (ep) {
+          return ep.present;
+        });
+      }
+      T.eq('every covered epoch keeps the control present-flag (the field the Integrator reads)', JSON.stringify(flags(s.slice(3))), JSON.stringify(flags(c.slice(3))));
+    });
+
     /* ════ MotionDex respiratory rate divides by the CHEST stream's own span (DEEP-AUDIT-II §7.3) ════
      `compute()` passes `respiratoryEffort` the GLOBAL `durSec = max(durationOf(acc, chest, gyro))`. When a
      wrist ACC file runs longer than the chest strap, dividing chest breaths by that longer span HALVES the
