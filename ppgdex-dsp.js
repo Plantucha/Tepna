@@ -3865,10 +3865,22 @@
     // robust jitter pass the brief asks for. No mask (epoch/back-compat) → all adjacent pairs.
     let sumSq = 0,
       cnt = 0,
-      nn50 = 0;
+      nn50 = 0,
+      omittedPairs = 0;
     for (let i = 1; i < nn.length; i++) {
       if (cleanMask && !(cleanMask[i - 1] && cleanMask[i])) continue;
       if (adj && adj[i] === false) continue; // a dropped interval sits between them — not a pair
+      /* 🔴 §∅ — A PAIR THAT TOUCHES AN OMITTED INTERVAL IS NOT A BEAT-TO-BEAT MEASUREMENT. Until
+         2026-11-15 this arm consulted `cleanMask` and `adj` and never `omit`, so an interval the caller
+         had declined still entered rMSSD and pNN50 through its own pairs, and one return mixed two
+         populations. An omitted interval straddles lost time, so neither difference beside it is a
+         difference between two adjacent beats — the rule `adj` already states one line above. The
+         count of skipped pairs travels in `nBeatPairsOmitted`, beside the pairs that were measured.
+         (Muse N1-23.) */
+      if (omit && (omit[i] || omit[i - 1])) {
+        omittedPairs++;
+        continue;
+      }
       const d = nn[i] - nn[i - 1];
       sumSq += d * d;
       cnt++;
@@ -3905,6 +3917,7 @@
       triIdx: triIdx ? r1(triIdx) : null,
       nDispersionIntervals: keep.length,
       nBeatPairs: cnt,
+      nBeatPairsOmitted: omittedPairs,
       dispersionReason,
       beatPairReason
     };

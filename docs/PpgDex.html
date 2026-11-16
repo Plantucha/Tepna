@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="258f013dc22c" data-compute-hash="ffc44a758c3b">
+<html lang="en" data-manifest-hash="52a1ba7b8ec9" data-compute-hash="dc37675a2ffc">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-2ifWSbbs8ujnnjScxWQyrrQnbLto6Hsrx1fTwP7rGCo=' 'sha256-4xeovKy/37dzXDmajtr4Ae0aJgg9NnkfzRmsahDqGZM=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-W+rK8y+1cYa6Z+X29oFEt18aIuLICrAQUkCSrqlVGKE=' 'sha256-a30wD1q1DhXb/hp/9CiNJnGcfilKag1nrqd5UVk34sw=' 'sha256-al6Y47L6DjS948zFsA4a/jhCOnTvvG7ts9HX95Zrdvs=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-dVHmZXyP4XwTjEhlcHA5KAS8qlCtDlt15p8WXc7GPMw=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-2ifWSbbs8ujnnjScxWQyrrQnbLto6Hsrx1fTwP7rGCo=' 'sha256-4xeovKy/37dzXDmajtr4Ae0aJgg9NnkfzRmsahDqGZM=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-VJWHK8aSWFdv2r0Aii+knQr/PqJW3/W4YAh91Ap1DAc=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-W+rK8y+1cYa6Z+X29oFEt18aIuLICrAQUkCSrqlVGKE=' 'sha256-a30wD1q1DhXb/hp/9CiNJnGcfilKag1nrqd5UVk34sw=' 'sha256-al6Y47L6DjS948zFsA4a/jhCOnTvvG7ts9HX95Zrdvs=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.33.0</title>
@@ -12466,10 +12466,22 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     // robust jitter pass the brief asks for. No mask (epoch/back-compat) → all adjacent pairs.
     let sumSq = 0,
       cnt = 0,
-      nn50 = 0;
+      nn50 = 0,
+      omittedPairs = 0;
     for (let i = 1; i < nn.length; i++) {
       if (cleanMask && !(cleanMask[i - 1] && cleanMask[i])) continue;
       if (adj && adj[i] === false) continue; // a dropped interval sits between them — not a pair
+      /* 🔴 §∅ — A PAIR THAT TOUCHES AN OMITTED INTERVAL IS NOT A BEAT-TO-BEAT MEASUREMENT. Until
+         2026-11-15 this arm consulted `cleanMask` and `adj` and never `omit`, so an interval the caller
+         had declined still entered rMSSD and pNN50 through its own pairs, and one return mixed two
+         populations. An omitted interval straddles lost time, so neither difference beside it is a
+         difference between two adjacent beats — the rule `adj` already states one line above. The
+         count of skipped pairs travels in `nBeatPairsOmitted`, beside the pairs that were measured.
+         (Muse N1-23.) */
+      if (omit && (omit[i] || omit[i - 1])) {
+        omittedPairs++;
+        continue;
+      }
       const d = nn[i] - nn[i - 1];
       sumSq += d * d;
       cnt++;
@@ -12506,6 +12518,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       triIdx: triIdx ? r1(triIdx) : null,
       nDispersionIntervals: keep.length,
       nBeatPairs: cnt,
+      nBeatPairsOmitted: omittedPairs,
       dispersionReason,
       beatPairReason
     };

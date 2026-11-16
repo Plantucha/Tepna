@@ -35444,6 +35444,24 @@
          regression there reds here, and it reds nowhere else. */
       out = P.timeDomain([800, 1200, 790, 1300], [true, false, false, true]);
       T.eq('a refused rMSSD rounds to null, never to 0', JSON.stringify(out.rmssd) === '0' ? 'ROUNDED TO ZERO' : JSON.stringify(out.rmssd), 'null');
+
+      /* N1-23 · AN OMITTED INTERVAL INSIDE A POPULATION THAT STILL SUPPORTS DISPERSION. `omit` marks an
+         interval that straddles a time discontinuity. The beat-to-beat arm consulted `cleanMask` and
+         `adj` and never `omit`, so the omitted interval's own pairs entered rMSSD and pNN50. Measured
+         at 35d3b01d6: rmssd 400, pnn50 100 and nBeatPairs 2 over one measured pair. */
+      out = P.timeDomain([1000, 1400, 1000], null, [false, true, false], null);
+      T.eq('an omitted interval does not enter the beat-to-beat arm (measured rmssd 400 before)', JSON.stringify([out.rmssd, out.pnn50, out.nBeatPairs]), '[null,null,0]');
+      T.eq('  ... both survivors touch it, so no pair is measured, and the arm names that', JSON.stringify(out.beatPairReason), '"no-clean-adjacent-pair"');
+      T.eq('  ... and the arm says how many pairs the omission removed', JSON.stringify(out.nBeatPairsOmitted), '2');
+
+      /* THE CONTROL. The legs above also pass on a blanket refusal, so an omission that leaves a
+         measured pair in place must publish that pair and skip exactly two. */
+      out = P.timeDomain([1000, 1100, 1200, 1300], null, [false, false, true, false], null);
+      T.eq(
+        'an omission that leaves one measured pair still publishes it, and counts the two it removed',
+        JSON.stringify([out.rmssd, out.pnn50, out.nBeatPairs, out.nBeatPairsOmitted]),
+        '[100,100,1,2]'
+      );
     });
 
     /* ── INSUFFICIENT INPUT REFUSES; IT DOES NOT REPORT ZERO (Clock Contract §2.6) ──────────────
