@@ -42018,6 +42018,132 @@
       T.ok('CONTROL · its minute totals are numbers, not null', typeof q.activeMin === 'number' && q.activeMin > 0, 'activeMin=' + JSON.stringify(q.activeMin));
     });
 
+    /* ════ ∅ · TWO DSP PATHS PUBLISHED A ZERO FOR A MEASUREMENT THEY NEVER TOOK ════
+       Unit `zeronull`, closing two verified residue rows. Both fields report a quantity whose domain
+       INCLUDES 0, so the fabricated zero was indistinguishable from a reading:
+         · `ecgdex-dsp.js` accAnalyze published respRate 0 br/min where the autocorrelation found no
+           2.5-10 s period. `respConfident` carried the honesty bit and the panel read it, so only the
+           panel was safe; every other reader of the returned object saw a rate.
+         · `glucodex-dsp.js` analyze read `+opts.biasOffset || 0`, collapsing no calibration, a
+           non-numeric offset and a real 0 mg/dL offset onto one number the result then returns.
+       Each group carries the control that would catch an over-refusal: a real period still measures a
+       rate, and a real offset still shifts the series. */
+    group('ECGDex ACC respiration refuses a rate it never found (§∅)', 'ecgdex-dsp · absence · acc-resp', function (T) {
+      var E = env.ECGDSP || env.EcgDsp;
+      if (!E || typeof E.accAnalyze !== 'function') {
+        T.ok('ECGDSP.accAnalyze is available', false, 'not loaded');
+        return;
+      }
+      /* NO AXIS CARRIED BAND POWER — the empty case, which is what a spot ECG with no ACC stream
+         looks like. The old code answered 0 br/min here. */
+      var none = E.accAnalyze([], []);
+      T.eq('no ACC samples: the rate is NULL, never 0 br/min', JSON.stringify(none.respRate), 'null');
+      T.eq('…and the refusal names the cause it actually hit', none.respRateReason, 'no ACC samples in the quietest window');
+      T.eq('…and respConfident still reads FALSE beside it', none.respConfident, false);
+
+      /* A SAMPLED BUT MOTIONLESS CHEST — the reachable no-periodicity case. The window holds
+         samples, the autocorrelation looks, and it finds nothing between 2.5 s and 10 s. */
+      var flat = [];
+      for (var q = 0; q < 25 * 240; q++) flat.push({ x: 1000, y: 0, z: 0, tsMs: null });
+      var still = E.accAnalyze(flat, 25, null, 240);
+      T.eq('a motionless chest: the rate is NULL', JSON.stringify(still.respRate), 'null');
+      T.eq('…and the reason says the search looked and found nothing', still.respRateReason, 'no 2.5-10 s periodicity in the quietest ACC window');
+
+      /* CONTROL · A REAL BREATHING TRACE STILL MEASURES A RATE. 12 br/min is a 5 s period, which sits
+         inside the 2.5-10 s search window. The fix must refuse absence only, which is the way an
+         absence fix usually goes wrong. */
+      var fs = 25,
+        secs = 240,
+        n = fs * secs;
+      var x = [],
+        tms = [],
+        t0 = U(2026, 5, 7, 22, 0, 0);
+      for (var i = 0; i < n; i++) {
+        var t = i / fs;
+        x.push({ x: 1000 * Math.sin((2 * Math.PI * t) / 5), y: 0, z: 0, tMs: t0 + Math.round(t * 1000) });
+        tms.push(t0 + Math.round(t * 1000));
+      }
+      var real = E.accAnalyze(x, fs, t0, secs);
+      T.ok('CONTROL · a 5 s respiratory period measures a rate', typeof real.respRate === 'number' && real.respRate > 6 && real.respRate < 20, 'respRate=' + JSON.stringify(real.respRate));
+      T.eq('CONTROL · a measured rate carries NO reason', JSON.stringify(real.respRateReason), 'null');
+      T.eq('CONTROL · and respConfident reads TRUE', real.respConfident, true);
+    });
+
+    group('GlucoDex calibration offset: absent is null, a measured 0 stays 0 (§∅)', 'glucodex-dsp · glucodex-profile · absence · calibration', function (T) {
+      var G = env.GLUDSP;
+      if (!G || typeof G.analyze !== 'function') {
+        T.ok('GLUDSP.analyze is available', false, 'not loaded');
+        return;
+      }
+      var t0 = Date.UTC(2026, 5, 1, 8, 0, 0);
+      var tMs = [],
+        vMgdl = [];
+      for (var k = 0; k < 200; k++) {
+        tMs.push(t0 + k * 5 * 60000);
+        vMgdl.push(100 + (k % 40));
+      }
+      var run = function (opts) {
+        return G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: t0 }, null, opts);
+      };
+
+      /* THE THREE STATES THE OLD LINE COLLAPSED. */
+      T.eq('no calibration requested: the offset is NULL', JSON.stringify(run({}).biasOffset), 'null');
+      T.eq('a lab-derived offset of 0 mg/dL SURVIVES as 0', run({ biasOffset: 0 }).biasOffset, 0);
+      T.eq('a non-numeric offset refuses, it does not read as 0', JSON.stringify(run({ biasOffset: 'abc' }).biasOffset), 'null');
+      T.eq('an empty string is not an offset either', JSON.stringify(run({ biasOffset: '' }).biasOffset), 'null');
+
+      /* CONTROL · A REAL OFFSET STILL APPLIES, AND IT STILL MOVES THE SERIES. A +12 mg/dL shift on a
+         series whose mean the un-shifted run reports must raise that mean by 12. */
+      var base = run({}),
+        up = run({ biasOffset: 12 });
+      T.eq('CONTROL · a real offset is reported as the number given', up.biasOffset, 12);
+      T.approx('CONTROL · …and the series mean rises by it', up.mean - base.mean, 12, 0.5);
+      T.eq('CONTROL · a numeric STRING offset still applies', run({ biasOffset: '12' }).biasOffset, 12);
+      /* A MEASURED ZERO APPLIES NO SHIFT, which is why the guard below the read may stay falsy. */
+      T.approx('a measured 0 shifts nothing, as 0 mg/dL must', run({ biasOffset: 0 }).mean - base.mean, 0, 0.001);
+
+      /* THE ONE CONSUMER. `glucodex-profile.js` reports the applied offset, and 0 there read the same
+         as no calibration at all. `applied` reports the SHIFT, so it stays false for a 0 offset. */
+      var P = env.DexProfile;
+      if (!(env.GLUProfile && P && typeof P._setStore === 'function')) {
+        T.ok('GLUProfile + DexProfile store are wired into env', false, 'GLUProfile or DexProfile._setStore missing');
+        return;
+      }
+      var mk = function () {
+        var m = {};
+        return {
+          getItem: function (q) {
+            return q in m ? m[q] : null;
+          },
+          setItem: function (q, v) {
+            m[q] = String(v);
+          },
+          removeItem: function (q) {
+            delete m[q];
+          }
+        };
+      };
+      var prof = function (bias) {
+        P._setStore(mk());
+        P.setManual('age', 50);
+        P.setManual('a1c', 7.0);
+        return env.GLUProfile.personalize({ tir: { tir: 70, tbr1: 2, tbr2: 1 }, cv: 36, mean: 170, biasOffset: bias, gmi: 6.8, activeMin: 1000, compMin: 50, pctActive: 95 }).calib;
+      };
+      T.eq('the profile reports an absent offset as NULL', JSON.stringify(prof(null).appliedOffset), 'null');
+      T.eq('…and a measured 0 as 0', prof(0).appliedOffset, 0);
+      T.eq('…and a real offset as itself', prof(12).appliedOffset, 12);
+      T.eq('`applied` reports the SHIFT, so a 0 offset reads false', prof(0).applied, false);
+      T.eq('…and a real offset reads true', prof(12).applied, true);
+      /* The back-out arithmetic is unchanged by the null, because nothing was shifted. */
+      T.eq('an absent offset backs out nothing: sensorMean is the reported mean', prof(null).sensorMean, 170);
+      T.eq('a +12 offset backs out to 158', prof(12).sensorMean, 158);
+      /* ⚠ THE PROFILE STORE IS SHARED ACROSS EVERY GROUP IN THIS FILE AND `_setStore` HAS NO GETTER.
+         Leaving my age-50 / A1c-7.0 store installed moved 41 assertions in `HRVDex computeDerived`,
+         which reads the profile for its derived values — and only under the FULL suite, because each
+         group passes when it runs alone. `_setStore(null)` puts the module's own memory store back. */
+      P._setStore(null);
+    });
+
     group('GlucoDex surfaces NAME the cadence refusal — never a null, never a zero (§∅)', 'glucodex-render · glucodex-app · absence · render-harness', function (T) {
       var G = env.GLUDSP,
         U = env.GLUUI;
@@ -72348,11 +72474,14 @@
       // ── 6 · classifyMode DURATION — 300 s is a 5 min reading; zeroing the /60 makes it Infinity.
       T.eq('300 seconds reads as 5 min', E.classifyMode(300).modeWhy, '5 min reading');
 
-      // ── 7 · ACC ANALYSIS with NO SIGNAL — defaults declared, confidence FALSE. The tsMs
-      //      base-offset needs BOTH clocks (`&&`), and the axis race is strict `>` (x keeps ties).
+      // ── 7 · ACC ANALYSIS with NO SIGNAL — the rate REFUSES and names its cause. This leg read
+      //      `{"r":0,...}` until 2026-11-15, so the suite defended a fabricated 0 br/min; the axis
+      //      default is still x by convention. The tsMs base-offset needs BOTH clocks (`&&`), and
+      //      the axis race is strict `>` (x keeps ties).
       var acc = E.accAnalyze([], []);
-      T.eq('empty ACC: resp rate 0, axis x by convention', JSON.stringify({ r: acc.respRate, a: acc.respAxis }), '{"r":0,"a":"x"}');
-      T.eq('…and respConfident is FALSE — the honesty bit that makes the defaults safe', acc.respConfident, false);
+      T.eq('empty ACC: resp rate NULL, axis x by convention', JSON.stringify({ r: acc.respRate, a: acc.respAxis }), '{"r":null,"a":"x"}');
+      T.eq('…and the refusal names its own cause', acc.respRateReason, 'no ACC samples in the quietest window');
+      T.eq('…and respConfident is FALSE — the honesty bit beside the null', acc.respConfident, false);
 
       // ── 8 · validateHR END TO END — a valid pair VALIDATES. This is the case the guard mutants
       //      cannot fake: negating any of the four clauses turns a working comparison into null.

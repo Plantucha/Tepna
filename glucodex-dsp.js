@@ -1572,7 +1572,14 @@
   function analyze(parsed, progress, opts) {
     opts = opts || {};
     const meals = opts.mealMarkers || null;
-    const biasOffset = +opts.biasOffset || 0;
+    /* ── ∅ AN ABSENT CALIBRATION IS NOT AN OFFSET OF 0 ────────────────────────────────────────
+       `+opts.biasOffset || 0` collapsed three different states onto the same number: no calibration
+       requested, a non-numeric offset, and a lab-derived offset that really is 0 mg/dL. The result
+       returns this field at :1654, so a consumer read 0 and could not tell which it held. A finite
+       number stays, 0 among them; everything else is null. The shift below still skips 0, which is
+       right for both the measured zero and the absence, because neither moves the series. */
+    const _bo = opts.biasOffset == null || opts.biasOffset === '' ? null : +opts.biasOffset;
+    const biasOffset = _bo != null && isFinite(_bo) ? _bo : null;
     const c = clean(parsed, progress);
     // sensor-bias calibration: shift the whole series by a lab-A1c-derived offset (mg/dL)
     if (biasOffset) {
