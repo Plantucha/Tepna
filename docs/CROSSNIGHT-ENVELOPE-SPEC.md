@@ -73,7 +73,8 @@ It is self-describing and never depends on its surrounding wrapper.
     "spanDays": 5.0,                   // (last − first) / 86_400_000, or null if t0 unknown
     "coverageWeighted": true,          // were aggregates weighted by per-item quality?
     "qualityFloorPct": 50,             // items below this are flagged lowQuality (still shown)
-    "lowQualityCount": 1               // # items flagged
+    "lowQualityCount": 1,              // # items flagged
+    "weightAbsentCount": 0             // # items whose coverage NOBODY MEASURED (flagged, floored)
   },
 
   // ── per-metric robust statistics ───────────────────────────────────────────
@@ -123,8 +124,9 @@ It is self-describing and never depends on its surrounding wrapper.
       "i": 0,
       "t0Ms": 1781724240000,           // floating tMs — cross-node alignment key
       "date": "2026-05-15",            // getUTC* render of t0Ms (Clock Contract §5)
-      "weight": 0.92,                  // coverage weight used (0..1)
-      "lowQuality": false,
+      "weight": 0.92,                  // the COEFFICIENT the fits applied (0.05..1), never null
+      "weightAbsent": true,            // present ONLY on an item with no measured coverage
+      "lowQuality": false,             // null when weightAbsent — unknown is not low
       "values": { "rmssd": 38.0, "sdnn": 52.0, "hr": 58, "pi": 3.1 }
     }
     // … one per item, ascending by t0Ms
@@ -155,6 +157,19 @@ It is self-describing and never depends on its surrounding wrapper.
   as "_N_σ vs your baseline". `flag` set when `|z| ≥ 1`.
 - **Quality:** low-quality items are **shown** in `series` (with `lowQuality:true`) but
   down-weighted in every fit/aggregate via `weight`. Never silently dropped.
+- **Absent coverage (§∅):** a `weightOf` that returns `null` states that NOBODY MEASURED this
+  item's coverage. The item then publishes `weightAbsent: true` and `lowQuality: null`, and
+  `window.weightAbsentCount` counts it. **The absence travels on the flag, never on the number:**
+  `weight` always states the COEFFICIENT the fits applied, which here is the same 0.05 floor a
+  measured near-zero coverage takes. That field is re-derivation provenance — a consumer reads it
+  back as the per-point weight — so a `null` there re-fabricates a full-weight night in every
+  consumer that defaults an absent weight to 1. **The item keeps its place** in `window.count`, in
+  `firstT0Ms`/`lastT0Ms`/`spanDays` and in every metric's `n`, which removes the unearned
+  confidence without removing the record; dropping the item instead would move the absence into the
+  count and the published span. An unmeasured coverage **never** weighs 1 — that made an unmeasured
+  night outweigh a night measured at 90 %. A node with no coverage notion at all omits `weightOf`
+  entirely, weighs every item 1 and says so through `coverageWeighted: false`. `weightAbsent` is
+  additive and optional, so §4 holds the shape at v1.0.
 - **Missing metric on an item** → omit from that metric's `n`/series-value; never coerce to 0.
 
 ---
@@ -194,6 +209,8 @@ produced each stored aggregate so historical trends aren't silently re-mixed.
 - [ ] Every metric carries `label`, `unit`, `goodDirection`.
 - [ ] `change` is `null` when `n < 7`; `trend.label === "insufficient"` when `n < 3`.
 - [ ] Low-quality items appear in `series` flagged, not dropped.
+- [ ] An item with no measured coverage carries `weightAbsent`, weighs the floor, stays in `count`
+      and in the span, and never weighs 1.
 - [ ] `engineVersion` matches the local `crossNight` implementation's version.
 
 ---

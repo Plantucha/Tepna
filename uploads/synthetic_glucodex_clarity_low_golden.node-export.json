@@ -3014,7 +3014,8 @@
       "spanDays": 1,
       "coverageWeighted": false,
       "qualityFloorPct": 50,
-      "lowQualityCount": 0
+      "lowQualityCount": 0,
+      "weightAbsentCount": 0
     },
     "metrics": {
       "mean": {

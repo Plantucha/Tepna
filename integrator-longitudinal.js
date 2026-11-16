@@ -41,6 +41,7 @@
         '.long-actions{ margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }' +
         '.cov-grid td.cg-on.cg-synth{ background:transparent; border:1px dashed var(--c); opacity:.9; }' +
         '.cov-grid td.cg-on.cg-synth.cg-lq{ opacity:.4; }' +
+        '.cov-grid td.cg-on.cg-wunk{ outline:1px dotted var(--text4); outline-offset:-2px; }' +
         ".ltc-synth{ display:inline-block; margin-left:6px; font-family:'IBM Plex Mono',monospace; font-size:8.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--text4); border:1px dashed rgba(255,255,255,.22); border-radius:5px; padding:0 5px; vertical-align:middle; }";
       var s = global.document.createElement('style');
       s.id = 'long-synth-css';
@@ -224,8 +225,17 @@
           date: date,
           t0Ms: it.t0Ms != null ? it.t0Ms : null,
           values: it.values || {},
-          weight: it.weight != null ? it.weight : 1,
-          lowQuality: !!it.lowQuality,
+          /* §∅ — an item whose coverage nobody measured arrives with the floor COEFFICIENT its
+             node's fits applied and `weightAbsent:true` beside it, so the flag is what travels
+             here; `seriesFor` hands `weight` on as `w`, and the node engines read a number. A
+             weight MISSING outright is a different statement — a producer that does not weight at
+             all — and this store used to read it as 1. That arm is unreachable for every producer
+             in the repo (all nine publish a number), so the `null` only makes the field honest for
+             a foreign envelope. `lowQuality` keeps the same three-valued read: `null` is unknown,
+             not low. */
+          weight: it.weight != null ? it.weight : null,
+          weightAbsent: it.weightAbsent === true,
+          lowQuality: it.lowQuality == null ? null : !!it.lowQuality,
           synthetic: !!(env.schema && env.schema.synthetic),
           engineVersion: eng,
           ingestedAt: Date.now(),
@@ -396,7 +406,11 @@
         return r.node === node && r.values && r.values[mid] != null;
       })
       .map(function (r) {
-        return { date: r.date, t0Ms: r.t0Ms, v: r.values[mid], w: r.weight, lowQuality: r.lowQuality, synthetic: !!r.synthetic };
+        /* §∅ — `weightAbsent` RIDES ALONG for the reason §9.3 gives one screen down: this
+           projection is HAND-PICKED, so a field added to the stored row is invisible to every
+           consumer until it is named here. Without it a consumer cannot tell the floor COEFFICIENT
+           an unmeasured night was given from a coverage somebody measured at 5 %. */
+        return { date: r.date, t0Ms: r.t0Ms, v: r.values[mid], w: r.weight, weightAbsent: !!r.weightAbsent, lowQuality: r.lowQuality, synthetic: !!r.synthetic };
       })
       .sort(function (a, b) {
         return _sortKey(a) - _sortKey(b);
@@ -798,14 +812,16 @@
             if (!r) return '<td class="cg-cell"></td>';
             var lq = r.lowQuality ? ' cg-lq' : '';
             var sy = r.synthetic ? ' cg-synth' : '';
+            var wu = r.weightAbsent ? ' cg-wunk' : ''; // coverage nobody measured — stated, never shown as full
             return (
               '<td class="cg-cell cg-on' +
               lq +
               sy +
+              wu +
               '" style="--c:' +
               col +
               '" title="' +
-              _esc(node + ' · ' + d + (r.lowQuality ? ' · low quality' : '') + (r.synthetic ? ' · synthetic' : '')) +
+              _esc(node + ' · ' + d + (r.lowQuality ? ' · low quality' : '') + (r.weightAbsent ? ' · coverage unknown' : '') + (r.synthetic ? ' · synthetic' : '')) +
               '"></td>'
             );
           })

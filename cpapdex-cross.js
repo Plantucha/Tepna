@@ -450,7 +450,11 @@
   // weight each night by MASK-ON completeness (a 40-min session weighs less than a full night)
   function nightWeight(n) {
     var h = nightUsageHours(n);
-    return h != null ? Math.max(0.05, Math.min(1, h / 6)) : 1;
+    /* §∅ — a night that states no mask-on hours returns `null`, never 1: an unmeasured session
+       must not outweigh a measured full night. `crossnight-envelope.js` reads this null, flags the
+       row with `weightAbsent`, weights the fits at its floor and publishes that floor as the
+       coefficient it applied. */
+    return h != null ? Math.max(0.05, Math.min(1, h / 6)) : null;
   }
 
   // build the cross-night EXPORT block via the shared CrossNightEnvelope (shape only;
