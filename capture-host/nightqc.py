@@ -182,7 +182,8 @@ _SUMMARY_NAME = "QC-SUMMARY.json"
 # comfortably spans reconnect churn / a bathroom break (kept in one session) but splits a genuine new sitting.
 _SESSION_GAP_SEC = 3600.0
 # How far into a day a capture may open and still be ASKED whether it continues last night. A cost
-# guard on the probe, not a correctness threshold — see prev_probe_window.
+# guard on the probe, not a correctness threshold — see prev_probe_window, whose second arm asks on
+# behalf of a folder that holds no night signal at all, whatever the clock says.
 _PREV_PROBE_SEC = 12 * 3600.0
 # Stamp parsing moved to writers.file_stamp (audit F5) — anchored, year-validated, one implementation.
 
@@ -642,16 +643,33 @@ def _hhmm(epoch: float) -> str:
     return datetime.fromtimestamp(epoch).strftime("%H:%M")
 
 
-def prev_probe_window(earliest: float, midnight) -> bool:
+def prev_probe_window(earliest: float, midnight, *, no_night_here: bool = False) -> bool:
     """Is it worth ASKING the previous folder whether its session runs into this one?
 
     Purely a cost guard, never a correctness one — the pooling decision is made by contiguity, and this
     only decides whether that question gets asked at all. The cheap near-midnight gate beside it answers
     the common case for free; this widens the probe to the small hours, where a cross-midnight
-    continuation is the only thing a session can be. A capture opening at 15:00 cannot be last night's,
-    so it never pays for the extra directory scan. Noon is deliberately generous: the cost of being wrong
-    here is one scan, and the cost of being too tight is a night judged as two broken halves."""
-    return midnight is not None and 0 <= earliest - midnight < _PREV_PROBE_SEC
+    continuation is the only thing a session can be. Noon is deliberately generous: the cost of being
+    wrong here is one scan, and the cost of being too tight is a night judged as two broken halves.
+
+    ⚠️ `no_night_here` IS THE SECOND REASON TO ASK, and the clock arm cannot state it. A capture opening
+    at 15:00 cannot be last night's SESSION, which is the only question the clock arm answers; whether
+    last night's FILES sit next door is a different one. A folder whose stamped sessions ALL sit in the
+    band's daylight hole holds no night signal at all, so no session test here can say anything about the
+    night — and the night may still have crossed midnight into this date.
+
+    Measured 2026-11-15 under PR #5094, logged as row
+    `2026-11-15-nightqc-prev-probe-window-reaches-noon-only`: the clause that pools exactly that folder
+    sat behind this guard, so a first capture at 14:00 never reached it, and QC kept a verdict over an
+    unrelated afternoon sitting while the neighbour held a flawless tri-device night. The price is one
+    directory scan per daylight-only folder, and the scan decides nothing on its own —
+    `test_summarize_does_not_pool_a_mid_day_session` pins an afternoon folder that now probes and still
+    refuses, because the neighbour stopped before this folder's midnight."""
+    if midnight is None:
+        return False
+    if no_night_here:
+        return True
+    return 0 <= earliest - midnight < _PREV_PROBE_SEC
 
 
 def _midnight_of(night_dir: str):
@@ -3580,7 +3598,12 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
         earliest = min(_stamped) if _stamped else None
         midnight = _midnight_of(night_dir)
         _pool = midnight is not None and earliest is not None and 0 <= earliest - midnight < _SESSION_GAP_SEC
-        if not _pool and earliest is not None and prev_probe_window(earliest, midnight):
+        # HOISTED ABOVE THE PROBE, because it is the SECOND REASON TO ASK and not only a clause inside the
+        # answer. Row `2026-11-15-nightqc-prev-probe-window-reaches-noon-only`: with this read only after
+        # the clock guard, an afternoon folder never reached the clause below. `_stamped` can be empty
+        # here, and `not any(...)` over nothing is True — the gate still refuses on `earliest is None`.
+        _no_night_here = not any(in_night_band(t) for t in _stamped)
+        if not _pool and earliest is not None and prev_probe_window(earliest, midnight, no_night_here=_no_night_here):
             # THE NEAR-MIDNIGHT PROXY IS NOT THE QUESTION. "Did this folder open just after midnight"
             # only ever stood in for "does last night's session continue into this folder", and the two
             # part company the moment a device takes longer than the gap to reconnect. Real case,
@@ -3638,14 +3661,11 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
                 # the seam-aware merge answers it. This clause is for the folder that holds NO night
                 # signal at all, where no session test can say anything about the night.
                 #
-                # ⚠️ THE COST GUARD STILL BINDS. `prev_probe_window` reaches noon, so a folder whose first
-                # capture opens after noon keeps this hole. Widening it buys one directory scan for every
-                # daytime folder, which `test_summarize_does_not_pool_a_mid_day_session` refuses.
-                #
-                # `_stamped` cannot be empty here — `earliest is not None` above is the same evidence — so
-                # this asks only whether EVERY start in this folder sits in the daylight hole.
+                # ⚠️ THE COST GUARD NO LONGER CLOSES AT NOON. `_no_night_here` is now also the reason the
+                # probe runs at all, so an afternoon folder reaches this clause. That was row
+                # `2026-11-15-nightqc-prev-probe-window-reaches-noon-only`, and `prev_probe_window` holds
+                # the measurement.
                 _prev_last = max(f["mtime"] for f in prev_data)
-                _no_night_here = not any(in_night_band(t) for t in _stamped)
                 _pool = _off["offset_sec"] is not None and (
                     (_no_night_here and _prev_last > midnight + _off["offset_sec"])
                     or (earliest + _off["offset_sec"]) - _prev_last < _SESSION_GAP_SEC
