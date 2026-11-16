@@ -601,6 +601,41 @@ export function resolvePlan(paths, gen, held, recipeFor) {
   return { take, refuse };
 }
 
+/* ── EVERY STOPPED COMMIT, NOT THE FIRST ONE ────────────────────────────────────────────────────
+   A rebase stops once per conflicting commit. This tool resolved the generated paths of the FIRST
+   stop and called `rebase --continue` once. When a later commit conflicted too, that call threw,
+   the tool exited 2 with a stack, and the tree stayed mid-rebase. Measured 2026-11-16 (board #6786,
+   #6787) on #5132: the walker's own rebuild commit is generated-only, so it conflicts on the next
+   bundle after the bird's commit resolves, and every walker pass then alerted `hand-rebase`.
+
+   A commit whose whole content is generated is EMPTY after this tool takes the base's copy, and
+   `rebase --continue` refuses an empty commit ("No changes"). The rebuild below restores those bytes
+   from source, so such a commit is skipped, and the count is reported.
+
+   PURE over the injected `ops`, so the suite drives every stop by value:
+     conflicts() → paths    classify(p) → 'generated' | 'source'    take(paths)  stage(paths)
+     stagedEmpty() → bool   cont() → { ok }   skip() → { ok }
+   It never aborts: the caller owns the abort and the message. */
+export function driveRebaseStops(ops, maxStops = 500) {
+  const resolved = [];
+  let skipped = 0;
+  for (let stop = 1; stop <= maxStops; stop++) {
+    const conflicts = ops.conflicts();
+    const source = conflicts.filter((p) => ops.classify(p) !== 'generated');
+    const generated = conflicts.filter((p) => ops.classify(p) === 'generated');
+    if (!conflicts.length) return { ok: false, stop, reason: 'the rebase stopped with no conflicted path', source, generated, resolved, skipped };
+    if (source.length) return { ok: false, stop, reason: 'source conflict', source, generated, resolved, skipped };
+    ops.take(generated);
+    ops.stage(generated);
+    for (const p of generated) if (!resolved.includes(p)) resolved.push(p);
+    const empty = ops.stagedEmpty();
+    if (empty) skipped++;
+    const r = empty ? ops.skip() : ops.cont();
+    if (r && r.ok) return { ok: true, stop, reason: null, source: [], generated: [], resolved, skipped };
+  }
+  return { ok: false, stop: maxStops, reason: 'more than ' + maxStops + ' stops', source: [], generated: [], resolved, skipped };
+}
+
 function rebuild(regenFixtures) {
   const steps = [
     ['tools/build.mjs', ['--all']],
@@ -1118,9 +1153,29 @@ async function main() {
   let autoResolvedFixtures = [];
   const r = gitQuiet('rebase', onto);
   if (!r.ok) {
-    const conflicts = git('diff', '--name-only', '--diff-filter=U').split('\n').filter(Boolean);
-    const source = conflicts.filter((p) => classify(p, gen) === 'source');
-    const generated = conflicts.filter((p) => classify(p, gen) === 'generated');
+    const drive = driveRebaseStops({
+      conflicts: () => git('diff', '--name-only', '--diff-filter=U').split('\n').filter(Boolean),
+      classify: (p) => classify(p, gen),
+      take: (paths) => {
+        console.log(paint('  auto-resolving ' + paths.length + ' generated artifact(s) (rebuilt below):', C.yel));
+        paths.forEach((p) => console.log('    ' + p));
+        for (const p of paths) gitQuiet('checkout', onto, '--', p);
+      },
+      stage: (paths) => gitQuiet('add', ...paths),
+      stagedEmpty: () => gitQuiet('diff', '--cached', '--quiet').ok,
+      cont: () => gitQuiet('-c', 'core.editor=true', 'rebase', '--continue'),
+      skip: () => gitQuiet('rebase', '--skip')
+    });
+    const source = drive.source;
+    const generated = drive.generated;
+    autoResolvedFixtures = drive.resolved.filter((p) => recipeForFixture(p));
+    if (drive.skipped) console.log(paint('  skipped ' + drive.skipped + ' commit(s) left empty by the resolution (generated-only; rebuilt below)', C.yel));
+
+    if (!drive.ok && !source.length) {
+      console.error(paint('\n✕ rebase stopped at stop ' + drive.stop + ': ' + drive.reason + ' — aborting so your branch is exactly as it was.', C.red));
+      gitQuiet('rebase', '--abort');
+      process.exit(2);
+    }
 
     if (source.length) {
       console.error(paint('\n✕ SOURCE CONFLICT — stopping. These need real resolution, never a wholesale checkout:', C.red));
@@ -1145,15 +1200,6 @@ async function main() {
       gitQuiet('rebase', '--abort');
       process.exit(1);
     }
-
-    // Generated-only: neither side is authoritative — take one and rebuild below.
-    console.log(paint('  auto-resolving ' + generated.length + ' generated artifact(s) (rebuilt below):', C.yel));
-    generated.forEach((p) => console.log('    ' + p));
-    for (const p of generated) gitQuiet('checkout', onto, '--', p);
-    autoResolvedFixtures = generated.filter((p) => recipeForFixture(p));
-    gitQuiet('add', ...generated);
-    const cont = execFileSync('git', ['-c', 'core.editor=true', 'rebase', '--continue'], { cwd: ROOT, encoding: 'utf8', stdio: 'pipe' });
-    void cont;
   }
   console.log(paint('  rebase complete', C.grn));
 

@@ -62310,6 +62310,116 @@
       T.eq('a missing recipe lookup is tolerated, not thrown', plan(['OxyDex.html'], GEN, HELD, null).take[0].recipe, null);
     });
 
+    /* ════ EVERY STOPPED COMMIT, NOT ONLY THE FIRST ════════════════════════════════════════════════
+       Board #6786 / #6787, measured 2026-11-16 on #5132: the rebase replayed the bird's commit and the
+       walker's own generated-only rebuild commit. `rebase-safe` resolved stop 1, called
+       `rebase --continue` ONCE, and stop 2 threw out of `main` with the tree left at `UU OverDex.html`.
+       Every later walker pass alerted `hand-rebase`. `driveRebaseStops` loops over each stop and skips
+       a commit the resolution leaves empty. These legs drive a planted rebase by value. */
+    group('Rebase-safe — every stopped commit is resolved, and an emptied commit is skipped (REBASE-SAFE)', 'tools · rebase-safe · stops', function (T) {
+      var drive = env.rebaseDriveStops;
+      if (typeof drive !== 'function') {
+        T.skip('the stop driver is wired into this lane', 'Node-lane only (an ESM import of tools/rebase-safe.mjs) — the browser lane SKIPs');
+        return;
+      }
+      var GEN = { 'OxyDex.html': 1, 'Data Unifier.html': 1, 'OverDex.html': 1 };
+      // A planted rebase: each stop lists its conflicts, whether the index is empty after resolution,
+      // and what `continue` answers. `continue` fails when another stop follows.
+      function fake(stops) {
+        var i = 0;
+        var log = [];
+        return {
+          log: log,
+          ops: {
+            conflicts: function () {
+              return i < stops.length ? stops[i].c.slice() : [];
+            },
+            classify: function (q) {
+              return GEN[q] ? 'generated' : 'source';
+            },
+            take: function (ps) {
+              log.push('take:' + ps.join(','));
+            },
+            stage: function (ps) {
+              log.push('add:' + ps.join(','));
+            },
+            stagedEmpty: function () {
+              return !!stops[i].empty;
+            },
+            cont: function () {
+              log.push('continue');
+              i++;
+              return { ok: i >= stops.length };
+            },
+            skip: function () {
+              log.push('skip');
+              i++;
+              return { ok: i >= stops.length };
+            }
+          }
+        };
+      }
+      // The #5132 shape: the bird's commit, then the walker's generated-only rebuild commit.
+      var f1 = fake([{ c: ['Data Unifier.html'] }, { c: ['OverDex.html'], empty: true }]);
+      var r1 = drive(f1.ops);
+      T.eq('two conflicting commits both resolve', r1.ok, true);
+      T.eq('…at the second stop', r1.stop, 2);
+      T.eq('…the generated-only commit is SKIPPED, not continued empty', f1.log.join(' | '), 'take:Data Unifier.html | add:Data Unifier.html | continue | take:OverDex.html | add:OverDex.html | skip');
+      T.eq('…and the skip is counted', r1.skipped, 1);
+      T.eq('…every resolved path is reported once', r1.resolved.join(','), 'Data Unifier.html,OverDex.html');
+
+      var f2 = fake([{ c: ['OxyDex.html'] }]);
+      var r2 = drive(f2.ops);
+      T.eq('one stop still resolves in one continue', r2.ok + ':' + r2.skipped + ':' + f2.log.length, 'true:0:3');
+
+      // A source conflict on a LATER stop still stops, and names the path.
+      var f3 = fake([{ c: ['OxyDex.html'] }, { c: ['oxydex-dsp.js', 'OverDex.html'] }]);
+      var r3 = drive(f3.ops);
+      T.eq('a source conflict at stop 2 refuses', r3.ok + ':' + r3.stop, 'false:2');
+      T.eq('…and names the source path', r3.source.join(','), 'oxydex-dsp.js');
+      T.eq(
+        '…with the generated path beside it, untouched at that stop',
+        r3.generated.join(',') +
+          '|' +
+          f3.log.filter(function (l) {
+            return /OverDex/.test(l);
+          }).length,
+        'OverDex.html|0'
+      );
+
+      // A stop with no conflicted path (a hook, a dirty file) is not resolved by guessing.
+      var r4 = drive(fake([{ c: [] }]).ops);
+      T.eq('a stop with no conflicted path refuses with a reason', r4.ok + ':' + /no conflicted path/.test(r4.reason), 'false:true');
+
+      // The loop is bounded: a continue that never succeeds ends at the cap.
+      var stuck = {
+        conflicts: function () {
+          return ['OxyDex.html'];
+        },
+        classify: function () {
+          return 'generated';
+        },
+        take: function () {},
+        stage: function () {},
+        stagedEmpty: function () {
+          return false;
+        },
+        cont: function () {
+          return { ok: false };
+        },
+        skip: function () {
+          return { ok: false };
+        }
+      };
+      var r5 = drive(stuck, 3);
+      T.eq('a rebase that never ends stops at the cap', r5.ok + ':' + r5.stop, 'false:3');
+
+      // The CLI wires the driver: the single bare `rebase --continue` call is gone.
+      var src = (env.sources || {})['tools/rebase-safe.mjs'] || '';
+      T.ok('main() drives the stops through driveRebaseStops', /driveRebaseStops\(\{/.test(src));
+      T.ok('…and no longer throws out of a raw execFileSync rebase --continue', !/execFileSync\('git', \['-c', 'core\.editor=true', 'rebase', '--continue'\]/.test(src));
+    });
+
     group('Rebase-safe — a regenerator-owned golden is GENERATED only when the rebuild can restore it (REBASE-SAFE)', 'tools · rebase-safe', function (T) {
       var mkRows = env.regenOwnedListing;
       var parse = env.rebaseParseOwnedListing;
@@ -62515,8 +62625,8 @@
         T.ok('and an unrestored fixture stops the tool instead of printing ✓', /if \(bad === null \|\| bad\.length\)/.test(body), 'null and non-empty both stop');
         T.ok(
           'only the fixtures that CONFLICTED are regenerated — a clean rebase pays nothing',
-          /autoResolvedFixtures = generated\.filter\(\(p\) => recipeForFixture\(p\)\)/.test(body),
-          'main() filters the auto-resolved list by owner'
+          /autoResolvedFixtures = drive\.resolved\.filter\(\(p\) => recipeForFixture\(p\)\)/.test(body),
+          'main() filters the auto-resolved list by owner, over the paths resolved at EVERY stop (driveRebaseStops, board #6787)'
         );
       }
     });
