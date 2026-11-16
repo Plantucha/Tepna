@@ -86645,6 +86645,145 @@
       P._setStore(mk()); // leave a pristine record for later groups (mirrors §19)
     });
 
+    /* ════ A PRIOR IS NOT AN ENTERED AGE (residue 2026-11-16-the-profile-card-grades-against-a-prior-
+       only-the-export-discloses) ════
+       `getProfile` clamps an absent age to 42, so `expectedRmssd`/`expectedRHR` answer a number for
+       EVERY profile, and the card printed "age norm ~61" and "typical for age 42" over a person who
+       typed nothing — while the node export already filed the same 42 under `assumedDefaults`.
+       The fix carries the field's cascade origin onto the result as `ageEntered` (the export's own
+       `_ent` predicate: `you` or `detected`; `pop`, `none` and legacy `_origins: null` all read not
+       entered) and routes every label and colour to its existing honest arm.
+       ⚠ The render surfaces (hero note · two subscores · two KPI tiles · two table rows) sit behind a
+       DOM, so the source legs below assert on the SHIPPED guard text rather than on rendered HTML.
+       That is weaker than a render, and it is said here rather than dressed up: a mutant that drops a
+       guard reds these legs; a mutant that renders something else would not be caught by them.
+       ⚠ The `detected` arm of the predicate is unreachable for AGE — `DexProfile.resolve('age')` can
+       only answer `you` or `pop` (it never consults the detected tier) — so it is kept for symmetry
+       with the export's predicate and no leg can exercise it. */
+    group('ECGDex grades against the age entered, not the population prior behind it', 'ecgdex-profile · ecgdex-app · absence · age-prior', function (T) {
+      var P = env.DexProfile,
+        PF = env.ECGProfile;
+      var ready = !!(P && PF && typeof P._setStore === 'function' && typeof PF.personalize === 'function');
+      T.ok('DexProfile + ECGProfile are wired into env', ready, 'DexProfile/ECGProfile missing');
+      if (!ready) return;
+      var mk = function () {
+        var m = {};
+        return {
+          getItem: function (k) {
+            return k in m ? m[k] : null;
+          },
+          setItem: function (k, v) {
+            m[k] = String(v);
+          },
+          removeItem: function (k) {
+            delete m[k];
+          }
+        };
+      };
+      /* REVIEW EDIT (Heron): the patch declared `rec` and then inlined the same literal three
+         times, which reds `npm run lint` on `noUnusedVariables`. Each leg takes its OWN copy,
+         because `personalize` writes its result INTO the record it is handed. */
+      var rec = { hr: 55, longRec: false, dispRm: 40, ambulatory: false };
+      var fresh = function () {
+        return Object.assign({}, rec);
+      };
+
+      // ── 1 · origin `pop` — nothing entered ───────────────────────────────────────────────────
+      P._setStore(mk());
+      var pop = PF.personalize(fresh());
+      T.eq('a profile nobody filled in reads ageEntered=false (cascade origin pop)', pop.ageEntered, false);
+      T.eq('…while the population prior is still what COMPUTE ran on (age 42 ⇒ 39 ms)', pop.expRmssd, 39);
+      T.eq('…and the rest-HR prior (age 42 ⇒ 61 bpm)', pop.expRHR, 61);
+      T.eq('…the profile still carries that substituted age', pop.profile.age, 42);
+      T.ok(
+        '…and BOTH priors survive as numbers on the result, so the export keeps them',
+        typeof pop.expRmssd === 'number' && typeof pop.expRHR === 'number',
+        JSON.stringify([pop.expRmssd, pop.expRHR])
+      );
+
+      // ── 2 · origin `you` — entered, so the norm and its grade are honest ─────────────────────
+      P._setStore(mk());
+      P.setManual('age', 30);
+      var you = PF.personalize(fresh());
+      T.eq('an age the user entered reads ageEntered=true (cascade origin you)', you.ageEntered, true);
+      T.eq("…and the norm it drives is the entered age's (30 ⇒ 48 ms)", you.expRmssd, 48);
+      T.eq('…and 30 ⇒ 60 bpm resting', you.expRHR, 60);
+
+      // ── 3 · legacy / headless — `_origins: null` behaves as the `pop` case ────────────────────
+      /* `env.realmGlobal` is the object the co-loaded modules hang their globals on. In the node lane
+         that is the vm context; this file's `globalThis` is the HOST one, so hiding the store there
+         hides nothing (measured here first: the leg read age 30 from the previous store). */
+      var realm = env.realmGlobal || (typeof globalThis !== 'undefined' ? globalThis : null);
+      var saved = realm && realm.DexProfile,
+        leg = null,
+        threw = null;
+      T.ok('the bundle realm is reachable and carries DexProfile', !!saved, 'no realmGlobal.DexProfile');
+      try {
+        if (realm) realm.DexProfile = undefined; // the branch where no panel and no record exist
+        leg = PF.personalize(fresh());
+      } catch (e) {
+        threw = e;
+      } finally {
+        if (realm) realm.DexProfile = saved;
+      }
+      T.ok('the legacy path (no DexProfile store) still personalises', threw == null, threw && String(threw));
+      T.eq('…_origins null — nothing was ever entered — reads ageEntered=false', leg && leg.ageEntered, false);
+      T.eq('…and the same prior still drives compute there (age 42 ⇒ 39 ms)', leg && leg.expRmssd, 39);
+
+      // ── 4 · the disclosure and the grades, pinned on the shipped source ──────────────────────
+      var profSrc = (env.sources && env.sources['ecgdex-profile.js']) || '';
+      var appSrc = (env.sources && env.sources['ecgdex-app.js']) || '';
+      T.ok('both card sources are readable in this lane', profSrc.length > 1000 && appSrc.length > 1000, profSrc.length + '/' + appSrc.length);
+      T.ok(
+        'the hero note prints no age-norm sentence unless the age was entered',
+        /let ageNote = 'No age entered, so this card shows no age-relative HRV comparison\.';\s*\n\s*if \(r\.ageEntered\) \{/.test(profSrc),
+        'hero guard missing'
+      );
+      /* ── REVIEW EDITS (Heron, on top of the patch) ─────────────────────────────────────────
+         1 · A BLANK NOTE IS NOT A DISCLOSURE. The patch left `ageNote` empty over an unentered
+             age, so the hero's most-read line said nothing at all. It now carries the sentence
+             the detail rows already use.
+         2 · `renderHrvBench` GRADED THE WHOLE CARD AGAINST THE SAME PRIOR. `const exp =
+             r.expRmssd || 30` set `proj-good/warn/bad` on the card and the rMSSD value's
+             colour. Shrike named the site and left the ruling to the reviewer. It is the same
+             card, the same prior and the same row, so it lands here. Over an unentered age the
+             card grades against the node's own 30 ms floor and the unit line names it. That
+             also brings the dead `|| 30` arm to life, since `expectedRmssd` never answers a
+             falsy value. */
+      T.ok('the hero note discloses the absence rather than rendering a blank line', /No age entered, so this card shows no age-relative HRV comparison/.test(profSrc), 'hero disclosure missing');
+      T.ok('the HRV bench card grades against the node floor over an unentered age', /const exp = r\.ageEntered \? r\.expRmssd : 30;/.test(profSrc), 'bench guard missing');
+      T.ok('…and the bench unit line names that floor to the reader', /vs ≥30 ms, age not entered/.test(profSrc), 'bench disclosure missing');
+      T.ok('no bench surface grades the card against the prior unconditionally any more', !/const exp = r\.expRmssd \|\| 30;/.test(profSrc), 'bench prior unguarded');
+      /* 3 · ONE PREDICATE, TWO READERS. The patch wrote the same cascade-origin test in
+            `personalize` and in `renderDerived`. Two copies of one rule drift apart under a
+            later edit, and the hero would then grade on a rule the detail rows deny. */
+      T.eq('one predicate serves both readers, so the two surfaces cannot drift', (profSrc.match(/ageEnteredIn\(p\)/g) || []).length, 2);
+      T.ok(
+        '…and it tests the cascade ORIGIN, never the truthiness of the age itself',
+        /const ageEnteredIn = \(p\) => !!\(p\._origins && \(p\._origins\.age === 'you' \|\| p\._origins\.age === 'detected'\)\);/.test(profSrc),
+        'predicate shape moved'
+      );
+      T.eq('both hero subscores route to neutral over an unentered age', (profSrc.match(/cls: r\.ageEntered \?/g) || []).length, 2);
+      T.eq('both detail rows disclose the prior by name', (profSrc.match(/population default, age not entered/g) || []).length, 2);
+      T.ok('the Rest-HR tile labels the prior only when the age was entered', /sub: r\.ageEntered && r\.expRHR \? 'age norm ~'/.test(appSrc), 'label guard missing');
+      T.eq('both Rest-HR grades read neutral otherwise (KPI + table row)', (appSrc.match(/!r\.rhrEff \|\| !r\.ageEntered \? 'neutral'/g) || []).length, 2);
+      T.ok(
+        'the rMSSD tile and its grade read the same field',
+        /sub: r\.ageEntered && r\.expRmssd \? 'age norm ~'/.test(appSrc) && /s: r\.ageEntered && r\.expRmssd \?/.test(appSrc),
+        'rMSSD guard missing'
+      );
+      T.ok('the Rest-HR table row prints no target over an unentered age', /r\.ageEntered && r\.expRHR \? '~' \+ r\.expRHR : '—'/.test(appSrc), 'table target guard missing');
+      T.ok('the rMSSD table row prints no prior as a target either', /r\.ageEntered \? r\.expRmssd : '—'/.test(appSrc), 'rMSSD row guard missing');
+      T.ok('no card surface reintroduces the unguarded age-norm label', !/sub: r\.expRHR \? 'age norm/.test(appSrc) && !/sub: r\.expRmssd \? 'age norm/.test(appSrc), 'unguarded label present');
+      T.ok(
+        'the export still maps both priors under their own keys',
+        /expectedRMSSDForAge: r\.expRmssd \?\? null/.test(appSrc) && /expectedRestHRForAge: r\.expRHR \?\? null/.test(appSrc),
+        'export keys moved'
+      );
+
+      P._setStore(mk()); // leave a pristine record for later groups (mirrors §19)
+    });
+
     /* ════ 21c · NSRR PSG INGEST ADAPTER — known-answer (TEST-COVERAGE-FOLLOWUPS §2) ════
      `nsrr-adapter.js` (window.NSRR) bridges real NSRR/PhysioNet PSG cohorts (SHHS/MESA/MrOS/CHAT)
      into the OxyDex pipeline for the ODI-4-vs-AHI bias work — a clinical ingest parser that shipped

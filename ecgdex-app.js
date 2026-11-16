@@ -661,8 +661,11 @@ self.onmessage = async (e) => {
       {
         l: 'Rest HR',
         v: r.rhrEff ? r.rhrEff + 'bpm' : '—',
-        sub: r.expRHR ? 'age norm ~' + r.expRHR : 'awake est',
-        s: !r.rhrEff ? 'neutral' : r.rhrEff <= (r.expRHR || 62) ? 'ok' : r.rhrEff <= (r.expRHR || 62) + 8 ? 'warn' : 'bad'
+        /* Over an age nobody entered the prior is a default, not this person's norm (§∅, residue
+           2026-11-16-the-profile-card-grades-against-a-prior-only-the-export-discloses). `ageEntered`
+           comes from `ECGProfile.personalize` and is the export's own `_ent` predicate. */
+        sub: r.ageEntered && r.expRHR ? 'age norm ~' + r.expRHR : 'awake est',
+        s: !r.rhrEff || !r.ageEntered ? 'neutral' : r.rhrEff <= (r.expRHR || 62) ? 'ok' : r.rhrEff <= (r.expRHR || 62) + 8 ? 'warn' : 'bad'
       },
       { l: 'VO₂max Est', v: r.vo2adj != null ? r.vo2adj : '—', sub: 'ml/kg/min · HR-ratio', s: r.vo2adj == null ? 'neutral' : r.vo2adj >= 45 ? 'ok' : r.vo2adj >= 38 ? 'warn' : 'bad' }
     ];
@@ -703,8 +706,8 @@ self.onmessage = async (e) => {
       {
         l: 'rMSSD' + (r.longRec ? ' (med)' : ''),
         v: r.dispRm + 'ms',
-        sub: r.expRmssd ? 'age norm ~' + r.expRmssd : '≥30 good',
-        s: r.expRmssd ? (r.dispRm >= r.expRmssd ? 'ok' : r.dispRm > r.expRmssd * 0.7 ? 'warn' : 'bad') : sc(r.dispRm, 30, 20)
+        sub: r.ageEntered && r.expRmssd ? 'age norm ~' + r.expRmssd : '≥30 good',
+        s: r.ageEntered && r.expRmssd ? (r.dispRm >= r.expRmssd ? 'ok' : r.dispRm > r.expRmssd * 0.7 ? 'warn' : 'bad') : sc(r.dispRm, 30, 20)
       },
       { l: 'SDNN' + (r.longRec ? ' (med)' : ''), v: r.dispSd + 'ms', sub: r.tier === 'ultra-short' ? 'needs ≥5min' : '≥50 good', s: r.tier === 'ultra-short' ? 'neutral' : sc(r.dispSd, 50, 30) },
       {
@@ -1734,11 +1737,13 @@ self.onmessage = async (e) => {
         'Resting HR',
         r.rhrEff || '—',
         'bpm',
-        r.expRHR ? '~' + r.expRHR : '—',
-        !r.rhrEff ? 'neutral' : r.rhrEff <= (r.expRHR || 62) ? 'ok' : r.rhrEff <= (r.expRHR || 62) + 8 ? 'warn' : 'bad',
+        r.ageEntered && r.expRHR ? '~' + r.expRHR : '—',
+        !r.rhrEff || !r.ageEntered ? 'neutral' : r.rhrEff <= (r.expRHR || 62) ? 'ok' : r.rhrEff <= (r.expRHR || 62) + 8 ? 'warn' : 'bad',
         r.longRec ? 'Nocturnal floor + 8 (awake est)' : 'Measured'
       ],
-      ['Expected rMSSD', r.expRmssd || '—', 'ms', 'age norm', 'neutral', 'Age-typical rMSSD for comparison'],
+      /* The rMSSD twin of the row above — the table named only the Rest-HR copy, but this row printed
+         `expRmssd` (a prior) under the target "age norm". Same predicate, same disclosure. */
+      ['Expected rMSSD', r.ageEntered ? r.expRmssd : '—', 'ms', r.ageEntered ? 'age norm' : '—', 'neutral', r.ageEntered ? 'Age-typical rMSSD for comparison' : 'population default, age not entered'],
       ['VO₂max base', r.vo2base == null ? '—' : r.vo2base, 'ml/kg/min', '—', 'neutral', 'Uth–Sørensen HRmax/HRrest' + (r.altFactor && r.altFactor < 1 ? ' · alt ×' + r.altFactor : '')],
       ['VO₂max adj', r.vo2adj == null ? '—' : r.vo2adj, 'ml/kg/min', '≥40', r.vo2adj == null ? 'neutral' : r.vo2adj >= 45 ? 'ok' : r.vo2adj >= 38 ? 'warn' : 'bad', 'HRV-adjusted estimate'],
       ...(r.vo2gt ? [['VO₂max GT', r.vo2gt, 'ml/kg/min', 'lab', 'neutral', 'Your entered ground truth']] : []),
