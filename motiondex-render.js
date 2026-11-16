@@ -248,7 +248,18 @@
     if (kt) kt.style.display = '';
 
     // ── position ──
-    if (pos.hasData) fill('mxPositionCard', 'mxPosition', positionBar(pos.dwellFrac) + row('Supine time', pct(pos.supineFrac), positionPop(pos)));
+    if (pos.hasData) {
+      /* §∅ — an EMPTY bar reads as "nothing happened". Over no covered epoch every fraction is
+         null, each segment is skipped, and the strip drew blank. Name the reason instead. */
+      var posBody = pos.dwellFracReason
+        ? mxNote(
+            '⏱ Posture distribution refused',
+            pos.dwellFracReason,
+            'No epoch in this recording carried a readable gravity vector, so every posture fraction is null and the strip would describe nothing. The dwell counts stay at zero beside a covered population of zero.'
+          )
+        : positionBar(pos.dwellFrac);
+      fill('mxPositionCard', 'mxPosition', posBody + row('Supine time', pct(pos.supineFrac), positionPop(pos)));
+    }
 
     // ── effort (incl. the per-epoch presence series — standalone read + the fusion's input) ──
     if (eff.hasData) {

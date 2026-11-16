@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="f12892fd59d8" data-compute-hash="6e5aaceeea3d">
+<html lang="en" data-manifest-hash="6ef6f70d0a8b" data-compute-hash="61258ea0a03f">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1zVlEXb8s+1rMCY16et54bJkj1EDY3ZlxVcToe+omgM=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OA3M42IE0IY9rm28gABEy9d6t7Iq7cC4XbN08qCTIFY=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wK9fP+fYfi661IypDOgrAoxGZS8mGJfe9l/9288cTZQ=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WYJLs4osiVWmijP5yrKoCR6RQYJJxDzjUs9Z8uPhAY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OA3M42IE0IY9rm28gABEy9d6t7Iq7cC4XbN08qCTIFY=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-aXQspUY+jpRLy8rLwDHxtP62krExNOtmqvTjG/48o/c=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.33.0</title>
@@ -8165,10 +8165,27 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       dwell[pos]++;
       track.push({ tStartMs: t0Ms != null ? t0Ms + e * epoch * 1000 : null, pos: pos });
     }
+    /* §∅ — A DISTRIBUTION OVER NO COVERED EPOCH IS NOT A DISTRIBUTION. `covered` counts only the
+       epochs that HELD samples (§7.4 above), so a wholly gapped stream reaches here with
+       `covered === 0`. The old denominator guard then published 0 for every posture and a
+       `supineFrac` of 0, which the KPI drew as `Supine time 0%` — a positional-OSA target MET,
+       over a night nothing was read. Zero of zero epochs is null, and the reason is named.
+       `hasData` STAYS TRUE: the epoch count and the track describe this stream truthfully, and
+       `positionPop` already reports `0 recorded epochs of N in the span`. */
+    var noCover = covered === 0;
     var frac = {};
-    for (var k = 0; k < POSITIONS.length; k++) frac[POSITIONS[k]] = covered ? dwell[POSITIONS[k]] / covered : 0;
+    for (var k = 0; k < POSITIONS.length; k++) frac[POSITIONS[k]] = noCover ? null : dwell[POSITIONS[k]] / covered;
     var supineFrac = frac.supine;
-    return { hasData: true, epochSec: epoch, track: track, dwellEpochs: dwell, coveredEpochs: covered, dwellFrac: frac, supineFrac: supineFrac };
+    return {
+      hasData: true,
+      epochSec: epoch,
+      track: track,
+      dwellEpochs: dwell,
+      coveredEpochs: covered,
+      dwellFrac: frac,
+      supineFrac: supineFrac,
+      dwellFracReason: noCover ? 'no-covered-epoch' : null
+    };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -8755,16 +8772,30 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     if (typeof opts.biasBrpm === 'number' && isFinite(opts.biasBrpm)) bias = opts.biasBrpm;
     var confMin = RR_CONF_MIN;
     if (typeof opts.confMin === 'number' && isFinite(opts.confMin)) confMin = opts.confMin;
-    if (!chestRows || chestRows.length < 400) return { hasData: false };
+    if (!chestRows || chestRows.length < 400) return { hasData: false, reason: 'too-few-chest-rows' };
+    /* §∅ — THE TRACKER'S PRIOR IS NOT A RATE, AT THIS LAYER EITHER. `respWindowSpectrum` returns a
+       degenerate spectrum for a flat chest stream, the coverage mask calls that window RECORDED, and
+       `respViterbi`'s transition prior then supplies a self-consistent ridge whose confidence clears
+       `confMin`. Row `2026-11-08-...-19-on-a-constant-signal` put the abstention at the SUMMARY and
+       left the tracker alone, which is right for `compute()` and the export — and leaves THIS
+       function fabricating for every other caller. `MOTIONDSP.respiratoryRate` is on the public API
+       surface and `resp-acc-analysis-app.js` calls it as the shipped estimator; measured on a still
+       chest it answered 9.6 br/min at confidence 0.751. So the criterion moves DOWN to the one
+       layer every caller crosses, and the summary now reads the same copy of it. The summary passes
+       its measure in, so no stream is banded twice. */
+    if (unit) {
+      var em = opts.effortMeasure || chestEffortMeasure(chestRows, t0Ms, null, unit);
+      if (chestEffortAbsent(em)) return { hasData: false, reason: 'no-respiratory-effort', medianBrpm: null, series: [], coverage: null, windowsTotal: 0, windowsUncovered: 0, method: null };
+    }
     var baseMs = streamBaseMs(chestRows);
     var rs = respResample(chestRows, unit, t0Ms, baseMs);
-    if (!rs) return { hasData: false };
+    if (!rs) return { hasData: false, reason: 'resample-failed' };
     var chans = [respBandpass(rs.xyz[0]), respBandpass(rs.xyz[1]), respBandpass(rs.xyz[2])];
     var grid = respGrid();
     var nWin = Math.round(RR_WIN_SEC * RR_FS),
       hop = Math.round(RR_HOP_SEC * RR_FS);
     var N = rs.xyz[0].length;
-    if (N < nWin) return { hasData: false };
+    if (N < nWin) return { hasData: false, reason: 'span-shorter-than-window' };
     var hann = new Float64Array(nWin);
     for (var i = 0; i < nWin; i++) hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (nWin - 1));
     var specs = [],
@@ -8792,7 +8823,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       } else specs.push(respWindowSpectrum(chans, s, nWin, grid, hann));
       starts.push(s);
     }
-    if (!specs.length) return { hasData: false };
+    if (!specs.length) return { hasData: false, reason: 'no-windows' };
     var v = respViterbi(specs, grid, bias);
     var series = [],
       kept = [],
@@ -8837,9 +8868,10 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
   // effort-series contract (predesigned for the Integrator apnea-typing fusion, §1.1):
   var EFFORT_CAD_SEC = 10; // epoch cadence (s) — fine enough to resolve a single ~10–30 s desat window
   var EFFORT_FLOOR_G = 0.004; // RMS threshold (g) for effort PRESENT vs flat — experimental, uncalibrated (Ryser'22 scale)
-  function respiratoryEffort(chestRows, t0Ms, durSec, unit) {
-    if (!chestRows || chestRows.length < 30) return { hasData: false };
-    if (!unit) return { hasData: false, reason: 'unit-unknown' };
+  /* The chest-effort BAND MEASURE, shared by the summary and the ridge tracker. It was inline in
+     `respiratoryEffort`; both layers now read ONE copy, so the absence criterion cannot differ
+     between the summary a consumer sees and the estimator an analysis tool calls directly. */
+  function chestEffortMeasure(chestRows, t0Ms, durSec, unit) {
     var baseMs = streamBaseMs(chestRows); // §7.2 anchor — chest may start after t0Ms
     // DEEP-AUDIT-II §7.3 — the passed `durSec` is the MAX over all streams (compute():501). Using it to
     // divide a CHEST-only quantity (breaths, sample rate) HALVES the value whenever a wrist file runs
@@ -8847,6 +8879,8 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     // chest stream's OWN span — durationOf against the chest's own base cancels the (base − t0Ms) offset,
     // leaving the chest recording's true duration independent of the wrist.
     var chestDurSec = durationOf(chestRows, baseMs);
+    // A caller with no multi-stream span (respiratoryRate) measures over the chest's own.
+    if (!(durSec > 0)) durSec = chestDurSec;
     var hz = sampleHz(chestRows, t0Ms);
     if (!isFinite(hz) || hz <= 0) hz = chestRows.length / Math.max(1, chestDurSec);
     // use the axis with the largest respiratory-band variance (AP motion dominates effort)
@@ -8919,6 +8953,28 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       var eamp = Math.sqrt(ss / cnt);
       series.push({ tMs: tEp, amp: Math.round(eamp * 1e4) / 1e4, present: eamp >= EFFORT_FLOOR_G });
     }
+    var presentEpochs = 0;
+    for (var pz = 0; pz < series.length; pz++) if (series[pz].present === true) presentEpochs++;
+    return { hz: hz, breaths: breaths, rate: rate, rms: rms, series: series, presentEpochs: presentEpochs, chestDurSec: chestDurSec };
+  }
+
+  /* The §∅ absence criterion, stated ONCE. It is a CONJUNCTION on purpose: no zero crossing, no
+     band RMS above the floor, and no epoch marked present. Any one term alone would null a weak
+     but real night — a low-amplitude chest placement clears no floor, and a smooth waveform
+     crosses zero rarely. All three together describe a flat signal. */
+  function chestEffortAbsent(m) {
+    return !!m && m.breaths === 0 && m.presentEpochs === 0 && !(m.rms >= EFFORT_FLOOR_G);
+  }
+
+  function respiratoryEffort(chestRows, t0Ms, durSec, unit) {
+    if (!chestRows || chestRows.length < 30) return { hasData: false };
+    if (!unit) return { hasData: false, reason: 'unit-unknown' };
+    var m = chestEffortMeasure(chestRows, t0Ms, durSec, unit);
+    var hz = m.hz,
+      breaths = m.breaths,
+      rate = m.rate,
+      rms = m.rms,
+      series = m.series;
 
     // ── RATE now comes from the spectral ridge tracker, not from zero crossings.
     // Same field, better number: on 26 corpus nights the zero-crossing rate scored
@@ -8927,7 +8983,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     // `nBreaths` for back-compat and as the effort-waveform sanity check, but it is
     // no longer the reported rate. Falls back to the legacy rate if the spectral
     // path cannot run (too few samples, unstamped rows).
-    var spec = respiratoryRate(chestRows, t0Ms, unit);
+    var spec = respiratoryRate(chestRows, t0Ms, unit, { effortMeasure: m });
     var legacyRate = null;
     if (isFinite(rate)) legacyRate = Math.round(rate * 10) / 10;
     var outRate = legacyRate;
@@ -8949,9 +9005,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
 
        The reason is NAMED, never borrowed. `no-respiratory-effort` is not `no chest ACC`: the stream
        is present and recorded, and it carries no respiration. */
-    var effortPresentEpochs = 0;
-    for (var pe = 0; pe < series.length; pe++) if (series[pe].present === true) effortPresentEpochs++;
-    var noEffort = breaths === 0 && effortPresentEpochs === 0 && !(rms >= EFFORT_FLOOR_G);
+    var noEffort = chestEffortAbsent(m);
     var rateReason = null;
 
     if (spec.hasData && spec.medianBrpm != null && !noEffort) {
@@ -9499,6 +9553,12 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
         streams: summary.streams,
         supineFrac: summary.position ? summary.position.supineFrac : null,
         dwellFrac: summary.position ? summary.position.dwellFrac : null,
+        /* THE REASON THE DISTRIBUTION IS ABSENT, beside the absence itself (row
+           `2026-11-15-motiondex-bodyposition-zero-distribution-over-no-epoch`). `bodyPosition` nulls
+           every fraction when no epoch held a sample, and a null with no reason reads as "MotionDex
+           had no wrist ACC". The stream arrived; no epoch of it carried a readable stamp. The
+           `immobileFracReason` discipline five keys up: unconditional, and null on a measured night. */
+        dwellFracReason: summary.position ? summary.position.dwellFracReason || null : null,
         immobileFrac: summary.activity ? summary.activity.immobileFrac : null,
         /* THE REASON BESIDE THE REFUSAL (row
            `2026-11-08-the-motiondex-clock-seam-reason-is-lost-in-the-export`). `:1089` nulls
@@ -9888,7 +9948,18 @@ __exports.MotionDex = window.MotionDex;
     if (kt) kt.style.display = '';
 
     // ── position ──
-    if (pos.hasData) fill('mxPositionCard', 'mxPosition', positionBar(pos.dwellFrac) + row('Supine time', pct(pos.supineFrac), positionPop(pos)));
+    if (pos.hasData) {
+      /* §∅ — an EMPTY bar reads as "nothing happened". Over no covered epoch every fraction is
+         null, each segment is skipped, and the strip drew blank. Name the reason instead. */
+      var posBody = pos.dwellFracReason
+        ? mxNote(
+            '⏱ Posture distribution refused',
+            pos.dwellFracReason,
+            'No epoch in this recording carried a readable gravity vector, so every posture fraction is null and the strip would describe nothing. The dwell counts stay at zero beside a covered population of zero.'
+          )
+        : positionBar(pos.dwellFrac);
+      fill('mxPositionCard', 'mxPosition', posBody + row('Supine time', pct(pos.supineFrac), positionPop(pos)));
+    }
 
     // ── effort (incl. the per-epoch presence series — standalone read + the fusion's input) ──
     if (eff.hasData) {

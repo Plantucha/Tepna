@@ -78,6 +78,7 @@
       "upright": 0,
       "unknown": 0
     },
+    "dwellFracReason": null,
     "immobileFrac": 1,
     "immobileFracReason": null,
     "movementIndex": 0,
