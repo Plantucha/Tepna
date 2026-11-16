@@ -1313,7 +1313,10 @@ self.onmessage = async (e) => {
     // motion tie: how many high-motion epochs fall in Wake/REM (vs deep/light)
     const stageAt = {};
     (r.stages || []).forEach((s) => (stageAt[s.tMin.toFixed(1)] = s.stage));
-    const hi = a.highMotionEpochs;
+    /* ∅ — an UNPLACED motion stream cannot say WHICH epoch it observed, so `highMotionEpochs`
+       is null. An empty list would read as "no movement", a measurement this stream never made. */
+    const hiPlaced = Array.isArray(a.highMotionEpochs);
+    const hi = hiPlaced ? a.highMotionEpochs : [];
     const inWakeREM = hi.filter((t) => ['Wake', 'REM'].includes(stageAt[t.toFixed(1)])).length;
     const stagePct = hi.length ? Math.round((inWakeREM / hi.length) * 100) : 0;
     const surgeMin = r.cvhr && r.cvhr.events ? r.cvhr.events.map((e) => e.sec / 60) : [];
@@ -1337,7 +1340,13 @@ self.onmessage = async (e) => {
       motionChart = `<div class="q-note" style="margin-top:10px">Motion trace needs a longer recording to plot — current sample is too short.</div>`;
     }
 
-    const quiet = hi.length === 0;
+    const quiet = hiPlaced && hi.length === 0;
+    /* ∅ — three arms, because an absent placement is not a quiet night. */
+    const motionTie = !hiPlaced
+      ? `<b>Motion:</b> this motion stream has no measured placement against the ECG (${a.alignReason}), so no epoch tie is stated.`
+      : quiet
+        ? '<b>Motion:</b> little movement in this recording — consistent with a still, ' + a.posture.toLowerCase() + ' measurement.'
+        : `<b>Motion:</b> ${hi.length} high-motion epoch${hi.length > 1 ? 's' : ''} — <b>${stagePct}%</b> in Wake/REM (where movement is expected, corroborating the ECG-only sleep staging)${nearSurge ? `, ${nearSurge} coinciding with CVHR clusters` : ''}.`;
     /* Built FIRST because it computes (and caches on `r._accEx`) the paired-epoch agreement the note
        below must quote — the alternative was a second heavy pass over the whole ACC record. */
     const extraCards = accExtraCards(r);
@@ -1367,7 +1376,7 @@ self.onmessage = async (e) => {
           ? `Across <b>${ag.n}</b> paired 5-min epochs the 95% limits of agreement are <b>${ag.loa[0]} … +${ag.loa[1]}</b> br/min (bias ${ag.meanDelta > 0 ? '+' : ''}${ag.meanDelta}), and <b>${ag.disagreeRate}%</b> of epochs differ by more than 3 br/min — so the two are a cross-CHECK, not a cross-validation of each other. Over 45 real nights this comparison does not establish agreement (median r 0.07, limits −4 … +7.5 br/min); read each rate on its own evidence badge.`
           : 'Too few paired epochs to state agreement — no agreement claim is made.'
       }${dResp != null ? ` The whole-night means differ by ${dResp} br/min, which compares two averages and is not an agreement statistic.` : ''}
-      ${quiet ? '<b>Motion:</b> little movement in this recording — consistent with a still, ' + a.posture.toLowerCase() + ' measurement.' : `<b>Motion:</b> ${hi.length} high-motion epoch${hi.length > 1 ? 's' : ''} — <b>${stagePct}%</b> in Wake/REM (where movement is expected, corroborating the ECG-only sleep staging)${nearSurge ? `, ${nearSurge} coinciding with CVHR clusters` : ''}.`}
+      ${motionTie}
       <span style="opacity:.7">${r.source === 'synthetic' ? 'ACC here is synthetic ground truth. ' : ''}Posture labelling depends on sensor mounting; tilt angle is mount-independent. Informational.</span></div>` +
       extraCards;
     $('accCard').style.display = 'block';

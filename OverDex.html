@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="9acbf8619fd2" data-compute-hash="5efb9de82090"><head>
+<html lang="en" data-manifest-hash="4ef448ebebc3" data-compute-hash="2167cc2dd2b9"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9xopWx8hIDw/x3F4UFs5k31yqDiwXLgxJW88XFlmtk4=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Aqb8GASMBaVFfonlv4Ztb/qk9t6bBzgtvl6z53P+ieU=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-ICMddmpea9QApQQSg7U2658TwB71/0lAeKxUVnqurkY=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UX7aBEim6eaSJRuFyp7TxqgAe7hlYHBlX6WDGl1pOIw=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-gA6/rghZPDdnGh8rDgNkZObDLZMj5bvp5tUvUPIhyYU=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jXqI/zPtSTNKqcXyZf2TWEgHFkhBEYTAJOpvrVagUuQ=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-s1I+Wec4rNvlD7cQEkiyj4tZrFF7mpS5mIYu5DJu/HM=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-yv7HWl4tXs1NL9lhU0AmLGqNx/aCujqQmJygHxLbEL8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Aqb8GASMBaVFfonlv4Ztb/qk9t6bBzgtvl6z53P+ieU=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-P6us49/SzENxycQkT7umtGVyr4YZvPIVJAxVizjWnGE=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UX7aBEim6eaSJRuFyp7TxqgAe7hlYHBlX6WDGl1pOIw=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-gA6/rghZPDdnGh8rDgNkZObDLZMj5bvp5tUvUPIhyYU=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jXqI/zPtSTNKqcXyZf2TWEgHFkhBEYTAJOpvrVagUuQ=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pkCw7+XkE2VfGAXTOvUhg7KnWbTOfd0mB+ew9AqQHP4=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-s1I+Wec4rNvlD7cQEkiyj4tZrFF7mpS5mIYu5DJu/HM=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-yv7HWl4tXs1NL9lhU0AmLGqNx/aCujqQmJygHxLbEL8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -45188,14 +45188,38 @@ __exports.PpgDex = window.PpgDex;
   //  there is, and gating it behind the stager is what kept the single most
   //  useful feature out of the classifier that needed it most.
   // ════════════════════════════════════════════════════════════════════════
+  /* §∅ — AN ALIGNMENT IS MEASURED OR IT IS ABSENT. The chest ACC is placed against the ECG start by
+     the difference of the two first stamps. Until 2026-11-16 four sites spelled that as
+     `ecgT0Ms && deviceACC[0].tsMs ? (…) / 1000 : 0`, followed by a range test whose else arm was `0`
+     again. So an ABSENT ECG start, an ABSENT first motion stamp and a MEASURED non-overlap all
+     reached the reader as a perfect 0 s alignment, indistinguishable from a stream that really began
+     with the ECG. A stamp of exactly 0 ms is a legal stamp too, and `&&` read it as absent.
+     Placement is a DISCONTINUITY question, so a refusal returns `offSec: null` with a named reason
+     (owner ruling 2026-09-17: a discontinuity refuses, reduced coverage annotates). */
+  function _accPlace(deviceACC, ecgT0Ms, durSec) {
+    const t0 = ecgT0Ms != null && isFinite(ecgT0Ms) ? +ecgT0Ms : null;
+    const a0 = deviceACC && deviceACC.length && deviceACC[0] && deviceACC[0].tsMs != null && isFinite(deviceACC[0].tsMs) ? +deviceACC[0].tsMs : null;
+    if (t0 == null || a0 == null)
+      return {
+        offSec: null,
+        measuredSec: null,
+        reason: t0 == null ? 'no-ecg-start-stamp' : 'no-acc-start-stamp'
+      };
+    if (!(durSec > 0) || !isFinite(durSec)) return { offSec: null, measuredSec: null, reason: 'no-ecg-duration' };
+    const measured = (a0 - t0) / 1000;
+    if (!(measured >= -2 && measured <= durSec)) return { offSec: null, measuredSec: measured, reason: 'acc-ecg-disjoint' };
+    return { offSec: measured, measuredSec: measured, reason: null };
+  }
+
   function epochMotion(deviceACC, accFs, ecgT0Ms, durSec, epochs) {
     const fs = accFs || 4;
     if (!deviceACC || !epochs || !epochs.length || deviceACC.length < fs * 30) return null;
     const N = deviceACC.length;
     const vm = new Float64Array(N);
     for (let i = 0; i < N; i++) vm[i] = Math.hypot(deviceACC[i].x, deviceACC[i].y, deviceACC[i].z);
-    const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - ecgT0Ms) / 1000 : 0;
-    const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;
+    const _pl = _accPlace(deviceACC, ecgT0Ms, durSec);
+    if (_pl.offSec == null) return null; // §∅ — unplaced motion is absent motion, never 0 s
+    const off = _pl.offSec;
     // GROSS motion from jerk (|Δ vector-magnitude|): suppresses the always-present respiratory
     // chest movement + gravity baseline, so only real body movement scores.
     const dmv = new Float64Array(N);
@@ -46079,6 +46103,10 @@ __exports.PpgDex = window.PpgDex;
     // MOTION BEFORE STAGING (see epochMotion). The chest ACC is parsed and on hand here; computing
     // it after the stager — as this did — is what left the classifier blind to the one feature that
     // most improves it.
+    /* §∅ — the ACC placement is computed ONCE here as well, so the reason behind a refusal reaches the
+       reader exactly once beside the four features it withdraws (`_accPlace`). The four producers
+       each refuse on their own; this carries the WHY. */
+    const _accPl = rec.deviceACC && rec.accFs && rec.deviceACC.length >= rec.accFs * 30 ? _accPlace(rec.deviceACC, rec.t0Ms, durSec) : null;
     const _epochMot = rec.deviceACC && rec.accFs && rec.deviceACC.length >= rec.accFs * 30 ? epochMotion(rec.deviceACC, rec.accFs, rec.t0Ms, durSec, epochs) : null;
     const stages = longRec ? stageSleep(epochs, _epochMot) : [];
 
@@ -46259,6 +46287,14 @@ __exports.PpgDex = window.PpgDex;
       sleepSuppressed,
       apneaSuppressed,
       _accEx,
+      accPlacement: _accPl
+        ? {
+            ok: _accPl.offSec != null,
+            offsetSec: _accPl.offSec,
+            measuredOffsetSec: _accPl.measuredSec,
+            reason: _accPl.reason
+          }
+        : null,
       // raw refs for canvas + charts
       int16,
       bp,
@@ -47112,8 +47148,17 @@ __exports.PpgDex = window.PpgDex;
     const xs = deviceACC.map((d) => d.x),
       ys = deviceACC.map((d) => d.y),
       zs = deviceACC.map((d) => d.z);
-    const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - ecgT0Ms) / 1000 : 0;
-    const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;
+    const _pl = _accPlace(deviceACC, ecgT0Ms, durSec);
+    if (_pl.offSec == null) {
+      /* §∅ — the same two absences this function already separates, plus the MEASURED
+         non-overlap. An unplaced stream cannot say which epoch it observed. */
+      epochs.forEach((e) => {
+        e.position = 'unknown';
+        e.positionReason = _pl.reason;
+      });
+      return epochs.map((e) => ({ tMin: e.tMin, position: 'unknown', reason: _pl.reason }));
+    }
+    const off = _pl.offSec;
     const N = deviceACC.length,
       out = [];
     const _blankMs = Array.isArray(deviceACC._blankSpans) ? deviceACC._blankSpans : [];
@@ -47164,8 +47209,11 @@ __exports.PpgDex = window.PpgDex;
     // vector-magnitude + timeline alignment
     const vm = new Float64Array(deviceACC.length);
     for (let i = 0; i < deviceACC.length; i++) vm[i] = Math.hypot(xs[i], ys[i], zs[i]);
-    const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - ecgT0Ms) / 1000 : 0;
-    const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;
+    const _pl = _accPlace(deviceACC, ecgT0Ms, durSec);
+    /* §∅ — an UNPLACED stream does not lose this whole analysis. The fields that need no
+       alignment keep their value; every ECG-relative field below withholds and names why. */
+    const _placed = _pl.offSec != null;
+    const off = _placed ? _pl.offSec : 0;
     // posture — robust gravity vector (per-axis median) → body position + tilt
     const overall = _posture(median(xs), median(ys), median(zs));
     // respiration: breathing is only cleanly visible when STILL, so locate the quietest
@@ -47291,14 +47339,19 @@ __exports.PpgDex = window.PpgDex;
       accFs: fs,
       posture: overall.label,
       tiltDeg: overall.tiltDeg,
-      postureSeries,
-      postureBreakdown,
-      postureTransitions: transitions,
-      motionSeries,
+      /* §∅ — THE ALIGNMENT LINE. Every field below is placed against the ECG start, so an unplaced
+         stream withholds it and names the cause. The fields above need no alignment and keep their
+         value (owner ruling 2026-09-17: a discontinuity refuses, reduced coverage annotates). */
+      alignOffsetSec: _placed ? +off.toFixed(3) : null,
+      alignReason: _pl.reason,
+      postureSeries: _placed ? postureSeries : null,
+      postureBreakdown: _placed ? postureBreakdown : null,
+      postureTransitions: _placed ? transitions : null,
+      motionSeries: _placed ? motionSeries : null,
       motionMedian: +mvMed.toFixed(1),
-      activitySeries: actSeries,
-      activityMedian: +actMed.toFixed(1),
-      highMotionEpochs: highMotion,
+      activitySeries: _placed ? actSeries : null,
+      activityMedian: _placed ? +actMed.toFixed(1) : null,
+      highMotionEpochs: _placed ? highMotion : null,
       nSamples: deviceACC.length,
       durMin: +(deviceACC.length / fs / 60).toFixed(1)
     };
@@ -47643,8 +47696,11 @@ __exports.PpgDex = window.PpgDex;
       zs = deviceACC.map((d) => d.z);
     const vm = new Float64Array(N);
     for (let i = 0; i < N; i++) vm[i] = Math.hypot(xs[i], ys[i], zs[i]);
-    const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - ecgT0Ms) / 1000 : 0;
-    const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;
+    const _pl = _accPlace(deviceACC, ecgT0Ms, durSec);
+    /* §∅ — an UNPLACED stream does not lose this whole analysis. The fields that need no
+       alignment keep their value; every ECG-relative field below withholds and names why. */
+    const _placed = _pl.offSec != null;
+    const off = _placed ? _pl.offSec : 0;
 
     // ── Feature 1: RRacc per 30-s epoch ──
     /* CHEST MOVEMENT ONSETS — the arousal fiducial an apnea leaves on the H10's accelerometer.
@@ -47814,7 +47870,24 @@ __exports.PpgDex = window.PpgDex;
     // ── Feature 4: step count & gait ──
     const gait = _gait(vm, fs, off);
 
-    return { rracc, rraccSummary, agreement, consensus, gait, off, accFs: fs, motionByTMin, movementOnsets, durMin: +(N / fs / 60).toFixed(1) };
+    /* §∅ — `off` was a fabricated 0 s on an unplaced stream until 2026-11-16, and every field keyed to
+       it read exactly like a stream that began with the ECG. An unplaced stream now reports `off: null`
+       with a named reason and withholds the ECG-relative fields. `gait` stays, because its counts need
+       no alignment; `gaitAxis` says which axis its bout times sit on (refuse the rate, relabel the axis). */
+    return {
+      rracc: _placed ? rracc : [],
+      rraccSummary: _placed ? rraccSummary : null,
+      agreement: _placed ? agreement : null,
+      consensus: _placed ? consensus : null,
+      gait,
+      gaitAxis: _placed ? 'ecg-relative' : 'acc-relative',
+      off: _placed ? off : null,
+      offReason: _pl.reason,
+      accFs: fs,
+      motionByTMin: _placed ? motionByTMin : null,
+      movementOnsets: _placed ? movementOnsets : [],
+      durMin: +(N / fs / 60).toFixed(1)
+    };
   }
 
   // ── multi-part split files (Polar Sensor Logger) ───────────────────────────
@@ -55631,9 +55704,12 @@ __exports.MotionDex = window.MotionDex;
     for (var i = 0; i < ch.data.length; i++) out[i] = ch.data[i] * k;
     return out;
   }
+  /* `_pearson` refuses below this many PAIRS. `_snPressCorr` reads the same constant, so the
+     refusal and the reason beside it can never disagree. */
+  var _PEARSON_MIN_N = 3;
   function _pearson(a, b) {
     var n = Math.min(a.length, b.length);
-    if (n < 3) return NaN;
+    if (n < _PEARSON_MIN_N) return NaN;
     var sa = 0,
       sb = 0;
     for (var i = 0; i < n; i++) {
@@ -55653,6 +55729,29 @@ __exports.MotionDex = window.MotionDex;
       db += y * y;
     }
     return da > 0 && db > 0 ? num / Math.sqrt(da * db) : NaN;
+  }
+
+  /* ∅ ONE NULL CARRIED FOUR DIFFERENT FACTS, and a bare null let a reader read any of them as a
+     measured zero correlation. The arms, in the order a scan meets them:
+       · `no-mask-on-sample`     — a lane produced no mask-on sample, so nothing was paired.
+       · `unpaired-lane-pool`    — the pooled lanes differ in length, so the pairing is unknown.
+                                   This is a POOLING fault and not an absence, which is why it
+                                   carries its own token (§∅ forbids a borrowed reason).
+       · `too-few-paired-samples`— fewer pairs than `_PEARSON_MIN_N`, so r is not estimable.
+       · `no-lane-variance`      — a lane is constant, so r is undefined and never zero.
+     `pairStrict` is the pooled site's rule: a session that carried Snore and no Pressure would
+     shift the pairing, so the pool refuses rather than truncate. The per-session site filters both
+     lanes from one mask-on index set, so it pairs by construction and takes the shorter overlap.
+     Row `2026-11-16-cpapdex-nulls-the-snore-pressure-correlation-with-no-reason`. */
+  function _snPressCorr(sn, press, pairStrict) {
+    var SN = sn || [],
+      PR = press || [];
+    if (!SN.length || !PR.length) return { r: null, reason: 'no-mask-on-sample' };
+    if (pairStrict && SN.length !== PR.length) return { r: null, reason: 'unpaired-lane-pool' };
+    if (Math.min(SN.length, PR.length) < _PEARSON_MIN_N) return { r: null, reason: 'too-few-paired-samples' };
+    var r = _pearson(SN, PR);
+    if (r == null || !isFinite(r)) return { r: null, reason: 'no-lane-variance' };
+    return { r: +r.toFixed(2), reason: null };
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -56221,8 +56320,11 @@ __exports.MotionDex = window.MotionDex;
        the product of the two spreads, so a fixed-pressure night — every CPAP-mode night — made
        `da` zero and published `NaN`, which `JSON.stringify` writes as `null`. The lane was already
        guarded for LENGTH and never for VARIANCE. Row
-       `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`. */
-    var snPressR = null;
+       `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`.
+       The scan now sits in `_snPressCorr`, which the POOLED site reads too, so one absence cannot
+       wear two different reasons at the two layers. It also splits the n < 3 refusal out of
+       `no-lane-variance`, which this site borrowed for it. Row
+       `2026-11-16-cpapdex-nulls-the-snore-pressure-correlation-with-no-reason`. */
     var pressOnset = -1;
     if (pressureSource) {
       for (var oi = 0; oi < pressure.length; oi++)
@@ -56231,8 +56333,7 @@ __exports.MotionDex = window.MotionDex;
           break;
         }
     }
-    var snPressRaw = snMaskOn.length && pressureMaskOn.length ? _pearson(snMaskOn, pressureMaskOn) : null;
-    if (snPressRaw != null && isFinite(snPressRaw)) snPressR = +snPressRaw.toFixed(2);
+    var snPress = _snPressCorr(snMaskOn, pressureMaskOn, false);
     var metrics = {
       // Usage & Adherence
       usageHours: usageHours == null ? null : +usageHours.toFixed(3),
@@ -56347,8 +56448,8 @@ __exports.MotionDex = window.MotionDex;
             100
           ).toFixed(2)
         : null,
-      snorePressureCorr: snPressR,
-      snorePressureCorrReason: snPressR != null ? null : snMaskOn.length && pressureMaskOn.length ? 'no-lane-variance' : 'no-mask-on-sample',
+      snorePressureCorr: snPress.r,
+      snorePressureCorrReason: snPress.reason,
       // Breath detection (flow-derived — validates device RespRate)
       breathCount: breath ? breath.breathCount : null,
       breathRate: breath ? breath.breathRate : null,
@@ -56501,6 +56602,7 @@ __exports.MotionDex = window.MotionDex;
        as non-compliant. The night's usage is then null, with the session count that made it so;
        the event INDICES still divide by the hours that were measured (a rate over known time is a
        rate), and every pooled distribution is unaffected. */
+    var nightSnPress = _snPressCorr(SN, P, true);
     var night = {
       usageHours: usageUnknown ? null : +totHours.toFixed(3),
       // maskOnLatency is a NIGHT-onset fact: how long until therapy started. Sessions are
@@ -56605,13 +56707,12 @@ __exports.MotionDex = window.MotionDex;
             100
           ).toFixed(2)
         : null,
-      // Pearson needs paired samples: only valid when every session contributed BOTH lanes,
-      // i.e. the pooled arrays line up 1:1. A session missing Snore would shift the pairing.
-      snorePressureCorr: (function () {
-        if (!SN.length || SN.length !== P.length) return null;
-        var r = _pearson(SN, P);
-        return r != null && isFinite(r) ? +r.toFixed(2) : null;
-      })(),
+      /* Pearson needs paired samples: only valid when every session contributed BOTH lanes, i.e.
+         the pooled arrays line up 1:1. A session carrying no Snore would shift the pairing, so the
+         pool refuses and NAMES which of the four facts it met — the value and the reason come from
+         one scan, so they cannot disagree. */
+      snorePressureCorr: nightSnPress.r,
+      snorePressureCorrReason: nightSnPress.reason,
       // ── Breath detection (flow-derived) ──
       breathCount: haveBreaths ? breaths : null,
       /* Rate over the MEASURED (mask-on) time — not a mean of per-session rates, and NOT over wall
@@ -57595,7 +57696,7 @@ __exports.MotionDex = window.MotionDex;
     _synthRaw: _synthRaw,
     _synthEdfSet: _synthEdfSet,
     selfTest: selfTest,
-    _kernel: { _mean: _mean, _sd: _sd, _cov: _cov, _p: _p, _iqr: _iqr, _pearson: _pearson }
+    _kernel: { _mean: _mean, _sd: _sd, _cov: _cov, _p: _p, _iqr: _iqr, _pearson: _pearson, _snPressCorr: _snPressCorr }
   };
   // ESM-MIGRATION: the former `module.exports = api` (CJS dual-mode) is dropped — a top-level ESM
   // `export` below makes this a module, and nothing `require()`s it; the api reaches Node/vm/browser
