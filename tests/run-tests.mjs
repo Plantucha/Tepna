@@ -31,6 +31,7 @@ import {
   unrestoredFrom as rebaseUnrestoredFrom,
   heldGoldens as rebaseHeldGoldens,
   resolvePlan as rebaseResolvePlan,
+  driveRebaseStops as rebaseDriveStops,
   trackedOracle as rebaseTrackedOracle
 } from '../tools/rebase-safe.mjs';
 /* AND THIS IMPORT IS ITSELF AN ASSERTION. `tools/pr-compliance.mjs` ended in a bare
@@ -3686,6 +3687,7 @@ async function main() {
     /* The remedy's DECISION half, pure and driven by value: which named paths the builders may
        restore, and what each refusal says. The CLI writes bytes; this decides. */
     rebaseResolvePlan: rebaseResolvePlan,
+    rebaseDriveStops: rebaseDriveStops,
     rebaseTrackedOracle: rebaseTrackedOracle,
     /* The gate's own verdict extractor, single-sourced: `rebase-safe` reads a PR body with the same
        parser that judges it, so the two cannot disagree about what a quoted verdict is. */

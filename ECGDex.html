@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="abde5716adda" data-compute-hash="989eaf739340">
+<html lang="en" data-manifest-hash="1a9d3d83472c" data-compute-hash="41e471d11fd5">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jU+dw+IT2rwtLcI6NYHxMA0+3qLsJNGkAHJkagoo0D4=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-nsuZe4LPEGOVzA/Tj0v7xjibkLxuO6ucM1M3zE0aXtg=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-vmYyQBA8r/N++WM5iMIpZH87nb/tWcjKcq6U7TCK58o=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-zEOM7anRONgMedy934x18BHdQ4MKMvIqv8CnfOvvRyw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlKZOcoXwjrjChrzF4PRQEqS8wfczWknuh63k83mygE=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R6Dc/xXQzYFveWsVfbGSg8lpp98pG2dIwLNGGu4Pc04=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-bo6raE46Nns2YugBQDX8OC7Qw5dlpqlhpUm7g9fQibw=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jU+dw+IT2rwtLcI6NYHxMA0+3qLsJNGkAHJkagoo0D4=' 'sha256-kCIXFB+Oh+fPXQK0n5wv9ysz8QHUPT7/BBvnQcqS+u0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-xyysGarlH8qAcn30/+Mudfd9sfxhDn3FnpoT5Jwt9rg=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-zEOM7anRONgMedy934x18BHdQ4MKMvIqv8CnfOvvRyw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.33.0</title>
@@ -17031,7 +17031,8 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
        the already-handled "absent or sparse" case — keep the per-row PHONE stamps, which jitter but
        stay continuous — and the step is REPORTED rather than absorbed. */
     var accClockSteps = 0,
-      accMaxStepMs = 0;
+      accMaxStepMs = 0,
+      accLastStepIdx = 0;
     for (var s1 = 1; s1 < out.length; s1++) {
       var pr = out[s1 - 1],
         cu = out[s1];
@@ -17039,9 +17040,132 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       var disagree = Math.abs((cu.relNs - pr.relNs) / 1e6 - (cu.tsMs - pr.tsMs));
       if (disagree > ECG_RESYNC_BOUND_MS) {
         accClockSteps++;
+        accLastStepIdx = s1;
         if (disagree > accMaxStepMs) accMaxStepMs = disagree;
       }
     }
+    /* ── THE MOTION STREAM'S OWN AXIS (owner instruction 2026-11-15) ────────────────────────────────
+       "The accelerometer's independent timing and signal quality remain unestablished. acc should be
+       treated like ecg waveform, not tied to heartbeat." Until this block the node measured
+       `accClockSteps` and `accMaxStepMs` here and NO consumer read either one: on `b965ab0fc` the
+       only occurrence of each name in `ecgdex-dsp.js`, `ecgdex-app.js` and `ecgdex-render.js` was the
+       return statement at the end of this function. The signal-quality table answered "no own axis"
+       on timing and on drift, because the node placed motion samples against the ECG start and
+       scored them through the beat series.
+
+       BOTH CLOCKS ARE IN HAND HERE AND NOWHERE LATER. The rebuild below OVERWRITES `tsMs` with
+       device-spaced times, so an anchor list built after it carries the device counter in both
+       members and reads `independent === false` on every file — the Clock Contract's first question
+       ("is there a second clock at all") answered wrong by construction. So the anchors are taken
+       here, from the raw phone column, before anything rewrites it.
+
+       §7 governs the rest:
+       · ONE DEVICE CLOCK PER AXIS. A step is a change of clock, so anchors come from at or after the
+         LAST step and the earlier ones are counted in `anchorsDroppedPreStep`, never mixed in.
+       · A RATE NEEDS ITS QUALIFICATION. `ppm` never travels without `anchors` and `spanMs`.
+       · THREE ANCHORS OR REFUSE. `hostAxis` refuses below three and returns `{ ok, reason, n }`; the
+         block then carries a null rate with that reason, never a 0.
+       · THIS REPORTS, IT DOES NOT CORRECT. `applied` is false: the samples keep the axis the rebuild
+         below gives them, and applying a motion rate correction is a decision of its own.
+       · A REFUSED AXIS NAMES NO SOURCE. `timingSource` is computed from `independent`, which a
+         refusal does not publish, so the field stays null with its reason rather than claiming the
+         `device+host` arm by default.
+       The list is STRIDED to at most 512 anchors with the final eligible row always included: a
+       200 Hz night holds millions of rows, the running median is width 21, and a rate measured over
+       the file's own span does not sharpen with more samples of the same two columns. The stride and
+       the eligible count are published, so a reader sees what was sampled. */
+    var ACC_AXIS_ANCHOR_CAP = 512;
+    var accAnchorsEligible = 0,
+      accAnchorsDroppedPreStep = 0,
+      accLastEligible = -1;
+    for (var q1 = 0; q1 < out.length; q1++) {
+      if (!(isFinite(out[q1].tsMs) && isFinite(out[q1].relNs))) continue;
+      if (q1 < accLastStepIdx) {
+        accAnchorsDroppedPreStep++;
+        continue;
+      }
+      accAnchorsEligible++;
+      accLastEligible = q1;
+    }
+    var accStride = Math.max(1, Math.ceil(accAnchorsEligible / ACC_AXIS_ANCHOR_CAP)),
+      accAnchors = [],
+      _accSeen = 0,
+      _accLastPushed = -1;
+    for (var q2 = 0; q2 < out.length; q2++) {
+      if (!(isFinite(out[q2].tsMs) && isFinite(out[q2].relNs)) || q2 < accLastStepIdx) continue;
+      if (_accSeen++ % accStride) continue;
+      accAnchors.push({ devMs: out[q2].relNs / 1e6, hostMs: out[q2].tsMs });
+      _accLastPushed = q2;
+    }
+    // The span is the measurement's qualification, so the last eligible row rides even when the
+    // stride would skip it — a span short by one stride is a span this file did not have.
+    if (accLastEligible >= 0 && _accLastPushed !== accLastEligible) accAnchors.push({ devMs: out[accLastEligible].relNs / 1e6, hostMs: out[accLastEligible].tsMs });
+    var accAx =
+      typeof DexClock !== 'undefined' && DexClock.hostAxis
+        ? DexClock.hostAxis(accAnchors, {})
+        : { ok: false, reason: 'clock-module-absent: this bundle carries no clock.js, so no host axis can be built', n: accAnchors.length };
+    var _accDrawn = accAx.deviceDrawn === true;
+    /* ── WHAT THE RATE IS WORTH AT THIS SPAN ───────────────────────────────────────────────────────
+       §7: "a consumer reading `.ppm` quotes a rate and needs a baseline". `hostAxis` deliberately
+       enforces no span gate, so the baseline is the consumer's to supply — and a GATE is the wrong
+       shape here, because a hidden rate teaches a reader nothing while a qualified one teaches them
+       the span. Measured on a constructed 52 Hz stream with a planted +50 ppm host and 3 ms of host
+       jitter: over 600 s the block reads 52.95 ppm, and over the first 0.8 s of the same stream it
+       reads 2974 ppm. Both are what the anchors say; only the second is useless, and the figure that
+       says so is the uncertainty.
+
+       The estimate is this stream's own: the divergence of each anchor from the first, differenced
+       between neighbours, median absolute. That is the host column's jitter and it does NOT include
+       the drift the rate is measuring, so dividing it by the span gives the rate's own noise floor in
+       ppm. `spreadMs` cannot stand in for it: that is max minus min over the whole file, which is
+       drift and jitter added together. The render prints it as "± N ppm at this span". */
+    var accPpmUnc = null;
+    if (accAnchors.length >= 3) {
+      var _d0 = accAnchors[0],
+        _dif = [];
+      for (var u1 = 1; u1 < accAnchors.length; u1++) {
+        var _pv = accAnchors[u1 - 1].hostMs - _d0.hostMs - (accAnchors[u1 - 1].devMs - _d0.devMs),
+          _cv = accAnchors[u1].hostMs - _d0.hostMs - (accAnchors[u1].devMs - _d0.devMs);
+        _dif.push(Math.abs(_cv - _pv));
+      }
+      _dif.sort(function (a, b) {
+        return a - b;
+      });
+      var _jit = _dif.length ? _dif[_dif.length >> 1] : null,
+        _spanMs = accAnchors[accAnchors.length - 1].devMs - accAnchors[0].devMs;
+      if (_jit != null && _spanMs > 0) accPpmUnc = +((1e6 * _jit) / _spanMs).toFixed(2);
+    }
+    var accTiming = {
+      ok: accAx.ok === true,
+      reason:
+        accAx.ok !== true
+          ? accAx.reason || 'the host axis refused and named no reason'
+          : accAx.independent === false
+            ? 'no second clock on this input: the host column is this device\u2019s own counter rounded, so it measures no rate against it'
+            : null,
+      anchors: accAx.anchors != null ? accAx.anchors : accAnchors.length,
+      anchorsEligible: accAnchorsEligible,
+      anchorStride: accStride,
+      anchorsDroppedPreStep: accAnchorsDroppedPreStep,
+      spanMs: accAx.spanMs != null ? accAx.spanMs : null,
+      /* THE FIRST QUESTION IS WHETHER THERE IS A SECOND CLOCK, AND A ~0 ppm IS NOT THE ANSWER (§7).
+         Measured on the constructed stream whose phone column is the device counter rounded to the
+         millisecond: `hostAxis` answers ok with `independent: false` and a rate of 0.13 ppm. That
+         number is arithmetic on one clock, so this block publishes NO rate for it and names the
+         reason. The ECG channel's cell shows the rate with `independent` beside it; this one refuses
+         it, because a reader who meets a number spends it. */
+      ppm: accAx.ok === true && accAx.independent !== false && accAx.ppm != null ? accAx.ppm : null,
+      ppmUncertainty: accPpmUnc,
+      spreadMs: accAx.spreadMs != null ? accAx.spreadMs : null,
+      independent: accAx.independent != null ? accAx.independent : null,
+      deviceDrawn: accAx.deviceDrawn != null ? accAx.deviceDrawn : null,
+      drawnShare: accAx.drawnShare != null ? accAx.drawnShare : null,
+      resyncs: accClockSteps,
+      maxStepMs: accClockSteps ? Math.round(accMaxStepMs) : null,
+      applied: false,
+      timingSource: accAx.independent == null ? null : accAx.independent === false ? (_accDrawn ? 'none' : 'device') : _accDrawn ? 'host' : 'device+host',
+      timingSourceReason: accAx.independent == null ? 'no host axis resolved on this stream, so no timing source can be named' : null
+    };
     if (anchor >= 0 && accClockSteps === 0) {
       var nNs = 0;
       for (var b = 0; b < out.length; b++) if (isFinite(out[b].relNs)) nNs++;
@@ -17078,6 +17202,107 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
        "device" and "host" here are the same numbers to look at and different things to trust. */
     /* §3.2 — the `…_ACCRUNS.txt` spans ride on the row array itself, the same idiom the seam list
        uses, so no consumer signature changes and a drop without a sidecar keeps today's bytes. */
+    /* ── THE WAVEFORM FACTS OF THE MOTION STREAM, READ FROM THE SAMPLES ────────────────────────────
+       Every figure below is computed from the ACC samples alone. None of them touches a beat, an
+       epoch or the ECG start, which is what "treated like ecg waveform, not tied to heartbeat" asks
+       for: the ECG channel reports a rail census and a flat-run share of its own, and this is the
+       motion stream's own pair, on the same two facts.
+
+       · THE GRAVITY ORACLE REPORTS, IT DOES NOT RESCALE. A unit tag is a claim and gravity is a
+         measurement, so the median vector magnitude says which unit the file is ACTUALLY in. This is
+         MotionDex's `inferAccUnit` rule, applied here because ECGDex's `_ACC` path reads no unit
+         header at all and therefore has no declared unit to disagree with. Silently rescaling would
+         replace a missing declaration with a guess, which is the fabrication the suite exists to
+         prevent — so a magnitude outside every known band publishes a null unit with its reason.
+       · THE RAIL IS A COUNT, NOT A SHARE, matching the ECG channel's cell for the same reason: the
+         honest denominator for a share is the sample total, which this reshape does carry, so the
+         count rides with `samples` beside it and the unit says what it counts. A file whose extreme
+         value is reached by a single sample per axis holds NO rail, which is a measured third state
+         and not a clean one (§∅).
+       · A FLAT RUN IS MEASURED BY RUN LENGTH, never by value membership (§∅): a repeated triple is
+         ordinary at rest for one sample and impossible for a second, so the threshold is one second
+         of this file's own rate and it is published with the number.
+       · THE SAMPLE TOTAL IS THE POPULATION, published so every share above can be re-derived. */
+    var _accMagS = [],
+      _accN = out.length,
+      _accMagStride = Math.max(1, Math.ceil(_accN / 20000));
+    for (var w1 = 0; w1 < _accN; w1 += _accMagStride) {
+      var _r = out[w1];
+      if (!(isFinite(_r.x) && isFinite(_r.y) && isFinite(_r.z))) continue;
+      _accMagS.push(Math.sqrt(_r.x * _r.x + _r.y * _r.y + _r.z * _r.z));
+    }
+    _accMagS.sort(function (a, b) {
+      return a - b;
+    });
+    var _accMag = _accMagS.length ? _accMagS[_accMagS.length >> 1] : null;
+    var _accUnit = null;
+    if (_accMag != null) {
+      if (_accMag >= 0.5 && _accMag <= 1.8) _accUnit = 'g';
+      else if (_accMag >= 500 && _accMag <= 1800) _accUnit = 'mg';
+      else if (_accMag >= 5 && _accMag <= 18) _accUnit = 'm/s2';
+    }
+    /* ── THERE IS NO RAIL CENSUS HERE, AND THREE MEASUREMENTS SAY WHY ───────────────────────────
+       A rail is the CONVERTER running out of range, so it is defined by the device's full-scale.
+       No declared range for the motion stream reaches this node: the `_ACC` parser reads no unit
+       header and no scale. The file's own extreme cannot stand in for one, and the three readings
+       below each killed a version of this census that tried.
+       1 · BY VALUE MEMBERSHIP. Counting every sample equal to an axis extreme read 4334 of 31200
+           samples, 14 %, "at the rail" on a constructed 52 Hz sine with no clipping at all. A
+           quantised peak touches its extreme and leaves, so the count was mostly peaks (∅ forbids
+           a value-keyed detector for exactly this reason).
+       2 · BY RUN LENGTH, WHICH IS THE RULE ∅ PRESCRIBES. Holds of three or more samples at an
+           extreme still read 3003 of 31200 on the same clean stream, because a resting
+           accelerometer wobbles over a narrow quantised range and sits at both ends of it.
+       3 · AND THE READING THAT CLOSES IT. The same constructed motion gives a DIFFERENT hold count
+           written in g and written in mg, and on a stream whose z axis is constant it reads 10000
+           of 10000 samples held at an extreme. The device and the motion are identical in each
+           case; only the written precision and the axis's own variation changed.
+       So the hold count is a fact about the decimals in the file and about how still the subject
+       was, and no threshold on it becomes a fact about the converter. A figure that reads 100 % on
+       a clean record is worse than absent, because a reader takes it for a railed record. The cell
+       publishes no value and names the missing INPUT, and this node carries no hold figures at all
+       until a declared full-scale range reaches it. */
+    // Flat runs: consecutive identical triples, counted by LENGTH against this file's own rate.
+    var _accFlatMin = Math.max(2, Math.round(fs)),
+      _accFlatN = 0,
+      _accRun = 1;
+    for (var w4 = 1; w4 <= _accN; w4++) {
+      var _same = w4 < _accN && out[w4].x === out[w4 - 1].x && out[w4].y === out[w4 - 1].y && out[w4].z === out[w4 - 1].z;
+      if (_same) {
+        _accRun++;
+        continue;
+      }
+      if (_accRun >= _accFlatMin) _accFlatN += _accRun;
+      _accRun = 1;
+    }
+    /* ROUND THE PUBLISHED MAGNITUDE, because 13 decimals of a MEDIAN of quantised integers is false
+       precision: the stream's own samples are whole mg or 3-decimal g, so the extra digits describe
+       the median of a finite list and nothing about the sensor. Rounded to 2 decimals, which still
+       separates the two unit bands by three orders of magnitude. The unit decision reads `_accMag`
+       itself and is untouched. */
+    var accQuality = {
+      samples: _accN,
+      magMedian: _accMag == null ? null : +_accMag.toFixed(2),
+      magUnit: _accUnit,
+      magUnitReason:
+        _accUnit != null
+          ? null
+          : _accMag == null
+            ? 'no finite triple in this stream, so gravity could not be read'
+            : 'the median vector magnitude sits in no known unit band, so this stream carries no inferred unit',
+      magSampled: _accMagS.length,
+      magStride: _accMagStride,
+      /* The one figure of this block that is a REFUSAL rather than a measurement. The reason names
+         the missing input, and the comment above the census that is not here carries the three
+         readings that rule a file-local definition out. */
+      railSamples: null,
+      railReason:
+        'no-rail: a rail is the converter\u2019s full-scale limit, and no declared range for this stream reaches this node; the file\u2019s own extreme is not one, because a resting accelerometer holds at both ends of its quantised range',
+      flatSamples: _accFlatN,
+      flatPct: _accN > 0 ? +((100 * _accFlatN) / _accN).toFixed(2) : null,
+      flatMinSamples: _accFlatMin,
+      flatWindowSec: 1
+    };
     var _accRuns = parseAccRunsTimed(opts && opts.runsText);
     /* §∅ — A SIDECAR THAT FOUND NO RUN IS A MEASUREMENT, AND ITS ABSENCE IS NOT. `_blankSpans`
        alone cannot carry that difference: a stream the box cleared and a stream the box never read
@@ -17090,7 +17315,21 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       /** @type {any} */ (out)._runsSidecar = _accRuns;
       if (_accRuns.spans.length) /** @type {any} */ (out)._blankSpans = _accRuns.spans;
     }
-    return { acc: out, accFs: fs, accClockSteps: accClockSteps, accMaxStepMs: accClockSteps ? Math.round(accMaxStepMs) : null, accAxis: accClockSteps ? 'host' : 'device' };
+    /* §3.2's idiom: the blocks ride on the row array itself, so every path that already carries
+       `deviceACC` — the app's module global, `planCompanionGraft`, the `analyze` reshape — carries
+       the motion stream's own timing and waveform facts with it and no signature changes. The two
+       fields are ALSO returned below, because a test reads the parser's own result. */
+    /** @type {any} */ (out)._accTiming = accTiming;
+    /** @type {any} */ (out)._accQuality = accQuality;
+    return {
+      acc: out,
+      accFs: fs,
+      accClockSteps: accClockSteps,
+      accMaxStepMs: accClockSteps ? Math.round(accMaxStepMs) : null,
+      accAxis: accClockSteps ? 'host' : 'device',
+      accTiming: accTiming,
+      accQuality: accQuality
+    };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -17725,6 +17964,10 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
      rather than on `r`: the firmware cross-check, which is this node's only reference stream. */
   function ecgSignalQuality(r, ex) {
     r = r || {};
+    /* The motion stream's own two blocks, read where they ride (§3.2's idiom). A recording with no
+       motion companion has neither, and every acc cell below then states that rather than a 0. */
+    var accT = r.deviceACC && r.deviceACC._accTiming ? r.deviceACC._accTiming : null,
+      accQ = r.deviceACC && r.deviceACC._accQuality ? r.deviceACC._accQuality : null;
     var rail = r.ecgRail || null,
       terms = r.sqiTerms || null,
       ax = r.hostAxis || null,
@@ -17764,7 +18007,40 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
        SEPARATE fact this node always measures (it detects its own steps), so it sits beside the
        value rather than under its reason. */
     var ecgTiming = _sqCell(
-      ax && ax.ok ? ax.ppm : null,
+      /* NO SECOND CLOCK MEANS NO RATE, AND THIS CELL PUBLISHED ONE ANYWAY. The gate is already in
+         this file: the `fs` block one screen above refuses to divide `fs` when `independent === false`,
+         because "the two columns are one clock and `ppm` measures the ROUNDING, not a crystal". The
+         spine labels it (`inertReason`), the export forwards it (`hostAxis.reason`), and this cell
+         showed the number instead — so the sentence that says the figure measures nothing is exactly
+         the sentence a reader never saw, because a reason renders only when the value is absent.
+         MEASURED 2026-11-16 over 15 real `Polar_H10_*_ECG` fragments of the phone-capture format:
+         `independent` false on 15 of 15, `spreadMs` 0.9998 to 1.000 ms (median 0.99976 — one stamp
+         quantum), `ok` true on 15 of 15, `inertReason` non-null on 15 of 15. So the cell published a
+         rate on every one of them, and the refusal the producer had already computed reached no
+         reader. The phone column of this capture format is the device counter rounded to the
+         millisecond, which is why the residual spread IS the quantum.
+         Those 15 are CORPUS and not repository files, so CI cannot re-run that census. The committed
+         `synthetic_ecgdex_h10.txt` carries the same verdict (`independent` false, spread 0.92 ms),
+         and the suite leg pins the behaviour there, where every rig can run it.
+         WHY ONLY THE INDEPENDENCE ARM. The `fs` block has four refusals — independence, non-finite,
+         a host clock step, and too short a span. The last two leave a real rate that is merely
+         unresolved at this span, and the cell qualifies those in `_sqQualifier` with the anchor
+         count, the span and `ppmUncertainty`. Independence is the one arm where there is no rate to
+         qualify, because both columns came off one clock (Clock Contract §7: "First ask whether
+         there IS a second clock — read `independent`, never a ~0 ppm").
+         The AXIS is not refused, only the RATE: `timingSource` above still relabels this case to
+         `'device'`, and the samples keep the device crystal, which is the honest axis. That split is
+         the standing fleet remedy for an axis with no second clock, and it is what the motion cell
+         below does too. No new string is minted here — the spine's own `inertReason` now renders.
+         THE FIGURE IS NOT DESTROYED, only unquoted: `hostAxis.ppm` on the export still carries it,
+         and this cell keeps the whole qualification beside the refusal (`anchors`, `spanMs`,
+         `spreadMs`, `ppmUncertainty`), so a reader who wants the arithmetic has it and nobody meets
+         it as a rate. PpgDex is the precedent, and it was settled by owner rule rather than taste
+         (decision 2026-11-03): it publishes `ppm: null` on a drawn column, keeps both figures under
+         `drawnColumn`, and leaves the `fs` correction alone — "this stops the QUOTE, not the
+         correction". The two nodes gate on opposite sides of the same absence: PpgDex asks whether
+         the DEVICE column is a clock, this asks whether the HOST column is one. */
+      ax && ax.ok && ax.independent !== false ? ax.ppm : null,
       'ppm of the device rate against the host axis',
       ax && ax.inertReason ? ax.inertReason : 'no second clock on this input: one device clock, nothing to measure a rate against',
       {
@@ -17779,6 +18055,13 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
            anchors` with no span anywhere in the cell. */
         spanMs: ax && ax.spanMs != null ? ax.spanMs : null,
         applied: ax ? ax.applied : null,
+        /* σ_y AT THIS RECORDING'S OWN SPAN, beside the rate it qualifies. The cell published the
+           anchor count and the span and left the band off, so a reader could see how long the
+           baseline was and not how much of the rate it resolves — and the motion cell beside it
+           carries one, which made the two columns answer different questions. It rides the same
+           path as `stability` and is therefore null on a DRAWN axis by the same rule: σ_y over
+           `index × rate` describes the writer's arithmetic, not a clock. */
+        ppmUncertainty: ax && ax.stability && ax.stability.ppmUncertainty != null ? ax.stability.ppmUncertainty : null,
         spanPpm: ax && ax.spanPpm !== undefined ? ax.spanPpm : null,
         maxStepMs: ax && ax.maxStepMs !== undefined ? ax.maxStepMs : null,
         resyncs: Array.isArray(r.clockResyncs) ? r.clockResyncs.length : null,
@@ -17937,14 +18220,39 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         afterReason: accFlatPct != null ? null : ACC_SIDECAR_AFTER
       }
     );
-    var accFlat = _sqCell(accFlatPct, '% of the recording span inside the box’s held-value runs', acc ? 'no `_ACCRUNS.txt` reached this node, so no run census applies to the motion stream' : NO_ACC, {
-      runs: accBlank ? accBlank.length : null,
-      source: 'the box’s run sidecar, not a census this node computes',
-      before: null,
-      beforeReason: ACC_SIDECAR_ONLY,
-      after: accFlatPct,
-      afterReason: accFlatPct != null ? null : ACC_SIDECAR_AFTER
-    });
+    /* ⚠️ TWO CENSUSES, ONE SUBJECT, AND THEY ARE NOT THE SAME MEASUREMENT. The cell's VALUE stays the
+       box's, which marks the held-value runs the capture host found. The node now also counts runs of
+       IDENTICAL TRIPLES at least one second long in the samples themselves — a frozen sensor or a
+       repeated BLE frame, never rest. Folding the second into the first would publish two different
+       rules under one unit, so the node's figure travels under its own name and the reason says so
+       whenever the sidecar is absent. That also keeps `ACC_SIDECAR_ONLY` true: the box's run census
+       really is the only source of the box's fact. */
+    var accNodeFlatNote =
+      accQ && accQ.flatPct != null
+        ? '; the node’s own census of identical triples held for at least ' +
+          accQ.flatWindowSec +
+          ' s covers ' +
+          accQ.flatPct +
+          ' % of its samples, which is a different rule and not this cell’s value'
+        : '';
+    var accFlat = _sqCell(
+      accFlatPct,
+      '% of the recording span inside the box’s held-value runs',
+      acc ? 'no `_ACCRUNS.txt` reached this node, so no run census applies to the motion stream' + accNodeFlatNote : NO_ACC,
+      {
+        runs: accBlank ? accBlank.length : null,
+        source: 'the box’s run sidecar, not a census this node computes',
+        nodeFlatPct: accQ ? accQ.flatPct : null,
+        nodeFlatSamples: accQ ? accQ.flatSamples : null,
+        nodeFlatMinSamples: accQ ? accQ.flatMinSamples : null,
+        nodeFlatWindowSec: accQ ? accQ.flatWindowSec : null,
+        nodeFlatSource: 'runs of identical x, y and z in the samples, counted by LENGTH against this file’s own rate',
+        before: null,
+        beforeReason: ACC_SIDECAR_ONLY,
+        after: accFlatPct,
+        afterReason: accFlatPct != null ? null : ACC_SIDECAR_AFTER
+      }
+    );
     var NOT_MEASURED_SNR = 'not-measured: this node computes no in-band SNR for the ECG; the band edges are pre-stated before that measurement (brief §8)';
     var NOT_MEASURED_MAINS = 'not-measured: this node computes no mains-hum ratio for any channel';
     return {
@@ -17981,24 +18289,70 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
              reason stands on the rest whatever arrives, and the channel states the two facts that
              govern the whole column ONCE, here, instead of ten times down it. */
           scopeNote:
-            'This node places the motion samples against the ECG start and scores quality through the beat series, so it establishes no timing and no waveform quality of the motion stream\u2019s own. A motion companion fills only the two shares the box\u2019s run census feeds.',
+            'The motion stream carries its own host axis, built from its own two clocks before anything rewrites them: the rate, its uncertainty at this span, the anchor count and the timing source below are the motion stream\u2019s own, and no beat enters any of them. Its waveform facts are read from the samples alone. The epoch, score and in-band rows stay absent for a structural reason, because the window walk and the quality score of this node run over the ECG beat series.',
           inputNote: acc ? null : NO_ACC,
           coverage: accCov,
-          rail: _sqCell(null, 'samples at the rail', 'not-measured: this node runs no rail census on the motion stream'),
+          /* THE ONE CELL OF THIS COLUMN THAT STAYS ABSENT FOR A REASON OF ITS OWN. Not structural
+             (the samples are here) and not file-dependent: the FACT is undefined without a declared
+             full-scale range, which this parser never reads, so the reason names the missing input.
+             The census that would have filled it is not here, and the comment in `parseDeviceACC`
+             carries the three readings that ruled a file-local definition out. */
+          rail: _sqCell(
+            null,
+            'samples at the rail over the whole record',
+            accQ ? accQ.railReason + (accQ.magUnit ? '; the samples themselves imply ' + accQ.magUnit + ', from a median vector magnitude of ' + accQ.magMedian : '') : NO_ACC,
+            {
+              samples: accQ ? accQ.samples : null,
+              magMedian: accQ ? accQ.magMedian : null,
+              magUnit: accQ ? accQ.magUnit : null,
+              magUnitReason: accQ ? accQ.magUnitReason : null,
+              magSampled: accQ ? accQ.magSampled : null,
+              magStride: accQ ? accQ.magStride : null,
+              source: 'no declared full-scale range reaches this node; the unit is INFERRED from gravity and is not a declared scale'
+            }
+          ),
           flatline: accFlat,
           snr: _sqCell(null, 'dB', 'not-measured: this node computes no in-band SNR for the motion stream'),
           mains: _sqCell(null, 'ratio to in-band power', NOT_MEASURED_MAINS),
           nodeSqi: _sqCell(null, 'mean per-beat score, 0 to 1', 'no-score: this node scores quality through the ECG beat series, so it computes none for the motion stream'),
-          timing: _sqCell(
-            null,
-            'ppm of the device rate against the host axis',
-            'no own axis: this node places motion samples against the ECG start, so the motion stream carries no rate of its own here'
-          ),
+          timing: _sqCell(accT && accT.ok ? accT.ppm : null, 'ppm of the device rate against the host axis', accT ? accT.reason || 'the motion host axis resolved and published no rate' : NO_ACC, {
+            independent: accT ? accT.independent : null,
+            timingSource: accT ? accT.timingSource : null,
+            timingSourceReason: accT ? accT.timingSourceReason : null,
+            spreadMs: accT ? accT.spreadMs : null,
+            anchors: accT ? accT.anchors : null,
+            spanMs: accT ? accT.spanMs : null,
+            ppmUncertainty: accT ? accT.ppmUncertainty : null,
+            anchorsEligible: accT ? accT.anchorsEligible : null,
+            anchorStride: accT ? accT.anchorStride : null,
+            anchorsDroppedPreStep: accT ? accT.anchorsDroppedPreStep : null,
+            deviceDrawn: accT ? accT.deviceDrawn : null,
+            drawnShare: accT ? accT.drawnShare : null,
+            resyncs: accT ? accT.resyncs : null,
+            maxStepMs: accT ? accT.maxStepMs : null,
+            /* The rate is REPORTED and not spent: the parser anchors the samples once on a phone
+                 stamp and spaces them by the device counter, and applying a motion rate correction
+                 on top of that is a decision of its own. A reader who sees `applied: false` beside a
+                 rate knows the samples were not moved by it. */
+            applied: accT ? accT.applied : null
+          }),
           reference: _sqCell(null, 'ms', 'no-reference: no second motion stream reaches this node'),
           /* The epoch population is walked over the ECG BEAT series, so the motion row cannot carry a
              count of its own — stated rather than left as a hole in the row. */
           epochs: _sqCell(null, 'windows of ' + _SQ_EPOCH_SEC + ' s', 'no own epochs: the window walk runs over the ECG beat series, and the motion stream contributes no window to it'),
-          drift: _sqCell(null, 'ppm against a §3d reference', 'no own axis: the motion samples are placed against the ECG start, so no host anchor of their own exists to drift against'),
+          drift: _sqCell(
+            null,
+            'ppm against a §3d reference',
+            'no-reference: the motion stream now carries a host axis of its own, and the rate reads in the timing row above; this node runs no §3d drift profile over the motion stream, so that rate has no second reference to drift against'
+          ),
+          /* THE MOTION STREAM'S OWN WAVEFORM FACTS, read from the samples and from no beat. They sit
+             on the channel rather than in the ten-row grid because the grid's rows are the facts both
+             channels answer, and these three are the motion stream's alone: a gravity-magnitude
+             oracle that REPORTS the unit it infers and never rescales, the sample total that is the
+             denominator of every share here, and a flat-run share measured by RUN LENGTH against this
+             file's own rate (∅ forbids a value-keyed detector: one repeated triple is ordinary at
+             rest, a second is not). The row-level `flatline` cell keeps reading the box's run census,
+             which is a different observer of the same phenomenon. */
           /* The acc half of §6's before-and-after. Here the sidecar CREATES the two facts rather than
              moving them: without the box's run census the covered and held shares are unknown. */
           sidecarEffect: {
@@ -19667,6 +20021,29 @@ window.evBadge = evBadge;
     var span = typeof cell.spanMs === 'number' ? _sqSpanTxt(cell.spanMs) : null;
     if (span) bits.push('over ' + span);
     if (typeof cell.ppmUncertainty === 'number' && isFinite(cell.ppmUncertainty)) bits.push('\u00b1 ' + _sqNum(cell.ppmUncertainty, 'ppm') + ' ppm at this span');
+    /* NAME THE ESTIMATOR, because the number is an END-POINT READ and a short span reads high.
+       `DexClock.hostAxis` publishes `ppm = sm[n-1] / span`, where `sm` is the running median of the
+       divergence taken against the FIRST anchor's own raw residual. That origin carries the first
+       anchor's jitter undiminished, so the rate holds an additive bias of about jitter / span.
+       Measured 2026-11-16 against a PLANTED 50 ppm with 5 ms of host jitter at 26 Hz:
+
+         span      hostAxis.ppm     published band     the same medians, read end to end
+          60 s        166.42            ± 259.26                   49.62
+         120 s        108.22            ± 164.41                   49.84
+         400 s         67.47            ±  39.13                   49.96
+        1800 s         53.88            ±   8.09                   49.99
+        7200 s         50.97            ±   2.66                   50.00
+
+       A least-squares fit reads 50.064, 50.080, 50.001, 50.000 and 50.000 ppm over the same five
+       streams, so the stream carries the planted rate and the estimator loses it. The published band
+       covers the truth at every span above, and on the node's own 391-anchor geometry over 60 s it
+       reads 139.84 ± 64.14, which does NOT cover 50. So the band alone does not make the figure
+       readable, and this clause states what the figure is. The repair belongs in `clock.js`, which
+       6 of 9 bundles carry, so it is logged and not made here.
+
+       The clause rides the two cells whose unit names the host axis, which are the two this
+       measurement covers. The §3d night-drift cell runs a different estimator and says nothing here. */
+    if (cell.unit === 'ppm of the device rate against the host axis' && bits.length) bits.push('an end-point read against the first anchor, so a short span reads high');
     if (!bits.length) return '';
     return '<div class="sq-qual" style="font-size:10px;color:var(--text3);margin-top:2px">' + bits.join(' \u00b7 ') + '</div>';
   }
@@ -19756,48 +20133,65 @@ window.evBadge = evBadge;
     });
     var TH = 'text-align:left;vertical-align:top;padding:7px 14px 8px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)';
     var head =
-      '<tr>' +
-      '<th style="' +
+      '<tr><th style="' +
       TH +
       '">Fact</th>' +
       chans
         .map(function (ck) {
-          var ch = sq.channels[ck] || {};
-          var st = ch.stream || ck;
-          /* A CHANNEL-LEVEL NOTE OUTRANKS A CELL-LEVEL ONE. The node publishes `scopeNote` for a
-             channel whose facts are bounded by how this node derives them, and `inputNote` for an
-             input that did not arrive. Both govern the whole column, so both stand at its head —
-             above the per-cell reasons and above the majority hoist, which only ever speaks for the
-             cells that still share one sentence. */
-          var notes = [];
-          if (ch.scopeNote) notes.push(ch.scopeNote);
-          if (ch.inputNote) notes.push(ch.inputNote);
-          return (
-            '<th style="' +
-            TH +
-            '">' +
-            st +
-            notes
-              .map(function (n) {
-                /* ONE LINE PER FACT. The scope of the channel and the arrival of its input are two
-                   different statements, and run together they read as one paragraph a reader skims. */
-                return '<div class="sq-col-note" style="' + _SQ_PROSE + ';text-transform:none;letter-spacing:0;font-weight:400;white-space:normal;margin-top:7px">' + n + '</div>';
-              })
-              .join('') +
-            (colWhy[ck]
-              ? '<div class="sq-col-why" style="' +
-                _SQ_PROSE +
-                ';text-transform:none;letter-spacing:0;font-weight:400;white-space:normal;margin-top:7px">' +
-                (colWhy[ck].n === colWhy[ck].of ? 'every absence here' : colWhy[ck].n + ' of the ' + colWhy[ck].of + ' absences here') +
-                ' \u2014 ' +
-                colWhy[ck].body +
-                '</div>'
-              : '') +
-            '</th>'
-          );
+          return '<th style="' + TH + '">' + ((sq.channels[ck] || {}).stream || ck) + '</th>';
         })
         .join('') +
       '</tr>';
+    /* THE CHANNEL NOTES RIDE THEIR OWN ROW, NOT THE HEADER. Each note is a paragraph, and a
+       paragraph inside a `<th>` drove the header to about 200 px tall while the Fact cell and every
+       channel without a note stayed one word tall. That reads as a hole in the table rather than as
+       space. The note now sits directly under the header, in its own column, above every cell it
+       governs — so what governs what did not change — and the first column carries a SCOPE label,
+       which gives the widest empty cell something to say.
+
+       A CHANNEL-LEVEL NOTE OUTRANKS A CELL-LEVEL ONE. The node publishes `scopeNote` for a channel
+       whose facts are bounded by how this node derives them, and `inputNote` for an input that did
+       not arrive. Both govern the whole column. The majority hoist (`colWhy`) speaks only for the
+       cells that still share one sentence, so it follows them.
+
+       ONE LINE PER FACT: the scope of the channel and the arrival of its input are two different
+       statements, and run together they read as one paragraph a reader skims. */
+    var _sqNoteCell = function (ck) {
+      var ch = sq.channels[ck] || {};
+      var notes = [];
+      if (ch.scopeNote) notes.push(ch.scopeNote);
+      if (ch.inputNote) notes.push(ch.inputNote);
+      var body =
+        notes
+          .map(function (n, i) {
+            return '<div class="sq-col-note" style="' + _SQ_PROSE + ';white-space:normal' + (i ? ';margin-top:7px' : '') + '">' + n + '</div>';
+          })
+          .join('') +
+        (colWhy[ck]
+          ? '<div class="sq-col-why" style="' +
+            _SQ_PROSE +
+            ';white-space:normal;margin-top:7px">' +
+            (colWhy[ck].n === colWhy[ck].of ? 'every absence here' : colWhy[ck].n + ' of the ' + colWhy[ck].of + ' absences here') +
+            ' \u2014 ' +
+            colWhy[ck].body +
+            '</div>'
+          : '');
+      return body;
+    };
+    var _sqNoteBodies = chans.map(_sqNoteCell);
+    var scopeRow = _sqNoteBodies.some(function (b) {
+      return b;
+    })
+      ? '<tr><td style="' +
+        TH +
+        ';border-top:1px solid var(--border)">Scope</td>' +
+        _sqNoteBodies
+          .map(function (b) {
+            return '<td style="padding:7px 14px 9px;border-top:1px solid var(--border);vertical-align:top">' + b + '</td>';
+          })
+          .join('') +
+        '</tr>'
+      : '';
     /* A FACT NO CHANNEL MEASURED SINKS BELOW THE RULE. It is still drawn, with its own reason — an
        absence is a result (§∅) — but it stops standing between two rows that carry numbers. The
        split is computed from the cells of THIS recording, so nothing here hardcodes which facts
@@ -19919,6 +20313,7 @@ window.evBadge = evBadge;
         .join('') +
       '</colgroup>' +
       head +
+      scopeRow +
       rows +
       '</table></div>' +
       '<div class="mini-h" style="margin-top:12px">Validity sidecars <span class="mini-sub">' +

@@ -47888,6 +47888,155 @@
         T.eq('CONTROL · …and keeps the device axis', jittered.accAxis, 'device');
         T.eq('CONTROL · …with nothing to report', jittered.accMaxStepMs, null);
       })();
+      /* ── (2d) THE MOTION STREAM ESTABLISHES ITS OWN TIMING AND ITS OWN WAVEFORM ──────────────────
+           Owner, 2026-11-16: "Your ECG can be excellent while the accelerometer's independent timing
+           and signal quality remain unestablished. acc should be treated like ecg waveform. not tied
+           to heartbeat."
+           Before this block the `_ACC` companion had no axis of its own. The signal-quality table's
+           whole motion column read eight dashes, and `accClockSteps`, `accMaxStepMs` and `accAxis`
+           were computed by the parser and read by NOTHING: on b965ab0fc the only occurrence of each
+           name across ecgdex-dsp.js, ecgdex-app.js and ecgdex-render.js was the parser's own return.
+
+           ⚠️ BOTH CLOCKS EXIST ONLY BEFORE THE REBUILD. (2b) above OVERWRITES tsMs with device-spaced
+           times, so an anchor list built after that point carries the device counter in BOTH members
+           and reads `independent === false` on every file — the Clock Contract's first question
+           answered wrong by construction. The anchors below are taken from the rows as parsed, which
+           is why this is a parser fact and not a render fact. */
+      (function () {
+        /* 25 Hz over 400 s. A rate needs a baseline (§7), and 400 s of a 50 ppm host gives 20 ms of
+             divergence to read against a ±5 ms arrival jitter. */
+        function accText(o) {
+          var n = o.n || 10000,
+            step = 40000000,
+            ns = BigInt(600000000000000000),
+            mg = !!o.mg,
+            rows = 'Phone timestamp;sensor timestamp [ns];X [' + (mg ? 'mg' : 'g') + '];Y [' + (mg ? 'mg' : 'g') + '];Z [' + (mg ? 'mg' : 'g') + ']\n',
+            jump = BigInt(0);
+          for (var i = 0; i < n; i++) {
+            /* the REBASE arm: the device counter jumps where the host column does not */
+            if (o.rebase && i === Math.floor(n / 2)) jump = BigInt(241497468042) * BigInt(1000000);
+            /* the DEVICE-JITTER arm: a counter whose own deltas VARY, which is what a real measured device
+               clock looks like. Without it the counter is a fixed multiple of the sample index, and
+               `hostAxis` reads that as DRAWN — correctly.
+   ⚠️ THE PATTERN MUST BE NON-LINEAR IN `i`. A sawtooth `((i * 13) % 7) - 3` jitters every sample,
+   yet the ANCHORS are strided, and any linear sequence sampled at a fixed stride has near-constant
+   DELTAS — 6 of every 7 identical here, so `hostAxis` still read the counter as drawn, and it was
+   right to. The quadratic below varies the deltas themselves. */
+            var dj = o.devJit ? ((i * i * 7919) % 11) - 5 : 0;
+            var devMs = (i * step) / 1e6 + dj;
+            /* the host clock runs 50 ppm FAST, and each arrival carries ±5 ms of BLE jitter. The
+                 DERIVED arm instead writes the device counter back out as the host column. */
+            var hostMs = o.derived ? devMs : devMs * (1 + 50e-6) + (((i * 7) % 11) - 5);
+            var d = new Date(Date.UTC(2026, 5, 13, 20, 44, 0, 0) + 500 + hostMs);
+            var ax = 0.02 * Math.sin(i / 50),
+              ay = 0.03 * Math.cos(i / 37),
+              az = 0.999;
+            /* a 3 s hold of IDENTICAL TRIPLES — a frozen sensor or a repeated BLE frame, never rest */
+            if (o.hold && i >= 100 && i < 175) {
+              ax = 0.01;
+              ay = 0.01;
+              az = 1.0;
+            }
+            var f = function (v) {
+              return mg ? (v * 1000).toFixed(0) : v.toFixed(4);
+            };
+            rows +=
+              d.toISOString().replace('Z', '').slice(0, 23) +
+              ';' +
+              (o.noNs ? '' : (ns + jump + BigInt(i) * BigInt(step) + BigInt(dj) * BigInt(1000000)).toString()) +
+              ';' +
+              f(ax) +
+              ';' +
+              f(ay) +
+              ';' +
+              f(az) +
+              '\n';
+          }
+          return rows;
+        }
+        var two = D.parseDeviceACC(accText({ hold: true })),
+          der = D.parseDeviceACC(accText({ derived: true })),
+          none = D.parseDeviceACC(accText({ noNs: true, n: 400 })),
+          mgi = D.parseDeviceACC(accText({ mg: true })),
+          reb = D.parseDeviceACC(accText({ rebase: true, n: 400 })),
+          dj2 = D.parseDeviceACC(accText({ devJit: true })),
+          shrt = D.parseDeviceACC(accText({ n: 40 }));
+        var tt = two.accTiming,
+          td = der.accTiming,
+          tn = none.accTiming,
+          tr = reb.accTiming,
+          tsh = shrt.accTiming;
+
+        // ── timing: the motion stream's own axis, reported and never applied ──
+        T.ok('the motion stream builds a host axis of its OWN, from its own two clocks', !!tt && tt.ok === true && tt.anchors >= 3, 'ok=' + (tt || {}).ok + ' anchors=' + (tt || {}).anchors);
+        T.eq('…and it REPORTS, never applies — the samples keep the device axis', tt.applied, false);
+        /* 🔴 THE POINT ESTIMATE MISSES AND THE BAND DOES NOT, WHICH IS THE WHOLE REASON THE UNCERTAINTY
+           SHIPS. Planted 50 ppm over 400 s against a ±5 ms arrival jitter: the median-filtered axis
+           reports 57.5 ppm and a two-end read of the same anchors gives 47.5, while the published band
+           is ±7.5 ppm. An assertion of `45 < ppm < 55` FAILED this working axis, so the leg below is the
+           one a reader is entitled to make — the planted rate lies inside the band the cell publishes. */
+        T.ok('the published band covers the planted 50 ppm, although the point estimate misses it', Math.abs(tt.ppm - 50) <= 2 * tt.ppmUncertainty, 'ppm=' + tt.ppm + ' \u00b1' + tt.ppmUncertainty);
+        T.ok('…and the point estimate alone would have been quoted 15 % wrong', Math.abs(tt.ppm - 50) > 2, 'ppm=' + tt.ppm);
+        T.eq('…a second clock IS present, so the rate means something', tt.independent, true);
+        /* §7 · FIRST ASK WHETHER THERE IS A SECOND CLOCK, AND THEN WHETHER EITHER COLUMN IS A CLOCK AT
+           ALL. A device counter that is a fixed multiple of the sample index was DRAWN and never
+           measured, so the honest source is the host alone even though the two columns disagree. */
+        T.eq('a uniform device counter was DRAWN, so only the host is a clock', tt.timingSource, 'host');
+        T.eq('…and the drawn verdict travels with it', tt.deviceDrawn, true);
+        T.eq('a device counter whose own deltas VARY is a clock, so the source names both', dj2.accTiming.timingSource, 'device+host');
+        T.eq('…with the drawn verdict false on that one', dj2.accTiming.deviceDrawn, false);
+        /* §7 · READ `independent`, NEVER A ~0 ppm. A host column derived from the device counter is
+             ONE clock, and arithmetic over it returns a plausible rate — measured 0.13 ppm, which a
+             reader would quote as "no drift". */
+        T.eq('a host column DERIVED from the device counter names no second clock', td.independent, false);
+        T.ok('…so the cell publishes NO rate, although the arithmetic succeeded', td.ppm === null && td.ok === true, 'ppm=' + td.ppm + ' ok=' + td.ok);
+        T.ok('…and it says why, in its own words', /deriv|one clock|single clock|rounded/i.test(String(td.reason)), 'reason=' + td.reason);
+        /* A refusal publishes no `independent`, and the four-arm source rule needs one — so a
+             refused axis names no timing source rather than guessing 'device'. */
+        T.eq('no ns column at all → the axis REFUSES', tn.ok, false);
+        T.eq('…and names no timing source', tn.timingSource, null);
+        T.ok('…with a reason that names the anchor floor', /anchor/i.test(String(tn.reason)), 'reason=' + tn.reason);
+        /* §7 · ONE DEVICE CLOCK PER AXIS. A rebase is a CHANGE of clock, so the anchors start at the
+             last step and the dropped ones are counted rather than silently skipped. */
+        T.eq('a rebased counter is one clock per axis — the step is seen', reb.accClockSteps, 1);
+        T.ok('…the pre-step anchors are DROPPED and counted, not mixed in', tr.anchorsDroppedPreStep > 0, 'dropped=' + tr.anchorsDroppedPreStep + ' anchors=' + tr.anchors);
+        T.eq('…and the resync count reaches the cell', tr.resyncs, 1);
+        /* THE RATE NEEDS A BASELINE, AND THE HONEST FORM IS AN UNCERTAINTY, NOT A GATE. The same
+             constructed stream reads 52.95 ppm over 600 s and 2974.28 ppm over its first 0.8 s. Both
+             are what the anchors say; only the second is useless, and the figure that says so is the
+             uncertainty — median absolute neighbour-to-neighbour divergence over the span. */
+        T.ok('a 400 s span qualifies its rate tightly', tt.ppmUncertainty != null && tt.ppmUncertainty < Math.abs(tt.ppm) / 2, 'ppm=' + tt.ppm + ' ±' + tt.ppmUncertainty);
+        T.ok('a 1.6 s span publishes a rate its own uncertainty swamps', tsh.ppmUncertainty > tt.ppmUncertainty * 10, 'short ±' + tsh.ppmUncertainty + ' vs long ±' + tt.ppmUncertainty);
+
+        // ── waveform: read from the samples alone, with no beat anywhere in it ──
+        var qg = two.accQuality,
+          qd = der.accQuality,
+          qm = mgi.accQuality;
+        T.ok('the waveform block reads a gravity vector and names the unit g', qg.magUnit === 'g' && qg.magMedian > 0.9 && qg.magMedian < 1.1, 'mag=' + qg.magMedian + ' ' + qg.magUnit);
+        T.ok('…and the SAME motion written in integer mg reads mg', qm.magUnit === 'mg' && qm.magMedian > 900 && qm.magMedian < 1100, 'mag=' + qm.magMedian + ' ' + qm.magUnit);
+        /* §∅ · DETECT BY RUN LENGTH AGAINST THE STREAM'S OWN DISTRIBUTION, NEVER BY VALUE
+             MEMBERSHIP. The first version of this census counted every sample equal to an axis extreme
+             and read 4334 of 31200 samples (14 %) "at the rail" on a stream with no clipping at all. */
+        T.ok('a 3 s hold of identical triples is flagged by RUN LENGTH', qg.flatSamples >= 73, 'flat=' + qg.flatSamples + ' min=' + qg.flatMinSamples);
+        T.eq('CONTROL · the same stream without the hold flags nothing', qd.flatSamples, 0);
+        /* AND THE RAIL CELL PUBLISHES NOTHING, BECAUSE THE FACT IS UNDEFINED WITHOUT A DECLARED
+             FULL-SCALE RANGE, WHICH THIS PARSER NEVER READS. The decisive measurement: the same
+             constructed motion reads a different hold count written in g and written in mg. The device
+             and the motion are identical in both, and only the written precision changed — so a hold
+             at a file's own extreme is a fact about the decimals in the file, and no threshold on it
+             can become a fact about the converter. */
+        T.eq('the rail cell publishes no value at all', qg.railSamples, null);
+        T.ok('…and names the missing INPUT, not a missing census', /full-scale|declared/i.test(String(qg.railReason)), 'reason=' + qg.railReason);
+        /* AND NO HOLD FIGURE SHIPS EITHER. Three readings ruled a file-local rail out, and the last one
+           was measured right here: this stream's z axis is constant, so a hold census at the file's own
+           extreme read 10000 of 10000 samples on a CLEAN record. A figure that reads 100 % on a clean
+           record is worse than an absent one, because a reader takes it for a railed record. */
+        T.ok(
+          '…and no hold-at-the-extreme figure ships beside it',
+          qg.extremeHoldSamples === undefined && qm.extremeHoldSamples === undefined,
+          'g=' + qg.extremeHoldSamples + ' mg=' + qm.extremeHoldSamples
+        );
+      })();
       // (3) source-mirror: the app loaders delegate to the twins; parseRows + Date-parse are GONE
       var app = (env.sources || {})['ecgdex-app.js'];
       if (app) {
@@ -57343,6 +57492,28 @@
       T.eq('no cell left the reason to the fallback, which is what a forgotten reason looks like', unexplained.join(','), '');
       T.eq('an absent fact is null, never 0 and never a sentinel', zeroed.join(' | '), '');
 
+      /* 2b · THE RATE CELL AND THE CLOCK IT WAS MEASURED AGAINST. The committed input is a
+         phone-captured stream, so its host column is the device counter rounded to the millisecond
+         and the two columns are ONE clock. The producer already decides this (`independent`), the
+         `fs` block already refuses to spend it, and the export already forwards the label — these
+         legs pin the last consumer, the cell a reader actually meets. The same verdict holds on 15
+         real capture fragments measured 2026-11-16, which are corpus and run nowhere but this rig. */
+      var ecgT = (chans.ecg || {}).timing || {};
+      T.eq('the committed capture names no second clock, because its host column is the device stamp rounded', ecgT.independent, false);
+      T.ok(
+        '…and the axis still RESOLVED, so this is a refusal of the rate and not of the arithmetic',
+        ecgT.anchors >= 3 && ecgT.spreadMs != null,
+        'anchors=' + ecgT.anchors + ' spread=' + ecgT.spreadMs
+      );
+      T.eq('…so the cell publishes NO rate, because a rate needs two clocks', ecgT.value, null);
+      T.ok('…and the reader now meets the inert-column label the spine had already written', /not an independent clock|host \u2261 device|rounded/i.test(String(ecgT.reason)), 'reason=' + ecgT.reason);
+      T.ok('…with the residual spread inside one stamp quantum, which is WHY the two columns are one clock', ecgT.spreadMs > 0 && ecgT.spreadMs <= 2, 'spread=' + ecgT.spreadMs + ' ms');
+      T.ok(
+        '…and the qualification survives the refusal, so the diagnostics are not lost with the number',
+        ecgT.anchors != null && ecgT.spanMs != null && 'ppmUncertainty' in ecgT,
+        'anchors=' + ecgT.anchors + ' span=' + ecgT.spanMs
+      );
+
       // 3 · THE SIDECAR LEDGER — the four states are a closed set, and only `read` carries no reason.
       var STATES = ['absent', 'not-applicable', 'not-read', 'read'];
       var led = (sq && sq.sidecars) || [];
@@ -57369,6 +57540,13 @@
         T.ok('the table sits beside out.quality, inside the rich branch', /out\.signalQuality = ecgSignalQuality\(/.test(src));
         T.ok('the ledger is one literal table, which the census gate holds against its registry', /var _ECG_SIDECAR_LEDGER = \[/.test(src));
         T.ok('CONTROL · no cell builder defaults a value to 0', !/_sqCell\(\s*0\s*,/.test(src));
+        /* The gate itself, pinned: the value reads the independence verdict and not `ok` alone. A
+           revert of the one ternary reds here as well as on the cell above. */
+        T.ok('the rate cell gates its value on the independence verdict, not on ok alone', /ax && ax\.ok && ax\.independent !== false \? ax\.ppm : null/.test(src));
+        /* CONTROL · the three OTHER refusal arms of the `fs` block stay out of the cell. A span-limited
+           or step-limited rate is a real rate this node cannot resolve at this span, and the cell
+           qualifies it (anchors, span, uncertainty) rather than deleting it. */
+        T.ok('CONTROL · the cell does not borrow the span gate, which would delete a real rate', !/ax\.spanMs\s*[<>]=?\s*ECG_AXIS_MIN_SPAN_MS \? ax\.ppm/.test(src));
       } else T.skip('ecgdex-dsp.js source unavailable');
 
       /* 5 · THE COMPUTED CELLS, OVER INPUTS THAT REACH THE ARITHMETIC. Sections 1 to 4 pin the SHAPE
@@ -62625,6 +62803,116 @@
       T.eq('a missing recipe lookup is tolerated, not thrown', plan(['OxyDex.html'], GEN, HELD, null).take[0].recipe, null);
     });
 
+    /* ════ EVERY STOPPED COMMIT, NOT ONLY THE FIRST ════════════════════════════════════════════════
+       Board #6786 / #6787, measured 2026-11-16 on #5132: the rebase replayed the bird's commit and the
+       walker's own generated-only rebuild commit. `rebase-safe` resolved stop 1, called
+       `rebase --continue` ONCE, and stop 2 threw out of `main` with the tree left at `UU OverDex.html`.
+       Every later walker pass alerted `hand-rebase`. `driveRebaseStops` loops over each stop and skips
+       a commit the resolution leaves empty. These legs drive a planted rebase by value. */
+    group('Rebase-safe — every stopped commit is resolved, and an emptied commit is skipped (REBASE-SAFE)', 'tools · rebase-safe · stops', function (T) {
+      var drive = env.rebaseDriveStops;
+      if (typeof drive !== 'function') {
+        T.skip('the stop driver is wired into this lane', 'Node-lane only (an ESM import of tools/rebase-safe.mjs) — the browser lane SKIPs');
+        return;
+      }
+      var GEN = { 'OxyDex.html': 1, 'Data Unifier.html': 1, 'OverDex.html': 1 };
+      // A planted rebase: each stop lists its conflicts, whether the index is empty after resolution,
+      // and what `continue` answers. `continue` fails when another stop follows.
+      function fake(stops) {
+        var i = 0;
+        var log = [];
+        return {
+          log: log,
+          ops: {
+            conflicts: function () {
+              return i < stops.length ? stops[i].c.slice() : [];
+            },
+            classify: function (q) {
+              return GEN[q] ? 'generated' : 'source';
+            },
+            take: function (ps) {
+              log.push('take:' + ps.join(','));
+            },
+            stage: function (ps) {
+              log.push('add:' + ps.join(','));
+            },
+            stagedEmpty: function () {
+              return !!stops[i].empty;
+            },
+            cont: function () {
+              log.push('continue');
+              i++;
+              return { ok: i >= stops.length };
+            },
+            skip: function () {
+              log.push('skip');
+              i++;
+              return { ok: i >= stops.length };
+            }
+          }
+        };
+      }
+      // The #5132 shape: the bird's commit, then the walker's generated-only rebuild commit.
+      var f1 = fake([{ c: ['Data Unifier.html'] }, { c: ['OverDex.html'], empty: true }]);
+      var r1 = drive(f1.ops);
+      T.eq('two conflicting commits both resolve', r1.ok, true);
+      T.eq('…at the second stop', r1.stop, 2);
+      T.eq('…the generated-only commit is SKIPPED, not continued empty', f1.log.join(' | '), 'take:Data Unifier.html | add:Data Unifier.html | continue | take:OverDex.html | add:OverDex.html | skip');
+      T.eq('…and the skip is counted', r1.skipped, 1);
+      T.eq('…every resolved path is reported once', r1.resolved.join(','), 'Data Unifier.html,OverDex.html');
+
+      var f2 = fake([{ c: ['OxyDex.html'] }]);
+      var r2 = drive(f2.ops);
+      T.eq('one stop still resolves in one continue', r2.ok + ':' + r2.skipped + ':' + f2.log.length, 'true:0:3');
+
+      // A source conflict on a LATER stop still stops, and names the path.
+      var f3 = fake([{ c: ['OxyDex.html'] }, { c: ['oxydex-dsp.js', 'OverDex.html'] }]);
+      var r3 = drive(f3.ops);
+      T.eq('a source conflict at stop 2 refuses', r3.ok + ':' + r3.stop, 'false:2');
+      T.eq('…and names the source path', r3.source.join(','), 'oxydex-dsp.js');
+      T.eq(
+        '…with the generated path beside it, untouched at that stop',
+        r3.generated.join(',') +
+          '|' +
+          f3.log.filter(function (l) {
+            return /OverDex/.test(l);
+          }).length,
+        'OverDex.html|0'
+      );
+
+      // A stop with no conflicted path (a hook, a dirty file) is not resolved by guessing.
+      var r4 = drive(fake([{ c: [] }]).ops);
+      T.eq('a stop with no conflicted path refuses with a reason', r4.ok + ':' + /no conflicted path/.test(r4.reason), 'false:true');
+
+      // The loop is bounded: a continue that never succeeds ends at the cap.
+      var stuck = {
+        conflicts: function () {
+          return ['OxyDex.html'];
+        },
+        classify: function () {
+          return 'generated';
+        },
+        take: function () {},
+        stage: function () {},
+        stagedEmpty: function () {
+          return false;
+        },
+        cont: function () {
+          return { ok: false };
+        },
+        skip: function () {
+          return { ok: false };
+        }
+      };
+      var r5 = drive(stuck, 3);
+      T.eq('a rebase that never ends stops at the cap', r5.ok + ':' + r5.stop, 'false:3');
+
+      // The CLI wires the driver: the single bare `rebase --continue` call is gone.
+      var src = (env.sources || {})['tools/rebase-safe.mjs'] || '';
+      T.ok('main() drives the stops through driveRebaseStops', /driveRebaseStops\(\{/.test(src));
+      T.ok('…and no longer throws out of a raw execFileSync rebase --continue', !/execFileSync\('git', \['-c', 'core\.editor=true', 'rebase', '--continue'\]/.test(src));
+    });
+
     group('Rebase-safe — a regenerator-owned golden is GENERATED only when the rebuild can restore it (REBASE-SAFE)', 'tools · rebase-safe', function (T) {
       var mkRows = env.regenOwnedListing;
       var parse = env.rebaseParseOwnedListing;
@@ -62830,8 +63118,8 @@
         T.ok('and an unrestored fixture stops the tool instead of printing ✓', /if \(bad === null \|\| bad\.length\)/.test(body), 'null and non-empty both stop');
         T.ok(
           'only the fixtures that CONFLICTED are regenerated — a clean rebase pays nothing',
-          /autoResolvedFixtures = generated\.filter\(\(p\) => recipeForFixture\(p\)\)/.test(body),
-          'main() filters the auto-resolved list by owner'
+          /autoResolvedFixtures = drive\.resolved\.filter\(\(p\) => recipeForFixture\(p\)\)/.test(body),
+          'main() filters the auto-resolved list by owner, over the paths resolved at EVERY stop (driveRebaseStops, board #6787)'
         );
       }
     });
@@ -63810,7 +64098,35 @@
                neighbour instead (the failure CLAUDE.md §📌 warns about: check8d verifies EXISTENCE and
                the back-reference, never responsibility). Shape only; check8d still requires the path to
                be in the tree. */
-            var srcPath = !srcBrief && c[2].match(/^`((?:[A-Za-z0-9._\/-]+\.[A-Za-z0-9]+)|(?:(?:[A-Za-z0-9._\/-]+\/)?\.[A-Za-z0-9_-]+))`$/);
+            /* A REPO PATH MAY CARRY A SPACE, AN APOSTROPHE OR AN `@`. The class above was enumerated
+               from the paths rows happened to cite, so it refused the names this repo actually keeps:
+               a row could not name its own origin, and the author had to borrow a PR number or a
+               brief. That moves the stated origin away from the file which holds the defect — the one
+               edit CLAUDE.md §📌 names as making a real defect disappear.
+               Measured 2026-11-16 over the 3524 names of `git ls-tree -r --name-only origin/main`
+               at `cebad7dfa`: exactly THREE characters fall outside the old class, and every one of
+               them is a real filename, not a typo — the space (72 names, 24 of them at the root,
+               among them `OxyDex Reference.html` and `Data Unifier.html`), the apostrophe (26 names,
+               every `docs/wiring/How It's Wired - *.html`) and one `@`
+               (`capture-host/systemd/tepna-btattach@.service`, a systemd template unit). 73 names
+               carry at least one of the three; the old class accepted 0 of them, this one accepts
+               73 of 73, and it changes the verdict on NO name which carries none of the three.
+               ⚠️ THE POPULATION MUST COME FROM THE REF. My first count ran `git ls-files` in the
+               shared primary checkout, whose `main` sat at `e7cddc898`, and it answered 3559 names
+               under the label `c1767bfbf` — a count and a commit which never held together. The gap
+               of 35 is almost all `changes/`, because a release deletes changesets and every landing
+               PR adds one. CLAUDE.md §📌 says read a ROW STATE from the ref; a POPULATION read from
+               a working copy rots the same way (Magpie caught it, board 6820).
+               Still SHAPE ONLY, and the shape still bites: the lead character may not be a space, so
+               a padded cell reds, and the tail is an extension, so `two files, one gate.md` reds on
+               the comma and `see the note in docs` reds for having no extension at all. check8d
+               continues to require the path to be in the tree, which is what refuses a well-shaped
+               invention.
+               ⚠️ A name with NO extension — `LICENSE`, `NOTICE`, `capture-host/Caddyfile`,
+               `tools/systemd/tepna-update` — is STILL uncitable here, because the shape test needs a
+               dot. That is a different root from this one and it needs its own ruling, so it rides a
+               residue row rather than a silent widening. */
+            var srcPath = !srcBrief && c[2].match(/^`((?:[A-Za-z0-9._\/'@-][A-Za-z0-9._\/'@ -]*\.[A-Za-z0-9]+)|(?:(?:[A-Za-z0-9._\/'@-][A-Za-z0-9._\/'@ -]*\/)?\.[A-Za-z0-9_-]+))`$/);
             var srcPr = !srcBrief && !srcPath && c[2].match(/^`(#\d+)`$/);
             var src = srcBrief || srcPath || srcPr;
             var srcKind = srcBrief ? 'brief' : srcPath ? 'path' : srcPr ? 'pr' : null;
@@ -64294,6 +64610,31 @@
         T.ok('self-test · …and a dotfile in a subdirectory', nestedDot.malformed.length === 0);
         var notAPath = residueRows('| 2026-01-02-k9 | 2026-01-02 | `just some prose` | d | ev | OPEN |');
         T.ok('self-test · …while prose is STILL rejected, so the shape rule is not merely wider', notAPath.malformed.length === 1, JSON.stringify({ malformed: notAPath.malformed.length }));
+        /* ── A SOURCE CELL MAY NAME A FILE WHOSE NAME CARRIES A SPACE, AN APOSTROPHE OR AN `@` ──
+           Each accepted path below is a tracked file of this repo, so a defect which starts in one
+           of them can state its own origin. The three refusals beside them hold the shape rule: a
+           wider class which accepts prose is the same defect one level up. */
+        var mkSrc = function (cell) {
+          return residueRows('| 2026-01-02-k9 | 2026-01-02 | ' + cell + ' | d | ev | OPEN |');
+        };
+        /* ⚠️ READ EVERY LEG OFF A PARSED ROW, NEVER OFF `rows[0]` DIRECTLY. Measured 2026-11-16 by
+           planting the old pattern back: `rows[0].srcKind` THREW on the rejected row, the whole group
+           aborted at that line, and the six legs below it never ran — so the plant reported 3 of 9
+           when 9 of 9 were owed. A leg which crashes hides the legs beside it. */
+        var spacedRow = mkSrc('`OxyDex Reference.html`');
+        var apostRow = mkSrc("`docs/wiring/How It's Wired - OxyDex.html`");
+        var atRow = mkSrc('`capture-host/systemd/tepna-btattach@.service`');
+        var padRow = mkSrc('` OxyDex Reference.html`');
+        T.ok('self-test · check8b ACCEPTS a ROOT path whose name carries a space', spacedRow.malformed.length === 0, spacedRow.malformed.length ? spacedRow.malformed[0] : 'accepted');
+        T.ok('self-test · …a nested path with a space AND an apostrophe', apostRow.malformed.length === 0, apostRow.malformed.length ? apostRow.malformed[0] : 'accepted');
+        T.ok('self-test · …and a systemd template unit, which carries an `@`', atRow.malformed.length === 0, atRow.malformed.length ? atRow.malformed[0] : 'accepted');
+        T.eq('self-test · check8b reads the spaced path as a PATH source, not a brief or a PR', (spacedRow.rows[0] || {}).srcKind || 'REJECTED', 'path');
+        T.ok('CONTROL · a LEADING space in the cell is still REJECTED', padRow.malformed.length === 1, JSON.stringify({ malformed: padRow.malformed.length }));
+        T.ok('CONTROL · prose which ends in an extension is still REJECTED on its comma', mkSrc('`two files, one gate.md`').malformed.length === 1);
+        T.ok('CONTROL · prose which carries spaces and no extension is still REJECTED', mkSrc('`see the note in docs`').malformed.length === 1);
+        /* check8d still answers the OTHER question: a well-shaped path which is not in the tree. */
+        T.eq('self-test · check8d RESOLVES a spaced path which the walk holds', residueVerdict(spacedRow.rows, {}, ['OxyDex Reference.html']).badSrc.length, 0);
+        T.eq('CONTROL · check8d FIRES on a spaced path the walk does NOT hold', residueVerdict(spacedRow.rows, {}, ['some/other/file.html']).badSrc.length, 1);
         var bareRow = residueRows(mkRow('a bare | pipe'));
         T.ok(
           'self-test · …and still REJECTS a bare pipe, so the check is not loosened',
@@ -76968,6 +77309,41 @@
           ),
         loadEv.length + ' events'
       );
+
+      // ── 1b · EVENT ORDER over a §6 `t`-only event (residue
+      //    2026-11-15-glucodex-review-sort-puts-timeless-events-at-1970) ──
+      //    The reload key read `(ev.tMs || 0)`, so a `t`-only event sorted as 1970-01-01 and a mixed
+      //    export put every one of them ahead of every stamped event. The key now rebuilds the stamp
+      //    from `recording.startEpochMs` per Clock Contract §6, and an event it cannot place sorts
+      //    LAST. This leg BITES: against the old comparator the order reads
+      //    `nocturnal_hypo,dawn_surge,unplaceable,glucose_excursion` (executed 2026-11-16).
+      var _mt0 = U(2026, 4, 23, 20, 0, 0); // the recording opens at 20:00 and crosses midnight
+      var _mres = GD.loadOwnExport({
+        schema: { name: 'ganglior.node-export', node: 'GlucoDex' },
+        recording: { startEpochMs: _mt0 },
+        ganglior_events: [
+          { t: '23:10', tMs: _mt0 + 3 * 3600000 + 10 * 60000, impulse: 'glucose_excursion' },
+          { t: '02:30', impulse: 'nocturnal_hypo' },
+          { t: '21:05', impulse: 'dawn_surge' },
+          { t: 'not-a-time', impulse: 'unplaceable' }
+        ]
+      });
+      T.eq(
+        '§6 t-only events reload in CLOCK order, and an unplaceable event sorts LAST',
+        ((_mres && _mres.events) || [])
+          .map(function (e) {
+            return e.impulse;
+          })
+          .join(','),
+        'dawn_surge,glucose_excursion,nocturnal_hypo,unplaceable'
+      );
+      var _kf = env.GLUDSP && env.GLUDSP._evSortKeyMs;
+      if (typeof _kf === 'function') {
+        T.eq('key: a t-only 02:30 event rebuilds onto the NEXT day (§6 roll)', _kf({ t: '02:30' }, _mt0), _mt0 + 6.5 * 3600000);
+        T.eq('key: an absolute tMs wins over the t string', _kf({ t: '02:30', tMs: 12345 }, _mt0), 12345);
+        T.ok('key: no anchor → null, never 0 (§∅)', _kf({ t: '02:30' }, null) === null);
+        T.ok('key: an out-of-range time → null, never 0 (§2.7)', _kf({ t: '25:99' }, _mt0) === null);
+      } else T.ok('env.GLUDSP._evSortKeyMs reachable', false, 'namespace not wired — key legs skipped');
 
       // ── 2 · FAITHFUL VIEW (no drift) ──
       var elClone = JSON.parse(JSON.stringify(res.elements[0]));
