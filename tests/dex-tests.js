@@ -24005,6 +24005,136 @@
       T.ok('the agreement KPI can go warn AND bad, not just ok', /ppiAgreementPct >= 97 \? 'ok'/.test(app) && /'warn' : 'bad'/.test(app), 'no failing band — the panel could never report a problem');
     });
 
+    /* ════ §∅ — ONE ABSENCE, THREE DIFFERENT NUMBERS. `buildPPI` answers `{ rr: [], tt: [] }` for a
+       run with fewer than two detected beats and never null, so a record with no intervals arrived at
+       four sites that each defaulted the absence to a number: the two exported spine rates 100 % (the
+       WORST value on the repair scale), the fiducial agreement 0 % (the WORST value on the agreement
+       scale) and the correction rate 0 % (the BEST value). `footSpineOK` must KEEP its 100 sentinel —
+       an unmeasured spine has to lose that comparison — so the arbiter and the export are split.
+       Measured before the fix on a 0.5 s synthetic: ppiCorrFootPct 100, ppiCorrPeakPct 100,
+       ppiAgreementPct 0, correctionRatePct 0, over nInputIntervals 0. ════ */
+    group('PpgDex answers an empty interval series with null, not a number at either end of the scale', 'ppgdex-dsp · absence · ppi-spine', function (T) {
+      var P = env.PpgDex || env.PPGDSP;
+      if (!(P && typeof P.compute === 'function' && typeof P.parsePPG === 'function' && typeof P.analyze === 'function')) {
+        T.skip('PpgDex.compute + parsePPG + analyze available', 'PpgDex not co-loaded in this runner');
+        return;
+      }
+      /* The documented Polar Sense `_PPG.txt` layout at 55 Hz — phone stamp; sensor ns; ch0..ch2;
+         ambient. LENGTH is the only variable: the same pulse shape, so the detector sees the same
+         waveform whether the file runs one beat or four hundred and the difference is the absence. */
+      var mk = function (sec) {
+        var hz = 55,
+          rows = [],
+          n = Math.round(sec * hz),
+          step = 1000 / hz,
+          devMs = 0,
+          ph = 0,
+          rr = 60000 / 69,
+          p2 = function (v) {
+            return String(v).padStart(2, '0');
+          };
+        for (var i = 0; i < n; i++) {
+          devMs += step;
+          ph += step / rr;
+          if (ph >= 1) {
+            ph -= 1;
+            rr = 60000 / 69;
+          }
+          var w = Math.exp(-Math.pow((ph - 0.15) / 0.07, 2)) + 0.35 * Math.exp(-Math.pow((ph - 0.42) / 0.1, 2)) - 0.15 * Math.exp(-Math.pow((ph - 0.75) / 0.25, 2));
+          var v = 20000 + 800 * w;
+          var t = new Date(Date.UTC(2026, 8, 15, 0, 0, 0) + Math.round(devMs));
+          var ts =
+            t.getUTCFullYear() +
+            '-' +
+            p2(t.getUTCMonth() + 1) +
+            '-' +
+            p2(t.getUTCDate()) +
+            ' ' +
+            p2(t.getUTCHours()) +
+            ':' +
+            p2(t.getUTCMinutes()) +
+            ':' +
+            p2(t.getUTCSeconds()) +
+            '.' +
+            String(t.getUTCMilliseconds()).padStart(3, '0');
+          rows.push(ts + ';' + Math.round(devMs * 1e6) + ';' + Math.round(v) + ';' + Math.round(v * 0.95 + 30) + ';' + Math.round(v * 1.03 - 25) + ';400');
+        }
+        return rows.join('\n');
+      };
+      var read = function (sec) {
+        var text = mk(sec);
+        return { an: P.analyze(P.parsePPG(text), null), ex: P.compute({ text: text }, { rich: true }) };
+      };
+
+      var dead = read(0.5);
+      var qd = (dead.ex && dead.ex.quality) || {};
+      /* ANTI-VACUITY FIRST — if the plant still yields an interval, nothing below is about absence. */
+      T.eq('the 0.5 s plant really has NO input interval', dead.an && dead.an.nInputIntervals, 0);
+      T.eq('…and no corrected interval either, so both spines are empty', dead.an && dead.an.nn && dead.an.nn.length, 0);
+      T.eq(
+        'all four fields export null: foot rate, peak rate, agreement, correction rate',
+        JSON.stringify([qd.ppiCorrFootPct, qd.ppiCorrPeakPct, qd.ppiAgreementPct, qd.correctionRatePct]),
+        '[null,null,null,null]'
+      );
+      T.eq('…and the winner is still the FOOT spine, because footSpineOK keeps its 100 sentinel', dead.an && dead.an.ppiSpine, 'foot');
+      T.eq('…and the correction rate carries its own cause into the export', qd.correctionRateReason, 'no interval series — no population to correct');
+      /* THE COVERAGE ARM. With no beats the coverage is a REAL measurement (0 %), so the reason must
+         name coverage — never a fabricated "correction 0 %". */
+      T.ok('flags hrvLowConfidence from the coverage it measured', dead.an && dead.an.hrvLowConfidence === true);
+      T.ok(
+        '…and the reason names coverage, not a fabricated correction 0 %',
+        /^low coverage — analyzable 0%/.test(dead.an && dead.an.hrvLowConfidenceReason) && !/correction 0%/.test(dead.an && dead.an.hrvLowConfidenceReason),
+        dead.an && dead.an.hrvLowConfidenceReason
+      );
+      /* THE UNMEASURED-CORRECTION ARM. A record whose coverage clears the gate but whose interval
+         series is empty published `lowConfidence: false` — the null scored as CLEAN. */
+      var thin = read(0.8);
+      T.ok('the 0.8 s plant clears the coverage gate, so only the correction term is left', thin.an && thin.an.analyzablePct >= 60, 'analyzablePct ' + (thin.an && thin.an.analyzablePct));
+      T.ok('…and it is no longer scored clean (published false before)', thin.an && thin.an.hrvLowConfidence === true);
+      T.ok('…with a reason that names the unmeasured rate', /unmeasured/.test(thin.an && thin.an.hrvLowConfidenceReason), thin.an && thin.an.hrvLowConfidenceReason);
+      /* THE CONTROL — a record WITH intervals keeps its numbers, so no arm above fires unconditionally. */
+      var ok = read(400);
+      var qo = (ok.ex && ok.ex.quality) || {};
+      T.ok(
+        'a 400 s record still publishes all four as NUMBERS',
+        [qo.ppiCorrFootPct, qo.ppiCorrPeakPct, qo.ppiAgreementPct, qo.correctionRatePct].every(function (v) {
+          return typeof v === 'number';
+        }),
+        JSON.stringify([qo.ppiCorrFootPct, qo.ppiCorrPeakPct, qo.ppiAgreementPct, qo.correctionRatePct])
+      );
+      T.eq('…keeps its foot spine', ok.an && ok.an.ppiSpine, 'foot');
+      T.eq('…and carries no refusal reason', qo.correctionRateReason, undefined);
+      /* THE CONSUMER — the app's two Correction readers. `null < 5` is `true`, so an absence graded
+         'ok' in the KPI and in the metrics table; both must read neutral and print a dash. */
+      var srcApp = (env.sources || {})['ppgdex-app.js'] || '';
+      T.ok('app source available', srcApp.length > 0);
+      if (srcApp.length) {
+        /* The two readers are asserted INSIDE the KPI object, not across one source line: Biome
+           reflowed both of them into multi-line literals, which broke a one-line regex. */
+        var kpiCorr = /\{\s*l: 'Correction',([\s\S]{0,400}?)\}/.exec(srcApp);
+        T.ok(
+          'the Correction KPI does not grade an absence ok',
+          !!kpiCorr && /v: r\.correctionRate == null \? '—'/.test(kpiCorr[1]) && /s: r\.correctionRate == null \? 'neutral'/.test(kpiCorr[1]),
+          kpiCorr ? 'KPI object read' : 'no Correction KPI object in the source'
+        );
+        T.ok('…nor does the metrics-table row', /'Correction rate',\s*r\.correctionRate == null \? '—' : r\.correctionRate/.test(srcApp));
+      }
+      /* THE ARBITER/EXPORT SPLIT is what lets both halves be true at once; and two refusals that no
+         runtime leg can reach, because `qCorr` needs `epochs.length` and an empty spine cannot make
+         an epoch — so the coercion the task names is pinned here at its source instead. */
+      var srcDsp = (env.sources || {})['ppgdex-dsp.js'] || '';
+      T.ok('dsp source available', srcDsp.length > 0);
+      if (srcDsp.length) {
+        T.ok(
+          'the arbiter keeps 100 while the exported rate answers null',
+          /const _rateFootArb = _ppiFoot\.rr\.length \? \(100 \* _corrFoot\.nCorr\) \/ _ppiFoot\.rr\.length : 100;/.test(srcDsp) &&
+            /const _rateFoot = _ppiFoot\.rr\.length \? _rateFootArb : null;/.test(srcDsp)
+        );
+        T.ok('the correction driver refuses rather than coercing a null to 1.0', /const qCorr = correctionRate == null \? null : Math\.max\(0, 1 - correctionRate \/ 25\);/.test(srcDsp));
+        T.ok('…and the refusal propagates instead of rounding to 0', /correctionOK: qCorr == null \? null : r2\(qCorr\),/.test(srcDsp));
+      }
+    });
+
     /* EXPORT-PATH-UNREACHABLE-FOLLOWUPS-IV — the APP's export builder is not the DSP's, and nothing
        executes it: the equiv gate runs `PpgDex.compute`, so a divergence in ppgdex-app.js's own
        `recording` block is invisible to every dynamic leg. It hardcoded `device: 'Polar Sense'`, so a
