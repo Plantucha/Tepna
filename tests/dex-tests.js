@@ -77247,6 +77247,41 @@
         loadEv.length + ' events'
       );
 
+      // ── 1b · EVENT ORDER over a §6 `t`-only event (residue
+      //    2026-11-15-glucodex-review-sort-puts-timeless-events-at-1970) ──
+      //    The reload key read `(ev.tMs || 0)`, so a `t`-only event sorted as 1970-01-01 and a mixed
+      //    export put every one of them ahead of every stamped event. The key now rebuilds the stamp
+      //    from `recording.startEpochMs` per Clock Contract §6, and an event it cannot place sorts
+      //    LAST. This leg BITES: against the old comparator the order reads
+      //    `nocturnal_hypo,dawn_surge,unplaceable,glucose_excursion` (executed 2026-11-16).
+      var _mt0 = U(2026, 4, 23, 20, 0, 0); // the recording opens at 20:00 and crosses midnight
+      var _mres = GD.loadOwnExport({
+        schema: { name: 'ganglior.node-export', node: 'GlucoDex' },
+        recording: { startEpochMs: _mt0 },
+        ganglior_events: [
+          { t: '23:10', tMs: _mt0 + 3 * 3600000 + 10 * 60000, impulse: 'glucose_excursion' },
+          { t: '02:30', impulse: 'nocturnal_hypo' },
+          { t: '21:05', impulse: 'dawn_surge' },
+          { t: 'not-a-time', impulse: 'unplaceable' }
+        ]
+      });
+      T.eq(
+        '§6 t-only events reload in CLOCK order, and an unplaceable event sorts LAST',
+        ((_mres && _mres.events) || [])
+          .map(function (e) {
+            return e.impulse;
+          })
+          .join(','),
+        'dawn_surge,glucose_excursion,nocturnal_hypo,unplaceable'
+      );
+      var _kf = env.GLUDSP && env.GLUDSP._evSortKeyMs;
+      if (typeof _kf === 'function') {
+        T.eq('key: a t-only 02:30 event rebuilds onto the NEXT day (§6 roll)', _kf({ t: '02:30' }, _mt0), _mt0 + 6.5 * 3600000);
+        T.eq('key: an absolute tMs wins over the t string', _kf({ t: '02:30', tMs: 12345 }, _mt0), 12345);
+        T.ok('key: no anchor → null, never 0 (§∅)', _kf({ t: '02:30' }, null) === null);
+        T.ok('key: an out-of-range time → null, never 0 (§2.7)', _kf({ t: '25:99' }, _mt0) === null);
+      } else T.ok('env.GLUDSP._evSortKeyMs reachable', false, 'namespace not wired — key legs skipped');
+
       // ── 2 · FAITHFUL VIEW (no drift) ──
       var elClone = JSON.parse(JSON.stringify(res.elements[0]));
       delete elClone._reviewMode;
