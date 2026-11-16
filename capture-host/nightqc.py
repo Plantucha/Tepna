@@ -337,6 +337,25 @@ def night_key_band(ts: float) -> tuple:
     return _floating_band(ts, _KEY_BEGIN_H, 24)
 
 
+def in_night_band(ts: float) -> bool:
+    """Is this floating session start NIGHT SIGNAL at all — inside the band it is attributed to?
+
+    `night_band(ts)` answers which band a stamp is ATTRIBUTED to, and for a DAYLIGHT stamp that band does
+    not contain it: the 16 h window leaves [10:00, 18:00) uncovered, so a 13:00 session is attributed to
+    the previous evening's band, which ended at 10:00. Containment is therefore the question and the band
+    lookup alone is not. `_NIGHT_BEGIN_H`'s note carries why admission keeps the 16 h band while the key
+    tiles the clock.
+
+    ⚠️ CONTAINMENT, NEVER `_overlaps_band`. A session start is one instant, `_overlap` of a zero-width
+    interval is 0.0, and an overlap test therefore refuses every point. `solid_night_inputs.in_band` asks
+    this same question of a FILENAME and compares the same way.
+
+    ⚠️ NEVER `night_key_band`, which is the noon-to-noon KEY band and tiles the clock with no hole — it
+    contains every stamp, so this predicate would answer True always and say nothing."""
+    b0, b1 = night_band(ts)
+    return b0 <= ts < b1
+
+
 def _overlap(a0: float, a1: float, b0: float, b1: float) -> float:
     """Seconds two intervals share; 0 when they do not touch."""
     return max(0.0, min(a1, b1) - max(b0, a0))
@@ -3597,9 +3616,39 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
                 # to compare on: the night's span is already UNKNOWN there, and pooling on a guessed
                 # zone would extend that unknown across a second folder, so it does not pool and the
                 # `writer_offset` block says why.
+                # FOURTH FAILED ASSUMPTION IN THIS FAMILY, and the note above names the first three.
+                # Contiguity with THIS folder's earliest session assumes that session is night signal, and
+                # a daytime sitting is not. Measured 2026-11-15 (board #6552): the night ran 23:24 → 07:23
+                # on three devices with 0 gaps, so every file of it is named into yesterday's folder, and
+                # this folder's first capture opened at 11:34 — an unrelated daytime sitting. The test
+                # below measures 11:34 − 07:23 = 4 h 11 m and refuses, and it is RIGHT that the two are not
+                # one session. The night still crossed midnight into this date. QC judged 18:00 → 10:00
+                # against a daytime file, found no row, and answered UNKNOWN over a flawless tri-device
+                # night, while the neighbour's own LOSS and SOLID verdicts read PASS with 0 lost minutes.
+                #
+                # So pool the previous day as a FOLDER, which is what the clock test above already does
+                # for an in-band start, and ask the crossing DIRECTLY: a neighbour write after this
+                # folder's midnight is the evidence that part of the judged window lives next door, and
+                # every session test here is only a proxy for it.
+                #
+                # ⚠️ BOTH HALVES ARE LOAD-BEARING. `in_night_band` is not decoration: pooling on the
+                # crossing alone made `timeline.build` pool across a RECORDED DAEMON RESTART (measured
+                # 2026-11-15 against its own `test_a_daemon_restart_...keeps_the_probe_from_pooling`),
+                # because a folder whose session starts in the band has a session question to answer and
+                # the seam-aware merge answers it. This clause is for the folder that holds NO night
+                # signal at all, where no session test can say anything about the night.
+                #
+                # ⚠️ THE COST GUARD STILL BINDS. `prev_probe_window` reaches noon, so a folder whose first
+                # capture opens after noon keeps this hole. Widening it buys one directory scan for every
+                # daytime folder, which `test_summarize_does_not_pool_a_mid_day_session` refuses.
+                #
+                # `_stamped` cannot be empty here — `earliest is not None` above is the same evidence — so
+                # this asks only whether EVERY start in this folder sits in the daylight hole.
                 _prev_last = max(f["mtime"] for f in prev_data)
-                _pool = (
-                    _off["offset_sec"] is not None and (earliest + _off["offset_sec"]) - _prev_last < _SESSION_GAP_SEC
+                _no_night_here = not any(in_night_band(t) for t in _stamped)
+                _pool = _off["offset_sec"] is not None and (
+                    (_no_night_here and _prev_last > midnight + _off["offset_sec"])
+                    or (earliest + _off["offset_sec"]) - _prev_last < _SESSION_GAP_SEC
                 )
     else:
         # NO CAPTURE FILES HERE AT ALL. The old gate was `if data:`, so this branch could not run — and

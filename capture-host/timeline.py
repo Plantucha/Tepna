@@ -579,7 +579,21 @@ def build(
                 _probe_seams = sorted(
                     {t for d in (prev, night_dir) for t in nightqc.daemon_starts(d, offset_sec=_offset)["stamps"]}
                 )
-                _pool = any(
+                # THE SAME CROSSING, asked the same way as `nightqc.summarize` — the verdict and the
+                # picture must not disagree about which night this folder is. A session test compares the
+                # neighbour against THIS folder's files, so it answers nothing when this folder holds only
+                # a daytime sitting; see that function's note dated 2026-11-15 for the measurement.
+                # ⚠️ `_no_night_here` IS WHAT KEEPS THE SEAM RULE INTACT. Without it this pooled across a
+                # recorded daemon restart and the test below reded, because `merge_sessions` would then
+                # split again and `judged_session` would take the row-heavier neighbour.
+                _prev_last = max((f["mtime"] for f in prev_data), default=None)
+                _no_night_here = not any(nightqc.in_night_band(x) for x in _stamped)
+                _pool = (
+                    _no_night_here
+                    and _offset is not None
+                    and _prev_last is not None
+                    and _prev_last > midnight + _offset
+                ) or any(
                     any(id(f) in _prev_ids for f in sess[2]) and any(id(f) not in _prev_ids for f in sess[2])
                     for sess in nightqc.merge_sessions(prev_data + data, starts=_probe_seams, offset_sec=_offset)
                 )
