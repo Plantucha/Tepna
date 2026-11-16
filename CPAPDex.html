@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="256aa3202f56" data-compute-hash="de5fb9f48faa">
+<html lang="en" data-manifest-hash="da2862bcc61a" data-compute-hash="9f485a45aae9">
 <head>
 <!--
   CPAPDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/eWHbvPCbl6CRTQoh+N+D+Y4aqPf9FTOySoBVyYGvWw=' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-4XUKNpQLx4YxENqtNyRBxmiwHQZ/KfG5D6UDh4FlvFc=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-GCMOVJYCyUzxlu+B85o3zYhZUju/+8wVKR5ZecW05/0=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-tNA+Z0bcxEDDSAtStUUWR6iaE5gbxxPZMmCJPSWoD0o=' 'sha256-wRWk1bxvFrksithzaQlEukFjxUfH2P8OnXLaHrKOs3Q='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-4XUKNpQLx4YxENqtNyRBxmiwHQZ/KfG5D6UDh4FlvFc=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8/+58wkmV9rUBvGXaXo+7w//UmA5VNCP8WCnW0wmW0E=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-SF25MlSRdWXfYQvzNQKBwBmfHS8ai/mCbBX3l3qDqvQ=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-tNA+Z0bcxEDDSAtStUUWR6iaE5gbxxPZMmCJPSWoD0o=' 'sha256-wRWk1bxvFrksithzaQlEukFjxUfH2P8OnXLaHrKOs3Q='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.33.0</title>
@@ -7812,6 +7812,14 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     var t0Ms = therapy.clock.t0Ms;
     var recDur = therapy.recDurSec || 60;
     var durSec = (therapy.recordsRead || 0) * recDur;
+    /* ∅ A FILE THAT CARRIED NO RECORD IS NOT A NIGHT THE MASK STAYED OFF. `recordsRead` reads 0
+       for a header-only or power-loss file, because `cpapdex-edf.js:277` computes it from the bytes
+       actually present. The record count explains an empty lane, and it does not detect one: the
+       same parser allocates `spr * recordsRead` samples at `cpapdex-edf.js:295`, so a header with a
+       zero `spr` gives an empty lane while this count stays positive. The guard below therefore
+       reads the SAMPLE count, and this count only names which upstream fact is absent. */
+    var nRecords = therapy.recordsRead;
+    var hasRecords = nRecords != null && isFinite(nRecords) && nRecords > 0;
 
     // ── PLD detail channels (0.5 Hz) ──
     var pressCh = chan(set.PLD, 'Press') || chan(set.PLD, 'MaskPress');
@@ -7853,19 +7861,27 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     }
     var fs = pressCh ? pressCh.fs : 0.5;
     var pressure = pressCh ? pressCh.data : new Float32Array(0);
+    /* ∅ THE TWO SOURCE ARMS DISAGREED ON WHAT A LANE IS. The BRP arm above requires
+       `brpPress.data.length`, and the PLD arm requires only that the channel exists, so a PLD lane
+       that carries no sample set `pressureSource` and then counted zero mask-on samples over a
+       denominator. One sample is what a mask-on count needs, so the count is the criterion here. */
+    var hasPressureSample = !!pressureSource && pressure.length > 0;
 
     // mask-on = delivered pressure > 0
     var maskOn = new Uint8Array(pressure.length);
     for (var i = 0; i < pressure.length; i++) maskOn[i] = pressure[i] > 0 ? 1 : 0;
     var pressureMaskOn = pressureSource === 'BRP' ? [] : _filterBy(pressure, maskOn); // F8 — mask pressure is not set pressure
     var leakMaskOn = leak ? _filterBy(leak, maskOn) : [];
-    var usageHours = pressureSource
+    var usageHours = hasPressureSample
       ? _countWhere(pressure, function (v) {
           return v > 0;
         }) /
         ((fs || 0.5) * 3600)
       : null;
-    var usageReason = pressureSource ? null : 'no-pressure-channel';
+    /* The arm order names the upstream fact first: an absent LANE, then an empty FILE, then a lane
+       the file carried with no sample in it. A reason token is a claim, and these three are the
+       only claims this file supports. */
+    var usageReason = !pressureSource ? 'no-pressure-channel' : hasPressureSample ? null : hasRecords ? 'empty-pressure-lane' : 'no-records';
     // the index denominator: measured hours, or 0 when there is no measurement (every index → null)
     var idxHours = usageHours == null ? 0 : usageHours;
 
@@ -7944,7 +7960,9 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
          note records real nights that did. The reason now leaves the node, as `usageReason` and
          `pbObserved` do. Row `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`. */
       maskOnLatency: pressOnset === -1 ? null : +(pressOnset / (fs * 60)).toFixed(2),
-      maskOnLatencyReason: pressOnset !== -1 ? null : pressureSource ? 'therapy-never-started' : 'no-pressure-lane',
+      /* ∅ `therapy-never-started` IS A HUMAN FACT, so only a lane with a sample in it may carry
+         that reason. An empty lane and a file with no record each name themselves instead. */
+      maskOnLatencyReason: pressOnset !== -1 ? null : !pressureSource ? 'no-pressure-lane' : hasPressureSample ? 'therapy-never-started' : hasRecords ? 'empty-pressure-lane' : 'no-records',
       // Pressure
       /* ∅ A PERCENTILE OVER AN EMPTY LANE IS NOT A PRESSURE. `_p` answers `NaN` over no
          sample and `_iqr` subtracts two of them. The F8 note above leaves `pressureMaskOn` EMPTY
@@ -8113,7 +8131,13 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         eprDelta: eprDelta,
         maskOnLatency: metrics.maskOnLatency,
         mode: mode,
-        pressureEnvIqr: modeCls.envIqr
+        pressureEnvIqr: modeCls.envIqr,
+        /* ∅ THE NIGHT LAYER NAMED ONE CAUSE FOR EVERY ABSENT USAGE. `nightMetrics` wrote a
+           literal `no-pressure-channel` whenever any session's usage read null, so a file that
+           carries a pressure lane and no record published a sentence about a lane it holds. The
+           comment above states the mechanism: a field on `metrics` alone never reaches the night.
+           The token travels here, and the night reports the set it actually met. */
+        usageReason: usageReason
       }
     };
   }
@@ -8153,6 +8177,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       ieW = 0,
       ieWsum = 0;
     var usageUnknown = 0; // F8 — sessions whose usage is null (no pressure lane), not zero
+    var usageTokens = {}; // the DISTINCT reasons those sessions gave, so the night borrows none
     pools.forEach(function (p) {
       for (var i = 0; i < p.pressureMaskOn.length; i++) P.push(p.pressureMaskOn[i]);
       if (p.epapMaskOn) for (var k = 0; k < p.epapMaskOn.length; k++) E.push(p.epapMaskOn[k]);
@@ -8161,8 +8186,10 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
          happened over hours nobody measured, so counting them over the OTHER sessions' hours
          doubles the rate (measured on the synthetic pair: 24 → 48 events/h). Numerator and
          denominator move together, the same way the §3a PB lane below handles an unscored session. */
-      if (p.usageHours == null) usageUnknown++;
-      else {
+      if (p.usageHours == null) {
+        usageUnknown++;
+        if (p.usageReason) usageTokens[p.usageReason] = 1;
+      } else {
         totHours += p.usageHours;
         nA += p.nApnea;
         nOA += p.nOA;
@@ -8324,8 +8351,12 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       ieRatio: ieW > 0 ? +(ieWsum / ieW).toFixed(2) : null
     };
     if (usageUnknown) {
-      night.usageReason = 'no-pressure-channel';
+      /* One token when every unmeasured session gave the same one, `mixed-absences` when they gave
+         several, and `unstated` when a session nulled its usage and named nothing. */
+      var uTok = Object.keys(usageTokens);
+      night.usageReason = uTok.length === 1 ? uTok[0] : uTok.length > 1 ? 'mixed-absences' : 'unstated';
       night.usageUnknownSessions = usageUnknown;
+      night.usageReasonSet = uTok.length ? uTok.slice().sort() : null;
     }
     return night;
   }
@@ -10324,6 +10355,11 @@ const { CpapDsp } = __require('cpapdex-dsp.js');
     'low-coverage': 'too few valid SpO\u2082 samples to rate',
     'oximeter-pulse-absent': 'the oximeter wrote no pulse channel',
     'no-pressure-channel': 'the recording carries no pressure channel',
+    /* The three tokens a lane the file CARRIES can write. A reason that reaches no reader is the
+       same defect one layer out, so each one carries prose beside the token. */
+    'no-records': 'the file holds a pressure lane and no data record, so nothing was measured',
+    'empty-pressure-lane': 'the pressure lane holds no sample, so no mask-on time was measured',
+    'mixed-absences': 'the night\u2019s unmeasured sessions gave different reasons',
     /* The four snore-pressure refusals. A reason that reaches no reader is the same defect one
        layer out, so each token the DSP can write carries prose here. */
     'no-mask-on-sample': 'a lane produced no mask-on sample, so nothing was paired',

@@ -112,6 +112,11 @@ import { CpapDsp } from './cpapdex-dsp.js';
     'low-coverage': 'too few valid SpO\u2082 samples to rate',
     'oximeter-pulse-absent': 'the oximeter wrote no pulse channel',
     'no-pressure-channel': 'the recording carries no pressure channel',
+    /* The three tokens a lane the file CARRIES can write. A reason that reaches no reader is the
+       same defect one layer out, so each one carries prose beside the token. */
+    'no-records': 'the file holds a pressure lane and no data record, so nothing was measured',
+    'empty-pressure-lane': 'the pressure lane holds no sample, so no mask-on time was measured',
+    'mixed-absences': 'the night\u2019s unmeasured sessions gave different reasons',
     /* The four snore-pressure refusals. A reason that reaches no reader is the same defect one
        layer out, so each token the DSP can write carries prose here. */
     'no-mask-on-sample': 'a lane produced no mask-on sample, so nothing was paired',
