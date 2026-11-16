@@ -344,14 +344,17 @@
         unit: 'recording',
         items: list,
         t0Of: (s) => s.t0Ms,
-        weightOf: (s) => Math.max(0.05, (s.coverage != null ? s.coverage : 100) / 100),
+        /* §∅ — no coverage weights the floor (0.05), never a complete recording. The envelope flags
+           a floor-weighted item `lowQuality` from this same weight, so the count of items that took
+           it needs no new field (#6802: an in-band default is worse than a zero). */
+        weightOf: (s) => (s.coverage != null ? Math.max(0.05, s.coverage / 100) : 0.05),
         crossNight: crossNight,
         metrics: METRICS
       });
     }
     // ── legacy fallback (pre-envelope shape) ──
     const sorted = [...list].sort((a, b) => (a.t0Ms || 0) - (b.t0Ms || 0));
-    const cov = sorted.map((s) => Math.max(0.05, (s.coverage != null ? s.coverage : 100) / 100));
+    const cov = sorted.map((s) => (s.coverage != null ? Math.max(0.05, s.coverage / 100) : 0.05));
     const out = { doc: 'recording-to-recording robust stats — same crossNight() engine as ECGDex/OxyDex', metrics: {} };
     for (const m of METRICS) {
       const ser = sorted.map((s, i) => ({ x: i, t: s.t0Ms, v: m.get(s), w: cov[i] }));

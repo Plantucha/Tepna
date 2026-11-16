@@ -45922,6 +45922,69 @@
       T.ok('a null elevation cannot cross either banner threshold', !(null >= 2500) && !(null > 1500), 'null >= 2500 = ' + (null >= 2500) + ' · null > 1500 = ' + (null > 1500));
     });
 
+    /* ── §∅ — NO WALL CLOCK MEANS NO COVERAGE ────────────────────────────────────────────────────
+       PulseDex builds the same result object on two roads. The export road (`pulsedex-dsp.js`
+       `pdComputeResult`) already publishes `coverage: null` when the stream carries no stamps, and
+       its own comment states the rule. The browser road initialised `100` and kept it whenever the
+       stamp guard was skipped, so a recording with no clock published a perfect coverage — the worst
+       in-band default, because a full bar looks healthy. The grade surfaces then read that absence
+       as a verdict about the recording. These legs pin the producer, the three weighting sites and
+       every grade that a null reaches. */
+    group('∅ PulseDex coverage — no wall clock means no coverage, never 100 %', 'pulsedex-app · pulsedex-render · pulsedex-cross · absence', function (T) {
+      var src = env.sources || {};
+      var app = src['pulsedex-app.js'] || '',
+        rnd = src['pulsedex-render.js'] || '',
+        crs = src['pulsedex-cross.js'] || '',
+        ovw = src['pulsedex-overview.js'] || '';
+      if (!app.trim() || !rnd.trim() || !crs.trim() || !ovw.trim()) {
+        T.skip('the four PulseDex coverage surfaces', 'sources not provided in this runner');
+        return;
+      }
+      // ── the browser producer ──
+      T.ok(
+        'ANTI-VACUITY · the browser road still computes a coverage from a wall span at all',
+        /let coverage = /.test(app) && /\(rrSum \/ wall\) \* 100/.test(app),
+        'initialiser: ' + (app.match(/let coverage = [^;]*;/) || ['absent'])[0]
+      );
+      T.ok('the browser road starts at null, never at a full bar', /let coverage = null;/.test(app), (app.match(/let coverage = [^;]*;/) || ['no site'])[0]);
+      T.ok(
+        'a zero or negative span is an absence, never a complete recording',
+        /\(rrSum \/ wall\) \* 100\)\.toFixed\(1\) : null;/.test(app),
+        (app.match(/coverage = wall > 0[^;]*;/) || ['no site'])[0]
+      );
+      T.ok('neither fabricated 100 survives in the browser road', !/let coverage = 100;/.test(app) && !/\)\.toFixed\(1\) : 100;/.test(app), 'a fabricated 100 is back');
+      // ── the grade surfaces a null reaches ──
+      T.ok(
+        'the summary table grades an absent coverage neutral, never bad',
+        /r\.coverage == null \? 'neutral' : r\.coverage >= 95/.test(rnd),
+        (rnd.match(/\['Coverage'[^\]]*\]/) || ['no row'])[0].slice(0, 120)
+      );
+      T.eq('both places that print a coverage percentage name the absence instead', (rnd.match(/coverage not measurable/g) || []).length, 2);
+      T.ok(
+        'the recording switcher grades an absent coverage neutral, never bad',
+        /s\.coverage == null \? 'neutral' : s\.coverage >= 90/.test(app),
+        (app.match(/q = s\.coverage[^;]*;/) || ['no site'])[0]
+      );
+      // ── the three weighting sites ──
+      T.eq('all three weighting sites give an absent coverage the floor', ((crs + app).match(/coverage != null \? Math\.max\(0\.05, s\.coverage \/ 100\) : 0\.05/g) || []).length, 3);
+      T.ok('no weighting site reads an absent coverage as a full recording', !/s\.coverage : 100/.test(crs + app), 'a `: 100` weight is back');
+      T.ok('the cross-night note counts the recordings that took the floor', /covAbsentPx/.test(app) && /without coverage \(weighted at the floor\)/.test(app), 'the count is gone');
+      // ── the two surfaces that were already correct stay correct ──
+      T.ok('the overview KPI keeps its null arm', /c: r\.coverage == null \? 'neutral' : r\.coverage >= 95/.test(ovw), (ovw.match(/l: 'Coverage'[^}]*\}/) || ['no row'])[0].slice(0, 130));
+      T.ok('the switcher chip still prints a fallback text instead of a null percentage', /s\.coverage != null \? s\.coverage \+ '%' : /.test(app), 'the chip would print null%');
+      T.ok(
+        'the CSV column stays the raw field, which the toolkit blanks',
+        /'Coverage %': r\.coverage,/.test(rnd) && /missing\(null\/undefined\/NaN\/±Inf\)→blank/.test(app),
+        'the CSV would print a null cell'
+      );
+      // ── CONTROL · the mechanism the in-band default hid ──
+      // The absence travels through a variable, never as a literal. Biome reads a literal comparison
+      // as a constant condition and a self-compare, and `npm run lint` reds the whole file for it.
+      var ABSENT_COV = null;
+      T.ok('CONTROL · the old grade read an absence as bad', (ABSENT_COV >= 95 ? 'ok' : ABSENT_COV >= 85 ? 'warn' : 'bad') === 'bad', 'an absent coverage takes the bad branch');
+      T.eq('CONTROL · the old weight read an absence as a complete recording', (ABSENT_COV != null ? ABSENT_COV : 100) / 100, 1);
+    });
+
     group('DMY file-lock is threaded, not just preferred (DEEP-AUDIT-II §1.10)', 'hrvdex-dsp · pulsedex-overview · integrator-dsp · clock', function (T) {
       // A Welltory-shaped export spanning 12 -> 13 June: the 06/12 rows are AMBIGUOUS (both fields <= 12)
       // while 13/06 is not. A per-row decision reads the first as 6 Dec and the second as 13 Jun.
