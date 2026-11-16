@@ -2486,6 +2486,21 @@ function readDrawnFlagScan() {
   return out;
 }
 
+/* EXPORT-KIND CENSUS (EXPORT-HYGIENE §2.3) — every authored root `*.js` source, as TEXT, so the suite
+   can parse each `exportName(` call site and hold its `kind` against EXPORT_KINDS. `exportName` itself
+   never consults the array, so the vocabulary is enforced over the SITES or nowhere. Population is
+   derived, not curated: root `*.js` is where all 26 sites live (measured 2026-11-16 over the 522
+   tracked `*.js`/`*.mjs` files; nothing under `tools/`, `adapters/` or `experiments/` calls it).
+   `dex-export.js` is excluded — it DEFINES the function and names the kinds in prose.
+   Node-lane only (fs read); the browser lane SKIPs. */
+function readExportKindScan() {
+  const out = {};
+  for (const f of readdirSync(ROOT).filter((f) => /\.js$/.test(f) && f !== 'dex-export.js')) {
+    out[f] = readFileSync(join(ROOT, f), 'utf8');
+  }
+  return out;
+}
+
 /* VALIDITY-SIDECAR READ RATCHET (SAMPLE-VALIDITY-ENVELOPE done-when 4) — every authored JS source that
    can call a sample parser that accepts `runsText`, as TEXT. Root `*.js` (the bundled runtime sources and
    workers), `adapters/*.js` (the SignalAdapters the Unifier routes through) and `tools/*.{js,mjs}` (the fleet
@@ -4141,6 +4156,7 @@ async function main() {
     nonBundleCspAudit: readNonBundleCspAudit(),
     captureFilenameScan: readCaptureFilenameScan(),
     drawnFlagScan: readDrawnFlagScan(),
+    exportKindScan: readExportKindScan(),
     validitySidecarScan: readValiditySidecarScan(),
     ProvenanceLedger, // the pure `missingFragments` / `fragmentFileFor` self-tests (browser lane: the global)
     ledgerBrowserProbe: await readLedgerBrowserProbe(), // does loadBrowser REPORT an absent fragment by name?
