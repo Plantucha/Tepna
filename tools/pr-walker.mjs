@@ -348,11 +348,19 @@ function saveState(s) {
    "already used by worktree"), and the owning bird holds the worktree for every PR under active work.
    Measured 2026-11-02 (board #2901): #4233, #4242 and #4245 each alerted `rebase-safe stopped` when
    rebase-safe had never run. A detached HEAD needs no branch name, and the push names the ref. */
+/* 🔴 THE FIRST LINE WAS FETCH NOISE. `rebase-safe` fetches before it rebases, and git writes that
+   fetch's progress to stderr, so the first line of a stopped rebase read `From https://github.com/…`
+   and the reason sat further down, unread. Measured 2026-11-16 (board #6786, #6787): #5132 at 04:50Z
+   and #5126 at 01:15Z both recorded only that line. A `✕` line is the tool's own verdict and wins;
+   otherwise the first line that is not fetch progress. */
+const FETCH_NOISE = [/^From \S+$/, /^\* (branch|\[new )/, /^\+?\s*[0-9a-f]{7,}\.{2,3}[0-9a-f]{7,}\s/, /^\* \[/];
 export function stepResult(step, e) {
-  const line = String((e && (e.stderr || e.message)) || (typeof e === 'string' ? e : ''))
+  const lines = String((e && (e.stderr || e.message)) || (typeof e === 'string' ? e : ''))
     .split('\n')
     .map((l) => l.trim())
-    .find(Boolean);
+    .filter(Boolean)
+    .filter((l) => !FETCH_NOISE.some((re) => re.test(l)));
+  const line = lines.find((l) => l.startsWith('✕')) || lines[0];
   return `stopped:${step}${line ? `: ${line.slice(0, 140)}` : ''}`;
 }
 /* ── THE WALKER'S OWN CHECKOUT MUST END EVERY PASS CLEAN ───────────────────────────────────────
@@ -983,6 +991,11 @@ function selftest() {
   const used = { stderr: "fatal: 'claude/x-hrn' is already used by worktree at '/w'\n" };
   eq(stepResult('checkout', used), "stopped:checkout: fatal: 'claude/x-hrn' is already used by worktree at '/w'", 'a stop names the step that failed and its first stderr line');
   eq(stepResult('rebase-safe', {}), 'stopped:rebase-safe', 'a stop with no message still names its step');
+  const noisy = { stderr: 'From https://github.com/o/r\n * branch            main       -> FETCH_HEAD\n   1a2b3c4d..5e6f7a8b  main -> origin/main\nError: Command failed: git rebase --continue\n' };
+  eq(stepResult('rebase-safe', noisy), 'stopped:rebase-safe: Error: Command failed: git rebase --continue', 'fetch progress never stands in for the reason a step stopped');
+  const verdict = { stderr: 'From https://github.com/o/r\nwarning: x\n✕ SOURCE CONFLICT — stopping.\n' };
+  eq(stepResult('rebase-safe', verdict), 'stopped:rebase-safe: ✕ SOURCE CONFLICT — stopping.', "the tool's own ✕ verdict line wins over an earlier warning");
+  eq(stepResult('rebase-safe', { stderr: 'From https://github.com/o/r\n' }), 'stopped:rebase-safe', 'stderr of fetch noise alone names the step and no fake reason');
   eq(signature({ op: 'rebase', number: 3, result: 'stopped:push: x', why: 'w' }, '2026-11-01T11:45:09Z'), null, 'a step-named stop signs nothing');
   const hr = plan(
     [classify(mk({ number: 9, isDraft: false, mergeState: 'DIRTY' }), req)],
