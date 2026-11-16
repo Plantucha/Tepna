@@ -112,6 +112,12 @@ import { CpapDsp } from './cpapdex-dsp.js';
     'low-coverage': 'too few valid SpO\u2082 samples to rate',
     'oximeter-pulse-absent': 'the oximeter wrote no pulse channel',
     'no-pressure-channel': 'the recording carries no pressure channel',
+    /* The four snore-pressure refusals. A reason that reaches no reader is the same defect one
+       layer out, so each token the DSP can write carries prose here. */
+    'no-mask-on-sample': 'a lane produced no mask-on sample, so nothing was paired',
+    'unpaired-lane-pool': 'the pooled lanes differ in length, so the pairing is unknown',
+    'too-few-paired-samples': 'fewer than three paired samples, so r is not estimable',
+    'no-lane-variance': 'a lane holds one value, so r is undefined and never zero',
     unstated: 'the lane refused and stated no reason'
   };
   function _cpReason(token) {
@@ -1661,6 +1667,9 @@ import { CpapDsp } from './cpapdex-dsp.js';
   }
 
   global.CpapRender = {
+    // The reason vocabulary as prose. Exported pure so the suite can hold the table against the
+    // tokens the DSP actually writes — an entry no reader meets is the same defect one layer out.
+    reasonText: _cpReason,
     renderNight: renderNight,
     renderHistory: renderHistory,
     hydrate: hydrate,

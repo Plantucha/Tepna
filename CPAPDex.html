@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="1fcfc1253042" data-compute-hash="5be633aec275">
+<html lang="en" data-manifest-hash="256aa3202f56" data-compute-hash="de5fb9f48faa">
 <head>
 <!--
   CPAPDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-2yHbRbUFU0firkTe6BJKpS7cNzp7gUG+PRoFpAHm7EI=' 'sha256-4XUKNpQLx4YxENqtNyRBxmiwHQZ/KfG5D6UDh4FlvFc=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-a+maeoKLz0PiMaN2FZab/ncYKTu0R6oiJN28TQ+gJlI=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-tNA+Z0bcxEDDSAtStUUWR6iaE5gbxxPZMmCJPSWoD0o=' 'sha256-wRWk1bxvFrksithzaQlEukFjxUfH2P8OnXLaHrKOs3Q='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/eWHbvPCbl6CRTQoh+N+D+Y4aqPf9FTOySoBVyYGvWw=' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-4XUKNpQLx4YxENqtNyRBxmiwHQZ/KfG5D6UDh4FlvFc=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-GCMOVJYCyUzxlu+B85o3zYhZUju/+8wVKR5ZecW05/0=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-c0L2fP9KS+dZLG2AaH4LfdLnwpVfCWVH+gyyUn5L7Pc=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-tNA+Z0bcxEDDSAtStUUWR6iaE5gbxxPZMmCJPSWoD0o=' 'sha256-wRWk1bxvFrksithzaQlEukFjxUfH2P8OnXLaHrKOs3Q='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.33.0</title>
@@ -7303,9 +7303,12 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     for (var i = 0; i < ch.data.length; i++) out[i] = ch.data[i] * k;
     return out;
   }
+  /* `_pearson` refuses below this many PAIRS. `_snPressCorr` reads the same constant, so the
+     refusal and the reason beside it can never disagree. */
+  var _PEARSON_MIN_N = 3;
   function _pearson(a, b) {
     var n = Math.min(a.length, b.length);
-    if (n < 3) return NaN;
+    if (n < _PEARSON_MIN_N) return NaN;
     var sa = 0,
       sb = 0;
     for (var i = 0; i < n; i++) {
@@ -7325,6 +7328,29 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       db += y * y;
     }
     return da > 0 && db > 0 ? num / Math.sqrt(da * db) : NaN;
+  }
+
+  /* ∅ ONE NULL CARRIED FOUR DIFFERENT FACTS, and a bare null let a reader read any of them as a
+     measured zero correlation. The arms, in the order a scan meets them:
+       · `no-mask-on-sample`     — a lane produced no mask-on sample, so nothing was paired.
+       · `unpaired-lane-pool`    — the pooled lanes differ in length, so the pairing is unknown.
+                                   This is a POOLING fault and not an absence, which is why it
+                                   carries its own token (§∅ forbids a borrowed reason).
+       · `too-few-paired-samples`— fewer pairs than `_PEARSON_MIN_N`, so r is not estimable.
+       · `no-lane-variance`      — a lane is constant, so r is undefined and never zero.
+     `pairStrict` is the pooled site's rule: a session that carried Snore and no Pressure would
+     shift the pairing, so the pool refuses rather than truncate. The per-session site filters both
+     lanes from one mask-on index set, so it pairs by construction and takes the shorter overlap.
+     Row `2026-11-16-cpapdex-nulls-the-snore-pressure-correlation-with-no-reason`. */
+  function _snPressCorr(sn, press, pairStrict) {
+    var SN = sn || [],
+      PR = press || [];
+    if (!SN.length || !PR.length) return { r: null, reason: 'no-mask-on-sample' };
+    if (pairStrict && SN.length !== PR.length) return { r: null, reason: 'unpaired-lane-pool' };
+    if (Math.min(SN.length, PR.length) < _PEARSON_MIN_N) return { r: null, reason: 'too-few-paired-samples' };
+    var r = _pearson(SN, PR);
+    if (r == null || !isFinite(r)) return { r: null, reason: 'no-lane-variance' };
+    return { r: +r.toFixed(2), reason: null };
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -7893,8 +7919,11 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
        the product of the two spreads, so a fixed-pressure night — every CPAP-mode night — made
        `da` zero and published `NaN`, which `JSON.stringify` writes as `null`. The lane was already
        guarded for LENGTH and never for VARIANCE. Row
-       `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`. */
-    var snPressR = null;
+       `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`.
+       The scan now sits in `_snPressCorr`, which the POOLED site reads too, so one absence cannot
+       wear two different reasons at the two layers. It also splits the n < 3 refusal out of
+       `no-lane-variance`, which this site borrowed for it. Row
+       `2026-11-16-cpapdex-nulls-the-snore-pressure-correlation-with-no-reason`. */
     var pressOnset = -1;
     if (pressureSource) {
       for (var oi = 0; oi < pressure.length; oi++)
@@ -7903,8 +7932,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
           break;
         }
     }
-    var snPressRaw = snMaskOn.length && pressureMaskOn.length ? _pearson(snMaskOn, pressureMaskOn) : null;
-    if (snPressRaw != null && isFinite(snPressRaw)) snPressR = +snPressRaw.toFixed(2);
+    var snPress = _snPressCorr(snMaskOn, pressureMaskOn, false);
     var metrics = {
       // Usage & Adherence
       usageHours: usageHours == null ? null : +usageHours.toFixed(3),
@@ -8019,8 +8047,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
             100
           ).toFixed(2)
         : null,
-      snorePressureCorr: snPressR,
-      snorePressureCorrReason: snPressR != null ? null : snMaskOn.length && pressureMaskOn.length ? 'no-lane-variance' : 'no-mask-on-sample',
+      snorePressureCorr: snPress.r,
+      snorePressureCorrReason: snPress.reason,
       // Breath detection (flow-derived — validates device RespRate)
       breathCount: breath ? breath.breathCount : null,
       breathRate: breath ? breath.breathRate : null,
@@ -8173,6 +8201,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
        as non-compliant. The night's usage is then null, with the session count that made it so;
        the event INDICES still divide by the hours that were measured (a rate over known time is a
        rate), and every pooled distribution is unaffected. */
+    var nightSnPress = _snPressCorr(SN, P, true);
     var night = {
       usageHours: usageUnknown ? null : +totHours.toFixed(3),
       // maskOnLatency is a NIGHT-onset fact: how long until therapy started. Sessions are
@@ -8277,13 +8306,12 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
             100
           ).toFixed(2)
         : null,
-      // Pearson needs paired samples: only valid when every session contributed BOTH lanes,
-      // i.e. the pooled arrays line up 1:1. A session missing Snore would shift the pairing.
-      snorePressureCorr: (function () {
-        if (!SN.length || SN.length !== P.length) return null;
-        var r = _pearson(SN, P);
-        return r != null && isFinite(r) ? +r.toFixed(2) : null;
-      })(),
+      /* Pearson needs paired samples: only valid when every session contributed BOTH lanes, i.e.
+         the pooled arrays line up 1:1. A session carrying no Snore would shift the pairing, so the
+         pool refuses and NAMES which of the four facts it met — the value and the reason come from
+         one scan, so they cannot disagree. */
+      snorePressureCorr: nightSnPress.r,
+      snorePressureCorrReason: nightSnPress.reason,
       // ── Breath detection (flow-derived) ──
       breathCount: haveBreaths ? breaths : null,
       /* Rate over the MEASURED (mask-on) time — not a mean of per-session rates, and NOT over wall
@@ -9267,7 +9295,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     _synthRaw: _synthRaw,
     _synthEdfSet: _synthEdfSet,
     selfTest: selfTest,
-    _kernel: { _mean: _mean, _sd: _sd, _cov: _cov, _p: _p, _iqr: _iqr, _pearson: _pearson }
+    _kernel: { _mean: _mean, _sd: _sd, _cov: _cov, _p: _p, _iqr: _iqr, _pearson: _pearson, _snPressCorr: _snPressCorr }
   };
   // ESM-MIGRATION: the former `module.exports = api` (CJS dual-mode) is dropped — a top-level ESM
   // `export` below makes this a module, and nothing `require()`s it; the api reaches Node/vm/browser
@@ -10296,6 +10324,12 @@ const { CpapDsp } = __require('cpapdex-dsp.js');
     'low-coverage': 'too few valid SpO\u2082 samples to rate',
     'oximeter-pulse-absent': 'the oximeter wrote no pulse channel',
     'no-pressure-channel': 'the recording carries no pressure channel',
+    /* The four snore-pressure refusals. A reason that reaches no reader is the same defect one
+       layer out, so each token the DSP can write carries prose here. */
+    'no-mask-on-sample': 'a lane produced no mask-on sample, so nothing was paired',
+    'unpaired-lane-pool': 'the pooled lanes differ in length, so the pairing is unknown',
+    'too-few-paired-samples': 'fewer than three paired samples, so r is not estimable',
+    'no-lane-variance': 'a lane holds one value, so r is undefined and never zero',
     unstated: 'the lane refused and stated no reason'
   };
   function _cpReason(token) {
@@ -11845,6 +11879,9 @@ const { CpapDsp } = __require('cpapdex-dsp.js');
   }
 
   global.CpapRender = {
+    // The reason vocabulary as prose. Exported pure so the suite can hold the table against the
+    // tokens the DSP actually writes — an entry no reader meets is the same defect one layer out.
+    reasonText: _cpReason,
     renderNight: renderNight,
     renderHistory: renderHistory,
     hydrate: hydrate,
