@@ -86554,6 +86554,98 @@
       T.ok('NORMS cite BP=ACC/AHA', DP.NORMS && /ACC\/AHA/.test(DP.NORMS.sbp.source));
     });
 
+    /* ════ 21c · PPGDEX — THE AGE PRIOR IS NOT AN AGE (task 07) ══════════════════════════════════
+     `ppgdex-profile.js` clamps an absent age to 42, so `expectedRmssd()` always answers 39 ms and
+     `expectedRHR()` always answers 61 bpm. Every surface then presented that prior as the reader's
+     own: the hero wrote "about typical for age 42", the two subscores coloured the measurement
+     against it, and `ppgdex-app.js` labelled the rMSSD tile "age norm ~39". Only the node export
+     disclosed it, under `assumedDefaults`. `personalize()` now publishes `ageEntered` and each
+     surface reads it. Legs 2-9 drive the real `personalize()` under a controlled store; legs 10-18
+     read the shipped guard text, because the cards need a DOM. THE MUTANT THAT BITES: make
+     `ageEntered()` return `true` unconditionally — legs 2, 6 and 9 go red, the source legs stay
+     green (they pin text, not behaviour) and that limit is named in the patch record. */
+    group('PpgDex grades against the age entered, not the population prior behind it', 'ppgdex-profile · ppgdex-app · absence · age-prior', function (T) {
+      var P = env.DexProfile,
+        PF = env.PPGProfile;
+      var ready = !!(P && PF && typeof P._setStore === 'function' && typeof PF.personalize === 'function');
+      T.ok('DexProfile + PPGProfile are wired into env', ready, 'DexProfile/PPGProfile missing');
+      if (!ready) return;
+      var mk = function () {
+        var m = {};
+        return {
+          getItem: function (k) {
+            return k in m ? m[k] : null;
+          },
+          setItem: function (k, v) {
+            m[k] = String(v);
+          },
+          removeItem: function (k) {
+            delete m[k];
+          }
+        };
+      };
+      var px = function () {
+        return PF.personalize({ dispHr: 55, dispRm: 40, dispSd: 45 });
+      };
+
+      // ── 1 · origin `pop` — nobody entered an age ──────────────────────────────────────────────
+      P._setStore(mk());
+      var pop = px();
+      T.eq('a profile nobody filled in reads ageEntered=false (cascade origin pop)', pop.ageEntered, false);
+      T.eq('…while the prior is still what COMPUTE ran on (42 ⇒ 39 ms)', pop.expRmssd, 39);
+      T.eq('…and the rest-HR prior (42 ⇒ 61 bpm)', pop.expRHR, 61);
+      T.eq('…the profile still carries the substituted age', pop.profile.age, 42);
+      T.ok('…and both priors stay numbers on the result, so an export keeps them', typeof pop.expRmssd === 'number' && typeof pop.expRHR === 'number', JSON.stringify([pop.expRmssd, pop.expRHR]));
+
+      // ── 2 · origin `you` — entered, so the norm and its grade are honest ─────────────────────
+      P._setStore(mk());
+      P.setManual('age', 30);
+      var you = px();
+      T.eq('an age the user entered reads ageEntered=true (cascade origin you)', you.ageEntered, true);
+      T.eq("…and the norm it drives is the entered age's (30 ⇒ 48 ms)", you.expRmssd, 48);
+      T.eq('…and 30 ⇒ 60 bpm resting', you.expRHR, 60);
+
+      // ── 3 · legacy / headless — `_origins: null` behaves as the `pop` case ────────────────────
+      var realm = env.realmGlobal || (typeof globalThis !== 'undefined' ? globalThis : null);
+      var saved = realm && realm.DexProfile,
+        leg = null,
+        threw = null;
+      T.ok('the bundle realm is reachable and carries DexProfile', !!saved, 'no realmGlobal.DexProfile');
+      try {
+        if (realm) realm.DexProfile = undefined;
+        leg = px();
+      } catch (e) {
+        threw = e;
+      } finally {
+        if (realm) realm.DexProfile = saved;
+      }
+      T.ok('the legacy path (no DexProfile store) still personalises', threw == null, threw && String(threw));
+      T.eq('…_origins null — nothing was entered — reads ageEntered=false', leg && leg.ageEntered, false);
+      T.eq('…and the same prior drives compute there (42 ⇒ 39 ms)', leg && leg.expRmssd, 39);
+
+      // ── 4 · the disclosure and the grades, pinned on the shipped source ──────────────────────
+      var profSrc = (env.sources && env.sources['ppgdex-profile.js']) || '';
+      var appSrc = (env.sources && env.sources['ppgdex-app.js']) || '';
+      T.ok('both card sources are readable in env.sources', profSrc.length > 2000 && appSrc.length > 2000, JSON.stringify([profSrc.length, appSrc.length]));
+      T.ok('the producer defines the ONE predicate beside the cascade', /function ageEntered\(p\)/.test(profSrc), 'predicate helper missing');
+      T.ok('the hero note names the absence, never a blank line', /no age is entered, so the analysis ran on the population prior/.test(profSrc), 'the prior-note arm is missing');
+      T.ok('…and it offers the remedy only where a measurement waits for it', /\(ratio == null \? '' : ' Enter your age/.test(profSrc), 'the remedy sentence is unconditional');
+      T.eq('both graded subscores fall to the neutral class when the age is a prior', (profSrc.match(/!r\.ageEntered \(?\s*\? 'neutral'/g) || []).length, 2);
+      T.ok(
+        'the derived-norms list calls the expectations a prior when nobody entered an age',
+        (profSrc.match(/population prior · age not entered/g) || []).length === 2,
+        'derived-norm disclosure missing'
+      );
+      T.ok('the bench card no longer grades against an unqualified prior', /const exp = r\.ageEntered \? r\.expRmssd : 30;/.test(profSrc), 'bench band still reads the prior');
+      T.ok(
+        'the app rMSSD tile guards its age-norm label AND its grade',
+        /sub: r\.ageEntered && r\.expRmssd \? 'age norm ~'/.test(appSrc) && /s: !Number\.isFinite\(r\.rmssd\) \? 'neutral' : r\.ageEntered && r\.expRmssd \?/.test(appSrc),
+        'rMSSD tile unguarded'
+      );
+      T.ok('the app Pulse-HR tile guards its age-norm label', /sub: r\.ageEntered && r\.expRHR \? 'age norm ~'/.test(appSrc), 'Pulse HR tile unguarded');
+      T.ok('no card label still reads the age norm unguarded', !/sub: r\.expRHR \?|sub: r\.expRmssd \?/.test(appSrc), 'an unguarded age-norm label remains');
+    });
+
     /* ════ 21b · PER-NODE PROFILE PERSONALIZATION — known-answer (TEST-COVERAGE-FOLLOWUPS §1) ════
      The five per-node profile engines carry ~2.85k lines of INDEPENDENT, cited physiology
      (Tanaka HRmax · Uth–Sørensen VO₂max · age-norm rMSSD/RHR · CVHR apnea bands · ADAG eAG bias)
