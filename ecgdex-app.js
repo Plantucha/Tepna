@@ -568,6 +568,7 @@ self.onmessage = async (e) => {
     renderValidation(r);
     renderHRValidation(r);
     renderACCComparison(r);
+    _syncBandTitles(); // after every card that sits under one of the two wrapper-less headings
     renderGanglior(r);
     renderTable(r);
 
@@ -742,6 +743,58 @@ self.onmessage = async (e) => {
     _sqSet('sqTableCard', UI.sqTable(_sq.sq, _sq.why));
     _sqSet('sqDriftCard', UI.sqDriftPanels(r.driftProfile || null, r.hostAxis || null));
     $('qualitySection').style.display = 'block';
+    _renderTrustLine(r);
+  }
+
+  /* THE TRUST LINE UNDER KEY METRICS. Signal Quality now sits below the result sections, which is
+     the right reading order and the wrong place to first learn that a night was barely measured.
+     These three numbers are the ones that decide whether the panels above mean anything, and the
+     link goes to the section that shows the work.
+     Each number carries its own badge, never the caption (§🎫, owner 2026-08-16), and an absent
+     number prints an em dash with the node's own reason rather than a zero (§∅). Nothing here is
+     recomputed: all three fields are the same ones `qualityCard` draws one card below. */
+  function _renderTrustLine(r) {
+    const el = $('kpiQuality');
+    if (!el) return;
+    const cov = r.coveragePct != null && isFinite(r.coveragePct) ? r.coveragePct : null;
+    const sqi = r.meanSQI != null && isFinite(r.meanSQI) ? r.meanSQI : null;
+    const anz = r.analyzablePct != null && isFinite(r.analyzablePct) ? r.analyzablePct : null;
+    const cls = (v, ok, warn) => (v == null ? '' : v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
+    const item = (badge, val, lbl) =>
+      `<span class="tl-i" style="display:inline-flex;gap:6px;align-items:baseline">${evBadge(badge)}<b style="font-family:IBM Plex Mono,monospace;color:var(--text)">${val}</b><span style="color:var(--text3)">${lbl}</span></span>`;
+    _sqSet(
+      'kpiQuality',
+      `<div class="trust-line" style="display:flex;flex-wrap:wrap;gap:7px 18px;align-items:baseline;margin:-2px 0 18px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:11.5px;line-height:1.5">` +
+        `<span style="font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">How well was it measured</span>` +
+        item('Mean SQI', sqi == null ? '—' : sqi, 'mean SQI') +
+        item('Beat coverage', cov == null ? '—' : cov + '%', 'beat coverage') +
+        item('Analyzable', anz == null ? '—' : anz + '%', 'analyzable') +
+        `<a href="#qualitySection" style="color:var(--text3);text-decoration:none;border-bottom:1px solid var(--border)">Signal Quality below ↓</a>` +
+        `</div>`
+    );
+    el.style.display = 'block';
+    const v = el.querySelectorAll('.tl-i b');
+    const k = [cls(sqi, 0.7, 0.5), cls(cov, 90, 75), cls(anz, 90, 75)];
+    for (let i = 0; i < v.length && i < k.length; i++) if (k[i]) v[i].className = k[i];
+  }
+
+  /* THE TWO BAND HEADINGS THAT HAVE NO SECTION WRAPPER. Seven result cards used to sit loose in the
+     page with no heading over them — four dynamics cards after the morphology grid, and the three
+     device cross-checks. Each card owns its own `display`, decided by its own renderer, so the
+     heading cannot be gated on a result of its own: it is shown when at least one of the cards
+     under it is visible, and stays hidden otherwise, so no band ever shows an empty title. */
+  function _syncBandTitles() {
+    const band = (titleId, cardIds) => {
+      const t = $(titleId);
+      if (!t) return;
+      const anyVisible = cardIds.some((id) => {
+        const c = $(id);
+        return !!c && c.style.display !== 'none';
+      });
+      t.style.display = anyVisible ? 'block' : 'none';
+    };
+    band('slDyn', ['cvhrCard', 'crcCard', 'hypnoCard', 'stabilityCard']);
+    band('slXchk', ['valCard', 'hrCard', 'accCard']);
   }
 
   /* THE TABLE'S OBJECT, READ ONCE PER RENDER — and never built a second time.
@@ -798,7 +851,7 @@ self.onmessage = async (e) => {
     const stepT = Math.max(1, Math.floor(r.nn.length / 1600));
     const tach = [];
     for (let i = 0; i < r.nn.length; i += stepT) tach.push({ x: r.tt[i] / 60, y: r.nn[i] });
-    $('tachoBody').innerHTML = UI.lineChart(tach, UI.COLORS.teal, { W: 680, H: 170, med: r.medianRR, xfmt: (x) => x.toFixed(0) + 'm' });
+    $('tachoBody').innerHTML = UI.lineChart(tach, UI.COLORS.teal, { W: 680, H: 170, med: r.medianRR, xfmt: (x) => x.toFixed(0) + 'm', yfmt: (y) => y.toFixed(0) + ' ms' });
     // poincaré — plot the exact array SD1/SD2 were computed from (ellipse matches cloud)
     /* ∅ — THE SAME LINE AS PpgDex's, WITH A HARDER FAILURE: `r.ellArea.toLocaleString()` THROWS.
        ecgdex-dsp.js nulls sd1sd2 and ellArea together whenever either axis is absent (its own comment
@@ -822,9 +875,9 @@ self.onmessage = async (e) => {
       const hrPts = r.epochs.map((e) => ({ x: e.tMin, y: e.hr }));
       $('trendBody').innerHTML =
         `<div class="mini-h">${evBadge('rMSSD')}rMSSD per 5-min epoch <span class="mini-sub">median ${r.dispRm} ms</span></div>` +
-        UI.lineChart(rmPts, UI.COLORS.teal, { W: 680, H: 140, med: r.dispRm, xfmt: (x) => (x / 60).toFixed(1) + 'h' }) +
+        UI.lineChart(rmPts, UI.COLORS.teal, { W: 680, H: 140, med: r.dispRm, xfmt: (x) => (x / 60).toFixed(1) + 'h', yfmt: (y) => y.toFixed(0) + ' ms' }) +
         `<div class="mini-h" style="margin-top:10px">${evBadge('Mean HR')}Heart rate per epoch <span class="mini-sub">median ${r.dispHr} bpm</span></div>` +
-        UI.lineChart(hrPts, UI.COLORS.blue, { W: 680, H: 140, med: r.dispHr, xfmt: (x) => (x / 60).toFixed(1) + 'h' });
+        UI.lineChart(hrPts, UI.COLORS.blue, { W: 680, H: 140, med: r.dispHr, xfmt: (x) => (x / 60).toFixed(1) + 'h', yfmt: (y) => y.toFixed(0) + ' bpm' });
       $('trendCard').style.display = 'block';
     } else $('trendCard').style.display = 'none';
     // CVHR
@@ -836,7 +889,7 @@ self.onmessage = async (e) => {
       const marks = r.cvhr.events.map((e) => e.sec / 60);
       $('cvhrBody').innerHTML =
         `<div class="mini-h">Smoothed HR with cyclic-variation events <span class="mini-sub">${r.cvhr.events.length} surges · index ${r.cvhr.index}/h</span></div>` +
-        UI.lineChart(pts, UI.COLORS.amber, { W: 680, H: 150, marks, xfmt: (x) => (x / 60).toFixed(1) + 'h' }) +
+        UI.lineChart(pts, UI.COLORS.amber, { W: 680, H: 150, marks, xfmt: (x) => (x / 60).toFixed(1) + 'h', yfmt: (y) => y.toFixed(0) + ' bpm' }) +
         /* The "Est. AHI ≈ N /h · Moderate" pill that stood here is retired (§10). The two pills that
            remain state provenance rather than a clinical grade. */
         `<div class="gang-summary" style="margin-top:10px">
@@ -898,7 +951,7 @@ self.onmessage = async (e) => {
     $('crcBody').innerHTML =
       `<div class="mini-h">Phase-averaged HR over the respiratory cycle <span class="mini-sub">RSA — inspiratory rise vs expiratory fall</span></div>` +
       (pts.length > 4
-        ? UI.lineChart(pts, ratioCol, { W: 680, H: 150, xfmt: (x) => x.toFixed(0) + '°' })
+        ? UI.lineChart(pts, ratioCol, { W: 680, H: 150, xfmt: (x) => x.toFixed(0) + '°', yfmt: (y) => y.toFixed(0) + ' bpm' })
         : `<div class="q-note" style="padding:18px 8px;text-align:center">RSA phase curve unavailable — too few clean respiratory cycles.</div>`) +
       `<div class="gang-summary" style="margin-top:10px">
          <div class="gang-pill" style="border-color:${ratioCol};color:${ratioCol}"><b>RSA efficiency ${c.rsaEfficiencyRatio}</b> insp:exp HR · higher = stronger</div>
@@ -3120,12 +3173,27 @@ self.onmessage = async (e) => {
       const c = $('crossNightSection');
       if (c) c.style.display = 'none';
     }
-    ['scopeSection', 'qualitySection', 'chartsSection', 'morphSection', 'hypnoCard', 'stabilityCard', 'cvhrCard', 'crcCard', 'trendCard', 'valCard', 'hrCard', 'accCard', 'gangSection'].forEach(
-      (id) => {
-        const e = $(id);
-        if (e) e.style.display = 'none';
-      }
-    );
+    [
+      'scopeSection',
+      'qualitySection',
+      'kpiQuality',
+      'chartsSection',
+      'morphSection',
+      'slDyn',
+      'hypnoCard',
+      'stabilityCard',
+      'cvhrCard',
+      'crcCard',
+      'trendCard',
+      'slXchk',
+      'valCard',
+      'hrCard',
+      'accCard',
+      'gangSection'
+    ].forEach((id) => {
+      const e = $(id);
+      if (e) e.style.display = 'none';
+    });
     ['slKPI', 'slTbl'].forEach((id) => ($(id).style.display = 'none'));
     $('kpiGrid').classList.remove('show');
     $('kpiGrid').innerHTML = '';
@@ -3298,12 +3366,28 @@ self.onmessage = async (e) => {
       },
       { rootMargin: '-18% 0px -72% 0px', threshold: [0, 0.25, 0.5, 1] }
     );
-    ['sec-input', 'heroTop', 'scopeSection', 'sec-profile', 'slKPI', 'qualitySection', 'chartsSection', 'morphSection', 'hypnoCard', 'valCard', 'hrCard', 'accCard', 'gangSection', 'slTbl'].forEach(
-      (id) => {
-        const e = $(id);
-        if (e) spy.observe(e);
-      }
-    );
+    [
+      'sec-input',
+      'heroTop',
+      'scopeSection',
+      'sec-profile',
+      'slKPI',
+      'kpiQuality',
+      'qualitySection',
+      'chartsSection',
+      'morphSection',
+      'slDyn',
+      'hypnoCard',
+      'slXchk',
+      'valCard',
+      'hrCard',
+      'accCard',
+      'gangSection',
+      'slTbl'
+    ].forEach((id) => {
+      const e = $(id);
+      if (e) spy.observe(e);
+    });
     if (navItems[0]) navItems[0].classList.add('active');
   }
   // Event-delegation actions (CSP strict script-src — dex-actions.js). print/clickEl are DexActions
