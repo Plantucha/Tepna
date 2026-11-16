@@ -387,8 +387,16 @@
   function ppgSessionT0(s) {
     return s && s.t0Ms != null ? s.t0Ms : null;
   }
+  /* §∅ — An unmeasured share answers `null`, never an in-band 0.05. The old `|| 0` arm sent an
+     absent share through the floor clamp, so the recording published as one MEASURED at 5 per
+     cent and no reader could tell the two apart (#6802). The envelope reads `null` as
+     UNMEASURED: it applies the same floor coefficient, flags the row `weightAbsent`, leaves
+     `lowQuality` null, and counts the rows in `window.weightAbsentCount`. The local floor clamp
+     stays, for parity with the five other providers. A measured 0 keeps the floor, because 0 is a
+     real share. */
   function ppgSessionWeight(s) {
-    return Math.max(0.05, ((s && s.analyzablePct) || 0) / 100);
+    const pct = s == null ? null : s.analyzablePct;
+    return typeof pct === 'number' && isFinite(pct) ? Math.max(0.05, pct / 100) : null;
   }
   function crossNightBlock(list) {
     if (global.CrossNightEnvelope) {
@@ -410,14 +418,20 @@
     }
     // ── legacy fallback (pre-envelope flat shape) — only when the shared builder is ABSENT ──
     const sorted = [...list].sort((a, b) => (a.t0Ms || 0) - (b.t0Ms || 0));
-    const cov = sorted.map((s) => Math.max(0.05, (s.analyzablePct || 0) / 100));
+    /* §∅ — The fallback arm cannot answer `null`: `crossNight` reads `p.w != null ? p.w : 1`, so a
+       null weight becomes a FULL recording one layer down. So an absence keeps the floor COEFFICIENT
+       and travels on a flag beside the number, in the envelope's own vocabulary. */
+    const covAbsent = sorted.map((s) => typeof s.analyzablePct !== 'number' || !isFinite(s.analyzablePct));
+    const cov = sorted.map((s, i) => (covAbsent[i] ? 0.05 : Math.max(0.05, Math.min(1, s.analyzablePct / 100))));
     const out = { doc: 'night-to-night robust stats — same crossNight() engine as ECGDex/OxyDex', metrics: {} };
     for (const k in PPG_DEFS) {
       const ser = sorted.map((s, i) => ({ x: i, t: s.t0Ms, v: PPG_DEFS[k].get(s), w: cov[i] }));
       out.metrics[k] = crossNight(ser, { good: PPG_DEFS[k].good });
     }
-    out.nights = sorted.map((s) => ({
+    out.weightAbsentCount = covAbsent.filter(Boolean).length;
+    out.nights = sorted.map((s, i) => ({
       t0Ms: s.t0Ms,
+      ...(covAbsent[i] ? { weightAbsent: true } : {}),
       date: window.PPGDSP ? window.PPGDSP.fmtDate(s.t0Ms) : null,
       analyzablePct: s.analyzablePct,
       rmssd: s.rmssd,

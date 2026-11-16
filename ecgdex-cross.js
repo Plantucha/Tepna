@@ -360,20 +360,42 @@
         unit: 'recording',
         items: list,
         t0Of: (s) => s.t0Ms,
-        weightOf: (s) => Math.max(0.05, (s.analyzablePct || 0) / 100),
+        /* §∅ — An unmeasured share answers `null`, never an in-band 0.05. The old `|| 0` arm sent an
+           absent share through the floor clamp, so the recording published as one MEASURED at 5 per
+           cent and no reader could tell the two apart (#6802). The envelope reads `null` as
+           UNMEASURED: it applies the same floor coefficient, flags the row `weightAbsent`, leaves
+           `lowQuality` null, and counts the rows in `window.weightAbsentCount`. The local floor clamp
+           stays, for parity with the five other providers. A measured 0 keeps the floor, because 0 is
+           a real share. */
+        weightOf: (s) => (typeof s.analyzablePct === 'number' && isFinite(s.analyzablePct) ? Math.max(0.05, s.analyzablePct / 100) : null),
         crossNight: crossNight,
         metrics: METRICS
       });
     }
     // ── legacy fallback (pre-envelope shape) ──
     const sorted = [...list].sort((a, b) => (a.t0Ms || 0) - (b.t0Ms || 0));
-    const cov = sorted.map((s) => Math.max(0.05, (s.analyzablePct || 0) / 100));
+    /* §∅ — The fallback arm cannot answer `null`: `crossNight` reads `p.w != null ? p.w : 1`, so a
+       null weight becomes a FULL recording one layer down. So an absence keeps the floor COEFFICIENT
+       and travels on a flag beside the number, in the envelope's own vocabulary. */
+    const covAbsent = sorted.map((s) => typeof s.analyzablePct !== 'number' || !isFinite(s.analyzablePct));
+    const cov = sorted.map((s, i) => (covAbsent[i] ? 0.05 : Math.max(0.05, Math.min(1, s.analyzablePct / 100))));
     const out = { doc: 'night-to-night robust stats — same crossNight() engine as PpgDex/OxyDex', metrics: {} };
     for (const m of METRICS) {
       const ser = sorted.map((s, i) => ({ x: i, t: s.t0Ms, v: m.get(s), w: cov[i] }));
       out.metrics[m.id] = crossNight(ser, { good: m.goodDirection });
     }
-    out.nights = sorted.map((s) => ({ t0Ms: s.t0Ms, date: fmtDateUTC(s.t0Ms), analyzablePct: s.analyzablePct, rmssd: s.dispRm, sdnn: s.dispSd, hr: s.dispHr, dfaAlpha1: s.dfa1, qtc: qtcOf(s) }));
+    out.weightAbsentCount = covAbsent.filter(Boolean).length;
+    out.nights = sorted.map((s, i) => ({
+      t0Ms: s.t0Ms,
+      date: fmtDateUTC(s.t0Ms),
+      analyzablePct: s.analyzablePct,
+      ...(covAbsent[i] ? { weightAbsent: true } : {}),
+      rmssd: s.dispRm,
+      sdnn: s.dispSd,
+      hr: s.dispHr,
+      dfaAlpha1: s.dfa1,
+      qtc: qtcOf(s)
+    }));
     return out;
   }
 
