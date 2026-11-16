@@ -8034,12 +8034,72 @@
       T.ok('the success path publishes spanMs at all (the refusal path always did)', axL.ok === true && typeof axL.spanMs === 'number', 'spanMs=' + axL.spanMs);
       T.eq('…and it is the device span between first and last anchor', Math.round(axL.spanMs), SPAN);
       T.ok('spanPpm reads the planted rate off the RAW divergence', Math.abs(axL.spanPpm - 87.71929824561403) < 1e-9, 'spanPpm=' + axL.spanPpm);
-      /* §7's end-clamp statement, computed rather than asserted. At k = n−1 the window is [n−11, n−1],
-         so `sm[n-1]` is the SIXTH-FROM-LAST raw value and `ppm` therefore lags `spanPpm` by exactly
-         5 anchors of drift: 1 − 5/(n−1), which is the 0.17 % at n = 2873 that clock.js quotes. A RATIO,
-         so the leg is independent of the planted rate. */
-      T.ok('ppm under-reads spanPpm by exactly 5 anchors of drift (§7 end clamp)', Math.abs(axL.ppm / axL.spanPpm - (1 - 5 / (N - 1))) < 1e-12, 'ratio=' + axL.ppm / axL.spanPpm);
-      T.ok('…and ppm itself is unchanged by this addition (literal pin)', Math.abs(axL.ppm - 87.56658358989395) < 1e-9, 'ppm=' + axL.ppm);
+      /* §7's end clamp USED TO REACH `ppm`, and since 2026-11-16 it no longer does. At k = n−1 the
+         window is [n−11, n−1], so `sm[n-1]` is the sixth-from-last raw value. The old
+         `ppm = sm[n-1] / span` divided that by the FULL span and therefore lagged `spanPpm` by exactly
+         5 anchors of drift, 1 − 5/(n−1). `ppm` now reads `(sm[n-1] − sm[0]) / effSpan`, where `effSpan`
+         is the device time between the two end windows' centres, so on a clean ramp it recovers the
+         raw end-point rate. These two legs hold BOTH numbers: the first that the lag is gone, the
+         second that the old one is still computable from published fields and still carries it. */
+      T.ok('ppm no longer lags spanPpm — the §7 end clamp is divided out', Math.abs(axL.ppm / axL.spanPpm - 1) < 1e-12, 'ratio=' + axL.ppm / axL.spanPpm);
+      T.ok('…and it reads the planted rate itself (literal pin)', Math.abs(axL.ppm - 87.71929824561403) < 1e-9, 'ppm=' + axL.ppm);
+      /* ANTI-VACUITY · the old estimator is `totalMs / spanMs`, and BOTH are still published, so the
+         factor this repair removes is measurable from the export alone. Without this leg the pair
+         above would pass just as well if `ppm` had quietly become `spanPpm` by some other route. */
+      T.ok('the OLD estimator is still computable from published fields', Math.abs((axL.totalMs / axL.spanMs) * 1e6 - 87.56658358989395) < 1e-9, 'old=' + (axL.totalMs / axL.spanMs) * 1e6);
+      T.ok(
+        '…and it lags the planted rate by exactly 5 anchors of drift',
+        Math.abs(((axL.totalMs / axL.spanMs) * 1e6) / axL.spanPpm - (1 - 5 / (N - 1))) < 1e-12,
+        'ratio=' + ((axL.totalMs / axL.spanMs) * 1e6) / axL.spanPpm
+      );
+      T.eq('…and `ppmEstimator` names the arm that produced the published rate', axL.ppmEstimator, 'end-to-end-median');
+      /* `effSpan` reads the REAL anchor times through `_ckDevAtIdx` rather than assuming a spacing.
+         The same clean ramp over UNEVEN device spacing must still recover the plant — a version that
+         assumed uniform anchors would miss by the spacing ratio at the ends. */
+      var uneven = [];
+      for (var ui = 0; ui < N; ui++) {
+        var uf = Math.pow(ui / (N - 1), 1.7);
+        uneven.push({ devMs: uf * SPAN, hostMs: uf * SPAN + uf * LIN });
+      }
+      var axU2 = C.hostAxis(uneven, {});
+      T.ok('UNEVEN anchor spacing — effSpan reads the real anchor times, so the plant still comes back', Math.abs(axU2.ppm - 87.71929824561403) < 1e-6, 'ppm=' + axU2.ppm);
+      T.ok('…while the OLD estimator misses it over the same anchors', Math.abs((axU2.totalMs / axU2.spanMs) * 1e6 - 87.71929824561403) > 1e-3, 'old=' + (axU2.totalMs / axU2.spanMs) * 1e6);
+      /* ∅ THE SMALL-n ARM. Where the width-`win` median covers the whole series every `sm[k]` is the
+         median of ONE set, so `sm[n-1] − sm[0]` is identically 0 and `effSpan` is 0 with it. A repair
+         that divided anyway would publish a FABRICATED ZERO rate over a real drift, and would carry
+         that zero into the ±CK_AXIS_MAX_PPM refusal below. */
+      var tiny = function (nn) {
+        var a = [];
+        for (var i = 0; i < nn; i++) {
+          var d = i * 4000;
+          a.push({ devMs: d, hostMs: d + (d / SPAN) * LIN });
+        }
+        return a;
+      };
+      var ax10 = C.hostAxis(tiny(10));
+      T.eq('n ≤ win — the published arm is the one this function has always used', ax10.ppmEstimator, 'single-window');
+      T.ok('…and it publishes a real rate rather than the end-to-end zero', ax10.ok === true && typeof ax10.ppm === 'number' && Math.abs(ax10.ppm) > 1, 'ppm=' + ax10.ppm);
+      T.eq('n > win — the end-to-end arm takes over', C.hostAxis(tiny(40)).ppmEstimator, 'end-to-end-median');
+      /* ∅ AND THE REFUSAL MUST STILL FIRE AT SMALL n. A ns column read as ms is the shape
+         CK_AXIS_MAX_PPM exists for. Under a bare end-to-end repair it reads 0 ppm at n = 3 and n = 10
+         and is ACCEPTED — residue `2026-09-02-hostaxis-accepts-drawn-axis` rebuilt. */
+      var nsCol = function (nn) {
+        var a = [];
+        for (var i = 0; i < nn; i++) {
+          var d = i * 4000;
+          a.push({ devMs: d, hostMs: d * 1e6 });
+        }
+        return a;
+      };
+      T.eq('a ns column read as ms is refused at n = 3', C.hostAxis(nsCol(3)).ok, false);
+      T.eq('…at n = 10, inside the single-window arm', C.hostAxis(nsCol(10)).ok, false);
+      T.eq('…and at n = 60, inside the end-to-end arm', C.hostAxis(nsCol(60)).ok, false);
+      T.ok(
+        '…and no refused arm publishes a zero rate',
+        Math.abs(C.hostAxis(nsCol(10)).ppm) > 1e6 && Math.abs(C.hostAxis(nsCol(60)).ppm) > 1e6,
+        'n10=' + C.hostAxis(nsCol(10)).ppm + ' n60=' + C.hostAxis(nsCol(60)).ppm
+      );
+      T.eq('…and the refusal names which arm measured the rate it refused', C.hostAxis(nsCol(60)).ppmEstimator, 'end-to-end-median');
       /* ONE 470 ms host-stamp slip at the LAST anchor — VIGIL-OBSERVED-ERRORS E8's worst measured
          value. The end-point ratio takes all of it; the median rejects it. This is why the correction
          reads `sm`, and why `spanPpm` is a diagnostic and never the rate to apply. */
@@ -8335,10 +8395,18 @@
       );
       T.ok('§7 · the first anchor carries the edge bias — 5 anchors of drift, NOT zero', Math.abs(LIN.correctionAt(0) - 5 * step) < 1e-6, LIN.correctionAt(0) + ' vs ' + 5 * step);
       T.ok('§7 · …and the last is pulled inward by the same 5 anchors, so the two ends are symmetric', Math.abs(LIN.totalMs - (6000 - 5 * step)) < 1e-6, LIN.totalMs + ' vs ' + (6000 - 5 * step));
+      /* §7's end clamp USED TO REACH `ppm` and since 2026-11-16 it does not. The two legs above still
+         hold the clamp itself, on `correctionAt(0)` and on `totalMs`, because the smoother did not
+         change. `ppm` now divides the END-TO-END median read by the device time between the two end
+         windows' centres, so the clamp cancels and the planted rate comes back exactly. The old
+         estimator stays computable from `totalMs / spanMs`, and the second leg holds it at the
+         1 − 5/(n−1) it always carried — without that pair, `ppm` becoming any other right-looking
+         number would pass. */
+      T.ok('§7 · …and `ppm` now recovers the plant EXACTLY — the end clamp is divided out', Math.abs(LIN.ppm - 10000) < 1e-6, LIN.ppm + ' vs ' + 10000);
       T.ok(
-        '§7 · …which makes `ppm` under-read by exactly 1 − 5/(n−1) — the reason it needs its anchor count',
-        Math.abs(LIN.ppm - 10000 * (1 - 5 / 400)) < 1e-6,
-        LIN.ppm + ' vs ' + 10000 * (1 - 5 / 400)
+        '§7 · ANTI-VACUITY · …while the OLD estimator still under-reads by exactly 1 − 5/(n−1)',
+        Math.abs((LIN.totalMs / LIN.spanMs) * 1e6 - 10000 * (1 - 5 / 400)) < 1e-6,
+        (LIN.totalMs / LIN.spanMs) * 1e6 + ' vs ' + 10000 * (1 - 5 / 400)
       );
 
       // ── §7 · the ±5 % plausibility bound, from BOTH sides, hit EXACTLY ────────────────────────
@@ -43708,7 +43776,16 @@
         got > 0.8 * PLANTED_MS && got < PLANTED_MS,
         'moved ' + got.toFixed(1) + ' ms of a planted ' + PLANTED_MS.toFixed(1) + ' ms'
       );
-      T.ok('the published rate reads the plant back, end-clamp bias and all', ax.ppm > 1800 && ax.ppm < 2000, 'ppm=' + ax.ppm.toFixed(1));
+      /* The rate itself no longer carries that clamp. Since 2026-11-16 `ppm` divides the end-to-end
+         median read by the distance between the two end windows' centres, so a 100-anchor file reads
+         the plant rather than ~95 % of it. The span leg above still asserts the clamp, because
+         `correctionAt` is unchanged. Both bounds again: an over-recovery is as wrong as an under one. */
+      T.ok('the published rate reads the plant back — the end-clamp bias is divided out of it', ax.ppm > 1980 && ax.ppm < 2020, 'ppm=' + ax.ppm.toFixed(1));
+      T.ok(
+        'ANTI-VACUITY · …while the OLD estimator over the same axis still reads ~95 % of it',
+        (ax.totalMs / ax.spanMs) * 1e6 > 1800 && (ax.totalMs / ax.spanMs) * 1e6 < 1960,
+        'old=' + ((ax.totalMs / ax.spanMs) * 1e6).toFixed(1)
+      );
 
       // ── 2 · an inert host column disciplines NOTHING, and the node says so ────────────────────
       var inert = X.parseSensorXYZ(accText({ ppm: 0 }));
@@ -59007,6 +59084,31 @@
         var sqPsl2 = (E.compute(recPsl, { rich: true }) || {}).signalQuality || null;
         var html = UI.sqTable(sqPsl2, null);
         T.ok('the vendor export renders a table rather than a reason', !/No cell of this table can be drawn/.test(html));
+        /* THE AXIS-RATE CELL CARRIES ITS LIMIT, and the limit changed on 2026-11-16. `clock.js` now
+           divides the running median's end clamp out of `ppm`, so the figure is no longer an
+           end-point read against the first anchor's own raw residual, and that clause retired with
+           it. What still limits a short span is host jitter swamping the drift: measured over 400
+           draws at the node's own 391-anchor geometry, the published rate reads 56.80 \u00b1 1.25
+           before the repair and 53.60 \u00b1 1.56 after it against a planted 50 ppm, where the clamp
+           term is only 1.28 % of the span. The fixture is built here rather than taken from the
+           vendor export above, which publishes no host axis and therefore draws no qualifier at all.
+           ANTI-VACUITY first, because the clause renders only when the cell carried an anchor count
+           or a span: without that leg the retired-string check passes on any page that draws no
+           qualifier. Nothing else in the suite reads these strings. */
+        var qualHtml = UI.sqTable(
+          {
+            channels: {
+              ecg: {
+                timing: { value: -6.67, unit: 'ppm of the device rate against the host axis', reason: null, anchors: 391, spanMs: 60000 }
+              }
+            }
+          },
+          null
+        );
+        T.ok('ANTI-VACUITY \u00b7 the axis-rate cell draws a qualifier at all', /class="sq-qual"/.test(qualHtml));
+        T.ok('\u2026and it carries the anchor count and the span \u00a77 asks for', /from 391 anchors/.test(qualHtml) && /over 1 min/.test(qualHtml));
+        T.ok('\u2026and it names what limits the rate', /limited by host jitter rather than by drift/.test(qualHtml));
+        T.ok('RETIRED \u00b7 \u2026and it no longer blames the estimator origin', qualHtml.indexOf('end-point read against the first anchor') < 0);
         /* The ledger's own count line is the unambiguous read: the bare word also appears in the
            reasons of the rows, so a substring count over the whole card measures prose too. */
         T.ok('the ledger count line says all 25 rows are not-applicable and that none was read', /25 listed · 0 read · 25 not-applicable/.test(html));

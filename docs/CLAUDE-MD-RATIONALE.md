@@ -1464,9 +1464,18 @@ correction**; call `hostAxis` and consume `correctionAt()`.
   over a linear ramp reproduces it pointwise, so between the clamped edges `correctionAt` is the measured
   divergence with no smoothing loss. At the two ends the window clamps, which pulls each end **inward by
   ⌊win/2⌋/2 = 5 anchors' worth of drift**. Two consequences, both contractual: `correctionAt(firstAnchor)`
-  is that bias rather than exactly 0, and **`ppm` under-reads by a factor `1 − 5/(n−1)`** — 12.5 % at
-  n=41, 0.6 % at n=801, 0.17 % on the real 2873-anchor O2Ring geometry. This is a *second*, independent
-  reason `ppm` must never be quoted without its anchor count and span beside it; the first is leverage.
+  is that bias rather than exactly 0, and the `'single-window'` arm of **`ppm` under-reads by a factor
+  `1 − 5/(n−1)`** — 12.5 % at n=41, 0.6 % at n=801, 0.17 % on the real 2873-anchor O2Ring
+  geometry. This is a *second*, independent reason `ppm` must never be quoted without its anchor count
+  and span beside it; the first is leverage.
+  ⚠ **That under-read is REPAIRED for the normal case, and `ppmEstimator` names the arm that
+  answered.** `'end-to-end-median'` reads the smoothed divergence between the two end windows'
+  CENTRES, so the clamp divides out and the factor above does not apply. Measured 2026-11-16 at zero
+  jitter against a planted 50 ppm: the old form read 33.333 / 41.667 / 47.500 at n of 16 / 31 / 101,
+  which is 50·(n−1−5)/(n−1) exactly, and the repaired form reads 50.000 at every n above the
+  window. `'single-window'` answers only where the clamped window covers the whole series (n ≤ 21)
+  or the two end windows' centres coincide, and the factor still binds there. `correctionAt` is
+  unchanged under both arms.
 - **≥3 anchors, and that minimum is a contract, not a nicety.** Two points define a line through any
   jitter and cannot be checked; three is the least that can show curvature — and the O2Ring's observed
   divergence is **non-linear**, so a line is the wrong model, not merely an imprecise one. Fewer than

@@ -4106,8 +4106,11 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
         #: configured rate was substituted because none could be measured. The coverage number is
         #: worth exactly what its rate is worth, and before this the two were indistinguishable.
         coverage_basis: dict[str, str] = {}
-        #: Per stream: why this stream has NO coverage number. Only `_EVENT_STREAMS` land here, and a
-        #: stream is in exactly one of `coverage_basis` and this map — never both, never neither.
+        #: Per stream: why this stream has NO coverage number, so an absent key never has to stand for
+        #: "not reached" (§∅). Two arms land here: an EVENT stream (one row per event, so a row count is
+        #: not a coverage) and a stream that produced ROWS with no rate to divide by — neither measured
+        #: off the file nor a reference rate for this device. Every stream that produced rows and has a
+        #: measurable span is therefore in exactly one of `coverage_basis` and this map.
         coverage_absent: dict[str, str] = {}
         for s in d.get("streams") or []:
             tags = stream_file_tags(s)
@@ -4173,8 +4176,31 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
             basis = "measured"
             if hz is None:
                 hz, basis = _expected_hz(d, s), "expected"
+            # 🔴 ROWS AND NO RATE IS NOT A SILENT OMISSION. `_expected_hz` answers None for a stream
+            # whose device configures no rate when `_recognised_model` finds no marker, so this arm
+            # covers every UNRECOGNISED model and not one device. Both writes below sat under
+            # `if hz and _span`, so such a stream landed in NEITHER map and the reader met an absent
+            # key — which §∅ reads as a stream this reader never reached, not as one with no rate.
+            #
+            # The configurable case is the Muse. `config.example.yaml` ships an active `streams: [eeg]`
+            # block with no `rates:`, `_MODEL_MARKERS` holds no Muse marker, and the Athena writes its
+            # rows under `_RAW.txt`. That config also records the Muse as unexercised on the production
+            # box, so the arm is reachable by configuration and no night has run through it.
+            #
+            # The reason names BOTH halves, because either one alone sends the reader to the wrong
+            # repair: a rate measured off the file settles it, and so does a reference rate for this
+            # device. The arm sits AFTER `_EVENT_STREAMS`, which has its own reason and its own cause.
+            if hz is None:
+                # The DEVICE is structured beside this string in both consumers — the per-device entry
+                # carries `name` and the verdict object keys `<name>:<stream>` — so the reason names the
+                # defect alone. Interpolating the name here would also put an unnamed device's SERIAL
+                # (`name = d.get("name") or did`) into free text, where a mask cannot find it.
+                coverage_absent[s] = (
+                    "no rate could be measured off the file and no reference rate exists for this device"
+                )
+                continue
             _span, _sbasis = (dev_span, "device") if dev_span else (span, "session")
-            if hz and _span:
+            if _span:
                 cov = round(rows / (hz * _span), 2)
                 coverage[s] = cov
                 coverage_basis[s] = basis

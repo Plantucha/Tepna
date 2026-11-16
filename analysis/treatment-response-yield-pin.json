@@ -19,7 +19,7 @@
       "synth-gen.js": "a653cf5afb78",
       "cohort-gen.js": "f80cbb02a8f6",
       "kernel-constants.js": "0050ad3f9dc7",
-      "clock.js": "41871f5b7790",
+      "clock.js": "1c56de0b671c",
       "clock-seam.js": "eca421bd5c5e",
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "46faf431bb51",
@@ -30,7 +30,7 @@
       "synth-gen.js": "a653cf5afb78",
       "cohort-gen.js": "f80cbb02a8f6",
       "kernel-constants.js": "0050ad3f9dc7",
-      "clock.js": "41871f5b7790",
+      "clock.js": "1c56de0b671c",
       "clock-seam.js": "eca421bd5c5e",
       "pulsedex-dsp.js": "3ff585370feb"
     }
@@ -263,11 +263,18 @@
       "old": "47a0dcff15d0",
       "new": "41871f5b7790",
       "reason": "Unit sortkey (board claim #6814): clock.js gains DexClock.eventSortKeyMs and DexClock.sortEventsByClock, which are the Clock Contract section 6 rebuild of a date-less event stamp. Neither realm calls them, measured as 0 hits over the 11 closure sources. The paper-scale re-cut at nSubj 900 / minN 10 returned 233 tx / 239 flat in 535 s, so the counts did not change."
+    },
+    {
+      "date": "2026-11-16",
+      "file": "clock.js",
+      "old": "41871f5b7790",
+      "new": "1c56de0b671c",
+      "reason": "Unit hostppm (board claim #6974): DexClock.hostAxis divides the running median's end clamp out of the published rate and names the arm in a new ppmEstimator field. Neither realm reaches that code, measured as 0 hits for hostAxis, ppmEstimator and _ckDevAtIdx over the other 9 closure sources. The paper-scale re-cut at nSubj 900 / minN 10 returned 233 tx / 239 flat in 541 s, so the counts did not change."
     }
   ],
-  "measuredAt": "2026-11-16T16:32:23.364Z",
+  "measuredAt": "2026-11-16T20:11:33.733Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "b48b9583b"
+    "commit": "737774e6b"
   }
 }

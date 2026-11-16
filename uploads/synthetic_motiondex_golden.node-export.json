@@ -37,7 +37,7 @@
       "spanPpm": null,
       "ppmReason": "device axis is DRAWN — 70.97 % of inter-sample deltas share one value (≥ 67 %); this column is a synthesised counter, not a clock, so there is no second timebase to discipline against",
       "drawnColumn": {
-        "ppm": -3.859741985049304,
+        "ppm": -0.9409523922553402,
         "spanPpm": -6.438774276186211
       },
       "spanMs": 119230.7677,
