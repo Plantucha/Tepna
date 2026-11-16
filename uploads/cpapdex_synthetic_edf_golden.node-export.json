@@ -82,6 +82,7 @@
     "medianPressure": 9.33,
     "p95Pressure": 10.38,
     "pressureRange": 1.2,
+    "maskOnReason": null,
     "mode": null,
     "pressureEnvIqr": 1.08,
     "eprDelta": 3,

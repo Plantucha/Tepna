@@ -44311,6 +44311,189 @@
         T.ok('\u2026and the basis is published, so a reader can see how many sessions it rests on', q.sqiSessions === 1 && q.sqiBasis.indexOf('ASSESSED') !== -1, JSON.stringify(q.sqiBasis));
       }
     });
+    group('CPAPDex ∅ — a NaN panel is not a measurement: an empty mask-on lane refuses with a named reason', 'cpapdex-dsp · absence · known-answer', function (T) {
+      var C = env.CpapDsp || env.CPAPDSP;
+      if (!C || typeof C.computeMetrics !== 'function' || typeof C.prepare !== 'function' || typeof C._synthEdfSet !== 'function') {
+        T.skip('CpapDsp.computeMetrics/prepare/_synthEdfSet', 'CPAPDex not co-loaded in this runner');
+        return;
+      }
+      /* Three rows, one defect class. `_p` answers NaN over an empty array, `_iqr` subtracts two of
+         them, `_sd` answers NaN below two samples, `_pearson` divides by the product of two
+         spreads, and two arms wrote NaN as a literal. `JSON.stringify` writes NaN as `null`, so the
+         absence was visible only at the export boundary and never inside the node — which is why no
+         gate saw it. Rows `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`,
+         `2026-11-15-cpapdex-longitudinal-sd-zero-over-one-night` and
+         `2026-11-15-cpapdex-session-maxleak-zero-from-no-mask-on-sample`. */
+      var T0 = Date.UTC(2026, 10, 15, 22, 0, 0);
+      var nonFinite = function (o, path) {
+        var out = [];
+        for (var k in o) {
+          if (!Object.prototype.hasOwnProperty.call(o, k)) continue;
+          var v = o[k];
+          if (typeof v === 'number' && !isFinite(v)) out.push(path + k);
+          else if (v && typeof v === 'object' && !(v instanceof Array) && typeof v.length !== 'number') out = out.concat(nonFinite(v, path + k + '.'));
+        }
+        return out;
+      };
+      var pick = function (o, keys) {
+        var out = {};
+        for (var i = 0; i < keys.length; i++) out[keys[i]] = o[keys[i]];
+        return JSON.stringify(out);
+      };
+      var LANES = [
+        'usageHours',
+        'maskOnLatency',
+        'maskOnLatencyReason',
+        'medianPressure',
+        'p95Pressure',
+        'pressureRange',
+        'maskOnReason',
+        'residualAHI',
+        'centralIndex',
+        'obstructiveIndex',
+        'hypopneaIndex',
+        'medianLeak',
+        'p95Leak',
+        'largeLeakPct',
+        'leakCV',
+        'leakReason'
+      ];
+
+      /* ── 1 · computeMetrics ── a 600 s pressure lane that never rises above zero: the mask was
+         never on, so every mask-on lane is empty and every event index divides by zero hours. */
+      var dead = C.computeMetrics(C.prepare({ t0Ms: T0, fs: 1, pressure: new Float32Array(600), leak: null, events: [{ type: 'OA', timeSec: 10, durSec: 20 }] }));
+      T.eq(
+        '∅ a mask never on publishes no pressure, no index and no leak — each with the reason beside it',
+        pick(dead, LANES),
+        '{"usageHours":0,"maskOnLatency":null,"maskOnLatencyReason":"therapy-never-started","medianPressure":null,"p95Pressure":null,"pressureRange":null,"maskOnReason":"no-mask-on-pressure-sample","residualAHI":null,"centralIndex":null,"obstructiveIndex":null,"hypopneaIndex":null,"medianLeak":null,"p95Leak":null,"largeLeakPct":null,"leakCV":null,"leakReason":"no-mask-on-leak-sample"}'
+      );
+      T.eq('…and no field of the panel is a number-typed sentinel', JSON.stringify(nonFinite(dead, '')), '[]');
+
+      var nLive = 7200,
+        press = new Float32Array(nLive),
+        lk = new Float32Array(nLive);
+      for (var i = 0; i < nLive; i++) {
+        press[i] = 10;
+        lk[i] = 5;
+      }
+      var live = C.computeMetrics(
+        C.prepare({
+          t0Ms: T0,
+          fs: 1,
+          pressure: press,
+          leak: lk,
+          events: [
+            { type: 'OA', timeSec: 10, durSec: 20 },
+            { type: 'H', timeSec: 100, durSec: 15 }
+          ]
+        })
+      );
+      T.eq(
+        'CONTROL · a MEASURED zero still publishes 0 — a flat pressure, a clean central index and a 0 % large-leak share',
+        pick(live, LANES),
+        '{"usageHours":2,"maskOnLatency":0,"maskOnLatencyReason":null,"medianPressure":10,"p95Pressure":10,"pressureRange":0,"maskOnReason":null,"residualAHI":1,"centralIndex":0,"obstructiveIndex":0.5,"hypopneaIndex":0.5,"medianLeak":5,"p95Leak":5,"largeLeakPct":0,"leakCV":0,"leakReason":null}'
+      );
+
+      /* ── 2 · buildLongitudinal ── the sample SD needs two nights. `0` claimed a measured
+         dispersion of zero for a trend with nothing to disperse. */
+      var night = function (t0, ahi) {
+        return { t0Ms: t0, metrics: { usageHours: 7, residualAHI: ahi }, sessions: [{}] };
+      };
+      T.eq(
+        '∅ one night carries a mean and NO dispersion, with the reason beside it',
+        JSON.stringify(C.buildLongitudinal([night(T0, 4)]).ahiTrend30d),
+        '{"mean":4,"sd":null,"sdReason":"single-night","n":1}'
+      );
+      T.eq(
+        'CONTROL · two nights that differ report the dispersion',
+        JSON.stringify(C.buildLongitudinal([night(T0, 4), night(T0 + 86400000, 6)]).ahiTrend30d),
+        '{"mean":5,"sd":1.41,"sdReason":null,"n":2}'
+      );
+      T.eq(
+        'CONTROL · a MEASURED zero dispersion over two equal nights is still 0',
+        JSON.stringify(C.buildLongitudinal([night(T0, 4), night(T0 + 86400000, 4)]).ahiTrend30d),
+        '{"mean":4,"sd":0,"sdReason":null,"n":2}'
+      );
+
+      /* ── 3 · buildSessionFromEdf and the night it pools ── the production path. The F8 note in
+         the source already named `maskOnLatency NaN` and `medianPressure NaN` for a set that lost
+         its PLD file, and it records real nights that did. */
+      var EDF = [
+        'usageHours',
+        'maskOnLatency',
+        'maskOnLatencyReason',
+        'medianPressure',
+        'p95Pressure',
+        'pressureRange',
+        'maskOnReason',
+        'medianLeak',
+        'p95Leak',
+        'maxLeak',
+        'largeLeakPct',
+        'leakCV',
+        'leakReason'
+      ];
+      var zeroPress = function () {
+        var set = C._synthEdfSet();
+        var pd = set.PLD.signals['Press.2s'].data;
+        for (var j = 0; j < pd.length; j++) pd[j] = 0;
+        return set;
+      };
+      var offSet = zeroPress();
+      var offSess = C.buildSessionFromEdf(offSet, {});
+      T.eq(
+        '∅ an EDF set whose pressure never rises publishes no pressure and no leak, each with its reason',
+        pick(offSess.metrics, EDF),
+        '{"usageHours":0,"maskOnLatency":null,"maskOnLatencyReason":"therapy-never-started","medianPressure":null,"p95Pressure":null,"pressureRange":null,"maskOnReason":"no-mask-on-pressure-sample","medianLeak":null,"p95Leak":null,"maxLeak":null,"largeLeakPct":null,"leakCV":null,"leakReason":"no-mask-on-leak-sample"}'
+      );
+      T.eq('…and nothing in the whole session object is a non-finite number', JSON.stringify(nonFinite(offSess, '')), '[]');
+      T.ok(
+        'ANTI-VACUITY · the refusal is about the MASK, not a missing lane — the leak lane still holds its samples',
+        offSet.PLD.signals['Leak.2s'].data.length === 300,
+        offSet.PLD.signals['Leak.2s'].data.length + ' leak samples'
+      );
+
+      var ctlSess = C.buildSessionFromEdf(C._synthEdfSet(), {});
+      T.eq(
+        'CONTROL · the untouched synthetic set still reports every measured lane',
+        pick(ctlSess.metrics, EDF),
+        '{"usageHours":0.167,"maskOnLatency":0,"maskOnLatencyReason":null,"medianPressure":10.01,"p95Pressure":10.1,"pressureRange":0.15,"maskOnReason":null,"medianLeak":4.8,"p95Leak":4.8,"maxLeak":4.8,"largeLeakPct":0,"leakCV":0,"leakReason":null}'
+      );
+      T.eq('CONTROL · and it carries no non-finite number either', JSON.stringify(nonFinite(ctlSess, '')), '[]');
+
+      if (typeof C.nightMetrics === 'function') {
+        var POOL = ['usageHours', 'maskOnLatency', 'medianPressure', 'p95Pressure', 'pressureRange', 'maskOnReason', 'medianLeak', 'p95Leak', 'maxLeak'];
+        T.eq(
+          '∅ the night pools the same absence — this is the level the UI draws',
+          pick(C.nightMetrics([offSess]), POOL),
+          '{"usageHours":0,"maskOnLatency":null,"medianPressure":null,"p95Pressure":null,"pressureRange":null,"maskOnReason":"no-mask-on-pressure-sample","medianLeak":null,"p95Leak":null,"maxLeak":null}'
+        );
+        T.eq(
+          'CONTROL · a pooled night over a measured session reports the lanes',
+          pick(C.nightMetrics([ctlSess]), POOL),
+          '{"usageHours":0.167,"maskOnLatency":0,"medianPressure":10.01,"p95Pressure":10.1,"pressureRange":0.15,"maskOnReason":null,"medianLeak":4.8,"p95Leak":4.8,"maxLeak":4.8}'
+        );
+      }
+
+      /* ── 4 · the correlation ── `_pearson` divides by the product of the two spreads, so a lane
+         with no variance gave `0 / 0`. Every CPAP-mode night holds a constant pressure. */
+      T.eq(
+        '∅ a correlation over a lane with no variance refuses, and names that cause',
+        JSON.stringify([ctlSess.metrics.snorePressureCorr, ctlSess.metrics.snorePressureCorrReason]),
+        '[null,"no-lane-variance"]'
+      );
+      T.eq(
+        '…and no mask-on sample at all is a DIFFERENT cause, named differently',
+        JSON.stringify([offSess.metrics.snorePressureCorr, offSess.metrics.snorePressureCorrReason]),
+        '[null,"no-mask-on-sample"]'
+      );
+      if (C._kernel && typeof C._kernel._pearson === 'function') {
+        var flat = [1, 1, 1, 1, 1],
+          rising = [1, 2, 3, 4, 5];
+        T.ok('ANTI-VACUITY · the guard is load-bearing: the helper itself still answers NaN over a constant lane', isNaN(C._kernel._pearson(flat, rising)), String(C._kernel._pearson(flat, rising)));
+        T.ok('CONTROL · the helper still measures a real correlation', Math.abs(C._kernel._pearson(rising, rising) - 1) < 1e-9, String(C._kernel._pearson(rising, rising)));
+      }
+    });
 
     group('CPAPDex helper floor — 9 + 2 drafts adopted: prepare defaults, envelope guards, EDF refusals (mutation-derived)', 'cpapdex-dsp · known-answer · mutation-pinned', function (T) {
       var C = env.CpapDsp || env.CPAPDSP;
@@ -60898,6 +61081,20 @@
           T.ok('the closure body names each row and its state', /\| `2020-01-07-a-b` \| `fixed #42` \|/.test(bd));
         }
       } else T.skip('residue closure wired', 'pwPlanClosures absent in this lane');
+
+      /* ── a closure PR waits while a ready PR runs its checks (measured 2026-11-16, board #6670:
+         closure PR #5112 merged ahead of #5094 and cancelled its capture-host mutation run) ───── */
+      var cwo = env.pwClosureWaitsOn;
+      T.ok('the closure hold reaches this lane — its absence is a wiring failure', typeof cwo === 'function');
+      if (typeof cwo === 'function') {
+        var readyPending = { number: 5094, draft: false, state: 'pending', branch: 'claude/qcpool-hrn' };
+        T.eq('a ready PR whose required checks run holds the closure', (cwo([readyPending]) || {}).number, 5094);
+        T.eq('CONTROL: a draft that runs its checks does not hold it', cwo([{ number: 7, draft: true, state: 'pending', branch: 'claude/x' }]), null);
+        T.eq('CONTROL: a ready green PR does not hold it', cwo([{ number: 8, draft: false, state: 'green', branch: 'claude/x' }]), null);
+        T.eq('CONTROL: a held PR does not hold it', cwo([{ number: 9, draft: false, state: 'held', branch: 'claude/x' }]), null);
+        T.eq('CONTROL: the walker closure PR itself does not hold it', cwo([{ number: 10, draft: false, state: 'pending', branch: 'claude/residue-close-walker-20201231' }]), null);
+        T.eq('an empty or unreadable row list holds nothing', [cwo([]), cwo(null)].join(), ',');
+      }
 
       /* ── the signature comment (owner, 2020-01-01: "it will sign everything what it does") ──── */
       var sg = env.pwSignature;
