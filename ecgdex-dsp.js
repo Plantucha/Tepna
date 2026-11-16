@@ -4530,7 +4530,21 @@
       }
     }
     const period = bestBand ? _autocorrPeriod(bestBand, fs, 2.5, 10) : null;
-    const respRate = period ? +(60 / period).toFixed(1) : 0;
+    /* ── ∅ NO PERIOD IS NO RATE, NEVER 0 br/min ───────────────────────────────────────────────
+       `_autocorrPeriod` returns null when the band-passed ACC holds no periodicity between 2.5 s and
+       10 s, which is what a still chest, a motion-swamped segment or an absent axis looks like. The
+       old line published 0 br/min there, and 0 is inside the domain this field reports: a reader
+       cannot tell "the autocorrelation found nothing" from "this chest moved 0 times a minute".
+       `respConfident` already carried the honesty bit, and `ecgdex-app.js:1232` reads it, so the
+       panel was safe; every OTHER reader of the returned object saw the fabricated zero. The sibling
+       spectral path at :1459 already answers this shape with null plus a named reason, so this one
+       follows it. 60 / period is finite for every period this helper can return, because its search
+       window is bounded away from 0. */
+    const respRate = period ? +(60 / period).toFixed(1) : null;
+    /* `bestP` starts at -1, so the axis race ALWAYS sets `bestBand` — even to an empty array. So the
+       reason reads its LENGTH, not its presence: an empty band means the quietest window held no
+       samples to examine, and a non-empty one means the autocorrelation looked and found no period. */
+    const respRateReason = period ? null : bestBand && bestBand.length ? 'no 2.5-10 s periodicity in the quietest ACC window' : 'no ACC samples in the quietest window';
     // fixed-bin motion trace (always available, even for short spot recordings)
     const binSec = Math.max(4, Math.round(deviceACC.length / fs / 120)),
       motionSeries = [];
@@ -4593,6 +4607,7 @@
       .sort((a, b) => b.pct - a.pct);
     return {
       respRate,
+      respRateReason,
       respAxis: bestAxis,
       respConfident: !!period,
       accFs: fs,
