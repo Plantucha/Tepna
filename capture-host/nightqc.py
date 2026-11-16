@@ -938,7 +938,12 @@ def _rate_key(dev: dict) -> str:
 # The two consumers fail differently from the same cause, which is why this is a shared helper and
 # not a patch at one site: coverage reports a stream MISSING (loud and wrong), while `rate_reality`
 # finds no candidate file and emits no row at all (silent and wrong).
-_STREAM_FILE_TAGS = {"acc": ("ACC", "ACCRAW")}
+# The Muse S Athena writes its EEG frame file as `_RAW.txt` (`capture.run_muse_athena` builds it with
+# `_path("raw", "txt")`, and its own comment reads `<base>_RAW.txt`), so a configured `eeg` stream
+# matched neither `EEG` nor anything else and the Muse read absent on every night it recorded. Same
+# cause, same two consumers as `acc` above. The RUNS / SEAMS sidecars end in `RAWRUNS` / `RAWSEAMS`,
+# so `_RAW.txt` cannot match them — stated here because it is the reason the union is safe.
+_STREAM_FILE_TAGS = {"acc": ("ACC", "ACCRAW"), "eeg": ("EEG", "RAW")}
 
 
 def stream_file_tags(stream: str) -> tuple[str, ...]:
