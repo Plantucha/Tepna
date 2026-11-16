@@ -12340,6 +12340,87 @@
       }
     });
 
+    group('ECGDex ACC placement — an alignment is measured or it is absent (∅)', 'ecgdex-dsp · acc · placement · fabricated-absence', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.accExtras === 'function' && typeof D.accAnalyze === 'function')) {
+        T.skip('ECGDSP.accExtras + accAnalyze available', 'ecgdex-dsp not wired in this lane');
+        return;
+      }
+      /* The chest ACC is placed against the ECG start by the difference of the two first stamps.
+         Four sites spelled that as `ecgT0Ms && deviceACC[0].tsMs ? (…) / 1000 : 0`, with a range
+         test whose else arm was `0` again. So THREE different states reached the reader as a
+         perfect 0 s alignment: an absent ECG start, an absent first motion stamp, and a MEASURED
+         non-overlap. Each leg below drives one of them, and the 0 ms leg pins the `&&`, which read
+         a legal stamp of exactly 0 ms as an absence. */
+      var FS = 4,
+        MIN = 10,
+        N = FS * 60 * MIN,
+        T0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+      function mk(stampAt) {
+        var a = [];
+        for (var i = 0; i < N; i++) {
+          var j = Math.sin(i * 0.7) * 0.02;
+          var row = { x: 1 + j, y: j * 0.5, z: j * 0.25 };
+          if (stampAt !== null) row.tsMs = stampAt + (i / FS) * 1000;
+          a.push(row);
+        }
+        return a;
+      }
+      var epochs = [];
+      for (var m = 0; m < MIN; m += 5) epochs.push({ tMin: m });
+
+      var placed = D.accExtras(mk(T0 + 12000), FS, T0, MIN * 60, epochs, []);
+      T.eq('a placed stream reports the MEASURED offset', placed.off, 12);
+      T.eq('…and names no reason', placed.offReason, null);
+      T.eq('…and its gait bouts sit on the ECG axis', placed.gaitAxis, 'ecg-relative');
+
+      var noStamp = D.accExtras(mk(null), FS, T0, MIN * 60, epochs, []);
+      T.eq('an ACC stream with no stamp refuses the offset', noStamp.off, null);
+      T.eq('…and names the absent motion stamp', noStamp.offReason, 'no-acc-start-stamp');
+      T.eq('…and withholds every ECG-relative field', JSON.stringify([noStamp.rracc, noStamp.consensus, noStamp.movementOnsets, noStamp.motionByTMin]), JSON.stringify([[], null, [], null]));
+      T.eq('…and relabels the gait axis rather than fabricating one', noStamp.gaitAxis, 'acc-relative');
+      T.ok('…while the alignment-free gait counts survive', !!noStamp.gait, JSON.stringify(!!noStamp.gait));
+
+      var noEcg = D.accExtras(mk(T0), FS, null, MIN * 60, epochs, []);
+      T.eq('an absent ECG start refuses the offset', noEcg.off, null);
+      T.eq('…and names the absent ECG start', noEcg.offReason, 'no-ecg-start-stamp');
+
+      /* A stamp of exactly 0 ms is a legal stamp. The old `&&` read it as an absence. */
+      var zeroStamp = D.accExtras(mk(0), FS, 0, MIN * 60, epochs, []);
+      T.eq('a stamp of exactly 0 ms is a stamp, not an absence', zeroStamp.off, 0);
+      T.eq('…so it names no reason', zeroStamp.offReason, null);
+      T.eq('…and it keeps the ECG axis', zeroStamp.gaitAxis, 'ecg-relative');
+
+      var disjoint = D.accExtras(mk(T0 + 3600000), FS, T0, MIN * 60, epochs, []);
+      T.eq('a MEASURED non-overlap refuses the offset', disjoint.off, null);
+      T.eq('…and names the non-overlap, never a borrowed reason', disjoint.offReason, 'acc-ecg-disjoint');
+
+      var an = D.accAnalyze(mk(null), FS, T0, MIN * 60, epochs);
+      T.ok('accAnalyze still returns a shape on an unplaced stream', !!an);
+      T.eq('…it names the alignment reason', an.alignReason, 'no-acc-start-stamp');
+      T.eq('…and withholds the alignment itself', an.alignOffsetSec, null);
+      T.eq('…and withholds every epoch-aligned series', JSON.stringify([an.postureSeries, an.activitySeries, an.highMotionEpochs, an.motionSeries]), JSON.stringify([null, null, null, null]));
+      T.ok('…and keeps the alignment-free motion median', typeof an.motionMedian === 'number', String(an.motionMedian));
+
+      var pos = D.stampEpochPositions(
+        epochs.map(function (e) {
+          return { tMin: e.tMin };
+        }),
+        mk(null),
+        FS,
+        T0,
+        MIN * 60
+      );
+      T.eq('stampEpochPositions returns one row per epoch on an unplaced stream', pos.length, epochs.length);
+      T.ok(
+        '…and every row reads unknown with the placement reason',
+        pos.every(function (p) {
+          return p.position === 'unknown' && p.reason === 'no-acc-start-stamp';
+        }),
+        JSON.stringify(pos[0])
+      );
+    });
+
     group('ECGDex staging consensus — an abstention is not an agreement (§6.1)', 'ecgdex-dsp · consensus · fabricated-absence', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.accExtras === 'function')) {
@@ -12349,6 +12430,11 @@
       var FS = 4,
         MIN = 60,
         N = FS * 60 * MIN;
+      /* §∅ — this synthetic carried NO `tsMs` until 2026-11-16, so `accExtras` could not place it
+         against the ECG start and the old `(ecgT0Ms && acc[0].tsMs) ? … : 0` handed it a fabricated
+         0 s alignment. A real chest stream carries a stamp per row, so the synthetic carries one too
+         and the consensus vote below reads a MEASURED placement. */
+      var T0ACC = Date.UTC(2026, 5, 10, 22, 0, 0);
       var acc = [];
       for (var i = 0; i < N; i++) {
         var tMin = i / (FS * 60);
@@ -12356,7 +12442,7 @@
         if (tMin >= 20 && tMin < 40) amp = 0.036; // lands inside the 5–20 "Ambiguous" band
         if (tMin >= 55) amp = 0.5; // clear motion — sets the p95 the index normalises against
         var j = Math.sin(i * 0.7) * amp;
-        acc.push({ x: 1 + j, y: j * 0.5, z: j * 0.25 });
+        acc.push({ tsMs: T0ACC + (i / FS) * 1000, x: 1 + j, y: j * 0.5, z: j * 0.25 });
       }
       var epochs = [],
         stages = [];
@@ -12365,7 +12451,7 @@
         // 0–15 still+N2 → agree · 20–35 ambiguous → ABSTAIN · 40–50 still+Wake → conflict · 55 motion+Wake → agree
         stages.push({ tMin: m, stage: m >= 40 ? 'Wake' : 'N2' });
       }
-      var r = D.accExtras(acc, FS, Date.UTC(2026, 5, 10, 22, 0, 0), MIN * 60, epochs, stages);
+      var r = D.accExtras(acc, FS, T0ACC, MIN * 60, epochs, stages);
       var c = r && r.consensus;
       T.ok('the synthetic produces a consensus block', !!c, c ? JSON.stringify({ rate: c.rate, n: c.n }) : 'null');
       if (!c) return;
@@ -43727,11 +43813,13 @@
       if (missing.length) return;
 
       /* §∅ — an empty ACC stream yields a populated shape with empty arrays and explicit nulls,
-         NOT a bare null. A null here would force every caller into its own absent-branch. */
+         NOT a bare null. A null here would force every caller into its own absent-branch. Until
+         2026-11-16 this shape also carried `off: 0`, which read exactly like a stream that began
+         with the ECG. The offset is now `null` beside the reason that withdrew it. */
       T.eq(
         'accExtras([],[]) returns the full shape with empty arrays and explicit nulls, not null',
         JSON.stringify(E.accExtras([], [])),
-        '{"rracc":[],"rraccSummary":null,"agreement":null,"consensus":null,"gait":{"totalSteps":0,"walking":false,"reason":"lowfs","accFs":[],"bouts":[],"cadEpochs":[],"zonePct":[]},"off":0,"accFs":[],"motionByTMin":null,"movementOnsets":[],"durMin":null}'
+        '{"rracc":[],"rraccSummary":null,"agreement":null,"consensus":null,"gait":{"totalSteps":0,"walking":false,"reason":"lowfs","accFs":[],"bouts":[],"cadEpochs":[],"zonePct":[]},"gaitAxis":"acc-relative","off":null,"offReason":"no-ecg-start-stamp","accFs":[],"motionByTMin":null,"movementOnsets":[],"durMin":null}'
       );
 
       /* The drafted projection is `out[0]`; the PROPERTY claims "an empty array". Those differ —
@@ -73508,6 +73596,14 @@
       var appsrc = (env.sources || {})['ecgdex-app.js'];
       if (appsrc) T.ok('buildV2 export wires an `acc:` section', /acc:\s*accEx\s*\?/.test(appsrc));
       if (appsrc) {
+        /* ∅ 2026-11-16: the ACC card read `a.highMotionEpochs` straight into `.filter`, so the
+           producer could not withhold it. An UNPLACED motion stream now reports null, and the card
+           states that no epoch tie exists rather than counting zero movement on an absent clock. */
+        T.ok('the card tests the epoch list for an array before it counts', appsrc.indexOf('const hiPlaced = Array.isArray(a.highMotionEpochs);') !== -1);
+        T.ok('…a quiet night needs a PLACED stream, never an absent one', appsrc.indexOf('const quiet = hiPlaced && hi.length === 0;') !== -1);
+        T.ok('…and the unplaced arm names the placement reason', /no measured placement against the ECG \(\$\{a\.alignReason\}\)/.test(appsrc));
+      }
+      if (appsrc) {
         /* residue 2026-11-11: the narrow-EDR-range note called the limits of agreement tight and
            said the two methods agreed, behind an `ag.mae <= 2.0` gate that never reads the interval
            it printed. A night with limits of −5.1 … +4.6 br/min, a span of 9.7, passed it. The gate
@@ -73519,10 +73615,11 @@
         T.eq('both branches state the span they measured', appsrc.split('limits of agreement span <b>${loaSpan}</b>').length - 1, 2);
       }
 
-      // ── FOLLOWUPS-II §2: a STAMPLESS primary ECG (t0Ms=null) drives the ACC companion on a
-      //    relative-from-0 clock. accExtras/accAnalyze/stampEpochPositions each use ecgT0Ms ONLY in
-      //    baseOffset = (ecgT0Ms && acc[0].tsMs) ? … : 0, so a null anchor short-circuits to off=0 —
-      //    byte-IDENTICAL to a 0/misaligned anchor, never a 1970-epoch-ms absolute stamp or NaN.
+      // ── FOLLOWUPS-II §2 + §∅: a STAMPLESS primary ECG (t0Ms=null) cannot be placed against the
+      //    ACC companion at all. Until 2026-11-16 all three producers spelled the placement as
+      //    baseOffset = (ecgT0Ms && acc[0].tsMs) ? … : 0, so an ABSENT anchor short-circuited to
+      //    off=0 and read byte-IDENTICAL to a MISALIGNED one. This group asserted that identity.
+      //    Both refuse now, and each names its own cause. No value ever becomes a 1970 stamp or NaN.
       var recN = D.genSynthetic({ durSec: 3 * 3600, scenario: 'osa' });
       var rN = D.analyze(recN, function () {});
       var exNull = D.accExtras(recN.deviceACC, recN.accFs, null, rN.durSec, rN.epochs, rN.stages);
@@ -73530,7 +73627,11 @@
       T.ok('stampless (null t0Ms) accExtras still returns a payload', !!exNull);
       if (exNull) {
         T.ok('stampless ACC payload has no NaN/Infinity (null never coerces to a 1970 stamp)', countNonFinite(exNull) === 0, countNonFinite(exNull) + ' bad');
-        T.eq('accExtras: null t0Ms ≡ 0/misaligned anchor (both → relative off=0)', JSON.stringify(exNull), JSON.stringify(exZero));
+        T.eq('accExtras: an absent ECG start refuses the offset', exNull.off, null);
+        T.eq('…and names the absent anchor, never a borrowed reason', exNull.offReason, 'no-ecg-start-stamp');
+        T.eq('accExtras: a 0 anchor against a 2026 stream is MEASURED, and it does not overlap', exZero.off, null);
+        T.eq('…so it names the non-overlap it measured', exZero.offReason, 'acc-ecg-disjoint');
+        T.ok('an absence and a misalignment are no longer byte-identical', JSON.stringify(exNull) !== JSON.stringify(exZero));
         var maxMin = rN.durSec / 60 + 5;
         T.ok(
           'RRacc epoch times stay relative (never 1970-ms)',
@@ -73547,7 +73648,15 @@
       }
       var aNull = D.accAnalyze(recN.deviceACC, recN.accFs, null, rN.durSec, rN.epochs);
       var aZero = D.accAnalyze(recN.deviceACC, recN.accFs, 0, rN.durSec, rN.epochs);
-      T.eq('accAnalyze: null t0Ms ≡ 0 anchor (relative off=0)', JSON.stringify(aNull), JSON.stringify(aZero));
+      T.eq('accAnalyze: an absent ECG start withholds the alignment', aNull.alignOffsetSec, null);
+      T.eq('…and names the absent anchor', aNull.alignReason, 'no-ecg-start-stamp');
+      T.eq('accAnalyze: a 0 anchor measures a non-overlap instead', aZero.alignReason, 'acc-ecg-disjoint');
+      T.ok(
+        '…and both keep the alignment-free half of the analysis',
+        aNull.postureSeries === null && typeof aNull.motionMedian === 'number' && typeof aZero.motionMedian === 'number',
+        JSON.stringify({ postureSeries: aNull.postureSeries, mNull: aNull.motionMedian, mZero: aZero.motionMedian })
+      );
+      T.ok('accAnalyze: an absence and a 0 anchor no longer read identically', JSON.stringify(aNull) !== JSON.stringify(aZero));
       var epIn = rN.epochs.map(function (e) {
         return { tMin: e.tMin };
       });
@@ -73694,17 +73803,21 @@
 
       // ── 10 · epochMotion HONORS THE HOST-CLOCK OFFSET, and offset-starved coverage reads NULL,
       //      not "still". ACC starting 270 s after the ECG leaves epoch 0 with <30 s of aligned
-      //      coverage, so it is DROPPED from the map — with no ECG clock the offset is 0 and both
-      //      epochs score. `||` fabricates an offset from a lone ACC clock; zeroing /1000 blows the
-      //      offset past the clamp and silently un-shifts the night.
+      //      coverage, so it is DROPPED from the map. `||` fabricates an offset from a lone ACC
+      //      clock; zeroing /1000 blows the offset past the clamp and silently un-shifts the night.
+      //      ∅ 2026-11-16: this leg read `ecgT0Ms = 0` as "no ECG clock" and expected BOTH epochs,
+      //      because `ecgT0Ms && deviceACC[0].tsMs` treated a legal stamp of exactly 0 ms as an
+      //      absence. A floating 0 ms IS a clock under the Clock Contract, so the 270 s start is
+      //      MEASURED and epoch 0 drops. An ABSENT clock is `null`, and unplaced motion is absent.
       var mkAcc = function (t0) {
         var out = [];
         for (var i = 0; i < 2400; i++) out.push({ tsMs: t0 + i * 250, x: 0, y: 0, z: 9.81 + (i < 1200 && i % 2 ? 2 : 0) });
         return out;
       };
       var two = [{ tMin: 0 }, { tMin: 5 }];
-      var emNoClock = E.epochMotion(mkAcc(270000), 4, 0, 600, [{ tMin: 0 }, { tMin: 5 }]);
-      T.eq('no ECG clock: offset 0, both epochs observed', JSON.stringify(Array.from(emNoClock.keys())), '["0.0","5.0"]');
+      var emZeroClock = E.epochMotion(mkAcc(270000), 4, 0, 600, [{ tMin: 0 }, { tMin: 5 }]);
+      T.eq('an ECG clock of exactly 0 ms is a clock: the 270 s start is MEASURED and epoch 0 drops', JSON.stringify(Array.from(emZeroClock.keys())), '["5.0"]');
+      T.eq('an ABSENT ECG clock refuses the whole map, never a 0 s offset', E.epochMotion(mkAcc(270000), 4, null, 600, two), null);
       var emShift = E.epochMotion(mkAcc(271000), 4, 1000, 600, two);
       T.eq('ACC 270 s late against a real ECG clock: epoch 0 is DROPPED, not stilled', JSON.stringify(Array.from(emShift.keys())), '["5.0"]');
     });

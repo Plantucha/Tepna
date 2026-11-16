@@ -2538,14 +2538,38 @@
   //  there is, and gating it behind the stager is what kept the single most
   //  useful feature out of the classifier that needed it most.
   // ════════════════════════════════════════════════════════════════════════
+  /* §∅ — AN ALIGNMENT IS MEASURED OR IT IS ABSENT. The chest ACC is placed against the ECG start by
+     the difference of the two first stamps. Until 2026-11-16 four sites spelled that as
+     `ecgT0Ms && deviceACC[0].tsMs ? (…) / 1000 : 0`, followed by a range test whose else arm was `0`
+     again. So an ABSENT ECG start, an ABSENT first motion stamp and a MEASURED non-overlap all
+     reached the reader as a perfect 0 s alignment, indistinguishable from a stream that really began
+     with the ECG. A stamp of exactly 0 ms is a legal stamp too, and `&&` read it as absent.
+     Placement is a DISCONTINUITY question, so a refusal returns `offSec: null` with a named reason
+     (owner ruling 2026-09-17: a discontinuity refuses, reduced coverage annotates). */
+  function _accPlace(deviceACC, ecgT0Ms, durSec) {
+    const t0 = ecgT0Ms != null && isFinite(ecgT0Ms) ? +ecgT0Ms : null;
+    const a0 = deviceACC && deviceACC.length && deviceACC[0] && deviceACC[0].tsMs != null && isFinite(deviceACC[0].tsMs) ? +deviceACC[0].tsMs : null;
+    if (t0 == null || a0 == null)
+      return {
+        offSec: null,
+        measuredSec: null,
+        reason: t0 == null ? 'no-ecg-start-stamp' : 'no-acc-start-stamp'
+      };
+    if (!(durSec > 0) || !isFinite(durSec)) return { offSec: null, measuredSec: null, reason: 'no-ecg-duration' };
+    const measured = (a0 - t0) / 1000;
+    if (!(measured >= -2 && measured <= durSec)) return { offSec: null, measuredSec: measured, reason: 'acc-ecg-disjoint' };
+    return { offSec: measured, measuredSec: measured, reason: null };
+  }
+
   function epochMotion(deviceACC, accFs, ecgT0Ms, durSec, epochs) {
     const fs = accFs || 4;
     if (!deviceACC || !epochs || !epochs.length || deviceACC.length < fs * 30) return null;
     const N = deviceACC.length;
     const vm = new Float64Array(N);
     for (let i = 0; i < N; i++) vm[i] = Math.hypot(deviceACC[i].x, deviceACC[i].y, deviceACC[i].z);
-    const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - ecgT0Ms) / 1000 : 0;
-    const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;
+    const _pl = _accPlace(deviceACC, ecgT0Ms, durSec);
+    if (_pl.offSec == null) return null; // §∅ — unplaced motion is absent motion, never 0 s
+    const off = _pl.offSec;
     // GROSS motion from jerk (|Δ vector-magnitude|): suppresses the always-present respiratory
     // chest movement + gravity baseline, so only real body movement scores.
     const dmv = new Float64Array(N);
@@ -3429,6 +3453,10 @@
     // MOTION BEFORE STAGING (see epochMotion). The chest ACC is parsed and on hand here; computing
     // it after the stager — as this did — is what left the classifier blind to the one feature that
     // most improves it.
+    /* §∅ — the ACC placement is computed ONCE here as well, so the reason behind a refusal reaches the
+       reader exactly once beside the four features it withdraws (`_accPlace`). The four producers
+       each refuse on their own; this carries the WHY. */
+    const _accPl = rec.deviceACC && rec.accFs && rec.deviceACC.length >= rec.accFs * 30 ? _accPlace(rec.deviceACC, rec.t0Ms, durSec) : null;
     const _epochMot = rec.deviceACC && rec.accFs && rec.deviceACC.length >= rec.accFs * 30 ? epochMotion(rec.deviceACC, rec.accFs, rec.t0Ms, durSec, epochs) : null;
     const stages = longRec ? stageSleep(epochs, _epochMot) : [];
 
@@ -3609,6 +3637,14 @@
       sleepSuppressed,
       apneaSuppressed,
       _accEx,
+      accPlacement: _accPl
+        ? {
+            ok: _accPl.offSec != null,
+            offsetSec: _accPl.offSec,
+            measuredOffsetSec: _accPl.measuredSec,
+            reason: _accPl.reason
+          }
+        : null,
       // raw refs for canvas + charts
       int16,
       bp,
@@ -4462,8 +4498,17 @@
     const xs = deviceACC.map((d) => d.x),
       ys = deviceACC.map((d) => d.y),
       zs = deviceACC.map((d) => d.z);
-    const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - ecgT0Ms) / 1000 : 0;
-    const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;
+    const _pl = _accPlace(deviceACC, ecgT0Ms, durSec);
+    if (_pl.offSec == null) {
+      /* §∅ — the same two absences this function already separates, plus the MEASURED
+         non-overlap. An unplaced stream cannot say which epoch it observed. */
+      epochs.forEach((e) => {
+        e.position = 'unknown';
+        e.positionReason = _pl.reason;
+      });
+      return epochs.map((e) => ({ tMin: e.tMin, position: 'unknown', reason: _pl.reason }));
+    }
+    const off = _pl.offSec;
     const N = deviceACC.length,
       out = [];
     const _blankMs = Array.isArray(deviceACC._blankSpans) ? deviceACC._blankSpans : [];
@@ -4514,8 +4559,11 @@
     // vector-magnitude + timeline alignment
     const vm = new Float64Array(deviceACC.length);
     for (let i = 0; i < deviceACC.length; i++) vm[i] = Math.hypot(xs[i], ys[i], zs[i]);
-    const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - ecgT0Ms) / 1000 : 0;
-    const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;
+    const _pl = _accPlace(deviceACC, ecgT0Ms, durSec);
+    /* §∅ — an UNPLACED stream does not lose this whole analysis. The fields that need no
+       alignment keep their value; every ECG-relative field below withholds and names why. */
+    const _placed = _pl.offSec != null;
+    const off = _placed ? _pl.offSec : 0;
     // posture — robust gravity vector (per-axis median) → body position + tilt
     const overall = _posture(median(xs), median(ys), median(zs));
     // respiration: breathing is only cleanly visible when STILL, so locate the quietest
@@ -4641,14 +4689,19 @@
       accFs: fs,
       posture: overall.label,
       tiltDeg: overall.tiltDeg,
-      postureSeries,
-      postureBreakdown,
-      postureTransitions: transitions,
-      motionSeries,
+      /* §∅ — THE ALIGNMENT LINE. Every field below is placed against the ECG start, so an unplaced
+         stream withholds it and names the cause. The fields above need no alignment and keep their
+         value (owner ruling 2026-09-17: a discontinuity refuses, reduced coverage annotates). */
+      alignOffsetSec: _placed ? +off.toFixed(3) : null,
+      alignReason: _pl.reason,
+      postureSeries: _placed ? postureSeries : null,
+      postureBreakdown: _placed ? postureBreakdown : null,
+      postureTransitions: _placed ? transitions : null,
+      motionSeries: _placed ? motionSeries : null,
       motionMedian: +mvMed.toFixed(1),
-      activitySeries: actSeries,
-      activityMedian: +actMed.toFixed(1),
-      highMotionEpochs: highMotion,
+      activitySeries: _placed ? actSeries : null,
+      activityMedian: _placed ? +actMed.toFixed(1) : null,
+      highMotionEpochs: _placed ? highMotion : null,
       nSamples: deviceACC.length,
       durMin: +(deviceACC.length / fs / 60).toFixed(1)
     };
@@ -4993,8 +5046,11 @@
       zs = deviceACC.map((d) => d.z);
     const vm = new Float64Array(N);
     for (let i = 0; i < N; i++) vm[i] = Math.hypot(xs[i], ys[i], zs[i]);
-    const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - ecgT0Ms) / 1000 : 0;
-    const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;
+    const _pl = _accPlace(deviceACC, ecgT0Ms, durSec);
+    /* §∅ — an UNPLACED stream does not lose this whole analysis. The fields that need no
+       alignment keep their value; every ECG-relative field below withholds and names why. */
+    const _placed = _pl.offSec != null;
+    const off = _placed ? _pl.offSec : 0;
 
     // ── Feature 1: RRacc per 30-s epoch ──
     /* CHEST MOVEMENT ONSETS — the arousal fiducial an apnea leaves on the H10's accelerometer.
@@ -5164,7 +5220,24 @@
     // ── Feature 4: step count & gait ──
     const gait = _gait(vm, fs, off);
 
-    return { rracc, rraccSummary, agreement, consensus, gait, off, accFs: fs, motionByTMin, movementOnsets, durMin: +(N / fs / 60).toFixed(1) };
+    /* §∅ — `off` was a fabricated 0 s on an unplaced stream until 2026-11-16, and every field keyed to
+       it read exactly like a stream that began with the ECG. An unplaced stream now reports `off: null`
+       with a named reason and withholds the ECG-relative fields. `gait` stays, because its counts need
+       no alignment; `gaitAxis` says which axis its bout times sit on (refuse the rate, relabel the axis). */
+    return {
+      rracc: _placed ? rracc : [],
+      rraccSummary: _placed ? rraccSummary : null,
+      agreement: _placed ? agreement : null,
+      consensus: _placed ? consensus : null,
+      gait,
+      gaitAxis: _placed ? 'ecg-relative' : 'acc-relative',
+      off: _placed ? off : null,
+      offReason: _pl.reason,
+      accFs: fs,
+      motionByTMin: _placed ? motionByTMin : null,
+      movementOnsets: _placed ? movementOnsets : [],
+      durMin: +(N / fs / 60).toFixed(1)
+    };
   }
 
   // ── multi-part split files (Polar Sensor Logger) ───────────────────────────
