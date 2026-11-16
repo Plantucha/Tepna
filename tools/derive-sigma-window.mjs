@@ -148,8 +148,16 @@ if (ppg.length) {
   // per-second fused-hat confidence over the detected pulse indices + per-beat SQI (the DSP's own
   // beatConfidence, keyed by absolute second). Omitted — not defaulted — across a clock seam.
   const ppgSeam = !!(rec.clockResyncs && rec.clockResyncs.length);
-  const ppgConf = ppgSeam ? null : PPGDSP.beatConfidence(res.peakSamp || [], sqi, rec.fs, t0 || 0);
+  /* ∅ A FLAT-1 TRUST COLUMN IS NOT A MEASUREMENT. `beatConfidence` answers trust 1 for every
+     second when it could not calibrate, so the `c` column read as "every second examined and
+     trusted" and the line below counted 0 of N seconds below 0.5 — the reassuring figure over a
+     record the gate never judged. This leg already omits the column across a seam rather than
+     defaulting it; an uncalibrated map is the same absence one derivative down, so it takes the
+     same treatment and names its own cause. The map's sentence is `beatConfidence`'s own. */
+  const _ppgConfRaw = ppgSeam ? null : PPGDSP.beatConfidence(res.peakSamp || [], sqi, rec.fs, t0 || 0);
+  const ppgConf = _ppgConfRaw && _ppgConfRaw.calibrated ? _ppgConfRaw : null;
   if (ppgSeam) console.log('[PPG] clock seam(s) in this night — `c` column OMITTED (classic hat downstream)');
+  else if (!ppgConf) console.log(`[PPG] the trust map could not calibrate — \`c\` column OMITTED (classic hat downstream): ${_ppgConfRaw ? _ppgConfRaw.reason : 'no map'}`);
   const beats = [];
   for (let i = 1; i < peakSec.length; i++) {
     const pp = peakSec[i] - peakSec[i - 1];
@@ -229,8 +237,16 @@ if (ecg.length) {
      changed clock; `parseECGLines` reports one, and an unmeasured weight stays visible as absent
      (§∅, Clock Contract §7). The consumers then run the classic hat for that file. */
   const ecgSeam = !!(rec.clockResyncs && rec.clockResyncs.length);
-  const ecgConf = ecgSeam ? null : ECGDSP.beatConfidence(res.peaks || [], res.sqi || [], rec.fs, t0 || 0);
+  /* ∅ A FLAT-1 TRUST COLUMN IS NOT A MEASUREMENT. `beatConfidence` answers trust 1 for every
+     second when it could not calibrate, so the `c` column read as "every second examined and
+     trusted" and the line below counted 0 of N seconds below 0.5 — the reassuring figure over a
+     record the gate never judged. The sibling leg above and this one already omit the column across a seam rather than
+     defaulting it; an uncalibrated map is the same absence one derivative down, so it takes the
+     same treatment and names its own cause. The map's sentence is `beatConfidence`'s own. */
+  const _ecgConfRaw = ecgSeam ? null : ECGDSP.beatConfidence(res.peaks || [], res.sqi || [], rec.fs, t0 || 0);
+  const ecgConf = _ecgConfRaw && _ecgConfRaw.calibrated ? _ecgConfRaw : null;
   if (ecgSeam) console.log(`[ECG] ${rec.clockResyncs.length} clock seam(s) in this night — \`c\` column OMITTED (classic hat downstream)`);
+  else if (!ecgConf) console.log(`[ECG] the trust map could not calibrate — \`c\` column OMITTED (classic hat downstream): ${_ecgConfRaw ? _ecgConfRaw.reason : 'no map'}`);
   const f = `${out}/h10-ecg-derived-${date}-HR.txt`;
   const cOfE = (r) => (ecgConf ? ';' + (ecgConf.has(r.tMs / 1000) ? ecgConf.get(r.tMs / 1000) : 1).toFixed(3) : '');
   writeFileSync(f, 'tMs;hr;src' + (ecgConf ? ';c' : '') + '\n' + rows.map((r) => `${r.tMs};${r.hr.toFixed(2)};ecg${cOfE(r)}`).join('\n') + '\n');

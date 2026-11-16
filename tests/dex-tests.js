@@ -11876,6 +11876,132 @@
       var unmaskedPVC = 45,
         unmaskedBurden = 6.16;
       T.ok('the plant is not vacuous — without the mask this same tail reports ectopy', unmaskedPVC > 0 && unmaskedBurden > 0 && tailed.nPVC < unmaskedPVC, unmaskedPVC + ' vs ' + tailed.nPVC);
+
+      /* ∅ AND A MASKED COUNT OF 0 MUST MEAN THE GATE LOOKED. The two legs above read
+         `beatsArtifactMasked` as a measurement, which it is only while the trust map CALIBRATED.
+         `beatConfidence` answers trust 1 for every second in four named arms, so the mask drops
+         nothing and the count published 0 — the same legal answer the worn control gives. Row
+         `2026-11-16-the-ecgdex-artifactgate-marks-reach-no-reader` (board #6894): the marks that
+         tell the two apart reached no render, app, fusion or gate. These legs pin the producer's
+         four arms, the refusal they now drive, and the reader that meets the sentence. */
+      T.ok(
+        'FIRST · the control two legs up is a CALIBRATED record, so its 0 is a measurement and not an arm of this defect',
+        worn.beatsArtifactMasked === 0 && worn.beatsArtifactMaskedReason === null,
+        JSON.stringify({ masked: worn.beatsArtifactMasked, reason: worn.beatsArtifactMaskedReason })
+      );
+      T.ok(
+        'ANTI-VACUITY · the reason field is PRESENT on both morph objects, so the leg above reads a written value and not a typo',
+        'beatsArtifactMaskedReason' in worn && 'beatsArtifactMaskedReason' in tailed,
+        JSON.stringify({ worn: 'beatsArtifactMaskedReason' in worn, tailed: 'beatsArtifactMaskedReason' in tailed })
+      );
+
+      if (typeof E.beatConfidence !== 'function') {
+        T.skip('ECGDSP.beatConfidence exposed', 'the pure trust statistic is not on this surface');
+      } else {
+        /* 120 beats, one per second over 120 s at fs 130 — above the 20-beat floor and wider than
+           one 60 s window, so the arms below differ ONLY in the per-beat SQI handed in. */
+        var mkPk = function (nBeats, fs) {
+          var pk = [];
+          for (var k = 0; k < nBeats; k++) pk.push(k * fs);
+          return pk;
+        };
+        var FS = 130,
+          PK = mkPk(120, FS);
+        var qVaried = [];
+        for (var vi = 0; vi < 120; vi++) qVaried.push(vi < 60 ? 0.9 : 0.2);
+        /* 0.7 is NOT exactly representable, so the running accumulator used to land these windows a
+           few ulps apart and the flat record read CALIBRATED — nQBelow 58 of 120, qMed
+           0.7000000000000004. The margin in `beatConfidence` is what makes this arm reachable, and
+           0.5 is the exactly-representable twin that reached it either way. */
+        var qFlat = [];
+        for (var fi = 0; fi < 120; fi++) qFlat.push(0.7);
+        var qFlat2 = [];
+        for (var f2 = 0; f2 < 120; f2++) qFlat2.push(0.5);
+
+        var cOk = E.beatConfidence(PK, qVaried, FS, 0);
+        T.ok(
+          'CONTROL · a record whose SQI has spread CALIBRATES, and states no reason',
+          cOk.calibrated === true && cOk.reason == null,
+          JSON.stringify({ cal: cOk.calibrated, src: cOk.sqiSource, nQBelow: cOk.nQBelow, reason: cOk.reason })
+        );
+
+        var cNoSqi = E.beatConfidence(PK, [], FS, 0);
+        T.ok(
+          'ARM 1 · no per-beat SQI reached the statistic — refused, and the reason says WHICH absence',
+          cNoSqi.calibrated === false && cNoSqi.sqiSource === 'absent' && /no per-beat SQI/.test(cNoSqi.reason || ''),
+          JSON.stringify({ cal: cNoSqi.calibrated, src: cNoSqi.sqiSource, reason: cNoSqi.reason })
+        );
+
+        var cFlat = E.beatConfidence(PK, qFlat, FS, 0);
+        T.ok(
+          "ARM 2 · an SQI with no spread — refused, and it does NOT borrow arm 1's sentence",
+          cFlat.calibrated === false && cFlat.sqiSource === 'per-beat' && /no window sits below the median/.test(cFlat.reason || ''),
+          JSON.stringify({ cal: cFlat.calibrated, src: cFlat.sqiSource, reason: cFlat.reason })
+        );
+
+        var cFlat2 = E.beatConfidence(PK, qFlat2, FS, 0);
+        T.eq(
+          '…and the exactly-representable twin reaches the SAME arm, so the verdict is not a float artefact',
+          JSON.stringify({ cal: cFlat2.calibrated, below: cFlat2.nQBelow, same: cFlat2.reason === cFlat.reason }),
+          JSON.stringify({ cal: false, below: 0, same: true })
+        );
+
+        var cShort = E.beatConfidence(mkPk(10, FS), qVaried, FS, 0);
+        T.ok(
+          'ARM 3 · under twenty beats — refused, with a third distinct sentence',
+          cShort.calibrated === false && /fewer than 20 beats/.test(cShort.reason || ''),
+          JSON.stringify({ n: cShort.nBeats, reason: cShort.reason })
+        );
+
+        T.eq('the four arms are FOUR sentences, taken from the producer and never typed here', String(new Set([cOk.reason, cNoSqi.reason, cFlat.reason, cShort.reason].map(String)).size), '4');
+      }
+
+      /* THE READER. `artifactGate` carried `calibrated`, `sqiSource` and `nSqi` and nothing read
+         them back, so the refusal has to reach the view a reader meets. The plant drives
+         `buildMeasurementBlocks` directly — the builder seam — because the uncalibrated arms are a
+         property of the TRUST MAP, and an `analyze` run over crafted raw ECG cannot pin which arm
+         fired without becoming a second signal fixture. */
+      var X = env.ECGDex;
+      if (!X || typeof X.buildMeasurementBlocks !== 'function') {
+        T.skip('ECGDex.buildMeasurementBlocks exposed', 'builder seam not exposed on this surface');
+      } else {
+        var WHY = 'no per-beat SQI reached the trust statistic — the quality cue never fired, so every second reads 1';
+        var plant = function (masked, why) {
+          return {
+            t0Ms: Date.UTC(2026, 10, 16, 22, 0, 0),
+            spanMin: 480,
+            nBeats: 30000,
+            morph: { ectopyBurden: 1.25, nPVC: 12, beatsAssessed: 29000, beatsUnassessed: 1000, beatsArtifactMasked: masked, beatsArtifactMaskedReason: why }
+          };
+        };
+        var bRef = X.buildMeasurementBlocks(plant(412, null), {});
+        T.eq(
+          'a calibrated night publishes the masked count and no reason',
+          JSON.stringify(bRef && bRef.ectopy && { n: bRef.ectopy.quality.artifactMaskedBeats, why: bRef.ectopy.quality.artifactMaskedBeatsReason }),
+          JSON.stringify({ n: 412, why: null })
+        );
+
+        var bRefused = X.buildMeasurementBlocks(plant(null, WHY), {});
+        T.eq(
+          "…and a refused count arrives with the producer's own sentence beside it, never bare",
+          JSON.stringify(bRefused && bRefused.ectopy && { n: bRefused.ectopy.quality.artifactMaskedBeats, why: bRefused.ectopy.quality.artifactMaskedBeatsReason }),
+          JSON.stringify({ n: null, why: WHY })
+        );
+
+        T.eq(
+          'the PVC block reads the same burden quality, so one reader change serves both',
+          JSON.stringify(bRefused && bRefused.pvc && bRefused.pvc.quality.artifactMaskedBeatsReason),
+          JSON.stringify(WHY)
+        );
+
+        /* ANTI-VACUITY: strip the sentence and the field must read null rather than echo a constant. */
+        var bBare = X.buildMeasurementBlocks(plant(null, null), {});
+        T.eq(
+          "ANTI-VACUITY · no sentence on the morph object ⇒ the view states null, not this test's string",
+          JSON.stringify(bBare && bBare.ectopy && bBare.ectopy.quality.artifactMaskedBeatsReason),
+          'null'
+        );
+      }
     });
 
     group('PpgDex device PPI — columns BY NAME, because position read the wrong one for four days', 'ppgdex-dsp · absence', function (T) {

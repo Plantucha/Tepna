@@ -105,8 +105,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "4f97ed51a2b7",
-        "computeHash": "cff5d1ead7bb"
+        "manifestHash": "61180c4ba1ab",
+        "computeHash": "45fc5ce34abc"
       },
       "evidence": {
         "envelopeRef": null,
@@ -135,8 +135,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "4f97ed51a2b7",
-        "computeHash": "cff5d1ead7bb"
+        "manifestHash": "61180c4ba1ab",
+        "computeHash": "45fc5ce34abc"
       },
       "evidence": {
         "envelopeRef": null,
@@ -165,8 +165,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "4f97ed51a2b7",
-        "computeHash": "cff5d1ead7bb"
+        "manifestHash": "61180c4ba1ab",
+        "computeHash": "45fc5ce34abc"
       },
       "evidence": {
         "envelopeRef": null,
@@ -195,8 +195,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "4f97ed51a2b7",
-        "computeHash": "cff5d1ead7bb"
+        "manifestHash": "61180c4ba1ab",
+        "computeHash": "45fc5ce34abc"
       },
       "evidence": {
         "envelopeRef": null,
@@ -210,7 +210,8 @@
         "analyzablePct": 28.7,
         "coveragePct": 28.7,
         "unassessedBeats": 0,
-        "artifactMaskedBeats": 0
+        "artifactMaskedBeats": null,
+        "artifactMaskedBeatsReason": "no window sits below the median SQI in this record — the quality cue has nothing it can suspect"
       },
       "uncertainty": null,
       "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)"
@@ -227,8 +228,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "4f97ed51a2b7",
-        "computeHash": "cff5d1ead7bb"
+        "manifestHash": "61180c4ba1ab",
+        "computeHash": "45fc5ce34abc"
       },
       "evidence": {
         "envelopeRef": null,
@@ -242,7 +243,8 @@
         "analyzablePct": 28.7,
         "coveragePct": 28.7,
         "unassessedBeats": 0,
-        "artifactMaskedBeats": 0
+        "artifactMaskedBeats": null,
+        "artifactMaskedBeatsReason": "no window sits below the median SQI in this record — the quality cue has nothing it can suspect"
       },
       "uncertainty": null,
       "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)"
