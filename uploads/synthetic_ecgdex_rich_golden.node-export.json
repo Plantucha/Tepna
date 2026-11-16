@@ -76,8 +76,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "4b955d29e061",
-        "computeHash": "99d1e4c25dac"
+        "manifestHash": "1933e8482c96",
+        "computeHash": "0d0314408ff2"
       },
       "evidence": {
         "envelopeRef": null,
@@ -106,8 +106,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "4b955d29e061",
-        "computeHash": "99d1e4c25dac"
+        "manifestHash": "1933e8482c96",
+        "computeHash": "0d0314408ff2"
       },
       "evidence": {
         "envelopeRef": null,
@@ -136,8 +136,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "4b955d29e061",
-        "computeHash": "99d1e4c25dac"
+        "manifestHash": "1933e8482c96",
+        "computeHash": "0d0314408ff2"
       },
       "evidence": {
         "envelopeRef": null,
@@ -166,8 +166,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "4b955d29e061",
-        "computeHash": "99d1e4c25dac"
+        "manifestHash": "1933e8482c96",
+        "computeHash": "0d0314408ff2"
       },
       "evidence": {
         "envelopeRef": null,
@@ -198,8 +198,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "4b955d29e061",
-        "computeHash": "99d1e4c25dac"
+        "manifestHash": "1933e8482c96",
+        "computeHash": "0d0314408ff2"
       },
       "evidence": {
         "envelopeRef": null,
@@ -300,6 +300,7 @@
           "timingSource": "device",
           "spreadMs": 0.9232177734375,
           "anchors": 16,
+          "spanMs": 57684.615478515625,
           "applied": false,
           "spanPpm": -10.669716882384908,
           "maxStepMs": 0.0384521484375,
@@ -411,6 +412,8 @@
       },
       "acc": {
         "stream": "H10:acc",
+        "scopeNote": "This node places the motion samples against the ECG start and scores quality through the beat series, so it establishes no timing and no waveform quality of the motion stream’s own. A motion companion fills only the two shares the box’s run census feeds.",
+        "inputNote": "this node ingests no motion channel on this recording",
         "coverage": {
           "value": null,
           "unit": "% of the recording span outside the box’s held-value runs",
@@ -428,7 +431,7 @@
         "rail": {
           "value": null,
           "unit": "samples at the rail",
-          "reason": "this node ingests no motion channel on this recording"
+          "reason": "not-measured: this node runs no rail census on the motion stream"
         },
         "flatline": {
           "value": null,
@@ -444,7 +447,7 @@
         "snr": {
           "value": null,
           "unit": "dB",
-          "reason": "this node ingests no motion channel on this recording"
+          "reason": "not-measured: this node computes no in-band SNR for the motion stream"
         },
         "mains": {
           "value": null,
@@ -454,12 +457,12 @@
         "nodeSqi": {
           "value": null,
           "unit": "mean per-beat score, 0 to 1",
-          "reason": "this node ingests no motion channel on this recording"
+          "reason": "no-score: this node scores quality through the ECG beat series, so it computes none for the motion stream"
         },
         "timing": {
           "value": null,
           "unit": "ppm of the device rate against the host axis",
-          "reason": "this node ingests no motion channel on this recording"
+          "reason": "no own axis: this node places motion samples against the ECG start, so the motion stream carries no rate of its own here"
         },
         "reference": {
           "value": null,
@@ -469,12 +472,12 @@
         "epochs": {
           "value": null,
           "unit": "windows of 300 s",
-          "reason": "this node ingests no motion channel on this recording"
+          "reason": "no own epochs: the window walk runs over the ECG beat series, and the motion stream contributes no window to it"
         },
         "drift": {
           "value": null,
           "unit": "ppm against a §3d reference",
-          "reason": "this node ingests no motion channel on this recording"
+          "reason": "no own axis: the motion samples are placed against the ECG start, so no host anchor of their own exists to drift against"
         },
         "sidecarEffect": {
           "changed": [

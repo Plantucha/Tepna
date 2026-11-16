@@ -473,7 +473,7 @@ window.evBadge = evBadge;
     opts = opts || {};
     const W = opts.W || 680,
       H = opts.H || 150,
-      P = { l: 46, r: 14, t: 14, b: 24 },
+      P = { l: opts.yfmt ? 62 : 46, r: 14, t: 14, b: 24 },
       n = pts.length;
     if (!n) return '';
     let ymn = opts.ymn != null ? opts.ymn : Infinity,
@@ -530,8 +530,8 @@ window.evBadge = evBadge;
     <line x1="${P.l}" y1="${H - P.b}" x2="${W - P.r}" y2="${H - P.b}" stroke="${C.axis}"/>
     <line x1="${P.l}" y1="${P.t}" x2="${P.l}" y2="${H - P.b}" stroke="${C.axis}"/>
     ${med != null ? `<line x1="${P.l}" y1="${sy(med).toFixed(1)}" x2="${W - P.r}" y2="${sy(med).toFixed(1)}" stroke="${color}" stroke-dasharray="4 4" opacity=".5"/>` : ''}
-    <text x="${P.l - 6}" y="${(sy(ymx) + 4).toFixed(1)}" fill="${C.dim}" font-size="9" text-anchor="end" font-family="IBM Plex Mono,monospace">${ymx.toFixed(0)}</text>
-    <text x="${P.l - 6}" y="${(sy(ymn) + 4).toFixed(1)}" fill="${C.dim}" font-size="9" text-anchor="end" font-family="IBM Plex Mono,monospace">${ymn.toFixed(0)}</text>
+    <text x="${P.l - 6}" y="${(sy(ymx) + 4).toFixed(1)}" fill="${C.dim}" font-size="9" text-anchor="end" font-family="IBM Plex Mono,monospace">${opts.yfmt ? opts.yfmt(ymx) : ymx.toFixed(0)}</text>
+    <text x="${P.l - 6}" y="${(sy(ymn) + 4).toFixed(1)}" fill="${C.dim}" font-size="9" text-anchor="end" font-family="IBM Plex Mono,monospace">${opts.yfmt ? opts.yfmt(ymn) : ymn.toFixed(0)}</text>
     ${xt.map((x) => `<text x="${sx(x).toFixed(1)}" y="${H - 7}" fill="${C.dim}" font-size="9" text-anchor="middle" font-family="IBM Plex Mono,monospace">${opts.xfmt ? opts.xfmt(x) : x.toFixed(0)}</text>`).join('')}
     ${marks}
     <path d="${area}" fill="url(#${gid})"/>
@@ -720,17 +720,24 @@ window.evBadge = evBadge;
      that branch prints no warning, so a prose label is a silent under-grade waiting to happen,
      while an id is the registry's own key. It also states, in this file, which metric each series
      is — the binding the undeclared-metric gate reads. */
+  /* ORDER: the score first, then what the score speaks for, then the clock, then the inputs the
+     score is built from. The old order opened the table with its two TALLEST rows — coverage and
+     flatline share are the only two carrying a before-and-after pair — so a reader met two blocks
+     of prose before the first quality number. `kind: 'count'` marks the two rows that count things
+     rather than measure a rate (§📏 is about units; this is about the decimals a count may claim).
+     A row no channel measured sinks below the rule at render time, so a device that DOES report
+     in-band SNR lifts that row back up without an edit here. */
   var SQ_ROWS = [
-    { k: 'coverage', id: 'coverage', label: 'Coverage' },
-    { k: 'rail', id: 'sqRail', label: 'Rail census' },
-    { k: 'flatline', id: 'sqFlatline', label: 'Flatline share' },
-    { k: 'snr', id: 'sqSnr', label: 'In-band SNR' },
-    { k: 'mains', id: 'sqMains', label: 'Mains ratio' },
     { k: 'nodeSqi', id: 'meanSQI', label: 'Mean SQI' },
+    { k: 'coverage', id: 'coverage', label: 'Coverage' },
+    { k: 'epochs', id: 'sqEpochs', label: 'Epoch population', kind: 'count' },
     { k: 'timing', id: 'sqTiming', label: 'Axis rate' },
+    { k: 'drift', id: 'sqDrift', label: 'Night drift' },
     { k: 'reference', id: 'sqReference', label: 'Reference Δ' },
-    { k: 'epochs', id: 'sqEpochs', label: 'Epoch population' },
-    { k: 'drift', id: 'sqDrift', label: 'Night drift' }
+    { k: 'flatline', id: 'sqFlatline', label: 'Flatline share' },
+    { k: 'rail', id: 'sqRail', label: 'Rail census', kind: 'count' },
+    { k: 'snr', id: 'sqSnr', label: 'In-band SNR' },
+    { k: 'mains', id: 'sqMains', label: 'Mains ratio' }
   ];
 
   /* The three §3d series, each naming the metric it draws for the same reason. */
@@ -747,8 +754,14 @@ window.evBadge = evBadge;
 
   /* A number for a reader. `null` stays null here — the CALLER decides what an absence prints,
      because only the caller holds the reason that must travel with it. */
-  function _sqNum(v) {
+  /* A COUNT IS NOT A RATE, AND TWO DECIMALS ON ONE IS A CLAIM THE NODE NEVER MADE. The rail census
+     counts samples and the epoch population counts windows, so `161` and `94` printed as `161.00`
+     and `94.00` read as measured hundredths of a sample. `kind: 'count'` prints the integer. A
+     non-integer reaching a count row is a producer defect, so it falls through to the general
+     formatter and SHOWS its fraction rather than being rounded into a tidy lie. */
+  function _sqNum(v, kind) {
     if (v == null || typeof v !== 'number' || !isFinite(v)) return null;
+    if (kind === 'count' && v === Math.round(v)) return String(v);
     var a = Math.abs(v);
     if (a === 0) return '0';
     if (a >= 1000) return v.toFixed(0);
@@ -758,41 +771,102 @@ window.evBadge = evBadge;
 
   var _SQ_NO_REASON = 'no reason travelled with this absence, which is itself a defect';
 
+  /* The reason is the LAST thing in a cell and the quietest: a hairline rule on the left marks it as
+     subordinate to the number above it, and a measure cap keeps the line length readable when the
+     column is wide. Spacing is the point of the rule, not decoration — the old 3 px gap between the
+     value, the unit and two prose blocks of the same size and colour made one grey slab of all four. */
+  var _SQ_PROSE = 'font-size:10.5px;line-height:1.55;color:var(--text3);max-width:46ch;margin-top:8px;padding-left:9px;border-left:1px solid var(--border)';
+
   function _sqWhy(reason) {
-    return '<div class="sq-why" style="font-size:10px;line-height:1.35;color:var(--text3);margin-top:3px">' + (reason || _SQ_NO_REASON) + '</div>';
+    return '<div class="sq-why" style="' + _SQ_PROSE + '">' + (reason || _SQ_NO_REASON) + '</div>';
   }
 
   /* The before-and-after pair of §6: a fact a sidecar changes shows both sides, and an absent side
      shows its own reason. Box 7's vendor case is exactly this — every AFTER side null. */
-  function _sqBeforeAfter(cell) {
+  function _sqBeforeAfter(cell, book, site) {
     var hasB = Object.prototype.hasOwnProperty.call(cell, 'before'),
       hasA = Object.prototype.hasOwnProperty.call(cell, 'after');
     if (!hasB && !hasA) return '';
     var b = _sqNum(cell.before),
       a = _sqNum(cell.after);
+    /* ONE LINE PER SIDE. The single run `before — (long reason) → after — (long reason)` put two
+       nested parentheticals between the reader and the arrow, and the arrow is the only part that
+       carries meaning. A labelled row per side reads as a pair and keeps each reason beside its own
+       side. The `sq-ba-k` / `sq-ba-v` markers are what a leg reads, so an absent side stays
+       machine-visible. */
     return (
-      '<div class="sq-ba" style="font-size:10px;line-height:1.35;color:var(--text3);margin-top:3px">' +
-      'before ' +
-      (b == null ? '<b>—</b> (' + (cell.beforeReason || _SQ_NO_REASON) + ')' : '<b>' + b + '</b>') +
-      ' → after ' +
-      (a == null ? '<b>—</b> (' + (cell.afterReason || _SQ_NO_REASON) + ')' : '<b>' + a + '</b>') +
+      '<div class="sq-ba" style="font-size:10.5px;line-height:1.5;color:var(--text3);margin-top:7px">' +
+      _sqBaRow('before', b, cell.beforeReason, book, site) +
+      _sqBaRow('after', a, cell.afterReason, book, site) +
       '</div>'
     );
   }
 
-  function _sqValueCell(cell, badgeId) {
-    var pad = 'padding:5px 8px;border-top:1px solid var(--border);vertical-align:top';
+  /* `data-ba` and `data-abs` ARE THE MACHINE-READABLE HALF of this pair. The pair used to be one
+     run of prose (`123 → after —`), so the only way to count it was a substring search that also
+     matched the reasons around it. A test that counts prose measures the prose. The two attributes
+     say which side a row is and whether that side holds a number, so a leg reads the structure. */
+  function _sqBaRow(key, num, reason, book, site) {
+    return (
+      '<div class="sq-ba-row" data-ba="' +
+      key +
+      '" data-abs="' +
+      (num == null ? '1' : '0') +
+      '" style="display:flex;gap:7px;align-items:baseline;margin-top:2px">' +
+      '<span class="sq-ba-k" style="font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--text4,var(--text3));min-width:38px;flex:0 0 auto">' +
+      key +
+      '</span>' +
+      '<span class="sq-ba-v" style="font-family:IBM Plex Mono,monospace;color:var(--text2);flex:0 0 auto">' +
+      (num == null ? '—' : num) +
+      '</span>' +
+      (num == null ? '<span class="sq-ba-r" style="max-width:40ch">' + (book ? book('the ' + key + ' side of ' + site, null, reason) : reason || _SQ_NO_REASON) + '</span>' : '') +
+      '</div>'
+    );
+  }
+
+  /* A RATE NEVER TRAVELS ALONE. Clock Contract §7: `ppm` is a diagnostic, and quoting one without
+     its anchor count and its span states a precision the measurement does not hold. Both cells that
+     publish a ppm here — the host-axis rate and the night drift — already carried `anchors`, `spanMs`
+     and, for the drift, `ppmUncertainty` in their own data; the TABLE dropped all three and printed
+     the bare figure (measured 2026-11-15: `-6.67` under `ppm of the device rate against the host
+     axis`, with nothing beside it). This reads whatever the cell published and stays silent when the
+     cell published none of it, so it adds no fact of its own. */
+  function _sqSpanTxt(ms) {
+    if (!isFinite(ms) || ms <= 0) return null;
+    if (ms >= 3600000) return (ms / 3600000).toFixed(ms >= 36000000 ? 0 : 1) + ' h';
+    if (ms >= 60000) return Math.round(ms / 60000) + ' min';
+    return Math.round(ms / 1000) + ' s';
+  }
+
+  function _sqQualifier(cell) {
+    var bits = [];
+    if (typeof cell.anchors === 'number' && isFinite(cell.anchors)) bits.push('from ' + cell.anchors + (cell.anchors === 1 ? ' anchor' : ' anchors'));
+    var span = typeof cell.spanMs === 'number' ? _sqSpanTxt(cell.spanMs) : null;
+    if (span) bits.push('over ' + span);
+    if (typeof cell.ppmUncertainty === 'number' && isFinite(cell.ppmUncertainty)) bits.push('\u00b1 ' + _sqNum(cell.ppmUncertainty, 'ppm') + ' ppm at this span');
+    if (!bits.length) return '';
+    return '<div class="sq-qual" style="font-size:10px;color:var(--text3);margin-top:2px">' + bits.join(' \u00b7 ') + '</div>';
+  }
+
+  /* THE READING ORDER IS THE INFORMATION ORDER: value, then what it is measured in, then the pair a
+     sidecar moves, then — last and quietest — the reason. The reason used to sit BETWEEN the number
+     and its own before-and-after pair, which split one fact across a paragraph. */
+  function _sqValueCell(cell, badgeId, kind, hoisted, book, site) {
+    var pad = 'padding:11px 14px 13px;border-top:1px solid var(--border);vertical-align:top';
     if (!cell) return '<td class="sq-v" style="' + pad + '">' + _sqBadge(badgeId) + '<b>—</b>' + _sqWhy('this channel publishes no cell for this fact, so the table has nothing to read') + '</td>';
-    var n = _sqNum(cell.value);
+    var n = _sqNum(cell.value, kind);
     return (
       '<td class="sq-v" style="' +
       pad +
       '">' +
+      '<div class="sq-val-line" style="display:flex;gap:6px;align-items:baseline">' +
       _sqBadge(badgeId) +
-      (n == null ? '<b>—</b>' : '<b style="font-family:IBM Plex Mono,monospace">' + n + '</b>') +
-      (cell.unit ? '<div class="sq-u" style="font-size:10px;color:var(--text3)">' + cell.unit + '</div>' : '') +
-      (n == null ? _sqWhy(cell.reason) : '') +
-      _sqBeforeAfter(cell) +
+      (n == null ? '<b>—</b>' : '<b style="font-family:IBM Plex Mono,monospace;font-size:13.5px;color:var(--text)">' + n + '</b>') +
+      '</div>' +
+      (cell.unit ? '<div class="sq-u" style="font-size:10px;color:var(--text3);margin-top:3px">' + cell.unit + '</div>' : '') +
+      (n == null ? '' : _sqQualifier(cell)) +
+      _sqBeforeAfter(cell, book, site) +
+      (n == null && (hoisted || []).indexOf(cell.reason || _SQ_NO_REASON) < 0 ? _sqWhy(cell.reason) : '') +
       '</td>'
     );
   }
@@ -813,29 +887,173 @@ window.evBadge = evBadge;
       );
     var chans = [];
     for (var ck in sq.channels) if (Object.prototype.hasOwnProperty.call(sq.channels, ck)) chans.push(ck);
+    /* THE REASON THAT GOVERNS A COLUMN BELONGS AT THE TOP OF IT. A channel this node does not ingest
+       publishes one sentence on most facts of the table: measured 2026-11-15 on the committed
+       synthetic, 8 of the 11 absent cells of the motion column read "this node ingests no motion
+       channel on this recording", beside 8 dashes. A reader has to read the whole column to learn
+       that it holds one finding. §∅ asks that an absence carry its named reason, and every absence
+       still does: the governing reason is stated ONCE, at the head of the column, with the count it
+       covers, and only the cells carrying THAT reason go bare. The other cells of the column keep
+       their own text, so a differing absence is never folded into a reason that is not its own.
+       The MAJORITY test, not an equality test, is what makes this work on a real column: an
+       equality test hoisted nothing here, because two cells of the eleven said something else. */
+    /* THE BEFORE-AND-AFTER REASONS REPEAT TOO, and for the same cause: one finding about the sidecar
+       answers several facts, so two cells of the motion column carried the identical two-sentence
+       pair (measured 2026-11-15, 8 lines of the card). The book prints the pair at the first cell
+       that owes it and names that cell afterwards. The pair stays machine-readable either way: a
+       leg reads `data-ba` and `data-abs`, never this prose. */
+    var baBook = _sqReasonBook();
+    var colWhy = {},
+      hoisted = {};
+    chans.forEach(function (ck) {
+      var seen = Object.create(null),
+        absentCells = 0,
+        top = null,
+        topN = 0;
+      SQ_ROWS.forEach(function (row) {
+        var c = sq.channels[ck] ? sq.channels[ck][row.k] : null;
+        if (!c || _sqNum(c.value, row.kind) != null) return;
+        absentCells++;
+        var b = c.reason || _SQ_NO_REASON,
+          n = (seen[b] = (seen[b] || 0) + 1);
+        if (n > topN) {
+          topN = n;
+          top = b;
+        }
+      });
+      colWhy[ck] = topN >= 3 && topN * 2 >= absentCells ? { body: top, n: topN, of: absentCells } : null;
+      /* A CELL SAYS NOTHING THE COLUMN HEAD ALREADY SAID. The head carries the majority hoist and
+         the channel-level notes, so each of those bodies is struck from every cell below it. The
+         ACC column printed `inputNote` in full twice: once at the head and once inside the
+         coverage cell, because the first version of this suppression held ONE body. */
+      var ch0 = sq.channels[ck] || {};
+      hoisted[ck] = [colWhy[ck] ? colWhy[ck].body : null, ch0.scopeNote || null, ch0.inputNote || null].filter(function (x) {
+        return x;
+      });
+    });
+    var TH = 'text-align:left;vertical-align:top;padding:7px 14px 8px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)';
     var head =
-      '<tr><th style="text-align:left;padding:5px 8px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Fact</th>' +
+      '<tr>' +
+      '<th style="' +
+      TH +
+      '">Fact</th>' +
       chans
         .map(function (ck) {
-          var st = (sq.channels[ck] && sq.channels[ck].stream) || ck;
-          return '<th style="text-align:left;padding:5px 8px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">' + st + '</th>';
+          var ch = sq.channels[ck] || {};
+          var st = ch.stream || ck;
+          /* A CHANNEL-LEVEL NOTE OUTRANKS A CELL-LEVEL ONE. The node publishes `scopeNote` for a
+             channel whose facts are bounded by how this node derives them, and `inputNote` for an
+             input that did not arrive. Both govern the whole column, so both stand at its head —
+             above the per-cell reasons and above the majority hoist, which only ever speaks for the
+             cells that still share one sentence. */
+          var notes = [];
+          if (ch.scopeNote) notes.push(ch.scopeNote);
+          if (ch.inputNote) notes.push(ch.inputNote);
+          return (
+            '<th style="' +
+            TH +
+            '">' +
+            st +
+            notes
+              .map(function (n) {
+                /* ONE LINE PER FACT. The scope of the channel and the arrival of its input are two
+                   different statements, and run together they read as one paragraph a reader skims. */
+                return '<div class="sq-col-note" style="' + _SQ_PROSE + ';text-transform:none;letter-spacing:0;font-weight:400;white-space:normal;margin-top:7px">' + n + '</div>';
+              })
+              .join('') +
+            (colWhy[ck]
+              ? '<div class="sq-col-why" style="' +
+                _SQ_PROSE +
+                ';text-transform:none;letter-spacing:0;font-weight:400;white-space:normal;margin-top:7px">' +
+                (colWhy[ck].n === colWhy[ck].of ? 'every absence here' : colWhy[ck].n + ' of the ' + colWhy[ck].of + ' absences here') +
+                ' \u2014 ' +
+                colWhy[ck].body +
+                '</div>'
+              : '') +
+            '</th>'
+          );
         })
         .join('') +
       '</tr>';
-    var rows = SQ_ROWS.map(function (row) {
+    /* A FACT NO CHANNEL MEASURED SINKS BELOW THE RULE. It is still drawn, with its own reason — an
+       absence is a result (§∅) — but it stops standing between two rows that carry numbers. The
+       split is computed from the cells of THIS recording, so nothing here hardcodes which facts
+       this node happens to compute today. */
+    var measured = [],
+      absent = [];
+    SQ_ROWS.forEach(function (row) {
+      var any = false;
+      for (var i = 0; i < chans.length; i++) {
+        var c = sq.channels[chans[i]] ? sq.channels[chans[i]][row.k] : null;
+        if (c && _sqNum(c.value, row.kind) != null) {
+          any = true;
+          break;
+        }
+      }
+      (any ? measured : absent).push(row);
+    });
+    function _sqRowHtml(row, i) {
+      /* The zebra is 1.6 % white: enough to carry the eye across a wide row, far below the contrast
+         of any text or rule on the card. The label cell is TOP-aligned, because a one-line label
+         centred against an eight-line cell floats away from the number it names. */
+      var bg = i % 2 ? 'background:rgba(255,255,255,.016);' : '';
       return (
-        '<tr><td style="padding:5px 8px;border-top:1px solid var(--border);color:var(--text2);font-weight:600;white-space:nowrap">' +
+        '<tr>' +
+        '<td style="' +
+        bg +
+        'padding:11px 14px 13px;border-top:1px solid var(--border);color:var(--text2);font-weight:600;white-space:nowrap;vertical-align:top">' +
         _sqBadge(row.id) +
         row.label +
         '</td>' +
         chans
           .map(function (ck) {
-            return _sqValueCell(sq.channels[ck] ? sq.channels[ck][row.k] : null, row.id);
+            return _sqValueCell(
+              sq.channels[ck] ? sq.channels[ck][row.k] : null,
+              row.id,
+              row.kind,
+              hoisted[ck],
+              baBook,
+              row.label + ' in ' + String((sq.channels[ck] && sq.channels[ck].stream) || ck).toUpperCase()
+            ).replace('<td class="sq-v" style="', '<td class="sq-v" style="' + bg);
           })
           .join('') +
         '</tr>'
       );
-    }).join('');
+    }
+    /* TWO ROWS, ONE NUMBER. `ecgdex-dsp.js` sets the axis-rate cell to `hostAxis.ppm` and builds
+       the night figure as `night.ppm = hostAxis.ppm`, so on every recording that resolves a host
+       axis the two rows print the same rate and differ only in what they attribute it to: the axis
+       row names the host column, the night row names the §3d reference the profile selected. A
+       reader who meets two rates with two labels reads two measurements and takes the agreement as
+       corroboration, which is the one thing it cannot be. The table states the identity rather than
+       hiding one row, because the ATTRIBUTION of each is a separate fact worth reading — and it
+       states it only for the channels where the two numbers are in fact equal, measured here, so a
+       future node that computes an independent night rate silences this line by itself. */
+    var dupChans = chans.filter(function (ck) {
+      var c = sq.channels[ck];
+      if (!c || !c.timing || !c.drift) return false;
+      var t = c.timing.value,
+        d = c.drift.value;
+      return t != null && d != null && isFinite(t) && isFinite(d) && t === d;
+    });
+    var dupNote =
+      dupChans.length === 0
+        ? ''
+        : ' <b>Axis rate and Night drift are one measurement on ' +
+          (dupChans.length === chans.length ? 'every channel here' : dupChans.join(', ')) +
+          '</b>: the night rate is the host-axis rate, attributed to the reference the drift profile named. Their agreement corroborates nothing.';
+    var rows = measured.map(_sqRowHtml).join('');
+    if (absent.length && measured.length)
+      rows +=
+        '<tr class="sq-split"><td colspan="' +
+        (chans.length + 1) +
+        '" style="padding:16px 14px 6px;border-top:1px solid var(--border);font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--text4,var(--text3))">' +
+        'not measured on any channel of this recording</td></tr>';
+    rows += absent
+      .map(function (row, i) {
+        return _sqRowHtml(row, i + measured.length);
+      })
+      .join('');
     var sc = Array.isArray(sq.sidecars) ? sq.sidecars : [];
     var scRows = sc
       .map(function (r) {
@@ -869,7 +1087,14 @@ window.evBadge = evBadge;
       '<div class="mini-h">Signal quality per channel <span class="mini-sub">' +
       (sq.epochSec ? sq.epochSec + ' s windows' : 'window grid not stated') +
       '</span></div>' +
-      '<div style="overflow-x:auto"><table class="sq-tbl" style="width:100%;border-collapse:collapse;font-size:12px">' +
+      '<div style="overflow-x:auto"><table class="sq-tbl" style="width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed">' +
+      '<colgroup><col style="width:170px">' +
+      chans
+        .map(function () {
+          return '<col style="width:' + (100 / chans.length).toFixed(2) + '%">';
+        })
+        .join('') +
+      '</colgroup>' +
       head +
       rows +
       '</table></div>' +
@@ -884,17 +1109,55 @@ window.evBadge = evBadge;
       scRows +
       '</table></div>' +
       '<div class="q-note" style="margin-top:8px">Every cell above is the byte the node export carries. A <b>—</b> is a fact no one measured, ' +
-      'and the line under it is the reason; a cell a sidecar changes shows the value before and after that sidecar applies.</div>'
+      'and the line under it is the reason; a cell a sidecar changes shows the value before and after that sidecar applies.' +
+      dupNote +
+      '</div>'
     );
+  }
+
+  /* How many points a panel can actually draw. `_sqPanel` and its caller must agree on this, because
+     the caller decides WHICH reason text to hand in from whether the panel will print one at all. */
+  function _sqFinite(pts) {
+    return pts.filter(function (p) {
+      return isFinite(p.y);
+    }).length;
+  }
+
+  /* ONE FINDING, PRINTED ONCE PER GROUP. On a phone capture `referenceReason`, `nightReason` and the
+     axis's `inertReason` are the SAME finding — the host column is the device stamp rounded — so the
+     three drift panels quoted one 180-character sentence four times, twice of them inside the rate
+     panel alone (measured 2026-11-15 on the committed synthetic). A repeat teaches a reader nothing
+     and buries the panel it sits under. §∅ asks that an absence carry its named reason, and it does:
+     the reason is placed ONCE, at the first site that owes it, and every later site names that site
+     instead of restating it. A back-reference is therefore only ever recorded for a site that really
+     printed the text, which is why the caller asks the book only when the panel is empty. */
+  function _sqReasonBook() {
+    var seen = Object.create(null);
+    /* `quietRepeat` is for a site whose own prefix already carries the fact, and which sits directly
+       above a second site that will point at the same finding anyway. Two adjacent pointers to one
+       sentence are the repeat this book exists to remove, so such a site states its prefix and stops. */
+    return function (label, prefix, reason, quietRepeat) {
+      var body = reason || _SQ_NO_REASON,
+        first = seen[body];
+      if (first === undefined) {
+        seen[body] = label;
+        return prefix ? prefix + ' \u2014 ' + body : body;
+      }
+      if (quietRepeat) return prefix || '';
+      var back = 'the same finding as ' + first + ' above';
+      return prefix ? prefix + ' \u2014 ' + back : back;
+    };
   }
 
   /* One panel: a header with the series badge, then the chart, or a named reason in place of it. */
   function _sqPanel(badgeId, label, sub, pts, color, opts, reason) {
-    var finite = pts.filter(function (p) {
-      return isFinite(p.y);
-    }).length;
+    var finite = _sqFinite(pts);
     var head = '<div class="mini-h" style="margin-top:10px">' + _sqBadge(badgeId) + label + ' <span class="mini-sub">' + sub + '</span></div>';
-    if (finite < 2) return head + '<div class="q-note">' + (reason || _SQ_NO_REASON) + '</div>';
+    /* AN EMPTY PANEL'S REASON IS DRESSED LIKE AN EMPTY CELL'S. Both say the same kind of thing — this
+       was not measured, and here is why — so they share one treatment: the hairline rule on the left
+       marks the text as subordinate to the title above it, and the measure cap keeps it readable on
+       a wide card. A flush-left `q-note` read as body copy of the panel instead. */
+    if (finite < 2) return head + _sqWhy(reason);
     return head + lineChart(pts, color, opts);
   }
 
@@ -919,15 +1182,42 @@ window.evBadge = evBadge;
     });
     var stab = ax && ax.stability ? ax.stability : null;
     var curve = stab && Array.isArray(stab.curve) ? stab.curve : [];
-    /* τ is read on a LOG axis, because an Allan curve's whole shape lives in the decades. The
-       helper scales x linearly, so the points carry log10(τ) and the tick formatter prints τ. */
-    var allanPts = curve
+    /* BOTH AXES ARE LOG, because the only thing this curve is read FOR is its SLOPE: `clock.js`
+       classifies the noise by a log-log least squares (`CK_ALLAN_NOISE`, boundaries at −0.75, −0.25,
+       +0.25, +0.75). On the linear y this panel drew before, every slope looked like the same smooth
+       decay and the printed class could not be checked against the picture it sat under.
+       σ is a deviation, so a non-positive term has no logarithm. Such a term is EXCLUDED and counted
+       rather than clamped, and the count rides in the caption (§∅: a dropped sample is stated). */
+    var allanAll = curve.filter(function (c) {
+      return c && c.tauSec > 0 && isFinite(c.adevPpm);
+    });
+    var allanPts = allanAll
       .filter(function (c) {
-        return c && c.tauSec > 0 && isFinite(c.adevPpm);
+        return c.adevPpm > 0;
       })
       .map(function (c) {
-        return { x: Math.log(c.tauSec) / Math.LN10, y: c.adevPpm };
+        return { x: Math.log(c.tauSec) / Math.LN10, y: Math.log(c.adevPpm) / Math.LN10 };
       });
+    var allanDropped = allanAll.length - allanPts.length;
+    /* THE NOISE LABEL IS A CONCLUSION OF A FIT, so it never travels alone. `clock.js` publishes the
+       unrounded `slope` with its standard error and the τ count the fit read, and it publishes
+       `meaning` exactly when the slope sits within 1.96 SE of a category boundary — which says the
+       noise TYPE is not supported by this fit. A panel that prints the label alone presents an
+       unsupported category as a measurement, so the label here always carries slope ± SE over the
+       τ count, and the unsupported case says so in place of the label. */
+    var slopeTxt = null;
+    if (stab && stab.slope != null && isFinite(stab.slope)) {
+      slopeTxt =
+        'slope ' +
+        stab.slope.toFixed(2) +
+        (stab.slopeSE != null && isFinite(stab.slopeSE) ? ' ± ' + stab.slopeSE.toFixed(2) : ' (no SE published)') +
+        (stab.nTau == null ? '' : ' over ' + stab.nTau + ' τ');
+    }
+    var allanSub =
+      'σ(τ) of the raw divergence · averaging time τ on the x axis · both axes log' +
+      (slopeTxt == null ? '' : ' · ' + slopeTxt) +
+      (stab && stab.meaning ? ' · class unsupported by this fit' : stab && stab.noise ? ' · ' + stab.noise : '') +
+      (allanDropped > 0 ? ' · ' + allanDropped + ' τ dropped: σ is not positive there, so it has no logarithm' : '');
     /* THE AXIS PUBLISHES ITS OWN REASONS, so this ladder QUOTES them and writes no prose over them
        (§∅: the named reason must be the node's own). `deviceDrawn` is read BEFORE `independent`,
        because the two answer different questions: `drawnReason` says the DEVICE column is a
@@ -938,16 +1228,16 @@ window.evBadge = evBadge;
        drawn-axis provenance gate reds. Either reason may be absent on a hand-made axis, and then the
        panel says so rather than inventing one. */
     var allanWhy = !ax
-      ? 'this recording publishes no host axis, so the divergence it would average does not exist'
+      ? { p: null, b: 'this recording publishes no host axis, so the divergence it would average does not exist' }
       : ax.ok === false
-        ? 'the host axis refused this recording: ' + (ax.reason || _SQ_NO_REASON)
+        ? { p: 'the host axis refused this recording', b: ax.reason || _SQ_NO_REASON }
         : ax.deviceDrawn === true
-          ? 'no second timebase to average: ' + (ax.drawnReason || _SQ_NO_REASON)
+          ? { p: 'no second timebase to average', b: ax.drawnReason || _SQ_NO_REASON }
           : ax.independent === false
-            ? 'no second clock to average: ' + (ax.inertReason || _SQ_NO_REASON)
+            ? { p: 'no second clock to average', b: ax.inertReason || _SQ_NO_REASON }
             : stab && stab.note
-              ? stab.note
-              : 'the axis published no Allan curve for this recording';
+              ? { p: null, b: stab.note }
+              : { p: null, b: 'the axis published no Allan curve for this recording' };
     /* THE NIGHT FIGURE IS AN OBJECT, NEVER A NUMBER. `ecgdex-dsp.js` builds
        `{ppm, spanPpm, spanMs, anchors, ppmUncertainty, uncertaintyReason}`, and it is non-null
        whenever the recording names a host reference — which is every capture-host night, and no
@@ -957,13 +1247,24 @@ window.evBadge = evBadge;
        §🔒.7 forbids a quoted `ppm` without its anchor count and its span, so the label carries both,
        and §7 forbids a rate that travels without the size of its own uncertainty. §∅: each absence
        states the node's own reason rather than printing nothing. */
+    var winWhy = refName ? 'no window of this recording holds the three anchors a rate needs' : noRef;
     var nightObj = dp.night && typeof dp.night === 'object' ? dp.night : null;
     var nightPpm = nightObj && nightObj.ppm != null && isFinite(nightObj.ppm) ? nightObj.ppm : null;
     var nightUnc = nightObj && nightObj.ppmUncertainty != null && isFinite(nightObj.ppmUncertainty) ? nightObj.ppmUncertainty : null;
     var nightSpanH = nightObj && nightObj.spanMs != null && isFinite(nightObj.spanMs) ? nightObj.spanMs / 3600000 : null;
+    /* THE FOUR REASON SITES OF THIS GROUP, IN DOCUMENT ORDER: the divergence panel's empty state, the
+       rate panel's subtitle, the rate panel's empty state, the Allan panel's empty state. The book is
+       asked in that order, and only for a site that will really print. A panel that DRAWS a line
+       prints no reason, so its text never enters the book and no later site points at it. */
+    var book = _sqReasonBook(),
+      divDrawn = _sqFinite(divPts) >= 2,
+      rateDrawn = _sqFinite(ratePts) >= 2,
+      allanDrawn = _sqFinite(allanPts) >= 2;
+    var whyDiv = divDrawn ? winWhy : book('Host divergence', null, winWhy);
     var nightTxt;
     if (nightPpm == null) {
-      nightTxt = nightObj ? ' · no night rate: the host axis published none for this recording' : dp.nightReason ? ' · no night rate: ' + dp.nightReason : '';
+      var nightWhy = nightObj ? 'the host axis published none for this recording' : dp.nightReason || null;
+      nightTxt = nightWhy == null ? '' : ' · ' + book('the night rate line', 'no night rate', nightWhy, true);
     } else {
       nightTxt =
         ' · night ' +
@@ -974,7 +1275,6 @@ window.evBadge = evBadge;
         ' anchors' +
         (nightSpanH == null ? ' · span absent' : ' over ' + nightSpanH.toFixed(1) + ' h');
     }
-    var winWhy = refName ? 'no window of this recording holds the three anchors a rate needs' : noRef;
     return (
       '<div class="mini-h">Clock drift <span class="mini-sub">' +
       (refName ? 'reference ' + refName + (dp.reference.basis ? ' · ' + dp.reference.basis : '') : 'no reference named') +
@@ -982,7 +1282,7 @@ window.evBadge = evBadge;
       _sqPanel(
         SQ_DRIFT_SERIES.divergence,
         'Host divergence',
-        'raw host − device residual per ' + (dp.epochSec || '?') + ' s window, ms',
+        'raw host − device residual per ' + (dp.epochSec || '?') + ' s window · hours from the first sample on the x axis',
         divPts,
         C.blue,
         {
@@ -990,14 +1290,17 @@ window.evBadge = evBadge;
           H: 140,
           xfmt: function (x) {
             return (x / 60).toFixed(1) + 'h';
+          },
+          yfmt: function (y) {
+            return y.toFixed(0) + ' ms';
           }
         },
-        winWhy
+        whyDiv
       ) +
       _sqPanel(
         SQ_DRIFT_SERIES.rate,
         'Per-window rate',
-        'ppm from each window own raw residuals' + nightTxt,
+        'each window own raw residuals · hours from the first sample on the x axis' + nightTxt,
         ratePts,
         C.teal,
         {
@@ -1006,14 +1309,17 @@ window.evBadge = evBadge;
           med: nightPpm == null ? undefined : nightPpm,
           xfmt: function (x) {
             return (x / 60).toFixed(1) + 'h';
+          },
+          yfmt: function (y) {
+            return y.toFixed(1) + ' ppm';
           }
         },
-        winWhy
+        rateDrawn ? winWhy : book('Per-window rate', null, winWhy)
       ) +
       _sqPanel(
         SQ_DRIFT_SERIES.allan,
         'Allan deviation',
-        'σ(τ) of the raw divergence, ppm' + (stab && stab.noise ? ' · ' + stab.noise : ''),
+        allanSub,
         allanPts,
         C.amber,
         {
@@ -1022,12 +1328,20 @@ window.evBadge = evBadge;
           xfmt: function (x) {
             var t = Math.pow(10, x);
             return t >= 3600 ? (t / 3600).toFixed(1) + 'h' : t >= 60 ? (t / 60).toFixed(0) + 'm' : t.toFixed(0) + 's';
+          },
+          yfmt: function (y) {
+            /* the SERIES is log10(σ), so the tick exponentiates back to the ppm the reader wants */
+            var v = Math.pow(10, y);
+            return (v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(1) : v.toPrecision(2)) + ' ppm';
           }
         },
-        allanWhy
+        allanDrawn ? allanWhy.b : book('Allan deviation', allanWhy.p, allanWhy.b)
       ) +
       '<div class="q-note" style="margin-top:8px">The top two panels read the <b>raw</b> anchor residuals, never the smoothed correction: the running median exists to keep delivery jitter out of the correction, ' +
-      'so a per-window cell taken from it would under-report a real step. The bottom panel says how far to trust a rate read over a given span; it is null when the host column carries no clock of its own.</div>'
+      'so a per-window cell taken from it would under-report a real step. The bottom panel says how far to trust a rate read over a given span; it is null when the host column carries no clock of its own. ' +
+      'Both of its axes are logarithmic, because the noise class is the slope of that log-log curve and a reader has to be able to check the printed class against the line.' +
+      (stab && stab.meaning ? ' ' + stab.meaning : '') +
+      '</div>'
     );
   }
 
