@@ -460,6 +460,34 @@ def code_closure() -> list[str]:
     return sorted(f"{_REPO_DIR}/{os.path.basename(p)}" for p in seen)
 
 
+# ── A VERDICT IS STALE WHEN THE DEVICES IT JUDGED ARE NOT THE DEVICES THE NIGHT EXPECTS ─────────────
+# 🔴 A CONFIG EDIT MOVES NO JUDGE FILE, so `code_moved` never fires for it. Measured on vigil 2026-11-16:
+# a Muse joined the config as a required device with no stream map, every night re-judged UNKNOWN, and
+# marking it optional would have left 32 stored verdicts UNKNOWN until each night's data moved, which a
+# settled night's data never does. The stored verdict names the devices it judged; the running config
+# names the devices the night expects (`expected_devices`). A night whose two sets differ is re-judged.
+# The re-judge writes the expected set, so the night converges after one pass.
+DEVICES_MOVED = "re-judged: the night's expected devices changed since this verdict was written ({old} → {new})"
+
+
+def devices_moved(night_dir: str, devices: list) -> str | None:
+    """Why the night's stored verdict must be re-judged because the expected device set changed, or None."""
+    prior = _inputs.read_json(os.path.join(night_dir, VERDICT_NAME))
+    result = (prior or {}).get("result")
+    if not isinstance(result, dict) or not isinstance(result.get("devices"), dict):
+        return None  # no verdict, or one with no device map (NOT_APPLICABLE): nothing to compare
+    judged = sorted(set(result["devices"]) | set(result.get("not_applicable") or {}))
+    expected = sorted({str(d.get("name") or d.get("model")) for d in _inputs.expected_devices(night_dir, devices)})
+    if judged == expected:
+        return None
+    return DEVICES_MOVED.format(old=", ".join(judged) or "none", new=", ".join(expected) or "none")
+
+
+def rejudge_why(night_dir: str, running: str | None, devices: list) -> str | None:
+    """Why the poller must re-judge a night whose data did not move: the judge code, then the device set."""
+    return code_moved(night_dir, running) or devices_moved(night_dir, devices)
+
+
 def code_moved(night_dir: str, running: str | None, run=None) -> str | None:
     """Why the night's stored verdict must be re-judged because judge code differs from `running`, or None."""
     if not running:

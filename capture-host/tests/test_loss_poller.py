@@ -412,6 +412,39 @@ def test_a_verdict_older_judge_code_wrote_is_re_judged_one_night_per_poll(tmp_pa
     assert audits[4:] == [], "both nights carry the running commit now: nothing is re-judged"
 
 
+def test_a_config_edit_that_changes_the_expected_devices_re_judges_the_night_once(tmp_path, monkeypatch, caplog):
+    """The 2026-11-16 regression end to end: a required Muse the judge cannot map made the night UNKNOWN,
+    and marking it optional must clear that without new data. Each config edit costs one re-judge, the
+    withdrawal names the device sets, and the poller then stands down."""
+    a = _night(tmp_path, "2026-09-17")
+    monkeypatch.setattr(capture, "STATUS", {})
+    monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: set())
+    audits = []
+    monkeypatch.setattr(capture.loss_audit, "write_night", _audit_writer(audits))
+    monkeypatch.setattr(capture.verdict, "commit_sha", lambda: "01d01d01")
+    h10 = _cfg_devices()
+    muse = {"name": "Muse TEST0001", "model": "S-Athena"}
+    _poll_once(monkeypatch, tmp_path, devices=h10)
+    _poll_once(monkeypatch, tmp_path, devices=h10)
+    assert audits == ["2026-09-17"], "no edit: the stored verdict stands"
+    with caplog.at_level("INFO"):
+        _poll_once(monkeypatch, tmp_path, devices=[*h10, muse])
+    assert audits[1:] == ["2026-09-17"]
+    added = capture.solid_night.DEVICES_MOVED.format(old="Polar H10 0284", new="Muse TEST0001, Polar H10 0284")
+    assert any(added in r.getMessage() for r in caplog.records)
+    v = json.loads((a / capture.solid_night.VERDICT_NAME).read_text())
+    assert "Muse TEST0001" in v["result"]["devices"]
+    _poll_once(monkeypatch, tmp_path, devices=[*h10, muse])
+    assert audits[2:] == [], "the re-judge wrote the expected set: the night converged"
+    _poll_once(monkeypatch, tmp_path, devices=[*h10, dict(muse, optional=True)])
+    assert audits[2:] == ["2026-09-17"]
+    dropped = capture.solid_night.DEVICES_MOVED.format(old="Muse TEST0001, Polar H10 0284", new="Polar H10 0284")
+    w = [json.loads(ln) for ln in (a / capture.solid_night.WITHDRAWN_NAME).read_text().splitlines()]
+    assert [x["reason"] for x in w] == [added, dropped], w
+    _poll_once(monkeypatch, tmp_path, devices=[*h10, dict(muse, optional=True)])
+    assert audits[3:] == []
+
+
 def test_a_re_judged_older_night_does_not_pull_the_status_card_back(tmp_path, monkeypatch):
     d = _night(tmp_path, "2026-09-18")
     monkeypatch.setattr(capture.diskguard, "active_nights", lambda c, s: set())

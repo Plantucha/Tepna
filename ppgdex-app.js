@@ -433,13 +433,21 @@ import { PPGUI } from './ppgdex-render.js';
     // ANS Age REMOVED 2026-06-21 (external-review WP-A)
     const items = [
       { l: 'HRV Score', v: r.hrvScore != null ? r.hrvScore : '—', sub: 'autonomic readiness', s: r.hrvScore == null ? 'neutral' : r.hrvScore >= 45 ? 'ok' : r.hrvScore >= 33 ? 'warn' : 'bad' },
-      { l: 'Pulse HR', v: Number.isFinite(r.dispHr) ? r.dispHr + 'bpm' : '—', sub: r.expRHR ? 'age norm ~' + r.expRHR : 'mean', s: Number.isFinite(r.dispHr) ? hrStat(r.dispHr) : 'neutral' },
+      {
+        l: 'Pulse HR',
+        v: Number.isFinite(r.dispHr) ? r.dispHr + 'bpm' : '—',
+        sub: r.ageEntered && r.expRHR ? 'age norm ~' + r.expRHR : 'mean',
+        s: Number.isFinite(r.dispHr) ? hrStat(r.dispHr) : 'neutral'
+      },
       { l: 'VO₂max Est', v: r.vo2adj != null ? r.vo2adj : '—', sub: 'ml/kg/min · HR-ratio', s: r.vo2adj == null ? 'neutral' : r.vo2adj >= 45 ? 'ok' : r.vo2adj >= 38 ? 'warn' : 'bad' },
       {
         l: 'rMSSD',
         v: Number.isFinite(r.rmssd) ? r.rmssd + 'ms' : '—',
-        sub: r.expRmssd ? 'age norm ~' + r.expRmssd : '≥30 good',
-        s: !Number.isFinite(r.rmssd) ? 'neutral' : r.expRmssd ? (r.rmssd >= r.expRmssd ? 'ok' : r.rmssd > r.expRmssd * 0.7 ? 'warn' : 'bad') : sc(r.rmssd, 30, 20)
+        /* `r.expRmssd` answers a number for EVERY profile, because `getProfile` clamps an absent age to 42
+           — so this tile called 39 ms "age norm" over an age nobody entered, and graded against it. The
+           honest `≥30 good` arm is the one that could never render. It renders when no age was entered. */
+        sub: r.ageEntered && r.expRmssd ? 'age norm ~' + r.expRmssd : '≥30 good',
+        s: !Number.isFinite(r.rmssd) ? 'neutral' : r.ageEntered && r.expRmssd ? (r.rmssd >= r.expRmssd ? 'ok' : r.rmssd > r.expRmssd * 0.7 ? 'warn' : 'bad') : sc(r.rmssd, 30, 20)
       },
       {
         l: 'SDNN',
