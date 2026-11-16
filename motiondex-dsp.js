@@ -1764,10 +1764,19 @@
     // effort-present flag the Integrator reads for apnea typing lands on the WRONG samples (typing comes
     // out INVERTED). Bucket each sample by its t0Ms-relative time instead — identical to the index window
     // on clean uniform data, correct across gaps. A moving pointer keeps it O(n) (tSec is non-decreasing).
+    // §∅ — an UNSTAMPED sample (no device counter, no parsable host stamp) has no instant. The old
+    // `i / hz` fallback placed it at its INDEX time, which nobody measured, so it could fill an epoch
+    // the chest never covered and flip that epoch's `present` from null to a value — the same
+    // fabricated-coverage defect §7.1 removed, back for the rows that carry no time. Such a sample
+    // is NaN here, skipped by both pointers, and counted in `unstampedSamples`.
     var tSec = new Float64Array(sig.length);
+    var nUnstamped = 0;
     for (i = 0; i < chestRows.length; i++) {
       var ts0 = relSecOf(chestRows[i], t0Ms, baseMs);
-      tSec[i] = ts0 == null ? i / hz : ts0; // index-time fallback only when a sample is unstamped
+      if (ts0 == null) {
+        tSec[i] = NaN;
+        nUnstamped++;
+      } else tSec[i] = ts0;
     }
     var series = [];
     var nE = Math.max(1, Math.ceil(durSec / EFFORT_CAD_SEC));
@@ -1776,10 +1785,13 @@
       var w0 = e * EFFORT_CAD_SEC,
         w1 = (e + 1) * EFFORT_CAD_SEC;
       var tEp = t0Ms != null ? t0Ms + Math.round(e * EFFORT_CAD_SEC * 1000) : null;
-      while (kp < sig.length && tSec[kp] < w0) kp++;
+      while (kp < sig.length && !(tSec[kp] >= w0)) kp++; // a NaN (unstamped) sample never stops the pointer
       var ss = 0,
         cnt = 0;
-      for (var k = kp; k < sig.length && tSec[k] < w1; k++) {
+      for (var k = kp; k < sig.length; k++) {
+        var tk = tSec[k];
+        if (Number.isNaN(tk)) continue; // unstamped — no instant, so no epoch
+        if (tk >= w1) break;
         ss += sig[k] * sig[k];
         cnt++;
       }
@@ -1792,7 +1804,7 @@
     }
     var presentEpochs = 0;
     for (var pz = 0; pz < series.length; pz++) if (series[pz].present === true) presentEpochs++;
-    return { hz: hz, breaths: breaths, rate: rate, rms: rms, series: series, presentEpochs: presentEpochs, chestDurSec: chestDurSec };
+    return { hz: hz, breaths: breaths, rate: rate, rms: rms, series: series, presentEpochs: presentEpochs, chestDurSec: chestDurSec, unstampedSamples: nUnstamped };
   }
 
   /* The §∅ absence criterion, stated ONCE. It is a CONJUNCTION on purpose: no zero crossing, no
@@ -1873,7 +1885,9 @@
       rateCoverage: spec.hasData && !noEffort ? Math.round(spec.coverage * 1e3) / 1e3 : 0,
       respRateMethod: method,
       respRateReason: rateReason,
-      rateBrpmLegacy: legacyRate
+      rateBrpmLegacy: legacyRate,
+      // ── added 2026-11-16 (additive): chest samples with no instant, left out of every effort epoch ──
+      unstampedSamples: m.unstampedSamples
     };
   }
 
