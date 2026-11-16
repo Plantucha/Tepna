@@ -1255,10 +1255,30 @@
       } else activeSec += d;
     }
     const spanSec = n > 1 ? tt[n - 1] - tt[0] : 0;
-    const coveragePct = spanSec > 0 ? +((activeSec / spanSec) * 100).toFixed(1) : 100;
-    const cleanBeatPct = +((nGood / n) * 100).toFixed(1);
+    /* §∅ — A COVERAGE OVER A ZERO SPAN IS UNMEASURED, NOT COMPLETE ────────────────────────────────
+       `activeSec / spanSec` has no value when the beat series spans no time, and this line published
+       **100** for it: a full-coverage claim about a record that measured no span. Two inputs reach it.
+       Fewer than two intervals leaves `spanSec` at its 0 initialiser, and a device counter that never
+       advances gives `tt[n-1] === tt[0]` over any number of beats — the device axis above is adopted
+       on FINITE stamps alone (it never asks whether they advance), so a stuck counter arrives here
+       through `analyze` itself.
+
+       THE PRODUCT MUST TRAVEL WITH IT. `analyzablePct` is `cleanBeatPct × coverage/100`, and
+       `null / 100` is 0 in JavaScript, so nulling the coverage alone would convert a fabricated
+       100 % into a fabricated 0 % — the same bug with a worse number. The two fields are one
+       measurement and one product of it, so they refuse together, each naming its own cause.
+       `cleanBeatPct` and `correctionRate` divide by `n` and answered NaN over an empty series;
+       `analyze` refuses under 12 peaks, so that input arrives only through the exported
+       `_kernel.buildNN`, and a NaN there still reads as `null` once exported. */
+    const coveragePct = spanSec > 0 ? +((activeSec / spanSec) * 100).toFixed(1) : null;
+    const coveragePctReason =
+      spanSec > 0 ? null : n > 1 ? 'the beat series spans no time — no span to divide the covered time by' : 'fewer than two beat intervals — no span exists to measure coverage over';
+    const cleanBeatPct = n ? +((nGood / n) * 100).toFixed(1) : null;
+    const cleanBeatPctReason = n ? null : 'no beat intervals — no population to score';
     // Honest headline: clean-beat fraction discounted by how much of the span is covered.
-    const analyzablePct = +(cleanBeatPct * Math.min(1, coveragePct / 100)).toFixed(1);
+    const analyzablePct = coveragePct == null || cleanBeatPct == null ? null : +(cleanBeatPct * Math.min(1, coveragePct / 100)).toFixed(1);
+    const analyzablePctReason =
+      analyzablePct != null ? null : coveragePct == null ? 'beat coverage is unmeasured, so the clean-beat share cannot be discounted by it' : 'no beat intervals — no clean-beat share to discount';
     return {
       nn,
       tt,
@@ -1269,10 +1289,14 @@
          All-zero on a contiguous recording, which is every committed fixture. */
       spansGap,
       nSpansGap: spansGap.reduce((a, b) => a + b, 0),
-      correctionRate: +((nCorr / n) * 100).toFixed(2),
+      correctionRate: n ? +((nCorr / n) * 100).toFixed(2) : null,
+      correctionRateReason: n ? null : 'no beat intervals — no population to correct',
       analyzablePct,
+      analyzablePctReason,
       cleanBeatPct,
+      cleanBeatPctReason,
       coveragePct,
+      coveragePctReason,
       nCorrected: nCorr,
       nEctopyCorrected: nEctopy,
       activeSec,
@@ -3618,11 +3642,15 @@
       nnSpansGap,
       // quality
       analyzablePct: nnRes.analyzablePct,
+      /* §∅ — the refusals travel with the two fields they describe, because a surface that draws a
+         dash owes the reader the cause of it. `buildNN` names each one. */
+      analyzablePctReason: nnRes.analyzablePctReason,
       correctionRate: nnRes.correctionRate,
       nCorrected: nnRes.nCorrected,
       nEctopyCorrected: nnRes.nEctopyCorrected,
       cleanBeatPct: nnRes.cleanBeatPct,
       coveragePct: nnRes.coveragePct,
+      coveragePctReason: nnRes.coveragePctReason,
       /* Per-term means of the composite per-beat SQI (Do 5 step 1). Additive: `cleanBeatPct` above is
          a THRESHOLD count of the composite and cannot say WHICH term moved it, so a term pinned at 0
          and a term doing real work produce the same `cleanBeatPct` story. */

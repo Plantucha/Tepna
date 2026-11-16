@@ -35430,6 +35430,18 @@
       out = P.poincare([812.7, 913.9, 812.7, 913.9]);
       T.eq('a floating-point residue SD2 refuses the ratio (published 61266038.35 before)', JSON.stringify([out.sd2, out.sd1sd2, out.reason]), '[0,null,"sd2-below-published-precision"]');
 
+      /* N1-24 · THE TRIANGULAR INDEX BINS A HISTOGRAM AND DIVIDES A COUNT, AND BOTH MUST COME FROM THE
+         KEPT POPULATION. Until 2026-11-15 the bins looped `nn` and the numerator was `nn.length`, so an
+         interval the caller had omitted moved both sides of the quotient. Measured at 35d3b01d6: triIdx
+         1.5 over two occurrences of one bin plus one omitted interval, where the kept population gives 1. */
+      out = P.timeDomain([1000, 1400, 1000], null, [false, true, false], null);
+      T.eq('triangular index bins the KEPT population (measured 1.5 before)', JSON.stringify([out.triIdx, out.nDispersionIntervals]), '[1,2]');
+
+      /* THE CONTROL. A blanket change to the divisor would move this leg too, so an omission that leaves
+         a three-interval kept population must still count three. */
+      out = P.timeDomain([1000, 1100, 1200, 1300], null, [false, false, true, false], null);
+      T.eq('  ... and the index counts the kept intervals, not the raw ones (4 before)', JSON.stringify(out.triIdx), '3');
+
       /* THE CONTROLS. A refusal that fires unconditionally measures nothing, so each arm must still
          publish over input that supports it. */
       out = P.poincare([700, 725, 735, 765, 775, 805]);
@@ -35444,6 +35456,24 @@
          regression there reds here, and it reds nowhere else. */
       out = P.timeDomain([800, 1200, 790, 1300], [true, false, false, true]);
       T.eq('a refused rMSSD rounds to null, never to 0', JSON.stringify(out.rmssd) === '0' ? 'ROUNDED TO ZERO' : JSON.stringify(out.rmssd), 'null');
+
+      /* N1-23 · AN OMITTED INTERVAL INSIDE A POPULATION THAT STILL SUPPORTS DISPERSION. `omit` marks an
+         interval that straddles a time discontinuity. The beat-to-beat arm consulted `cleanMask` and
+         `adj` and never `omit`, so the omitted interval's own pairs entered rMSSD and pNN50. Measured
+         at 35d3b01d6: rmssd 400, pnn50 100 and nBeatPairs 2 over one measured pair. */
+      out = P.timeDomain([1000, 1400, 1000], null, [false, true, false], null);
+      T.eq('an omitted interval does not enter the beat-to-beat arm (measured rmssd 400 before)', JSON.stringify([out.rmssd, out.pnn50, out.nBeatPairs]), '[null,null,0]');
+      T.eq('  ... both survivors touch it, so no pair is measured, and the arm names that', JSON.stringify(out.beatPairReason), '"no-clean-adjacent-pair"');
+      T.eq('  ... and the arm says how many pairs the omission removed', JSON.stringify(out.nBeatPairsOmitted), '2');
+
+      /* THE CONTROL. The legs above also pass on a blanket refusal, so an omission that leaves a
+         measured pair in place must publish that pair and skip exactly two. */
+      out = P.timeDomain([1000, 1100, 1200, 1300], null, [false, false, true, false], null);
+      T.eq(
+        'an omission that leaves one measured pair still publishes it, and counts the two it removed',
+        JSON.stringify([out.rmssd, out.pnn50, out.nBeatPairs, out.nBeatPairsOmitted]),
+        '[100,100,1,2]'
+      );
     });
 
     /* ── INSUFFICIENT INPUT REFUSES; IT DOES NOT REPORT ZERO (Clock Contract §2.6) ──────────────
@@ -44279,6 +44309,189 @@
         T.eq('the night averages the sessions it ASSESSED, not absence counted as perfect', JSON.stringify({ sqi: q.sqi, n: q.sqiSessions }), JSON.stringify({ sqi: measuredOnly, n: 1 }));
         T.ok('the plant is not vacuous — the old mean and the honest mean differ', dilutedByFabrication > measuredOnly, dilutedByFabrication + ' vs ' + measuredOnly);
         T.ok('\u2026and the basis is published, so a reader can see how many sessions it rests on', q.sqiSessions === 1 && q.sqiBasis.indexOf('ASSESSED') !== -1, JSON.stringify(q.sqiBasis));
+      }
+    });
+    group('CPAPDex ∅ — a NaN panel is not a measurement: an empty mask-on lane refuses with a named reason', 'cpapdex-dsp · absence · known-answer', function (T) {
+      var C = env.CpapDsp || env.CPAPDSP;
+      if (!C || typeof C.computeMetrics !== 'function' || typeof C.prepare !== 'function' || typeof C._synthEdfSet !== 'function') {
+        T.skip('CpapDsp.computeMetrics/prepare/_synthEdfSet', 'CPAPDex not co-loaded in this runner');
+        return;
+      }
+      /* Three rows, one defect class. `_p` answers NaN over an empty array, `_iqr` subtracts two of
+         them, `_sd` answers NaN below two samples, `_pearson` divides by the product of two
+         spreads, and two arms wrote NaN as a literal. `JSON.stringify` writes NaN as `null`, so the
+         absence was visible only at the export boundary and never inside the node — which is why no
+         gate saw it. Rows `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`,
+         `2026-11-15-cpapdex-longitudinal-sd-zero-over-one-night` and
+         `2026-11-15-cpapdex-session-maxleak-zero-from-no-mask-on-sample`. */
+      var T0 = Date.UTC(2026, 10, 15, 22, 0, 0);
+      var nonFinite = function (o, path) {
+        var out = [];
+        for (var k in o) {
+          if (!Object.prototype.hasOwnProperty.call(o, k)) continue;
+          var v = o[k];
+          if (typeof v === 'number' && !isFinite(v)) out.push(path + k);
+          else if (v && typeof v === 'object' && !(v instanceof Array) && typeof v.length !== 'number') out = out.concat(nonFinite(v, path + k + '.'));
+        }
+        return out;
+      };
+      var pick = function (o, keys) {
+        var out = {};
+        for (var i = 0; i < keys.length; i++) out[keys[i]] = o[keys[i]];
+        return JSON.stringify(out);
+      };
+      var LANES = [
+        'usageHours',
+        'maskOnLatency',
+        'maskOnLatencyReason',
+        'medianPressure',
+        'p95Pressure',
+        'pressureRange',
+        'maskOnReason',
+        'residualAHI',
+        'centralIndex',
+        'obstructiveIndex',
+        'hypopneaIndex',
+        'medianLeak',
+        'p95Leak',
+        'largeLeakPct',
+        'leakCV',
+        'leakReason'
+      ];
+
+      /* ── 1 · computeMetrics ── a 600 s pressure lane that never rises above zero: the mask was
+         never on, so every mask-on lane is empty and every event index divides by zero hours. */
+      var dead = C.computeMetrics(C.prepare({ t0Ms: T0, fs: 1, pressure: new Float32Array(600), leak: null, events: [{ type: 'OA', timeSec: 10, durSec: 20 }] }));
+      T.eq(
+        '∅ a mask never on publishes no pressure, no index and no leak — each with the reason beside it',
+        pick(dead, LANES),
+        '{"usageHours":0,"maskOnLatency":null,"maskOnLatencyReason":"therapy-never-started","medianPressure":null,"p95Pressure":null,"pressureRange":null,"maskOnReason":"no-mask-on-pressure-sample","residualAHI":null,"centralIndex":null,"obstructiveIndex":null,"hypopneaIndex":null,"medianLeak":null,"p95Leak":null,"largeLeakPct":null,"leakCV":null,"leakReason":"no-mask-on-leak-sample"}'
+      );
+      T.eq('…and no field of the panel is a number-typed sentinel', JSON.stringify(nonFinite(dead, '')), '[]');
+
+      var nLive = 7200,
+        press = new Float32Array(nLive),
+        lk = new Float32Array(nLive);
+      for (var i = 0; i < nLive; i++) {
+        press[i] = 10;
+        lk[i] = 5;
+      }
+      var live = C.computeMetrics(
+        C.prepare({
+          t0Ms: T0,
+          fs: 1,
+          pressure: press,
+          leak: lk,
+          events: [
+            { type: 'OA', timeSec: 10, durSec: 20 },
+            { type: 'H', timeSec: 100, durSec: 15 }
+          ]
+        })
+      );
+      T.eq(
+        'CONTROL · a MEASURED zero still publishes 0 — a flat pressure, a clean central index and a 0 % large-leak share',
+        pick(live, LANES),
+        '{"usageHours":2,"maskOnLatency":0,"maskOnLatencyReason":null,"medianPressure":10,"p95Pressure":10,"pressureRange":0,"maskOnReason":null,"residualAHI":1,"centralIndex":0,"obstructiveIndex":0.5,"hypopneaIndex":0.5,"medianLeak":5,"p95Leak":5,"largeLeakPct":0,"leakCV":0,"leakReason":null}'
+      );
+
+      /* ── 2 · buildLongitudinal ── the sample SD needs two nights. `0` claimed a measured
+         dispersion of zero for a trend with nothing to disperse. */
+      var night = function (t0, ahi) {
+        return { t0Ms: t0, metrics: { usageHours: 7, residualAHI: ahi }, sessions: [{}] };
+      };
+      T.eq(
+        '∅ one night carries a mean and NO dispersion, with the reason beside it',
+        JSON.stringify(C.buildLongitudinal([night(T0, 4)]).ahiTrend30d),
+        '{"mean":4,"sd":null,"sdReason":"single-night","n":1}'
+      );
+      T.eq(
+        'CONTROL · two nights that differ report the dispersion',
+        JSON.stringify(C.buildLongitudinal([night(T0, 4), night(T0 + 86400000, 6)]).ahiTrend30d),
+        '{"mean":5,"sd":1.41,"sdReason":null,"n":2}'
+      );
+      T.eq(
+        'CONTROL · a MEASURED zero dispersion over two equal nights is still 0',
+        JSON.stringify(C.buildLongitudinal([night(T0, 4), night(T0 + 86400000, 4)]).ahiTrend30d),
+        '{"mean":4,"sd":0,"sdReason":null,"n":2}'
+      );
+
+      /* ── 3 · buildSessionFromEdf and the night it pools ── the production path. The F8 note in
+         the source already named `maskOnLatency NaN` and `medianPressure NaN` for a set that lost
+         its PLD file, and it records real nights that did. */
+      var EDF = [
+        'usageHours',
+        'maskOnLatency',
+        'maskOnLatencyReason',
+        'medianPressure',
+        'p95Pressure',
+        'pressureRange',
+        'maskOnReason',
+        'medianLeak',
+        'p95Leak',
+        'maxLeak',
+        'largeLeakPct',
+        'leakCV',
+        'leakReason'
+      ];
+      var zeroPress = function () {
+        var set = C._synthEdfSet();
+        var pd = set.PLD.signals['Press.2s'].data;
+        for (var j = 0; j < pd.length; j++) pd[j] = 0;
+        return set;
+      };
+      var offSet = zeroPress();
+      var offSess = C.buildSessionFromEdf(offSet, {});
+      T.eq(
+        '∅ an EDF set whose pressure never rises publishes no pressure and no leak, each with its reason',
+        pick(offSess.metrics, EDF),
+        '{"usageHours":0,"maskOnLatency":null,"maskOnLatencyReason":"therapy-never-started","medianPressure":null,"p95Pressure":null,"pressureRange":null,"maskOnReason":"no-mask-on-pressure-sample","medianLeak":null,"p95Leak":null,"maxLeak":null,"largeLeakPct":null,"leakCV":null,"leakReason":"no-mask-on-leak-sample"}'
+      );
+      T.eq('…and nothing in the whole session object is a non-finite number', JSON.stringify(nonFinite(offSess, '')), '[]');
+      T.ok(
+        'ANTI-VACUITY · the refusal is about the MASK, not a missing lane — the leak lane still holds its samples',
+        offSet.PLD.signals['Leak.2s'].data.length === 300,
+        offSet.PLD.signals['Leak.2s'].data.length + ' leak samples'
+      );
+
+      var ctlSess = C.buildSessionFromEdf(C._synthEdfSet(), {});
+      T.eq(
+        'CONTROL · the untouched synthetic set still reports every measured lane',
+        pick(ctlSess.metrics, EDF),
+        '{"usageHours":0.167,"maskOnLatency":0,"maskOnLatencyReason":null,"medianPressure":10.01,"p95Pressure":10.1,"pressureRange":0.15,"maskOnReason":null,"medianLeak":4.8,"p95Leak":4.8,"maxLeak":4.8,"largeLeakPct":0,"leakCV":0,"leakReason":null}'
+      );
+      T.eq('CONTROL · and it carries no non-finite number either', JSON.stringify(nonFinite(ctlSess, '')), '[]');
+
+      if (typeof C.nightMetrics === 'function') {
+        var POOL = ['usageHours', 'maskOnLatency', 'medianPressure', 'p95Pressure', 'pressureRange', 'maskOnReason', 'medianLeak', 'p95Leak', 'maxLeak'];
+        T.eq(
+          '∅ the night pools the same absence — this is the level the UI draws',
+          pick(C.nightMetrics([offSess]), POOL),
+          '{"usageHours":0,"maskOnLatency":null,"medianPressure":null,"p95Pressure":null,"pressureRange":null,"maskOnReason":"no-mask-on-pressure-sample","medianLeak":null,"p95Leak":null,"maxLeak":null}'
+        );
+        T.eq(
+          'CONTROL · a pooled night over a measured session reports the lanes',
+          pick(C.nightMetrics([ctlSess]), POOL),
+          '{"usageHours":0.167,"maskOnLatency":0,"medianPressure":10.01,"p95Pressure":10.1,"pressureRange":0.15,"maskOnReason":null,"medianLeak":4.8,"p95Leak":4.8,"maxLeak":4.8}'
+        );
+      }
+
+      /* ── 4 · the correlation ── `_pearson` divides by the product of the two spreads, so a lane
+         with no variance gave `0 / 0`. Every CPAP-mode night holds a constant pressure. */
+      T.eq(
+        '∅ a correlation over a lane with no variance refuses, and names that cause',
+        JSON.stringify([ctlSess.metrics.snorePressureCorr, ctlSess.metrics.snorePressureCorrReason]),
+        '[null,"no-lane-variance"]'
+      );
+      T.eq(
+        '…and no mask-on sample at all is a DIFFERENT cause, named differently',
+        JSON.stringify([offSess.metrics.snorePressureCorr, offSess.metrics.snorePressureCorrReason]),
+        '[null,"no-mask-on-sample"]'
+      );
+      if (C._kernel && typeof C._kernel._pearson === 'function') {
+        var flat = [1, 1, 1, 1, 1],
+          rising = [1, 2, 3, 4, 5];
+        T.ok('ANTI-VACUITY · the guard is load-bearing: the helper itself still answers NaN over a constant lane', isNaN(C._kernel._pearson(flat, rising)), String(C._kernel._pearson(flat, rising)));
+        T.ok('CONTROL · the helper still measures a real correlation', Math.abs(C._kernel._pearson(rising, rising) - 1) < 1e-9, String(C._kernel._pearson(rising, rising)));
       }
     });
 
@@ -60869,6 +61082,20 @@
         }
       } else T.skip('residue closure wired', 'pwPlanClosures absent in this lane');
 
+      /* ── a closure PR waits while a ready PR runs its checks (measured 2026-11-16, board #6670:
+         closure PR #5112 merged ahead of #5094 and cancelled its capture-host mutation run) ───── */
+      var cwo = env.pwClosureWaitsOn;
+      T.ok('the closure hold reaches this lane — its absence is a wiring failure', typeof cwo === 'function');
+      if (typeof cwo === 'function') {
+        var readyPending = { number: 5094, draft: false, state: 'pending', branch: 'claude/qcpool-hrn' };
+        T.eq('a ready PR whose required checks run holds the closure', (cwo([readyPending]) || {}).number, 5094);
+        T.eq('CONTROL: a draft that runs its checks does not hold it', cwo([{ number: 7, draft: true, state: 'pending', branch: 'claude/x' }]), null);
+        T.eq('CONTROL: a ready green PR does not hold it', cwo([{ number: 8, draft: false, state: 'green', branch: 'claude/x' }]), null);
+        T.eq('CONTROL: a held PR does not hold it', cwo([{ number: 9, draft: false, state: 'held', branch: 'claude/x' }]), null);
+        T.eq('CONTROL: the walker closure PR itself does not hold it', cwo([{ number: 10, draft: false, state: 'pending', branch: 'claude/residue-close-walker-20201231' }]), null);
+        T.eq('an empty or unreadable row list holds nothing', [cwo([]), cwo(null)].join(), ',');
+      }
+
       /* ── the signature comment (owner, 2020-01-01: "it will sign everything what it does") ──── */
       var sg = env.pwSignature;
       var AT = '2020-01-01T11:45:09.000Z';
@@ -72568,10 +72795,14 @@
       // ── 4 · DFA BOX LADDER runs 4..16 INCLUSIVE — dropping the 16-beat box moves alpha1.
       T.eq('the near-constant probe series reads alpha1 0.341 with the full ladder', E.dfaAlpha1([16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 17], null), 0.341);
 
-      // ── 5 · buildNN COVERAGE — spanSec > 0 STRICT picks the computed path; zero span falls back
-      //      to 100 by declaration, and >= would send 0/0 (NaN) through instead.
-      T.eq('no beats: coverage declared 100, corrected 0', JSON.stringify({ c: E.buildNN(null, []).coveragePct, n: E.buildNN(null, []).nCorrected }), '{"c":100,"n":0}');
-      T.eq('a real 8-beat train: coverage COMPUTED 100', E.buildNN('buildNN', [440, 480, 500, 550, 600, 650, 700, 750], 0.3, 0.2).coveragePct, 100);
+      // ── 5 · buildNN COVERAGE — spanSec > 0 STRICT picks the computed path; a span of zero now
+      //      REFUSES instead of declaring 100, and >= would send 0/0 (NaN) through instead. Both legs
+      //      read 100 until 2026-11-16, so the suite defended a full-coverage claim over a record
+      //      that measured no span — and the second leg passed its times as the STRING 'buildNN',
+      //      which makes every stamp NaN, so it took the fallback it claimed to prove computed.
+      T.eq('no beats: coverage REFUSES, corrected 0', JSON.stringify({ c: E.buildNN(null, []).coveragePct, n: E.buildNN(null, []).nCorrected }), '{"c":null,"n":0}');
+      T.eq('a real 8-beat train over 7 s: coverage COMPUTED 100', E.buildNN([0, 1, 2, 3, 4, 5, 6, 7], [440, 480, 500, 550, 600, 650, 700, 750], [1, 1, 1, 1, 1, 1, 1, 1], 0.3, 0.2).coveragePct, 100);
+      T.eq('…and NaN stamps refuse too — a non-finite span is no span', E.buildNN('buildNN', [440, 480, 500, 550, 600, 650, 700, 750], [1, 1, 1, 1, 1, 1, 1, 1], 0.3, 0.2).coveragePct, null);
 
       // ── 6 · classifyMode DURATION — 300 s is a 5 min reading; zeroing the /60 makes it Infinity.
       T.eq('300 seconds reads as 5 min', E.classifyMode(300).modeWhy, '5 min reading');
@@ -72659,6 +72890,81 @@
       T.eq('no ECG clock: offset 0, both epochs observed', JSON.stringify(Array.from(emNoClock.keys())), '["0.0","5.0"]');
       var emShift = E.epochMotion(mkAcc(271000), 4, 1000, 600, two);
       T.eq('ACC 270 s late against a real ECG clock: epoch 0 is DROPPED, not stilled', JSON.stringify(Array.from(emShift.keys())), '["5.0"]');
+    });
+
+    /* ════ 21b · buildNN ABSENCE — A COVERAGE OVER A ZERO SPAN IS UNMEASURED, NOT COMPLETE ════
+     Residue 2026-11-15-ecgdex-buildnn-coverage-100-over-zero-span. `coveragePct` published **100**
+     whenever `spanSec` was 0, which is a full-coverage claim about a record that measured no span,
+     and `analyzablePct` carried it to the KPI card as "100 % analyzable". Two inputs reach it:
+     fewer than two intervals, and a device counter that never advances (`tt[n-1] === tt[0]` over
+     any number of beats — the device axis is adopted on FINITE stamps alone, so a stuck counter
+     arrives through `analyze` itself). The PRODUCT must refuse with its factor, because
+     `null / 100` is 0 in JavaScript: nulling the coverage alone would have turned a fabricated
+     100 % into a fabricated 0 %, the same bug with a worse number. */
+    group('ECGDex buildNN absence: a coverage over a zero span refuses and names its cause', 'ecgdex-dsp · absence', function (T) {
+      var E = env.ECGDSP || env.EcgDsp;
+      if (!E || typeof E.buildNN !== 'function') {
+        T.skip('ECGDSP.buildNN available', 'ECGDex not co-loaded in this runner');
+        return;
+      }
+      var nonFinite = function (o) {
+        var bad = [];
+        Object.keys(o).forEach(function (k) {
+          if (typeof o[k] === 'number' && !isFinite(o[k])) bad.push(k);
+        });
+        return bad.join(',');
+      };
+
+      // ── 1 · DEAD — no beats at all. Every RATIO refuses and names its own cause. The COUNTS stay
+      //      counts: a count has no denominator, so 0 corrections over no beats is measured.
+      var dead = E.buildNN(null, [], []);
+      T.eq('no beats: all four ratios refuse', JSON.stringify({ c: dead.coveragePct, b: dead.cleanBeatPct, a: dead.analyzablePct, r: dead.correctionRate }), '{"c":null,"b":null,"a":null,"r":null}');
+      T.eq('…coverage names its cause', dead.coveragePctReason, 'fewer than two beat intervals — no span exists to measure coverage over');
+      T.eq('…the clean-beat share names its own', dead.cleanBeatPctReason, 'no beat intervals — no population to score');
+      T.eq('…the product names the factor it lost', dead.analyzablePctReason, 'beat coverage is unmeasured, so the clean-beat share cannot be discounted by it');
+      T.eq('…the correction rate names its own', dead.correctionRateReason, 'no beat intervals — no population to correct');
+      T.eq('the counts are still counts', JSON.stringify({ n: dead.nCorrected, e: dead.nEctopyCorrected }), '{"n":0,"e":0}');
+      T.eq('and no field of the refused panel is NaN or Infinity', nonFinite(dead), '');
+
+      // ── 2 · ONE BEAT — the clean-beat share IS measured (one beat is a population of one) and the
+      //      coverage is not. The product must refuse as NULL, never as the 0 that `null / 100` gives.
+      var one = E.buildNN([10], [800], [1]);
+      T.eq('one beat: clean-beat measured, coverage and product refuse', JSON.stringify({ b: one.cleanBeatPct, c: one.coveragePct, a: one.analyzablePct }), '{"b":100,"c":null,"a":null}');
+      T.ok('the product is null, not the 0 that nulling its factor alone would publish', one.analyzablePct === null, 'analyzablePct=' + one.analyzablePct);
+      T.eq('…and it names the unmeasured factor', one.analyzablePctReason, 'beat coverage is unmeasured, so the clean-beat share cannot be discounted by it');
+
+      // ── 3 · A STUCK DEVICE COUNTER — five real beats on one stamp. This is the input that reaches
+      //      here through `analyze`, since the 12-peak floor is met and the stamps are all finite.
+      var stuck = E.buildNN([7, 7, 7, 7, 7], [800, 810, 790, 805, 800], [1, 1, 1, 1, 1]);
+      T.eq('five beats, one stamp: span 0 and coverage refuses', JSON.stringify({ s: stuck.spanSec, c: stuck.coveragePct, a: stuck.analyzablePct }), '{"s":0,"c":null,"a":null}');
+      T.eq('…and the cause is the span, not the beat count', stuck.coveragePctReason, 'the beat series spans no time — no span to divide the covered time by');
+      T.eq('…the clean-beat share over five real beats is still measured', stuck.cleanBeatPct, 100);
+      T.eq('and no field of that panel is NaN or Infinity', nonFinite(stuck), '');
+
+      // ── 4 · CONTROL, so none of the three above is vacuous: a 5-beat train spanning 4 s computes
+      //      every one of the four, and no reason is written beside a measured number.
+      var ok = E.buildNN([0, 1, 2, 3, 4], [800, 810, 790, 805, 800], [1, 1, 1, 1, 1]);
+      T.eq('a 4-second train computes all four', JSON.stringify({ c: ok.coveragePct, b: ok.cleanBeatPct, a: ok.analyzablePct, r: ok.correctionRate }), '{"c":100,"b":100,"a":100,"r":0}');
+      T.eq(
+        '…and every reason is null',
+        JSON.stringify({ c: ok.coveragePctReason, b: ok.cleanBeatPctReason, a: ok.analyzablePctReason, r: ok.correctionRateReason }),
+        '{"c":null,"b":null,"a":null,"r":null}'
+      );
+      T.eq('…over the measured 4 s span', ok.spanSec, 4);
+
+      // ── 5 · `analyze` PUBLISHES THE REASONS, or the KPI card falls back to its own prose and the
+      //      node's named cause never reaches the reader (source mirror — `analyze` needs a record).
+      var dsrc = (env.sources || {})['ecgdex-dsp.js'] || '';
+      T.ok('analyze publishes coveragePctReason', /coveragePctReason:\s*nnRes\.coveragePctReason/.test(dsrc));
+      T.ok('analyze publishes analyzablePctReason', /analyzablePctReason:\s*nnRes\.analyzablePctReason/.test(dsrc));
+
+      // ── 6 · THE RENDER PRINTS A DASH, NEVER `null%` — `pv` is the value half of the rule whose
+      //      grade half is `sc`, and the KPI sub-line prints the node's own cause.
+      var asrc = (env.sources || {})['ecgdex-app.js'] || '';
+      T.ok('pv() refuses a null or non-finite value with an em dash', /const pv = \(v, u\) => \(v == null \|\| !isFinite\(v\) \? '—'/.test(asrc));
+      T.ok('the analyzable KPI value goes through pv', /v: pv\(r\.analyzablePct, '%'\)/.test(asrc));
+      T.ok('the KPI sub-line prints the node cause when coverage is absent', /r\.coveragePct == null \? r\.coveragePctReason/.test(asrc));
+      T.ok('the correction rate grades through scLo, so a refusal is neutral', /scLo\(r\.correctionRate, 3, 8\)/.test(asrc));
     });
 
     /* ════ 22 · OXIMETER SELF-GATE & CONSEQUENCE-COROBORATION ════

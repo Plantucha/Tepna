@@ -3865,10 +3865,22 @@
     // robust jitter pass the brief asks for. No mask (epoch/back-compat) → all adjacent pairs.
     let sumSq = 0,
       cnt = 0,
-      nn50 = 0;
+      nn50 = 0,
+      omittedPairs = 0;
     for (let i = 1; i < nn.length; i++) {
       if (cleanMask && !(cleanMask[i - 1] && cleanMask[i])) continue;
       if (adj && adj[i] === false) continue; // a dropped interval sits between them — not a pair
+      /* 🔴 §∅ — A PAIR THAT TOUCHES AN OMITTED INTERVAL IS NOT A BEAT-TO-BEAT MEASUREMENT. Until
+         2026-11-15 this arm consulted `cleanMask` and `adj` and never `omit`, so an interval the caller
+         had declined still entered rMSSD and pNN50 through its own pairs, and one return mixed two
+         populations. An omitted interval straddles lost time, so neither difference beside it is a
+         difference between two adjacent beats — the rule `adj` already states one line above. The
+         count of skipped pairs travels in `nBeatPairsOmitted`, beside the pairs that were measured.
+         (Muse N1-23.) */
+      if (omit && (omit[i] || omit[i - 1])) {
+        omittedPairs++;
+        continue;
+      }
       const d = nn[i] - nn[i - 1];
       sumSq += d * d;
       cnt++;
@@ -3885,16 +3897,18 @@
     const hr = meanRR == null ? null : 60000 / meanRR;
     // triangular index
     const bins = {};
-    for (const v of nn) {
+    for (const v of keep) {
       const b = Math.round(v / 7.8125);
       bins[b] = (bins[b] || 0) + 1;
     }
     let mx = 0;
     for (const k in bins) if (bins[k] > mx) mx = bins[k];
-    /* The histogram bins `nn`, so it counts the omitted intervals too. That population is unchanged
-       here, and it is a SEPARATE defect from N1-21: this line only declines to publish an index whose
-       dispersion arm has already refused. */
-    const triIdx = dispersionReason ? null : mx ? nn.length / mx : null;
+    /* 🔴 §∅ — THE INDEX BINS THE KEPT POPULATION, NEVER `nn`. Until 2026-11-15 this loop binned every
+       interval and divided `nn.length`, so an interval the caller had omitted moved BOTH sides of the
+       quotient: it added a sample to the histogram and a beat to the numerator. The bins and the count
+       now come from the same set, and `nDispersionIntervals` already names that set beside the value.
+       (Muse N1-24.) */
+    const triIdx = dispersionReason ? null : mx ? keep.length / mx : null;
     return {
       meanRR: meanRR == null ? null : Math.round(meanRR),
       sdnn: r1n(sdnn),
@@ -3905,6 +3919,7 @@
       triIdx: triIdx ? r1(triIdx) : null,
       nDispersionIntervals: keep.length,
       nBeatPairs: cnt,
+      nBeatPairsOmitted: omittedPairs,
       dispersionReason,
       beatPairReason
     };
