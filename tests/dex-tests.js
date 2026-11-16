@@ -40990,6 +40990,49 @@
     // stampless-path work and the stamped-control work on different shards (each half already used its
     // OWN separately-generated 6 h record, so this adds no compute — it only lowers the indivisible
     // floor; TEST-COVERAGE-ANALYSIS 2026-07-15). The two halves are independent by construction.
+    group('HRVDex charts — an absent reading is a gap, never a 0 (§∅)', 'hrvdex-render', function (T) {
+      var B = env.HRVDex && env.HRVDex._bare;
+      T.ok('HRVDex._bare.smooth is reachable', !!(B && typeof B.smooth === 'function'), 'namespace not wired into env');
+      if (B && typeof B.smooth === 'function') {
+        var sm = B.smooth([60, null, 40], 1);
+        T.eq('a 60 beside an absent reading smooths to 60, not 30', sm[1], 60);
+        T.eq('a window of one absent and one measured reading holds the measured one', sm[2], 40);
+        var allAbs = B.smooth([null, null, undefined], 1);
+        T.ok(
+          'an all-absent window is NaN (a gap), never 0',
+          allAbs.every(function (v) {
+            return isNaN(v);
+          }),
+          JSON.stringify(allAbs)
+        );
+        T.eq('two measured readings average (control)', B.smooth([10, 30], 1)[1], 20);
+        T.eq('a measured 0 is a reading (control)', B.smooth([0, 10], 1)[1], 5);
+        T.eq('k = 0 returns the array untouched', B.smooth([1, null], 0)[1], null);
+      }
+      var src = env.sources && env.sources['hrvdex-render.js'];
+      T.ok('the HRVDex render source is readable in this lane', !!src, 'hrvdex-render.js not in env.sources');
+      if (!src) return;
+      var a = src.indexOf('function hileByMonth(rows) {');
+      var b = a >= 0 ? src.indexOf('\n}\n', a) : -1;
+      T.ok('hileByMonth is sliceable out of the render', a >= 0 && b > a, 'the slice markers moved — update this group with them');
+      if (!(a >= 0 && b > a)) return;
+      var hb = null;
+      try {
+        hb = new Function(src.slice(a, b + 3) + '\nreturn hileByMonth;')();
+      } catch (_e) {
+        hb = null;
+      }
+      T.ok('the sliced hileByMonth evaluates on its own', typeof hb === 'function', 'hileByMonth now depends on render state — keep it pure');
+      if (typeof hb !== 'function') return;
+      var d = function (iso, v) {
+        return { _date: new Date(iso + 'T00:00:00Z'), d_hile: v };
+      };
+      var out = hb([d('2026-01-03', 1), d('2026-01-04', NaN), d('2026-01-05', 1), d('2026-01-06', 0), d('2026-02-01', NaN), d('2026-02-02', NaN)]);
+      T.eq('the months keep their order', out.labels.join(','), 'Jan 26,Feb 26');
+      T.eq('an unmeasured night drops out and keeps the days counted before it', out.counts[0], 2);
+      T.eq('a month that measured no night is null (a gap), never 0', out.counts[1], null);
+      T.eq('a month of measured zeros counts 0 (control)', hb([d('2026-03-01', 0), d('2026-03-02', 0)]).counts[0], 0);
+    });
     group('ECGDex app sorts — an undated record sorts last, never as 1970 (§∅)', 'ecgdex-app', function (T) {
       /* ecgdex-app.js attaches its sort to no global, so the comparator is cut from the source and
          run. Before the fix both sorts read an or-zero key, so an undated recording took first place. */
