@@ -46402,6 +46402,166 @@
       }
     });
 
+    group('HRVDex rolling windows — the SPAN bound (residue 2026-11-15)', 'hrvdex-dsp · daywindow · span-bound', function (T) {
+      var M = env.HRVDex;
+      var D = (M && M._bare) || M;
+      if (!D || typeof D._dayWindow !== 'function' || typeof D.computeDerived !== 'function') {
+        T.skip('_dayWindow available', 'HRVDex not co-loaded');
+        return;
+      }
+      /* Row `2026-11-15-hrvdex-seven-day-window-has-no-span-bound`: the four rolling collectors each
+         walked backwards until they held `days` DISTINCT day keys, and nothing bounded how far back
+         those days sat. A table holding three rows in January and four in November gave November a
+         "7-day" mean over ten months, and `d_hrv_momentum` regressed ln(rMSSD) over a year under a
+         14-day name. `_dayWindow(arr, i, days)` now takes the last `days` CALENDAR DAYS ending on
+         row `i`'s own day, so a day outside the span LEAVES the window (§∅: a discontinuity refuses;
+         the `.length >= N` guards at each call site then report the absence).
+         Every leg below fails on the old collectors. */
+      var DAY = 86400000;
+      var D0 = Date.UTC(2026, 0, 1, 22, 0, 0);
+      var W = D._dayWindow;
+      var near = function (a, b, tol) {
+        return a != null && isFinite(a) && Math.abs(a - b) <= (tol || 0.0001);
+      };
+      /* `d` = whole days after D0, `h` = hours within that day, `d: null` = an UNDATED row. */
+      var rows = function (specs) {
+        var out = [];
+        for (var i = 0; i < specs.length; i++) {
+          var s = specs[i];
+          var r = {
+            _hr: 62,
+            _meanRR: 968,
+            _sdnn: 54,
+            _rmssd: 41,
+            _mxdmn: 320,
+            _pnn50: 18.5,
+            _amo50: 31,
+            _mode: 950,
+            _totalPow: 3200,
+            _hf: 900,
+            _lf: 1400,
+            _vlf: 900,
+            _stress: 3.2,
+            _energy: 5.1,
+            _focus: 4.4,
+            _sns: 1.2,
+            _psns: 2.1,
+            _coherence: 3.3,
+            _hrv: 60,
+            _cv: 5.6,
+            _spanMin: 6,
+            _tMs: s.d == null ? NaN : D0 + s.d * DAY + (s.h || 0) * 3600000
+          };
+          if (s.rmssd != null) r._rmssd = s.rmssd;
+          if (s.stress != null) r._stress = s.stress;
+          out.push(r);
+        }
+        return out;
+      };
+      /* Drive the no-argument path through `allRows`, exactly as the 14-day group above does —
+         `computeDerived(rowsArg)` honours its argument only in the FIRST pass. */
+      var derive = function (arr) {
+        var saved = M.allRows;
+        try {
+          M.allRows = arr;
+          D.computeDerived();
+        } finally {
+          M.allRows = saved;
+        }
+        return arr;
+      };
+
+      /* ── `_dayWindow` directly: where the span ENDS ─────────────────────────────────────────── */
+      T.eq('a day exactly days−1 back is INSIDE a 7-day window', W(rows([{ d: 0 }, { d: 6 }]), 1, 7).length, 2);
+      T.eq('a day `days` back is OUTSIDE it — the bound is the whole point', W(rows([{ d: 0 }, { d: 7 }]), 1, 7).length, 1);
+      T.eq('four rows over 300 days ⇒ a 7-day window holds ONE of them', W(rows([{ d: 0 }, { d: 100 }, { d: 200 }, { d: 300 }]), 3, 7).length, 1);
+      T.eq('the 14-day twin bounds at 14 days, not at 14 rows', W(rows([{ d: 0 }, { d: 20 }]), 1, 14).length, 1);
+      T.eq('a window whose days all sit inside the span is UNCHANGED', W(rows([{ d: 0 }, { d: 1 }, { d: 2 }, { d: 3 }]), 3, 7).length, 4);
+
+      /* An UNDATED row anchors no span, so its own window is empty — a deliberate consequence, and
+         the reason each rolling metric on such a row reports absent rather than a borrowed number. */
+      T.eq('an undated ANCHOR gives an empty window', W(rows([{ d: 0 }, { d: 1 }, { d: null }]), 2, 7).length, 0);
+      T.eq('an undated NEIGHBOUR is skipped, not counted', W(rows([{ d: 0 }, { d: null }, { d: 1 }]), 2, 7).length, 2);
+
+      /* One row per calendar day, the LATEST at or before the anchor, ascending by `_tMs` — the
+         shape the four inline walks produced, kept so no consumer changes meaning. */
+      var dup = W(
+        rows([
+          { d: 0, rmssd: 10 },
+          { d: 0, h: 1, rmssd: 20 }
+        ]),
+        1,
+        7
+      );
+      T.eq('two rows on one day contribute ONCE', dup.length, 1);
+      T.eq('and the kept row is the LATEST of that day', dup[0]._rmssd, 20);
+      var asc = W(rows([{ d: 0 }, { d: 1 }, { d: 2 }]), 2, 7);
+      T.ok('the window is ascending by _tMs', asc[0]._tMs < asc[2]._tMs, 'got ' + asc[0]._tMs + ' … ' + asc[2]._tMs);
+
+      /* ── the consumers: a stale day no longer feeds a labelled window ───────────────────────── */
+      var far = derive(
+        rows([
+          { d: 0, rmssd: 10 },
+          { d: 100, rmssd: 10 },
+          { d: 200, rmssd: 10 },
+          { d: 300, rmssd: 40 }
+        ])
+      );
+      T.ok('d_rmssd_rolling_ln over 300 days ⇒ ln(40), NOT the 4-day mean 2.649', near(far[3].d_rmssd_rolling_ln, Math.log(40)), 'got ' + far[3].d_rmssd_rolling_ln);
+      T.ok('d_ari REFUSES: the 7-day window holds 1 day, under its ≥4 gate', isNaN(far[3].d_ari), 'got ' + far[3].d_ari);
+      T.ok('d_rmssd_cv7 refuses on a one-day window', isNaN(far[3].d_rmssd_cv7), 'got ' + far[3].d_rmssd_cv7);
+
+      var mom = derive(
+        rows([
+          { d: 0, rmssd: 10 },
+          { d: 1, rmssd: 20 },
+          { d: 2, rmssd: 40 },
+          { d: 3, rmssd: 80 },
+          { d: 300, rmssd: 160 }
+        ])
+      );
+      T.ok('d_hrv_momentum refuses when 4 of the 5 days sit 297 days back', isNaN(mom[4].d_hrv_momentum), 'got ' + mom[4].d_hrv_momentum);
+
+      var ac = derive(
+        rows([
+          { d: 0, stress: 10 },
+          { d: 1, stress: 50 },
+          { d: 2, stress: 10 },
+          { d: 3, stress: 50 },
+          { d: 50, stress: 10 }
+        ])
+      );
+      T.ok('d_stress_ac refuses when its pairs lie outside the 14-day span', isNaN(ac[4].d_stress_ac), 'got ' + ac[4].d_stress_ac);
+
+      /* THE CONTROL: five consecutive days still give the full window and the same answer as
+         before the bound — ln 2 per day. A bound that shrinks a legitimate window is the worse bug. */
+      var ok5 = derive(
+        rows([
+          { d: 0, rmssd: 10 },
+          { d: 1, rmssd: 20 },
+          { d: 2, rmssd: 40 },
+          { d: 3, rmssd: 80 },
+          { d: 4, rmssd: 160 }
+        ])
+      );
+      T.ok('five consecutive days ⇒ momentum is still exactly ln 2', near(ok5[4].d_hrv_momentum, 0.6931472), 'got ' + ok5[4].d_hrv_momentum);
+      T.ok('and their d_ari is still finite — the ≥4 gate is satisfied', isFinite(ok5[4].d_ari) && ok5[4].d_ari > 0, 'got ' + ok5[4].d_ari);
+
+      /* An undated row's rolling metrics are ABSENT, not the neighbours' values. */
+      var und = derive(
+        rows([
+          { d: 0, rmssd: 40 },
+          { d: 1, rmssd: 40 },
+          { d: 2, rmssd: 40 },
+          { d: 3, rmssd: 40 },
+          { d: null, rmssd: 40 }
+        ])
+      );
+      T.ok('an undated row reports d_rmssd_rolling_ln absent', isNaN(und[4].d_rmssd_rolling_ln), 'got ' + und[4].d_rmssd_rolling_ln);
+      T.ok('an undated row reports d_ari absent', isNaN(und[4].d_ari), 'got ' + und[4].d_ari);
+      T.ok('its DATED neighbour still answers', isFinite(und[3].d_rmssd_rolling_ln), 'got ' + und[3].d_rmssd_rolling_ln);
+    });
+
     group('HRVDex computeDerived — the 52 derived columns, pinned', 'hrvdex-dsp · known-answer · mutation-pinned', function (T) {
       var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
       if (!D || typeof D.computeDerived !== 'function') {
