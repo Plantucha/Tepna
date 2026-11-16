@@ -44733,6 +44733,39 @@
         JSON.stringify([offSess.metrics.snorePressureCorr, offSess.metrics.snorePressureCorrReason]),
         '[null,"no-mask-on-sample"]'
       );
+      /* ── 4b · ONE NULL CARRIED FOUR FACTS. The pooled site published a bare null, and this
+         site borrowed `no-lane-variance` for a pool of one or two pairs, which has no variance
+         to speak of either way. Each arm now names itself, and both sites read one scan. ── */
+      if (C._kernel && typeof C._kernel._snPressCorr === 'function') {
+        var SP = C._kernel._snPressCorr;
+        var arm = function (sn, pr, strict) {
+          return JSON.stringify(SP(sn, pr, strict));
+        };
+        T.eq('∅ helper · an empty snore lane is no-mask-on-sample', arm([], [5, 7, 9], false), '{"r":null,"reason":"no-mask-on-sample"}');
+        T.eq('∅ helper · an empty pressure lane is the same fact', arm([0.1, 0.4, 0.2], [], false), '{"r":null,"reason":"no-mask-on-sample"}');
+        T.eq('∅ helper · a pooled pair of unequal length is unpaired-lane-pool, not an absence', arm([0.1, 0.4, 0.2, 0.3], [5, 7, 9], true), '{"r":null,"reason":"unpaired-lane-pool"}');
+        T.eq('∅ helper · two pairs is too-few-paired-samples, which this site used to call no-lane-variance', arm([0.1, 0.4], [5, 9], false), '{"r":null,"reason":"too-few-paired-samples"}');
+        T.eq('∅ helper · three pairs over a constant lane is no-lane-variance', arm([0.1, 0.4, 0.2], [8, 8, 8], false), '{"r":null,"reason":"no-lane-variance"}');
+        T.eq('CONTROL · helper · a measured correlation carries a null reason', arm([1, 2, 3, 4, 5], [1, 2, 3, 4, 5], true), '{"r":1,"reason":null}');
+        T.ok(
+          'ANTI-VACUITY · the pairing rule is the POOLED rule only: the per-session site takes the overlap',
+          SP([0.1, 0.4, 0.2, 0.3], [1, 2, 3, 4], false).r !== null && SP([0.1, 0.4, 0.2, 0.3], [1, 2, 3], false).r !== null,
+          JSON.stringify([SP([0.1, 0.4, 0.2, 0.3], [1, 2, 3], false), SP([0.1, 0.4, 0.2, 0.3], [1, 2, 3], true)])
+        );
+        /* Every token the helper can write carries prose. The list is DRIVEN out of the helper,
+           never typed here, so a fifth arm added without prose reds this leg. */
+        var CR = env.CpapRender || (typeof window !== 'undefined' ? window.CpapRender : null);
+        if (CR && typeof CR.reasonText === 'function') {
+          var written = [SP([], [1, 2, 3], false).reason, SP([0.1, 0.2, 0.3, 0.4], [1, 2, 3], true).reason, SP([0.1, 0.2], [1, 2], false).reason, SP([0.1, 0.2, 0.3], [8, 8, 8], false).reason];
+          var unglossed = written.filter(function (t) {
+            return CR.reasonText(t).indexOf(' (' + t + ')') < 1;
+          });
+          T.eq('∅ every snore-pressure token the DSP writes has prose a reader can read', JSON.stringify([written.length, unglossed]), '[4,[]]');
+          T.eq('ANTI-VACUITY · the table is load-bearing: an unglossed token falls through to itself', CR.reasonText('zz-no-such-reason'), 'zz-no-such-reason');
+        } else {
+          T.skip('CpapRender.reasonText', 'cpapdex-render.js not co-loaded in this runner');
+        }
+      }
       if (C._kernel && typeof C._kernel._pearson === 'function') {
         var flat = [1, 1, 1, 1, 1],
           rising = [1, 2, 3, 4, 5];
@@ -53965,6 +53998,7 @@
       T.eq('S · flowLimitedPct counts v > 0.3 only (3 of 7; the 0.3 itself is not limited)', S.flowLimitedPct, 42.86);
       T.eq('S · snorePct counts v > 0.2 only (3 of 8; the 0.2s are not snore)', S.snorePct, 37.5);
       T.eq('S · snorePressureCorr pairs the pooled lanes 1:1', S.snorePressureCorr, 0.18);
+      T.eq('S · a measured correlation carries no reason', S.snorePressureCorrReason, null);
       T.eq('S · breathCount pools', S.breathCount, 1200);
       T.eq('S · breathRate = 1200 over the measured 5400 s', S.breathRate, 13.3);
       T.eq('S · breathMaskOnSec pools', S.breathMaskOnSec, 5400);
@@ -54048,12 +54082,25 @@
          outruns its pressure lane leaves the correlation absent, never mis-paired. ── */
       var C = D.nightMetrics([pool({ pressureMaskOn: [5, 7, 9], snMaskOn: [0.5, 0.1, 0.4, 0.2] })]);
       T.eq('C · snorePressureCorr is null when the lanes do not pair 1:1', C.snorePressureCorr, null);
+      T.eq('C · and the pooled null NAMES the pairing fault, which is not an absence', C.snorePressureCorrReason, 'unpaired-lane-pool');
       T.eq('C · snorePct still reads its own lane (2 of 4 over 0.2)', C.snorePct, 50);
+
+      /* ── The other two pooled refusals. A pool of two pairs and a pool over a constant
+         pressure lane both published the same bare null as an unpaired pool did, so a
+         consumer could not tell any of the three from a measured zero correlation. Row
+         `2026-11-16-cpapdex-nulls-the-snore-pressure-correlation-with-no-reason`. ── */
+      var C2 = D.nightMetrics([pool({ pressureMaskOn: [5, 9], snMaskOn: [0.5, 0.1] })]);
+      T.eq('C2 · two paired samples leave the correlation absent', C2.snorePressureCorr, null);
+      T.eq('C2 · …and the reason is the sample floor, not a lane without variance', C2.snorePressureCorrReason, 'too-few-paired-samples');
+      var C3 = D.nightMetrics([pool({ pressureMaskOn: [8, 8, 8], snMaskOn: [0.5, 0.1, 0.4] })]);
+      T.eq('C3 · a constant pressure lane leaves the correlation absent', C3.snorePressureCorr, null);
+      T.eq('C3 · …and names the constant lane', C3.snorePressureCorrReason, 'no-lane-variance');
 
       /* ── Both lanes empty: the correlation guard reads length AND equality — with the
          && weakened to || the empty pair would compute a NaN correlation. ── */
       var E0 = D.nightMetrics([pool({ pressureMaskOn: [], leakMaskOn: [], usageHours: 2, durSec: 7200 })]);
       T.eq('E0 · snorePressureCorr is null with both lanes empty', E0.snorePressureCorr, null);
+      T.eq('E0 · …and says so, which a bare null could not', E0.snorePressureCorrReason, 'no-mask-on-sample');
       /* ── The four empty lanes stay null, not NaN: each loop's off-by-one appends one
          undefined, which flips the length gate and lets the percentile return NaN
          (Kestrel #5178). ── */
