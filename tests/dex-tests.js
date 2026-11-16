@@ -44456,9 +44456,9 @@
          never on, so every mask-on lane is empty and every event index divides by zero hours. */
       var dead = C.computeMetrics(C.prepare({ t0Ms: T0, fs: 1, pressure: new Float32Array(600), leak: null, events: [{ type: 'OA', timeSec: 10, durSec: 20 }] }));
       T.eq(
-        '∅ a mask never on publishes no pressure, no index and no leak — each with the reason beside it',
+        '∅ a mask never on publishes no pressure and no index — and an ABSENT leak lane names the lane, not the mask',
         pick(dead, LANES),
-        '{"usageHours":0,"maskOnLatency":null,"maskOnLatencyReason":"therapy-never-started","medianPressure":null,"p95Pressure":null,"pressureRange":null,"maskOnReason":"no-mask-on-pressure-sample","residualAHI":null,"centralIndex":null,"obstructiveIndex":null,"hypopneaIndex":null,"medianLeak":null,"p95Leak":null,"largeLeakPct":null,"leakCV":null,"leakReason":"no-mask-on-leak-sample"}'
+        '{"usageHours":0,"maskOnLatency":null,"maskOnLatencyReason":"therapy-never-started","medianPressure":null,"p95Pressure":null,"pressureRange":null,"maskOnReason":"no-mask-on-pressure-sample","residualAHI":null,"centralIndex":null,"obstructiveIndex":null,"hypopneaIndex":null,"medianLeak":null,"p95Leak":null,"largeLeakPct":null,"leakCV":null,"leakReason":"no-leak-lane"}'
       );
       T.eq('…and no field of the panel is a number-typed sentinel', JSON.stringify(nonFinite(dead, '')), '[]');
 
@@ -44485,6 +44485,43 @@
         'CONTROL · a MEASURED zero still publishes 0 — a flat pressure, a clean central index and a 0 % large-leak share',
         pick(live, LANES),
         '{"usageHours":2,"maskOnLatency":0,"maskOnLatencyReason":null,"medianPressure":10,"p95Pressure":10,"pressureRange":0,"maskOnReason":null,"residualAHI":1,"centralIndex":0,"obstructiveIndex":0.5,"hypopneaIndex":0.5,"medianLeak":5,"p95Leak":5,"largeLeakPct":0,"leakCV":0,"leakReason":null}'
+      );
+
+      /* ∅ A LIVE SESSION WITH NO LEAK CHANNEL. `prepare` substituted a zero-filled `Float32Array`
+         for an absent `raw.leak`, so `leakMaskOn` carried one zero per mask-on second and this
+         panel published `medianLeak: 0`, `p95Leak: 0` and `largeLeakPct: 0` with `leakReason: null`
+         beside them — the reading of a perfectly sealed mask over a lane the device never reported.
+         The EDF sibling `buildSessionFromEdf` answers `leakReason: 'no-leak-lane'` for the same
+         absence, so one node published two readings of one fact. */
+      var noLane = C.computeMetrics(C.prepare({ t0Ms: T0, fs: 1, pressure: press, events: [{ type: 'OA', timeSec: 10, durSec: 20 }] }));
+      T.eq(
+        '∅ a session with NO leak lane publishes no leak number, and the reason names the LANE',
+        pick(noLane, LANES),
+        '{"usageHours":2,"maskOnLatency":0,"maskOnLatencyReason":null,"medianPressure":10,"p95Pressure":10,"pressureRange":0,"maskOnReason":null,"residualAHI":0.5,"centralIndex":0,"obstructiveIndex":0.5,"hypopneaIndex":0,"medianLeak":null,"p95Leak":null,"largeLeakPct":null,"leakCV":null,"leakReason":"no-leak-lane"}'
+      );
+      T.eq('…and no field of the no-leak panel is a number-typed sentinel', JSON.stringify(nonFinite(noLane, '')), '[]');
+      /* INVERTED LEG · the lane is PRESENT and the mask never came on. That is a different fact and
+         it keeps its own reason, so the fix above must not collapse the two absences into one. */
+      var laneNoMask = C.computeMetrics(C.prepare({ t0Ms: T0, fs: 1, pressure: new Float32Array(600), leak: new Float32Array(600).fill(5), events: [] }));
+      T.eq(
+        'CONTROL · a PRESENT leak lane with no mask-on sample keeps the MASK reason',
+        JSON.stringify({ leakReason: laneNoMask.leakReason, medianLeak: laneNoMask.medianLeak, leakCV: laneNoMask.leakCV }),
+        '{"leakReason":"no-mask-on-leak-sample","medianLeak":null,"leakCV":null}'
+      );
+      /* THE DOWNSTREAM HALF. `leakSqi` already refuses an unassessable seal, and its own comment
+         reads "`largeLeakPct` is NaN when there is no leak channel". The zero-filled lane made that
+         value a finite 0 instead, so the guard never saw the case it exists for, and `buildSession`
+         published `sqi: 1` — the best possible signal quality — for a session with no leak channel.
+         A rule enforced at one layer is not enforced. */
+      T.eq(
+        '∅ a session with NO leak lane publishes NO seal quality, where it published 1',
+        JSON.stringify(C.buildSession(C.prepare({ t0Ms: T0, fs: 1, pressure: press, events: [] }), { fname: 'noleak.csv' }).sqi),
+        'null'
+      );
+      T.eq(
+        'CONTROL · a MEASURED well-sealed mask still scores exactly 1',
+        JSON.stringify(C.buildSession(C.prepare({ t0Ms: T0, fs: 1, pressure: press, leak: lk, events: [] }), { fname: 'sealed.csv' }).sqi),
+        '1'
       );
 
       /* ── 2 · buildLongitudinal ── the sample SD needs two nights. `0` claimed a measured
@@ -45830,6 +45867,61 @@
     // MID-FILE. That is the exact shape that made an O2Ring night ship durationMin = -254460 with
     // ODI-4 = 0/h — an apnea night reading as perfectly healthy. The same bare preference was still
     // being passed by HRVDex, PulseDex and the Integrator (DEEP-AUDIT-II §1.10).
+    /* ── §∅ — AN ABSENT PROFILE ELEVATION IS NULL, NOT SEA LEVEL ──────────────────────────────────
+       Residue `2026-09-15-profile-elevation-defaults-to-sea-level` reads `fixed #2854`, and that fix
+       reached four nodes with a `§∅ — absent ≠ sea level` comment. PulseDex kept the coercion at
+       four sites. 0 m is a LEGAL elevation, so `|| 0` made a coast night and an empty profile
+       identical, and the altitude factor then sat at 1 without saying whether a height was entered.
+       The producer is `pxProfile()` on both of its paths (shared record and DOM fallback). The two
+       consumers are the compute road and the re-render road. The suite cannot drive `calculate()`
+       (it reads the DOM), so these are source assertions on all four sites and the two banner reads —
+       the group above uses the same instrument on the same pair of roads. */
+    group('∅ PulseDex profile elevation — absent stays null, never sea level', 'pulsedex-overview · pulsedex-app · pulsedex-render · absence', function (T) {
+      var src = env.sources || {};
+      var ovw = src['pulsedex-overview.js'] || '',
+        app = src['pulsedex-app.js'] || '',
+        rnd = src['pulsedex-render.js'] || '';
+      if (!ovw.trim() || !app.trim() || !rnd.trim()) {
+        T.skip('the three PulseDex profile surfaces', 'sources not provided in this runner');
+        return;
+      }
+      // ── the producer: both paths of pxProfile() ──
+      T.ok(
+        'ANTI-VACUITY · both pxProfile() return objects are in the source this leg reads, so a pin cannot pass on a vanished path',
+        (ovw.match(/elev:\s*n\(p\.elevation/g) || []).length === 1 && (ovw.match(/elev:\s*v\('profElev'/g) || []).length === 1,
+        'DexProfile path: ' + (ovw.match(/elev:\s*n\(p\.elevation[^)]*\)/g) || ['absent'])[0] + ' · DOM path: ' + (ovw.match(/elev:\s*v\('profElev'[^)]*\)/g) || ['absent'])[0]
+      );
+      T.ok('the shared-record path keeps an absent elevation NULL', /elev:\s*n\(p\.elevation,\s*null\)/.test(ovw), (ovw.match(/elev:\s*n\(p\.elevation[^)]*\)/) || ['no site'])[0]);
+      T.ok('the DOM fallback path keeps an absent elevation NULL', /elev:\s*v\('profElev',\s*null\)/.test(ovw), (ovw.match(/elev:\s*v\('profElev'[^)]*\)/) || ['no site'])[0]);
+      // ── the two consumers ──
+      T.ok(
+        'the compute road keeps the null instead of publishing sea level',
+        /const elev = _pp\.elev == null \|\| !isFinite\(_pp\.elev\) \? null : \+_pp\.elev;/.test(app),
+        (app.match(/const elev = _pp\.elev[^;]*;/) || ['no site'])[0]
+      );
+      T.ok(
+        'the compute road names the no-correction case, so the factor is not read as a measured x1',
+        /const altFactor = elev == null \? 1 : altVO2Factor\(elev\);/.test(app),
+        (app.match(/const altFactor = elev[^;]*;/) || ['no site'])[0]
+      );
+      T.ok('the re-render road keeps the null', /r\.elev = _pp\.elev == null \|\| !isFinite\(_pp\.elev\) \? null : \+_pp\.elev;/.test(rnd), (rnd.match(/r\.elev = _pp\.elev[^;]*;/) || ['no site'])[0]);
+      T.ok(
+        'the re-render road names the no-correction case',
+        /r\.altFactor = r\.elev == null \? 1 : \+altVO2Factor\(r\.elev\)\.toFixed\(3\);/.test(rnd),
+        (rnd.match(/r\.altFactor = r\.elev[^;]*;/) || ['no site'])[0]
+      );
+      T.ok('neither road restores the `|| 0` spelling on an elevation', !/elev \|\| 0/.test(app + rnd), 'a `|| 0` on an elevation is back');
+      T.ok('the result object still publishes that same local', /^\s+elev,$/m.test(app), 'the published field and the null arm have parted ways');
+      // ── the banner reads: the threshold takes the null first, so no coercion is load-bearing ──
+      T.ok('the high-altitude banner refuses a null before its threshold', /if \(r\.elev != null && r\.elev >= 2500\) \{/.test(rnd), (rnd.match(/if \(r\.elev[^{]*\{/) || ['no site'])[0]);
+      T.ok('the moderate-altitude banner refuses a null before its threshold', /else if \(r\.elev != null && r\.elev > 1500\) \{/.test(rnd), (rnd.match(/else if \(r\.elev[^{]*\{/) || ['no site'])[0]);
+      T.eq('ANTI-VACUITY · the two `.toLocaleString()` calls a null would throw on are in the source this leg reads', (rnd.match(/r\.elev\.toLocaleString\(\)/g) || []).length, 2);
+      // ── the mechanism the coercion hid: null and 0 m are indistinguishable through a bare comparison ──
+      T.eq('CONTROL · the old expression turned an absent elevation into a measured 0 m', null || 0, 0);
+      T.ok('CONTROL · and 0 m then read as sea level to the altitude factor', 0 <= 1500 === true, '0 m takes the x1 branch');
+      T.ok('a null elevation cannot cross either banner threshold', !(null >= 2500) && !(null > 1500), 'null >= 2500 = ' + (null >= 2500) + ' · null > 1500 = ' + (null > 1500));
+    });
+
     group('DMY file-lock is threaded, not just preferred (DEEP-AUDIT-II §1.10)', 'hrvdex-dsp · pulsedex-overview · integrator-dsp · clock', function (T) {
       // A Welltory-shaped export spanning 12 -> 13 June: the 06/12 rows are AMBIGUOUS (both fields <= 12)
       // while 13/06 is not. A per-row decision reads the first as 6 Dec and the second as 13 Jun.
@@ -62470,6 +62562,116 @@
       T.eq('a missing recipe lookup is tolerated, not thrown', plan(['OxyDex.html'], GEN, HELD, null).take[0].recipe, null);
     });
 
+    /* ════ EVERY STOPPED COMMIT, NOT ONLY THE FIRST ════════════════════════════════════════════════
+       Board #6786 / #6787, measured 2026-11-16 on #5132: the rebase replayed the bird's commit and the
+       walker's own generated-only rebuild commit. `rebase-safe` resolved stop 1, called
+       `rebase --continue` ONCE, and stop 2 threw out of `main` with the tree left at `UU OverDex.html`.
+       Every later walker pass alerted `hand-rebase`. `driveRebaseStops` loops over each stop and skips
+       a commit the resolution leaves empty. These legs drive a planted rebase by value. */
+    group('Rebase-safe — every stopped commit is resolved, and an emptied commit is skipped (REBASE-SAFE)', 'tools · rebase-safe · stops', function (T) {
+      var drive = env.rebaseDriveStops;
+      if (typeof drive !== 'function') {
+        T.skip('the stop driver is wired into this lane', 'Node-lane only (an ESM import of tools/rebase-safe.mjs) — the browser lane SKIPs');
+        return;
+      }
+      var GEN = { 'OxyDex.html': 1, 'Data Unifier.html': 1, 'OverDex.html': 1 };
+      // A planted rebase: each stop lists its conflicts, whether the index is empty after resolution,
+      // and what `continue` answers. `continue` fails when another stop follows.
+      function fake(stops) {
+        var i = 0;
+        var log = [];
+        return {
+          log: log,
+          ops: {
+            conflicts: function () {
+              return i < stops.length ? stops[i].c.slice() : [];
+            },
+            classify: function (q) {
+              return GEN[q] ? 'generated' : 'source';
+            },
+            take: function (ps) {
+              log.push('take:' + ps.join(','));
+            },
+            stage: function (ps) {
+              log.push('add:' + ps.join(','));
+            },
+            stagedEmpty: function () {
+              return !!stops[i].empty;
+            },
+            cont: function () {
+              log.push('continue');
+              i++;
+              return { ok: i >= stops.length };
+            },
+            skip: function () {
+              log.push('skip');
+              i++;
+              return { ok: i >= stops.length };
+            }
+          }
+        };
+      }
+      // The #5132 shape: the bird's commit, then the walker's generated-only rebuild commit.
+      var f1 = fake([{ c: ['Data Unifier.html'] }, { c: ['OverDex.html'], empty: true }]);
+      var r1 = drive(f1.ops);
+      T.eq('two conflicting commits both resolve', r1.ok, true);
+      T.eq('…at the second stop', r1.stop, 2);
+      T.eq('…the generated-only commit is SKIPPED, not continued empty', f1.log.join(' | '), 'take:Data Unifier.html | add:Data Unifier.html | continue | take:OverDex.html | add:OverDex.html | skip');
+      T.eq('…and the skip is counted', r1.skipped, 1);
+      T.eq('…every resolved path is reported once', r1.resolved.join(','), 'Data Unifier.html,OverDex.html');
+
+      var f2 = fake([{ c: ['OxyDex.html'] }]);
+      var r2 = drive(f2.ops);
+      T.eq('one stop still resolves in one continue', r2.ok + ':' + r2.skipped + ':' + f2.log.length, 'true:0:3');
+
+      // A source conflict on a LATER stop still stops, and names the path.
+      var f3 = fake([{ c: ['OxyDex.html'] }, { c: ['oxydex-dsp.js', 'OverDex.html'] }]);
+      var r3 = drive(f3.ops);
+      T.eq('a source conflict at stop 2 refuses', r3.ok + ':' + r3.stop, 'false:2');
+      T.eq('…and names the source path', r3.source.join(','), 'oxydex-dsp.js');
+      T.eq(
+        '…with the generated path beside it, untouched at that stop',
+        r3.generated.join(',') +
+          '|' +
+          f3.log.filter(function (l) {
+            return /OverDex/.test(l);
+          }).length,
+        'OverDex.html|0'
+      );
+
+      // A stop with no conflicted path (a hook, a dirty file) is not resolved by guessing.
+      var r4 = drive(fake([{ c: [] }]).ops);
+      T.eq('a stop with no conflicted path refuses with a reason', r4.ok + ':' + /no conflicted path/.test(r4.reason), 'false:true');
+
+      // The loop is bounded: a continue that never succeeds ends at the cap.
+      var stuck = {
+        conflicts: function () {
+          return ['OxyDex.html'];
+        },
+        classify: function () {
+          return 'generated';
+        },
+        take: function () {},
+        stage: function () {},
+        stagedEmpty: function () {
+          return false;
+        },
+        cont: function () {
+          return { ok: false };
+        },
+        skip: function () {
+          return { ok: false };
+        }
+      };
+      var r5 = drive(stuck, 3);
+      T.eq('a rebase that never ends stops at the cap', r5.ok + ':' + r5.stop, 'false:3');
+
+      // The CLI wires the driver: the single bare `rebase --continue` call is gone.
+      var src = (env.sources || {})['tools/rebase-safe.mjs'] || '';
+      T.ok('main() drives the stops through driveRebaseStops', /driveRebaseStops\(\{/.test(src));
+      T.ok('…and no longer throws out of a raw execFileSync rebase --continue', !/execFileSync\('git', \['-c', 'core\.editor=true', 'rebase', '--continue'\]/.test(src));
+    });
+
     group('Rebase-safe — a regenerator-owned golden is GENERATED only when the rebuild can restore it (REBASE-SAFE)', 'tools · rebase-safe', function (T) {
       var mkRows = env.regenOwnedListing;
       var parse = env.rebaseParseOwnedListing;
@@ -62675,8 +62877,8 @@
         T.ok('and an unrestored fixture stops the tool instead of printing ✓', /if \(bad === null \|\| bad\.length\)/.test(body), 'null and non-empty both stop');
         T.ok(
           'only the fixtures that CONFLICTED are regenerated — a clean rebase pays nothing',
-          /autoResolvedFixtures = generated\.filter\(\(p\) => recipeForFixture\(p\)\)/.test(body),
-          'main() filters the auto-resolved list by owner'
+          /autoResolvedFixtures = drive\.resolved\.filter\(\(p\) => recipeForFixture\(p\)\)/.test(body),
+          'main() filters the auto-resolved list by owner, over the paths resolved at EVERY stop (driveRebaseStops, board #6787)'
         );
       }
     });

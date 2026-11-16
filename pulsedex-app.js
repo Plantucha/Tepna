@@ -884,8 +884,10 @@ function calculate() {
   const hrmaxEff = hrmaxValid ? Math.round(hrmaxIn) : tanaka;
   const hrmaxRejected = hrmaxIn > 0 && !hrmaxValid;
   const vo2gt = _pp.vo2gt > 0 ? +Number(_pp.vo2gt).toFixed(1) : null;
-  const elev = _pp.elev || 0;
-  const altFactor = altVO2Factor(elev); // ≤1 above 1500 m
+  /* §∅ — absent ≠ sea level. `|| 0` published a coast night for an empty profile, and the
+altitude factor then sat at 1 without saying whether a height was entered at all. */
+  const elev = _pp.elev == null || !isFinite(_pp.elev) ? null : +_pp.elev;
+  const altFactor = elev == null ? 1 : altVO2Factor(elev); // ≤1 above 1500 m; 1 with no elevation entered (no correction)
   const vo2b = +(vo2Base(rhrEff, hrmaxEff) * altFactor).toFixed(1);
   const vo2a = lnrm == null ? null : +vo2Adj(vo2b, lnrm).toFixed(1);
   const efc = _hrvRefused ? null : +efcIdx(energy, focus, coh).toFixed(1);
