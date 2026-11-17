@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="4a31f3c6f7a6" data-compute-hash="e12f352bc5e3"><head>
+<html lang="en" data-manifest-hash="df8fb8d8ca98" data-compute-hash="a8979f9e19c0"><head>
 <!--
   Integrator.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LQGOex4ZOGCh1gvBoHozHhsFLNlwtXMr2TTHI+3HpB4=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-fPxMvWBeC+8j/W7Qy+86JBPwALbf3NdD/UKQvxQygPk=' 'sha256-jXqI/zPtSTNKqcXyZf2TWEgHFkhBEYTAJOpvrVagUuQ=' 'sha256-kY0lRX4+t5rlhiWjKgK5UQ7tVfgzKi+s+PFYkMT1SBQ=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DAzxT9tkOTT/oCPwMIjFND7JrVJDbGetoyYDqtIe/1c=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LQGOex4ZOGCh1gvBoHozHhsFLNlwtXMr2TTHI+3HpB4=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-fPxMvWBeC+8j/W7Qy+86JBPwALbf3NdD/UKQvxQygPk=' 'sha256-kY0lRX4+t5rlhiWjKgK5UQ7tVfgzKi+s+PFYkMT1SBQ=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>Integrator · Fusion Layer · v2.34.0</title>
@@ -8534,11 +8534,21 @@ function adaptOxyDex(json, filename) {
     if (!n || typeof n !== 'object') return;
     var t0Ms = n.t0Ms != null ? n.t0Ms : n.stats && n.stats.t0Ms != null ? n.stats.t0Ms : n.stats ? n.stats.startTs : null;
     var stats = n.stats || {};
-    var nSamp = stats.n || 0;
+    /* ∅ · A SAMPLE INDEX IS NOT A TIME UNTIL A STEP IS MEASURED ─────────────────────────────────
+       The legacy synthesis below places a desat by `nadirIdx` and an arousal by `sp.idx` on the
+       floating axis as `t0Ms + idx * dt`. `dt` was `durMs && nSamp ? durMs / nSamp : 1000`, so a
+       night that did not publish `stats.n` fell back to 1 Hz — the O2Ring's NOMINAL rate, not this
+       night's — and every synthesized event was stamped at a fabricated instant. Measured: a 480-min
+       night whose real step is 30 s (n = 960) put the desat at index 900 at t0 + 15 min instead of
+       t0 + 7 h 30 min, and that stamp then drove the desat⟷surge window, the union and the AHI.
+       A step the export does not state is unknown: `dt` is null, the event is NOT placed, and the
+       night reports how many it could not place rather than inventing a timestamp for them. */
+    var nSamp = stats.n != null && isFinite(stats.n) && stats.n > 0 ? stats.n : null;
     var durMs = stats.durationMin != null ? stats.durationMin * 60000 : null;
-    var dt = durMs && nSamp ? durMs / nSamp : 1000; // O2Ring ≈ 1 Hz
+    var dt = durMs && nSamp ? durMs / nSamp : null;
     var endMs = t0Ms != null && durMs != null ? t0Ms + durMs : null;
     var events = [];
+    var _undated = 0;
     // 0) v2.0 envelope: this night's slice of the authoritative top-level ganglior_events[]
     if (_topEvents) {
       events = (_eventBuckets[ni] || []).slice();
@@ -8554,6 +8564,10 @@ function adaptOxyDex(json, filename) {
         if (d.artifact) return; // Part A: self-gated artifact desats are never emitted as ganglior_events
         var idx = d.nadirIdx != null ? d.nadirIdx : d.startIdx != null ? d.startIdx : null;
         if (idx == null || t0Ms == null) return;
+        if (dt == null) {
+          _undated++;
+          return;
+        }
         var tMs = t0Ms + idx * dt;
         var depth = d.depth != null ? d.depth : null;
         var conf = clamp(0.45 + (depth != null ? Math.min(depth, 12) / 24 : 0.1), 0.4, 0.95);
@@ -8581,7 +8595,8 @@ function adaptOxyDex(json, filename) {
           : { dmy: true, locked: false };
       sevs.forEach(function (sp) {
         var p = parseTimestamp(sp.time, { dateAnchorMs: t0Ms, prevTMs: t0Ms, preferDMY: _spOrder.dmy, dmyLocked: _spOrder.locked });
-        var tMs = p ? p.tMs : sp.idx != null && t0Ms != null ? t0Ms + sp.idx * dt : null;
+        var tMs = p ? p.tMs : sp.idx != null && t0Ms != null && dt != null ? t0Ms + sp.idx * dt : null;
+        if (tMs == null && p == null && sp.idx != null) _undated++;
         if (tMs == null) return;
         var rise = sp.peak != null && sp.baseline != null ? sp.peak - sp.baseline : null;
         var conf = clamp(0.4 + (rise != null ? Math.min(rise, 40) / 80 : 0.15), 0.4, 0.9);
@@ -8621,6 +8636,8 @@ function adaptOxyDex(json, filename) {
         return e.impulse === 'spo2_desaturation' || e.impulse === 'desat_event';
       }).length
     };
+    // Additive and conditional: a night that placed every event adds no key (byte-identical exports).
+    if (_undated) summary.undatedEvents = _undated;
     // T2: oximetry REM proxy for cross-node staging consistency (single-signal estimate).
     // DEEP-AUDIT-2026-07-11 §7: the node now self-reports `plausible:false` when its HR-stability REM
     // estimator over-fires on quiet sleep (>30 % of the recording — every real night in the corpus). An
@@ -10122,13 +10139,33 @@ function _mageWin(v, sd) {
   for (i = 0; i < exc.length; i++) sum += exc[i];
   return Math.round(sum / exc.length);
 }
+/* ∅ · A CGM THAT DECLARES NO CADENCE IS NOT A FIVE-MINUTE CGM ─────────────────────────────────────
+   `cadenceMin` was defaulted to 5 beside a null, so a GlucoDex wear that never stated its sampling
+   interval (legal — the adapter carries `seriesOut.cadenceMin = null`, and GlucoDex's own audit found
+   the key honestly null on such a file) was measured as a five-minute CGM. Two published figures then
+   rested on the invented number, pulling in opposite directions: `expected = nMin / cadMin + 1` is the
+   coverage DENOMINATOR, so a 15-min wear reads coverage 0.34 and the minCoverage gate DROPS a
+   perfectly covered night, while a 1-min wear reads 5.0; and `timeBelow70Min = below * cadMin` turns
+   the per-cell count into minutes, five times the truth at a 1-min cadence.
+   The cells carry their own floating `tMs`, so the cadence is RECOVERABLE from the data rather than
+   assumed: the median of consecutive positive deltas. When the cells cannot yield one (fewer than two
+   stamps, or every stamp identical) this returns null and each cadence-derived figure goes null with
+   it — unknown, not five. */
+function _cellsCadenceMin(cells) {
+  var d = [];
+  for (var i = 1; i < cells.length; i++) {
+    var step = (cells[i].tMs - cells[i - 1].tMs) / 60000;
+    if (isFinite(step) && step > 0) d.push(step);
+  }
+  return d.length ? +median(d).toFixed(3) : null;
+}
 function glucoseMetricsInWindow(cgmRec, startMs, endMs, opts) {
   opts = opts || {};
   var minCov = opts.minCoverage != null ? opts.minCoverage : 0.5;
   var minMin = opts.minWindowMin != null ? opts.minWindowMin : 60; // reject thin slivers (a ~20-min overlap is not an overnight)
   var cells = (cgmRec && cgmRec.series && cgmRec.series.cells) || [];
   if (!cells.length || startMs == null || endMs == null || endMs <= startMs) return null;
-  var cadMin = cgmRec.series.cadenceMin != null && cgmRec.series.cadenceMin > 0 ? cgmRec.series.cadenceMin : 5;
+  var cadMin = cgmRec.series.cadenceMin != null && cgmRec.series.cadenceMin > 0 ? cgmRec.series.cadenceMin : _cellsCadenceMin(cells);
   var nMin = (endMs - startMs) / 60000;
   if (nMin < minMin) return null; // honest: overlap too short to characterize
   var i,
@@ -10155,13 +10192,13 @@ function glucoseMetricsInWindow(cgmRec, startMs, endMs, opts) {
     vals.push(win[i].v);
     valsT.push(win[i].tMs);
   }
-  var expected = nMin / cadMin + 1; // inclusive endpoints → +1 cell
+  var expected = cadMin != null ? nMin / cadMin + 1 : null; // inclusive endpoints → +1 cell
   /* …and coverage must count the cells that actually CONTRIBUTED, not the raw slice. `win.length`
      counted every interpolated and artifact cell, so a fully-interpolated window self-reported
      coverage ≈ 1.00 and sailed through the `minCov` gate below — the one guard written to catch
      exactly this condition was blind to it. */
-  var coverage = expected > 0 ? vals.length / expected : 0;
-  if (vals.length < 3 || coverage < minCov) return null; // honest: too thin → skip
+  var coverage = expected != null && expected > 0 ? vals.length / expected : null;
+  if (vals.length < 3 || (coverage != null && coverage < minCov)) return null; // honest: too thin (an UNKNOWN coverage is not a thin one)
   // mean / SD / CV
   var m = 0;
   for (i = 0; i < vals.length; i++) m += vals[i];
@@ -10205,7 +10242,7 @@ function glucoseMetricsInWindow(cgmRec, startMs, endMs, opts) {
   var dawnRise = isFinite(dawnNadir) && isFinite(dawnMax) ? Math.round(dawnMax - dawnNadir) : null;
   return {
     nMin: +nMin.toFixed(1),
-    coverage: +coverage.toFixed(3),
+    coverage: coverage != null ? +coverage.toFixed(3) : null,
     nCells: win.length, // RAW cells in the slice, incl. artifact/long-gap. Do NOT re-derive coverage from this (§8.3) — `coverage` above counts only the cells that contributed.
     nocturnalMean: Math.round(m),
     nocturnalCV: +cv.toFixed(1),
@@ -10215,7 +10252,7 @@ function glucoseMetricsInWindow(cgmRec, startMs, endMs, opts) {
     dawnRiseTimeMs: dawnT,
     tir70_140: +((tt / vals.length) * 100).toFixed(1),
     mage: _mageWin(vals, sd),
-    timeBelow70Min: Math.round(below * cadMin)
+    timeBelow70Min: cadMin != null ? Math.round(below * cadMin) : null
   };
 }
 
