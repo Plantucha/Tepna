@@ -16,9 +16,21 @@
  * had been hiding behind a timeout. That is CLAUDE.md §4b one level up: a check that reported a
  * verdict about what it never examined.
  *
- * So this runner executes the same steps in the same order and, on failure, NAMES what it skipped.
- * It does not continue past a failure — the chain's semantics are deliberate, and a later step can
- * depend on an earlier one (`build:check` after the builders). It only stops being silent.
+ * So this runner executes the same steps in the same order and NAMES every step a run did not ask.
+ *
+ * IT CONTINUES PAST A FAILURE (owner, 2026-11-17: "do #3", the unit `checkall`). One run used to
+ * show only the FIRST red: a fix, then a 20-minute re-run, then the next red. Measured 2026-11-17 on
+ * a GlucoDex unit: step 46 `verify:analysis` red, and steps 47 to 71 never ran, so step 68
+ * `verify:fixture-currency` surfaced only on the second run. Now every step whose prerequisites
+ * passed runs, and the summary names every failure with its exit code. The exit code is the FIRST
+ * failure's, as before. `--fail-fast` keeps the old abort for a caller that wants it.
+ *
+ * A step that needs an earlier step green declares it in STEP_DEPENDS. When a prerequisite fails or
+ * is skipped, the dependent step does not run, and the summary names it with the prerequisite that
+ * blocked it. The map is EMPTY by measurement on 2026-11-17: every STEPS entry is a `--check`, a
+ * `--selftest` or a read-only scan, and none of them reads a file another step writes. The two
+ * shard verifiers read the group inventory (`run-tests --list`), never a `test:par` run. The
+ * old header named `build:check` after the builders as a dependency, but no builder is a step.
  *
  * ⚠️ STEPS IS THE SINGLE SOURCE OF ORDER. The `&&` chain is gone from package.json on purpose: two
  * copies of an ordered list is a drift bug waiting to happen, and there is no gate that could
@@ -39,6 +51,7 @@
  *
  *   node tools/run-check.mjs             # the gate
  *   node tools/run-check.mjs --list      # print the ordered steps, run nothing
+ *   node tools/run-check.mjs --fail-fast # stop at the first red, and name every step not run
  *   node tools/run-check.mjs --json      # the gate, plus ONE tepna.verdict/1 object on stdout (log → stderr)
  *   node tools/run-check.mjs --steps=typecheck,lint   # a DECLARED subset — the object is `filtered`
  *   node tools/run-check.mjs --verdict-sample         # the object over a scratch step list, no gate run
@@ -176,6 +189,29 @@ export const STEPS = [
 export const GATE_SCRIPT_RE = /^(?:verify:|build:check$)/;
 export const STEPS_EXEMPT = new Set([]);
 
+/* STEP -> the earlier steps it needs GREEN. Empty by measurement (see the header). The selftest
+   requires every key and every prerequisite to be a STEPS entry, and every prerequisite to come
+   BEFORE its dependent, so a declaration can never point at a step that has not run yet. */
+export const STEP_DEPENDS = Object.freeze({});
+
+/** The prerequisites of `step` that failed or were blocked, in declaration order. Pure. */
+export function blockedBy(step, depends, bad) {
+  return (depends[step] || []).filter((d) => bad.has(d));
+}
+
+/** Declarations that break the ordering rule. Sorted, so the failure message is stable. Pure. */
+export function badDependencies(steps = STEPS, depends = STEP_DEPENDS) {
+  const out = [];
+  for (const [k, deps] of Object.entries(depends)) {
+    if (!steps.includes(k)) out.push(`${k}: not a step`);
+    for (const d of deps) {
+      if (!steps.includes(d)) out.push(`${k} -> ${d}: not a step`);
+      else if (steps.includes(k) && steps.indexOf(d) >= steps.indexOf(k)) out.push(`${k} -> ${d}: prerequisite does not come first`);
+    }
+  }
+  return out.sort();
+}
+
 /** Gate scripts that `scripts` declares, STEPS omits, and no exemption excuses. Sorted, so the
     failure message is stable. Pure, so the selftest can plant one. */
 export function gateScriptsMissingFromSteps(scripts = {}, steps = STEPS, exempt = STEPS_EXEMPT) {
@@ -260,22 +296,63 @@ export function renderAbort(steps, failedIdx, code) {
   return lines.join('\n');
 }
 
+/* The summary of a run that continued. Pure: `failures` is [{ name, idx, code }], `blocked` maps a
+   skipped step to the prerequisites that stopped it. */
+export function renderSummary(steps, failures, blocked) {
+  const lines = [];
+  const skipped = Object.keys(blocked);
+  lines.push(`\n✗ check FAILED — ${failures.length} of ${steps.length} step(s) red:`);
+  for (const f of failures) lines.push(`    step ${f.idx + 1}/${steps.length} ${f.name} (exit ${f.code})`);
+  if (skipped.length) {
+    lines.push(`⚠ ${skipped.length} step(s) NOT RUN, because a prerequisite failed — this run says NOTHING about them:`);
+    for (const s of skipped) lines.push(`    ${s}  (needs ${blocked[s].join(', ')})`);
+  } else {
+    lines.push(`  Every other step ran: ${steps.length - failures.length} green.`);
+  }
+  lines.push('  Re-run the red steps alone after a fix:', '    ' + failures.map((f) => `npm run ${f.name}`).join(' ; '));
+  return lines.join('\n');
+}
+
 export function runAll(opts) {
   const o = opts || {};
   const steps = o.steps || STEPS;
   const exec = o.exec || defaultExec;
   const log = o.log || console.log;
+  const depends = o.depends || STEP_DEPENDS;
+  const failures = [];
+  const blocked = {};
+  const bad = new Set();
+  const codes = {};
+  const ran = [];
   for (let i = 0; i < steps.length; i++) {
+    const why = blockedBy(steps[i], depends, bad);
+    if (why.length) {
+      blocked[steps[i]] = why;
+      bad.add(steps[i]);
+      log(`▸ [${i + 1}/${steps.length}] ${steps[i]} — NOT RUN, needs ${why.join(', ')}`);
+      continue;
+    }
     log(`▸ [${i + 1}/${steps.length}] ${steps[i]}`);
     const { code } = exec(steps[i]);
-    if (code !== 0) {
+    codes[steps[i]] = code;
+    ran.push(steps[i]);
+    if (code === 0) continue;
+    if (o.failFast) {
       const text = renderAbort(steps, i, code);
       log(text);
-      return { ok: false, failedIdx: i, ...planAfterFailure(steps, i), text, code };
+      return { ok: false, failedIdx: i, ...planAfterFailure(steps, i), failures: [{ name: steps[i], idx: i, code }], blocked, codes, text, code };
     }
+    failures.push({ name: steps[i], idx: i, code });
+    bad.add(steps[i]);
   }
-  log(`\n✓ check — all ${steps.length} steps passed`);
-  return { ok: true, failedIdx: -1, failed: null, ran: steps.slice(), notRun: [], text: '', code: 0 };
+  if (!failures.length) {
+    log(`\n✓ check — all ${steps.length} steps passed`);
+    return { ok: true, failedIdx: -1, failed: null, ran, notRun: [], failures, blocked, codes, text: '', code: 0 };
+  }
+  const text = renderSummary(steps, failures, blocked);
+  log(text);
+  const first = failures[0];
+  return { ok: false, failedIdx: first.idx, failed: first.name, ran, notRun: Object.keys(blocked), failures, blocked, codes, text, code: first.code };
 }
 
 /* ── the §3d object ───────────────────────────────────────────────────────────────────────────────
@@ -288,7 +365,8 @@ export function runVerdict(r, { steps = STEPS, declaredExcluded = [], excludedBy
     if (r.notRun.includes(name)) return { name, provenance: 'not-run' };
     const own = childVerdict ? childVerdict(name) : null;
     if (own && own.status) return { name, provenance: 'object', status: own.status };
-    return { name, provenance: 'exit-code', code: name === r.failed ? r.code : codes[name] == null ? 0 : codes[name] };
+    const own_code = r.codes && r.codes[name] != null ? r.codes[name] : codes[name];
+    return { name, provenance: 'exit-code', code: name === r.failed ? r.code : own_code == null ? 0 : own_code };
   });
   const agg = aggregateChildren(children, { eligible: steps.length + declaredExcluded.length, declaredExcluded, excludedBy });
   return makeVerdict({
@@ -351,10 +429,10 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
     }
   };
 
-  /* THE PLANT — force step 2 to fail and require the report to name steps 3..N. Without this the
-     whole file could return an empty notRun list and every other assertion would still pass. */
+  /* THE PLANT, --fail-fast — force step 2 to fail and require the report to name steps 3..N. Without
+     this the whole file could return an empty notRun list and every other assertion would still pass. */
   const S = ['a', 'b', 'c', 'd', 'e'];
-  const planted = runAll({ steps: S, exec: (s) => ({ code: s === 'b' ? 3 : 0 }), log: () => {} });
+  const planted = runAll({ steps: S, exec: (s) => ({ code: s === 'b' ? 3 : 0 }), log: () => {}, failFast: true });
   ok('plant · a failure at step 2 is reported as step 2', planted.failedIdx === 1 && planted.failed === 'b');
   ok('plant · steps 3..N are listed as NOT RUN', JSON.stringify(planted.notRun) === JSON.stringify(['c', 'd', 'e']), JSON.stringify(planted.notRun));
   ok(
@@ -373,8 +451,47 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   ok('control · …and reports no failed step', green.failed === null && green.code === 0);
 
   /* A failure on the LAST step has nothing after it — the report must not claim otherwise. */
-  const last = runAll({ steps: S, exec: (s) => ({ code: s === 'e' ? 1 : 0 }), log: () => {} });
+  const last = runAll({ steps: S, exec: (s) => ({ code: s === 'e' ? 1 : 0 }), log: () => {}, failFast: true });
   ok('edge · failing the last step lists zero unrun', last.notRun.length === 0 && /every other step ran/.test(last.text));
+
+  /* THE DEFAULT CONTINUES — two planted reds, and every step still runs. */
+  const execd = [];
+  const two = runAll({ steps: S, exec: (s) => (execd.push(s), { code: s === 'b' ? 3 : s === 'd' ? 5 : 0 }), log: () => {} });
+  ok('continue · every step runs past two reds', JSON.stringify(execd) === JSON.stringify(S), JSON.stringify(execd));
+  ok(
+    'continue · both failures are named with their exit codes',
+    JSON.stringify(two.failures.map((f) => [f.name, f.code])) ===
+      JSON.stringify([
+        ['b', 3],
+        ['d', 5]
+      ])
+  );
+  ok('continue · the summary names both red steps', /2 of 5 step\(s\) red/.test(two.text) && /b \(exit 3\)/.test(two.text) && /d \(exit 5\)/.test(two.text), two.text);
+  ok('continue · the exit code is the FIRST failure', two.code === 3 && two.failed === 'b' && !two.ok);
+  ok('continue · no step is NOT RUN when nothing depends on a red', two.notRun.length === 0 && /Every other step ran: 3 green/.test(two.text), two.text);
+  const vTwo = runVerdict(two, { steps: S, commit: null, commitReason: 'selftest', at: '2026-11-17T00:00:00Z' });
+  ok('continue · the verdict is FAIL over 5 checked, with 2 failing children', vTwo.status === 'FAIL' && vTwo.result.fail === 2 && vTwo.population.checked === 5, JSON.stringify(vTwo.population));
+  ok('continue · the verdict carries each red step exit code', JSON.stringify(vTwo.result.children.filter((c) => c.status === 'FAIL').map((c) => c.code)) === JSON.stringify([3, 5]));
+
+  /* A DECLARED DEPENDENCY BLOCKS, AND THE BLOCK IS TRANSITIVE. */
+  const execd2 = [];
+  const dep = runAll({ steps: S, depends: { c: ['b'], e: ['c'] }, exec: (s) => (execd2.push(s), { code: s === 'b' ? 3 : 0 }), log: () => {} });
+  ok('depends · a step whose prerequisite failed does not run', !execd2.includes('c') && !execd2.includes('e') && execd2.includes('d'), JSON.stringify(execd2));
+  ok('depends · the block is named with its prerequisite', JSON.stringify(dep.blocked) === JSON.stringify({ c: ['b'], e: ['c'] }), JSON.stringify(dep.blocked));
+  ok('depends · the summary says NOT RUN and names what blocked each', /2 step\(s\) NOT RUN/.test(dep.text) && /c {2}\(needs b\)/.test(dep.text), dep.text);
+  const vDep = runVerdict(dep, { steps: S, commit: null, commitReason: 'selftest', at: '2026-11-17T00:00:00Z' });
+  ok(
+    'depends · blocked steps are NOT_RUN and EXCLUDED, never green',
+    vDep.status === 'FAIL' && JSON.stringify(vDep.population) === JSON.stringify({ checked: 3, eligible: 5, excluded: 2 }),
+    JSON.stringify(vDep.population)
+  );
+  const depGreen = runAll({ steps: S, depends: { c: ['b'] }, exec: () => ({ code: 0 }), log: () => {} });
+  ok('control · a green prerequisite blocks nothing', depGreen.ok && depGreen.ran.length === 5);
+
+  /* THE DECLARATION ITSELF — every name a step, every prerequisite earlier than its dependent. */
+  ok('STEP_DEPENDS names only steps, each prerequisite first', badDependencies().length === 0, badDependencies().join('; '));
+  ok('plant · a prerequisite AFTER its dependent is NAMED', JSON.stringify(badDependencies(S, { b: ['d'] })) === JSON.stringify(['b -> d: prerequisite does not come first']));
+  ok('plant · an unknown name is NAMED', JSON.stringify(badDependencies(S, { z: ['a'] })) === JSON.stringify(['z: not a step']));
 
   /* NON-VACUITY OF THE STEP LIST — a typo'd name would never run and never be reported as missing,
      which is the same silence this tool exists to remove. Every step must be a real npm script. */
@@ -535,9 +652,13 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
     if (json) console.log(JSON.stringify(refusalVerdict(reason)));
     process.exit(2);
   }
-  const codes = {};
-  const r = runAll({ steps, exec: (step) => ((codes[step] = defaultExec(step, { toStderr: json }).code), { code: codes[step] }), log: json ? (...a) => console.error(...a) : console.log });
-  if (json) console.log(JSON.stringify(runVerdict(r, { steps, declaredExcluded, excludedBy: selected ? stepsArg : null, codes })));
+  const r = runAll({
+    steps,
+    failFast: process.argv.includes('--fail-fast'),
+    exec: (step) => defaultExec(step, { toStderr: json }),
+    log: json ? (...a) => console.error(...a) : console.log
+  });
+  if (json) console.log(JSON.stringify(runVerdict(r, { steps, declaredExcluded, excludedBy: selected ? stepsArg : null })));
   /* THE EXIT CODE STAYS — the shell and CI read it until the consumer reads the object (§3d). */
   process.exit(r.ok ? 0 : r.code || 1);
 }
