@@ -860,6 +860,16 @@ export const SEEDS = [
     at: 'pulsedex-app.js:554',
     state: 'fixed',
     note: "findWTRow returns null when no Welltory row carries the recording's date, in place of `match || welltoryData.rows[0]`, which drew the FIRST row of the log as this day's reference. Every comparison cell already refuses a null row and falls to its dash, and the caption now names the date through wtRefLabel: matched, or no row for that day. Plant: tests/dex-tests.js group 'PulseDex Welltory reference', 3 legs red on the pre-fix pulsedex-app.js and 2 more on the pre-fix pulsedex-render.js caption."
+  },
+  {
+    at: 'hrvdex-profile.js:49',
+    state: 'fixed',
+    note: "the observed heart-rate maximum stays null when no row carries a usable rate, in place of 0, and the auto-detection banner prints not detected beside it. Plant: tests/dex-tests.js group '∅ HRVDex profile — an unobserved HR maximum and an absent ACSM band refuse', 3 of its 17 legs red on the pre-fix hrvdex-profile.js."
+  },
+  {
+    at: 'hrvdex-profile.js:608',
+    state: 'fixed',
+    note: "calcVo2Cat refuses when the ACSM table carries no band for that age and sex, in place of the invented cut points 25, 30, 35, 40 and 45; femaleNorms stops at the 55-59 band, so every woman aged 60 or over read a fitness category over numbers no paper carries, while the male table runs to 65-69. The profile card names the absent band. Plant: tests/dex-tests.js group '∅ HRVDex profile — an unobserved HR maximum and an absent ACSM band refuse', 5 more of its 17 legs red on the pre-fix source."
   }
 ];
 

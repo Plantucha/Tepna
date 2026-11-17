@@ -90831,6 +90831,46 @@
       T.eq('calcVo2Cat · M 50-54 · VO₂ 27 (above the 26.1 cut, below 30.9) ⇒ "Poor"', vo2Cat(27, 52, 'M'), 'Poor');
     });
 
+    /* ════ ∅ HRVDex profile — an unobserved maximum and an absent ACSM band ════
+     ABSENCE-SURVEY rows `524292f7b587` (`hrvdex-profile.js:49`) and `f168e1cda8fd` (`:608`). Two
+     defaults read as measurements on the profile card. `hrMax` fell to 0, so a dataset with no usable
+     heart rate printed "Max HR observed: 0 bpm" under a banner headed "Auto-detected from your data".
+     `calcVo2Cat` fell to an invented [25, 30, 35, 40, 45] ladder, and `femaleNorms` stops at '55-59',
+     so every woman aged 60 or over read a fitness category over cut points no paper carries. The male
+     table runs to '65-69', which is why the gap stayed hidden. */
+    group('∅ HRVDex profile — an unobserved HR maximum and an absent ACSM band refuse', 'hrvdex-profile · absence', function (T) {
+      var src = (env.sources && env.sources['hrvdex-profile.js']) || '';
+      var vo2Cat = env.HrvCalcVo2Cat;
+      T.ok('ANTI-VACUITY · the hrvdex-profile.js source is readable in this lane', src.length > 1000, 'env.sources["hrvdex-profile.js"] absent');
+      T.ok('ANTI-VACUITY · calcVo2Cat is wired into env', typeof vo2Cat === 'function', 'env.HrvCalcVo2Cat absent');
+      if (!src || typeof vo2Cat !== 'function') return;
+
+      var m = src.match(/const hrMax = ([^;]+);/);
+      T.ok('ANTI-VACUITY · the hrMax expression was extracted', !!m, 'the const hrMax line moved');
+      if (m) {
+        var hrMaxOf = new Function('_hrAll', 'return ' + m[1] + ';');
+        T.eq('no usable heart rate ⇒ the observed maximum is null', hrMaxOf([]), null);
+        T.eq('CONTROL · rows carrying heart rate ⇒ the real maximum', hrMaxOf([52, 71, 64]), 71);
+      }
+      var b = src.match(/Max HR observed: <strong>' \+ ([^,]+) \+ '<\/strong>'/);
+      T.ok('ANTI-VACUITY · the banner value was extracted', !!b, 'the Max HR banner line moved');
+      if (b) {
+        var bannerOf = new Function('hrMax', 'return ' + b[1] + ';');
+        T.eq('the banner says not detected, never 0 bpm', bannerOf(null), 'not detected');
+        T.eq('CONTROL · the banner prints a measured maximum', bannerOf(188), '188 bpm');
+      }
+      T.ok('the 0 arm is gone from the hrMax line', !/_hrAll\.length \? Math\.max\(\.\.\._hrAll\) : 0/.test(src), 'the : 0 default is back');
+
+      T.eq('a woman aged 62 has no published band ⇒ no category', vo2Cat(25, 62, 'F'), null);
+      T.eq('a woman aged 67 has no published band ⇒ no category', vo2Cat(25, 67, 'F'), null);
+      T.eq('CONTROL · a woman aged 52 sits in 50-54 and keeps her category', vo2Cat(25, 52, 'F'), 'Fair');
+      T.eq('CONTROL · a man aged 67 sits in 65-69, which the male table carries', vo2Cat(25, 67, 'M'), 'Fair');
+      T.ok('the invented cut points are gone', !/\[25, 30, 35, 40, 45\]/.test(src.replace(/\/\*[\s\S]*?\*\//g, '')), 'the fallback ladder is back');
+      T.ok('the band lookup refuses an absent band', /\[ab\];[\s\S]{0,40}if \(!t\) return null;/.test(src), 'the refusal is not wired');
+      T.ok('the card names the absent band', /no ACSM band \(age/.test(src), 'the caption does not name the gap');
+      T.ok('the call site still guards on an entered ground truth', /p\.vo2gt > 0 \? calcVo2Cat/.test(src), 'the vo2gt guard moved');
+    });
+
     /* ════ 21g · OxyDex PROFILE PERSONALIZATION — known-answer (TEST-COVERAGE-FOLLOWUPS-II §1b) ════
      The OxyDex sibling of §1b. Execution found this ALSO needs no re-bundle: oxydex-profile.js's up*
      helpers are top-level globals, and it loads headless once oxydex-util.js (sv/gv, DOM-guarded) is
