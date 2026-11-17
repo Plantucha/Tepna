@@ -419,7 +419,7 @@ import { PPGUI } from './ppgdex-render.js';
       notes = '<div class="ctx-note">Overnight — per-epoch medians representative; CVHR apnea screen from the PPI bradycardia-rebound signature is unlocked at this length.</div>';
     $('ctxBanner').innerHTML = `<div class="ctx-main">
       <div><div class="ctx-mode">${{ ['ultra-short']: 'Spot / ultra-short', short: '5-min standard', overnight: 'Overnight' }[r.tier]} recording</div>
-      <div class="ctx-why">${r.durMin} min · ${r.nPulses.toLocaleString()} pulses · ${r.fs} Hz · ch${r.channel} (best SNR) · ${r.epochs.length} × 5-min epoch${r.epochs.length === 1 ? '' : 's'}</div></div>
+      <div class="ctx-why">${r.durMin} min · ${r.nPulses.toLocaleString()} pulses · ${r.fs} Hz · ${r.channel == null ? 'reference channel unscored' : 'ch' + r.channel + ' (best SNR)'} · ${r.epochs.length} × 5-min epoch${r.epochs.length === 1 ? '' : 's'}</div></div>
       <div class="ctx-conf ${tierColor}">${r.tierMsg}</div></div>${notes}${siteControlHtml(r)}`;
     $('ctxBanner').style.display = 'flex';
     const sel = $('siteDecl');
@@ -881,7 +881,7 @@ import { PPGUI } from './ppgdex-render.js';
       ['Start (wall clock)', f.fmtDateTime(r.t0Ms), '', 'floating tMs · getUTC*'],
       ['Duration', r.durMin, 'min', r.tier, us ? 'warn' : 'ok'],
       ['Sample rate', r.fs, 'Hz', 'median ns delta'],
-      ['Channel used', 'ch' + r.channel, '', 'best SNR of 3 green'],
+      ['Channel used', r.channel == null ? '—' : 'ch' + r.channel, '', r.channel == null ? 'no channel scored; ran on the first channel' : 'best SNR of 3 green'],
       ['Pulses detected', r.nPulses, '', 'optical foot/peak']
     ]);
     html += sec('Time-domain HRV (PPI-derived)', [
