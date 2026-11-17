@@ -875,6 +875,26 @@ export const SEEDS = [
     at: 'hrvdex-profile.js:365',
     state: 'fixed',
     note: "The producer refused and the last consumer still coerced: hrRest nulls when no loaded row carries a heart rate, and 0.011 * null is 0, so the full Baevsky AP published 0.022 for a dataset with no heart rate at all \u2014 the same string it returns for a resting HR of 0 bpm \u2014 under the citation 'Baevsky 1984 regression'. The Karvonen zone table already refused on this null; this term did not. bap_full now refuses and the card prints an em dash with the reason. Plant: tests/dex-tests.js group '\u2205 HRVDex profile \u2014 a null resting HR refuses the Baevsky adaptation potential', 4 of its 9 legs red on the pre-fix source."
+  },
+  {
+    at: 'hrvdex-profile.js:45',
+    state: 'fixed',
+    note: "BOOKKEEPING \u2014 the code already refuses and only this ledger row stayed open. PR #2972 (eeab2513f) replaced the `: 60` default with `: null`, so a dataset with no usable heart rate reports 'not detected' in place of '60 bpm' under an 'Auto-detected from your data' banner. Every consumer of the value refuses with it: the banner at the detected line, `_hrRestV`, the explicit `_hrRestV != null` arm of the HRmax plausibility guard, and the Uth-S\u00f8rensen VO\u2082 estimate, which divides by it. Pins: tests/dex-tests.js group '\u2205 HRVDex profile \u2014 four high absence rows the code already refuses'. A mutant restoring `: 60` reds 2 legs."
+  },
+  {
+    at: 'hrvdex-profile.js:353',
+    state: 'fixed',
+    note: "BOOKKEEPING \u2014 the code already refuses and only this ledger row stayed open. PR #2975 (de1907baf) took the mean over the rows that CARRY a reading, so `_hrRest0` nulls when none does. Before it, each row without a heart rate added 0 to the numerator and 1 to the denominator, which dragged the resting HR down and made the relative HRmax test easier to clear. With no reading the relative test is now SKIPPED rather than run against a fabricated number, while the absolute conditions still apply, and the value's only other consumer sits behind `_rhrProj > 0`. A mutant restoring `: 60` reds 2 legs, and a mutant deleting the null arm of the guard reds 2."
+  },
+  {
+    at: 'hrvdex-profile.js:378',
+    state: 'fixed',
+    note: "BOOKKEEPING \u2014 the code already refuses and only this ledger row stayed open. PR #2967 (55bc00f17) guarded absolute VO\u2082 on `p.vo2gt > 0`, so an unset ground truth prints an em dash and the card hint says 'enter VO\u2082max ground truth'. `p.vo2gt` is 0 by PROTOCOL when nothing was entered and nothing was detected, which `detOr0` documents, so the 0 is deliberate and the display layer is what had to refuse. A mutant removing the guard reds 2 legs."
+  },
+  {
+    at: 'hrvdex-profile.js:486',
+    state: 'fixed',
+    note: 'BOOKKEEPING \u2014 the code already refuses and only this ledger row stayed open. PR #2967 (55bc00f17) gave `vo2Percentile` its unset branch. Before it, 0 sat below the first Cooper point, the interpolation loop never matched, and the tail `: 1` published the 1st percentile \u2014 the worst possible fitness ranking, from no data at all. The function now answers null for a non-positive or non-finite VO\u2082, and the card prints a dash. A mutant deleting the branch reds 6 legs, which is the whole measured arm plus its controls.'
   }
 ];
 
