@@ -12607,6 +12607,45 @@
       T.ok('no node drifted from its baseline', drift.length === 0, 'drifted: ' + drift.join(', '));
     });
 
+    /* ∅ A SPAN OF ZERO IS NOT A SHORT SPAN. `analyze` adopts `rec.devMsAt` as the beat clock; a
+       counter that returns ONE stamp makes buildNN's span exactly 0 — the stuck-counter input its own
+       comment (:1257) says arrives through `analyze`. Origin/main then published `spanMin: 0.1` (the
+       last beat's OFFSET, not a span), `durSec: 5` and `durMin: 0.1` for a series that never advanced,
+       and graded the tier "< 2 min". The control runs the same samples on the index axis, so only the
+       beat clock differs between the arms. */
+    group('ECGDex duration — ∅ a beat series that spans no time publishes no span and no duration', 'ecgdex-dsp · absence · duration', function (T) {
+      var E = env.ECGDSP || env.EcgDsp;
+      if (!E || typeof E.analyze !== 'function' || typeof E.genSynthetic !== 'function') {
+        T.skip('ECGDSP.analyze + genSynthetic available', 'not loaded');
+        return;
+      }
+      var SYN = E.genSynthetic({ durSec: 60, fs: 130, scenario: 'overnight' });
+      var T0 = Date.UTC(2026, 6, 31, 0, 0, 0);
+      var ctrl = E.analyze({ int16: SYN.int16, fs: 130, source: 'synthetic', t0Ms: T0 });
+      T.ok('ANTI-VACUITY · the index axis measured a span from the same samples', ctrl && ctrl.spanMin > 0, 'spanMin=' + (ctrl && ctrl.spanMin));
+      T.ok('ANTI-VACUITY · …and a duration', ctrl && ctrl.durSec > 0, 'durSec=' + (ctrl && ctrl.durSec));
+      var stuck = E.analyze({
+        int16: SYN.int16,
+        fs: 130,
+        source: 'synthetic',
+        t0Ms: T0,
+        devMsAt: function () {
+          return 5000;
+        }
+      });
+      T.eq('a zero span publishes NO spanMin — a last-beat offset is not a span', stuck && stuck.spanMin, null);
+      T.eq('…NO durSec', stuck && stuck.durSec, null);
+      T.ok('…and the null is a published field, not a missing one', !!stuck && 'durSec' in stuck && 'spanMin' in stuck && 'durMin' in stuck);
+      T.ok(
+        '…and the mode is not graded from a duration nobody measured',
+        !!stuck && stuck.mode === 'short-reading' && /unmeasured/.test(String(stuck.modeWhy)),
+        'mode=' + (stuck && stuck.mode) + ' why=' + JSON.stringify(stuck && stuck.modeWhy)
+      );
+      T.eq('…NO durMin', stuck && stuck.durMin, null);
+      T.eq('…and the beat-coverage refusal still carries its own reason', stuck && stuck.coveragePct, null);
+      T.ok('…and the tier names the unmeasured duration rather than grading it', stuck && /unmeasured/.test(String(stuck.tierMsg)), 'tierMsg=' + JSON.stringify(stuck && stuck.tierMsg));
+    });
+
     group('ECGDex RMSSD absence — an unmeasured RMSSD is null, never 0 (§∅)', 'ecgdex-dsp · absence', function (T) {
       var E = env.ECGDSP || env.EcgDsp;
       T.ok('ECGDSP reachable', !!(E && E.analyze && E.validateRR), 'ecgdex-dsp.js did not load');
@@ -91147,6 +91186,26 @@
       T.ok('the band lookup refuses an absent band', /\[ab\];[\s\S]{0,40}if \(!t\) return null;/.test(src), 'the refusal is not wired');
       T.ok('the card names the absent band', /no ACSM band \(age/.test(src), 'the caption does not name the gap');
       T.ok('the call site still guards on an entered ground truth', /p\.vo2gt > 0 \? calcVo2Cat/.test(src), 'the vo2gt guard moved');
+    });
+
+    group('∅ HRVDex profile — a null resting HR refuses the Baevsky adaptation potential', 'hrvdex-profile · absence', function (T) {
+      var src = (env.sources && env.sources['hrvdex-profile.js']) || '';
+      T.ok('ANTI-VACUITY · the hrvdex-profile.js source is readable in this lane', src.length > 1000, 'env.sources["hrvdex-profile.js"] absent');
+      if (!src) return;
+
+      var m = src.match(/const bap_full = ([^;]+);/);
+      T.ok('ANTI-VACUITY · the bap_full expression was extracted', !!m, 'the const bap_full line moved');
+      var body = { age: 35, sbp: 120, dbp: 78, weight: 75, height: 175 };
+      if (m) {
+        var bapOf = new Function('hrRest', 'p', 'return ' + m[1] + ';');
+        T.eq('no measured resting HR ⇒ the Baevsky AP is null', bapOf(null, body), null);
+        T.ok('CONTROL · a measured resting HR yields the seven-term value', Math.abs(parseFloat(bapOf(58, body)) - 0.66) < 0.0005, 'the control value moved: ' + bapOf(58, body));
+        T.ok('a null resting HR does not read as 0 bpm', bapOf(null, body) !== bapOf(0, body), 'null and 0 bpm produce one answer');
+      }
+      T.ok('the unguarded seven-term line is gone', !/const bap_full = \(0\.011 \* hrRest/.test(src), 'bap_full computes over hrRest with no guard');
+      T.ok('the card prints an em dash for an absent AP', /di\('BAP \(full\)', bap_full != null \? bap_full : '—'/.test(src), 'the BAP card value lost its guard');
+      T.ok('the card hint names the absent resting HR', /'no resting HR measured'/.test(src), 'the BAP hint does not name the absence');
+      T.ok('CONTROL · the card still cites Baevsky for a real value', /'Baevsky 1984 regression'/.test(src), 'the citation went away with the guard');
     });
 
     /* ════ 21g · OxyDex PROFILE PERSONALIZATION — known-answer (TEST-COVERAGE-FOLLOWUPS-II §1b) ════

@@ -870,6 +870,11 @@ export const SEEDS = [
     at: 'hrvdex-profile.js:608',
     state: 'fixed',
     note: "calcVo2Cat refuses when the ACSM table carries no band for that age and sex, in place of the invented cut points 25, 30, 35, 40 and 45; femaleNorms stops at the 55-59 band, so every woman aged 60 or over read a fitness category over numbers no paper carries, while the male table runs to 65-69. The profile card names the absent band. Plant: tests/dex-tests.js group '∅ HRVDex profile — an unobserved HR maximum and an absent ACSM band refuse', 5 more of its 17 legs red on the pre-fix source."
+  },
+  {
+    at: 'hrvdex-profile.js:365',
+    state: 'fixed',
+    note: "The producer refused and the last consumer still coerced: hrRest nulls when no loaded row carries a heart rate, and 0.011 * null is 0, so the full Baevsky AP published 0.022 for a dataset with no heart rate at all \u2014 the same string it returns for a resting HR of 0 bpm \u2014 under the citation 'Baevsky 1984 regression'. The Karvonen zone table already refused on this null; this term did not. bap_full now refuses and the card prints an em dash with the reason. Plant: tests/dex-tests.js group '\u2205 HRVDex profile \u2014 a null resting HR refuses the Baevsky adaptation potential', 4 of its 9 legs red on the pre-fix source."
   }
 ];
 

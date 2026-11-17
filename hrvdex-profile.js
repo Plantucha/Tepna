@@ -422,7 +422,11 @@ function updateProfile() {
   // Full Baevsky AP (requires SBP+DBP)
   // BAP = 0.011×HR + 0.014×age + 0.008×SBP + 0.014×DBP - 0.009×weight - 0.009×height - 0.27
   // (Baevsky 1984, Berntsen 2008 variant)
-  const bap_full = (0.011 * hrRest + 0.014 * p.age + 0.008 * p.sbp + 0.014 * p.dbp - 0.009 * p.weight - 0.009 * p.height - 0.27).toFixed(3);
+  /* §∅ — A NULL RESTING HR IS NOT A RESTING HR OF ZERO. `hrRest` refuses below when no loaded row
+     carries a heart rate, and `0.011 * null` is 0, so the card published a Baevsky AP whose first
+     term had silently dropped out, and cited "Baevsky 1984 regression" beside it. The Karvonen zone
+     table further down already refuses on this same null; this term did not. */
+  const bap_full = hrRest != null ? (0.011 * hrRest + 0.014 * p.age + 0.008 * p.sbp + 0.014 * p.dbp - 0.009 * p.weight - 0.009 * p.height - 0.27).toFixed(3) : null;
 
   // Percentile rank VO2max vs population (approximate from meta-analysis lookup)
   function vo2Percentile(vo2, age, sex) {
@@ -553,7 +557,7 @@ function updateProfile() {
       di('HRmax', hrmax + ' bpm', hrmaxRejected ? '⚠ entry low → Tanaka 208−0.7·' + p.age : p.hrmax_manual > 0 ? 'your entry' : 'Tanaka: 208−0.7·' + p.age) +
         di('MAP', map_ + ' mmHg', 'DBP + ⅓(SBP−DBP)') +
         di('Pulse pressure', pp + ' mmHg', 'SBP − DBP = ' + p.sbp + '−' + p.dbp) +
-        di('BAP (full)', bap_full, 'Baevsky 1984 regression')
+        di('BAP (full)', bap_full != null ? bap_full : '—', bap_full != null ? 'Baevsky 1984 regression' : 'no resting HR measured')
     ) +
     grp(
       'Respiratory / fitness',

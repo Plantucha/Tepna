@@ -25,8 +25,8 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 167,
-  "fixed": 120,
+  "open": 166,
+  "fixed": 121,
   "accepted-with-reason": 3
  },
  "consumerCensus": {
@@ -1331,7 +1331,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 365,
-   "state": "open"
+   "state": "fixed",
+   "note": "The producer refused and the last consumer still coerced: hrRest nulls when no loaded row carries a heart rate, and 0.011 * null is 0, so the full Baevsky AP published 0.022 for a dataset with no heart rate at all — the same string it returns for a resting HR of 0 bpm — under the citation 'Baevsky 1984 regression'. The Karvonen zone table already refused on this null; this term did not. bap_full now refuses and the card prints an em dash with the reason. Plant: tests/dex-tests.js group '∅ HRVDex profile — a null resting HR refuses the Baevsky adaptation potential', 4 of its 9 legs red on the pre-fix source."
   },
   {
    "key": "f168e1cda8fd",
