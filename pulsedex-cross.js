@@ -344,22 +344,31 @@
         unit: 'recording',
         items: list,
         t0Of: (s) => s.t0Ms,
-        /* §∅ — no coverage weights the floor (0.05), never a complete recording. The envelope flags
-           a floor-weighted item `lowQuality` from this same weight, so the count of items that took
-           it needs no new field (#6802: an in-band default is worse than a zero). */
-        weightOf: (s) => (s.coverage != null ? Math.max(0.05, s.coverage / 100) : 0.05),
+        /* §∅ — An unmeasured share answers `null`, never an in-band 0.05. The old arm sent an
+           absent share through the floor clamp, so the recording published as one MEASURED at 5 per
+           cent and no reader could tell the two apart (#6802). The envelope reads `null` as
+           UNMEASURED: it applies the same floor coefficient, flags the row `weightAbsent`, leaves
+           `lowQuality` null, and counts the rows in `window.weightAbsentCount`. The local floor clamp
+           stays, for parity with the five other providers. A measured 0 keeps the floor, because 0 is
+           a real share. */
+        weightOf: (s) => (typeof s.coverage === 'number' && isFinite(s.coverage) ? Math.max(0.05, s.coverage / 100) : null),
         crossNight: crossNight,
         metrics: METRICS
       });
     }
     // ── legacy fallback (pre-envelope shape) ──
     const sorted = [...list].sort((a, b) => (a.t0Ms || 0) - (b.t0Ms || 0));
-    const cov = sorted.map((s) => (s.coverage != null ? Math.max(0.05, s.coverage / 100) : 0.05));
+    /* §∅ — The fallback arm cannot answer `null`: `crossNight` reads `p.w != null ? p.w : 1`, so a
+       null weight becomes a FULL recording one layer down. So an absence keeps the floor COEFFICIENT
+       and travels on a flag beside the number, in the envelope's own vocabulary. */
+    const covAbsent = sorted.map((s) => typeof s.coverage !== 'number' || !isFinite(s.coverage));
+    const cov = sorted.map((s, i) => (covAbsent[i] ? 0.05 : Math.max(0.05, Math.min(1, s.coverage / 100))));
     const out = { doc: 'recording-to-recording robust stats — same crossNight() engine as ECGDex/OxyDex', metrics: {} };
     for (const m of METRICS) {
       const ser = sorted.map((s, i) => ({ x: i, t: s.t0Ms, v: m.get(s), w: cov[i] }));
       out.metrics[m.id] = crossNight(ser, { good: m.goodDirection });
     }
+    out.weightAbsentCount = covAbsent.filter(Boolean).length;
     return out;
   }
 

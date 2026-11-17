@@ -28545,6 +28545,141 @@
       T.eq('no NaN/Infinity reaches the envelope through the absence', countNonFinite(eAbs), 0);
     });
 
+    /* ════ 7a-∅ · AN UNMEASURED COVERAGE SHARE: three providers, three fallbacks ════
+       Residue row 2026-11-16-three-cross-providers-answer-an-in-band-floor-for-an-absence.
+       ECGDex, PpgDex and PulseDex each carried the shape TWICE: once in the `weightOf` they hand
+       the envelope, and once in the legacy fallback's own `cov` array. Both arms sent an absent
+       share through `Math.max(0.05, …)`, so a recording nobody measured published as one MEASURED
+       at 5 per cent, and `weightAbsentCount` read 0 over it. THE TWO HALVES NEED OPPOSITE REPAIRS:
+       the provider answers `null`, which the envelope reads as UNMEASURED; the fallback CANNOT,
+       because `crossNight` reads `p.w != null ? p.w : 1` and a null point weight becomes a FULL
+       recording one layer down, so there the absence travels on a flag beside the floor. */
+    group(
+      '∅ Cross-night absence — three providers answer null, three fallbacks keep the floor and flag it',
+      'ecgdex-cross · ppgdex-cross · pulsedex-cross · crossnight-envelope · absence',
+      function (T) {
+        var S = env.sources || {};
+        var src = { ECGDex: S['ecgdex-cross.js'], PpgDex: S['ppgdex-cross.js'], PulseDex: S['pulsedex-cross.js'] };
+        if (!(src.ECGDex && src.PpgDex && src.PulseDex)) {
+          T.skip('the three cross-module sources are wired', 'env.sources lacks a *-cross.js text');
+          return;
+        }
+
+        /* ── PROVIDER half ──
+           Each extraction is anchored on the declaration's own NAME and ends at the declaration's
+           own terminator, never on the expression text. A plant that rewrites the arm then still
+           extracts, so it reds the value legs instead of breaking the group and hiding them. */
+        var fromArrow = function (text) {
+          var i = text.indexOf('weightOf:');
+          if (i < 0) return null;
+          var e = text.indexOf('\n', i);
+          if (e < 0) return null;
+          return new Function('return ' + text.slice(i + 'weightOf:'.length, e).replace(/,\s*$/, '') + ';')();
+        };
+        var fromFn = function (text) {
+          var i = text.indexOf('function ppgSessionWeight');
+          if (i < 0) return null;
+          var e = text.indexOf('\n  }', i);
+          if (e < 0) return null;
+          return new Function(text.slice(i, e + 4) + '\nreturn ppgSessionWeight;')();
+        };
+        var prov = { ECGDex: fromArrow(src.ECGDex), PpgDex: fromFn(src.PpgDex), PulseDex: fromArrow(src.PulseDex) };
+        var field = { ECGDex: 'analyzablePct', PpgDex: 'analyzablePct', PulseDex: 'coverage' };
+        var mk = function (node, v) {
+          var o = {};
+          if (v !== undefined) o[field[node]] = v;
+          return o;
+        };
+        var nodes = ['ECGDex', 'PpgDex', 'PulseDex'];
+        nodes.forEach(function (n) {
+          var f = prov[n];
+          if (typeof f !== 'function') {
+            T.ok(n + ' provider weight extracted', false, 'anchor not found in ' + n);
+            return;
+          }
+          T.eq(n + ' · an ABSENT share answers null, never an in-band floor', f(mk(n)), null);
+          T.eq(n + ' · a NaN share answers null too', f(mk(n, NaN)), null);
+          T.eq(n + ' · a MEASURED 0 keeps the floor, because 0 is a real share', f(mk(n, 0)), 0.05);
+          T.eq(n + ' · a measured 90 per cent weighs 0.9', f(mk(n, 90)), 0.9);
+          T.ok(n + ' · so an absence and a measured 5 per cent are DISTINGUISHABLE', f(mk(n)) !== f(mk(n, 5)));
+        });
+        /* The control: the retired arm, which is what every one of the three published. */
+        var retired = function (s) {
+          return Math.max(0.05, (s.analyzablePct || 0) / 100);
+        };
+        T.eq('control · the retired `|| 0` arm answered 0.05 for an absence', retired({}), 0.05);
+        T.ok('control · and that is the SAME number a measured 5 per cent earns', retired({}) === retired({ analyzablePct: 5 }));
+
+        /* ── FALLBACK half ── the arm that runs only where `CrossNightEnvelope` is absent. */
+        var fromBlock = function (text) {
+          var i = text.indexOf('const covAbsent');
+          if (i < 0) return null;
+          var j = text.indexOf('const cov =', i);
+          if (j < 0) return null;
+          var e = text.indexOf('\n', j);
+          if (e < 0) return null;
+          return new Function('sorted', text.slice(i, e) + '\nreturn { covAbsent: covAbsent, cov: cov };');
+        };
+        nodes.forEach(function (n) {
+          var f = fromBlock(src[n]);
+          if (typeof f !== 'function') {
+            T.ok(n + ' fallback coverage block extracted', false, 'anchor not found in ' + n);
+            return;
+          }
+          var r = f([mk(n, 90), mk(n), mk(n, 0)]);
+          T.ok(n + ' fallback · the absent row is marked', r.covAbsent[1] === true && r.covAbsent[0] === false && r.covAbsent[2] === false);
+          T.eq(n + ' fallback · an absence keeps the floor COEFFICIENT, never null', r.cov[1], 0.05);
+          T.eq(n + ' fallback · a measured 90 per cent still weighs 0.9', r.cov[0], 0.9);
+          T.ok(
+            n + ' fallback · every weight is a finite number',
+            r.cov.every(function (w) {
+              return typeof w === 'number' && isFinite(w);
+            })
+          );
+          T.ok(n + ' · and the engine arm that forbids a null weight is still in this file', /p\.w != null \? p\.w : 1/.test(src[n]));
+        });
+
+        /* ── the published surface, through whichever arm this realm runs ── */
+        var mods = { ECGDex: env.ECGCross, PpgDex: env.PPGCross, PulseDex: env.PulseCross };
+        var items = {
+          ECGDex: [
+            { t0Ms: U(2026, 5, 1), analyzablePct: 90, dispRm: 40, dispSd: 50, dispHr: 60, dfa1: 1 },
+            { t0Ms: U(2026, 5, 2), dispRm: 42, dispSd: 52, dispHr: 61, dfa1: 1.05 },
+            { t0Ms: U(2026, 5, 3), analyzablePct: 80, dispRm: 41, dispSd: 51, dispHr: 59, dfa1: 1.02 }
+          ],
+          PpgDex: [
+            { t0Ms: U(2026, 5, 1), analyzablePct: 90, rmssd: 40, sdnn: 50, hr: 60 },
+            { t0Ms: U(2026, 5, 2), rmssd: 42, sdnn: 52, hr: 61 },
+            { t0Ms: U(2026, 5, 3), analyzablePct: 80, rmssd: 41, sdnn: 51, hr: 59 }
+          ],
+          PulseDex: [
+            { t0Ms: U(2026, 5, 1), coverage: 90, rmssd: 40, sdnn: 50, hr: 60 },
+            { t0Ms: U(2026, 5, 2), rmssd: 42, sdnn: 52, hr: 61 },
+            { t0Ms: U(2026, 5, 3), coverage: 80, rmssd: 41, sdnn: 51, hr: 59 }
+          ]
+        };
+        nodes.forEach(function (n) {
+          var cc = mods[n];
+          if (!(cc && cc.crossNightBlock)) {
+            T.skip(n + ' · the published absence count', n + ' crossNightBlock not wired');
+            return;
+          }
+          var res,
+            err = null;
+          try {
+            res = cc.crossNightBlock(items[n]);
+          } catch (e) {
+            err = String(e);
+          }
+          var arm = res && res.window ? 'envelope' : 'legacy fallback';
+          var cnt = res ? (res.window ? res.window.weightAbsentCount : res.weightAbsentCount) : null;
+          T.eq(n + ' · the published surface counts the one recording nobody measured', cnt, 1, err || arm);
+          var flagged = res ? (res.window ? (res.series || [])[1] : (res.nights || [])[1]) : null;
+          T.ok(n + ' · and flags that row, not its neighbours', !!(flagged && flagged.weightAbsent === true), err || arm);
+        });
+      }
+    );
+
     /* ════ 7b · NODE-EXPORT structural validator (validateNodeExport) ════ */
     group('Node-export validator — validateNodeExport', 'crossnight-envelope', function (T) {
       var CNE = env.CrossNightEnvelope;
@@ -48173,7 +48308,24 @@
         (app.match(/q = s\.coverage[^;]*;/) || ['no site'])[0]
       );
       // ── the three weighting sites ──
-      T.eq('all three weighting sites give an absent coverage the floor', ((crs + app).match(/coverage != null \? Math\.max\(0\.05, s\.coverage \/ 100\) : 0\.05/g) || []).length, 3);
+      /* §∅ — THE POPULATION SPLIT, and the two halves now read differently. The cross PROVIDER
+         answers `null`, which the envelope reads as UNMEASURED and flags. The two FALLBACK arrays
+         keep the floor COEFFICIENT, because `crossNight` reads `p.w != null ? p.w : 1` and a null
+         point weight becomes a FULL recording one layer down. So the retired in-band arm survives
+         at exactly ONE site, the app's own fallback array, and there it is the correct arm — it
+         counts the absences in `covAbsentPx` and names them in the note below. */
+      T.eq('the retired in-band arm survives at exactly one site', ((crs + app).match(/coverage != null \? Math\.max\(0\.05, s\.coverage \/ 100\) : 0\.05/g) || []).length, 1);
+      T.ok(
+        'and that one site is the app fallback array, never the cross provider',
+        /coverage != null \? Math\.max\(0\.05, s\.coverage \/ 100\) : 0\.05/.test(app) && !/coverage != null \? Math\.max\(0\.05, s\.coverage \/ 100\) : 0\.05/.test(crs),
+        'the cross module still carries the in-band arm'
+      );
+      T.ok(
+        'the cross provider answers null for a share nobody measured',
+        /typeof s\.coverage === 'number' && isFinite\(s\.coverage\) \? Math\.max\(0\.05, s\.coverage \/ 100\) : null/.test(crs),
+        'the provider arm is not the null one'
+      );
+      T.ok('the cross fallback keeps the floor and marks the row instead', /covAbsent\[i\] \? 0\.05 :/.test(crs) && /weightAbsentCount/.test(crs), 'the fallback arm lost its flag or its count');
       T.ok('no weighting site reads an absent coverage as a full recording', !/s\.coverage : 100/.test(crs + app), 'a `: 100` weight is back');
       T.ok('the cross-night note counts the recordings that took the floor', /covAbsentPx/.test(app) && /without coverage \(weighted at the floor\)/.test(app), 'the count is gone');
       // ── the two surfaces that were already correct stay correct ──
@@ -51294,6 +51446,53 @@
         T.eq('a noise-dominated series returns EMPTY — zero fabricated change points (40 seeds)', fp, 0, fp + '/40 seeds had a spurious CP');
       }
     );
+
+    group('∅ oxydex-cross — a coverage BLOCK is not a number, and an unmeasurable z is not 0σ', 'crossnight · oxydex-cross · absence · in-band-default', function (T) {
+      var OX = env.OXYCross || null;
+      if (!(OX && typeof OX.nightWeight === 'function' && typeof OX.crossNight === 'function')) {
+        T.skip('oxydex-cross not co-loaded', 'map env.OXYCross in both lanes');
+        return;
+      }
+      /* ── A · `nightWeight` must read the block the DSP actually publishes ──
+           `oxyCoverage` hands `stats.coverage` the object `DexExport.coverageFromSegments` returns
+           (dex-export.js:145): `{ kind, spanSec, segments[], recordedSec, n, source }`. It carries no
+           `pct`, so the share is `recordedSec / spanSec`. Pre-fix, `c / 100` on that object was NaN
+           and `Math.max(0.05, NaN)` is NaN — no weight at all, on every night that declares a hole. */
+      var sparse = { kind: 'sparse', spanSec: 6000, recordedSec: 4100, segments: [{ startMs: 0, durSec: 4100 }], n: 2, source: 'sensor-dropout' };
+      T.approx('∅ · a coverage BLOCK weighs recordedSec / spanSec, not NaN', OX.nightWeight({ stats: { coverage: sparse } }), 4100 / 6000, 1e-9);
+      T.approx('CONTROL · a bare number still weighs coverage / 100', OX.nightWeight({ stats: { coverage: 62 } }), 0.62, 1e-9);
+      T.approx('CONTROL · analyzedPct still weighs the same', OX.nightWeight({ stats: { analyzedPct: 62 } }), 0.62, 1e-9);
+      T.eq('∅ · a block that states NO duration is unmeasured, never NaN', OX.nightWeight({ stats: { coverage: { kind: 'sparse' } } }), null);
+      T.eq('∅ · …and a block with a zero span has no share to divide by', OX.nightWeight({ stats: { coverage: { spanSec: 0, recordedSec: 0 } } }), null);
+      T.eq('§∅ · a night stating neither field is still unmeasured', OX.nightWeight({ stats: {} }), null);
+      T.approx('CONTROL · a MEASURED zero still answers the floor', OX.nightWeight({ stats: { coverage: 0 } }), 0.05, 1e-9);
+
+      /* ── B · the card's own series, built the way oxydex-render.js:1886-1891 builds it ── */
+      var D = 86400000,
+        T0 = Date.UTC(2026, 5, 10, 22, 0),
+        vals = [96, 95.5, 88, 95.5, 95.5];
+      var ser = function (w) {
+        return vals.map(function (v, i) {
+          return { x: i, t: T0 + i * D, v: v, w: w[i] };
+        });
+      };
+      var wBlock = OX.nightWeight({ stats: { coverage: sparse } });
+      var asBlock = OX.crossNight(ser([0.9, 0.9, wBlock, 0.9, 0.9]), { good: 'up' });
+      var asNum = OX.crossNight(ser([0.9, 0.9, 4100 / 6000, 0.9, 0.9]), { good: 'up' });
+      var asFull = OX.crossNight(ser([0.9, 0.9, 1, 0.9, 0.9]), { good: 'up' });
+      T.ok('∅ · the card publishes a CENTRE for a night that declares a hole', typeof asBlock.mean === 'number', 'mean=' + asBlock.mean);
+      T.eq('∅ · …equal to the same night stated as a bare share', asBlock.mean, asNum.mean);
+      T.eq('∅ · …with the same spread', asBlock.sd, asNum.sd);
+      T.eq('∅ · …and the same baseline mean', asBlock.baselineMean, asNum.baselineMean);
+      T.ok('CONTROL · and none of it is the full-weight reading', asBlock.mean !== asFull.mean, 'block=' + asBlock.mean + ' full=' + asFull.mean);
+
+      /* ── C · an unmeasurable z is ABSENT, not the 0σ that reads as "on baseline" ── */
+      var nanW = OX.crossNight(ser([0.9, 0.9, NaN, 0.9, 0.9]), { good: 'up' });
+      T.ok('∅ · zLatest is PRESENT on a series whose weight is no number', 'zLatest' in nanW);
+      T.eq('∅ · …and it is null, never 0σ', nanW.zLatest, null);
+      T.ok('∅ · …so is the centre, rather than a fabricated 0', nanW.mean === null && nanW.baselineMean === null, 'mean=' + nanW.mean + ' baseline=' + nanW.baselineMean);
+      T.ok('CONTROL · a measured series still publishes a finite z', typeof asNum.zLatest === 'number' && isFinite(asNum.zLatest), 'z=' + asNum.zLatest);
+    });
 
     group('Bootstrap LCG uses a 32-bit-exact multiply — no 2^53 overflow (DEEP-AUDIT-II §9.5)', 'crossnight · event-coupling · prng · source', function (T) {
       // `bootstrapDeltaCI`'s LCG (all 5 *-cross clones) + event-coupling.js used `seed * 1103515245`.
