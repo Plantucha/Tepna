@@ -91871,6 +91871,100 @@
       T.ok('the card prints a dash for an absent rank', /vo2Perc != null \? '~' \+ vo2Perc \+ 'th' : '—'/.test(src), 'the percentile card lost its guard');
     });
 
+    /* ════ ∅ HRVDex KPI deltas and the pattern heatmap — a delta needs both members ════
+     ABSENCE-SURVEY rows `a67da4ab5c84` (`hrvdex-render.js:390`) and `64f6cbb7d28f` (`:1497`). Every KPI
+     delta cell guarded `prev` alone, so `(null - 42).toFixed(1)` printed a confident 42-point drop
+     beside a value cell honestly reading an em dash. Two absent rows gave `null - null`, which is 0,
+     so the chip then claimed no change — and `_stress` and `_energy` are a literal null on the
+     PulseDex-sourced row. The heatmap bound only the correlation, so a cell over 3 surviving pairs
+     painted exactly like one over 40: same text, same saturation, same tooltip. */
+    group('∅ HRVDex KPI deltas and heatmap coverage — an uncomputable delta is absent', 'hrvdex-render · absence', function (T) {
+      var src = (env.sources && env.sources['hrvdex-render.js']) || '';
+      T.ok('ANTI-VACUITY · the hrvdex-render.js source is readable in this lane', src.length > 1000, 'env.sources["hrvdex-render.js"] absent');
+      if (!src) return;
+
+      // row a67da4ab5c84 — the five KPI delta cells
+      var mD = src.match(/const kdelta = ([^;]+);/);
+      T.ok('ANTI-VACUITY · the kdelta expression was extracted', !!mD, 'the const kdelta line moved');
+      if (mD) {
+        var kd = new Function('return ' + mD[1] + ';')();
+        T.eq('an absent current reading ⇒ no delta', kd(null, 42, 1), null);
+        T.eq('an absent previous reading ⇒ no delta', kd(42, null, 1), null);
+        T.eq('two absent readings ⇒ no delta, never the 0 that reads as no change', kd(null, null, 0), null);
+        T.eq('a non-finite reading ⇒ no delta', kd(Number.NaN, 42, 1), null);
+        T.eq('CONTROL · a measured 0 is a reading and still yields a delta', kd(0, 10, 1), '-10.0');
+        T.eq('CONTROL · a measured 0 on the night before yields one too', kd(10, 0, 0), '10');
+      }
+      T.eq('all five delta cells route through kdelta', (src.match(/delta: prev \? kdelta\(/g) || []).length, 5);
+      T.ok('no delta cell subtracts behind the prev guard alone', !/delta: prev \? \(r\._/.test(src), 'an unguarded subtraction is back');
+
+      // row 64f6cbb7d28f — the pattern heatmap cell title
+      var a = src.indexOf('function _patCellTitle(');
+      var b = a >= 0 ? src.indexOf('\n}\n', a) : -1;
+      T.ok('_patCellTitle is sliceable out of the render', a >= 0 && b > a, 'the slice markers moved — update this group with them');
+      if (a >= 0 && b > a) {
+        var ct = null;
+        try {
+          ct = new Function(src.slice(a, b + 3) + '\nreturn _patCellTitle;')();
+        } catch (_e) {
+          ct = null;
+        }
+        T.ok('the sliced cell title evaluates on its own', typeof ct === 'function', '_patCellTitle now depends on render state — keep it pure');
+        if (typeof ct === 'function') {
+          T.ok('a cell carries the pair count the correlation rests on', / n 3$/.test(ct('a', 'b', 0.5, 3)), ct('a', 'b', 0.5, 3));
+          T.ok('a cell over 40 pairs says so, so the two no longer read alike', ct('a', 'b', 0.5, 40) !== ct('a', 'b', 0.5, 3), 'the count does not reach the tooltip');
+          T.ok('an absent count reports absent, never 0', / n n\/a$/.test(ct('a', 'b', 0.5, undefined)), ct('a', 'b', 0.5, undefined));
+          T.ok('an absent correlation reports absent too', /r=n\/a/.test(ct('a', 'b', Number.NaN, 5)), ct('a', 'b', Number.NaN, 5));
+          T.ok('CONTROL · a measured count of 0 prints 0', / n 0$/.test(ct('a', 'b', 0.5, 0)), ct('a', 'b', 0.5, 0));
+        }
+      }
+      T.ok('every heatmap cell routes its title through the helper', /_patCellTitle\(_patShort\(keys\[i\]\)/.test(src), 'a cell builds its own title again');
+      T.ok('the diagonal carries its own measured count', /n: series\[i\]\.filter/.test(src), 'the diagonal reports no count');
+
+      var shell = (env.srcHtml || {})['HRVDex.src.html'] || '';
+      T.ok('ANTI-VACUITY · the HRVDex shell is readable in this lane', shell.length > 1000, String(shell.length));
+      if (shell) {
+        T.ok('the heatmap card tells the reader each cell carries its pair count', /pair count <em>n<\/em>/.test(shell), 'the card promises only the exact value');
+      }
+    });
+
+    /* ════ ∅ HRVDex profile — a VO₂ estimate that rests on a default age ════
+     ABSENCE-SURVEY row `0db08d540800` (`hrvdex-profile.js:77`). getProfile substitutes a population
+     age with no marker, so the Uth-Sørensen estimate could rest on an age nobody entered and still
+     reach the shared DETECTED tier through prefillFrom, where another node resolves it as a measured
+     fact. The age reaches the estimate through Tanaka ONLY, so an entered HRmax that passes the
+     plausibility guard replaces Tanaka, and the estimate then owes the age nothing. */
+    group('∅ HRVDex profile — a VO₂ estimate over a default age is not written as a fact', 'hrvdex-profile · absence', function (T) {
+      var src = (env.sources && env.sources['hrvdex-profile.js']) || '';
+      T.ok('ANTI-VACUITY · the hrvdex-profile.js source is readable in this lane', src.length > 1000, 'env.sources["hrvdex-profile.js"] absent');
+      if (!src) return;
+
+      var a = src.indexOf('function _vo2RestsOnDefaultAge(');
+      var b = a >= 0 ? src.indexOf('\n}\n', a) : -1;
+      T.ok('the predicate is sliceable out of the profile', a >= 0 && b > a, 'the slice markers moved — update this group with them');
+      if (a >= 0 && b > a) {
+        var pr = null;
+        try {
+          pr = new Function(src.slice(a, b + 3) + '\nreturn _vo2RestsOnDefaultAge;')();
+        } catch (_e) {
+          pr = null;
+        }
+        T.ok('the sliced predicate evaluates on its own', typeof pr === 'function', 'the predicate now depends on profile state — keep it pure');
+        if (typeof pr === 'function') {
+          T.eq('an unknown age and a Tanaka HRmax ⇒ the estimate rests on a default', pr(false, 180, 180), true);
+          T.eq('an age reported absent rather than false still answers true', pr(undefined, 180, 180), true);
+          T.eq('CONTROL · an entered age ⇒ the estimate rests on that age', pr(true, 180, 180), false);
+          T.eq('CONTROL · an entered HRmax replaced Tanaka, so the age is not in the answer', pr(false, 190, 180), false);
+        }
+      }
+      T.ok('getProfile reports whether the age was entered', /ageKnown: n\(p\.age, 0\) > 0/.test(src), 'the DXP arm reports no age marker');
+      T.ok('the DOM fallback arm reports it too', /ageKnown: parseFloat\(document\.getElementById\('prof_age'\)\?\.value\) > 0/.test(src), 'the DOM arm reports no age marker');
+      T.ok('the consumer reads the marker, never the substituted age', /_pp\.ageKnown === true/.test(src), 'the age default reads as a measurement again');
+      T.ok('the identity write refuses an estimate over a default age', /vo2: _vo2OnDefaultAge \? null : vo2Est/.test(src), 'prefillFrom writes the estimate unguarded');
+      T.ok('the ground-truth field refuses it too, as the second surface of the one row', /if \(!_vo2OnDefaultAge\) setIfEmpty\('prof_vo2gt'/.test(src), 'the vo2gt prefill lost its guard');
+      T.ok('the unguarded identity write is gone', !/prefillFrom\(\{ hrRest: restingHR, vo2: vo2Est \}\)/.test(src), 'the unguarded prefillFrom is back');
+    });
+
     /* ════ 21g · OxyDex PROFILE PERSONALIZATION — known-answer (TEST-COVERAGE-FOLLOWUPS-II §1b) ════
      The OxyDex sibling of §1b. Execution found this ALSO needs no re-bundle: oxydex-profile.js's up*
      helpers are top-level globals, and it loads headless once oxydex-util.js (sv/gv, DOM-guarded) is

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="ee531bb9248d" data-compute-hash="2ab42795edb1">
+<html lang="en" data-manifest-hash="14a189f4005b" data-compute-hash="2ab42795edb1">
 <head>
 <!--
   HRVDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8PRBTa79fUaN2zhWDMHlkkyA9S3dSTeqfWILOdsEo0k=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-JGpGAy4Cg7SQYROJGszfN1J0ctgzSZuz7qBEHqyvLL8=' 'sha256-K+h5thoekEgjAVsTOJH/LoQr+vkP1LPzjqBYtooYmg8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-ZgBLQownXa7EI5lkwP43wfy7ryYd8FbVdBCJFZa9Ll4=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fY+WW1g6oEfevLM6QNQkHOQ8TDEtUff3UE7iGLRizdY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-przkfgjjTIaUOQbOplpOoO2B+CAP7mDU5fQjP5OSXa0=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8PRBTa79fUaN2zhWDMHlkkyA9S3dSTeqfWILOdsEo0k=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-J35jIQoaxibAur85YgkRI3Gw3MvuvGOJ1alBdYlKY8I=' 'sha256-JGpGAy4Cg7SQYROJGszfN1J0ctgzSZuz7qBEHqyvLL8=' 'sha256-K+h5thoekEgjAVsTOJH/LoQr+vkP1LPzjqBYtooYmg8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fY+WW1g6oEfevLM6QNQkHOQ8TDEtUff3UE7iGLRizdY=' 'sha256-mzH5Dg7x30Wdz3pbuGODiJZi0Ntyojs5/Yg9XZ5aahA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>HRVDex — Heart Rate Variability Analyzer · v2.34.0</title>
@@ -4037,7 +4037,7 @@ body.light .topbar::after{ opacity:.25; }
     <div class="section-title">🔗 Correlation Matrix</div>
     <div style="background:var(--surface2);border:1px solid rgba(34,211,238,0.3);border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:12px;line-height:1.8;color:var(--text2)">
       Pearson <em>r</em> across core metrics over the selected range.
-      <strong style="color:var(--teal)">Teal</strong> = move together · <strong style="color:var(--red)">red</strong> = inverse relationship · deeper colour = stronger. Hover any cell for the exact value.
+      <strong style="color:var(--teal)">Teal</strong> = move together · <strong style="color:var(--red)">red</strong> = inverse relationship · deeper colour = stronger. Hover any cell for the exact value and for the pair count <em>n</em> behind it — a cell computed over few surviving pairs is a weaker claim.
     </div>
     <div class="chart-card">
       <div id="corrHeatmap" class="heatmap-wrap"></div>
@@ -12940,6 +12940,15 @@ function renderHrvBench(r) {
    untouched: a real value, 0 included, still reaches it. */
 const kgrade = (v, ladder) => (v == null || isNaN(v) ? 'neutral' : ladder(v));
 
+/* ∅ — A DELTA NEEDS BOTH MEMBERS MEASURED. Every value cell below guards `!= null`, and the five
+   delta cells guarded only `prev`, so `(null - 42).toFixed(1)` printed '-42.0' and the chip read a
+   confident 42-point drop under a value cell honestly reading '—'. Two absent rows read
+   `null - null`, which is 0, and the chip then claimed "no change" (`_stress` and `_energy` are a
+   literal null on the PulseDex-sourced row at hrvdex-dsp.js:644). An uncomputable delta is ABSENT,
+   not zero: kdelta answers null and the strip draws no chip for it. A measured 0 on either row is a
+   reading and still yields a delta. ABSENCE-SURVEY row a67da4ab5c84. */
+const kdelta = (cur, prv, digits) => (Number.isFinite(cur) && Number.isFinite(prv) ? (cur - prv).toFixed(digits) : null);
+
 function renderKPIs(rows) {
   const r = rows[rows.length - 1];
   const prev = rows.length > 1 ? rows[rows.length - 2] : null;
@@ -12954,7 +12963,7 @@ function renderKPIs(rows) {
       val: r._hrv != null ? r._hrv.toFixed(1) : undefined,
       sub: 'Today',
       color: kgrade(r._hrv, (x) => (x > 45 ? 'good' : x > 30 ? 'warn' : 'bad')),
-      delta: prev ? (r._hrv - prev._hrv).toFixed(1) : null,
+      delta: prev ? kdelta(r._hrv, prev._hrv, 1) : null,
       unit: ''
     },
     {
@@ -12962,7 +12971,7 @@ function renderKPIs(rows) {
       val: r._sdnn != null ? r._sdnn.toFixed(1) : undefined,
       sub: 'ms — today',
       color: kgrade(r._sdnn, (x) => (x > 60 ? 'good' : x > 40 ? 'warn' : 'bad')),
-      delta: prev ? (r._sdnn - prev._sdnn).toFixed(1) : null,
+      delta: prev ? kdelta(r._sdnn, prev._sdnn, 1) : null,
       unit: 'ms'
     },
     {
@@ -12970,7 +12979,7 @@ function renderKPIs(rows) {
       val: r._rmssd != null ? r._rmssd.toFixed(1) : undefined,
       sub: 'ms — parasympathetic',
       color: kgrade(r._rmssd, (x) => (x > 35 ? 'good' : x > 20 ? 'warn' : 'bad')),
-      delta: prev ? (r._rmssd - prev._rmssd).toFixed(1) : null,
+      delta: prev ? kdelta(r._rmssd, prev._rmssd, 1) : null,
       unit: 'ms'
     },
     {
@@ -12978,7 +12987,7 @@ function renderKPIs(rows) {
       val: r._stress != null ? r._stress.toFixed(0) : undefined,
       sub: 'HRV score',
       color: kgrade(r._stress, (x) => (x < 45 ? 'good' : x < 65 ? 'warn' : 'bad')),
-      delta: prev ? (r._stress - prev._stress).toFixed(0) : null,
+      delta: prev ? kdelta(r._stress, prev._stress, 0) : null,
       unit: '',
       inverse: true
     },
@@ -12987,7 +12996,7 @@ function renderKPIs(rows) {
       val: r._energy != null ? r._energy.toFixed(0) : undefined,
       sub: 'HRV score',
       color: kgrade(r._energy, (x) => (x > 55 ? 'good' : x > 35 ? 'warn' : 'bad')),
-      delta: prev ? (r._energy - prev._energy).toFixed(0) : null,
+      delta: prev ? kdelta(r._energy, prev._energy, 0) : null,
       unit: ''
     },
     {
@@ -14043,6 +14052,15 @@ function renderWeekday() {
   );
 }
 
+/* ∅ — THE COVERAGE TRAVELS WITH THE CORRELATION. `_patPearson` answers `{ r, n }`, renderHeatmap
+   bound only `res.r`, and a cell over 3 surviving pairs painted exactly like one over 40: same
+   text, same saturation, same tooltip. CLAUDE.md §∅ asks a reduced coverage to annotate, and the
+   sibling scatter consumer already appends `' · n ' + n`. This helper carries the pair count
+   into every cell tooltip, the diagonal included, and it reports an absent count as absent rather
+   than as 0. ABSENCE-SURVEY row 64f6cbb7d28f. */
+function _patCellTitle(labX, labY, r, n) {
+  return labX + ' ↔ ' + labY + ': r=' + (isFinite(r) ? r.toFixed(2) : 'n/a') + ' · n ' + (Number.isFinite(n) ? n : 'n/a');
+}
 function _patHeatColor(r) {
   if (!isFinite(r)) return 'rgba(120,140,170,0.05)';
   const a = Math.min(1, Math.abs(r));
@@ -14065,25 +14083,12 @@ function renderHeatmap() {
   for (let i = 0; i < n; i++) {
     html += '<tr><th>' + _patShort(keys[i]) + '</th>';
     for (let j = 0; j < n; j++) {
-      const res = i === j ? { r: 1 } : _patPearson(series[i], series[j]);
+      const res = i === j ? { r: 1, n: series[i].filter((v) => Number.isFinite(v)).length } : _patPearson(series[i], series[j]);
       const r = res.r;
       let txt = '';
       if (isFinite(r)) txt = i === j ? '1' : r.toFixed(2).replace(/^0\./, '.').replace(/^-0\./, '-.');
       const tc = isFinite(r) && Math.abs(r) > 0.55 ? '#fff' : 'var(--text2)';
-      html +=
-        '<td title="' +
-        _patShort(keys[i]) +
-        ' ↔ ' +
-        _patShort(keys[j]) +
-        ': r=' +
-        (isFinite(r) ? r.toFixed(2) : 'n/a') +
-        '" style="background:' +
-        _patHeatColor(r) +
-        ';color:' +
-        tc +
-        '">' +
-        txt +
-        '</td>';
+      html += '<td title="' + _patCellTitle(_patShort(keys[i]), _patShort(keys[j]), r, res.n) + '" style="background:' + _patHeatColor(r) + ';color:' + tc + '">' + txt + '</td>';
     }
     html += '</tr>';
   }
@@ -14409,7 +14414,8 @@ function inferFromData() {
   // Route through the cascade (getProfile→DexProfile) — never read the removed #prof_age
   // DOM input directly (PROFILE-DOM-READ-AUDIT §1/§2: it resolves to null under the panel).
   const _pp = getProfile();
-  const currentAge = _pp.age || _DEFAULT_AGE;
+  const _ageKnown = _pp.ageKnown === true;
+  const currentAge = _ageKnown && _pp.age > 0 ? _pp.age : _DEFAULT_AGE;
   const _tanaka = 208 - 0.7 * currentAge;
   // resting HR: manual override else median morning HR; HRmax guard against implausible entry
   const _hrRestV = _pp.hrrest_manual > 0 ? _pp.hrrest_manual : restingHR;
@@ -14420,6 +14426,7 @@ function inferFromData() {
   /* §∅ — Uth-Sørensen divides by the resting HR. With none measured the quotient is not large, it is
      UNDEFINED — `_hrmaxV / null` is Infinity, and rounding it yields Infinity, not a VO₂. Refuse. */
   const vo2Est = _hrRestV > 0 ? Math.round(15.3 * (_hrmaxV / _hrRestV) * _altF * 10) / 10 : null; // Uth-Sørensen + altitude
+  const _vo2OnDefaultAge = _vo2RestsOnDefaultAge(_ageKnown, _hrmaxV, _tanaka);
 
   // HRV→BP derivation REMOVED 2026-06-22 (DEX-SUITE-EXTERNAL-REVIEW-v2 §🔴 — same
   // class as the PulseDex SBP/DBP leak just removed): cuffless BP from HRV has no
@@ -14429,7 +14436,7 @@ function inferFromData() {
   // heuristic and is DELIBERATELY never written to identity (chronological age stays user/pop).
   if (DXP()) {
     try {
-      DXP().prefillFrom({ hrRest: restingHR, vo2: vo2Est });
+      DXP().prefillFrom({ hrRest: restingHR, vo2: _vo2OnDefaultAge ? null : vo2Est });
     } catch {}
   }
   /* ⚠️ NO READER — measured 2026-09-05, repo-wide: `_projVO2` occurs at exactly three sites and all
@@ -14461,7 +14468,10 @@ function inferFromData() {
   }
 
   // Fields we CAN infer (BP intentionally NOT inferred — see HRV→BP removal above)
-  setIfEmpty('prof_vo2gt', vo2Est, true);
+  /* ∅ — the same estimate also prefills the VO2 GROUND-TRUTH field, which is the second surface of
+     the one row: an estimate that rests on an invented age would sit in a field whose name claims a
+     measurement. Skipping the call leaves the field at its documented '0' auto value. */
+  if (!_vo2OnDefaultAge) setIfEmpty('prof_vo2gt', vo2Est, true);
   setIfEmpty('prof_hrmax', 0, false); // keep 0 = auto (use Tanaka)
 
   // Age is NOT auto-filled from HRV anymore (ANS-age removed 2026-06-23,
@@ -14545,6 +14555,16 @@ function loadProfile() {
   updateProfile();
 }
 
+/* ∅ — WHETHER THE VO2 ESTIMATE RESTS ON AN AGE NOBODY ENTERED. `getProfile` substitutes a
+   population age (35 at the cascade, 40 at the estimate) with no marker, so the Uth-Sorensen
+   estimate below could rest on an invented number and still reach the shared DETECTED tier through
+   `prefillFrom` (dex-profile.js:472), where another node resolves it as a measured fact. The age
+   reaches the estimate through Tanaka ONLY: an entered HRmax that passes the plausibility guard
+   replaces Tanaka, and the estimate then owes the age nothing. So this answers true only when the
+   age is unknown AND Tanaka supplied HRmax. ABSENCE-SURVEY row 0db08d540800. */
+function _vo2RestsOnDefaultAge(ageKnown, hrmaxUsed, tanaka) {
+  return ageKnown !== true && hrmaxUsed === tanaka;
+}
 function getProfile() {
   if (DXP()) {
     const p = DXP().get(),
@@ -14563,6 +14583,9 @@ function getProfile() {
     };
     return {
       age: n(p.age, 35),
+      /* ∅ — `n(p.age, 35)` answers a population age for an absent one, and the consumer could not
+         tell the two apart. This flag reports which it got. ABSENCE-SURVEY row 0db08d540800. */
+      ageKnown: n(p.age, 0) > 0,
       sex: p.sex === 'F' ? 'F' : 'M',
       weight: n(p.weight, 75),
       height: n(p.height, 175),
@@ -14576,6 +14599,10 @@ function getProfile() {
   }
   return {
     age: parseFloat(document.getElementById('prof_age')?.value) || 35,
+    /* ∅ — this arm runs only without the shared record, and the field already holds 35 as its own
+       default, so a stored default and an entered 35 are indistinguishable here. The identity write
+       the flag guards needs DXP() and is unreachable in this arm. */
+    ageKnown: parseFloat(document.getElementById('prof_age')?.value) > 0,
     sex: document.getElementById('prof_sex')?.value || 'M',
     weight: parseFloat(document.getElementById('prof_weight')?.value) || 75,
     height: parseFloat(document.getElementById('prof_height')?.value) || 175,

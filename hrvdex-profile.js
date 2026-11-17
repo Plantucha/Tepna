@@ -73,7 +73,8 @@ function inferFromData() {
   // Route through the cascade (getProfile→DexProfile) — never read the removed #prof_age
   // DOM input directly (PROFILE-DOM-READ-AUDIT §1/§2: it resolves to null under the panel).
   const _pp = getProfile();
-  const currentAge = _pp.age || _DEFAULT_AGE;
+  const _ageKnown = _pp.ageKnown === true;
+  const currentAge = _ageKnown && _pp.age > 0 ? _pp.age : _DEFAULT_AGE;
   const _tanaka = 208 - 0.7 * currentAge;
   // resting HR: manual override else median morning HR; HRmax guard against implausible entry
   const _hrRestV = _pp.hrrest_manual > 0 ? _pp.hrrest_manual : restingHR;
@@ -84,6 +85,7 @@ function inferFromData() {
   /* §∅ — Uth-Sørensen divides by the resting HR. With none measured the quotient is not large, it is
      UNDEFINED — `_hrmaxV / null` is Infinity, and rounding it yields Infinity, not a VO₂. Refuse. */
   const vo2Est = _hrRestV > 0 ? Math.round(15.3 * (_hrmaxV / _hrRestV) * _altF * 10) / 10 : null; // Uth-Sørensen + altitude
+  const _vo2OnDefaultAge = _vo2RestsOnDefaultAge(_ageKnown, _hrmaxV, _tanaka);
 
   // HRV→BP derivation REMOVED 2026-06-22 (DEX-SUITE-EXTERNAL-REVIEW-v2 §🔴 — same
   // class as the PulseDex SBP/DBP leak just removed): cuffless BP from HRV has no
@@ -93,7 +95,7 @@ function inferFromData() {
   // heuristic and is DELIBERATELY never written to identity (chronological age stays user/pop).
   if (DXP()) {
     try {
-      DXP().prefillFrom({ hrRest: restingHR, vo2: vo2Est });
+      DXP().prefillFrom({ hrRest: restingHR, vo2: _vo2OnDefaultAge ? null : vo2Est });
     } catch {}
   }
   /* ⚠️ NO READER — measured 2026-09-05, repo-wide: `_projVO2` occurs at exactly three sites and all
@@ -125,7 +127,10 @@ function inferFromData() {
   }
 
   // Fields we CAN infer (BP intentionally NOT inferred — see HRV→BP removal above)
-  setIfEmpty('prof_vo2gt', vo2Est, true);
+  /* ∅ — the same estimate also prefills the VO2 GROUND-TRUTH field, which is the second surface of
+     the one row: an estimate that rests on an invented age would sit in a field whose name claims a
+     measurement. Skipping the call leaves the field at its documented '0' auto value. */
+  if (!_vo2OnDefaultAge) setIfEmpty('prof_vo2gt', vo2Est, true);
   setIfEmpty('prof_hrmax', 0, false); // keep 0 = auto (use Tanaka)
 
   // Age is NOT auto-filled from HRV anymore (ANS-age removed 2026-06-23,
@@ -209,6 +214,16 @@ function loadProfile() {
   updateProfile();
 }
 
+/* ∅ — WHETHER THE VO2 ESTIMATE RESTS ON AN AGE NOBODY ENTERED. `getProfile` substitutes a
+   population age (35 at the cascade, 40 at the estimate) with no marker, so the Uth-Sorensen
+   estimate below could rest on an invented number and still reach the shared DETECTED tier through
+   `prefillFrom` (dex-profile.js:472), where another node resolves it as a measured fact. The age
+   reaches the estimate through Tanaka ONLY: an entered HRmax that passes the plausibility guard
+   replaces Tanaka, and the estimate then owes the age nothing. So this answers true only when the
+   age is unknown AND Tanaka supplied HRmax. ABSENCE-SURVEY row 0db08d540800. */
+function _vo2RestsOnDefaultAge(ageKnown, hrmaxUsed, tanaka) {
+  return ageKnown !== true && hrmaxUsed === tanaka;
+}
 function getProfile() {
   if (DXP()) {
     const p = DXP().get(),
@@ -227,6 +242,9 @@ function getProfile() {
     };
     return {
       age: n(p.age, 35),
+      /* ∅ — `n(p.age, 35)` answers a population age for an absent one, and the consumer could not
+         tell the two apart. This flag reports which it got. ABSENCE-SURVEY row 0db08d540800. */
+      ageKnown: n(p.age, 0) > 0,
       sex: p.sex === 'F' ? 'F' : 'M',
       weight: n(p.weight, 75),
       height: n(p.height, 175),
@@ -240,6 +258,10 @@ function getProfile() {
   }
   return {
     age: parseFloat(document.getElementById('prof_age')?.value) || 35,
+    /* ∅ — this arm runs only without the shared record, and the field already holds 35 as its own
+       default, so a stored default and an entered 35 are indistinguishable here. The identity write
+       the flag guards needs DXP() and is unreachable in this arm. */
+    ageKnown: parseFloat(document.getElementById('prof_age')?.value) > 0,
     sex: document.getElementById('prof_sex')?.value || 'M',
     weight: parseFloat(document.getElementById('prof_weight')?.value) || 75,
     height: parseFloat(document.getElementById('prof_height')?.value) || 175,

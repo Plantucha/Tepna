@@ -930,6 +930,21 @@ export const SEEDS = [
     at: 'hrvdex-dsp.js:1074',
     state: 'fixed',
     note: "BOOKKEEPING \u2014 the code already refuses and only this ledger row stayed open. PR #2922 (0bb0ca8d6) replaced `paraCount ? paraScore / paraCount : 50` with a refusal. The 50 was not a conservative default but a CONSTANT: sympPenalty needs _hf above zero, and an _hf above zero would itself have raised paraCount, so the branch could only ever return exactly 50 whatever else the row carried. A number that cannot vary with its input says nothing about the night, and 50 is mid-scale, so it drew as an average night on ch_camq. Pins: tests/dex-tests.js group '\u2205 HRVDex derived metrics \u2014 the sympathetic leg and the AUC coverage count' pins it against a row carrying only _lf, and the existing legs at the \u00a71.3 group pin the mid-scale value itself."
+  },
+  {
+    at: 'hrvdex-render.js:383',
+    state: 'fixed',
+    note: "Every KPI delta cell guarded only the previous night, so `(null - 42).toFixed(1)` printed '-42.0' and the chip read a confident 42-point drop while the value cell beside it honestly read an em dash. The row named `_hrv` alone, and all five cells carried the one defect: `_stress` and `_energy` are a literal null on the PulseDex-sourced row (hrvdex-dsp.js:644), where `null - null` is 0, so the chip then claimed no change. A delta over an absent member is a DISCONTINUITY, not a reduced coverage, so the owner ruling of 2026-09-17 refuses here: `kdelta` answers null and the strip draws no chip for it. A measured 0 on either night is a reading and still yields a delta. Pins: tests/dex-tests.js group '\u2205 HRVDex KPI deltas and heatmap coverage \u2014 an uncomputable delta is absent', where 7 of 21 legs red on the pre-fix source, which is every leg that source reaches."
+  },
+  {
+    at: 'hrvdex-render.js:1336',
+    state: 'fixed',
+    note: "`_patPearson` answers `{ r, n }` and renderHeatmap bound only `res.r`, so a cell over 3 surviving pairs painted exactly like one over 40: same text, same saturation, same tooltip. A correlation stays defined over 3 pairs and the absence reduces COVERAGE without breaking continuity, so the owner ruling of 2026-09-17 annotates here: `_patCellTitle` carries the pair count into every cell tooltip, the diagonal included, and it reports an absent count as absent rather than as 0. The sibling scatter consumer already appended the same ' \u00b7 n ' form, and the card note now tells the reader each cell carries its count. Pins: tests/dex-tests.js group '\u2205 HRVDex KPI deltas and heatmap coverage \u2014 an uncomputable delta is absent', where 7 of 21 legs red on the pre-fix source, which is every leg that source reaches."
+  },
+  {
+    at: 'hrvdex-profile.js:70',
+    state: 'fixed',
+    note: "`getProfile` substitutes a population age for an absent one with no marker, 35 at the cascade and 40 at the estimate, so the Uth-S\u00f8rensen VO\u2082 estimate could rest on an age nobody entered and still reach the shared DETECTED tier through `prefillFrom` (dex-profile.js:472), where another node resolves it as a measured fact. The age reaches the estimate through Tanaka ONLY: an entered HRmax that passes the plausibility guard replaces Tanaka, and the estimate then owes the age nothing. So `getProfile` reports `ageKnown` in both arms, and `_vo2RestsOnDefaultAge` answers true only when the age is unknown AND Tanaka supplied HRmax. The identity write then passes null, which `prefillFrom` already skips, and the VO\u2082 ground-truth field keeps its documented auto value, because that field is the second surface of the one row. Pins: tests/dex-tests.js group '\u2205 HRVDex profile \u2014 a VO\u2082 estimate over a default age is not written as a fact', where 7 of 13 legs red on the pre-fix source, which is every leg that source reaches."
   }
 ];
 
