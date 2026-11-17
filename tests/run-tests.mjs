@@ -3458,6 +3458,13 @@ async function main() {
     },
     OxyBMILabel: ctx.upBMILabel,
     OxyVO2abs: ctx.upVO2abs,
+    /* A non-positive body measure is not a measurement (§∅ task 31) — the five derived body terms, so
+       the group can prove each one refuses a 0 height or weight instead of publishing 0.0 / 50 kg. */
+    OxyBMI: ctx.upBMI,
+    OxyBSA: ctx.upBSA,
+    OxyBMR: ctx.upBMR,
+    OxyIBW: ctx.upIBW,
+    OxyIdealWt: ctx.upIdealWt,
     OxyUP: ctx.UP,
     CrossNightEnvelope: ctx.CrossNightEnvelope,
     ECGCross: ctx.ECGCross,
