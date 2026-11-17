@@ -2055,7 +2055,7 @@
      "--verdict-sample"
     ]
    },
-   "note": "the null-injection fuzzer for the \u00a7\u2205 absence contract (P1 no fabrication over an all-null night, P2 nulls are ignored not zeroed): one object per target per run, gate null-fuzz-<target>, population = fuzzed nights checked; FAIL on any failing assertion outside the KNOWN routed set. --verdict-sample is a fixed two-night run with the bundle in the OS temp dir. Adopted 2026-10-12 when the tool landed (it lived unlanded in a worktree from 2026-10-06)."
+   "note": "the null-injection fuzzer for the \u00a7\u2205 absence contract (P1 no fabrication over an all-null night, P2 nulls are ignored not zeroed). A real run emits one object per target, gate null-fuzz-<target>, population = fuzzed nights checked. --verdict-sample fuzzes EVERY TARGETS entry at two nights on seed 1 and emits ONE aggregate object, gate null-fuzz, population = fuzzed nights across all targets, with the per-target breakdown in result.targets: this file keys a producer by tool path and holds one emits.cmd, so a sample that ran the default target alone left the other three reaching CI through --selftest only, whose control injects no nulls (residue 2026-11-15-null-fuzz-ci-runs-only-the-oxydex-target). FAIL on any failing assertion, routed or not \u2014 the KNOWN/NOVEL split is for the reader, never for the gate; a target that does not load reports failures null and holds a clean run at UNDERPOWERED. Adopted 2026-10-12 when the tool landed (it lived unlanded in a worktree from 2026-10-06); the sample went multi-target 2026-11-17."
   },
   "tools/o2ring-dat-timefit.mjs": {
    "bin": "word-only",
