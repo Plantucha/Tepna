@@ -91297,6 +91297,72 @@
       T.ok('CONTROL · the card still cites Baevsky for a real value', /'Baevsky 1984 regression'/.test(src), 'the citation went away with the guard');
     });
 
+    /* §∅ BOOKKEEPING — four HIGH absence-survey rows on hrvdex-profile.js that the CODE already
+       refuses, while the survey STATE still read `open`: `6845325b8432` (:45, #2972), `5c406cbcb1c4`
+       (:353, #2975), `464bd9601149` (:378, #2967) and `802e6f479f45` (:486, #2967). No plant can red
+       on origin/main for a row already fixed, so these legs PIN each refusal and each consumer that
+       reads it, which is what stops a silent regression after the ledger says fixed. */
+    group('∅ HRVDex profile — four high absence rows the code already refuses', 'hrvdex-profile · absence', function (T) {
+      var src = (env.sources && env.sources['hrvdex-profile.js']) || '';
+      T.ok('ANTI-VACUITY · the hrvdex-profile.js source is readable in this lane', src.length > 1000, 'env.sources["hrvdex-profile.js"] absent');
+      if (!src) return;
+
+      // row 6845325b8432 — the detected resting HR (#2972)
+      var mR = src.match(/const restingHR = ([^;]+);/);
+      T.ok('ANTI-VACUITY · the restingHR expression was extracted', !!mR, 'the const restingHR line moved');
+      if (mR) {
+        var rhrOf = new Function('hrs', 'return ' + mR[1] + ';');
+        T.eq('no usable HR sample ⇒ the detected resting HR is null', rhrOf([]), null);
+        T.eq('CONTROL · a loaded set still yields its median', rhrOf([55, 60, 65]), 60);
+      }
+      T.ok('the banner says not detected instead of a bpm', /restingHR != null \? restingHR \+ ' bpm' : 'not detected'/.test(src), 'the resting-HR banner lost its guard');
+
+      // row 5c406cbcb1c4 — the mean resting HR and the HRmax plausibility guard (#2975)
+      var mH = src.match(/const _hrRest0 = ([^;]+);/);
+      T.ok('ANTI-VACUITY · the _hrRest0 expression was extracted', !!mH, 'the const _hrRest0 line moved');
+      if (mH) {
+        var rest0Of = new Function('_hrRestVals', 'return ' + mH[1] + ';');
+        T.eq('no finite HR row ⇒ the mean resting HR is null', rest0Of([]), null);
+        T.eq('CONTROL · loaded rows still yield their rounded mean', rest0Of([60, 62]), 61);
+      }
+      var mV = src.match(/const hrmaxValid = ([^;]+);/);
+      T.ok('ANTI-VACUITY · the hrmaxValid expression was extracted', !!mV, 'the const hrmaxValid line moved');
+      if (mV) {
+        var validOf = new Function('p', '_hrRest0', 'return ' + mV[1] + ';');
+        T.eq('a null resting HR SKIPS the relative test and keeps the absolute ones', validOf({ hrmax_manual: 150 }, null), true);
+        T.eq('absence does not wave through an entry under the 140 bpm floor', validOf({ hrmax_manual: 130 }, null), false);
+        T.eq('a measured resting HR still applies the 45 bpm margin', validOf({ hrmax_manual: 150 }, 120), false);
+        T.eq('CONTROL · a measured resting HR accepts a plausible 150 bpm', validOf({ hrmax_manual: 150 }, 60), true);
+        T.ok('the relative test is never run against a fabricated resting HR', / \(_hrRest0 == null \|\| p\.hrmax_manual > _hrRest0 \+ 45\)/.test(src), 'the null arm of the HRmax guard moved');
+      }
+
+      // row 464bd9601149 — absolute VO₂ over an unset ground truth (#2967)
+      var mA = src.match(/const vo2_abs = ([^;]+);/);
+      T.ok('ANTI-VACUITY · the vo2_abs expression was extracted', !!mA, 'the const vo2_abs line moved');
+      if (mA) {
+        var absOf = new Function('p', 'return ' + mA[1] + ';');
+        T.eq('an unset VO₂ ground truth ⇒ absolute VO₂ is a dash', absOf({ vo2gt: 0, weight: 75 }), '—');
+        T.eq('CONTROL · an entered ground truth still yields litres per minute', absOf({ vo2gt: 45, weight: 75 }), '3.38 L/min');
+      }
+
+      // row 802e6f479f45 — the Cooper percentile rank over an unset VO₂ (#2967)
+      var mP = src.match(/\n  function vo2Percentile\(vo2, age, sex\) \{[\s\S]*?\n  \}\n/);
+      T.ok('ANTI-VACUITY · the vo2Percentile function was extracted', !!mP, 'the vo2Percentile declaration moved');
+      if (mP) {
+        var pctOf = new Function('return (' + mP[0].trim() + ');')();
+        T.eq('an unset VO₂ ⇒ no percentile rank, not the 1st', pctOf(0, 35, 'M'), null);
+        T.eq('a non-finite VO₂ ⇒ no percentile rank', pctOf(Number.NaN, 35, 'M'), null);
+        T.ok(
+          'CONTROL · an entered VO₂ still ranks between 1 and 99',
+          typeof pctOf(45, 35, 'M') === 'number' && pctOf(45, 35, 'M') >= 1 && pctOf(45, 35, 'M') <= 99,
+          'the control rank left the band: ' + pctOf(45, 35, 'M')
+        );
+        T.ok('the unset rank and a real rank are not one answer', pctOf(0, 35, 'M') !== pctOf(45, 35, 'M'), 'an unset VO₂ ranks like a measured one');
+      }
+      T.ok('the percentile refusal line is present', /if \(!\(vo2 > 0\) \|\| !isFinite\(vo2\)\) return null;/.test(src), 'vo2Percentile lost its unset branch');
+      T.ok('the card prints a dash for an absent rank', /vo2Perc != null \? '~' \+ vo2Perc \+ 'th' : '—'/.test(src), 'the percentile card lost its guard');
+    });
+
     /* ════ 21g · OxyDex PROFILE PERSONALIZATION — known-answer (TEST-COVERAGE-FOLLOWUPS-II §1b) ════
      The OxyDex sibling of §1b. Execution found this ALSO needs no re-bundle: oxydex-profile.js's up*
      helpers are top-level globals, and it loads headless once oxydex-util.js (sv/gv, DOM-guarded) is

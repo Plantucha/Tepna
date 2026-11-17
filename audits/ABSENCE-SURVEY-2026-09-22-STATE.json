@@ -25,8 +25,8 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 166,
-  "fixed": 121,
+  "open": 162,
+  "fixed": 125,
   "accepted-with-reason": 3
  },
  "consumerCensus": {
@@ -413,7 +413,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 45,
-   "state": "open"
+   "state": "fixed",
+   "note": "BOOKKEEPING — the code already refuses and only this ledger row stayed open. PR #2972 (eeab2513f) replaced the `: 60` default with `: null`, so a dataset with no usable heart rate reports 'not detected' in place of '60 bpm' under an 'Auto-detected from your data' banner. Every consumer of the value refuses with it: the banner at the detected line, `_hrRestV`, the explicit `_hrRestV != null` arm of the HRmax plausibility guard, and the Uth-Sørensen VO₂ estimate, which divides by it. Pins: tests/dex-tests.js group '∅ HRVDex profile — four high absence rows the code already refuses'. A mutant restoring `: 60` reds 2 legs."
   },
   {
    "key": "5c406cbcb1c4",
@@ -422,7 +423,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 353,
-   "state": "open"
+   "state": "fixed",
+   "note": "BOOKKEEPING — the code already refuses and only this ledger row stayed open. PR #2975 (de1907baf) took the mean over the rows that CARRY a reading, so `_hrRest0` nulls when none does. Before it, each row without a heart rate added 0 to the numerator and 1 to the denominator, which dragged the resting HR down and made the relative HRmax test easier to clear. With no reading the relative test is now SKIPPED rather than run against a fabricated number, while the absolute conditions still apply, and the value's only other consumer sits behind `_rhrProj > 0`. A mutant restoring `: 60` reds 2 legs, and a mutant deleting the null arm of the guard reds 2."
   },
   {
    "key": "464bd9601149",
@@ -431,7 +433,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 378,
-   "state": "open"
+   "state": "fixed",
+   "note": "BOOKKEEPING — the code already refuses and only this ledger row stayed open. PR #2967 (55bc00f17) guarded absolute VO₂ on `p.vo2gt > 0`, so an unset ground truth prints an em dash and the card hint says 'enter VO₂max ground truth'. `p.vo2gt` is 0 by PROTOCOL when nothing was entered and nothing was detected, which `detOr0` documents, so the 0 is deliberate and the display layer is what had to refuse. A mutant removing the guard reds 2 legs."
   },
   {
    "key": "802e6f479f45",
@@ -440,7 +443,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 486,
-   "state": "open"
+   "state": "fixed",
+   "note": "BOOKKEEPING — the code already refuses and only this ledger row stayed open. PR #2967 (55bc00f17) gave `vo2Percentile` its unset branch. Before it, 0 sat below the first Cooper point, the interpolation loop never matched, and the tail `: 1` published the 1st percentile — the worst possible fitness ranking, from no data at all. The function now answers null for a non-positive or non-finite VO₂, and the card prints a dash. A mutant deleting the branch reds 6 legs, which is the whole measured arm plus its controls."
   },
   {
    "key": "a67da4ab5c84",
