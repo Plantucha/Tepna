@@ -25,8 +25,8 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 155,
-  "fixed": 132,
+  "open": 152,
+  "fixed": 135,
   "accepted-with-reason": 3
  },
  "consumerCensus": {
@@ -457,7 +457,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 383,
-   "state": "open"
+   "state": "fixed",
+   "note": "Every KPI delta cell guarded only the previous night, so `(null - 42).toFixed(1)` printed '-42.0' and the chip read a confident 42-point drop while the value cell beside it honestly read an em dash. The row named `_hrv` alone, and all five cells carried the one defect: `_stress` and `_energy` are a literal null on the PulseDex-sourced row (hrvdex-dsp.js:644), where `null - null` is 0, so the chip then claimed no change. A delta over an absent member is a DISCONTINUITY, not a reduced coverage, so the owner ruling of 2026-09-17 refuses here: `kdelta` answers null and the strip draws no chip for it. A measured 0 on either night is a reading and still yields a delta. Pins: tests/dex-tests.js group '∅ HRVDex KPI deltas and heatmap coverage — an uncomputable delta is absent', where 7 of 21 legs red on the pre-fix source, which is every leg that source reaches."
   },
   {
    "key": "c4444dbaf422",
@@ -2477,7 +2478,8 @@
    "severity": "low",
    "occurrence": 0,
    "surveyLine": 70,
-   "state": "open"
+   "state": "fixed",
+   "note": "`getProfile` substitutes a population age for an absent one with no marker, 35 at the cascade and 40 at the estimate, so the Uth-Sørensen VO₂ estimate could rest on an age nobody entered and still reach the shared DETECTED tier through `prefillFrom` (dex-profile.js:472), where another node resolves it as a measured fact. The age reaches the estimate through Tanaka ONLY: an entered HRmax that passes the plausibility guard replaces Tanaka, and the estimate then owes the age nothing. So `getProfile` reports `ageKnown` in both arms, and `_vo2RestsOnDefaultAge` answers true only when the age is unknown AND Tanaka supplied HRmax. The identity write then passes null, which `prefillFrom` already skips, and the VO₂ ground-truth field keeps its documented auto value, because that field is the second surface of the one row. Pins: tests/dex-tests.js group '∅ HRVDex profile — a VO₂ estimate over a default age is not written as a fact', where 7 of 13 legs red on the pre-fix source, which is every leg that source reaches."
   },
   {
    "key": "64f6cbb7d28f",
@@ -2486,7 +2488,8 @@
    "severity": "low",
    "occurrence": 0,
    "surveyLine": 1336,
-   "state": "open"
+   "state": "fixed",
+   "note": "`_patPearson` answers `{ r, n }` and renderHeatmap bound only `res.r`, so a cell over 3 surviving pairs painted exactly like one over 40: same text, same saturation, same tooltip. A correlation stays defined over 3 pairs and the absence reduces COVERAGE without breaking continuity, so the owner ruling of 2026-09-17 annotates here: `_patCellTitle` carries the pair count into every cell tooltip, the diagonal included, and it reports an absent count as absent rather than as 0. The sibling scatter consumer already appended the same ' · n ' form, and the card note now tells the reader each cell carries its count. Pins: tests/dex-tests.js group '∅ HRVDex KPI deltas and heatmap coverage — an uncomputable delta is absent', where 7 of 21 legs red on the pre-fix source, which is every leg that source reaches."
   },
   {
    "key": "8dfcbe08cb90",
