@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="6ad959e85200" data-compute-hash="a4aca0f40ab1"><head>
+<html lang="en" data-manifest-hash="4a0f12146af3" data-compute-hash="f88eeb826cc3"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4esQYmoU7FYRSxckVGhsPB+ddHAbdUxK5/3OtftYgPQ=' 'sha256-73XqvW3QPszVNJSGP0gS6Awhvf88TLJs80AD7soU2Zw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DAzxT9tkOTT/oCPwMIjFND7JrVJDbGetoyYDqtIe/1c=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-K+h5thoekEgjAVsTOJH/LoQr+vkP1LPzjqBYtooYmg8=' 'sha256-KWDMRagpDhkrEKgurTOBXHctXtLVmvs0VbMDxL2Sen8=' 'sha256-Kj5zpRSjfKRUvZk+RC3I7xokQf+6hDYGqLeXsQQ+CKc=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oBZMdqHbLFQRnb4o/LvL9OJ2eQrQOb/2n50vzDHkOZo=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qFR6tT2evdE/A0XZ/SYA3BAHbtz9P0O4C94Q+zqHySc=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4esQYmoU7FYRSxckVGhsPB+ddHAbdUxK5/3OtftYgPQ=' 'sha256-73XqvW3QPszVNJSGP0gS6Awhvf88TLJs80AD7soU2Zw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DAzxT9tkOTT/oCPwMIjFND7JrVJDbGetoyYDqtIe/1c=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-K+h5thoekEgjAVsTOJH/LoQr+vkP1LPzjqBYtooYmg8=' 'sha256-KWDMRagpDhkrEKgurTOBXHctXtLVmvs0VbMDxL2Sen8=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-Rr8G2mCxnUpYJeiwLlDBUV1mqaJGe8EBSh8w3KFYYEw=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oBZMdqHbLFQRnb4o/LvL9OJ2eQrQOb/2n50vzDHkOZo=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qFR6tT2evdE/A0XZ/SYA3BAHbtz9P0O4C94Q+zqHySc=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -40919,15 +40919,29 @@ __exports.GlucoDex = window.GlucoDex;
        `null` to 0, so a nulled clean-beat share alone would republish a fabricated 0 % analyzable. */
     const cleanBeatPct = sqi.length ? Math.round((100 * cleanBeats) / sqi.length) : null;
     const cleanBeatPctReason = sqi.length ? null : 'no beats were detected — no pulse population to score';
-    const motionRejected = motion.hasData ? det.peaks.filter((p, k) => /** @type {any} */ (motionAt)(p) > 0.5).length : 0;
-    const motionRejectedPct = det.peaks.length ? r1((100 * motionRejected) / det.peaks.length) : 0;
+    const motionRejected = motion.hasData ? det.peaks.filter((p, k) => /** @type {any} */ (motionAt)(p) > 0.5).length : null;
+    /* §∅ — `0` is the BEST value on this scale, so a recording with no inertial stream
+       published a perfect "no beat was rejected" over a gate that never ran. Four of the seven
+       committed PpgDex goldens carried that fabricated 0. The rate refuses WITH A REASON instead.
+       The reduced coverage it stands for ANNOTATES the analyzable share below, and does not refuse
+       it (owner ruling 2026-09-17: a discontinuity refuses, reduced coverage annotates). */
+    const motionRejectedPct = motionRejected == null || !det.peaks.length ? null : r1((100 * motionRejected) / det.peaks.length);
+    const motionRejectedPctReason = !motion.hasData
+      ? 'no inertial stream was loaded — no beat was examined for motion'
+      : det.peaks.length
+        ? null
+        : 'no beats were detected — no pulse population to gate for motion';
     /* §∅ — the refusal ECGDex published at `ecgdex-dsp.js:1292-1293`: an interval series with
        nothing in it has no population to repair, so the rate is `null` WITH A REASON, never `0`.
        `0` is the BEST value on this scale — `correctionRate > 20` is one of the `hrvLowConfidence`
        tests — so a fabricated 0 reads as "nothing needed repair". */
     const correctionRate = rr.length ? r1((100 * corr.nCorr) / rr.length) : null;
     const correctionRateReason = rr.length ? null : 'no interval series — no population to correct';
-    const analyzablePct = cleanBeatPct == null ? null : Math.round(cleanBeatPct * (1 - motionRejectedPct / 100));
+    /* §∅ — the discount is EXPLICIT, because `1 - null / 100` is 1 and that arithmetic
+       would read as a deliberate "nothing was rejected" on a refused rate. An unmeasured gate
+       discounts nothing, so the share stays the clean-beat share and the refusal above says why. */
+    const motionDiscount = motionRejectedPct == null ? 0 : motionRejectedPct / 100;
+    const analyzablePct = cleanBeatPct == null ? null : Math.round(cleanBeatPct * (1 - motionDiscount));
     const analyzablePctReason = analyzablePct != null ? null : 'the clean-beat share is unmeasured, so the motion gate has nothing to discount — no analyzable share exists';
     // magnetometer interference coverage (informational — does not alter SQI/conf)
     // §3a: epochs with no posture datum leave the DENOMINATOR — they are not evidence of a clean field.
@@ -41526,6 +41540,7 @@ __exports.GlucoDex = window.GlucoDex;
       hrvShapeViolation,
       motion,
       motionRejectedPct,
+      motionRejectedPctReason,
       magHasData: motion.hasMag,
       magInterferencePct,
       validation,
@@ -42587,6 +42602,9 @@ __exports.GlucoDex = window.GlucoDex;
         ...(r.analyzablePctReason ? { analyzablePctReason: r.analyzablePctReason } : {}),
         ...(r.coveragePctReason ? { coveragePctReason: r.coveragePctReason } : {}),
         motionRejectedPct: nz(r.motionRejectedPct),
+        /* Published only when the rate is ABSENT, for the reason the correction rate below
+           records: an unconditional key would restamp every golden to say nothing. */
+        ...(r.motionRejectedPctReason ? { motionRejectedPctReason: r.motionRejectedPctReason } : {}),
         correctionRatePct: nz(r.correctionRate),
         /* Published only when the rate is ABSENT: the refusal is the part a reader cannot
            reconstruct, and an unconditional `null` key would restamp every golden to say nothing. */

@@ -6534,15 +6534,29 @@
        `null` to 0, so a nulled clean-beat share alone would republish a fabricated 0 % analyzable. */
     const cleanBeatPct = sqi.length ? Math.round((100 * cleanBeats) / sqi.length) : null;
     const cleanBeatPctReason = sqi.length ? null : 'no beats were detected — no pulse population to score';
-    const motionRejected = motion.hasData ? det.peaks.filter((p, k) => /** @type {any} */ (motionAt)(p) > 0.5).length : 0;
-    const motionRejectedPct = det.peaks.length ? r1((100 * motionRejected) / det.peaks.length) : 0;
+    const motionRejected = motion.hasData ? det.peaks.filter((p, k) => /** @type {any} */ (motionAt)(p) > 0.5).length : null;
+    /* §∅ — `0` is the BEST value on this scale, so a recording with no inertial stream
+       published a perfect "no beat was rejected" over a gate that never ran. Four of the seven
+       committed PpgDex goldens carried that fabricated 0. The rate refuses WITH A REASON instead.
+       The reduced coverage it stands for ANNOTATES the analyzable share below, and does not refuse
+       it (owner ruling 2026-09-17: a discontinuity refuses, reduced coverage annotates). */
+    const motionRejectedPct = motionRejected == null || !det.peaks.length ? null : r1((100 * motionRejected) / det.peaks.length);
+    const motionRejectedPctReason = !motion.hasData
+      ? 'no inertial stream was loaded — no beat was examined for motion'
+      : det.peaks.length
+        ? null
+        : 'no beats were detected — no pulse population to gate for motion';
     /* §∅ — the refusal ECGDex published at `ecgdex-dsp.js:1292-1293`: an interval series with
        nothing in it has no population to repair, so the rate is `null` WITH A REASON, never `0`.
        `0` is the BEST value on this scale — `correctionRate > 20` is one of the `hrvLowConfidence`
        tests — so a fabricated 0 reads as "nothing needed repair". */
     const correctionRate = rr.length ? r1((100 * corr.nCorr) / rr.length) : null;
     const correctionRateReason = rr.length ? null : 'no interval series — no population to correct';
-    const analyzablePct = cleanBeatPct == null ? null : Math.round(cleanBeatPct * (1 - motionRejectedPct / 100));
+    /* §∅ — the discount is EXPLICIT, because `1 - null / 100` is 1 and that arithmetic
+       would read as a deliberate "nothing was rejected" on a refused rate. An unmeasured gate
+       discounts nothing, so the share stays the clean-beat share and the refusal above says why. */
+    const motionDiscount = motionRejectedPct == null ? 0 : motionRejectedPct / 100;
+    const analyzablePct = cleanBeatPct == null ? null : Math.round(cleanBeatPct * (1 - motionDiscount));
     const analyzablePctReason = analyzablePct != null ? null : 'the clean-beat share is unmeasured, so the motion gate has nothing to discount — no analyzable share exists';
     // magnetometer interference coverage (informational — does not alter SQI/conf)
     // §3a: epochs with no posture datum leave the DENOMINATOR — they are not evidence of a clean field.
@@ -7141,6 +7155,7 @@
       hrvShapeViolation,
       motion,
       motionRejectedPct,
+      motionRejectedPctReason,
       magHasData: motion.hasMag,
       magInterferencePct,
       validation,
@@ -8202,6 +8217,9 @@
         ...(r.analyzablePctReason ? { analyzablePctReason: r.analyzablePctReason } : {}),
         ...(r.coveragePctReason ? { coveragePctReason: r.coveragePctReason } : {}),
         motionRejectedPct: nz(r.motionRejectedPct),
+        /* Published only when the rate is ABSENT, for the reason the correction rate below
+           records: an unconditional key would restamp every golden to say nothing. */
+        ...(r.motionRejectedPctReason ? { motionRejectedPctReason: r.motionRejectedPctReason } : {}),
         correctionRatePct: nz(r.correctionRate),
         /* Published only when the rate is ABSENT: the refusal is the part a reader cannot
            reconstruct, and an unconditional `null` key would restamp every golden to say nothing. */

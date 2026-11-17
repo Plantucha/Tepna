@@ -48078,6 +48078,110 @@
         T.eq('CONTROL · the old denominator took 1 ms and published the short axis as a balance figure', +(ax.sd1v / (ax.sd2v || 1)).toFixed(3), ax.sd1v);
       }
     });
+    group('∅ PpgDex absence — motion rejection refuses when the gate never ran, plus four pinned fs refusals', 'ppgdex-dsp · ppgdex-app · ppgdex-profile · absence', function (T) {
+      var src = env.sources || {};
+      var dsp = src['ppgdex-dsp.js'] || '';
+      var app = src['ppgdex-app.js'] || '';
+      var prof = src['ppgdex-profile.js'] || '';
+      if (!dsp.trim() || !app.trim() || !prof.trim()) {
+        T.skip('the PpgDex motion-rejection road', 'sources not provided in this runner');
+        return;
+      }
+      // ── ANTI-VACUITY ──
+      T.ok(
+        'ANTI-VACUITY · the DSP still publishes a motion-rejected rate and the app still renders one',
+        /motionRejectedPct/.test(dsp) && /Motion-rejected/.test(app),
+        'dsp sites: ' + (dsp.match(/motionRejectedPct/g) || []).length + ' · app sites: ' + (app.match(/motionRejectedPct/g) || []).length
+      );
+
+      // ── THE PRODUCER, DRIVEN ──
+      var a0 = dsp.indexOf('const motionRejected = motion.hasData');
+      var a1 = dsp.indexOf(';', dsp.indexOf('no pulse population to gate for motion'));
+      T.ok('the rate and its cause are declared together', a0 > 0 && a1 > a0, 'start=' + a0 + ' end=' + a1);
+      if (a0 < 0 || a1 < a0) return;
+      var block = dsp.slice(a0, a1 + 1);
+      var r1 = function (v) {
+        return Math.round(v * 10) / 10;
+      };
+      var run = function (motion, peaks, motionAt) {
+        var fn = new Function('motion', 'det', 'motionAt', 'r1', block + '\nreturn { pct: motionRejectedPct, reason: motionRejectedPctReason, rejected: motionRejected };');
+        return fn(motion, { peaks: peaks }, motionAt, r1);
+      };
+      var noMotion = run({ hasData: false }, [10, 20, 30], null);
+      T.eq('no inertial stream refuses the rate', noMotion.pct, null);
+      T.eq('the rejected COUNT is unmeasured too, never 0', noMotion.rejected, null);
+      T.ok('the refusal names the absent stream', /no inertial stream was loaded/.test(noMotion.reason), '' + noMotion.reason);
+      var noBeats = run({ hasData: true }, [], function () {
+        return 0;
+      });
+      T.eq('a gate with no beats refuses the rate', noBeats.pct, null);
+      T.ok('that refusal names the absent population', /no pulse population to gate/.test(noBeats.reason), '' + noBeats.reason);
+      var measured = run({ hasData: true }, [0, 1, 2, 3], function (p) {
+        return p >= 2 ? 0.9 : 0.1;
+      });
+      T.eq('two of four beats over the threshold read 50', measured.pct, 50);
+      T.eq('a measured rate carries no cause', measured.reason, null);
+      // CONTROL · what the retired expression published over the SAME absent stream
+      T.eq('CONTROL · the retired expression published 0, the best value on this scale', [10, 20, 30].length ? r1((100 * 0) / 3) : 0, 0);
+
+      // ── THE ANALYZABLE SHARE, DRIVEN: reduced coverage ANNOTATES, it does not refuse ──
+      var b0 = dsp.indexOf('const motionDiscount = motionRejectedPct == null');
+      var b1 = dsp.indexOf(';', dsp.indexOf('const analyzablePct = cleanBeatPct == null'));
+      T.ok('the discount and the share are declared together', b0 > 0 && b1 > b0, 'start=' + b0 + ' end=' + b1);
+      if (b0 < 0 || b1 < b0) return;
+      var shareBlock = dsp.slice(b0, b1 + 1);
+      var share = function (pct, clean) {
+        return new Function('motionRejectedPct', 'cleanBeatPct', shareBlock + '\nreturn analyzablePct;')(pct, clean);
+      };
+      T.eq('an unexamined gate discounts nothing, so the share stays the clean-beat share', share(null, 82), 82);
+      T.eq('a measured 50 percent gate halves the share', share(50, 82), 41);
+      T.eq('an unmeasured beat population still refuses the share', share(null, null), null);
+      T.ok('the discount is explicit, never `1 - null / 100`', /const motionDiscount = motionRejectedPct == null \? 0 :/.test(dsp), shareBlock.split('\n').pop());
+      // CONTROL · the numbers do NOT move here, which is why no golden output changes value
+      T.eq('CONTROL · the retired arithmetic read the same share, so this half is a readability fix', Math.round(82 * (1 - 0 / 100)), 82);
+
+      // ── THE EXPORT publishes the cause only when the rate is absent ──
+      T.ok(
+        'the export carries the cause conditionally, so a fixture with motion data restamps nothing',
+        /\.\.\.\(r\.motionRejectedPctReason \? \{ motionRejectedPctReason: r\.motionRejectedPctReason \} : \{\}\)/.test(dsp),
+        'conditional spread present'
+      );
+
+      // ── EVERY READER GRADES THROUGH THE INVERTED HELPER ──
+      T.eq('no reader grades the rate with a raw lower-is-better ternary', (app.match(/motionRejectedPct < 10/g) || []).length, 0);
+      T.eq('the profile chip drops its raw ternary too', (prof.match(/motionRejectedPct < 10/g) || []).length, 0);
+      T.eq('four app readers grade through the inverted helper', (app.match(/pctClsDown\(r\.motionRejectedPct, 10, 30\)/g) || []).length, 4);
+      T.eq('four app readers name the cause from the producer', (app.match(/r\.motionRejectedPctReason \? /g) || []).length, 4);
+      T.ok('the KPI prints the em dash through pctTxt', /v: pctTxt\(r\.motionRejectedPct\),/.test(app), 'KPI value reads pctTxt');
+      T.ok(
+        'the profile chip grades and prints through the two helpers',
+        /pctClsDown\(r\.motionRejectedPct, 10, 30\)/.test(prof) && /pctTxt\(r\.motionRejectedPct\)/.test(prof),
+        'profile chip migrated'
+      );
+      var mDown = app.match(/const pctClsDown = [^\n]*/);
+      var pDown = prof.match(/const pctClsDown = [^\n]*/);
+      T.ok('both bundles declare the inverted helper', !!mDown && !!pDown, 'app=' + !!mDown + ' profile=' + !!pDown);
+      if (!mDown || !pDown) return;
+      T.eq('the two declarations are the same line', mDown[0], pDown[0]);
+      var grade = function (v) {
+        return new Function('v', 'const pctAbsent = (x) => x == null || !isFinite(x);\n' + mDown[0] + '\nreturn pctClsDown(v, 10, 30);')(v);
+      };
+      T.eq('an unexamined gate grades neutral', grade(null), 'neutral');
+      T.eq('a 5 percent rate grades ok', grade(5), 'ok');
+      T.eq('a 20 percent rate grades warn', grade(20), 'warn');
+      T.eq('a 40 percent rate grades bad', grade(40), 'bad');
+      // CONTROL · the measured defect: the retired band painted an absence the best possible green
+      var absentRate = /** @type {any} */ (null);
+      T.eq('CONTROL · the retired band graded an unexamined gate ok', absentRate < 10 ? 'ok' : absentRate < 30 ? 'warn' : 'bad', 'ok');
+
+      // ── FOUR PINNED fs REFUSALS (rows ppgdex-dsp.js:960 · :1075 · :6193 · :6203) ──
+      T.eq('no fabricated 176 Hz seed survives', (dsp.match(/fs = 176/g) || []).length, 0);
+      T.ok('the rate starts unmeasured', /let fs = \/\*\* @type \{number\|null\} \*\/ \(null\);/.test(dsp), 'fs starts null');
+      T.ok('the parser refuses a stream with no measurable rate', /err\.reason = 'no-sample-rate'/.test(dsp), 'no-sample-rate refusal present');
+      T.eq('no `(fs || 1)` axis survives in code', (dsp.match(/\/ \(fs \|\| 1\)/g) || []).length, 0);
+      T.ok('the SignalFrame path throws rather than assuming 1 Hz', /refusing rather than assuming 1 Hz/.test(dsp), 'frame refusal present');
+      T.ok('the frame duration rides the same refused rate', /durSec: s\.durSec != null \? s\.durSec : n > 1 \? \(n - 1\) \/ fs : 0,/.test(dsp), 'durSec reads fs directly');
+    });
     group('∅ PulseDex absence — a nominal 14d/7d window is not a covered span, plus five pinned refusals', 'pulsedex-overview · pulsedex-dsp · pulsedex-render · absence', function (T) {
       var src = env.sources || {};
       var ov = src['pulsedex-overview.js'] || '';

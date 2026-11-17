@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="8c61aaf5da86" data-compute-hash="ffdeaa761934">
+<html lang="en" data-manifest-hash="40cadbea6afb" data-compute-hash="463cd726d94e">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-Kj5zpRSjfKRUvZk+RC3I7xokQf+6hDYGqLeXsQQ+CKc=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OhwgsF7e06J5pF9AYqYx63gT9y3oEJSUrbL16RZqiyI=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-W+rK8y+1cYa6Z+X29oFEt18aIuLICrAQUkCSrqlVGKE=' 'sha256-a30wD1q1DhXb/hp/9CiNJnGcfilKag1nrqd5UVk34sw=' 'sha256-al6Y47L6DjS948zFsA4a/jhCOnTvvG7ts9HX95Zrdvs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-zmoYxw7fL9XcTut3PajOFlmQgGfs/1F5yolpdaVkZpI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ESQkjSoYYCU+pERgKSMHNYg5XTIdL5asMqd0RnX+JEY=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-Rr8G2mCxnUpYJeiwLlDBUV1mqaJGe8EBSh8w3KFYYEw=' 'sha256-UCsYvg3vndgZEqR75520kgXVtrJaFcqJ3w4HvtYU+6g=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-W+rK8y+1cYa6Z+X29oFEt18aIuLICrAQUkCSrqlVGKE=' 'sha256-a30wD1q1DhXb/hp/9CiNJnGcfilKag1nrqd5UVk34sw=' 'sha256-al6Y47L6DjS948zFsA4a/jhCOnTvvG7ts9HX95Zrdvs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.34.0</title>
@@ -15290,15 +15290,29 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
        `null` to 0, so a nulled clean-beat share alone would republish a fabricated 0 % analyzable. */
     const cleanBeatPct = sqi.length ? Math.round((100 * cleanBeats) / sqi.length) : null;
     const cleanBeatPctReason = sqi.length ? null : 'no beats were detected — no pulse population to score';
-    const motionRejected = motion.hasData ? det.peaks.filter((p, k) => /** @type {any} */ (motionAt)(p) > 0.5).length : 0;
-    const motionRejectedPct = det.peaks.length ? r1((100 * motionRejected) / det.peaks.length) : 0;
+    const motionRejected = motion.hasData ? det.peaks.filter((p, k) => /** @type {any} */ (motionAt)(p) > 0.5).length : null;
+    /* §∅ — `0` is the BEST value on this scale, so a recording with no inertial stream
+       published a perfect "no beat was rejected" over a gate that never ran. Four of the seven
+       committed PpgDex goldens carried that fabricated 0. The rate refuses WITH A REASON instead.
+       The reduced coverage it stands for ANNOTATES the analyzable share below, and does not refuse
+       it (owner ruling 2026-09-17: a discontinuity refuses, reduced coverage annotates). */
+    const motionRejectedPct = motionRejected == null || !det.peaks.length ? null : r1((100 * motionRejected) / det.peaks.length);
+    const motionRejectedPctReason = !motion.hasData
+      ? 'no inertial stream was loaded — no beat was examined for motion'
+      : det.peaks.length
+        ? null
+        : 'no beats were detected — no pulse population to gate for motion';
     /* §∅ — the refusal ECGDex published at `ecgdex-dsp.js:1292-1293`: an interval series with
        nothing in it has no population to repair, so the rate is `null` WITH A REASON, never `0`.
        `0` is the BEST value on this scale — `correctionRate > 20` is one of the `hrvLowConfidence`
        tests — so a fabricated 0 reads as "nothing needed repair". */
     const correctionRate = rr.length ? r1((100 * corr.nCorr) / rr.length) : null;
     const correctionRateReason = rr.length ? null : 'no interval series — no population to correct';
-    const analyzablePct = cleanBeatPct == null ? null : Math.round(cleanBeatPct * (1 - motionRejectedPct / 100));
+    /* §∅ — the discount is EXPLICIT, because `1 - null / 100` is 1 and that arithmetic
+       would read as a deliberate "nothing was rejected" on a refused rate. An unmeasured gate
+       discounts nothing, so the share stays the clean-beat share and the refusal above says why. */
+    const motionDiscount = motionRejectedPct == null ? 0 : motionRejectedPct / 100;
+    const analyzablePct = cleanBeatPct == null ? null : Math.round(cleanBeatPct * (1 - motionDiscount));
     const analyzablePctReason = analyzablePct != null ? null : 'the clean-beat share is unmeasured, so the motion gate has nothing to discount — no analyzable share exists';
     // magnetometer interference coverage (informational — does not alter SQI/conf)
     // §3a: epochs with no posture datum leave the DENOMINATOR — they are not evidence of a clean field.
@@ -15897,6 +15911,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       hrvShapeViolation,
       motion,
       motionRejectedPct,
+      motionRejectedPctReason,
       magHasData: motion.hasMag,
       magInterferencePct,
       validation,
@@ -16958,6 +16973,9 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         ...(r.analyzablePctReason ? { analyzablePctReason: r.analyzablePctReason } : {}),
         ...(r.coveragePctReason ? { coveragePctReason: r.coveragePctReason } : {}),
         motionRejectedPct: nz(r.motionRejectedPct),
+        /* Published only when the rate is ABSENT, for the reason the correction rate below
+           records: an unconditional key would restamp every golden to say nothing. */
+        ...(r.motionRejectedPctReason ? { motionRejectedPctReason: r.motionRejectedPctReason } : {}),
         correctionRatePct: nz(r.correctionRate),
         /* Published only when the rate is ABSENT: the refusal is the part a reader cannot
            reconstruct, and an unconditional `null` key would restamp every golden to say nothing. */
@@ -19252,6 +19270,10 @@ __exports.PPGUI = window.PPGUI;
   const pctAbsent = (v) => v == null || !isFinite(v);
   const pctTxt = (v) => (pctAbsent(v) ? '\u2014' : v + '%');
   const pctCls = (v, ok, warn) => (pctAbsent(v) ? 'neutral' : v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
+  /* §∅ — THE MOTION GATE IS LOWER-IS-BETTER, SO `pctCls` ABOVE CANNOT GRADE IT: that helper
+     reads `v >= ok`. A raw `v < 10 ? 'ok' : …` is worse than wrong on an absence, because
+     `null < 10` is TRUE and every reader painted an unexamined gate the best possible green. */
+  const pctClsDown = (v, ok, warn) => (pctAbsent(v) ? 'neutral' : v < ok ? 'ok' : v < warn ? 'warn' : 'bad');
   let reRenderFn = null;
   let _dexPanel = null; // handle to the shared DexProfile.renderPanel() instance
   const median = (a) => {
@@ -19550,7 +19572,7 @@ __exports.PPGUI = window.PPGUI;
       }
     }
     chips += `<div class="readiness-zone-chip ${pb.sev === 'neutral' ? 'warn' : pb.sev}">Perfusion · ${pb.txt}</div>`;
-    chips += `<div class="readiness-zone-chip ${r.motionRejectedPct < 10 ? 'ok' : r.motionRejectedPct < 30 ? 'warn' : 'bad'}">${r.motionRejectedPct}% motion-rejected</div>`;
+    chips += `<div class="readiness-zone-chip ${pctClsDown(r.motionRejectedPct, 10, 30)}">${pctTxt(r.motionRejectedPct)} motion-rejected</div>`;
     chips += `<div class="readiness-zone-chip ${pctCls(r.analyzablePct, 90, 75)}">${pctTxt(r.analyzablePct)} analyzable</div>`;
     if (r.cpapInUse === true) chips += `<div class="readiness-zone-chip neutral">⊕ on CPAP therapy</div>`;
     else if (r.cpapInUse === false) chips += `<div class="readiness-zone-chip neutral">no CPAP</div>`;
@@ -21989,6 +22011,10 @@ const { PPGUI } = __require('ppgdex-render.js');
   const pctAbsent = (v) => v == null || !isFinite(v);
   const pctTxt = (v) => (pctAbsent(v) ? '\u2014' : v + '%');
   const pctCls = (v, ok, warn) => (pctAbsent(v) ? 'neutral' : v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
+  /* §∅ — THE MOTION GATE IS LOWER-IS-BETTER, SO `pctCls` ABOVE CANNOT GRADE IT: that helper
+     reads `v >= ok`. A raw `v < 10 ? 'ok' : …` is worse than wrong on an absence, because
+     `null < 10` is TRUE and every reader painted an unexamined gate the best possible green. */
+  const pctClsDown = (v, ok, warn) => (pctAbsent(v) ? 'neutral' : v < ok ? 'ok' : v < warn ? 'warn' : 'bad');
 
   /* ── OPTICAL SITE DECLARATION (PPGDEX-SITE-WIRING §2/§3) ─────────────────────────────────────
      The parser can only read the file LAYOUT, which names the DEVICE: 3 optical columns = a Verity
@@ -22107,9 +22133,9 @@ const { PPGUI } = __require('ppgdex-render.js');
       { l: 'Perfusion Idx', v: r.perfusionIndex == null ? '—' : r.perfusionIndex + '%', sub: 'AC/DC · contact', s: pb },
       {
         l: 'Motion-rejected',
-        v: r.motionRejectedPct + '%',
-        sub: r.motion && r.motion.hasData ? 'ACC+GYRO gate' : 'no motion data',
-        s: r.motionRejectedPct < 10 ? 'ok' : r.motionRejectedPct < 30 ? 'warn' : 'bad'
+        v: pctTxt(r.motionRejectedPct),
+        sub: r.motionRejectedPctReason ? 'the gate did not run' : 'ACC+GYRO gate',
+        s: pctClsDown(r.motionRejectedPct, 10, 30)
       }
     ];
     if (r.morph) {
@@ -22173,7 +22199,7 @@ const { PPGUI } = __require('ppgdex-render.js');
     <div class="q-grid">
       <div class="q-stat">${evBadge('Analyzable')}<div class="q-val ${pctCls(r.analyzablePct, 90, 75)}">${pctTxt(r.analyzablePct)}</div><div class="q-lbl">Analyzable</div><div class="q-sub">clean-beat × motion gate</div></div>
       <div class="q-stat"><div class="q-val ${pctCls(r.cleanBeatPct, 85, 65)}">${pctTxt(r.cleanBeatPct)}</div><div class="q-lbl">Clean pulses${evBadge('Clean pulses')}</div><div class="q-sub">SQI ≥ 0.5</div></div>
-      <div class="q-stat"><div class="q-val ${r.motionRejectedPct < 10 ? 'ok' : r.motionRejectedPct < 30 ? 'warn' : 'bad'}">${r.motionRejectedPct}%</div><div class="q-lbl">Motion-rejected${evBadge('Motion-rejected')}</div><div class="q-sub">${m && m.hasData ? 'ACC+GYRO' : 'no ACC/GYRO'}</div></div>
+      <div class="q-stat"><div class="q-val ${pctClsDown(r.motionRejectedPct, 10, 30)}">${pctTxt(r.motionRejectedPct)}</div><div class="q-lbl">Motion-rejected${evBadge('Motion-rejected')}</div><div class="q-sub">${r.motionRejectedPctReason ? 'the gate did not run' : 'ACC+GYRO'}</div></div>
       <div class="q-stat"><div class="q-val ${r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad'}">${r.meanSQI}</div><div class="q-lbl">Mean SQI${evBadge('Mean SQI')}</div><div class="q-sub">→ Ganglior conf</div></div>
       ${r.ledAgreementPct != null ? `<div class="q-stat"><div class="q-val ${r.ledAgreementPct >= 90 ? 'ok' : r.ledAgreementPct >= 75 ? 'warn' : 'bad'}">${r.ledAgreementPct}%</div><div class="q-lbl">3-LED agree${evBadge('LED agreement')}</div><div class="q-sub">${r.ledAgree3of3Pct != null ? r.ledAgree3of3Pct + '% all-3' : 'optical consensus'}</div></div>` : ''}
     </div>
@@ -22302,7 +22328,7 @@ const { PPGUI } = __require('ppgdex-render.js');
     $('motionCard').innerHTML = `
     <div class="q-grid">
       <div class="q-stat">${evBadge('Mean motion idx')}<div class="q-val ${m.meanMotionIndex < 0.2 ? 'ok' : m.meanMotionIndex < 0.5 ? 'warn' : 'bad'}">${m.meanMotionIndex}</div><div class="q-lbl">Mean motion idx</div><div class="q-sub">0 still · 1 moving</div></div>
-      <div class="q-stat"><div class="q-val ${r.motionRejectedPct < 10 ? 'ok' : r.motionRejectedPct < 30 ? 'warn' : 'bad'}">${r.motionRejectedPct}%</div><div class="q-lbl">Pulses rejected${evBadge('Pulses rejected')}</div><div class="q-sub">idx &gt; 0.5</div></div>
+      <div class="q-stat"><div class="q-val ${pctClsDown(r.motionRejectedPct, 10, 30)}">${pctTxt(r.motionRejectedPct)}</div><div class="q-lbl">Pulses rejected${evBadge('Pulses rejected')}</div><div class="q-sub">${r.motionRejectedPctReason ? 'the gate did not run' : 'idx &gt; 0.5'}</div></div>
       <div class="q-stat"><div class="q-val neutral">${m.accFs || '—'}</div><div class="q-lbl">ACC Hz${evBadge('ACC Hz')}</div><div class="q-sub">${m.nAcc.toLocaleString()} samples</div></div>
       <div class="q-stat"><div class="q-val neutral">${m.gyroFs || '—'}</div><div class="q-lbl">GYRO Hz${evBadge('GYRO Hz')}</div><div class="q-sub">${m.nGyro.toLocaleString()} samples</div></div>
     </div>
@@ -22575,7 +22601,7 @@ const { PPGUI } = __require('ppgdex-render.js');
       ['Analyzable', r.analyzablePct, '%', pctAbsent(r.analyzablePct) ? 'no beats detected' : '', pctCls(r.analyzablePct, 90, 75)],
       ['Clean beats', r.cleanBeatPct, '%', pctAbsent(r.cleanBeatPct) ? 'no beats detected' : 'SQI≥0.5', pctCls(r.cleanBeatPct, 85, 65)],
       ['Mean SQI', r.meanSQI, '', '0–1 · conf', r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad'],
-      ['Motion-rejected', r.motionRejectedPct, '%', r.motion && r.motion.hasData ? 'ACC+GYRO' : 'n/a', r.motionRejectedPct < 10 ? 'ok' : r.motionRejectedPct < 30 ? 'warn' : 'bad'],
+      ['Motion-rejected', r.motionRejectedPct, '%', r.motionRejectedPctReason ? 'the gate did not run' : 'ACC+GYRO', pctClsDown(r.motionRejectedPct, 10, 30)],
       [
         'Correction rate',
         r.correctionRate == null ? '—' : r.correctionRate,
@@ -22817,6 +22843,7 @@ const { PPGUI } = __require('ppgdex-render.js');
         coveragePct: r.coveragePct,
         meanSQI: r.meanSQI,
         motionRejectedPct: r.motionRejectedPct,
+        motionRejectedPctReason: r.motionRejectedPctReason,
         correctionRatePct: r.correctionRate,
         ledAgreementPct: r.ledAgreementPct != null ? r.ledAgreementPct : null,
         ledAgree3of3Pct: r.ledAgree3of3Pct != null ? r.ledAgree3of3Pct : null,
@@ -22998,6 +23025,7 @@ const { PPGUI } = __require('ppgdex-render.js');
           ? {
               meanMotionIndex: r.motion.meanMotionIndex,
               motionRejectedPct: r.motionRejectedPct,
+              motionRejectedPctReason: r.motionRejectedPctReason,
               source: 'ACC+GYRO',
               accFs: r.motion.accFs,
               gyroFs: r.motion.gyroFs,
