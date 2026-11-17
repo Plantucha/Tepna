@@ -157,7 +157,15 @@
      25 Hz session would out-vote a 0.5 Hz one 50:1 in every pooled percentile. Shape-identical
      output (`{ fs, data }`) so every downstream site is rate-agnostic. */
   function _decimateMean(ch, targetFs) {
-    var block = Math.max(1, Math.round((ch.fs || targetFs) / targetFs));
+    /* ∅ A DECIMATION WITHOUT THE SOURCE RATE IS A FABRICATED RATE. `ch.fs || targetFs` assumed the
+       source was already at the target cadence, so `block` fell to 1 and the output CLAIMED
+       `fs: targetFs` over samples that were never decimated: a 25 Hz BRP `Press.40ms` lane with an
+       unreadable record duration became a 0.5 Hz lane, and `usageHours` counted each 40 ms sample as
+       2 s — 10 s of mask-on read as 0.139 h (50×). Measured. The honest answer is a refusal: a block
+       factor needs a numerator. */
+    var srcFs = ch && ch.fs;
+    if (!(srcFs > 0) || !isFinite(srcFs)) return null;
+    var block = Math.max(1, Math.round(srcFs / targetFs));
     var n = Math.floor(ch.data.length / block);
     var out = new Float32Array(n);
     for (var i = 0; i < n; i++) {
@@ -165,7 +173,7 @@
       for (var k = 0; k < block; k++) acc += ch.data[i * block + k];
       out[i] = acc / block;
     }
-    return { fs: (ch.fs || targetFs) / block, data: out };
+    return { fs: srcFs / block, data: out };
   }
 
   /* ── CPAP-vs-APAP mode (CPAP-REAL-CORPUS §F2) ─────────────────────────────────────────────
@@ -207,7 +215,12 @@
 
   /* Minutes-scale pressure envelope: per-window P90, which is immune to EPR's expiratory dips. */
   function pressureEnvelope(pressureMaskOn, fs) {
-    var n = Math.max(1, Math.round((fs || 0.5) * MODE_WIN_SEC));
+    /* ∅ A WINDOW COUNTED IN SAMPLES IS NOT A MINUTE WINDOW WITHOUT A RATE. `(fs || 0.5)` made 150
+       samples into 5 min at a guessed cadence, so `classifyMode` pooled P90s over windows of the wrong
+       length and still reported `nWindows` as if the scale were measured. No rate ⇒ no window ⇒ the
+       mode call answers its existing `null` ("don't know") instead of a device setting. */
+    if (!(fs > 0) || !isFinite(fs)) return [];
+    var n = Math.max(1, Math.round(fs * MODE_WIN_SEC));
     var out = [];
     for (var i = 0; i + n <= pressureMaskOn.length; i += n) out.push(_p(pressureMaskOn.slice(i, i + n), 90));
     return out;
@@ -296,9 +309,14 @@
        one node published two readings of one absence. The lane's PRESENCE now travels out of band
        in `leak`, exactly as the sibling carries it. */
     var leak = raw.leak || null;
+    /* ∅ A SAMPLE COUNT IS NOT A DURATION WITHOUT A RATE. `raw.fs || 1` treated every raw sample as one
+       second, so a 0.5 Hz hour of 1800 samples published `usageHours: 0.5` (half the therapy time) and
+       `fs: 1` — an in-band cadence that no consumer can question. A present `raw` with no rate now
+       publishes null and names it; a caller that passes nothing at all keeps the pinned legacy shape. */
+    var hasRate = !!(raw && raw.fs > 0 && isFinite(raw.fs));
     return {
       t0Ms: raw.t0Ms,
-      fs: raw.fs || 1,
+      fs: hasRate ? raw.fs : raw ? null : 1,
       mode: raw.mode || null,
       pressure: raw.pressure || new Float32Array(0),
       leak: leak,
@@ -306,11 +324,15 @@
       maskOn: maskOn,
       pressureMaskOn: _filterBy(raw.pressure || [], maskOn),
       leakMaskOn: leak ? _filterBy(leak, maskOn) : [],
-      usageHours:
-        _countWhere(raw.pressure || [], function (v) {
-          return v > 0;
-        }) /
-        ((raw.fs || 1) * 3600)
+      usageHours: !raw
+        ? 0
+        : hasRate
+          ? _countWhere(raw.pressure || [], function (v) {
+              return v > 0;
+            }) /
+            (raw.fs * 3600)
+          : null,
+      usageReason: raw && !hasRate ? 'no-sample-rate' : null
     };
   }
 
@@ -435,13 +457,20 @@
     });
     var gaps = [];
     for (var i = 1; i < s.length; i++) {
-      var gapMs = s[i].t0Ms - s[i - 1].endMs; // off-mask gap (monotonic; no 24h jump)
-      gaps.push({ afterIdx: i - 1, afterSession: i - 1, gapMin: +(gapMs / 60000).toFixed(1) });
+      // ∅ a session with no wall span has no end, so the gap after it is absent, never t0Ms − 0
+      var gapMs = s[i - 1].endMs == null ? null : s[i].t0Ms - s[i - 1].endMs; // off-mask gap (monotonic; no 24h jump)
+      gaps.push({ afterIdx: i - 1, afterSession: i - 1, gapMin: gapMs == null ? null : +(gapMs / 60000).toFixed(1) });
     }
     // night-level metrics = therapy-hour-weighted recompute over pooled mask-on time
-    var totalHours = s.reduce(function (a, x) {
-      return a + x.durMin / 60;
-    }, 0);
+    // ∅ one session with no duration makes the night's wall total unknown: null, never a short sum
+    var spanUnknown = s.some(function (x) {
+      return x.durMin == null;
+    });
+    var totalHours = spanUnknown
+      ? null
+      : s.reduce(function (a, x) {
+          return a + x.durMin / 60;
+        }, 0);
     return {
       t0Ms: s.length ? s[0].t0Ms : null, // night anchor = first session
       dateAnchorMs: s.length ? Date.UTC(new Date(s[0].t0Ms).getUTCFullYear(), new Date(s[0].t0Ms).getUTCMonth(), new Date(s[0].t0Ms).getUTCDate()) : null,
@@ -449,7 +478,7 @@
       sessions: s,
       offMaskGaps: gaps,
       nSessions: s.length,
-      therapyHours: +totalHours.toFixed(2),
+      therapyHours: totalHours == null ? null : +totalHours.toFixed(2),
       metrics: nightMetrics(s) // pooled per-night surface (null for synthetic sessions w/o _pool)
     };
   }
@@ -872,8 +901,12 @@
        analyzable time. The same correction OxyDex §5 already ratified for the ODI family. It carries
        correctly into the pooled indices (cpapdex-cross / cpapdex-fusion sum `analyzedHours` as the
        pooled denominator — you pool a numerator and a denominator, never rates). */
-    var spanSec = durSec || n;
-    var hours = n > 0 ? (valid * (spanSec / n)) / 3600 : 0;
+    /* ∅ SAMPLES ARE NOT SECONDS WITHOUT A SESSION DURATION. `durSec || n` made one sample one second
+       whenever the envelope was absent, which is the 1 Hz assumption again — and this value is the
+       denominator of the published ODI. With no measured span the rate is refused, naming the fact. */
+    var spanOk = durSec > 0 && isFinite(durSec);
+    var spanSec = spanOk ? durSec : n;
+    var hours = spanOk && n > 0 ? (valid * (spanSec / n)) / 3600 : 0;
     var events = detectDesats(spo2, OXI.DROP, durSec);
     events.forEach(function (ev) {
       selfGateDesat(ev, pulse, spo2);
@@ -908,6 +941,7 @@
       pulseLane: pulse ? 'present' : 'absent',
       coverage: +coverage.toFixed(3),
       odi: hours > 0 ? +(real.length / hours).toFixed(2) : null,
+      odiReason: spanOk ? null : 'no-session-duration',
       desatCount: real.length,
       artifactCount: artifactCount,
       // The lane's OWN denominators, so a night that pools several sessions can weight them
@@ -937,8 +971,15 @@
   function detectBreaths(flowCh, durSec, opts) {
     if (!flowCh || !flowCh.data || !flowCh.data.length) return null;
     var flow = flowCh.data,
-      fs = flowCh.fs || 25,
+      fs = flowCh.fs,
       n = flow.length;
+    /* ∅ A BREATH COUNT AT A GUESSED 25 Hz IS NOT A COUNT. The detrend window (`4 s`), the minimum
+       breath spacing (`1.2 s`) and the mask-on time map are all sample indices scaled by `fs`, so
+       `|| 25` silently fixed every one of them to the BRP cadence when the header carried none.
+       A count without a rate is absent, and the caller already reads `breathCount: null`. */
+    if (!(fs > 0) || !isFinite(fs)) {
+      return { breathCount: null, breathRate: null, ieRatio: null, breathMaskOnSec: null, breathRateReason: 'signal carries no sample rate' };
+    }
     var W = Math.max(1, Math.round(fs * 4)); // running-mean window for detrend
     // running mean via prefix sums
     var breaths = 0,
@@ -955,7 +996,13 @@
       minBreathSamp = Math.round(fs * 1.2); // ≥1.2 s/breath (≤50 brpm ceiling)
     // mask index for sample i: the flow grid (25 Hz) and the pressure grid (0.5 Hz) differ, so map
     // by time rather than by index — off-mask samples take part in neither the count nor I:E.
-    var mOn = opts && opts.maskOn && opts.maskOn.length && opts.maskFs > 0 ? opts.maskOn : null;
+    /* A mask-on lane that cannot be timed cannot gate the count either: without `maskFs` the map
+       below would be skipped and off-mask crossings would be counted as breaths. */
+    var wantsMask = !!(opts && opts.maskOn && opts.maskOn.length);
+    if (wantsMask && !(opts.maskFs > 0 && isFinite(opts.maskFs))) {
+      return { breathCount: null, breathRate: null, ieRatio: null, breathMaskOnSec: null, breathRateReason: 'mask-on lane carries no sample rate' };
+    }
+    var mOn = wantsMask ? opts.maskOn : null;
     var mRatio = mOn ? opts.maskFs / fs : 0;
     for (var i = 0; i < n; i++) {
       if (mOn) {
@@ -1128,8 +1175,14 @@
     var therapy = set.PLD || set.BRP || set.SA2; // therapy clock source
     if (!therapy || !therapy.clock) return null;
     var t0Ms = therapy.clock.t0Ms;
-    var recDur = therapy.recDurSec || 60;
-    var durSec = (therapy.recordsRead || 0) * recDur;
+    /* ∅ AN UNREADABLE RECORD DURATION IS NOT 60 SECONDS. `cpapdex-edf.js` exports `recDurSec: null`
+       when the header field does not parse, and `|| 60` turned it into a full envelope: 120 records
+       published `durSec: 7200` that no byte in the file supports, and a CSL span opened at 100 s was
+       then scored as 98.61 % periodic breathing against it. `durSec` is the envelope that closes an
+       unpaired PB span and scales the ODI lane, so a guess here is a guess in two published numbers.
+       `therapy.recDurSec > 0` is false for null, 0 and NaN alike. */
+    var recDur = therapy.recDurSec > 0 && isFinite(therapy.recDurSec) ? therapy.recDurSec : null;
+    var durSec = recDur != null && therapy.recordsRead > 0 ? therapy.recordsRead * recDur : null;
     /* ∅ A FILE THAT CARRIED NO RECORD IS NOT A NIGHT THE MASK STAYED OFF. `recordsRead` reads 0
        for a header-only or power-loss file, because `cpapdex-edf.js:277` computes it from the bytes
        actually present. The record count explains an empty lane, and it does not detect one: the
@@ -1170,14 +1223,23 @@
        NEITHER file carries pressure there is no measurement at all: usage is `null` with a named
        reason — never 0.000. */
     var pressureSource = pressCh ? 'PLD' : null;
+    var brpRateAbsent = false;
     if (!pressCh) {
       var brpPress = chan(set.BRP, 'Press') || chan(set.BRP, 'MaskPress');
       if (brpPress && brpPress.data && brpPress.data.length) {
         pressCh = _decimateMean(brpPress, 0.5);
-        pressureSource = 'BRP';
+        // a decimation that could not name its source rate is not a usable lane, and not a 0.5 Hz one
+        if (pressCh) pressureSource = 'BRP';
+        else brpRateAbsent = true;
       }
     }
-    var fs = pressCh ? pressCh.fs : 0.5;
+    /* ∅ THE RATE IS A PRECONDITION, NOT A DEFAULT. `pressCh.fs` is `null` whenever the header's
+       record duration is 0 (`cpapdex-edf.js:296`), and both this line and the `usageHours`
+       denominator below used to substitute 0.5 Hz — a legal PLD cadence, so nothing downstream
+       could tell a guess from a measurement. Measured: a PLD of 15 samples/record with no record
+       duration published 1.0 h where a 60 s record says 2.0 h. */
+    var fs = pressCh ? pressCh.fs : null;
+    var fsOk = !!(fs > 0) && isFinite(fs);
     var pressure = pressCh ? pressCh.data : new Float32Array(0);
     /* ∅ THE TWO SOURCE ARMS DISAGREED ON WHAT A LANE IS. The BRP arm above requires
        `brpPress.data.length`, and the PLD arm requires only that the channel exists, so a PLD lane
@@ -1190,16 +1252,27 @@
     for (var i = 0; i < pressure.length; i++) maskOn[i] = pressure[i] > 0 ? 1 : 0;
     var pressureMaskOn = pressureSource === 'BRP' ? [] : _filterBy(pressure, maskOn); // F8 — mask pressure is not set pressure
     var leakMaskOn = leak ? _filterBy(leak, maskOn) : [];
-    var usageHours = hasPressureSample
-      ? _countWhere(pressure, function (v) {
-          return v > 0;
-        }) /
-        ((fs || 0.5) * 3600)
-      : null;
+    var usageHours =
+      hasPressureSample && fsOk
+        ? _countWhere(pressure, function (v) {
+            return v > 0;
+          }) /
+          (fs * 3600)
+        : null;
     /* The arm order names the upstream fact first: an absent LANE, then an empty FILE, then a lane
        the file carried with no sample in it. A reason token is a claim, and these three are the
        only claims this file supports. */
-    var usageReason = !pressureSource ? 'no-pressure-channel' : hasPressureSample ? null : hasRecords ? 'empty-pressure-lane' : 'no-records';
+    var usageReason = !pressureSource
+      ? brpRateAbsent
+        ? 'no-sample-rate'
+        : 'no-pressure-channel'
+      : !fsOk
+        ? 'no-sample-rate'
+        : hasPressureSample
+          ? null
+          : hasRecords
+            ? 'empty-pressure-lane'
+            : 'no-records';
     // the index denominator: measured hours, or 0 when there is no measurement (every index → null)
     var idxHours = usageHours == null ? 0 : usageHours;
 
@@ -1277,7 +1350,7 @@
          (`maskOnLatency NaN`, `medianPressure NaN`) for a set that lost its PLD file, and the
          note records real nights that did. The reason now leaves the node, as `usageReason` and
          `pbObserved` do. Row `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`. */
-      maskOnLatency: pressOnset === -1 ? null : +(pressOnset / (fs * 60)).toFixed(2),
+      maskOnLatency: pressOnset === -1 || !fsOk ? null : +(pressOnset / (fs * 60)).toFixed(2),
       /* ∅ `therapy-never-started` IS A HUMAN FACT, so only a lane with a sample in it may carry
          that reason. An empty lane and a file with no record each name themselves instead. */
       maskOnLatencyReason: pressOnset !== -1 ? null : !pressureSource ? 'no-pressure-lane' : hasPressureSample ? 'therapy-never-started' : hasRecords ? 'empty-pressure-lane' : 'no-records',
@@ -1331,7 +1404,7 @@
          lane IS knowable, so a genuine scored zero stays a real 0 and only true absence goes null.
          A CSL file with an empty annotation list is a MEASUREMENT (the device scored, found
          nothing); only the missing file is absence of evidence. */
-      periodicBreathingPct: pbObserved && durSec > 0 ? +((pbSec / durSec) * 100).toFixed(2) : null,
+      periodicBreathingPct: pbObserved && durSec != null && durSec > 0 ? +((pbSec / durSec) * 100).toFixed(2) : null,
       pbObserved: pbObserved,
       // Leak (converted to L/min)
       /* ∅ The lane's PRESENCE is not a sample: `leak` alone passed an empty `leakMaskOn`
@@ -1401,8 +1474,10 @@
     var sqi = leakSqi(metrics);
     return {
       t0Ms: t0Ms,
-      endMs: t0Ms + durSec * 1000, // WALL duration (for off-mask gap math)
-      durMin: +(durSec / 60).toFixed(1),
+      /* ∅ An unreadable record duration leaves the WALL span absent. `t0Ms + null * 1000` is `t0Ms`
+         and `+(null / 60).toFixed(1)` is `0`, so both fields would publish a zero-length session. */
+      endMs: durSec == null ? null : t0Ms + durSec * 1000, // WALL duration (for off-mask gap math)
+      durMin: durSec == null ? null : +(durSec / 60).toFixed(1),
       usageHours: usageHours == null ? null : +usageHours.toFixed(3),
       mode: mode,
       fname: meta.fname || null,
@@ -1965,7 +2040,7 @@
     ok('that off-mask gap ≈ 20 min', near((night.offMaskGaps[0] || {}).gapMin, 20, 0.2), JSON.stringify(night.offMaskGaps));
     ok('off-mask gap carries afterIdx (render/fusion contract)', night.offMaskGaps[0].afterIdx === 0, JSON.stringify(night.offMaskGaps[0]));
     ok('therapyHours ≈ 7 (4+3, no 24h jump)', near(night.therapyHours, 7, 0.05), night.therapyHours);
-    ok('overnight stays monotonic (gap > 0)', night.offMaskGaps[0].gapMin > 0, night.offMaskGaps[0].gapMin);
+    ok('overnight stays monotonic (gap > 0)', (night.offMaskGaps[0].gapMin ?? -1) > 0, night.offMaskGaps[0].gapMin);
 
     // longitudinal compliance
     var lng = buildLongitudinal([{ therapyHours: 7 }, { therapyHours: 3.5 }, { therapyHours: 6 }, { therapyHours: 5 }]);
