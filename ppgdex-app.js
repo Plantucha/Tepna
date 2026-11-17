@@ -321,8 +321,7 @@ import { PPGUI } from './ppgdex-render.js';
       ' bpm · ' +
       (r.durSec >= 3600 ? (r.durSec / 3600).toFixed(1) + ' h' : (r.durSec / 60).toFixed(1) + ' min') +
       '<br>' +
-      r.analyzablePct +
-      '% analyzable';
+      (pctAbsent(r.analyzablePct) ? 'analyzable not scored — no beats detected' : r.analyzablePct + '% analyzable');
   }
 
   function updateScopeReadout(view, fs, N, secAt) {
@@ -340,6 +339,15 @@ import { PPGUI } from './ppgdex-render.js';
 
   const sc = (v, ok, warn) => (v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
   const hrStat = (v) => (v < 40 ? 'bad' : v <= 90 ? 'ok' : v <= 100 ? 'warn' : 'bad');
+  /* §∅ — AN UNMEASURED PERCENTAGE IS A DASH AND A NEUTRAL GRADE, NEVER "0 %" AND "bad".
+     `ppgdex-dsp.js` publishes `cleanBeatPct` and `analyzablePct` as `null` when the detector placed no
+     beats. Every band test below reads `v >= 90 ? 'ok' : … : 'bad'`, and `null >= 90` is false, so an
+     absent beat population was graded as the worst possible record on eight separate readers. The em
+     dash is the value PpgDex already uses for an absent number (the correction-rate readers), and
+     `neutral` is the grade it already uses for one. */
+  const pctAbsent = (v) => v == null || !isFinite(v);
+  const pctTxt = (v) => (pctAbsent(v) ? '\u2014' : v + '%');
+  const pctCls = (v, ok, warn) => (pctAbsent(v) ? 'neutral' : v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
 
   /* ── OPTICAL SITE DECLARATION (PPGDEX-SITE-WIRING §2/§3) ─────────────────────────────────────
      The parser can only read the file LAYOUT, which names the DEVICE: 3 optical columns = a Verity
@@ -473,7 +481,7 @@ import { PPGUI } from './ppgdex-render.js';
       });
     }
     items.push(
-      { l: '% Analyzable', v: r.analyzablePct + '%', sub: r.cleanBeatPct + '% clean beats', s: r.analyzablePct >= 90 ? 'ok' : r.analyzablePct >= 75 ? 'warn' : 'bad' },
+      { l: '% Analyzable', v: pctTxt(r.analyzablePct), sub: pctAbsent(r.cleanBeatPct) ? 'no beats detected' : r.cleanBeatPct + '% clean beats', s: pctCls(r.analyzablePct, 90, 75) },
       /* §∅ — `null < 5` is `true`, so an unmeasured correction rate graded 'ok' in this KPI and
          printed `null%`. ECGDex's twin already reads `r.correctionRate == null ? '—'` (ecgdex-app.js). */
       {
@@ -522,8 +530,8 @@ import { PPGUI } from './ppgdex-render.js';
     const m = r.motion;
     $('qualityCard').innerHTML = `
     <div class="q-grid">
-      <div class="q-stat">${evBadge('Analyzable')}<div class="q-val ${r.analyzablePct >= 90 ? 'ok' : r.analyzablePct >= 75 ? 'warn' : 'bad'}">${r.analyzablePct}%</div><div class="q-lbl">Analyzable</div><div class="q-sub">clean-beat × motion gate</div></div>
-      <div class="q-stat"><div class="q-val ${r.cleanBeatPct >= 85 ? 'ok' : r.cleanBeatPct >= 65 ? 'warn' : 'bad'}">${r.cleanBeatPct}%</div><div class="q-lbl">Clean pulses${evBadge('Clean pulses')}</div><div class="q-sub">SQI ≥ 0.5</div></div>
+      <div class="q-stat">${evBadge('Analyzable')}<div class="q-val ${pctCls(r.analyzablePct, 90, 75)}">${pctTxt(r.analyzablePct)}</div><div class="q-lbl">Analyzable</div><div class="q-sub">clean-beat × motion gate</div></div>
+      <div class="q-stat"><div class="q-val ${pctCls(r.cleanBeatPct, 85, 65)}">${pctTxt(r.cleanBeatPct)}</div><div class="q-lbl">Clean pulses${evBadge('Clean pulses')}</div><div class="q-sub">SQI ≥ 0.5</div></div>
       <div class="q-stat"><div class="q-val ${r.motionRejectedPct < 10 ? 'ok' : r.motionRejectedPct < 30 ? 'warn' : 'bad'}">${r.motionRejectedPct}%</div><div class="q-lbl">Motion-rejected${evBadge('Motion-rejected')}</div><div class="q-sub">${m && m.hasData ? 'ACC+GYRO' : 'no ACC/GYRO'}</div></div>
       <div class="q-stat"><div class="q-val ${r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad'}">${r.meanSQI}</div><div class="q-lbl">Mean SQI${evBadge('Mean SQI')}</div><div class="q-sub">→ Ganglior conf</div></div>
       ${r.ledAgreementPct != null ? `<div class="q-stat"><div class="q-val ${r.ledAgreementPct >= 90 ? 'ok' : r.ledAgreementPct >= 75 ? 'warn' : 'bad'}">${r.ledAgreementPct}%</div><div class="q-lbl">3-LED agree${evBadge('LED agreement')}</div><div class="q-sub">${r.ledAgree3of3Pct != null ? r.ledAgree3of3Pct + '% all-3' : 'optical consensus'}</div></div>` : ''}
@@ -923,8 +931,8 @@ import { PPGUI } from './ppgdex-render.js';
         ['Perfusion index', r.morph.perfusionIndexPct, '%', 'AC/DC', r.morph.perfusionIndexPct == null ? '' : r.morph.perfusionIndexPct >= 2 ? 'ok' : r.morph.perfusionIndexPct >= 0.5 ? 'warn' : 'bad']
       ]);
     html += sec('Quality', [
-      ['Analyzable', r.analyzablePct, '%', '', r.analyzablePct >= 90 ? 'ok' : r.analyzablePct >= 75 ? 'warn' : 'bad'],
-      ['Clean beats', r.cleanBeatPct, '%', 'SQI≥0.5', r.cleanBeatPct >= 85 ? 'ok' : r.cleanBeatPct >= 65 ? 'warn' : 'bad'],
+      ['Analyzable', r.analyzablePct, '%', pctAbsent(r.analyzablePct) ? 'no beats detected' : '', pctCls(r.analyzablePct, 90, 75)],
+      ['Clean beats', r.cleanBeatPct, '%', pctAbsent(r.cleanBeatPct) ? 'no beats detected' : 'SQI≥0.5', pctCls(r.cleanBeatPct, 85, 65)],
       ['Mean SQI', r.meanSQI, '', '0–1 · conf', r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad'],
       ['Motion-rejected', r.motionRejectedPct, '%', r.motion && r.motion.hasData ? 'ACC+GYRO' : 'n/a', r.motionRejectedPct < 10 ? 'ok' : r.motionRejectedPct < 30 ? 'warn' : 'bad'],
       [
@@ -960,9 +968,9 @@ import { PPGUI } from './ppgdex-render.js';
         .map((s) => {
           const key = s.t0Ms != null ? String(s.t0Ms) : 'nodate_' + s.fname;
           const active = key === activeKey;
-          const q = s.analyzablePct >= 90 ? 'ok' : s.analyzablePct >= 75 ? 'warn' : 'bad';
+          const q = pctCls(s.analyzablePct, 90, 75);
           return `<button class="sess-item ${active ? 'active' : ''}" data-key="${key}">
-      <div class="si-top"><span class="si-date">${DSP.fmtDateTime(s.t0Ms)}</span><span class="si-q ${q}">${s.analyzablePct}%</span></div>
+      <div class="si-top"><span class="si-date">${DSP.fmtDateTime(s.t0Ms)}</span><span class="si-q ${q}">${pctTxt(s.analyzablePct)}</span></div>
       <div class="si-sub">${s.durMin} min · ${s.dispHr} bpm · rMSSD ${s.rmssd}</div></button>`;
         })
         .join('');
@@ -1025,11 +1033,19 @@ import { PPGUI } from './ppgdex-render.js';
       { k: 'ai', label: 'Aug. index', unit: '%', good: 'down', get: (s) => (s.morph ? s.morph.augmentationIndexPct : null) },
       { k: 'motion', label: 'Motion-rej', unit: '%', good: 'down', get: (s) => s.motionRejectedPct }
     ];
-    const cov = list.map((s) => Math.max(0.05, (s.analyzablePct || 0) / 100));
+    /* §∅ — A SESSION WHOSE COVERAGE WAS NEVER MEASURED EARNS NO WEIGHT, NOT THE FLOOR WEIGHT.
+       This read `(s.analyzablePct || 0)`, so an absent share became 0 % and then took the 0.05 floor:
+       one absence was weighted as if it had been measured at almost zero coverage, and nothing in the
+       output said so. `crossNight` substitutes 1 for an absent `w` (`pts.map((p) => (p.w != null ? p.w : 1))`),
+       so passing the null through would be worse still. Such a session leaves the weighted fit, and the
+       note below says how many did. */
+    const weightedList = list.filter((s) => !pctAbsent(s.analyzablePct));
+    const unweighted = list.length - weightedList.length;
+    const cov = weightedList.map((s) => Math.max(0.05, s.analyzablePct / 100));
     let rows = '';
     const headline = [];
     metrics.forEach((m) => {
-      const series = list.map((s, i) => ({ x: i, t: s.t0Ms, v: m.get(s), w: cov[i] })).filter((p) => p.v != null && isFinite(p.v));
+      const series = weightedList.map((s, i) => ({ x: i, t: s.t0Ms, v: m.get(s), w: cov[i] })).filter((p) => p.v != null && isFinite(p.v));
       if (series.length < 2) {
         return;
       }
@@ -1065,7 +1081,7 @@ import { PPGUI } from './ppgdex-render.js';
           .join('')
       : `<div class="cn-head-label">Newest session vs baseline</div><div class="cn-head-item dim">No metric is beyond ±1σ of its personal baseline — a consistent stretch.</div>`;
     $('crossNightNote').innerHTML =
-      `${list.length} sessions over ${_pgNightSpan(list)} · OLS slope vs date + non-parametric <b>Mann–Kendall</b> (τ, p) for short noisy series · personal-baseline <b>z-scores</b> · coverage-weighted by each session's analyzable %. The same <code>crossNight()</code> engine powers ECGDex &amp; OxyDex trends.`;
+      `${list.length} sessions over ${_pgNightSpan(list)} · OLS slope vs date + non-parametric <b>Mann–Kendall</b> (τ, p) for short noisy series · personal-baseline <b>z-scores</b> · coverage-weighted by each session's analyzable %${unweighted ? ` · ${unweighted} of ${list.length} sessions left the weighted fit — no analyzable % was measured` : ''}. The same <code>crossNight()</code> engine powers ECGDex &amp; OxyDex trends.`;
   }
   function trendColor(label, good) {
     if (label === 'improving') return UI.COLORS.green;

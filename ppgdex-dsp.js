@@ -6502,7 +6502,16 @@
     // quality
     const meanSQI = sqi.length ? r2(mean(sqi)) : 0;
     const cleanBeats = sqi.filter((s) => s >= 0.5).length;
-    const cleanBeatPct = sqi.length ? Math.round((100 * cleanBeats) / sqi.length) : 0;
+    /* §∅ — A SHARE OF NO BEATS IS UNMEASURED, NOT 0 %. `sqi` holds one entry per detected beat, so an
+       empty array means the detector placed NO beats: a record with no pulse population, not a record
+       that scored 0 % clean. The old `: 0` published a measured-looking zero, and `analyzablePct`
+       inherited it as a product of it, so a reader saw "0 % clean / 0 % analyzable" — the worst possible
+       night — when nothing had been scored at all. ECGDex answers the identical pair at
+       `ecgdex-dsp.js:1276-1281` with `null` plus a cause of its own; this follows that shape. The product
+       refuses with its OWN reason rather than borrowing the clean-beat one: `cleanBeatPct × …` coerces
+       `null` to 0, so a nulled clean-beat share alone would republish a fabricated 0 % analyzable. */
+    const cleanBeatPct = sqi.length ? Math.round((100 * cleanBeats) / sqi.length) : null;
+    const cleanBeatPctReason = sqi.length ? null : 'no beats were detected — no pulse population to score';
     const motionRejected = motion.hasData ? det.peaks.filter((p, k) => /** @type {any} */ (motionAt)(p) > 0.5).length : 0;
     const motionRejectedPct = det.peaks.length ? r1((100 * motionRejected) / det.peaks.length) : 0;
     /* §∅ — the refusal ECGDex published at `ecgdex-dsp.js:1292-1293`: an interval series with
@@ -6511,7 +6520,8 @@
        tests — so a fabricated 0 reads as "nothing needed repair". */
     const correctionRate = rr.length ? r1((100 * corr.nCorr) / rr.length) : null;
     const correctionRateReason = rr.length ? null : 'no interval series — no population to correct';
-    const analyzablePct = Math.round(cleanBeatPct * (1 - motionRejectedPct / 100));
+    const analyzablePct = cleanBeatPct == null ? null : Math.round(cleanBeatPct * (1 - motionRejectedPct / 100));
+    const analyzablePctReason = analyzablePct != null ? null : 'the clean-beat share is unmeasured, so the motion gate has nothing to discount — no analyzable share exists';
     // magnetometer interference coverage (informational — does not alter SQI/conf)
     // §3a: epochs with no posture datum leave the DENOMINATOR — they are not evidence of a clean field.
     const magKnown = epochs.filter((e) => e.magInterference != null);
@@ -6617,7 +6627,10 @@
       // (b) GRADED per-metric confidence (0..1) from measured drivers — replaces the binary flag.
       // Each metric family is scored by the cause that predicts ITS error (validated on paired night):
       // motion→hf, posture/baseline drift→vlf/sdnn, coverage+correction→beat-to-beat.
-      const qCov = Math.max(0, Math.min(1, analyzablePct / 100));
+      /* §∅ — `Math.min(1, null / 100)` answers 0, so an unmeasured analyzable share entered every
+         product below as the WORST possible coverage. The block's own note already states the rule: a
+         confidence whose driver was never measured is `null`. */
+      const qCov = analyzablePct == null ? null : Math.max(0, Math.min(1, analyzablePct / 100));
       /* §∅ — `null` coerces to 0 in arithmetic, so `1 - null / 25` answers 1.0: an unmeasured
          correction rate would publish the PERFECT driver, and `c()` would round the product into a
          confident grade. A driver that was never measured makes its metrics unknown — the rule this
@@ -6655,16 +6668,16 @@
         epochs: epochs.length
       };
       hrvConfidence = {
-        beatToBeat: qCorr == null ? null : c(qCov * qCorr), // rmssd, sd1, pnn50 — already ECG-accurate; no inertial driver
+        beatToBeat: qCov == null || qCorr == null ? null : c(qCov * qCorr), // rmssd, sd1, pnn50 — already ECG-accurate; no inertial driver
         // + sd2 (robust); posture-drift aware
-        sdnn: qPosture == null || qCorr == null ? null : c(qCov * qCorr * (0.6 + 0.4 * qPosture)),
-        lf: qCorr == null ? null : c(qCov * qCorr),
-        hf: qLowMotion == null ? null : c(qLowMotion * qCov), // motion-graded (the earned part)
+        sdnn: qPosture == null || qCov == null || qCorr == null ? null : c(qCov * qCorr * (0.6 + 0.4 * qPosture)),
+        lf: qCov == null || qCorr == null ? null : c(qCov * qCorr),
+        hf: qLowMotion == null || qCov == null ? null : c(qLowMotion * qCov), // motion-graded (the earned part)
         // capped: single-site optical VLF inherently baseline-limited
         vlf: qPosture == null ? null : c(Math.min(0.7, qPosture * durFactor)),
         evidence,
         drivers: {
-          analyzableFrac: r2(qCov),
+          analyzableFrac: qCov == null ? null : r2(qCov),
           correctionOK: qCorr == null ? null : r2(qCorr),
           lowMotionFrac: qLowMotion == null ? null : r2(qLowMotion),
           postureStableFrac: qPosture == null ? null : r2(qPosture),
@@ -6727,28 +6740,32 @@
        a record too short for the robust median (`sdnnRobust` null) simply does not get the test,
        because an absent comparand is not evidence of good shape. */
     const hrvShapeViolation = hrvShapeViolates(td.rmssd, sdnnRobust);
-    /* §∅ — an unmeasured correction rate is not a clean one: `null > 20` is `false`, so the old
-       expression CLEARED a record whose interval series was never built. Measured on a 0.8 s
-       synthetic, which published `hrvLowConfidence: false` over zero intervals. The absent arm is
-       explicit rather than left to coercion, and the reason below names the arm that fired. */
-    const hrvLowConfidence = analyzablePct < 60 || correctionRate == null || correctionRate > 20 || hrvShapeViolation;
+    /* §∅ — BOTH ABSENCES HAVE THEIR OWN ARM. `null < 60` and `null > 20` coerce to `0 < 60` and
+       `0 > 20`: the first answered `true` by accident over a record that scored nothing, the second
+       CLEARED a record whose interval series was never built. Neither verdict rested on a measurement,
+       and the sentence below printed "analyzable 0 %" for a share that was never computed. The arms
+       state the intent; they are behaviour-identical to the coercions they replace. The shape
+       violation keeps the first arm, so a real finding still wins over an absence. */
+    const hrvLowConfidence = analyzablePct == null || analyzablePct < 60 || correctionRate == null || correctionRate > 20 || hrvShapeViolation;
     const hrvLowConfidenceReason = hrvShapeViolation
       ? 'interval-shape violation — rMSSD ' +
         r1(td.rmssd) +
         ' ms exceeds sdnnRobust ' +
         r1(sdnnRobust) +
         ' ms, which a whole night cannot do physiologically; the interval series is alternating (detector artifact, not autonomic tone) → whole-record short-term HRV unusable; use per-5-min epochs[] and prefer a chest-ECG leg'
-      : analyzablePct < 60
-        ? 'low coverage — analyzable ' +
-          analyzablePct +
-          '%' +
-          (correctionRate == null ? '' : ' / correction ' + correctionRate + '%') +
-          ' → whole-record short-term HRV down-weighted; use per-5-min epochs[] + ledAgreementPct'
-        : correctionRate == null
-          ? 'no interval series — the correction rate is unmeasured, so nothing clears the whole-record short-term HRV on that axis; use per-5-min epochs[] and prefer a chest-ECG leg'
-          : hrvLowConfidence
-            ? 'heavy correction — ' + correctionRate + '% of intervals repaired → whole-record short-term HRV down-weighted; use per-5-min epochs[] + ledAgreementPct'
-            : null;
+      : analyzablePct == null
+        ? 'no beats were detected — analyzable and clean-beat shares are unmeasured, not 0 %, so the whole-record short-term HRV has no population to rest on; use per-5-min epochs[] where any exist'
+        : analyzablePct < 60
+          ? 'low coverage — analyzable ' +
+            analyzablePct +
+            '%' +
+            (correctionRate == null ? '' : ' / correction ' + correctionRate + '%') +
+            ' → whole-record short-term HRV down-weighted; use per-5-min epochs[] + ledAgreementPct'
+          : correctionRate == null
+            ? 'no interval series — the correction rate is unmeasured, so nothing clears the whole-record short-term HRV on that axis; use per-5-min epochs[] and prefer a chest-ECG leg'
+            : hrvLowConfidence
+              ? 'heavy correction — ' + correctionRate + '% of intervals repaired → whole-record short-term HRV down-weighted; use per-5-min epochs[] + ledAgreementPct'
+              : null;
 
     // tier (mirror ECGDex)
     const durMin = rec.durSec / 60;
@@ -6943,7 +6960,9 @@
       epochs,
       meanSQI,
       cleanBeatPct,
+      cleanBeatPctReason,
       analyzablePct,
+      analyzablePctReason,
       // §∅ raw span sets, per optical channel — projected into the export's `quality.pinnedCoverage`.
       pinnedSpanSets: rec.spans || null,
       /* The device-beat referee, carried HERE because this is the object the emitter reads as `r`.
@@ -6953,7 +6972,13 @@
          reads as "export-inert" when it is "not wired at all". The goldens exposed it the same way,
          by NOT moving. Two authors, one wrong assumption, one note that was already there to be read. */
       deviceBeats,
+      /* `coveragePct` is an ALIAS of `cleanBeatPct` — one measurement under two names — so it borrows
+         the clean-beat cause rather than inventing a second sentence for the same absence. A reader
+         of `coveragePct` who finds a null and looks for its cause must not have to infer it from the
+         neighbour's name. ECGDex publishes the same triple (`coveragePct` + `coveragePctReason` +
+         `cleanBeatPctReason`) from `buildNN`. */
       coveragePct: cleanBeatPct,
+      coveragePctReason: cleanBeatPctReason,
       correctionRate,
       correctionRateReason,
       nCorrected: corr.nCorr,
@@ -8143,6 +8168,13 @@
         analyzablePct: nz(r.analyzablePct),
         cleanBeatPct: nz(r.cleanBeatPct),
         coveragePct: nz(r.coveragePct),
+        /* §∅ — a cause the producer computes and the export drops reaches no reader, so the three
+           refusals travel beside the three fields they explain. CONDITIONAL, for the reason the
+           correction rate below already records: an unconditional key would restamp every fixture
+           to say nothing, and a fixture with beats carries no cause to publish. */
+        ...(r.cleanBeatPctReason ? { cleanBeatPctReason: r.cleanBeatPctReason } : {}),
+        ...(r.analyzablePctReason ? { analyzablePctReason: r.analyzablePctReason } : {}),
+        ...(r.coveragePctReason ? { coveragePctReason: r.coveragePctReason } : {}),
         motionRejectedPct: nz(r.motionRejectedPct),
         correctionRatePct: nz(r.correctionRate),
         /* Published only when the rate is ABSENT: the refusal is the part a reader cannot

@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS · **Created:** 2026-11-14
+**Status:** IN-PROGRESS (§2.4 tick fold corrected to the ns modulus — verified 2026-11-16 on one recorded session, see §2.4) · **Created:** 2026-11-14
 
 # Muse S Athena — wire protocol, measured (unit `musenative`)
 
@@ -34,7 +34,7 @@ scripts are `muse1.py` and `muse2.py` beside it. Whether the headband was on the
 | 2.1 | Packet = 9-byte header + records. Byte 0 = total length. Byte 1 = packet counter. Bytes 5–8 constant `77 8e 01 00`. | byte 0 equals the length in 58 075 of 58 075; byte 1 steps by 1 (mod 256) in 58 058 of 58 074 steps; bytes 2–4 vary |
 | 2.2 | Record = `[tag][index][tick, 24 bit LE][data]`. Five tags, fixed sizes: `0x12` 33, `0x36` 45, `0x47` 41, `0x53` 29, `0x88` 25 bytes. | with these sizes 58 075 of 58 075 packets tokenise to their last byte; no other tag occurs |
 | 2.3 | The index is a per-tag counter, +1 mod 256. | unit steps: `0x12` 76 432 of 76 448; `0x36` 38 338 of 38 351; `0x47` 10 556 of 10 558; `0x53` 2 511 of 2 512; `0x88` 593 of 594 |
-| 2.4 | The tick is the low 24 bits of a device clock at 10 000 000 units/s. | modal step per record: `0x12` 78 125 (= 1/128 s), `0x36` 156 250 (= 1/64 s), `0x47` 576 923 (= 3/52 s) |
+| 2.4 | The tick is a device clock at 10 000 000 units/s, carried in 24 bits and folded at 2^28 ns (0.268 s = 2 684 354.56 ticks). Corrected 2026-11-16 (Wren): this row first read "the low 24 bits", a fold at 1.678 s. | modal step per record: `0x12` 78 125 (= 1/128 s), `0x36` 156 250 (= 1/64 s), `0x47` 576 923 (= 3/52 s). Fold, one 632 s session: 2779 EEG folds, 1567 imply 2 684 355 ticks and 1212 imply 2 684 354 (share 0.564, the fraction of 2^28/100) |
 | 2.5 | `0x36` data = 16 fields × 20 bit, LSB-first, one sample per record: the optical block at 64 Hz. | smoothest of 14 layouts tried (roughness 0.008; next 0.031); 63.86 records/s received |
 | 2.6 | `0x47` data = 3 samples × 6 × int16 LE, sample after sample: motion at 52 Hz. The first three values are an accelerometer at 16 384 counts per g. | smoothest of 10 layouts (0.012; next 0.028); the norm of the first three values is 1 g within 2 % on the tested record |
 | 2.7 | `0x12` data = 16 fields × 14 bit, LSB-first: EEG, 128 records/s. | 14-bit LSB-first layouts are the only smooth ones (0.07–0.12; 8 other widths and orders ≥ 0.30); 127.29 records/s received + 427 lost by index = 128.0/s |
@@ -47,7 +47,7 @@ Rates received: `0x12` 127.29/s · `0x36` 63.86/s · `0x47` 17.58/s · `0x53` 4.
 `capture-host/muse_athena.py` (PURE): `tokenise` (refuses a malformed packet with a named reason: `short`, `length-byte`,
 `unknown-tag`, `truncated-record`, `no-record`), `lost_between`, `tick_seconds`, `unpack_lsb`, `optics`, `motion`,
 `eeg_fields`. Since unit `musenative` it also holds §6: `eeg_samples` (2 × 8), `battery_pct` (0x88), `frame_counter`,
-`TickClock` (24-bit unwrap), `command`, `start_sequence`, `STOP_SEQUENCE`, `ControlReplies`, the GATT table and the
+`TickClock` (unwrap at 2^28 ns, in ns), `command`, `start_sequence`, `STOP_SEQUENCE`, `ControlReplies`, the GATT table and the
 0x11 / 0x34 / 0x35 sizes (stored raw). The tests in `tests/test_muse_athena.py` are SYNTHETIC only, packed by a second
 method. Unit `musenative` took the five captured packets out, because a data notification carries the EEG of the
 wearer. The hand-decoded record and the 1 g norm went with them; §2 keeps the measurement. Module coverage is 100 %.

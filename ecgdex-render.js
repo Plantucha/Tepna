@@ -871,12 +871,29 @@ window.evBadge = evBadge;
        there is noise and a single draw of it says nothing about a lean. Those rows reported one draw
        each, and the repair's own first measurement repeated the mistake.
 
-       WHAT STILL LIMITS A SHORT SPAN, measured the same day over 400 draws at the node's own
-       391-anchor geometry: the published rate reads 56.80 ± 1.25 before the repair and 53.60 ± 1.56
-       after it, against the same planted 50. The clamp term is only 1.28 % of the span at that
-       density, so almost all of what is left is host jitter swamping a 3 ms drift. A node cannot fix
-       that by estimating better. It needs a longer span, and the §∅ question of whether `ok` should be
-       true at all over an unresolvable rate is logged and not answered here.
+       WHAT STILL LIMITS A SHORT SPAN, re-measured 2026-11-17 over 400 draws at the node's own
+       391-anchor geometry, 60 s of ±5 ms uniform jitter against a planted 50 ppm: the published
+       rate's PER-DRAW SPREAD is 31.3 ppm, which is 58 % of the value it qualifies, and the mean of
+       the draws lands between 49.8 and 53.6 ppm across three generators of that one jitter band —
+       the original probe's linear-congruential sequence, a mulberry32 and the platform
+       `Math.random`. So the SPREAD is the quantity a reader needs, and the mean is
+       generator-dependent. The clamp term
+       is only 1.28 % of the span at that density, so almost all of what is left is host jitter
+       swamping a 3 ms drift. A node cannot fix that by estimating better. It needs a longer span,
+       and the §∅ question of whether `ok` should be true at all over an unresolvable rate is logged
+       and not answered here.
+
+       ⚠ THIS PARAGRAPH USED TO READ `56.80 ± 1.25 before the repair and 53.60 ± 1.56 after it`.
+       Both ± figures were the STANDARD ERROR of a 400-draw mean, which is 1/20 of the spread and
+       shrinks with the number of times the probe ran. It sized the probe session and no recording,
+       and it read as a tight figure where the quantity under argument is 20 times wider. The
+       re-measurement reproduces `53.60 ± 1.56` exactly from the original probe's own generator, a
+       32-bit linear-congruential sequence seeded `31337 + k`, which is what identifies the committed
+       figures as that probe's standard-error column. The pre-repair 56.80 belongs to an estimator
+       the spine no longer publishes, so no figure here is quoted for it. `clock.js` carries the
+       repair's own before-and-after table at a planted 2000 ppm, where the drift is resolvable and
+       mean, standard error and standard deviation sit in separate columns. Read that table for the
+       repair and this paragraph for the limit.
 
        So this clause names the LIMIT rather than the estimator's origin. It rides the two cells whose
        unit names the host axis, which are the two the measurement covers. The §3d night-drift cell
