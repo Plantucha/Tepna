@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="af259d96c725" data-compute-hash="ec79021bd51e"><head>
+<html lang="en" data-manifest-hash="003b2899e464" data-compute-hash="9bf162395c9d"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4esQYmoU7FYRSxckVGhsPB+ddHAbdUxK5/3OtftYgPQ=' 'sha256-73XqvW3QPszVNJSGP0gS6Awhvf88TLJs80AD7soU2Zw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-K+h5thoekEgjAVsTOJH/LoQr+vkP1LPzjqBYtooYmg8=' 'sha256-KWDMRagpDhkrEKgurTOBXHctXtLVmvs0VbMDxL2Sen8=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Rr8G2mCxnUpYJeiwLlDBUV1mqaJGe8EBSh8w3KFYYEw=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oBZMdqHbLFQRnb4o/LvL9OJ2eQrQOb/2n50vzDHkOZo=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qFR6tT2evdE/A0XZ/SYA3BAHbtz9P0O4C94Q+zqHySc=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4esQYmoU7FYRSxckVGhsPB+ddHAbdUxK5/3OtftYgPQ=' 'sha256-73XqvW3QPszVNJSGP0gS6Awhvf88TLJs80AD7soU2Zw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-K+h5thoekEgjAVsTOJH/LoQr+vkP1LPzjqBYtooYmg8=' 'sha256-KWDMRagpDhkrEKgurTOBXHctXtLVmvs0VbMDxL2Sen8=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rr8G2mCxnUpYJeiwLlDBUV1mqaJGe8EBSh8w3KFYYEw=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oBZMdqHbLFQRnb4o/LvL9OJ2eQrQOb/2n50vzDHkOZo=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qFR6tT2evdE/A0XZ/SYA3BAHbtz9P0O4C94Q+zqHySc=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -4414,6 +4414,33 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
      below any step worth refusing a window for. */
   var CK_SEAM_RECOVER_RUN = 20;
 
+  /* §∅ AN ABSENT STAMP IS NOT THE EPOCH. `+null` is 0 and `+''` is 0 — both FINITE — so the guard in
+     `seamScan` passed them through as REAL stamps dated 1970, and the module then published a 56-year
+     backward transition that its own recovery test reported as a delivery reorder, with `skipped`
+     counting the absence as parsed. The column is built by OxyDex as `rows[i] ? rows[i].tMs : null`
+     (`oxydex-dsp.js:3451`), so one row without a stamp is enough. PulseDex pushes `NaN` for the same
+     absence (`pulsedex-dsp.js:1266`) and never met this: only one of the two producers was filtered. */
+  /**
+   * @param {any} v
+   * @returns {number} the stamp, or NaN when the value is ABSENT
+   */
+  function _ms(v) {
+    if (v == null || typeof v === 'boolean' || v === '') return NaN;
+    return +v;
+  }
+
+  /* §∅ A BOUND THAT IS ABSENT IS NOT ZERO EITHER. `isFinite(null)` is TRUE because it coerces first,
+     so an absent window bound was read as the epoch: the window spanned 56 years, published
+     `coveragePct: 100` over it, and `window has no finite bounds` — the reason written for exactly
+     this case — could only ever be reached by NaN. A bound, and a row span, must be a NUMBER. */
+  /**
+   * @param {any} v
+   * @returns {boolean}
+   */
+  function _finiteNum(v) {
+    return typeof v === 'number' && isFinite(v);
+  }
+
   function _med(a) {
     if (!a.length) return null;
     var s = a.slice().sort(function (x, y) {
@@ -4441,13 +4468,14 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
 
     /* A non-finite stamp is an ABSENT stamp (§∅) — it is skipped and COUNTED, so
        a caller can see how much of the column never parsed. It is never read as
-       a zero, and it never joins the distribution. */
+       a zero, and it never joins the distribution. `_ms` is what makes that true
+       for `null` and `''`, which `+` would have turned into a finite zero. */
     var t = [],
       srcIdx = [],
       skipped = 0;
     var list = stamps && stamps.length ? stamps : [];
     for (var i = 0; i < list.length; i++) {
-      var v = +list[i];
+      var v = _ms(list[i]);
       if (!isFinite(v)) {
         skipped++;
         continue;
@@ -4666,7 +4694,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
    * @param {{rows?:{from:number,to:number}}} [opts] row-index membership instead
    */
   function windowVerdict(scan, startMs, endMs, opts) {
-    var spanMs = isFinite(startMs) && isFinite(endMs) ? endMs - startMs : null;
+    var spanMs = _finiteNum(startMs) && _finiteNum(endMs) ? endMs - startMs : null;
     if (!scan || scan.ok !== true)
       return { decided: false, continuous: null, reason: 'no-seam-scan', seams: [], dropoutMs: null, spanMs: spanMs, coveredMs: null, coveragePct: null, forwardDecidable: null };
     if (spanMs == null)
@@ -4681,7 +4709,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         coveragePct: null,
         forwardDecidable: scan.forwardDecidable
       };
-    var rows = opts && opts.rows && isFinite(opts.rows.from) && isFinite(opts.rows.to) ? opts.rows : null;
+    var rows = opts && opts.rows && _finiteNum(opts.rows.from) && _finiteNum(opts.rows.to) ? opts.rows : null;
     function spans(e) {
       // ROW MODE: the transition sits between rows e.idx-1 and e.idx, so the window
       // must hold both. WALL-CLOCK MODE: overlap against the open interval (lo, hi).
