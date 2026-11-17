@@ -25,8 +25,8 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 152,
-  "fixed": 135,
+  "open": 148,
+  "fixed": 139,
   "accepted-with-reason": 3
  },
  "consumerCensus": {
@@ -750,7 +750,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 638,
-   "state": "open"
+   "state": "fixed",
+   "note": "BOOKKEEPING ONLY: the code was fixed earlier, by #5147, which starts the browser coverage at null and refuses a zero or negative wall span; this row stayed open because no PR lowered it. Plant: tests/dex-tests.js group '∅ PulseDex coverage — no wall clock means no coverage, never 100 %', landed with that fix."
   },
   {
    "key": "99da70856676",
@@ -2117,7 +2118,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 739,
-   "state": "open"
+   "state": "fixed",
+   "note": "BOOKKEEPING ONLY for the code, by #5116, which made the windowed respiratory rate null when no window produced one; no leg pinned the app copy of that arm, so this PR adds one. Plant: tests/dex-tests.js group '∅ PulseDex Poincare ratio — a long axis the reader sees as 0.00 is not a denominator', the respiratory rate leg."
   },
   {
    "key": "53eb1863ca8e",
@@ -2136,7 +2138,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 901,
-   "state": "open"
+   "state": "fixed",
+   "note": "the app road refuses the Poincare ratio when the long axis falls under the precision it prints. The null arm landed in #4470 and the zero arm stayed: the line read `sd1v / (sd2v || 1)`, which substitutes 1 ms for an SD2 the reader sees as `0.00` and publishes the short axis itself as a balance figure. PX_SD2_MIN_MS is half of the last decimal place SD2 prints, exactly as PPG_SD2_MIN_MS reads half of its own in ppgdex-dsp.js. Measured over the real DSP producers: 20001 beats alternating by 1 ms answer SD2 `0.00` and published a ratio of 0.71. Plant: tests/dex-tests.js group '∅ PulseDex Poincare ratio — a long axis the reader sees as 0.00 is not a denominator', 7 of its 20 legs red on the pre-fix pulsedex-app.js."
   },
   {
    "key": "5756198eada4",
@@ -2145,7 +2148,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 1192,
-   "state": "open"
+   "state": "fixed",
+   "note": "BOOKKEEPING ONLY: the code was fixed earlier, by #5147, which counts the recordings weighted at the coverage floor and names them in the cross-night note; this row stayed open because no PR lowered it. Plant: tests/dex-tests.js group '∅ PulseDex coverage — no wall clock means no coverage, never 100 %', the covAbsentPx leg."
   },
   {
    "key": "355d05bb00d1",

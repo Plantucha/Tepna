@@ -862,6 +862,26 @@ export const SEEDS = [
     note: "findWTRow returns null when no Welltory row carries the recording's date, in place of `match || welltoryData.rows[0]`, which drew the FIRST row of the log as this day's reference. Every comparison cell already refuses a null row and falls to its dash, and the caption now names the date through wtRefLabel: matched, or no row for that day. Plant: tests/dex-tests.js group 'PulseDex Welltory reference', 3 legs red on the pre-fix pulsedex-app.js and 2 more on the pre-fix pulsedex-render.js caption."
   },
   {
+    at: 'pulsedex-app.js:638',
+    state: 'fixed',
+    note: "BOOKKEEPING ONLY: the code was fixed earlier, by #5147, which starts the browser coverage at null and refuses a zero or negative wall span; this row stayed open because no PR lowered it. Plant: tests/dex-tests.js group '∅ PulseDex coverage — no wall clock means no coverage, never 100 %', landed with that fix."
+  },
+  {
+    at: 'pulsedex-app.js:739',
+    state: 'fixed',
+    note: "BOOKKEEPING ONLY for the code, by #5116, which made the windowed respiratory rate null when no window produced one; no leg pinned the app copy of that arm, so this PR adds one. Plant: tests/dex-tests.js group '∅ PulseDex Poincare ratio — a long axis the reader sees as 0.00 is not a denominator', the respiratory rate leg."
+  },
+  {
+    at: 'pulsedex-app.js:901',
+    state: 'fixed',
+    note: "the app road refuses the Poincare ratio when the long axis falls under the precision it prints. The null arm landed in #4470 and the zero arm stayed: the line read `sd1v / (sd2v || 1)`, which substitutes 1 ms for an SD2 the reader sees as `0.00` and publishes the short axis itself as a balance figure. PX_SD2_MIN_MS is half of the last decimal place SD2 prints, exactly as PPG_SD2_MIN_MS reads half of its own in ppgdex-dsp.js. Measured over the real DSP producers: 20001 beats alternating by 1 ms answer SD2 `0.00` and published a ratio of 0.71. Plant: tests/dex-tests.js group '∅ PulseDex Poincare ratio — a long axis the reader sees as 0.00 is not a denominator', 7 of its 20 legs red on the pre-fix pulsedex-app.js."
+  },
+  {
+    at: 'pulsedex-app.js:1192',
+    state: 'fixed',
+    note: "BOOKKEEPING ONLY: the code was fixed earlier, by #5147, which counts the recordings weighted at the coverage floor and names them in the cross-night note; this row stayed open because no PR lowered it. Plant: tests/dex-tests.js group '∅ PulseDex coverage — no wall clock means no coverage, never 100 %', the covAbsentPx leg."
+  },
+  {
     at: 'hrvdex-profile.js:49',
     state: 'fixed',
     note: "the observed heart-rate maximum stays null when no row carries a usable rate, in place of 0, and the auto-detection banner prints not detected beside it. Plant: tests/dex-tests.js group '∅ HRVDex profile — an unobserved HR maximum and an absent ACSM band refuse', 3 of its 17 legs red on the pre-fix hrvdex-profile.js."

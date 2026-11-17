@@ -857,6 +857,15 @@ function calculate() {
     satE = energy >= 100; // ceiling-saturation flags
   const sd1v = rm == null ? null : +sd1(rm).toFixed(2),
     sd2v = sdnn == null || rm == null ? null : +sd2(sdnn, rm).toFixed(2);
+  /* 🔴 §∅ (ABSENCE-SURVEY row `bb5bdd974405`) — THE RATIO NEEDS A DENOMINATOR THIS ROAD CAN PUBLISH.
+     The null arm of `sd1sd2` landed and the zero arm did not: the line read `sd1v / (sd2v || 1)`,
+     which substitutes 1 ms for an SD2 the reader sees as `0.00`, and publishes `sd1v` itself as a
+     short-versus-long balance figure. `sd2v` prints two decimals, so the bound is half of that last
+     place, exactly as `ppgdex-dsp.js`'s `PPG_SD2_MIN_MS` reads half of its own one decimal. The
+     substituted 1 ms was never a measurement. Measured over the real producers in
+     `pulsedex-dsp.js`: 20001 beats alternating by 1 ms answer `sd2v` `0.00` and published the ratio
+     0.71, and 8001 beats alternating by 0.5 ms published 0.35, which the overview grades "good". */
+  const PX_SD2_MIN_MS = 0.005;
   const lnrm = cRm == null ? null : +lnR(cRm).toFixed(3);
   const lfhfv = winSpec ? winSpec.lfhf : ls.lfhf;
   /* ∅ N1-35: `nu` answers null over a zero denominator, and `.toFixed` on null throws, so the
@@ -999,7 +1008,7 @@ altitude factor then sat at 1 without saying whether a height was entered at all
     satE,
     sd1: sd1v,
     sd2: sd2v,
-    sd1sd2: sd1v == null || sd2v == null ? null : +(sd1v / (sd2v || 1)).toFixed(3),
+    sd1sd2: sd1v == null || sd2v == null || sd2v < PX_SD2_MIN_MS ? null : +(sd1v / sd2v).toFixed(3),
     ellArea: ell,
     lnrmssd: lnrm,
     lfhf: lfhfv,

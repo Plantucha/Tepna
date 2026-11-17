@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="75cd7c984861" data-compute-hash="fa9c05fc2d07"><head>
+<html lang="en" data-manifest-hash="41b520f09446" data-compute-hash="fa9c05fc2d07"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-73I9zddw3MGywut28p68vwrlHD+uz63tD3g0rTO2Ad8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-Vh4NGXhRdDPT/oFgxxGvxM+Si2nd9MAgmKJidn1gZ0M=' 'sha256-aNYl8fbPzUjU62k8Nx2oQlFqOdv+V7iuo91Hhfs1ZPU=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-sT1+vtq8jPdjKLkkjRhD7sO4xD2UufB5H3vGsoX0ImA=' 'sha256-wtJN8xtR89LNNOj5mqnsH6ASsaMTM6LsFtBRUvfWt9E=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-73I9zddw3MGywut28p68vwrlHD+uz63tD3g0rTO2Ad8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-GmgMQZDnDX8YfDu0dKlToI8OQ1385ikEgA074ihSoUA=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-Vh4NGXhRdDPT/oFgxxGvxM+Si2nd9MAgmKJidn1gZ0M=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-sT1+vtq8jPdjKLkkjRhD7sO4xD2UufB5H3vGsoX0ImA=' 'sha256-wtJN8xtR89LNNOj5mqnsH6ASsaMTM6LsFtBRUvfWt9E=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.34.0</title>
@@ -15413,6 +15413,15 @@ function calculate() {
     satE = energy >= 100; // ceiling-saturation flags
   const sd1v = rm == null ? null : +sd1(rm).toFixed(2),
     sd2v = sdnn == null || rm == null ? null : +sd2(sdnn, rm).toFixed(2);
+  /* 🔴 §∅ (ABSENCE-SURVEY row `bb5bdd974405`) — THE RATIO NEEDS A DENOMINATOR THIS ROAD CAN PUBLISH.
+     The null arm of `sd1sd2` landed and the zero arm did not: the line read `sd1v / (sd2v || 1)`,
+     which substitutes 1 ms for an SD2 the reader sees as `0.00`, and publishes `sd1v` itself as a
+     short-versus-long balance figure. `sd2v` prints two decimals, so the bound is half of that last
+     place, exactly as `ppgdex-dsp.js`'s `PPG_SD2_MIN_MS` reads half of its own one decimal. The
+     substituted 1 ms was never a measurement. Measured over the real producers in
+     `pulsedex-dsp.js`: 20001 beats alternating by 1 ms answer `sd2v` `0.00` and published the ratio
+     0.71, and 8001 beats alternating by 0.5 ms published 0.35, which the overview grades "good". */
+  const PX_SD2_MIN_MS = 0.005;
   const lnrm = cRm == null ? null : +lnR(cRm).toFixed(3);
   const lfhfv = winSpec ? winSpec.lfhf : ls.lfhf;
   /* ∅ N1-35: `nu` answers null over a zero denominator, and `.toFixed` on null throws, so the
@@ -15555,7 +15564,7 @@ altitude factor then sat at 1 without saying whether a height was entered at all
     satE,
     sd1: sd1v,
     sd2: sd2v,
-    sd1sd2: sd1v == null || sd2v == null ? null : +(sd1v / (sd2v || 1)).toFixed(3),
+    sd1sd2: sd1v == null || sd2v == null || sd2v < PX_SD2_MIN_MS ? null : +(sd1v / sd2v).toFixed(3),
     ellArea: ell,
     lnrmssd: lnrm,
     lfhf: lfhfv,
