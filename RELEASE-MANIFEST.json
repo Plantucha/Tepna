@@ -1916,6 +1916,31 @@
         "JS-MUTATION-LANE-CI-COST-2026-10-20-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.34.0",
+      "date": "2026-11-17",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "0f829bb5fe9d",
+        "OxyDex": "0bfe5bf2246b",
+        "PulseDex": "8c7a9adbad47",
+        "GlucoDex": "68c630f13ac4",
+        "PpgDex": "96c0054ebc50",
+        "HRVDex": "fc1fe6c1c495",
+        "CPAPDex": "59adee7d40fb",
+        "Integrator": "4a31f3c6f7a6",
+        "MotionDex": "0cb8ec5ebb17",
+        "EEGDex": "8fb52629b187"
+      },
+      "briefs": [
+        "SIGNAL-QUALITY-TABLE-2026-11-14-BRIEF.md",
+        "MUSE-ATHENA-PROTOCOL-2026-11-14-BRIEF.md",
+        "HOSTAXIS-STABILITY-2026-08-13-BRIEF.md",
+        "MUSE-HUNT-RECORD-2026-11-08-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
