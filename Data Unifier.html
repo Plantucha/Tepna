@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="f5a3777cefc6" data-compute-hash="16deef3e4399"><head>
+<html lang="en" data-manifest-hash="e40e4c2f8c3d" data-compute-hash="6ac7d51c43c5"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G/ed+3S6lqfamd/es3CxNLEmb0fYSgRgAXYlWrD4Skw=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UX7aBEim6eaSJRuFyp7TxqgAe7hlYHBlX6WDGl1pOIw=' 'sha256-VB3Zc93k7O4DubLzPt3uiFoG0bWLZ+kJ9EWRRI6gKOE=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gRMuCmVfIh+FVa9tCfsSVuKoym/UFb1cm7mHx4OiU/Y=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-tuGbI/PUov7ZEaEgiFuBvteKLRU5kjhHLZL/Mc1aANw=' 'sha256-wtJN8xtR89LNNOj5mqnsH6ASsaMTM6LsFtBRUvfWt9E=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-yv7HWl4tXs1NL9lhU0AmLGqNx/aCujqQmJygHxLbEL8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-73XqvW3QPszVNJSGP0gS6Awhvf88TLJs80AD7soU2Zw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G/ed+3S6lqfamd/es3CxNLEmb0fYSgRgAXYlWrD4Skw=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UX7aBEim6eaSJRuFyp7TxqgAe7hlYHBlX6WDGl1pOIw=' 'sha256-VB3Zc93k7O4DubLzPt3uiFoG0bWLZ+kJ9EWRRI6gKOE=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gRMuCmVfIh+FVa9tCfsSVuKoym/UFb1cm7mHx4OiU/Y=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-tuGbI/PUov7ZEaEgiFuBvteKLRU5kjhHLZL/Mc1aANw=' 'sha256-wtJN8xtR89LNNOj5mqnsH6ASsaMTM6LsFtBRUvfWt9E=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -42309,59 +42309,72 @@ __exports.ECGDex = window.ECGDex;
       }
       var ts = parseTimestamp(p[c.phone >= 0 ? c.phone : 0]);
       var relNs = NaN;
-      try {
-        var b = BigInt(p[c.ns >= 0 ? c.ns : 1].trim());
-        if (ns0 === null) ns0 = b;
-        /* ── MID-FILE CLOCK RESYNC on the DEVICE counter (DEEP-AUDIT-VI FOLLOWUPS §1.1) ────────────
-           The H10 boots on its 2019-01-01 firmware epoch and adopts real time when a sync lands. When
-           that happens MID-FILE the sensor-ns column steps by the whole epoch difference while the
-           phone column advances seconds — and `relSecOf` PREFERS this counter, so every duration and
-           every epoch grid downstream rides the step. Measured on the real 2026-08-27 file: the
-           counter jumps +241,586,764 s at row 470 while the phone advances 85.8 s, and MotionDex
-           published `recording.durSec` 241,589,697 — **7.66 years for a 50-minute recording** — with
-           a declared window ending 2034-04-22, which is the window the Integrator's gap-aware overlap
-           tests against. It does NOT crash: it returns a plausible-looking summary in 1.9 s, which is
-           why nothing caught it. This is the ACC sibling of the ECGDex defect F1 fixed in the same
-           corpus nights, and it is fixed here with F1's discriminator, deliberately identical.
-           THE DISCRIMINATOR IS PHYSICAL: through a real BLE dropout BOTH clocks keep ticking, so the
-           device delta ≈ the phone delta; only a clock step makes them disagree. Census over the whole
-           corpus (1278 ACC files): 137 files' worst step is a real dropout — left untouched, because
-           the counter is RIGHT about those — and exactly 3 are resyncs, the same three nights F1
-           found on the ECG side. 0 seams had unparseable stamps.
-           An over-24h step whose seam stamps do NOT parse still re-anchors, with `phoneDeltaMs: null`
-           and no fabricated duration (§2.6): an unmeasured gap stays visibly unmeasured. */
-        if (prevNsB !== null) {
-          var devDeltaMs = Number(b - prevNsB) / 1e6;
-          if (devDeltaMs > MOTION_RESYNC_BOUND_MS) {
-            var phoneDeltaMs = ts && ts.tMs != null && prevRowTMs != null ? Math.max(0, ts.tMs - prevRowTMs) : null;
-            if (phoneDeltaMs != null ? devDeltaMs - phoneDeltaMs > MOTION_RESYNC_BOUND_MS : devDeltaMs > MOTION_GAP_CEIL_MS) {
-              /* RE-ANCHOR ON THE HOST, NOT BY SUBTRACTING THE STEP — ONE DEVICE CLOCK PER AXIS.
-                 Imposing the phone delta alone would make the axis continuous but would carry the
-                 PRE-SYNC segment's error forward as a constant, because the counter before the sync
-                 is a different oscillator state, not merely a shifted one. Measured on 2026-08-27:
-                 the host−device residual walks 1.449 s across the 10.6 s BEFORE the seam (136,064
-                 ppm — the ACC sibling of the +1508 ms/9.5 s F1 measured on the same night's ECG) and
-                 then holds FLAT for the remaining 2930 s. Re-anchoring the new segment to the seam
-                 row's own host offset leaves that error confined to the 469 pre-seam rows (0.3 % of
-                 the file) instead of offsetting all 148,860.
-                 The post-seam segment then rides its own counter, which is the clock the rest of the
-                 night is actually on. */
-              /* BLIND SEAM: when the seam's own stamp does not parse there is no host offset to
-                 anchor on, and `Number(b - ns0)` would re-admit the very step being removed (caught
-                 by the blind-seam leg — it published a 241,586,834 s span). The honest anchor is the
-                 PREVIOUS row's position: an unmeasured gap contributes nothing rather than a
-                 fabricated duration (§2.6), which is exactly what F1 does on the ECG side — the
-                 resync is recorded with `phoneDeltaMs: null` and NO gap entry. */
-              segBaseNs = firstRowTMs != null && ts && ts.tMs != null ? (ts.tMs - firstRowTMs) * 1e6 : isFinite(prevRelNs) ? prevRelNs : Number(b - ns0);
-              segNs0 = b;
-              resyncs.push({ idx: out.length, deviceStepMs: Math.round(devDeltaMs), phoneDeltaMs: phoneDeltaMs == null ? null : Math.round(phoneDeltaMs) });
+      /* §∅ — A HEADER THAT NAMED NO COUNTER HAS NO COUNTER. `xyzColsFromHeader` answers `ns: -1`
+         when the header carried no `sensor timestamp` column, and this read used to fall back to
+         COLUMN 1 regardless — on a header naming `X;Y;Z` beside a bare `timestamp`, that is the X
+         AXIS. Measured on a 1 h, 26 Hz stream (93,600 rows): column 1 read as a nanosecond counter
+         moved `relNs` by 3e-9 s across the whole file, so `compute()` published `durSec: 0` and ONE
+         epoch where the documented header publishes 3600 s and 120 epochs. Nothing threw — every
+         value stayed finite, which is why no finite guard could see it.
+         THE HEADERLESS TAIL MAP (`xyzColsByTail`, pinned once by `xyzColsPinnedFromPrefix`) sets
+         `ns: 1` on purpose and keeps today's bytes: that is a fact about a file with no header, not
+         a stand-in for one. A header that named no counter leaves `relNs` ABSENT, and `relSecOf`
+         then reads the host stamp — the only clock the file ever carried. */
+      if (c.ns >= 0) {
+        try {
+          var b = BigInt(p[c.ns].trim());
+          if (ns0 === null) ns0 = b;
+          /* ── MID-FILE CLOCK RESYNC on the DEVICE counter (DEEP-AUDIT-VI FOLLOWUPS §1.1) ────────────
+             The H10 boots on its 2019-01-01 firmware epoch and adopts real time when a sync lands. When
+             that happens MID-FILE the sensor-ns column steps by the whole epoch difference while the
+             phone column advances seconds — and `relSecOf` PREFERS this counter, so every duration and
+             every epoch grid downstream rides the step. Measured on the real 2026-08-27 file: the
+             counter jumps +241,586,764 s at row 470 while the phone advances 85.8 s, and MotionDex
+             published `recording.durSec` 241,589,697 — **7.66 years for a 50-minute recording** — with
+             a declared window ending 2034-04-22, which is the window the Integrator's gap-aware overlap
+             tests against. It does NOT crash: it returns a plausible-looking summary in 1.9 s, which is
+             why nothing caught it. This is the ACC sibling of the ECGDex defect F1 fixed in the same
+             corpus nights, and it is fixed here with F1's discriminator, deliberately identical.
+             THE DISCRIMINATOR IS PHYSICAL: through a real BLE dropout BOTH clocks keep ticking, so the
+             device delta ≈ the phone delta; only a clock step makes them disagree. Census over the whole
+             corpus (1278 ACC files): 137 files' worst step is a real dropout — left untouched, because
+             the counter is RIGHT about those — and exactly 3 are resyncs, the same three nights F1
+             found on the ECG side. 0 seams had unparseable stamps.
+             An over-24h step whose seam stamps do NOT parse still re-anchors, with `phoneDeltaMs: null`
+             and no fabricated duration (§2.6): an unmeasured gap stays visibly unmeasured. */
+          if (prevNsB !== null) {
+            var devDeltaMs = Number(b - prevNsB) / 1e6;
+            if (devDeltaMs > MOTION_RESYNC_BOUND_MS) {
+              var phoneDeltaMs = ts && ts.tMs != null && prevRowTMs != null ? Math.max(0, ts.tMs - prevRowTMs) : null;
+              if (phoneDeltaMs != null ? devDeltaMs - phoneDeltaMs > MOTION_RESYNC_BOUND_MS : devDeltaMs > MOTION_GAP_CEIL_MS) {
+                /* RE-ANCHOR ON THE HOST, NOT BY SUBTRACTING THE STEP — ONE DEVICE CLOCK PER AXIS.
+                   Imposing the phone delta alone would make the axis continuous but would carry the
+                   PRE-SYNC segment's error forward as a constant, because the counter before the sync
+                   is a different oscillator state, not merely a shifted one. Measured on 2026-08-27:
+                   the host−device residual walks 1.449 s across the 10.6 s BEFORE the seam (136,064
+                   ppm — the ACC sibling of the +1508 ms/9.5 s F1 measured on the same night's ECG) and
+                   then holds FLAT for the remaining 2930 s. Re-anchoring the new segment to the seam
+                   row's own host offset leaves that error confined to the 469 pre-seam rows (0.3 % of
+                   the file) instead of offsetting all 148,860.
+                   The post-seam segment then rides its own counter, which is the clock the rest of the
+                   night is actually on. */
+                /* BLIND SEAM: when the seam's own stamp does not parse there is no host offset to
+                   anchor on, and `Number(b - ns0)` would re-admit the very step being removed (caught
+                   by the blind-seam leg — it published a 241,586,834 s span). The honest anchor is the
+                   PREVIOUS row's position: an unmeasured gap contributes nothing rather than a
+                   fabricated duration (§2.6), which is exactly what F1 does on the ECG side — the
+                   resync is recorded with `phoneDeltaMs: null` and NO gap entry. */
+                segBaseNs = firstRowTMs != null && ts && ts.tMs != null ? (ts.tMs - firstRowTMs) * 1e6 : isFinite(prevRelNs) ? prevRelNs : Number(b - ns0);
+                segNs0 = b;
+                resyncs.push({ idx: out.length, deviceStepMs: Math.round(devDeltaMs), phoneDeltaMs: phoneDeltaMs == null ? null : Math.round(phoneDeltaMs) });
+              }
             }
           }
-        }
-        prevNsB = b;
-        relNs = segNs0 === null ? Number(b - ns0) : segBaseNs + Number(b - segNs0);
-        prevRelNs = relNs;
-      } catch {}
+          prevNsB = b;
+          relNs = segNs0 === null ? Number(b - ns0) : segBaseNs + Number(b - segNs0);
+          prevRelNs = relNs;
+        } catch {}
+      }
       if (ts && ts.tMs != null) {
         if (firstRowTMs === null) firstRowTMs = ts.tMs;
         prevRowTMs = ts.tMs;
