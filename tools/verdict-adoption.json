@@ -2772,7 +2772,7 @@
      "--verdict-sample"
     ]
    },
-   "note": "the residue-promise verdict. The walker closes a row from a `Residue-fixed:` line in a merged pull request body, and it reads only the newest MERGED_WINDOW merges. A body that gains the line after its own merge keeps it readable only inside that window, which spanned about 8.5 h across 2026-11-09. This tool imports that constant from tools/pr-walker.mjs, and it names every declaration that left the window while its row still reads OPEN. Criterion pre-stated: the dropped and the unknown-key declarations must stay at 0, over every `Residue-fixed:` key, counted once per key. Zero declarations give NOT_APPLICABLE with a null result, and an unreadable merge list or ledger gives NOT_RUN at exit 2."
+   "note": "the residue-promise verdict. The walker closes a row from a `Residue-fixed:` line in a merged pull request body, and it reads only the newest MERGED_WINDOW merges. A body that gains the line after its own merge keeps it readable only inside that window, which spanned about 8.5 h across 2026-11-09. This tool imports that constant from tools/pr-walker.mjs, and it names every declaration that left the window while its row still reads OPEN. Criterion pre-stated: the dropped, the unknown-key and the unparsed declarations must stay at 0. The population is every `Residue-fixed:` key, counted once per key, plus every whole-line declaration that names something date-shaped and yields no key. Zero declarations give NOT_APPLICABLE with a null result, and an unreadable merge list or ledger gives NOT_RUN at exit 2."
   },
   "tools/resp-acc-headless.mjs": {
    "bin": "decides",
