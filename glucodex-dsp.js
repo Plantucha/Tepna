@@ -1629,6 +1629,52 @@
   // ════════════════════════════════════════════════════════════════════════
   //  ANALYZE — orchestrate
   // ════════════════════════════════════════════════════════════════════════
+  /* ── ∅ AN ABSENT CGM READING IS NOT A GLUCOSE VALUE ─────────────────────────────────────────
+     Every caller of `analyze` handed its frame to the cleaner with no finiteness filter, so a
+     `null`, a `NaN` or an `undefined` member arrived as a number: the cleaner's cadence and gap
+     arithmetic turned it into a finite 0 and `coreMetrics` — which does reject a null (`nAbsent`)
+     — never saw one. Measured 2026-11-17 with `tools/null-fuzz.mjs --target glucodex`: a series of
+     288 absent readings published mean 0, sd 0, cv 0, GMI 3.3 % and eA1c 1.6 %, the best possible
+     control computed over nothing, in 11 failing groups over 130 assertions. A partly absent series
+     pulled every metric toward the fabricated zeros, so one wear disagreed with its own
+     absence-free twin.
+     The drop lives HERE, at the one choke point, not on `compute`'s two pre-parsed roads: `analyze`
+     is published on `GLUDSP` and the app calls it directly, so a boundary fix one layer up would
+     have left the fabrication reachable.
+     A member is dropped WITH ITS PARTNER: a reading whose clock is absent cannot be placed on the
+     axis, and a stamp whose reading is absent names no glucose. The count rides OUT OF BAND on
+     `recording.nAbsentIn`, because §∅ says a DISCONTINUITY refuses and reduced COVERAGE annotates —
+     each surviving reading is still a measured one, and the gap it leaves is already described by
+     `coverage.segments`. `analyze` refuses below six analyzable readings, so an all-absent frame
+     now throws where it used to publish a fabricated zero.
+     `parseCSV` never carried the defect: it drops a non-numeric glucose cell (:396) and a stamp it
+     cannot place (:401). It counts neither, so a CSV-fed `nAbsentIn` of 0 says this function found
+     every member finite — never that the file held no absence. */
+  function _gdDropAbsent(frame) {
+    const tIn = frame && Array.isArray(frame.tMs) ? frame.tMs : null;
+    const vIn = frame && Array.isArray(frame.vMgdl) ? frame.vMgdl : null;
+    // Not a parallel-array frame: this function examined nothing, so the count is null, never 0.
+    if (!tIn || !vIn) return { frame: frame, nAbsentIn: null };
+    const T = [],
+      V = [];
+    // Two arrays of different length have lost the pairing for the excess members. Those are absent
+    // readings too, not a short record — count them rather than truncating in silence.
+    let nAbsentIn = Math.abs(tIn.length - vIn.length);
+    const n = Math.min(tIn.length, vIn.length);
+    for (let i = 0; i < n; i++) {
+      const t = tIn[i],
+        v = vIn[i];
+      if (typeof t !== 'number' || !isFinite(t) || typeof v !== 'number' || !isFinite(v)) {
+        nAbsentIn++;
+        continue;
+      }
+      T.push(t);
+      V.push(v);
+    }
+    if (nAbsentIn === 0) return { frame: frame, nAbsentIn: 0 };
+    return { frame: { ...frame, tMs: T, vMgdl: V }, nAbsentIn: nAbsentIn };
+  }
+
   function analyze(parsed, progress, opts) {
     opts = opts || {};
     const meals = opts.mealMarkers || null;
@@ -1640,7 +1686,11 @@
        right for both the measured zero and the absence, because neither moves the series. */
     const _bo = opts.biasOffset == null || opts.biasOffset === '' ? null : +opts.biasOffset;
     const biasOffset = _bo != null && isFinite(_bo) ? _bo : null;
-    const c = clean(parsed, progress);
+    // §∅ — drop the absent members BEFORE the cleaner can arithmetise them into zeros (_gdDropAbsent
+    // above). `frame` is the same object when nothing was absent, so a clean record is untouched.
+    const _ab = _gdDropAbsent(parsed);
+    const frame = _ab.frame;
+    const c = clean(frame, progress);
     // sensor-bias calibration: shift the whole series by a lab-A1c-derived offset (mg/dL)
     if (biasOffset) {
       for (let i = 0; i < c.N; i++) c.gV[i] = Math.max(20, c.gV[i] + biasOffset);
@@ -1654,7 +1704,9 @@
     const ana = analyzableIndex(c);
     if (ana.vals.length < 6) throw new Error('Too few analyzable readings after cleaning (warm-up/gaps removed).');
     // clip/saturation flag — read off the RAW exported readings (Lingo 55–200, etc.)
-    const clampSat = detectClampSaturation(parsed.vMgdl);
+    // RAW means pre-CLEANING (warm-up, gaps, compression), not pre-absence: an absent reading is not
+    // at the clip rail, and `Math.min` over a null reads 0, which is a floor no sensor reported.
+    const clampSat = detectClampSaturation(frame.vMgdl);
     const core = coreMetrics(ana.vals);
     progress && progress(60, 'Variability suite…');
     const vari = variability(c, ana, core);
@@ -1677,7 +1729,7 @@
     const t = tierOf(activeDays, c.pctActive);
 
     const r = {
-      source: parsed.source || 'file',
+      source: frame.source || 'file',
       unit: c.unit,
       t0Ms: c.t0Ms,
       cadence: c.cadence,
@@ -1700,6 +1752,11 @@
       nGaps: c.nGaps,
       pctActive: c.pctActive,
       nReadings: c.nRaw,
+      /* §∅ — how many input members this function dropped because the reading or its stamp was
+         absent. 0 means it looked and found every member finite; `null` means it could not look,
+         which is a frame that is not two parallel arrays. See `_gdDropAbsent` for why a CSV-fed 0
+         does not describe the file. */
+      nAbsentIn: _ab.nAbsentIn,
       clampSat,
       tier: t.tier,
       tierLabel: t.label,
@@ -2182,6 +2239,8 @@
             : null,
         startEpochMs: r.t0Ms != null ? r.t0Ms : null,
         events: events.length,
+        // §∅ — the absence the input carried, beside the coverage below. `null` = not examined.
+        nAbsentIn: r.nAbsentIn != null ? r.nAbsentIn : null,
         /* §F1.1 — CONTINUOUS coverage, the sibling of HRVDex's sparse block (§6.2). GlucoDex declared no
            duration key `adaptEnvelopeNode` reads, so a well-controlled ZERO-EVENT CGM record collapsed to
            a point at t0Ms — the healthiest record was the one that dropped out of fusion.
@@ -2348,15 +2407,28 @@
       // values are mg/dL-normalised + time-sorted; do NOT re-parse). Without this branch the orchestrate
       // CGM path throws (the {tMs,vMgdl} branch above + the {text} branch below both miss a samples frame).
       const sm = input.samples;
+      /* The branch test above reads `samples[0].v` ONLY, so a frame that starts measured and goes
+         absent later takes this road with its nulls intact. Map an absent member to NaN rather than
+         reading `s.tMs` off it (a null sample threw here), and let `analyze`'s own absence drop
+         remove it — one choke point, so this road cannot drift from the pre-parsed one. */
+      const _tIn = sm.map(function (s) {
+        return s && typeof s.tMs === 'number' ? s.tMs : NaN;
+      });
+      // the first PLACEABLE stamp: an absent first sample used to name the whole record's t0
+      let _t0 = null;
+      for (let _i = 0; _i < _tIn.length; _i++) {
+        if (isFinite(_tIn[_i])) {
+          _t0 = _tIn[_i];
+          break;
+        }
+      }
       parsed = {
-        tMs: sm.map(function (s) {
-          return s.tMs;
-        }),
+        tMs: _tIn,
         vMgdl: sm.map(function (s) {
-          return s.v;
+          return s && typeof s.v === 'number' ? s.v : NaN;
         }),
         unit: input.unit || 'mg/dL',
-        t0Ms: input.t0Ms != null ? input.t0Ms : sm.length ? sm[0].tMs : null
+        t0Ms: input.t0Ms != null ? input.t0Ms : _t0
       };
     } else {
       const text =
