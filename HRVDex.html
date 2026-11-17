@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="900fe153c516" data-compute-hash="6ac05190106a">
+<html lang="en" data-manifest-hash="540ded7dceb8" data-compute-hash="6ac05190106a">
 <head>
 <!--
   HRVDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8PRBTa79fUaN2zhWDMHlkkyA9S3dSTeqfWILOdsEo0k=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-J35jIQoaxibAur85YgkRI3Gw3MvuvGOJ1alBdYlKY8I=' 'sha256-JGpGAy4Cg7SQYROJGszfN1J0ctgzSZuz7qBEHqyvLL8=' 'sha256-K+h5thoekEgjAVsTOJH/LoQr+vkP1LPzjqBYtooYmg8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-byHjnEoORZlr0L9QvfbVFojy6+g/VxxD8dgimIo8xxQ=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fY+WW1g6oEfevLM6QNQkHOQ8TDEtUff3UE7iGLRizdY=' 'sha256-mzH5Dg7x30Wdz3pbuGODiJZi0Ntyojs5/Yg9XZ5aahA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sWB90VzOrb6nJTXL7Cq4GwOY5VcEZdjBXeIo1Wl5NtQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8PRBTa79fUaN2zhWDMHlkkyA9S3dSTeqfWILOdsEo0k=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-JGpGAy4Cg7SQYROJGszfN1J0ctgzSZuz7qBEHqyvLL8=' 'sha256-K+h5thoekEgjAVsTOJH/LoQr+vkP1LPzjqBYtooYmg8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-a+VjREBQeVKDNHJ5fDY4D5PiKMlc6Ya7sJzgGxe4GRE=' 'sha256-byHjnEoORZlr0L9QvfbVFojy6+g/VxxD8dgimIo8xxQ=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fY+WW1g6oEfevLM6QNQkHOQ8TDEtUff3UE7iGLRizdY=' 'sha256-mzH5Dg7x30Wdz3pbuGODiJZi0Ntyojs5/Yg9XZ5aahA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sWB90VzOrb6nJTXL7Cq4GwOY5VcEZdjBXeIo1Wl5NtQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>HRVDex — Heart Rate Variability Analyzer · v2.34.0</title>
@@ -14584,6 +14584,23 @@ function loadProfile() {
 function _vo2RestsOnDefaultAge(ageKnown, hrmaxUsed, tanaka) {
   return ageKnown !== true && hrmaxUsed === tanaka;
 }
+/* ∅ — ABSENCE-SURVEY row 0db08d540800, and the height finding relayed as board entry 7280. The
+   derived panel below read `p.age`, `p.weight`, `p.height`, `p.sbp` and `p.dbp` straight, and each
+   one carries a POPULATION default. So the card presented a stand-in as the wearer's own number.
+   Worse, the two getProfile arms disagree about a TYPED zero. The DXP arm runs `n()`, which keeps a
+   finite 0, so a 0 height made `75 / 0` render `Infinity (Obese)` and the Devine ideal weight
+   −88 kg. The DOM arm runs `|| 175`, so the same entry silently became the population height.
+   This predicate reports which numbers the wearer entered. The panel refuses the rest and names
+   the reason. It takes the flags alone, so it stays pure and the suite can slice it out. */
+function _profDerivable(k) {
+  const kn = (f) => (k && k[f]) === true;
+  return {
+    age: kn('ageKnown'),
+    weight: kn('weightKnown'),
+    height: kn('heightKnown'),
+    bp: kn('sbpKnown') && kn('dbpKnown')
+  };
+}
 function getProfile() {
   if (DXP()) {
     const p = DXP().get(),
@@ -14610,6 +14627,12 @@ function getProfile() {
       height: n(p.height, 175),
       sbp: n(p.sbp, 120),
       dbp: n(p.dbp, 78),
+      /* ∅ — the same marker the age already carries, for the four other population defaults above.
+         `n()` keeps a typed 0, so these report an ENTERED measurement and never a substituted one. */
+      weightKnown: n(p.weight, 0) > 0,
+      heightKnown: n(p.height, 0) > 0,
+      sbpKnown: n(p.sbp, 0) > 0,
+      dbpKnown: n(p.dbp, 0) > 0,
       vo2gt: detOr0('vo2'),
       hrmax_manual: n(man.hrMax, 0) > 0 ? n(man.hrMax, 0) : 0,
       hrrest_manual: detOr0('hrRest'),
@@ -14627,6 +14650,12 @@ function getProfile() {
     height: parseFloat(document.getElementById('prof_height')?.value) || 175,
     sbp: parseFloat(document.getElementById('prof_sbp')?.value) || 120,
     dbp: parseFloat(document.getElementById('prof_dbp')?.value) || 78,
+    /* ∅ — this arm coerces a typed 0 to the population value, because `0 || 75` is 75. So the
+       substitution is invisible in the number itself and only these markers can report it. */
+    weightKnown: parseFloat(document.getElementById('prof_weight')?.value) > 0,
+    heightKnown: parseFloat(document.getElementById('prof_height')?.value) > 0,
+    sbpKnown: parseFloat(document.getElementById('prof_sbp')?.value) > 0,
+    dbpKnown: parseFloat(document.getElementById('prof_dbp')?.value) > 0,
     vo2gt: parseFloat(document.getElementById('prof_vo2gt')?.value) || 0,
     hrmax_manual: parseFloat(document.getElementById('prof_hrmax')?.value) || 0,
     hrrest_manual: parseFloat(document.getElementById('prof_hrrest')?.value) || 0,
@@ -14735,6 +14764,9 @@ function updateProfile() {
   }
 
   const p = getProfile();
+  /* ∅ — which of the typed measurements the wearer actually entered. Every refusal below reads this
+     and never the substituted number. See `_profDerivable` above for the row and the finding. */
+  const _dv = _profDerivable(p);
 
   // Derived values
   const bmi = p.weight / (p.height / 100) ** 2;
@@ -14925,30 +14957,46 @@ function updateProfile() {
   const bmiCat = bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Overweight' : 'Obese';
   const _inch = (p.height / 2.54).toFixed(0);
   const di = (label, val, f) => `<div class="prof-derived-item"><b>${label}</b> ${val}${f ? `<span class="pdi-formula">${f}</span>` : ''}</div>`;
+  /* ∅ — the refusal text each card shows in place of a number nobody entered. It names the input,
+     so the reader learns WHICH measurement the panel waits for. */
+  const _ab = (what) => 'no ' + what + ' entered';
+  const _bapOk = bap_full != null && _dv.age && _dv.bp && _dv.height && _dv.weight;
   const grp = (label, items) => `<div class="pd-group"><span class="pd-group-label">${label}</span><div class="pd-group-grid">${items}</div></div>`;
   d.innerHTML =
     grp(
       'Body composition',
-      di('BMI', bmi.toFixed(1) + ' (' + bmiCat + ')', 'kg ÷ m² = ' + p.weight + ' ÷ ' + (p.height / 100).toFixed(2) + '²') +
-        di('IBW', ibw.toFixed(1) + ' kg', 'Devine: ' + (p.sex === 'M' ? '50' : '45.5') + ' + 2.3·(' + _inch + 'in−60)') +
-        di('BSA', bsa.toFixed(2) + ' m²', 'DuBois: √(' + p.height + '·' + p.weight + '/3600)') +
-        di('BMR', bmr + ' kcal', 'Mifflin: 10·w+6.25·h−5·a' + (p.sex === 'M' ? '+5' : '−161'))
+      di(
+        'BMI',
+        _dv.height && _dv.weight ? bmi.toFixed(1) + ' (' + bmiCat + ')' : '—',
+        _dv.height && _dv.weight ? 'kg ÷ m² = ' + p.weight + ' ÷ ' + (p.height / 100).toFixed(2) + '²' : _ab('height or weight')
+      ) +
+        di('IBW', _dv.height ? ibw.toFixed(1) + ' kg' : '—', _dv.height ? 'Devine: ' + (p.sex === 'M' ? '50' : '45.5') + ' + 2.3·(' + _inch + 'in−60)' : _ab('height')) +
+        di('BSA', _dv.height && _dv.weight ? bsa.toFixed(2) + ' m²' : '—', _dv.height && _dv.weight ? 'DuBois: √(' + p.height + '·' + p.weight + '/3600)' : _ab('height or weight')) +
+        di(
+          'BMR',
+          _dv.height && _dv.weight && _dv.age ? bmr + ' kcal' : '—',
+          _dv.height && _dv.weight && _dv.age ? 'Mifflin: 10·w+6.25·h−5·a' + (p.sex === 'M' ? '+5' : '−161') : _ab('height, weight or age')
+        )
     ) +
     grp(
       'Cardiovascular',
-      di('HRmax', hrmax + ' bpm', hrmaxRejected ? '⚠ entry low → Tanaka 208−0.7·' + p.age : p.hrmax_manual > 0 ? 'your entry' : 'Tanaka: 208−0.7·' + p.age) +
-        di('MAP', map_ + ' mmHg', 'DBP + ⅓(SBP−DBP)') +
-        di('Pulse pressure', pp + ' mmHg', 'SBP − DBP = ' + p.sbp + '−' + p.dbp) +
-        di('BAP (full)', bap_full != null ? bap_full : '—', bap_full != null ? 'Baevsky 1984 regression' : 'no resting HR measured')
+      di(
+        'HRmax',
+        hrmaxValid || _dv.age ? hrmax + ' bpm' : '—',
+        hrmaxRejected ? (_dv.age ? '⚠ entry low → Tanaka 208−0.7·' + p.age : '⚠ entry low, and ' + _ab('age')) : hrmaxValid ? 'your entry' : _dv.age ? 'Tanaka: 208−0.7·' + p.age : _ab('age')
+      ) +
+        di('MAP', _dv.bp ? map_ + ' mmHg' : '—', _dv.bp ? 'DBP + ⅓(SBP−DBP)' : _ab('blood pressure')) +
+        di('Pulse pressure', _dv.bp ? pp + ' mmHg' : '—', _dv.bp ? 'SBP − DBP = ' + p.sbp + '−' + p.dbp : _ab('blood pressure')) +
+        di('BAP (full)', _bapOk ? bap_full : '—', _bapOk ? 'Baevsky 1984 regression' : bap_full == null ? 'no resting HR measured' : _ab('age, blood pressure or a body measurement'))
     ) +
     grp(
       'Respiratory / fitness',
-      di('VO₂ absolute', vo2_abs, p.vo2gt > 0 ? 'VO₂·weight/1000 = ' + p.vo2gt + '·' + p.weight + '/1000' : 'enter VO₂max ground truth') +
-        di('VO₂ category', vo2CatStr, 'ACSM age·sex norms') +
+      di('VO₂ absolute', _dv.weight ? vo2_abs : '—', p.vo2gt > 0 ? (_dv.weight ? 'VO₂·weight/1000 = ' + p.vo2gt + '·' + p.weight + '/1000' : _ab('weight')) : 'enter VO₂max ground truth') +
+        di('VO₂ category', _dv.age ? vo2CatStr : '—', _dv.age ? 'ACSM age·sex norms' : _ab('age')) +
         di(
           'VO₂ percentile',
-          vo2Perc != null ? '~' + vo2Perc + 'th' : '—',
-          'Cooper bands (' + (p.age < 30 ? '20s' : p.age < 40 ? '30s' : p.age < 50 ? '40s' : p.age < 60 ? '50s' : '60+') + ' ' + (p.sex === 'M' ? 'M' : 'F') + ')'
+          _dv.age && vo2Perc != null ? '~' + vo2Perc + 'th' : '—',
+          _dv.age ? 'Cooper bands (' + (p.age < 30 ? '20s' : p.age < 40 ? '30s' : p.age < 50 ? '40s' : p.age < 60 ? '50s' : '60+') + ' ' + (p.sex === 'M' ? 'M' : 'F') + ')' : _ab('age')
         )
     );
 

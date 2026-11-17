@@ -92946,7 +92946,11 @@
         T.ok('a null resting HR does not read as 0 bpm', bapOf(null, body) !== bapOf(0, body), 'null and 0 bpm produce one answer');
       }
       T.ok('the unguarded seven-term line is gone', !/const bap_full = \(0\.011 \* hrRest/.test(src), 'bap_full computes over hrRest with no guard');
-      T.ok('the card prints an em dash for an absent AP', /di\('BAP \(full\)', bap_full != null \? bap_full : '—'/.test(src), 'the BAP card value lost its guard');
+      /* The card value moved behind `_bapOk` (ABSENCE-SURVEY row 0db08d540800). The AP also reads an
+         age, a pressure pair and a body measurement, and each of those carried a population default.
+         So this pins BOTH halves — the em dash, and the null resting HR still inside the new guard. */
+      T.ok('the card prints an em dash for an absent AP', /_bapOk \? bap_full : '—'/.test(src), 'the BAP card value lost its guard');
+      T.ok('the guard still refuses a null resting HR first', /const _bapOk = bap_full != null &&/.test(src), 'the AP guard dropped its resting-HR term');
       T.ok('the card hint names the absent resting HR', /'no resting HR measured'/.test(src), 'the BAP hint does not name the absence');
       T.ok('CONTROL · the card still cites Baevsky for a real value', /'Baevsky 1984 regression'/.test(src), 'the citation went away with the guard');
     });
@@ -93109,6 +93113,60 @@
       T.ok('the identity write refuses an estimate over a default age', /vo2: _vo2OnDefaultAge \? null : vo2Est/.test(src), 'prefillFrom writes the estimate unguarded');
       T.ok('the ground-truth field refuses it too, as the second surface of the one row', /if \(!_vo2OnDefaultAge\) setIfEmpty\('prof_vo2gt'/.test(src), 'the vo2gt prefill lost its guard');
       T.ok('the unguarded identity write is gone', !/prefillFrom\(\{ hrRest: restingHR, vo2: vo2Est \}\)/.test(src), 'the unguarded prefillFrom is back');
+    });
+
+    /* ════ ∅ HRVDex PROFILE — THE FOUR OTHER POPULATION DEFAULTS (ABSENCE-SURVEY row 0db08d540800) ════
+     The age sibling above closed one default. This group closes the other four: weight, height, SBP
+     and DBP. The height case is the loudest. A TYPED 0 survives `n()`, so `75 / 0` rendered
+     `Infinity (Obese)` and the Devine ideal weight read −88 kg (board entry 7280). The DOM arm fails
+     the other way: `|| 175` turns the same entry into the population height, invisibly.
+     Same technique as the sibling — slice the pure predicate out of the source and run it. */
+    group('∅ HRVDex profile — a derived number over a population default refuses to render', 'hrvdex-profile · absence', function (T) {
+      var src = (env.sources && env.sources['hrvdex-profile.js']) || '';
+      T.ok('ANTI-VACUITY · the hrvdex-profile.js source is readable in this lane', src.length > 1000, 'env.sources["hrvdex-profile.js"] absent');
+      if (!src) return;
+
+      var a = src.indexOf('function _profDerivable(');
+      var b = a >= 0 ? src.indexOf('\n}\n', a) : -1;
+      T.ok('the derivability predicate is sliceable out of the profile', a >= 0 && b > a, 'the slice markers moved — update this group with them');
+      if (a >= 0 && b > a) {
+        var pr = null;
+        try {
+          pr = new Function(src.slice(a, b + 3) + '\nreturn _profDerivable;')();
+        } catch (_e) {
+          pr = null;
+        }
+        T.ok('the sliced predicate evaluates on its own', typeof pr === 'function', 'the predicate now depends on profile state — keep it pure');
+        if (typeof pr === 'function') {
+          var none = pr({});
+          T.eq('no entered measurement ⇒ the height is not derivable', none.height, false);
+          T.eq('no entered measurement ⇒ the weight is not derivable', none.weight, false);
+          T.eq('no entered measurement ⇒ the pressure pair is not derivable', none.bp, false);
+          T.eq('no entered measurement ⇒ the age is not derivable', none.age, false);
+          T.eq('a height alone makes only the height derivable', pr({ heightKnown: true }).height, true);
+          T.eq('a height alone leaves the weight absent', pr({ heightKnown: true }).weight, false);
+          T.eq('one pressure alone does not make the pair derivable', pr({ sbpKnown: true }).bp, false);
+          T.eq('the other pressure alone does not either', pr({ dbpKnown: true }).bp, false);
+          T.eq('a flag that is not strictly true reads as absent', pr({ heightKnown: 1 }).height, false);
+          T.eq('an absent argument answers a boolean, never a throw', typeof pr(null).height, 'boolean');
+          var all = pr({ ageKnown: true, weightKnown: true, heightKnown: true, sbpKnown: true, dbpKnown: true });
+          T.eq('CONTROL · an entered height is derivable', all.height, true);
+          T.eq('CONTROL · an entered weight is derivable', all.weight, true);
+          T.eq('CONTROL · both entered pressures are derivable', all.bp, true);
+          T.eq('CONTROL · an entered age is derivable', all.age, true);
+        }
+      }
+      T.ok('the DXP arm reports an entered weight', /weightKnown: n\(p\.weight, 0\) > 0/.test(src), 'the DXP arm reports no weight marker');
+      T.ok('the DXP arm reports an entered height', /heightKnown: n\(p\.height, 0\) > 0/.test(src), 'the DXP arm reports no height marker');
+      T.ok('the DXP arm reports an entered systolic pressure', /sbpKnown: n\(p\.sbp, 0\) > 0/.test(src), 'the DXP arm reports no SBP marker');
+      T.ok('the DXP arm reports an entered diastolic pressure', /dbpKnown: n\(p\.dbp, 0\) > 0/.test(src), 'the DXP arm reports no DBP marker');
+      T.ok('the DOM fallback arm reports the height too', /heightKnown: parseFloat\(document\.getElementById\('prof_height'\)\?\.value\) > 0/.test(src), 'the DOM arm reports no height marker');
+      T.ok('the panel resolves the markers once, before any card', /const _dv = _profDerivable\(p\);/.test(src), 'the panel reads the raw numbers again');
+      T.ok('the BMI card refuses without a height and a weight', /_dv\.height && _dv\.weight \? bmi\.toFixed\(1\)/.test(src), 'BMI renders over a population body');
+      T.ok('the ideal-weight card refuses without a height', /_dv\.height \? ibw\.toFixed\(1\)/.test(src), 'the Devine weight renders over a population height');
+      T.ok('the pressure cards refuse without both pressures', /_dv\.bp \? map_ \+ ' mmHg'/.test(src), 'MAP renders over a population pressure');
+      T.ok('the refusal names the input it waits for', /const _ab = \(what\) => 'no ' \+ what \+ ' entered'/.test(src), 'the refusal text is gone or unnamed');
+      T.ok('the unguarded BMI card is gone', !/di\('BMI', bmi\.toFixed/.test(src), 'the unguarded BMI card is back');
     });
 
     /* ════ 21g · OxyDex PROFILE PERSONALIZATION — known-answer (TEST-COVERAGE-FOLLOWUPS-II §1b) ════
