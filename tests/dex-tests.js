@@ -47946,6 +47946,69 @@
       T.eq('CONTROL · the old weight read an absence as a complete recording', (ABSENT_COV != null ? ABSENT_COV : 100) / 100, 1);
     });
 
+    group('∅ PulseDex Poincare ratio — a long axis the reader sees as 0.00 is not a denominator', 'pulsedex-app · pulsedex-dsp · absence', function (T) {
+      var src = env.sources || {};
+      var app = src['pulsedex-app.js'] || '',
+        dsp = src['pulsedex-dsp.js'] || '';
+      if (!app.trim() || !dsp.trim()) {
+        T.skip('the PulseDex Poincare ratio road', 'sources not provided in this runner');
+        return;
+      }
+      // ── the shipped text ──
+      T.ok(
+        'ANTI-VACUITY · the app road still publishes a Poincare ratio and both axis widths',
+        /sd1sd2:/.test(app) && /const sd1v = /.test(app) && /sd2v = /.test(app),
+        'ratio line: ' + (app.match(/sd1sd2:.*$/m) || ['absent'])[0].slice(0, 110)
+      );
+      T.ok('the app road states its own floor for the long axis', /const PX_SD2_MIN_MS = 0\.005;/.test(app), (app.match(/const PX_SD2_MIN_MS = [^;]*;/) || ['no site'])[0]);
+      T.ok(
+        'the floor is half of the last decimal place the long axis prints',
+        /sd2v = sdnn == null \|\| rm == null \? null : \+sd2\(sdnn, rm\)\.toFixed\(2\)/.test(app),
+        (app.match(/sd2v = [^;]*;/) || ['no site'])[0]
+      );
+      var mRatio = app.match(/sd1sd2: (.*),$/m);
+      T.ok('no 1 ms denominator stands in for an unpublishable long axis', !!mRatio && !/\|\| 1/.test(mRatio[1]), mRatio ? mRatio[1].slice(0, 100) : 'no ratio line');
+      T.eq('the substitution survives only as the quoted history in the comment', (app.match(/`sd1v \/ \(sd2v \|\| 1\)`/g) || []).length, 1);
+      T.ok('the floor names its measurement and its sibling node', /PPG_SD2_MIN_MS/.test(app) && /bb5bdd974405/.test(app), 'the comment no longer cites the precedent');
+      T.ok('the ellipse area keeps the null arm it already had', /ell = sd1v == null \|\| sd2v == null \? null :/.test(app), (app.match(/ell = [^;]*;/) || ['no site'])[0].slice(0, 90));
+      T.ok(
+        'the respiratory rate arm of the same window spec refuses, never reports a rate of 0',
+        /respRate: srr\.length \? \+medianOf\(srr\)\.toFixed\(1\) : null/.test(app) && !/respRate: [^\n]*: 0[,} ]/.test(app),
+        (app.match(/respRate: [^,}]*/) || ['no site'])[0]
+      );
+      // ── the shipped expression, evaluated ──
+      var ratio = mRatio ? new Function('sd1v', 'sd2v', 'PX_SD2_MIN_MS', 'return ' + mRatio[1]) : null;
+      var FLOOR = 0.005;
+      T.ok('the ratio expression is readable from the shipped source', !!ratio, mRatio ? mRatio[1].slice(0, 100) : 'no match');
+      if (ratio) {
+        T.eq('a long axis that prints 0.00 refuses the ratio', ratio(0.71, 0, FLOOR), null);
+        T.eq('a long axis under the printed precision refuses the ratio', ratio(0.71, 0.004, FLOOR), null);
+        T.eq('a long axis at the smallest printable width publishes the ratio', ratio(0.71, 0.01, FLOOR), 71);
+        T.eq('an ordinary night still publishes its ratio', ratio(28.3, 240.1, FLOOR), 0.118);
+        T.eq('an absent short axis refuses the ratio', ratio(null, 24, FLOOR), null);
+        T.eq('an absent long axis refuses the ratio', ratio(28.3, null, FLOOR), null);
+      }
+      // ── the producer: a real series that reaches the floor ──
+      var pMean = dsp.match(/const mean = \(a\) => [^\n]*;/),
+        pStd = dsp.match(/const std = \(a\) => \{[\s\S]*?\n  \};/),
+        pRmssd = dsp.match(/const rmssd = \(a\) => \{[\s\S]*?\n  \};/),
+        pSd1 = dsp.match(/const sd1 = \(r\) => [^\n]*;/),
+        pSd2 = dsp.match(/const sd2 = \(s, r\) => [^\n]*;/);
+      var producers = !!(pMean && pStd && pRmssd && pSd1 && pSd2);
+      T.ok('ANTI-VACUITY · the five DSP producers behind the pair are readable', producers, 'mean, std, rmssd, sd1 and sd2 all matched');
+      if (producers && ratio) {
+        var axes = new Function('rr', pMean[0] + pStd[0] + pRmssd[0] + pSd1[0] + pSd2[0] + 'var s = std(rr), r = rmssd(rr);' + 'return { sd1v: +sd1(r).toFixed(2), sd2v: +sd2(s, r).toFixed(2) };');
+        var rr = [];
+        for (var i = 0; i < 20001; i++) rr.push(800 + (i % 2));
+        var ax = axes(rr);
+        T.eq('20001 beats alternating by 1 ms print a long axis of 0.00', ax.sd2v, 0);
+        T.ok('the same beats print a short axis the reader can read', ax.sd1v > 0.5, 'sd1v=' + ax.sd1v);
+        T.eq('so the shipped line refuses that night', ratio(ax.sd1v, ax.sd2v, FLOOR), null);
+        // ── CONTROL · what the substitution published ──
+        T.eq('CONTROL · the old denominator took 1 ms and published the short axis as a balance figure', +(ax.sd1v / (ax.sd2v || 1)).toFixed(3), ax.sd1v);
+      }
+    });
+
     group('DMY file-lock is threaded, not just preferred (DEEP-AUDIT-II §1.10)', 'hrvdex-dsp · pulsedex-overview · integrator-dsp · clock', function (T) {
       // A Welltory-shaped export spanning 12 -> 13 June: the 06/12 rows are AMBIGUOUS (both fields <= 12)
       // while 13/06 is not. A per-row decision reads the first as 6 Dec and the second as 13 Jun.
