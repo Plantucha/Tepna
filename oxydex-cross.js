@@ -241,7 +241,13 @@
       const psFloor = Math.max(psRaw, 1e-6 * Math.max(1, Math.abs(pm)));
       baselineSd = r1(psFloor);
       let z = (vals[n - 1] - pm) / psFloor;
-      if (!isFinite(z)) z = 0;
+      /* §∅ — AN UNMEASURABLE RATIO IS ABSENT, NEVER 0σ. This read `if (!isFinite(z)) z = 0`, which
+         published the strongest possible claim — "the newest night sits EXACTLY on its baseline" —
+         for a baseline that produced no number at all. It was reachable: a coverage BLOCK divided by
+         100 gave a NaN weight, `wmean` answered NaN, and every metric card printed a comforting 0σ.
+         `z` keeps `null` and the two consumers that test `zLatest == null` already print an em dash
+         (oxydex-render.js:1896/1901, crossnight-envelope.js:141). */
+      if (!isFinite(z)) z = null;
       /* A SATURATED BOUND IS NOT A MEASUREMENT (residue
          `2026-11-11-crossnight-z-prints-a-saturated-clamp`). The clamp above is a DISPLAY guard, so
          AT the bound the published number stops being the ratio it names: three steady recordings
@@ -253,8 +259,8 @@
          as "≥", and the projection in `crossnight-envelope.js` is hand-picked, so the field is
          invisible to the export until it is named there too. */
       const Z_SAT = 20;
-      zSaturated = Math.abs(z) > Z_SAT;
-      zLatest = r2(Math.max(-Z_SAT, Math.min(Z_SAT, z)));
+      zSaturated = z != null && Math.abs(z) > Z_SAT;
+      zLatest = z == null ? null : r2(Math.max(-Z_SAT, Math.min(Z_SAT, z)));
     }
     // significance
     const boot = bootstrapDeltaCI(vals);
@@ -412,6 +418,25 @@
   }
   function nightWeight(n) {
     var c = n.stats && n.stats.coverage != null ? n.stats.coverage : n.stats && n.stats.analyzedPct != null ? n.stats.analyzedPct : null;
+    /* §∅ — THE COVERAGE A NIGHT PUBLISHES IS A BLOCK, AND THIS DIVIDED IT BY 100.
+       `oxyCoverage` (oxydex-dsp.js:6876) sets `stats.coverage` from `DexExport.coverageFromSegments`
+       (dex-export.js:145), which answers `{ kind, spanSec, segments[], recordedSec, n, source }` — a
+       declaration, not a percentage. `c / 100` on that object is NaN, and `Math.max(0.05, NaN)` is
+       NaN, so EVERY night that declares a hole weighed no number at all. A NaN weight is not a
+       down-weighting: `wmean`/`wsd`/`ols` all go NaN, `central.mean` and `sd` publish null, and the
+       ratio behind `zLatest` goes NaN and was then published as 0σ — "the newest night sits exactly
+       on its baseline" — while the export's `_round(NaN)` emitted a null weight beside
+       `weightAbsent:true`, filing a night measured at 68 % as a night nobody measured.
+       Measured on the card's own five-night series with one 88 % night: mean/spread null and
+       zLatest 0, where the same series at its real share reads mean 94.5, sd 3.0, zLatest 0.36.
+       The share is `recordedSec / spanSec`, the two figures the block does publish; a block that
+       states neither is unmeasured and answers null. The bare-number arm stays for `analyzedPct`
+       and for every fixture that states a percentage, so nothing that worked before moves. */
+    if (c != null && typeof c === 'object') {
+      var recSec = c.recordedSec,
+        spanSec = c.spanSec;
+      c = typeof recSec === 'number' && isFinite(recSec) && typeof spanSec === 'number' && isFinite(spanSec) && spanSec > 0 ? (100 * recSec) / spanSec : null;
+    }
     /* §∅ — a night that states NEITHER coverage NOR an analysed share returns `null`, never 1. An
        unmeasured night must not outweigh a night measured at 90 %. `crossnight-envelope.js` reads
        this null, flags the row with `weightAbsent`, weights the fits at its floor and publishes
