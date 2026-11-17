@@ -12607,6 +12607,45 @@
       T.ok('no node drifted from its baseline', drift.length === 0, 'drifted: ' + drift.join(', '));
     });
 
+    /* ∅ A SPAN OF ZERO IS NOT A SHORT SPAN. `analyze` adopts `rec.devMsAt` as the beat clock; a
+       counter that returns ONE stamp makes buildNN's span exactly 0 — the stuck-counter input its own
+       comment (:1257) says arrives through `analyze`. Origin/main then published `spanMin: 0.1` (the
+       last beat's OFFSET, not a span), `durSec: 5` and `durMin: 0.1` for a series that never advanced,
+       and graded the tier "< 2 min". The control runs the same samples on the index axis, so only the
+       beat clock differs between the arms. */
+    group('ECGDex duration — ∅ a beat series that spans no time publishes no span and no duration', 'ecgdex-dsp · absence · duration', function (T) {
+      var E = env.ECGDSP || env.EcgDsp;
+      if (!E || typeof E.analyze !== 'function' || typeof E.genSynthetic !== 'function') {
+        T.skip('ECGDSP.analyze + genSynthetic available', 'not loaded');
+        return;
+      }
+      var SYN = E.genSynthetic({ durSec: 60, fs: 130, scenario: 'overnight' });
+      var T0 = Date.UTC(2026, 6, 31, 0, 0, 0);
+      var ctrl = E.analyze({ int16: SYN.int16, fs: 130, source: 'synthetic', t0Ms: T0 });
+      T.ok('ANTI-VACUITY · the index axis measured a span from the same samples', ctrl && ctrl.spanMin > 0, 'spanMin=' + (ctrl && ctrl.spanMin));
+      T.ok('ANTI-VACUITY · …and a duration', ctrl && ctrl.durSec > 0, 'durSec=' + (ctrl && ctrl.durSec));
+      var stuck = E.analyze({
+        int16: SYN.int16,
+        fs: 130,
+        source: 'synthetic',
+        t0Ms: T0,
+        devMsAt: function () {
+          return 5000;
+        }
+      });
+      T.eq('a zero span publishes NO spanMin — a last-beat offset is not a span', stuck && stuck.spanMin, null);
+      T.eq('…NO durSec', stuck && stuck.durSec, null);
+      T.ok('…and the null is a published field, not a missing one', !!stuck && 'durSec' in stuck && 'spanMin' in stuck && 'durMin' in stuck);
+      T.ok(
+        '…and the mode is not graded from a duration nobody measured',
+        !!stuck && stuck.mode === 'short-reading' && /unmeasured/.test(String(stuck.modeWhy)),
+        'mode=' + (stuck && stuck.mode) + ' why=' + JSON.stringify(stuck && stuck.modeWhy)
+      );
+      T.eq('…NO durMin', stuck && stuck.durMin, null);
+      T.eq('…and the beat-coverage refusal still carries its own reason', stuck && stuck.coveragePct, null);
+      T.ok('…and the tier names the unmeasured duration rather than grading it', stuck && /unmeasured/.test(String(stuck.tierMsg)), 'tierMsg=' + JSON.stringify(stuck && stuck.tierMsg));
+    });
+
     group('ECGDex RMSSD absence — an unmeasured RMSSD is null, never 0 (§∅)', 'ecgdex-dsp · absence', function (T) {
       var E = env.ECGDSP || env.EcgDsp;
       T.ok('ECGDSP reachable', !!(E && E.analyze && E.validateRR), 'ecgdex-dsp.js did not load');

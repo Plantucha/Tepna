@@ -2904,7 +2904,7 @@
   //  overnight / nap / short-reading classes. Decision is recorded transparently in modeWhy.
   // ════════════════════════════════════════════════════════════════════════
   function classifyMode(durSec, t0Ms, accEx, longRec) {
-    const durMin = durSec / 60;
+    const durMin = durSec == null ? null : durSec / 60;
     const _p = (x) => String(x).padStart(2, '0');
     let clockStr = '—';
     // floating wall-clock → read with UTC getters (Clock Contract §5) so time-of-day is
@@ -2970,12 +2970,12 @@
       if (accWakePct != null) bits.push('ACC-wake ' + accWakePct + '%');
       modeWhy = 'ambulatory: ' + (bits.join('; ') || 'sustained motion') + ' — overnight veto';
       modeConf = Math.round(Math.max(0.7, activityScore) * 100);
-    } else if (longRec) {
+    } else if (longRec && durMin != null) {
       mode = 'overnight';
       modeLabel = '🌙 Overnight';
       modeWhy = (durMin / 60).toFixed(1) + ' h from ' + clockStr;
       modeConf = 90;
-    } else if (durMin >= 20) {
+    } else if (durMin != null && durMin >= 20) {
       mode = 'nap';
       modeLabel = '😴 Nap';
       modeWhy = Math.round(durMin) + ' min from ' + clockStr;
@@ -2983,7 +2983,7 @@
     } else {
       mode = 'short-reading';
       modeLabel = '⏱ Short reading';
-      modeWhy = Math.round(durMin) + ' min reading';
+      modeWhy = durMin == null ? 'duration unmeasured — the beat series spans no time' : Math.round(durMin) + ' min reading';
       modeConf = 80;
     }
     return {
@@ -3185,9 +3185,22 @@
     const hr = +(60000 / meanRR).toFixed(1);
     // Duration = ACTIVE (beat-covered) time, not raw span. Stray beats detected in
     // noise hours after the strap comes off must NOT inflate duration or the tier.
-    const spanSec = nnRes.spanSec || tt[N - 1] || 0;
-    const durSec = nnRes.activeSec > 0 ? nnRes.activeSec : tt[N - 1] || rec.durSec || (N * meanRR) / 1000;
-    const longRec = durSec >= 90 * 60;
+    /* §∅ — A SPAN OF ZERO IS UNMEASURED, AND SO IS THE DURATION BUILT FROM IT. Both lines below
+       replaced an absent measurement with a DIFFERENT quantity, then with a plain 0:
+         · `nnRes.spanSec || tt[N - 1]` swapped a SPAN (end minus start) for the last beat's OFFSET
+           from the record start. The two agree only when the series begins at 0 s; across a stuck
+           device counter (`beatAxis: 'device-counter'` with one repeated stamp — the input buildNN's
+           own comment at :1257 says arrives through `analyze`) the span is 0 and the offset is
+           wherever the counter sat, so the node published `spanMin: 0.1` over a series that never
+           advanced.
+         · `|| 0` answered a duration of ZERO — a legal value for an instant, so indistinguishable
+           from "never timed" — and the chain behind it substituted `N * meanRR`, a duration beats
+           sharing one stamp cannot establish.
+       The measurement and its products refuse together, the same rule `coveragePct` follows at
+       :1258: a null here must not become 0 one line later. */
+    const spanSec = nnRes.spanSec > 0 ? nnRes.spanSec : null;
+    const durSec = nnRes.activeSec > 0 ? nnRes.activeSec : rec.durSec > 0 ? rec.durSec : null;
+    const longRec = durSec != null && durSec >= 90 * 60;
     const lowCoverage = nnRes.coveragePct != null && nnRes.coveragePct < 80;
 
     prog(72, '5-min epoch engine…');
@@ -3584,9 +3597,15 @@
     const totSleep = stageMin.REM + stageMin.Light + stageMin.Deep;
 
     // validity tier
-    const durMin = durSec / 60;
+    const durMin = durSec == null ? null : durSec / 60;
     let tier, tierMsg;
-    if (durMin < 2) {
+    if (durMin == null) {
+      /* `null < 2` is true in JavaScript, so an unguarded first arm graded an untimed record
+         "insufficient" and, worse, `durMin.toFixed(1)` published `0.0` min for it. The tier names
+         the absence instead of grading a number nobody measured. */
+      tier = 'insufficient';
+      tierMsg = 'duration unmeasured — the beat series spans no time, so no validity tier can be graded';
+    } else if (durMin < 2) {
       tier = 'insufficient';
       tierMsg = '< 2 min — HRV not reliable';
     } else if (durMin < 5) {
@@ -3599,7 +3618,7 @@
       tier = 'overnight';
       tierMsg = 'Overnight: + VLF · DFA α1 · CVHR/apnea · sleep staging';
     }
-    if (lowCoverage) {
+    if (lowCoverage && spanSec != null && durMin != null) {
       tierMsg += ` · ⚠ only ${nnRes.coveragePct}% beat coverage across a ${(spanSec / 60).toFixed(0)}-min span (${nnRes.nGaps} gap${nnRes.nGaps === 1 ? '' : 's'}, ${(nnRes.gapSec / 60).toFixed(0)} min off-body) — metrics reflect the ${durMin.toFixed(0)} min of usable signal only`;
     }
 
@@ -3642,7 +3661,7 @@
          and ALWAYS populated for the same one: a night with no run sidecar reads as blanking UNKNOWN
          rather than as a night with none. The signal-quality ledger (§3b) publishes it. */
       runs: _ecgRunsState(rec),
-      durMin: +durMin.toFixed(1),
+      durMin: durMin == null ? null : +durMin.toFixed(1),
       longRec,
       tier,
       tierMsg,
@@ -3726,7 +3745,7 @@
       artifactSec: _conf.calibrated ? artifactSec : null,
       artifactSecReason: _conf.calibrated ? null : _conf.reason,
       artifactGate: { calibrated: !!_conf.calibrated, sqiSource: _conf.sqiSource || null, nSqi: _conf.nSqi != null ? _conf.nSqi : null },
-      spanMin: +(spanSec / 60).toFixed(1),
+      spanMin: spanSec == null ? null : +(spanSec / 60).toFixed(1),
       gapMin: +(nnRes.gapSec / 60).toFixed(1),
       activeMin: +(nnRes.activeSec / 60).toFixed(1),
       lowCoverage,

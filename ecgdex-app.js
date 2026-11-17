@@ -532,15 +532,7 @@ self.onmessage = async (e) => {
         renderCrossNight();
         document.body.classList.add('has-data');
         $('exportBar').classList.add('show');
-        showOK(
-          'Analyzed ' +
-            r.nBeats +
-            ' beats from ' +
-            (r.durSec >= 3600 ? (r.durSec / 3600).toFixed(1) + ' h' : (r.durSec / 60).toFixed(0) + ' min') +
-            ' of ECG · ' +
-            pv(r.analyzablePct, '%') +
-            ' analyzable'
-        );
+        showOK('Analyzed ' + r.nBeats + ' beats from ' + durTxt(r.durSec) + ' of ECG · ' + pv(r.analyzablePct, '%') + ' analyzable');
         setTimeout(() => {
           $('prog').classList.remove('show');
           $('proc').textContent = '';
@@ -593,7 +585,7 @@ self.onmessage = async (e) => {
       ' beats · ' +
       r.hr +
       ' bpm · ' +
-      (r.durSec >= 3600 ? (r.durSec / 3600).toFixed(1) + ' h' : (r.durSec / 60).toFixed(0) + ' min') +
+      durTxt(r.durSec) +
       '<br>' +
       pv(r.analyzablePct, '%') +
       ' analyzable';
@@ -624,6 +616,9 @@ self.onmessage = async (e) => {
      when the beat series spans no time, so every surface that printed them by concatenation read
      `null%` and graded the absence against a threshold. */
   const pv = (v, u) => (v == null || !isFinite(v) ? '—' : v + (u || ''));
+  /* §∅ — `analyze` returns `durSec: null` when the beat series spans no time. `null >= 3600` is
+     false and `(null / 60).toFixed(0)` is "0", so the bare ternary printed "0 min" over it. */
+  const durTxt = (sec) => (sec == null || !isFinite(sec) ? 'an unmeasured duration' : sec >= 3600 ? (sec / 3600).toFixed(1) + ' h' : (sec / 60).toFixed(0) + ' min');
   /* …and the same two halves where LOWER is better. The correction rate repeated this ternary at
      three surfaces with no refusal arm, so a null correction rate graded `bad` and printed `null%`. */
   const scLo = (v, ok, warn) => (v == null || !isFinite(v) ? 'neutral' : v < ok ? 'ok' : v < warn ? 'warn' : 'bad');
@@ -646,7 +641,7 @@ self.onmessage = async (e) => {
     const modeName = r.modeLabel || { insufficient: 'Insufficient', ['ultra-short']: 'Ultra-short', short: '5-min standard', overnight: 'Overnight' }[r.tier];
     $('ctxBanner').innerHTML = `<div class="ctx-main">
       <div><div class="ctx-mode">${modeName}</div>
-      <div class="ctx-why">${r.durMin} min · ${r.nBeats.toLocaleString()} beats · ${_fsReadable(r.fs)} Hz · ${r.epochs.length} × 5-min epochs</div></div>
+      <div class="ctx-why">${r.durMin != null ? r.durMin + ' min' : 'duration unmeasured'} · ${r.nBeats.toLocaleString()} beats · ${_fsReadable(r.fs)} Hz · ${r.epochs.length} × 5-min epochs</div></div>
       <div class="ctx-conf ${r.ambulatory ? 'warn' : tierColor}">${r.ambulatory ? 'Ambulatory — sleep/apnea suppressed' : r.tierMsg}</div>
     </div>${notes}`;
     $('ctxBanner').style.display = 'flex';
@@ -1717,7 +1712,7 @@ self.onmessage = async (e) => {
     const rows = [
       ['Source', r.source === 'synthetic' ? 'Synthetic ECG (demo)' : 'Raw ECG file', '—', '—', 'neutral', 'Single signal in — RR computed from ECG'],
       ['Tier', r.tier, '—', '—', 'neutral', r.tierMsg],
-      ['Duration', r.durMin, 'min', '—', 'neutral', r.epochs.length + ' × 5-min epochs'],
+      ['Duration', r.durMin == null ? '—' : r.durMin, 'min', '—', 'neutral', r.epochs.length + ' × 5-min epochs'],
       ['Sample rate', _fsReadable(r.fs), 'Hz', '130', 'neutral', 'Polar-H10-style chest sensor · measured rate at two decimals; the export keeps every digit'],
       ['Beats (NN)', r.nBeats, 'beats', '—', 'neutral', 'After SQI gate + interpolation'],
       ['Analyzable', r.analyzablePct == null ? '—' : r.analyzablePct, '%', '≥90', sc(r.analyzablePct, 90, 75), '% night above SQI threshold'],
@@ -2552,7 +2547,7 @@ self.onmessage = async (e) => {
             pv(s.analyzablePct, '%') +
             '</span></div>' +
             '<div class="ri-sub">' +
-            (s.durSec >= 3600 ? (s.durSec / 3600).toFixed(1) + ' h' : (s.durSec / 60).toFixed(0) + ' min') +
+            durTxt(s.durSec) +
             ' · ' +
             s.dispHr +
             ' bpm · rMSSD ' +
