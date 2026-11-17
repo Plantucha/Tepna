@@ -855,6 +855,11 @@ export const SEEDS = [
     at: 'pulsedex-render.js:156',
     state: 'fixed',
     note: "BOOKKEEPING ONLY: the code was fixed earlier, by #5137, at the same time as the compute road above; the row stayed open because no PR lowered it. Plant: tests/dex-tests.js group '∅ PulseDex profile elevation — absent stays null, never sea level', landed with that fix."
+  },
+  {
+    at: 'pulsedex-app.js:554',
+    state: 'fixed',
+    note: "findWTRow returns null when no Welltory row carries the recording's date, in place of `match || welltoryData.rows[0]`, which drew the FIRST row of the log as this day's reference. Every comparison cell already refuses a null row and falls to its dash, and the caption now names the date through wtRefLabel: matched, or no row for that day. Plant: tests/dex-tests.js group 'PulseDex Welltory reference', 3 legs red on the pre-fix pulsedex-app.js and 2 more on the pre-fix pulsedex-render.js caption."
   }
 ];
 
