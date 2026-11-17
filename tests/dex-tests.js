@@ -47060,6 +47060,133 @@
       T.ok('a null elevation cannot cross either banner threshold', !(null >= 2500) && !(null > 1500), 'null >= 2500 = ' + (null >= 2500) + ' · null > 1500 = ' + (null > 1500));
     });
 
+    /* ── §∅ — AN UNENTERED BODY TERM IS NULL, NEVER A POPULATION MEAN ──────────────────────────────
+       ABSENCE-SURVEY rows `99da70856676` (pulsedex-app), `1e6755144a8e` (pulsedex-render) and
+       `27fed719ee6a` (pulsedex-overview). `pxProfile()` defaulted age to 40, weight to 78 kg and
+       height to 176 cm on BOTH of its paths. Every derived figure then read as the reader's own
+       measurement: Tanaka HRmax, the whole VO₂ road, BMI, BSA, IBW, BMR and the Cooper percentile.
+       Dropping the defaults alone does NOT fix it, and the CONTROL legs below measure why. Bare
+       arithmetic turns a null into an in-band number, never a NaN. `(15.3 * null) / 60` is 0, so an
+       absent HRmax would publish VO₂ base 0.0 ml/kg/min. `null / (1.76 ** 2)` is 0, so an absent
+       weight would publish BMI 0.0 and the category 'Underweight'. `null >= 20` is false, so a
+       refused percentile fell through the old chain to the verdict 'Poor'. Each consumer therefore
+       refuses explicitly and names the absent term. The suite cannot drive `calculate()` (it reads
+       the DOM), so the producer and consumer legs are source assertions on the same instrument the
+       elevation group above uses, beside four BEHAVIOURAL legs on the exported Tanaka function. */
+    group('∅ PulseDex profile body terms — absent stays null, never a population mean', 'pulsedex-overview · pulsedex-app · pulsedex-render · absence', function (T) {
+      var src = env.sources || {};
+      var ovw = src['pulsedex-overview.js'] || '',
+        app = src['pulsedex-app.js'] || '',
+        rnd = src['pulsedex-render.js'] || '';
+      if (!ovw.trim() || !app.trim() || !rnd.trim()) {
+        T.skip('the three PulseDex profile surfaces', 'sources not provided in this runner');
+        return;
+      }
+      // ── the producer: both paths of pxProfile() ──
+      T.ok(
+        'ANTI-VACUITY · both pxProfile() return objects are in the source this leg reads, so a pin cannot pass on a vanished path',
+        (ovw.match(/age:\s*n\(p\.age/g) || []).length === 1 && (ovw.match(/age:\s*v\('profAge'/g) || []).length === 1,
+        'DexProfile path: ' + (ovw.match(/age:\s*n\(p\.age[^)]*\)/g) || ['absent'])[0] + ' · DOM path: ' + (ovw.match(/age:\s*v\('profAge'[^)]*\)/g) || ['absent'])[0]
+      );
+      T.ok('the shared-record path keeps an unentered age NULL', /age:\s*n\(p\.age,\s*null\)/.test(ovw), (ovw.match(/age:\s*n\(p\.age[^)]*\)/) || ['no site'])[0]);
+      T.ok('the shared-record path keeps an unentered weight NULL', /weight:\s*n\(p\.weight,\s*null\)/.test(ovw), (ovw.match(/weight:\s*n\(p\.weight[^)]*\)/) || ['no site'])[0]);
+      T.ok('the shared-record path keeps an unentered height NULL', /height:\s*n\(p\.height,\s*null\)/.test(ovw), (ovw.match(/height:\s*n\(p\.height[^)]*\)/) || ['no site'])[0]);
+      T.ok('the DOM fallback path keeps an unentered age NULL', /age:\s*v\('profAge',\s*null\)/.test(ovw), (ovw.match(/age:\s*v\('profAge'[^)]*\)/) || ['no site'])[0]);
+      T.ok('the DOM fallback path keeps an unentered weight NULL', /weight:\s*v\('profWeight',\s*null\)/.test(ovw), (ovw.match(/weight:\s*v\('profWeight'[^)]*\)/) || ['no site'])[0]);
+      T.ok('the DOM fallback path keeps an unentered height NULL', /height:\s*v\('profHeight',\s*null\)/.test(ovw), (ovw.match(/height:\s*v\('profHeight'[^)]*\)/) || ['no site'])[0]);
+      T.ok(
+        'no path restores a population mean as a default',
+        !/n\(p\.age,\s*40\)|v\('profAge',\s*40\)|n\(p\.weight,\s*78\)|n\(p\.height,\s*176\)/.test(ovw),
+        'a 40 / 78 / 176 default is back in pxProfile()'
+      );
+      // ── consumer 1: the compute road ──
+      T.ok(
+        'the compute road reads an absent age as null, not 40',
+        /const age = _pp\.age == null \|\| !isFinite\(_pp\.age\) \? null : \+_pp\.age;/.test(app),
+        (app.match(/const age = _pp\.age[^;]*;/) || ['no site'])[0]
+      );
+      T.ok(
+        'the compute road refuses Tanaka without an age',
+        /const tanaka = age == null \? null : Math\.round\(208 - 0\.7 \* age\);/.test(app),
+        (app.match(/const tanaka = [^;]*;/) || ['no site'])[0]
+      );
+      T.ok('the compute road refuses the VO₂ estimate when no HRmax survives', /const vo2b = hrmaxEff == null \? null :/.test(app), (app.match(/const vo2b = [^;]*;/) || ['no site'])[0]);
+      T.ok('the compute road carries the refusal into the adjusted VO₂', /const vo2a = lnrm == null \|\| vo2b == null \? null :/.test(app), (app.match(/const vo2a = [^;]*;/) || ['no site'])[0]);
+      T.ok(
+        'an entered HRmax still wins, so only the ESTIMATE goes away with the age',
+        /const hrmaxEff = hrmaxValid \? Math\.round\(hrmaxIn\) : tanaka;/.test(app),
+        (app.match(/const hrmaxEff = [^;]*;/) || ['no site'])[0]
+      );
+      // ── consumer 2: the re-render road ──
+      T.ok(
+        'the one Tanaka decision function refuses a null age',
+        /if \(age == null \|\| !isFinite\(age\)\) return null;/.test(rnd),
+        (rnd.match(/function tanakaHRmax\(age\) \{[\s\S]{0,110}/) || ['no site'])[0]
+      );
+      T.ok(
+        'the re-render road reads an absent age as null, not 40',
+        /const age = _pp\.age == null \|\| !isFinite\(_pp\.age\) \? null : \+_pp\.age;/.test(rnd),
+        (rnd.match(/const age = _pp\.age[^;]*;/) || ['no site'])[0]
+      );
+      T.ok('the re-render road refuses the VO₂ estimate when no HRmax survives', /r\.vo2base = r\.hrmaxEff == null \? null :/.test(rnd), (rnd.match(/r\.vo2base = [^;]*;/) || ['no site'])[0]);
+      T.ok(
+        'the re-render road carries the refusal into the adjusted VO₂',
+        /r\.vo2adj = r\.lnrmssd == null \|\| r\.vo2base == null \? null :/.test(rnd),
+        (rnd.match(/r\.vo2adj = [^;]*;/) || ['no site'])[0]
+      );
+      T.ok(
+        'the metric table prints a dash for a refused VO₂, never the word null',
+        /\['VO₂ base', r\.vo2base == null \? '—' : r\.vo2base,/.test(rnd) && /\['VO₂ adj', r\.vo2adj == null \? '—' : r\.vo2adj,/.test(rnd),
+        'one of the two VO₂ table cells passes a raw value'
+      );
+      T.ok('neither road restores the `|| 40` spelling on an age', !/_pp\.age \|\| 40/.test(app + rnd), 'a `|| 40` on an age is back');
+      // ── consumer 3: the derived-tiles panel ──
+      T.ok('the Cooper band refuses without an age', /if \(!\(vo2 > 0\) \|\| age == null \|\| !isFinite\(age\)\) return null;/.test(ovw), (ovw.match(/if \(!\(vo2 > 0\)[^\n]*/) || ['no site'])[0]);
+      T.ok('a refused percentile is not read as the verdict Poor', /vp == null \? '\(enter age\)'/.test(ovw), (ovw.match(/const vCat = [^;]*;/) || ['no site'])[0]);
+      T.ok(
+        'BMI and BSA need both terms before either reports a figure',
+        /const hasWH = p\.weight != null && p\.height != null;/.test(ovw) && /const bmi = hasWH \?/.test(ovw) && /const bsa = hasWH \?/.test(ovw),
+        (ovw.match(/const bmi = [^;]*;/) || ['no site'])[0]
+      );
+      T.ok('IBW refuses without a height', /const ibw = p\.height == null \? null : ibwRaw;/.test(ovw), (ovw.match(/const ibw = [^;]*;/) || ['no site'])[0]);
+      T.ok('BMR refuses while any of its three terms is absent', /const bmr = hasWH && p\.age != null \? bmrRaw : null;/.test(ovw), (ovw.match(/const bmr = hasWH[^;]*;/) || ['no site'])[0]);
+      T.ok(
+        'HRmax refuses without an entry and without an age',
+        /const hrmax = p\.hrmax > 0 \? Math\.round\(p\.hrmax\) : p\.age == null \? null : Math\.round\(208 - 0\.7 \* p\.age\);/.test(ovw),
+        (ovw.match(/const hrmax = p\.hrmax[^;]*;/) || ['no site'])[0]
+      );
+      T.ok('absolute VO₂ refuses without a weight', /const vo2abs = p\.vo2gt > 0 && p\.weight != null \?/.test(ovw), (ovw.match(/const vo2abs = [^;]*;/) || ['no site'])[0]);
+      T.eq('ANTI-VACUITY · the refused tiles name the term they need, so no dash reads as a zero', (ovw.match(/\? '—' : /g) || []).length >= 5, true);
+      T.ok(
+        'the legacy norm buttons refuse rather than apply a 40-year-old band',
+        /if \(!isFinite\(age\)\) return;/.test(ovw),
+        (ovw.match(/const age = parseFloat\(document\.getElementById\('profAge'\)\.value\);/) || ['no site'])[0]
+      );
+      // ── BEHAVIOURAL legs on PulseDex.tanakaHRmax sit in the render-harness group
+      //    'Render execution — hoisted classifiers known-answer (§RN wave 2)', which already pays
+      //    that harness's one browser-lane skip and already pins tanakaHRmax(40) = 180. A second
+      //    guard here would add a second skip and push the browser lane one over its ceiling, for
+      //    no extra coverage. Unit `pxprof`, 2026-11-17.
+      // ── CONTROL: what the default hid, and what a bare removal would publish instead ──
+      T.eq('CONTROL · the old expression manufactured a 40-year-old from an absent age', null || 40, 40);
+      T.eq('CONTROL · a bare removal publishes VO₂ base 0.0, because `15.3 * null` is 0 and not NaN', (15.3 * null) / 60, 0);
+      T.eq('CONTROL · a bare removal publishes BMI 0.0 for an absent weight', null / (1.76 * 1.76), 0);
+      T.ok('CONTROL · and BMI 0.0 then reads as the category Underweight', 0 < 18.5, 'a 0 BMI takes the Underweight branch');
+      T.ok(
+        'CONTROL · a refused percentile fell through the old chain to the verdict Poor',
+        !(null >= 80) && !(null >= 60) && !(null >= 40) && !(null >= 20),
+        'every band comparison is false for null, so the chain ended at Poor'
+      );
+      T.ok('CONTROL · an absent age picked the 20s Cooper band', null < 30, 'null < 30 = ' + (null < 30));
+      T.eq(
+        'the guard admits none of the three absent forms into Tanaka arithmetic',
+        [null, undefined, NaN].filter(function (a) {
+          return !(a == null || !isFinite(a));
+        }).length,
+        0
+      );
+    });
+
     /* ── §∅ — NO WALL CLOCK MEANS NO COVERAGE ────────────────────────────────────────────────────
        PulseDex builds the same result object on two roads. The export road (`pulsedex-dsp.js`
        `pdComputeResult`) already publishes `coverage: null` when the stream carries no stamps, and
@@ -85185,6 +85312,11 @@
         // PulseDex Tanaka HRmax = 208 − 0.7·age (a DUPLICATED render copy, drift-prone vs ECGProfile; MED).
         T.eq('PulseDex tanakaHRmax(40) = 208 − 0.7·40 = 180 (a 0.9 coefficient → 172)', env.PulseDex.tanakaHRmax(40), 180);
         T.eq('PulseDex tanakaHRmax(50) = 173 (matches the canonical ECGProfile Tanaka; the render copy must not drift)', env.PulseDex.tanakaHRmax(50), 173);
+        // §∅ unit `pxprof` 2026-11-17 — an absent age gives no estimate. `|| 40` published a
+        // 40-year-old's 180 bpm, and a bare delete publishes Math.round(208) = 208 instead.
+        T.eq('tanakaHRmax(null) refuses instead of returning a 208 bpm HRmax', env.PulseDex.tanakaHRmax(null), null);
+        T.eq('tanakaHRmax(undefined) refuses', env.PulseDex.tanakaHRmax(undefined), null);
+        T.eq('tanakaHRmax(NaN) refuses', env.PulseDex.tanakaHRmax(NaN), null);
         // HRVDex rMSSD readiness KPI color: ok > 35 / warn > 20 / bad (MED — a healthy 45 ms must not read bad).
         T.eq('HRVDex rMSSD 45 ms → ok (a >65 cut mutation would paint it bad)', env.HrvRmssdClass(45), 'ok');
         T.eq('HRVDex rMSSD 28 ms → warn (>20 band)', env.HrvRmssdClass(28), 'warn');

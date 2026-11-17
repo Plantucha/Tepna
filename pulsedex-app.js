@@ -869,8 +869,11 @@ function calculate() {
   const _r1 = (v, d) => (v == null || !isFinite(v) ? null : +v.toFixed(d));
   const si = _r1(siCalc(cAmo, cMo, cMx), 1); // SI is a short-term index → representative window
   const _pp = typeof pxProfile === 'function' ? pxProfile() : {};
-  const age = _pp.age || 40;
-  const tanaka = Math.round(208 - 0.7 * age);
+  /* §∅ — AN UNENTERED AGE IS NULL, AND TANAKA REFUSES. `|| 40` handed every reader who entered
+     nothing a 40-year-old's HRmax, and that figure then set `hrmaxEff` and the whole VO₂ road.
+     An entered HRmax still wins below, so only the ESTIMATE goes away with the age. */
+  const age = _pp.age == null || !isFinite(_pp.age) ? null : +_pp.age;
+  const tanaka = age == null ? null : Math.round(208 - 0.7 * age);
   const hrmaxIn = _pp.hrmax || 0;
   const rhrIn = _pp.rhr || 0;
   // Awake resting HR for VO₂: overnight HR is SLEEPING HR (~8 bpm below awake) —
@@ -892,8 +895,10 @@ function calculate() {
 altitude factor then sat at 1 without saying whether a height was entered at all. */
   const elev = _pp.elev == null || !isFinite(_pp.elev) ? null : +_pp.elev;
   const altFactor = elev == null ? 1 : altVO2Factor(elev); // ≤1 above 1500 m; 1 with no elevation entered (no correction)
-  const vo2b = +(vo2Base(rhrEff, hrmaxEff) * altFactor).toFixed(1);
-  const vo2a = lnrm == null ? null : +vo2Adj(vo2b, lnrm).toFixed(1);
+  /* §∅ — `(15.3 * null) / 60` is 0, not NaN, so an absent HRmax would publish VO₂ base 0.0 ml/kg/min:
+     an in-band figure on a research surface. The estimate refuses instead. */
+  const vo2b = hrmaxEff == null ? null : +(vo2Base(rhrEff, hrmaxEff) * altFactor).toFixed(1);
+  const vo2a = lnrm == null || vo2b == null ? null : +vo2Adj(vo2b, lnrm).toFixed(1);
   const efc = _hrvRefused ? null : +efcIdx(energy, focus, coh).toFixed(1);
   const crs = _r1(crsIdx(coh, cRm, cPn, stress), 4);
   const absV = _r1(absIdx(ans.psns, ans.sns), 3);
