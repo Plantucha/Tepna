@@ -90091,6 +90091,88 @@
       T.ok('the page reads the shared reader rather than keeping a second copy', /NSRR\.parseAhiCsv/.test(src) && !/var\s+NSRR_AHI_VARS/.test(src));
     });
 
+    /* ∅ A COLUMN PICK HAS NO SENSIBLE DEFAULT — the second site of the family Magpie met in GlucoDex
+       (`locateColumns` ended `if (gCol < 0) gCol = 1;`). `parseAhiCsv` held TWO column picks under
+       OPPOSITE policies: the AHI pick refused a header it could not name, and the ID pick took
+       column 0. Measured 2026-11-17 at `41b75377d` on headers whose id variable `NSRR_ID_VARS` does
+       not name:
+         · `age,pid,nsrr_ahi_hp3r_aasm15` → `idVar: 'age'`, no error, both rows ingested, and every
+           lookup answered null. The reference was lost in full under a confident column name.
+         · the same header with 3 rows at one age → `rows: 3`, `subjects: 1`, the LAST row's AHI in
+           `byKey`, and `ambiguous: 0`. The field that reports a pooled key counts multi-visit bare
+           keys only, so it cannot see this one.
+         · `height,pid,…` with heights 170 and 165 → `lookupAhi('mros-170')` answered the AHI of the
+           row whose HEIGHT is 170, stamped `via: 'csv(id)'`. The provenance asserted an id join that
+           never happened.
+       Every leg below bites the deletion of one arm of the repair. The escape is `{ idVar }`,
+       symmetric with the `{ ahiVar }` the refit lane already uses, because the list cannot enumerate
+       every dataset's subject variable without inventing variable names. */
+    group('NSRR ∅ — an id column chosen by position refuses, and { idVar } names it instead', 'nsrr-adapter · ingest · id-column-refusal', function (T) {
+      var N = env.NSRR;
+      var ready = !!(N && typeof N.parseAhiCsv === 'function' && typeof N.lookupAhi === 'function');
+      T.ok('NSRR.parseAhiCsv · lookupAhi are wired into env', ready, 'window.NSRR reader absent');
+      if (!ready) return;
+
+      var NOID = 'age,pid,nsrr_ahi_hp3r_aasm15\n62,200001,5\n55,200062,42';
+
+      // ── the refusal ──
+      var g = N.parseAhiCsv(NOID);
+      T.ok('∅ · a header naming no known id column is refused', /no known ID column/.test(g.error || ''), 'error=' + g.error);
+      T.ok('∅ · …and the reason names the remedy', /pass \{ idVar \}/.test(g.error || ''), 'error=' + g.error);
+      T.eq('∅ · no key is published from a column chosen by position', Object.keys(g.byKey).length, 0);
+      T.eq('∅ · …and no row is counted as read', g.rows, 0);
+      T.eq('∅ · idVar stays null rather than naming the guessed header', g.idVar, null);
+      T.eq('∅ · lookupAhi answers nothing rather than another row’s AHI', N.lookupAhi(g, 'shhs1-200001'), null);
+
+      /* A guess that lands on the real id column is still a guess: `pid` IS this file's subject key,
+         and the reader cannot know that, so it refuses here too. This is the one capability the
+         repair narrows, and `{ idVar }` is what replaces it. */
+      var lucky = N.parseAhiCsv('pid,age,nsrr_ahi_hp3r_aasm15\n200001,62,5\n200062,55,42');
+      T.ok('∅ · an unlisted id variable sitting at column 0 is refused too', /no known ID column/.test(lucky.error || ''), 'error=' + lucky.error);
+
+      /* The collapse the old default produced, which `ambiguous` could not report. */
+      var pooled3 = N.parseAhiCsv('age,pid,nsrr_ahi_hp3r_aasm15\n62,200001,5\n62,200002,42\n62,200003,1.5');
+      T.ok('∅ · three subjects at one column-0 value are refused, not pooled onto one key', /no known ID column/.test(pooled3.error || ''));
+      T.eq('∅ · …so no last-row-wins value survives', Object.keys(pooled3.byKey).length, 0);
+
+      /* The collision that returned a neighbour’s AHI under this recording’s name. */
+      var coll = N.parseAhiCsv('height,pid,nsrr_ahi_hp3r_aasm15\n170,200001,5\n165,200062,42');
+      T.eq('∅ · a stem whose trailing id matches a column-0 value gets no borrowed reference', N.lookupAhi(coll, 'mros-170'), null);
+
+      // ── the escape ──
+      var named = N.parseAhiCsv(NOID, { idVar: 'pid' });
+      T.eq('{ idVar } · the named column is read, error-free', named.error, null);
+      T.eq('{ idVar } · …and reported as the identity', named.idVar, 'pid');
+      T.eq('{ idVar } · …so both subjects are keyed by their own id', Object.keys(named.byKey).length, 2);
+      T.eq('{ idVar } · …and each stem resolves to its OWN row', (N.lookupAhi(named, 'shhs1-200062') || {}).ahi, 42);
+      T.eq('{ idVar } · the name is matched case- and space-insensitively', N.parseAhiCsv(NOID, { idVar: '  PID ' }).idVar, 'pid');
+      T.ok(
+        '{ idVar } · a named column this file does not hold is an error, never a fallback',
+        /requested ID column "sofid" is not in this file/.test(N.parseAhiCsv(NOID, { idVar: 'sofid' }).error || '')
+      );
+      T.ok('{ idVar } · a bare id,ahi pair list cannot answer for a named id column', /bare id,ahi pair list/.test(N.parseAhiCsv('200001,12.5\n', { idVar: 'pid' }).error || ''));
+
+      /* ORDERING — a file missing both columns reports the longer-standing reason, so this repair
+         cannot mask the AHI refusal it sits behind. */
+      T.ok('∅ · with both columns absent the AHI reason comes first', /no known AHI column/.test(N.parseAhiCsv('age,pid,some_index\n62,200001,5').error || ''));
+
+      // ── CONTROLS: the shapes this reader exists for are unchanged ──
+      var ok = N.parseAhiCsv('nsrrid,age,nsrr_ahi_hp3r_aasm15\n200001,62,5\n200062,55,42');
+      T.eq('CONTROL · a listed id column still parses', ok.error, null);
+      T.eq('CONTROL · …is still reported by name', ok.idVar, 'nsrrid');
+      T.eq('CONTROL · …and still answers for its own stem', (N.lookupAhi(ok, 'shhs1-200062') || {}).ahi, 42);
+      var pair = N.parseAhiCsv('999999.edf,12.5\n999998,8');
+      T.eq('CONTROL · a headerless pair list still parses', pair.error, null);
+      T.eq('CONTROL · …over both pairs', pair.rows, 2);
+      T.eq('CONTROL · …and still answers', (N.lookupAhi(pair, 'shhs1-999999') || {}).ahi, 12.5);
+
+      /* SOURCE · the old default is gone, and this leg bites its reintroduction. */
+      var src = (env.sources || {})['nsrr-adapter.js'] || '';
+      T.ok('SOURCE · nsrr-adapter.js was read for this leg', src.length > 10000, 'len=' + src.length);
+      T.ok('SOURCE · no `idCol = 0` default remains', !/idCol\s*<\s*0\)\s*idCol\s*=\s*0/.test(src));
+      T.ok('SOURCE · the refusal is in the file', /no known ID column/.test(src));
+    });
+
     /* ════ NSRR DATASET CSV → REFERENCE AHI — known-answer (AHI-SURROGATE-REFIT-SIZING item 3) ════
        Three separately-silent defects, each of which hands a scored row a plausible wrong number:
 
@@ -99177,6 +99259,70 @@
       T.ok('the post-seam segment starts at ZERO host−device residual (it is host-anchored)', Math.abs(residAt(seamIdx)) < 0.05, 'residual ' + residAt(seamIdx).toFixed(3) + ' s');
       T.ok('…and stays there to the last row (one clock state per segment)', Math.abs(residAt(rr.length - 1)) < 0.05, 'residual ' + residAt(rr.length - 1).toFixed(3) + ' s');
     });
+    /* ════ MotionDex §∅ — a header that NAMED no device counter is not read as one ════
+       `parseSensorXYZ` read the counter from column 1 whenever the header named no `sensor timestamp`
+       column. A header naming `X;Y;Z` beside a bare `timestamp` therefore made the X AXIS the device
+       nanosecond counter: every value stayed finite, and `compute()` published `durSec: 0` and ONE
+       epoch for a full hour. The witness below is the SAME rows under the documented header. ════ */
+    group('MotionDex §∅ — a header that named no device counter does not read an axis column as one', 'motiondex-dsp · parse · absence · device-counter', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.parseSensorXYZ === 'function' && typeof MD.compute === 'function' && typeof MD.genSynthetic === 'function')) {
+        T.skip('MOTIONDSP.parseSensorXYZ + compute + genSynthetic available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      var HZ = 26,
+        SEC = 600,
+        N = HZ * SEC;
+      var doc = MD.genSynthetic({ sec: SEC, hz: HZ, brpm: 15, seed: 7 }); // Phone timestamp;sensor timestamp [ns];X;Y;Z
+      var lines = doc.split('\n').filter(function (l) {
+        return l.trim();
+      });
+      /* THE PLANT — the same samples, re-headed to name X/Y/Z and a bare `timestamp`, with the counter
+         column deleted. Five fields, so the parser's own `p.length < 5` gate accepts it. Column 1 is
+         then the X axis, which is what a fallback to "column 1" reads as a device clock. */
+      var plantText =
+        'timestamp;X [mg];Y [mg];Z [mg];q\n' +
+        lines
+          .slice(1)
+          .map(function (l) {
+            var c = l.split(';');
+            return c[0] + ';' + c[2] + ';' + c[3] + ';' + c[4] + ';0';
+          })
+          .join('\n');
+      var ctl = MD.parseSensorXYZ(doc),
+        plant = MD.parseSensorXYZ(plantText);
+      T.ok('ANTI-VACUITY · both texts parse the same number of rows', ctl.length === N && plant.length === N, 'control=' + ctl.length + ' plant=' + plant.length);
+      if (!ctl.length || !plant.length) return;
+
+      /* THE INVARIANT. Column 1 held the X axis in the plant, so a counter read out of it is a
+         fabrication and the plant's rows must carry NO device counter at all. */
+      T.ok(
+        'the planted rows carry no device counter — column 1 is the X axis, not a nanosecond clock',
+        plant.every(function (r) {
+          return !isFinite(r.relNs);
+        }),
+        'first relNs=' + JSON.stringify(plant[0].relNs)
+      );
+
+      var sumCtl = MD.compute({ acc: ctl }),
+        sumPlant = MD.compute({ acc: plant });
+      T.ok(
+        'ANTI-VACUITY · the control publishes a measured duration to compare against',
+        sumCtl && typeof sumCtl.durSec === 'number' && sumCtl.durSec > SEC - 5,
+        'control durSec=' + (sumCtl && sumCtl.durSec)
+      );
+      T.ok(
+        '…and the plant publishes the SAME duration, never a zero-length recording',
+        sumPlant && typeof sumPlant.durSec === 'number' && Math.abs(sumPlant.durSec - sumCtl.durSec) <= 1 && sumPlant.durSec !== 0,
+        'plant durSec=' + JSON.stringify(sumPlant && sumPlant.durSec) + 's · control=' + (sumCtl && sumCtl.durSec) + 's'
+      );
+      T.ok(
+        '…and the same epoch count — an hour is not one epoch',
+        sumPlant && sumPlant.activity && sumCtl.activity && sumPlant.activity.epochs.length === sumCtl.activity.epochs.length && sumPlant.activity.epochs.length > 1,
+        'plant epochs=' + (sumPlant && sumPlant.activity && sumPlant.activity.epochs.length) + ' · control=' + (sumCtl.activity && sumCtl.activity.epochs.length)
+      );
+    });
+
     group('MotionDex refuses to invent a duration from an assumed rate — FOLLOWUPS §1', 'motiondex-dsp · export · absence', function (T) {
       var MD = env.MOTIONDSP;
       if (!(MD && typeof MD.compute === 'function' && typeof MD.buildNodeExport === 'function')) {

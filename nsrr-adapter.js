@@ -633,6 +633,11 @@
        order below would hand all four fits the same column. New parameter, last and optional: a
        caller that passes nothing reads exactly the bytes it read before. */
     var want = opts && opts.ahiVar ? String(opts.ahiVar).trim().toLowerCase() : null;
+    /* The ID column gets the SAME treatment, because a key chosen by position is not a key.
+       `NSRR_ID_VARS` cannot enumerate every dataset's subject variable from here without inventing
+       variable names, so a caller that knows its file names the column. New parameter, last and
+       optional: a caller that passes nothing reads exactly the bytes it read before. */
+    var wantId = opts && opts.idVar ? String(opts.idVar).trim().toLowerCase() : null;
 
     if (
       !head.some(function (h) {
@@ -644,6 +649,12 @@
         /* No header, so nothing here can be the named column: the caller asked for a definition this
            file cannot identify, and an unnamed pair would answer under the wrong name. */
         out.error = 'requested AHI column "' + want + '" but this file is a bare id,ahi pair list with no header';
+        return out;
+      }
+      if (wantId) {
+        /* Column 0 of a pair list IS the key by construction, so there is no named column to find
+           here: answering would report the caller's name over a position it never verified. */
+        out.error = 'requested ID column "' + wantId + '" but this file is a bare id,ahi pair list with no header';
         return out;
       }
       lines.forEach(function (ln) {
@@ -662,9 +673,39 @@
 
     out.wide = true;
     var idCol = -1;
-    for (var a = 0; a < NSRR_ID_VARS.length && idCol < 0; a++) idCol = head.indexOf(NSRR_ID_VARS[a]);
-    if (idCol < 0) idCol = 0;
-    out.idVar = head[idCol];
+    if (wantId) {
+      idCol = head.indexOf(wantId);
+      if (idCol < 0) {
+        out.error = 'requested ID column "' + wantId + '" is not in this file';
+        return out;
+      }
+    } else {
+      for (var a = 0; a < NSRR_ID_VARS.length && idCol < 0; a++) idCol = head.indexOf(NSRR_ID_VARS[a]);
+    }
+    /* 🔴 ∅ AN ID CHOSEN BY POSITION IS NOT AN ID. `idCol = 0` used to stand in whenever the
+       header named none of `NSRR_ID_VARS`, and the sibling pick 20 lines below REFUSES on the same
+       condition, so one function held two column picks under opposite policies.
+
+       Measured 2026-11-17 against this file at `41b75377d`, on headers whose id variable the list does
+       not name:
+         · `age,pid,nsrr_ahi_hp3r_aasm15` → `idVar: 'age'`, no error, both rows ingested, and every
+           `lookupAhi('shhs1-200001')` answered null. The reference was lost in full under a confident
+           column name.
+         · the same header with 3 rows at one age → `rows: 3`, `subjects: 1`, `byKey` holding the LAST
+           row's AHI, and `ambiguous: 0`. The field that exists to report a pooled key cannot see this
+           one, because it counts multi-visit bare keys only.
+         · `height,pid,nsrr_ahi_hp3r_aasm15` with heights 170 and 165 → `lookupAhi('mros-170')`
+           answered the AHI of the row whose HEIGHT is 170, stamped `via: 'csv(id)'`. The provenance
+           string asserted an id join that never happened.
+       A reference measured on another row is what `lookupAhi` exists to refuse, so a file that names
+       no id column now yields no table at all. The refusal is raised AFTER the AHI column resolves,
+       so a file missing both still reports the longer-standing reason first.
+
+       `idCol` stays at -1 on a guess rather than taking 0: if a later edit moves this refusal, `cell`
+       reads `undefined`, every row is skipped, and the reader returns 0 rows instead of a borrowed
+       column. */
+    var idGuessed = idCol < 0;
+    out.idVar = idGuessed ? null : head[idCol];
     var ahiCol = -1;
     if (want) {
       ahiCol = head.indexOf(want);
@@ -683,6 +724,10 @@
     }
     if (ahiCol < 0) {
       out.error = 'no known AHI column (looked for nsrr_ahi_hp3r_aasm15, ahi_a0h3a, poohi4, rdi4p…)';
+      return out;
+    }
+    if (idGuessed) {
+      out.error = 'no known ID column (looked for nsrrid, pptid, subject, id, studyid, mesaid, idtype) — pass { idVar } to name it; a column chosen by position pools distinct subjects onto one key';
       return out;
     }
     out.arousals = ahiCountsArousals(out.ahiVar);
