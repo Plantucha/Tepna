@@ -1252,6 +1252,69 @@
        and leaves the endpoints plausible on ONE clock. `clock-seam.js` is that third instrument.
        Every threshold it carries is pre-stated (§🧾) and every one of them was measured against the
        real corpus before it was written down — the counts are in the legs below. */
+    group('∅ clock-seam — an ABSENT stamp is not the epoch, and an absent bound is not a window', 'clock · clock-seam · absence · in-band-default', function (T) {
+      var DS = env.DexSeam || (typeof DexSeam !== 'undefined' ? DexSeam : null);
+      if (!DS || typeof DS.seamScan !== 'function') {
+        T.ok('DexSeam.seamScan is reachable', false, 'clock-seam.js not loaded — this group cannot run and must not read as a pass');
+        return;
+      }
+      var t0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+      var mkStamps = function (n, cadMs, from, shiftMs) {
+        var a = [];
+        for (var i = 0; i < n; i++) a.push(t0 + i * cadMs + (from != null && i >= from ? shiftMs : 0));
+        return a;
+      };
+
+      /* ── 1 · ONE ABSENT STAMP IN THE MIDDLE. This is the column the producer really builds: OxyDex
+         pushes `rows[i] ? rows[i].tMs : null` (`oxydex-dsp.js:3451`), so a row with no stamp arrives
+         here as `null`. `null` is absent; `+null` is 0, the epoch, and the guard could not see it.
+         The pre-fix reading is in each assertion's name. */
+      var mid = mkStamps(120, 4000);
+      mid[60] = null;
+      var m = DS.seamScan(mid);
+      T.ok('the scan of a column with one absent stamp still scans', m.ok === true);
+      T.ok('∅ · the `skipped` KEY is present, so the count below is a value and not a missing field', 'skipped' in m);
+      T.eq('∅ · an absent stamp is COUNTED as skipped, not parsed as the epoch', m.skipped, 1);
+      T.eq('∅ · …so the stamp count is the parsed one, not the column length', m.stamps, 119);
+      T.eq('∅ · …the epoch-0 pseudo-stamp invents NO reorder', m.reorders.length, 0);
+      T.eq('∅ · …invents no unsettled gap either', m.unsettled.length, 0);
+      T.eq('∅ · …and the clean file is clean on its own evidence', m.seams.length, 0);
+
+      /* ── 2 · THE ABSENT STAMP IS THE FIRST ROW. `firstMs` is what a reader calls "the file starts". */
+      var first = mkStamps(120, 4000);
+      first[0] = null;
+      var f = DS.seamScan(first);
+      T.eq('∅ · the first stamp published is the first PARSED stamp, not 1970', f.firstMs, t0 + 4000);
+      T.eq('∅ · …with the absent one counted', f.skipped, 1);
+
+      /* ── 3 · EVERY ABSENT SHAPE, not just the one the producer emits today */
+      var none = DS.seamScan([null, undefined, NaN, '']);
+      T.eq('∅ · a column of four absences parses NONE of them', JSON.stringify([none.ok, none.stamps, none.skipped]), '[false,0,4]');
+
+      /* ── 4 · AN ABSENT WINDOW BOUND IS NOT ZERO. `isFinite(null)` is true, so the window was decided,
+         spanned 56 years and reported 100 % coverage — over a window the caller never defined. */
+      var clean = DS.seamScan(mkStamps(120, 4000));
+      var both = DS.windowVerdict(clean, null, null);
+      T.ok('∅ · the `decided` KEY is present on the refusal', 'decided' in both);
+      T.eq('∅ · a window with two absent bounds is NOT decided', both.decided, false);
+      T.ok('∅ · the `continuous` KEY is present and null, never true', 'continuous' in both && both.continuous === null);
+      T.eq('∅ · …it carries the reason written for this case', both.reason, 'window has no finite bounds');
+      T.eq('∅ · …and no span', both.spanMs, null);
+      T.eq('∅ · …so no coverage percentage over a 56-year window', both.coveragePct, null);
+      T.eq('∅ · one absent start is enough to refuse', DS.windowVerdict(clean, null, t0 + 300000).decided, false);
+      T.eq('∅ · …and one absent end', DS.windowVerdict(clean, t0, null).decided, false);
+      var realWin = DS.windowVerdict(clean, t0, t0 + 300000);
+      T.eq('CONTROL · two real bounds are decided, continuous, and 100 % covered', JSON.stringify([realWin.decided, realWin.continuous, realWin.coveragePct]), '[true,true,100]');
+
+      /* ── 5 · AN ABSENT ROW-SPAN END must not narrow membership to rows 0..N and clear a refusal. */
+      var back = DS.seamScan(mkStamps(120, 4000, 60, -90000));
+      /* The planted step's transition sits between 236 s and 150 s of the record, so this window spans it
+         on the stamps. The fabricated row span (0..3) says it does not. */
+      var winAbs = DS.windowVerdict(back, t0 + 120000, t0 + 420000, { rows: { from: null, to: 3 } });
+      T.eq('∅ · a partial row span does not hide the back-step the window really spans', JSON.stringify([winAbs.continuous, winAbs.reason]), '[false,"clock-seam"]');
+      var winRows = DS.windowVerdict(back, t0 + 120000, t0 + 420000, { rows: { from: 4, to: 66 } });
+      T.eq('CONTROL · a real row span still sees it', JSON.stringify([winRows.continuous, winRows.reason]), '[false,"clock-seam"]');
+    });
     group('∅ clock-seam tripwire — the MID-FILE step the endpoint guards cannot see', 'clock · clock-seam · oxydex-dsp · pulsedex-dsp · absence', function (T) {
       var DS = env.DexSeam || (typeof DexSeam !== 'undefined' ? DexSeam : null);
       if (!DS || typeof DS.seamScan !== 'function') {
