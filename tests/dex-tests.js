@@ -48514,8 +48514,13 @@
          d_rmssd_rolling_ln, d_stress_auc, d_rmssd_cv7, d_sdnn_z, d_stress_ac, d_pnn50_slope,
          d_hrv_momentum, d_recovery_debt. The no-argument path is unchanged.
          62 → 64 (DEEP-AUDIT-VI F5): d_cvi_flagged + d_csi_flagged — the dispersion-guard verdicts,
-         surfaced instead of discarded at the call site. */
-      T.eq('computeDerived still produces 64 derived columns', produced.length, 64);
+         surfaced instead of discarded at the call site.
+         64 → 65 (ABSENCE-SURVEY row hrvdex-dsp.js:886): d_stress_auc_n, the count of measured
+         readings the 7-day stress sum covers. A sum stays defined over one reading, so the value
+         travels with its coverage count rather than refusing. The 21 digests below each gained
+         exactly 1 column and exactly 4.0, measured with the new column excluded: every digest then
+         reproduced its old literal, so the new column is the whole delta and n is 4 in all 21. */
+      T.eq('computeDerived still produces 65 derived columns', produced.length, 65);
     });
 
     group('HRVDex recovery debt — a window with no measured ARI day is absent, not 0 (residue 2026-11-08)', 'hrvdex-dsp · absence · known-answer', function (T) {
@@ -49023,27 +49028,27 @@
         return n2 + '/' + Math.round(s * 1e6) / 1e6;
       };
       var DIGESTS = [
-        ['_hr', '49/1533.61769'],
-        ['_meanRR', '47/639.765738'],
-        ['_sdnn', '46/1539.723031'],
-        ['_rmssd', '45/1541.436879'],
-        ['_mxdmn', '52/1616.77845'],
-        ['_pnn50', '52/2103.119766'],
-        ['_amo50', '52/1617.439607'],
-        ['_mode', '52/1617.439607'],
-        ['_totalPow', '49/1539.582699'],
-        ['_hf', '44/662.340908'],
-        ['_lf', '46/1602.089449'],
-        ['_vlf', '50/1610.17566'],
-        ['_stress', '45/1566.640181'],
-        ['_energy', '44/1660.318581'],
-        ['_focus', '46/1664.653649'],
-        ['_sns', '46/1661.997802'],
-        ['_psns', '45/1660.046604'],
-        ['_coherence', '44/1562.894606'],
-        ['_hrv', '53/1668.426449'],
-        ['_cv', '53/1668.426449'],
-        ['_spanMin', '53/1668.426449']
+        ['_hr', '50/1537.61769'],
+        ['_meanRR', '48/643.765738'],
+        ['_sdnn', '47/1543.723031'],
+        ['_rmssd', '46/1545.436879'],
+        ['_mxdmn', '53/1620.77845'],
+        ['_pnn50', '53/2107.119766'],
+        ['_amo50', '53/1621.439607'],
+        ['_mode', '53/1621.439607'],
+        ['_totalPow', '50/1543.582699'],
+        ['_hf', '45/666.340908'],
+        ['_lf', '47/1606.089449'],
+        ['_vlf', '51/1614.17566'],
+        ['_stress', '46/1570.640181'],
+        ['_energy', '45/1664.318581'],
+        ['_focus', '47/1668.653649'],
+        ['_sns', '47/1665.997802'],
+        ['_psns', '46/1664.046604'],
+        ['_coherence', '45/1566.894606'],
+        ['_hrv', '54/1672.426449'],
+        ['_cv', '54/1672.426449'],
+        ['_spanMin', '54/1672.426449']
       ];
       for (var q = 0; q < DIGESTS.length; q++) {
         T.eq('absent ' + DIGESTS[q][0] + ' → the surviving columns still compute the same values', digest(DIGESTS[q][0]), DIGESTS[q][1]);
