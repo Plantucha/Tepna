@@ -2829,7 +2829,14 @@ export function diffVerdict(results, meta) {
     driftSeams: sampled.length ? seamCount : null,
     changedLines: lines,
     files: ok.length,
-    skipped: results.length - ok.length
+    skipped: results.length - ok.length,
+    /* ∅ THE DECLARED EXCLUSION, IN FILES — never folded into `population`, which counts MUTANTS.
+       A filtered file generated no mutants, so adding it to `excluded` there would invent a mutant
+       count for a file nobody enumerated and break the unit of the field. `null` means this run
+       never asked (a `--file` selection filtered nothing); `0` means it asked and found none.
+       `skipped` above counts a file that FAILED after selection and can never carry these. */
+    outOfScopeFiles: Array.isArray(meta.outOfScope) ? meta.outOfScope.length : null,
+    outOfScopePaths: Array.isArray(meta.outOfScope) ? meta.outOfScope.slice().sort() : null
   };
   const pop = { checked: tested - unrun, eligible: tested, result };
   if (voided.length)
@@ -3813,6 +3820,42 @@ function selftest() {
       JSON.stringify({ name: 'blocking_survivors_on_changed_lines', threshold: 0, unit: 'mutants', direction: 'lte' })
     );
     ck('…and it is NOT the Python lane name, whose scope is whole functions', smp.criterion.name === 'blocking_survivors_in_changed_functions', false);
+
+    /* ── THE SCOPE FILTER IS DECLARED, NOT HIDDEN ──────────────────────────────────────────────
+       The gate mutates root sources only. Three inline sites dropped every `tests/` and `tools/`
+       path from the changed-JS set and discarded that half, so the object said `excluded: 0` over a
+       diff a third of which it never examined. `skipped` is the field that exists to count a file
+       the gate did not measure, and it is BLIND here by construction: it reads
+       `results.length - ok.length`, and a filtered file reaches neither term. The legs below pin the
+       partition, the disclosure, and the ∅ distinction between "asked and found none" and
+       "nobody asked". */
+    const _mixed = ['oxydex-dsp.js', 'tests/dex-tests.js', 'tools/mutate.mjs', 'docs/A.md', 'Foo.html', '', 'x.mjs'];
+    const _part = partitionChangedJs(_mixed);
+    ck('the partition keeps root JS in scope', JSON.stringify(_part.inScope), '["oxydex-dsp.js","x.mjs"]');
+    ck('…and RETURNS the half the three inline filters discarded', JSON.stringify(_part.outOfScope), '["tests/dex-tests.js","tools/mutate.mjs"]');
+    /* A non-JS path is not an EXCLUSION from this population, because it was never eligible for a JS
+       mutation. Four of the seven names above are accounted for; the other three are not this
+       gate's subject at all, and reporting them as ruled-out would overstate what was skipped. */
+    ck('a non-JS path joins NEITHER list, because it was never in this population', _part.inScope.length + _part.outOfScope.length, 4);
+    ck('no inline prefix test survives: the boundary is one frozen list', (readFileSync(fileURLToPath(import.meta.url), 'utf8').match(/startsWith\('(?:tests|tools)\//g) || []).length, 0);
+    const _declared = diffVerdict([row()], { ...meta, outOfScope: ['tools/b.mjs', 'tests/a.js'] });
+    ck('the verdict DECLARES how many changed files the filter removed', _declared.verdict.result.outOfScopeFiles, 2);
+    ck('…and NAMES them, sorted, so a reader can check the boundary', JSON.stringify(_declared.verdict.result.outOfScopePaths), '["tests/a.js","tools/b.mjs"]');
+    ck('…while `skipped` still reads 0, which is why the disclosure is a SEPARATE field', _declared.verdict.result.skipped, 0);
+    ck('…and `population` does not move, because its unit is MUTANTS and a filtered file generated none', JSON.stringify(_declared.verdict.population), '{"checked":10,"eligible":10,"excluded":0}');
+    ck('…and the object still validates', val(_declared.verdict), true);
+    const _src = ['tests/z.js', 'tools/a.mjs'];
+    diffVerdict([row()], { ...meta, outOfScope: _src });
+    ck('…sorting the disclosure does not reorder the caller array', JSON.stringify(_src), '["tests/z.js","tools/a.mjs"]');
+    const _asked = diffVerdict([row()], { ...meta, outOfScope: [] });
+    ck('a selection that ASKED and filtered nothing reads 0, with an empty list', _asked.verdict.result.outOfScopeFiles + ':' + JSON.stringify(_asked.verdict.result.outOfScopePaths), '0:[]');
+    /* ∅ — a `--file` run filters nothing because it selects nothing, so no caller measured the
+       question. That is absence, and absence is null: a `0` here would claim the gate looked at the
+       whole diff and found it all in scope. */
+    const _never = diffVerdict([row()], meta);
+    ck('∅ a run where nobody measured reads null, NEVER 0', _never.verdict.result.outOfScopeFiles, null);
+    ck('…and the path list is null too, not an empty list', _never.verdict.result.outOfScopePaths, null);
+    ck('…and that object validates as well', val(_never.verdict), true);
   }
 
   /* ── SIGTERM MID-MUTANT: THE FILE COMES BACK, AND THE SENTINEL SAYS WHAT WAS UNDONE ────────────
@@ -3946,6 +3989,41 @@ function restoreAll(why) {
    An importer never fills it, which is the same state a run without --diff leaves it in. */
 const DIFF_LINES = new Map();
 
+/* ── THE SCOPE BOUNDARY, SPELLED ONCE ───────────────────────────────────────────────────────
+   This gate mutates ROOT JS sources. A changed file under `tests/` or `tools/` is deliberately
+   outside it: mutating the suite that judges the mutants, or the gate that runs them, decides
+   nothing. That is a sound boundary and it was never the defect.
+
+   🔴 THE DEFECT WAS THAT THE BOUNDARY REACHED NO READER. Three sites spelled this same filter
+   inline, a dropped file never became a `results` row, and the verdict object therefore reported
+   `excluded: 0` AND `skipped: 0` over a diff a third of which it never examined. Measured
+   2026-11-17 on `ff4b6eb6e...HEAD~2`, a real 3-file JS diff: the dry run named 2 files and 4
+   mutants, `tests/dex-tests.js` appeared nowhere in the output, and the PASS object the same
+   selection produces reads `files: 2`, `skipped: 0`, `excluded: 0`. `skipped` is the field that
+   exists to count a file the gate did not measure, and it CANNOT SEE a file the selection removed,
+   because it is `results.length - ok.length` and a filtered file is in neither term. Residue
+   `2026-11-15-mutate-verdict-hides-the-tests-and-tools-filter`.
+
+   So the filter now lives in ONE function whose OTHER half is returned rather than discarded, and
+   the verdict declares that half. An exclusion a consumer cannot read is an undisclosed exclusion,
+   whatever the prose says (§🧾). */
+export const MUTABLE_SRC_RE = /\.(js|mjs)$/;
+export const UNMUTATED_PREFIXES = Object.freeze(['tests/', 'tools/']);
+export function partitionChangedJs(names) {
+  const inScope = [];
+  const outOfScope = [];
+  for (const f of Array.isArray(names) ? names : []) {
+    /* A non-JS path is not this gate's population at all — it is not an EXCLUSION from it, so it
+       joins neither list. A `.js` path under a named prefix is in the population and ruled out. */
+    if (!f || !MUTABLE_SRC_RE.test(f)) continue;
+    (UNMUTATED_PREFIXES.some((pre) => f.startsWith(pre)) ? outOfScope : inScope).push(f);
+  }
+  return { inScope, outOfScope };
+}
+/* ∅ `null` until a selection has ASKED the question: a run given `--file` filtered nothing, and a
+   `0` there would claim it looked. Only the two sites that read a diff set this. */
+let DIFF_OUT_OF_SCOPE = null;
+
 /* EVERYTHING BELOW IS THE CLI, and it runs only when this file IS the entry. A sibling tool that
    wants the matcher — resolveEntryAddresses, survivorKey, fnRanges, enclosingFn — imports this
    module, and before the guard that import installed four signal handlers, ran recoverStale() over
@@ -3985,9 +4063,9 @@ if (IS_MAIN) {
     const git = (args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
     let names = [];
     try {
-      names = git(['diff', '--name-only', DIFF_BASE + '...HEAD'])
-        .split('\n')
-        .filter((f) => /\.(js|mjs)$/.test(f) && !f.startsWith('tests/') && !f.startsWith('tools/'));
+      const part = partitionChangedJs(git(['diff', '--name-only', DIFF_BASE + '...HEAD']).split('\n'));
+      names = part.inScope;
+      DIFF_OUT_OF_SCOPE = part.outOfScope;
     } catch (e) {
       // FAIL CLOSED. A gate that cannot see the diff must never report "nothing to test".
       console.error('--diff: cannot diff against ' + DIFF_BASE + ' — ' + String(e.message || e).split('\n')[0]);
@@ -4029,16 +4107,25 @@ if (IS_MAIN) {
   let files = [];
   for (let i = 0; i < argv.length; i++) if (argv[i] === '--file' && argv[i + 1]) files.push(argv[i + 1]);
   if (DIFF && !files.length) {
-    files = [...DIFF_LINES.keys()].filter((f) => /\.(js|mjs)$/.test(f) && !f.startsWith('tests/') && !f.startsWith('tools/') && existsSync(join(ROOT, f)));
+    /* DIFF_LINES was built from the in-scope half already, so this re-partition removes nothing
+       new and must NOT overwrite what site 1 measured — it only adds the on-disk check, which a
+       deleted file fails. */
+    files = partitionChangedJs([...DIFF_LINES.keys()]).inScope.filter((f) => existsSync(join(ROOT, f)));
     if (!files.length) {
       // A real, honest pass: the change touched no mutable source. Say which, so it is not read as a skip.
-      console.error('--diff: no mutable JS source changed vs ' + DIFF_BASE + ' (' + DIFF_LINES.size + ' file(s) in the diff) — nothing to gate.');
+      /* The count was `DIFF_LINES.size`, which is the POST-FILTER set, so the one exit that reports
+         "nothing to gate" understated the diff it had just read. Both halves are named now. */
+      const outNames =
+        Array.isArray(DIFF_OUT_OF_SCOPE) && DIFF_OUT_OF_SCOPE.length
+          ? ' ' + DIFF_OUT_OF_SCOPE.length + ' changed JS file(s) are outside this gate (' + UNMUTATED_PREFIXES.join(', ') + '): ' + DIFF_OUT_OF_SCOPE.slice().sort().join(', ') + '.'
+          : '';
+      console.error('--diff: no mutable JS source changed vs ' + DIFF_BASE + ' (' + DIFF_LINES.size + ' in-scope file(s) in the diff) — nothing to gate.' + outNames);
       emitVerdict(
         verdictObject('NOT_APPLICABLE', {
           checked: 0,
           eligible: 0,
           result: null,
-          reason: 'no mutable JS source changed vs ' + DIFF_BASE + ' (' + DIFF_LINES.size + ' file(s) in the diff) — the criterion does not bind',
+          reason: 'no mutable JS source changed vs ' + DIFF_BASE + ' (' + DIFF_LINES.size + ' in-scope file(s) in the diff) — the criterion does not bind.' + outNames,
           evidence: ['tools/mutate.mjs'],
           commit: headCommit(),
           base: DIFF_BASE
@@ -4049,9 +4136,9 @@ if (IS_MAIN) {
   }
   if (!files.length) {
     try {
-      files = execSync('git diff --name-only origin/main...HEAD', { cwd: ROOT, encoding: 'utf8' })
-        .split('\n')
-        .filter((f) => /\.(js|mjs)$/.test(f) && !f.startsWith('tests/') && !f.startsWith('tools/'));
+      const part = partitionChangedJs(execSync('git diff --name-only origin/main...HEAD', { cwd: ROOT, encoding: 'utf8' }).split('\n'));
+      files = part.inScope;
+      DIFF_OUT_OF_SCOPE = part.outOfScope;
     } catch {
       files = [];
     }
@@ -4278,7 +4365,7 @@ if (IS_MAIN) {
     const lines = ok.reduce((a, r) => a + (r.touchedLines || 0), 0);
     /* ONE decision, made by diffVerdict (pure, selftest-pinned); the prose below explains it and the
        process exits with the code it chose — status and exit code cannot drift apart. */
-    const { verdict, code } = diffVerdict(results, { base: DIFF_BASE, commit: headCommit() });
+    const { verdict, code } = diffVerdict(results, { base: DIFF_BASE, commit: headCommit(), outOfScope: DIFF_OUT_OF_SCOPE });
     if (voided.length) {
       console.error('\n✕ MUTATION GATE VOID — the canary survived on: ' + voided.map((r) => r.file).join(', '));
       console.error('  Kills are not being detected, so "all killed" would prove nothing. Not a pass.');
@@ -4306,6 +4393,18 @@ if (IS_MAIN) {
             : 'all ' + tested + ' mutant(s) on ' + lines + ' changed line(s) were killed.')
       );
     else if (!AS_JSON) console.log('\n○ mutation gate ' + verdict.status + ' — ' + verdict.reason);
+    /* THE PROSE READER NEEDS THE BOUNDARY TOO. A reviewer reads the "✓ mutation gate" line and
+       concludes the diff was examined; this line is what stops that reading when it is false. It
+       goes to stderr beside the object, never instead of it. */
+    if (Array.isArray(DIFF_OUT_OF_SCOPE) && DIFF_OUT_OF_SCOPE.length)
+      console.error(
+        '  \u26a0 ' +
+          DIFF_OUT_OF_SCOPE.length +
+          ' changed JS file(s) are OUTSIDE this gate (' +
+          UNMUTATED_PREFIXES.join(', ') +
+          ') and were not mutated: ' +
+          DIFF_OUT_OF_SCOPE.slice().sort().join(', ')
+      );
     emitVerdict(verdict);
     if (code) process.exit(code);
   }
