@@ -1667,6 +1667,22 @@ function main() {
     }
   } else {
     process.stdout.write(`residue-ids: ok — ${v.added.length} row(s) added, none colliding, none mutated\n`);
+    /* ── WHAT THIS `ok` DOES NOT COVER ──────────────────────────────────────────────────────────
+       Row 2026-11-16-a-malformed-residue-source-cell-is-caught-only-by-the-full-suite. This gate
+       reads a row's IDENTITY and its STATE, and `parseRows` declines the row SHAPE by design
+       (see the note above it). `tools/residue-cite-drift.mjs` reports PASS over the same row. So an
+       author who writes a source cell check8b rejects reads TWO greens, and meets the malformation
+       at step 26 of 71 of `npm run check`, after 19789 passing assertions.
+       The remedy the fleet recorded for that was an INDEX, and an index rots: `--group-index=478`
+       reached this group on 2026-11-06 and runs an OxyDex group today. A NAME does not rot, so the
+       pointer below names the group and not its position. It prints only when the author just
+       wrote a row, because that is the one moment the shape is in question. */
+    if (v.added.length) {
+      process.stderr.write('\n  This gate reads row IDENTITY and row STATE. It does not read a row SHAPE, so a\n');
+      process.stderr.write('  malformed cell still reads ok here and reds at step 26 of 71 of `npm run check`.\n');
+      process.stderr.write('  One second reads the shape of every row:\n');
+      process.stderr.write('      node tests/run-tests.mjs --group=Docs-ledger\n');
+    }
   }
   // A landed row is said out loud in both outcomes: it is the reason a count can read 0 added, and a
   // reader who is not told would go looking for the row the branch appears to have lost.

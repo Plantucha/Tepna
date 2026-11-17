@@ -19828,6 +19828,34 @@
       var escapeBranch = /ch === '\\\\' && i \+ 1 < line\.length/.test(rid);
       T.ok('residue-ids reads its cells through the scanner', routed, 'parseRows → splitRowCells: ' + (routed ? 'wired' : 'ABSENT'));
       T.ok('…and the scanner consumes a backslash pair as one unit', escapeBranch, 'escape branch: ' + (escapeBranch ? 'present' : 'ABSENT'));
+      /* ── THE `ok` LINE MUST POINT AT THE GATE IT DOES NOT COVER ─────────────────────────────────
+         Row 2026-11-16-a-malformed-residue-source-cell-is-caught-only-by-the-full-suite. This tool
+         and `residue-cite-drift.mjs` both report green over a row whose SHAPE check8b rejects, and
+         no document named the one-second command that reads the shape. The pointer now rides the
+         tool's own output, and these two legs stop it drifting back out.
+         THE GROUP NAME IS THE PINNED PART, never its index: `--group-index=478` reached the ledger
+         group on 2026-11-06 and runs an OxyDex group today. */
+      var pointsAtShapeGate = /--group=Docs-ledger/.test(rid);
+      var saysWhatItSkips = /does not read a row SHAPE/.test(rid);
+      T.ok(
+        'residue-ids names the command that reads the row SHAPE',
+        pointsAtShapeGate,
+        'pointer: ' + (pointsAtShapeGate ? 'present' : 'ABSENT — an author reads ok and meets check8b at step 26 of 71')
+      );
+      T.ok('…and says which question its own green leaves open', saysWhatItSkips, 'disclosure: ' + (saysWhatItSkips ? 'present' : 'ABSENT'));
+      /* ⚠️ `env.toolTexts` ENUMERATES `tools/` ONLY, so a leg keyed on a path outside it asserts
+         over an empty string and reads as ABSENT however the file actually reads — the
+         examined-nothing shape. The skill is read off disk instead, and an unreadable file is a
+         FAILURE here rather than a silent pass, because the pointer is the row's whole remedy. */
+      var skillText = '';
+      var skillErr = null;
+      try {
+        skillText = String(require('fs').readFileSync('.claude/skills/residue-row/SKILL.md', 'utf8'));
+      } catch (e) {
+        skillErr = String((e && e.message) || e);
+      }
+      T.ok('ANTI-VACUITY · the row-author skill was READ, not assumed', skillText.length > 0, skillErr ? 'unreadable: ' + skillErr : 'len=' + skillText.length);
+      T.ok('…and it names the same command the tool now prints', /--group=Docs-ledger/.test(skillText), 'SKILL.md pointer: ' + (/--group=Docs-ledger/.test(skillText) ? 'present' : 'ABSENT'));
     });
 
     /* ── A CITED RESIDUE KEY RESOLVES TO A ROW, OR THE GATE NAMES IT ──────────────────────────────
@@ -65733,11 +65761,27 @@
                the comma and `see the note in docs` reds for having no extension at all. check8d
                continues to require the path to be in the tree, which is what refuses a well-shaped
                invention.
-               ⚠️ A name with NO extension — `LICENSE`, `NOTICE`, `capture-host/Caddyfile`,
-               `tools/systemd/tepna-update` — is STILL uncitable here, because the shape test needs a
-               dot. That is a different root from this one and it needs its own ruling, so it rides a
-               residue row rather than a silent widening. */
-            var srcPath = !srcBrief && c[2].match(/^`((?:[A-Za-z0-9._\/'@-][A-Za-z0-9._\/'@ -]*\.[A-Za-z0-9]+)|(?:(?:[A-Za-z0-9._\/'@-][A-Za-z0-9._\/'@ -]*\/)?\.[A-Za-z0-9_-]+))`$/);
+               A NAME WITH NO EXTENSION IS A REPO PATH TOO, and the ruling the paragraph below used
+               to defer is now taken (row 2026-11-16-an-extensionless-file-cannot-be-a-residue-source,
+               board decision 7148). THE DOT IS NOT WHAT SEPARATES A PATH FROM A PROSE WORD; THE TREE
+               IS. So the third alternative accepts a dot-less final segment, and check8d still
+               resolves it against the tree, which is what refuses a well-shaped invention.
+               The row objected that a shape with no dot and no slash also accepts a single prose
+               word, and the narrowing answers it: the dot-less segment may carry NO SPACE, so a
+               multi-word cell stays refused on the space, and a single word reaches check8d, which
+               reds it BY NAME because the tree does not hold it. A red either way; this one names the
+               repair.
+               Measured on the ref at `1e9b6afd0` over the 3498 names of
+               `git ls-tree -r --name-only origin/main`: exactly 4 carry a dot-less basename —
+               `LICENSE`, `NOTICE`, `capture-host/Caddyfile` and `tools/systemd/tepna-update`. The
+               class gains exactly those 4, loses 0, and refuses no name in the tree. CLAUDE.md names
+               `LICENSE` and `NOTICE` as authoritative licensing surfaces, so a defect that starts in
+               one of them no longer has to borrow a PR number and move its stated origin. */
+            var srcPath =
+              !srcBrief &&
+              c[2].match(
+                /^`((?:[A-Za-z0-9._\/'@-][A-Za-z0-9._\/'@ -]*\.[A-Za-z0-9]+)|(?:(?:[A-Za-z0-9._\/'@-][A-Za-z0-9._\/'@ -]*\/)?\.[A-Za-z0-9_-]+)|(?:(?:[A-Za-z0-9._\/'@-][A-Za-z0-9._\/'@ -]*\/)?[A-Za-z0-9][A-Za-z0-9_@-]*))`$/
+              );
             var srcPr = !srcBrief && !srcPath && c[2].match(/^`(#\d+)`$/);
             var src = srcBrief || srcPath || srcPr;
             var srcKind = srcBrief ? 'brief' : srcPath ? 'path' : srcPr ? 'pr' : null;
@@ -66246,6 +66290,30 @@
         /* check8d still answers the OTHER question: a well-shaped path which is not in the tree. */
         T.eq('self-test · check8d RESOLVES a spaced path which the walk holds', residueVerdict(spacedRow.rows, {}, ['OxyDex Reference.html']).badSrc.length, 0);
         T.eq('CONTROL · check8d FIRES on a spaced path the walk does NOT hold', residueVerdict(spacedRow.rows, {}, ['some/other/file.html']).badSrc.length, 1);
+        /* ── A SOURCE CELL MAY NAME A FILE WITH NO EXTENSION (board decision 7148) ──────────────
+           Row 2026-11-16-an-extensionless-file-cannot-be-a-residue-source stated no remedy, because
+           lifting the dot asks what a source cell IS. The ruling: the dot is not what separates a
+           path from a prose word, the TREE is, so check8d stays the discriminator and the shape
+           keeps only the narrowing that refuses a phrase — no space in the dot-less segment.
+           All four names below are tracked files of this repo, measured on the ref at `1e9b6afd0`
+           over 3498 names; they are the WHOLE dot-less population, not a sample of it. */
+        var licRow = mkSrc('`LICENSE`');
+        T.ok('self-test · check8b ACCEPTS a ROOT name with no extension', licRow.malformed.length === 0, licRow.malformed.length ? licRow.malformed[0] : 'accepted');
+        T.ok('self-test · …and the second licensing surface beside it', mkSrc('`NOTICE`').malformed.length === 0);
+        T.ok('self-test · …a nested extensionless file', mkSrc('`capture-host/Caddyfile`').malformed.length === 0);
+        T.ok('self-test · …and a two-deep one', mkSrc('`tools/systemd/tepna-update`').malformed.length === 0);
+        T.eq('self-test · check8b reads it as a PATH source, not a brief or a PR', (licRow.rows[0] || {}).srcKind || 'REJECTED', 'path');
+        T.eq('self-test · check8d RESOLVES an extensionless path the walk holds', residueVerdict(licRow.rows, {}, ['LICENSE']).badSrc.length, 0);
+        /* THE PRICE OF THE RULING, STATED AS A LEG. A single prose word now passes the SHAPE, and
+           check8d is what reds it. That is a red either way, and this one names the repair instead
+           of saying `malformed`. The leg exists so the price cannot be forgotten. */
+        var wordRow = mkSrc('`residue`');
+        T.eq('self-test · a single prose word passes the SHAPE, which is the stated price', wordRow.malformed.length, 0);
+        T.eq('CONTROL · …and check8d FIRES on it, because the tree does not hold it', residueVerdict(wordRow.rows, {}, ['LICENSE']).badSrc.length, 1);
+        T.ok('CONTROL · a multi-word cell with no dot is still refused by the SHAPE, on the space', mkSrc('`LICENSE and NOTICE`').malformed.length === 1);
+        T.ok('CONTROL · a LEADING space before an extensionless name is still refused', mkSrc('` LICENSE`').malformed.length === 1);
+        T.ok('CONTROL · a PR source is still read as a PR, never as an extensionless path', (mkSrc('`#5143`').rows[0] || {}).srcKind === 'pr');
+        T.ok('CONTROL · a brief is still read as a brief', (mkSrc('`VERDICT-CONTRACT-2026-09-21-BRIEF.md`').rows[0] || {}).srcKind === 'brief');
         var bareRow = residueRows(mkRow('a bare | pipe'));
         T.ok(
           'self-test · …and still REJECTS a bare pipe, so the check is not loosened',
@@ -90963,6 +91031,46 @@
          26.0 (below the cut) anchors "Very Poor"; 27 (just above the real cut, below 30.9) MUST read "Poor". */
       T.eq('calcVo2Cat · M 50-54 · VO₂ 26.0 (below the 26.1 cut) ⇒ "Very Poor"', vo2Cat(26.0, 52, 'M'), 'Very Poor');
       T.eq('calcVo2Cat · M 50-54 · VO₂ 27 (above the 26.1 cut, below 30.9) ⇒ "Poor"', vo2Cat(27, 52, 'M'), 'Poor');
+    });
+
+    /* ════ ∅ HRVDex profile — an unobserved maximum and an absent ACSM band ════
+     ABSENCE-SURVEY rows `524292f7b587` (`hrvdex-profile.js:49`) and `f168e1cda8fd` (`:608`). Two
+     defaults read as measurements on the profile card. `hrMax` fell to 0, so a dataset with no usable
+     heart rate printed "Max HR observed: 0 bpm" under a banner headed "Auto-detected from your data".
+     `calcVo2Cat` fell to an invented [25, 30, 35, 40, 45] ladder, and `femaleNorms` stops at '55-59',
+     so every woman aged 60 or over read a fitness category over cut points no paper carries. The male
+     table runs to '65-69', which is why the gap stayed hidden. */
+    group('∅ HRVDex profile — an unobserved HR maximum and an absent ACSM band refuse', 'hrvdex-profile · absence', function (T) {
+      var src = (env.sources && env.sources['hrvdex-profile.js']) || '';
+      var vo2Cat = env.HrvCalcVo2Cat;
+      T.ok('ANTI-VACUITY · the hrvdex-profile.js source is readable in this lane', src.length > 1000, 'env.sources["hrvdex-profile.js"] absent');
+      T.ok('ANTI-VACUITY · calcVo2Cat is wired into env', typeof vo2Cat === 'function', 'env.HrvCalcVo2Cat absent');
+      if (!src || typeof vo2Cat !== 'function') return;
+
+      var m = src.match(/const hrMax = ([^;]+);/);
+      T.ok('ANTI-VACUITY · the hrMax expression was extracted', !!m, 'the const hrMax line moved');
+      if (m) {
+        var hrMaxOf = new Function('_hrAll', 'return ' + m[1] + ';');
+        T.eq('no usable heart rate ⇒ the observed maximum is null', hrMaxOf([]), null);
+        T.eq('CONTROL · rows carrying heart rate ⇒ the real maximum', hrMaxOf([52, 71, 64]), 71);
+      }
+      var b = src.match(/Max HR observed: <strong>' \+ ([^,]+) \+ '<\/strong>'/);
+      T.ok('ANTI-VACUITY · the banner value was extracted', !!b, 'the Max HR banner line moved');
+      if (b) {
+        var bannerOf = new Function('hrMax', 'return ' + b[1] + ';');
+        T.eq('the banner says not detected, never 0 bpm', bannerOf(null), 'not detected');
+        T.eq('CONTROL · the banner prints a measured maximum', bannerOf(188), '188 bpm');
+      }
+      T.ok('the 0 arm is gone from the hrMax line', !/_hrAll\.length \? Math\.max\(\.\.\._hrAll\) : 0/.test(src), 'the : 0 default is back');
+
+      T.eq('a woman aged 62 has no published band ⇒ no category', vo2Cat(25, 62, 'F'), null);
+      T.eq('a woman aged 67 has no published band ⇒ no category', vo2Cat(25, 67, 'F'), null);
+      T.eq('CONTROL · a woman aged 52 sits in 50-54 and keeps her category', vo2Cat(25, 52, 'F'), 'Fair');
+      T.eq('CONTROL · a man aged 67 sits in 65-69, which the male table carries', vo2Cat(25, 67, 'M'), 'Fair');
+      T.ok('the invented cut points are gone', !/\[25, 30, 35, 40, 45\]/.test(src.replace(/\/\*[\s\S]*?\*\//g, '')), 'the fallback ladder is back');
+      T.ok('the band lookup refuses an absent band', /\[ab\];[\s\S]{0,40}if \(!t\) return null;/.test(src), 'the refusal is not wired');
+      T.ok('the card names the absent band', /no ACSM band \(age/.test(src), 'the caption does not name the gap');
+      T.ok('the call site still guards on an entered ground truth', /p\.vo2gt > 0 \? calcVo2Cat/.test(src), 'the vo2gt guard moved');
     });
 
     /* ════ 21g · OxyDex PROFILE PERSONALIZATION — known-answer (TEST-COVERAGE-FOLLOWUPS-II §1b) ════
