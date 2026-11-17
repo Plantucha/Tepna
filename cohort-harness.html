@@ -4323,6 +4323,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     if (inBurst && burstLen >= 3) motionBursts++;
 
     // Longest clean SpO2 run (>95%, in minutes)
+    /* §∅ — A CLEAN RUN IS A STRETCH OF MEASURED TIME, AND ZERO MINUTES IS A READING. `null > 95` is
+       false, so a night whose SpO2 channel never reported walked this loop to `longestCleanRun = 0`,
+       and `computeVagalIndex` divides that into its logarithmic term and publishes
+       `vagalIndex: 0` labelled "Low" — a stated vagal verdict over a signal nobody measured. That
+       guard already tests `extras.longestCleanRun == null`, which it could never see. A night that
+       DID measure SpO2 and stayed in range keeps a real 0. */
     var longestCleanRun = 0,
       curRun = 0;
     for (var i = 0; i < n; i++) {
@@ -4331,12 +4337,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         if (curRun > longestCleanRun) longestCleanRun = curRun;
       } else curRun = 0;
     }
-    longestCleanRun = +(longestCleanRun / 60).toFixed(1);
+    longestCleanRun = /** @type {any} */ (spo2Meas.length ? +(longestCleanRun / 60).toFixed(1) : null);
 
-    // Nadir density
+    // Nadir density — a rate over recording time, and a channel that never reported has no rate.
+    // A MEASURED night with no desaturation still reads 0.00/hr, which is a real count over real time.
     var nadirCount = desat && desat.nadir ? desat.nadir.count : 0;
     var durationHr = n / 3600;
-    var nadirDensity = durationHr > 0 ? +(nadirCount / durationHr).toFixed(2) : 0;
+    var nadirDensity = desat && desat.nadir && durationHr > 0 ? +(nadirCount / durationHr).toFixed(2) : null;
 
     // T95 burden score: T95% × sqrt(T-AUC weighted)
     var t95BurdenScore = null;
@@ -7992,20 +7999,26 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           }, 0) / recoveredSecs.length
         ).toFixed(0)
       : null;
+    /* §∅ — A MEAN OVER ZERO EVENTS IS NOT ZERO; IT IS UNMEASURED. These two answered 0, and the
+       published `nadir.meanDepth` / `nadir.meanDuration` then read as "the average desaturation
+       dropped 0 % for 0 s" on a night with no desaturation at all — the CSV printed both under their
+       headers. The sibling `meanRecovery` two lines up already refuses with null for exactly this
+       case, and the render gates the whole pair on `nadir.count > 0`; only the export did not say
+       so. `count: 0` stays a measured zero, because the night did measure and found none. */
     var meanDepth = realEvents.length
       ? +(
           realEvents.reduce(function (s, e) {
             return s + e.depth;
           }, 0) / realEvents.length
         ).toFixed(1)
-      : 0;
+      : null;
     var meanDuration = realEvents.length
       ? +(
           realEvents.reduce(function (s, e) {
             return s + e.duration;
           }, 0) / realEvents.length
         ).toFixed(0)
-      : 0;
+      : null;
 
     // SpO2 Dip Rate ≥3%/hr — DEX-EVENT-UNIFY-FOLLOWUPS §1: from the ONE canonical
     // primitive (ODI-3 threshold, simple re-rise close, no min-length gate so every

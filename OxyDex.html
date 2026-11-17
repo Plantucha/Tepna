@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="5d5ef24743c3" data-compute-hash="c1a4ee021b95">
+<html lang="en" data-manifest-hash="b64b9f52001b" data-compute-hash="8916060aaae6">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0FAU2FUOvgDAcoRLtccvxNhhTWpp9F4PU30OsPWxsks=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1GXN++OkM02KioWXqr41sn7DFt/p7OeiRsHDpnTpfhg=' 'sha256-4mWU7xSfZ5UKBY3u9ADrAJ4gCXrEL6DdbA/POnPo3Lk=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R2vsmlXtoCxmRvEo/elQ4ocq+bHchJ9kcuXKHwcc0w4=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-TAlEYjAMWyaUUQSt+Gg+O7yrgrH8mjL1Xmx0Eiw/adk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jcYwIYHWEOkRho/6EL++KYsUTDIxL+gNUno4PTReee0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0FAU2FUOvgDAcoRLtccvxNhhTWpp9F4PU30OsPWxsks=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1GXN++OkM02KioWXqr41sn7DFt/p7OeiRsHDpnTpfhg=' 'sha256-4esQYmoU7FYRSxckVGhsPB+ddHAbdUxK5/3OtftYgPQ=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QPvmXplBFRhr/OjzRUQvnrKBr5qkDr81WQ3UM0bKFto=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-R2vsmlXtoCxmRvEo/elQ4ocq+bHchJ9kcuXKHwcc0w4=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-TAlEYjAMWyaUUQSt+Gg+O7yrgrH8mjL1Xmx0Eiw/adk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jcYwIYHWEOkRho/6EL++KYsUTDIxL+gNUno4PTReee0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.34.0</title>
@@ -16404,6 +16404,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     if (inBurst && burstLen >= 3) motionBursts++;
 
     // Longest clean SpO2 run (>95%, in minutes)
+    /* §∅ — A CLEAN RUN IS A STRETCH OF MEASURED TIME, AND ZERO MINUTES IS A READING. `null > 95` is
+       false, so a night whose SpO2 channel never reported walked this loop to `longestCleanRun = 0`,
+       and `computeVagalIndex` divides that into its logarithmic term and publishes
+       `vagalIndex: 0` labelled "Low" — a stated vagal verdict over a signal nobody measured. That
+       guard already tests `extras.longestCleanRun == null`, which it could never see. A night that
+       DID measure SpO2 and stayed in range keeps a real 0. */
     var longestCleanRun = 0,
       curRun = 0;
     for (var i = 0; i < n; i++) {
@@ -16412,12 +16418,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         if (curRun > longestCleanRun) longestCleanRun = curRun;
       } else curRun = 0;
     }
-    longestCleanRun = +(longestCleanRun / 60).toFixed(1);
+    longestCleanRun = /** @type {any} */ (spo2Meas.length ? +(longestCleanRun / 60).toFixed(1) : null);
 
-    // Nadir density
+    // Nadir density — a rate over recording time, and a channel that never reported has no rate.
+    // A MEASURED night with no desaturation still reads 0.00/hr, which is a real count over real time.
     var nadirCount = desat && desat.nadir ? desat.nadir.count : 0;
     var durationHr = n / 3600;
-    var nadirDensity = durationHr > 0 ? +(nadirCount / durationHr).toFixed(2) : 0;
+    var nadirDensity = desat && desat.nadir && durationHr > 0 ? +(nadirCount / durationHr).toFixed(2) : null;
 
     // T95 burden score: T95% × sqrt(T-AUC weighted)
     var t95BurdenScore = null;
@@ -20073,20 +20080,26 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           }, 0) / recoveredSecs.length
         ).toFixed(0)
       : null;
+    /* §∅ — A MEAN OVER ZERO EVENTS IS NOT ZERO; IT IS UNMEASURED. These two answered 0, and the
+       published `nadir.meanDepth` / `nadir.meanDuration` then read as "the average desaturation
+       dropped 0 % for 0 s" on a night with no desaturation at all — the CSV printed both under their
+       headers. The sibling `meanRecovery` two lines up already refuses with null for exactly this
+       case, and the render gates the whole pair on `nadir.count > 0`; only the export did not say
+       so. `count: 0` stays a measured zero, because the night did measure and found none. */
     var meanDepth = realEvents.length
       ? +(
           realEvents.reduce(function (s, e) {
             return s + e.depth;
           }, 0) / realEvents.length
         ).toFixed(1)
-      : 0;
+      : null;
     var meanDuration = realEvents.length
       ? +(
           realEvents.reduce(function (s, e) {
             return s + e.duration;
           }, 0) / realEvents.length
         ).toFixed(0)
-      : 0;
+      : null;
 
     // SpO2 Dip Rate ≥3%/hr — DEX-EVENT-UNIFY-FOLLOWUPS §1: from the ONE canonical
     // primitive (ODI-3 threshold, simple re-rise close, no min-length gate so every
@@ -34687,9 +34700,13 @@ function exportCSV() {
         '  HR Range (bpm),' + _exCell(ex.hrRange),
         '  Mean HR Early (2h),' + _exCell(ex.meanHrEarly),
         '  Mean HR Late (2h),' + _exCell(ex.meanHrLate),
-        '  Motion Bursts,' + ex.motionBursts,
-        '  Longest Clean Run (min),' + ex.longestCleanRun,
-        '  Nadir Density (/hr),' + ex.nadirDensity,
+        /* §∅ the last three of the same family: `motionBursts` is already nulled when the motion
+           column is unusable, and `longestCleanRun` / `nadirDensity` are null when the SpO2 channel
+           never reported. A bare concatenation writes the word "null" into the cell, so each goes
+           through the helper the seven lines above already use. */
+        '  Motion Bursts,' + _exCell(ex.motionBursts),
+        '  Longest Clean Run (min),' + _exCell(ex.longestCleanRun),
+        '  Nadir Density (/hr),' + _exCell(ex.nadirDensity),
         '  T95 Burden Score,' + (ex.t95BurdenScore !== null ? ex.t95BurdenScore : ''),
         '  ODI-4/ODI-1 Ratio,' + (ex.odi41ratio !== null ? ex.odi41ratio : '')
       );

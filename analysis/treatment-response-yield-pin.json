@@ -24,7 +24,7 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "46faf431bb51",
       "oxydex-profile.js": "410146545439",
-      "oxydex-dsp.js": "a6e8cd23f237"
+      "oxydex-dsp.js": "84068a4357c0"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
@@ -277,11 +277,18 @@
       "old": "3ff585370feb",
       "new": "6a0499213014",
       "reason": "board #6802, the in-band-default lesson: the `hrv_drop` guard in `pdEventsFromResult` refuses a zero window-median rMSSD, where `|| 1` used to put a 1 ms divisor there. That function emits bus impulses and never runs on the survival path, which reads the ODI and rMSSD series through `measureFromResults`. Re-cut at paper scale: 233 tx / 239 flat, unchanged."
+    },
+    {
+      "date": "2026-11-17",
+      "file": "oxydex-dsp.js",
+      "old": "a6e8cd23f237",
+      "new": "84068a4357c0",
+      "reason": "Unit oxydef (Shrike absence audit of oxydex-dsp.js): three summary fields published 0 where nothing produced them. longestCleanRun read 0 min over a night with no measured SpO2 sample, nadirDensity read 0 per hour when the desaturation detector produced no nadir result, and meanDepth and meanDuration read 0 over zero real events. Each now reports null in that case. A measured night keeps its numbers, and of the six OxyDex goldens only OxyDex_2026-09-19_2245_stored_summary moved content, where meanDepth and meanDuration go from 0 to null at count 0. This run RE-CUT the cohort at paper scale, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped, so no synthetic patient changed arm."
     }
   ],
-  "measuredAt": "2026-11-17T04:10:28.840Z",
+  "measuredAt": "2026-11-17T12:37:32.131Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "9a3f84f43"
+    "commit": "335728064"
   }
 }
