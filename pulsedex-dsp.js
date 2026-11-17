@@ -1712,26 +1712,58 @@
   }
 
   // SignalFrame(rr) | {vals,…} | vals[] → { vals, tsMs, t0Ms, offsetMin }
+  /* ∅ ABSENCE IS NOT A BEAT — the one place the DSP boundary states the policy the TEXT road already
+     has. `parseRRInput` drops a non-finite interval on both its roads (`if (!isFinite(v)) continue`
+     on the delimited road; the bare-number scrape matches digits only), so absence reaches the
+     computer as a SHORTER series and never as a member. `pdComputeResult` is a published surface
+     (`PulseDex.computeResult`), and its own road accepted `input.intervals` verbatim — where
+     `artifactClean` reads a null as out-of-range and REPLACES it with the local median, turning an
+     unmeasured beat into a manufactured one and counting it in `N`. Measured 2026-11-17 by
+     `tools/null-fuzz.mjs --target pulsedex`: 82 failing assertions over 20 nights, `N` 900 against
+     the clean twin's 610 and `sdnn` 417.86 against 33.08.
+     Dropping the member with its stamp makes the two roads agree, and the count travels out of band
+     as `nAbsentIn` so the output reports the absence (§∅). A NaN STAMP beside a finite interval does
+     NOT drop the beat: the beat was measured and its clock was not, which is what `tsMs.push(NaN)`
+     on the text road records. */
+  function _pdDropAbsent(vals, tsMs) {
+    /** @type {number[]} */
+    const keptV = [];
+    /** @type {number[] | null} */
+    const keptT = tsMs ? [] : null;
+    for (let i = 0; i < vals.length; i++) {
+      const v = vals[i];
+      if (typeof v !== 'number' || !isFinite(v)) continue;
+      keptV.push(v);
+      if (keptT) keptT.push(tsMs[i]);
+    }
+    return { vals: keptV, tsMs: keptT, nAbsent: vals.length - keptV.length };
+  }
+
   function _pdNormalizeRRInput(input) {
-    if (Array.isArray(input)) return { vals: input.slice(), tsMs: null, t0Ms: null, offsetMin: null };
+    if (Array.isArray(input)) {
+      const d = _pdDropAbsent(input, null);
+      return { vals: d.vals, tsMs: null, t0Ms: null, offsetMin: null, nAbsentIn: d.nAbsent };
+    }
     if (input && typeof input === 'object') {
       const vals = input.intervals || input.vals || null;
-      if (vals)
+      const _d = vals ? _pdDropAbsent(vals, input.tsMs && input.tsMs.length ? input.tsMs : null) : null;
+      if (_d)
         /* THE SIDECAR CROSSES THE FRAME BOUNDARY HERE. `compute()` rebuilds its input from the
            SignalFrame, so a key the rebuild does not carry is a sidecar parsed and then discarded —
            the gap #4441 shipped on two nodes. Both spellings are accepted: `_seamsSidecar` from a
            parse result, `seamsSidecar` from `emitRRNodeExport`'s rebuilt object. */
         return attachPdSeams(
           {
-            vals: vals.slice(),
-            tsMs: input.tsMs && input.tsMs.length ? input.tsMs.slice() : null,
+            vals: _d.vals,
+            tsMs: _d.tsMs,
+            nAbsentIn: _d.nAbsent,
             t0Ms: input.t0Ms != null ? input.t0Ms : null,
             offsetMin: input.offsetMin != null ? input.offsetMin : null
           },
           input._seamsSidecar || input.seamsSidecar || null
         );
     }
-    return { vals: null, tsMs: null, t0Ms: null, offsetMin: null };
+    return { vals: null, tsMs: null, t0Ms: null, offsetMin: null, nAbsentIn: null };
   }
 
   // Pure reproduction of the EXPORT-relevant subset of calculate(): artifact-clean
@@ -2015,6 +2047,10 @@
          always ran over every parsed interval — a clean record reads 0, and 0 here is measured. */
       artifactPct: cleanR.pct,
       nArtifact: cleanR.nArt,
+      /* ∅ THE ABSENCE REPORTS ITSELF. `_pdDropAbsent` removed this many non-finite members before the
+         cleaner ran, so a consumer can tell 610 beats out of 610 from 610 out of 900. It is null, not
+         0, when the input carried no array to count (§∅: a number that was not measured is not 0). */
+      nAbsentIn: f.nAbsentIn != null ? f.nAbsentIn : null,
       windows: win ? win.wins : null,
       meanRR: +meanRR.toFixed(1),
       hr,
