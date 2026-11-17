@@ -51447,6 +51447,53 @@
       }
     );
 
+    group('∅ oxydex-cross — a coverage BLOCK is not a number, and an unmeasurable z is not 0σ', 'crossnight · oxydex-cross · absence · in-band-default', function (T) {
+      var OX = env.OXYCross || null;
+      if (!(OX && typeof OX.nightWeight === 'function' && typeof OX.crossNight === 'function')) {
+        T.skip('oxydex-cross not co-loaded', 'map env.OXYCross in both lanes');
+        return;
+      }
+      /* ── A · `nightWeight` must read the block the DSP actually publishes ──
+           `oxyCoverage` hands `stats.coverage` the object `DexExport.coverageFromSegments` returns
+           (dex-export.js:145): `{ kind, spanSec, segments[], recordedSec, n, source }`. It carries no
+           `pct`, so the share is `recordedSec / spanSec`. Pre-fix, `c / 100` on that object was NaN
+           and `Math.max(0.05, NaN)` is NaN — no weight at all, on every night that declares a hole. */
+      var sparse = { kind: 'sparse', spanSec: 6000, recordedSec: 4100, segments: [{ startMs: 0, durSec: 4100 }], n: 2, source: 'sensor-dropout' };
+      T.approx('∅ · a coverage BLOCK weighs recordedSec / spanSec, not NaN', OX.nightWeight({ stats: { coverage: sparse } }), 4100 / 6000, 1e-9);
+      T.approx('CONTROL · a bare number still weighs coverage / 100', OX.nightWeight({ stats: { coverage: 62 } }), 0.62, 1e-9);
+      T.approx('CONTROL · analyzedPct still weighs the same', OX.nightWeight({ stats: { analyzedPct: 62 } }), 0.62, 1e-9);
+      T.eq('∅ · a block that states NO duration is unmeasured, never NaN', OX.nightWeight({ stats: { coverage: { kind: 'sparse' } } }), null);
+      T.eq('∅ · …and a block with a zero span has no share to divide by', OX.nightWeight({ stats: { coverage: { spanSec: 0, recordedSec: 0 } } }), null);
+      T.eq('§∅ · a night stating neither field is still unmeasured', OX.nightWeight({ stats: {} }), null);
+      T.approx('CONTROL · a MEASURED zero still answers the floor', OX.nightWeight({ stats: { coverage: 0 } }), 0.05, 1e-9);
+
+      /* ── B · the card's own series, built the way oxydex-render.js:1886-1891 builds it ── */
+      var D = 86400000,
+        T0 = Date.UTC(2026, 5, 10, 22, 0),
+        vals = [96, 95.5, 88, 95.5, 95.5];
+      var ser = function (w) {
+        return vals.map(function (v, i) {
+          return { x: i, t: T0 + i * D, v: v, w: w[i] };
+        });
+      };
+      var wBlock = OX.nightWeight({ stats: { coverage: sparse } });
+      var asBlock = OX.crossNight(ser([0.9, 0.9, wBlock, 0.9, 0.9]), { good: 'up' });
+      var asNum = OX.crossNight(ser([0.9, 0.9, 4100 / 6000, 0.9, 0.9]), { good: 'up' });
+      var asFull = OX.crossNight(ser([0.9, 0.9, 1, 0.9, 0.9]), { good: 'up' });
+      T.ok('∅ · the card publishes a CENTRE for a night that declares a hole', typeof asBlock.mean === 'number', 'mean=' + asBlock.mean);
+      T.eq('∅ · …equal to the same night stated as a bare share', asBlock.mean, asNum.mean);
+      T.eq('∅ · …with the same spread', asBlock.sd, asNum.sd);
+      T.eq('∅ · …and the same baseline mean', asBlock.baselineMean, asNum.baselineMean);
+      T.ok('CONTROL · and none of it is the full-weight reading', asBlock.mean !== asFull.mean, 'block=' + asBlock.mean + ' full=' + asFull.mean);
+
+      /* ── C · an unmeasurable z is ABSENT, not the 0σ that reads as "on baseline" ── */
+      var nanW = OX.crossNight(ser([0.9, 0.9, NaN, 0.9, 0.9]), { good: 'up' });
+      T.ok('∅ · zLatest is PRESENT on a series whose weight is no number', 'zLatest' in nanW);
+      T.eq('∅ · …and it is null, never 0σ', nanW.zLatest, null);
+      T.ok('∅ · …so is the centre, rather than a fabricated 0', nanW.mean === null && nanW.baselineMean === null, 'mean=' + nanW.mean + ' baseline=' + nanW.baselineMean);
+      T.ok('CONTROL · a measured series still publishes a finite z', typeof asNum.zLatest === 'number' && isFinite(asNum.zLatest), 'z=' + asNum.zLatest);
+    });
+
     group('Bootstrap LCG uses a 32-bit-exact multiply — no 2^53 overflow (DEEP-AUDIT-II §9.5)', 'crossnight · event-coupling · prng · source', function (T) {
       // `bootstrapDeltaCI`'s LCG (all 5 *-cross clones) + event-coupling.js used `seed * 1103515245`.
       // seed<2^31 so seed·a reaches ~2.3e18 ≫ 2^53 — float64 rounds the LOW bits (the ones `& 0x7fffffff`
