@@ -37938,6 +37938,65 @@
      isNaN(null)===false both PASS a null (coerced to 0, or null.toFixed() → throw). Render-layer twin
      of the DSP sdnn7 fix — the two pattern-explorer direct reads, the heatmap's _patPearson (fed RAW
      nullable series), and the table fmt. A genuine 0 must SURVIVE (physiological, e.g. pNN50). */
+    /* ── AN ABSENT HRVDex KPI TILE GRADED ITSELF AS THE WORST POSSIBLE READING ──────────────────
+       Hunt-record row R-3. Every d_* producer in hrvdex-dsp.js answers NaN when its inputs were not
+       measured, and the raw parsed fields answer null when the import carried no such column. The
+       tile ladders compared that absence directly: NaN > 4.4 and null > 4.4 are both false, so the
+       value fell to the LAST arm, and the kc mapping paints a band that is not good, warn or
+       neutral as --red. 27 of the 28 ladders in renderKPIs carried no absence arm, so an unmeasured
+       number read as the worst possible value. The guard is kgrade. The legs below are a CENSUS plus
+       the guard's own behaviour, because a per-tile leg passes while a newly added tile brings the
+       defect back.
+       Shrike, the sandboxed audit session, found the defect on the VO2max Est tile and wrote the
+       first patch; this group generalises its shape to the whole strip. */
+    group('HRVDex render — every KPI ladder answers NEUTRAL for an absence, never the worst band', 'sources', function (T) {
+      var rnd = (env.sources || {})['hrvdex-render.js'];
+      if (!rnd) {
+        T.ok('hrvdex-render.js source provided', false, 'runner passed no hrvdex-render.js');
+        return;
+      }
+      var body = /\nfunction renderKPIs\(rows\)\s*\{[\s\S]*?\n\}/.exec(rnd);
+      var kgLine = /\nconst kgrade = [^\n]*\n/.exec(rnd);
+      var kcLine = /\n\s*const kc = [^\n]*\n/.exec(rnd);
+      // ANTI-VACUITY · a census that finds nothing must FAIL, not pass by silence.
+      T.ok('ANTI-VACUITY · renderKPIs is visible in the served source', !!body, 'renderKPIs body located');
+      T.ok('ANTI-VACUITY · the kgrade guard is visible', !!kgLine, 'kgrade declaration located');
+      T.ok('ANTI-VACUITY · the colour-vocabulary mapping is visible', !!kcLine, 'kc mapping located');
+      if (!body || !kgLine || !kcLine) return;
+
+      var ladders = (body[0].match(/color: [^\n]*/g) || []).filter(function (l) {
+        return l.indexOf('style="color:') === -1;
+      });
+      T.ok('ANTI-VACUITY · the strip still carries its tile ladders', ladders.length >= 25, 'ladder count ' + ladders.length);
+
+      // THE CENSUS · every ladder either routes through kgrade or carries its own absence arm.
+      var unguarded = ladders.filter(function (l) {
+        return l.indexOf('kgrade(') === -1 && !/==\s*null/.test(l);
+      });
+      T.eq('NO tile ladder grades a value with no absence arm', String(unguarded.length), '0');
+      if (unguarded.length) {
+        T.ok('the first unguarded ladder', false, unguarded[0]);
+      }
+
+      // THE GUARD ITSELF, lifted from the shipped source, so these legs gate behaviour.
+      var kgrade = new Function(kgLine[0] + 'return kgrade;')();
+      var ladder = function (x) {
+        return x > 10 ? 'good' : x > 5 ? 'warn' : 'bad';
+      };
+      T.eq('an unmeasured (NaN) value carries NO verdict', kgrade(NaN, ladder), 'neutral');
+      T.eq('a refused (null) value carries no verdict either', kgrade(null, ladder), 'neutral');
+      T.eq('an undefined value carries no verdict', kgrade(undefined, ladder), 'neutral');
+      // §∅ CONTROL · a real 0 is a MEASUREMENT, not an absence, and still reaches the ladder.
+      T.eq('a real 0 reaches the ladder and grades bad', kgrade(0, ladder), 'bad');
+      T.eq('a real value above the band still grades good', kgrade(12, ladder), 'good');
+      T.eq('a real value inside the middle band still grades warn', kgrade(7, ladder), 'warn');
+
+      // THE MAPPING · neutral resolves to ordinary text, and bad still falls through to --red.
+      var kc = new Function('k', kcLine[0] + 'return kc;');
+      T.eq('neutral resolves to ordinary text, so an absent tile is not painted red', kc({ color: 'neutral' }), 'text');
+      T.eq('CONTROL · bad still resolves to red, so the mapping was not weakened', kc({ color: 'bad' }), 'red');
+    });
+
     /* ════ AN ABSENT RECOVERY INDEX MUST NOT GRANT A TRAINING GREEN LIGHT ══════════════════════════
        DEEP-AUDIT-IV §3 filed this as a HYPOTHESIS: the strong-recovery branch accepted a NULL index as
        equivalent to a passing one, so it rendered

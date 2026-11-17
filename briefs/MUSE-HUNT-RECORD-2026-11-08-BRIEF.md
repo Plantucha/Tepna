@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** PROPOSED — 2026-11-08 · **Created:** 2026-11-08 · **Interlocks:** `briefs/RESIDUE.md` (the verified rows) · `AUDIT-PROMPT.md`
+**Status:** IN-PROGRESS — 2026-11-17 · **Created:** 2026-11-08 · **Interlocks:** `briefs/RESIDUE.md` (the verified rows) · `AUDIT-PROMPT.md`
 
 # MUSE-HUNT-RECORD — every Muse hunt finding, and its state on main
 
@@ -33,6 +33,7 @@ the tables is Muse's number at that HEAD. Main has moved since then, so read the
 | fixed on main | the defect does not reproduce on main; the evidence names the site |
 | holds on main | I re-read the site on main and the shape is present; no row yet |
 | unverified | Muse's lane result only; nobody re-read it on main |
+| fixed here | a PR in this diff repairs the site; the evidence names the repair |
 | hypothesis | Muse states no reproduction on real data |
 | design call | Muse routed it to the owner or to a design decision |
 
@@ -50,7 +51,7 @@ the tables is Muse's number at that HEAD. Main has moved since then, so read the
 |---|---|---|---|
 | R-1 | `ecgdex-app.js` tile and morph table | CVHR graded on AHI cut-points in two of four copies | row `2026-11-08-ecgdex-cvhr-keeps-ahi-cut-points-in-two-render-copies` |
 | R-2 | `cpapdex-render.js` `pressureCard`, `ventCard` | night cards draw session 1 metrics | row `2026-11-08-cpapdex-night-cards-draw-session-one-metrics` |
-| R-3 | HRVDex derived-metric colours | a NaN value prints a dash, but the colour ladder grades it red or green | unverified |
+| R-3 | HRVDex derived-metric colours | a NaN value prints a dash, but the colour ladder grades it red or green | fixed here: `kgrade` in `hrvdex-render.js` gives all 28 KPI ladders an absence arm |
 | R-4 | HRVDex Overtrain Risk | the table and the KPI strip use two contradictory ladders | unverified; Muse calls the intended ladder undecidable |
 | R-5a | `pulsedex-overview.js` Baevsky SI tile | null SI graded good | fixed on main: the tile uses `_kd(r.si, 150, 250)` |
 | R-5b | `pulsedex-overview.js` KPI grid | HF n.u. and ABS null graded bad; LF/HF and resp rate null graded warn; coverage prints the string "null" | unverified |
@@ -62,6 +63,9 @@ the tables is Muse's number at that HEAD. Main has moved since then, so read the
 | R-11 | OxyDex night rows | `odi4` with null rate prints "null/h" graded green; HRV chips print raw nulls; the ODI-4 tile class is ok on a dash | unverified |
 | R-12 | `hrvdex-render.js` recovery-debt chart | absent value drawn as a green 0 bar | row `2026-11-08-hrvdex-recovery-debt-chart-draws-an-absent-value-as-a-green-zero` |
 | R-note | `cpapdex-render.js` | the usage row's shape has two more sites: the hero Usage subscore and the "at least 4 h compliant" chip | scope note for row `2026-11-07-the-cpap-usage-kpi-draws-the-recording-envelope-under-the-mask-on-label`; its fix must cover all three sites |
+
+**R-3 note (2026-11-17).** The repair adds one absence arm to 28 KPI ladders in `renderKPIs`.
+It moves no threshold, so R-4 still holds. The `d_otr` KPI ladder now reads through `kgrade`.
 
 ## 4 · Lane S — DSP cores (`#4271`)
 
