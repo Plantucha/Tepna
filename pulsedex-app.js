@@ -1263,9 +1263,16 @@ function renderCrossNightPx() {
   ];
   /* §∅ — an absent coverage weights the FLOOR, never a complete recording: a recording with no clock
      has not earned the say a complete one has. `covAbsentPx` is named in the note below, so a reader
-     can see how many items the baseline was built on partial evidence from. */
-  const covAbsentPx = list.filter((s) => s.coverage == null).length;
-  const cov = list.map((s) => (s.coverage != null ? Math.max(0.05, s.coverage / 100) : 0.05));
+     can see how many items the baseline was built on partial evidence from.
+     A NON-FINITE share is absent too, and `!= null` did not catch it. `Math.max(0.05, NaN)` is NaN,
+     so one such recording sent NaN in as `w`, `wmean` answered NaN, and the whole baseline for that
+     metric collapsed: mean, cv and baselineSd all read `null` while `zLatest` printed 0σ. The share
+     reaches this line from `coverage`, which a caller may set from a coverage BLOCK rather than a
+     percentage (the OxyDex twin of that route shipped in #5229). Such a recording takes the floor and
+     counts in `covAbsentPx`, exactly as a null one does. */
+  const covAbsent = (v) => v == null || typeof v !== 'number' || !isFinite(v);
+  const covAbsentPx = list.filter((s) => covAbsent(s.coverage)).length;
+  const cov = list.map((s) => (covAbsent(s.coverage) ? 0.05 : Math.max(0.05, s.coverage / 100)));
   const tCol = (l) => (l === 'improving' ? 'ok' : l === 'declining' ? 'bad' : 'neutral');
   const C = { green: '#34d399', red: '#f87171', blue: '#60a5fa' };
   let rows = '',
