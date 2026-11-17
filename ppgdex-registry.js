@@ -667,7 +667,16 @@
   function idForSite(id, site, siteSource) {
     if (!id || !site) return id;
     var suffix = SITE_SUFFIX[site];
-    if (!suffix && site === 'wrist' && siteSource && siteSource !== 'declared') suffix = 'Assumed';
+    /* Row 2026-11-15-ppgdex-site-declaration-shared-by-two-devices. This registry holds a tier for
+       `finger` and `ankle` only, so EVERY other limb fell through to the BASE id — which is the
+       wrist-validated entry. A declared `upper-arm` therefore carried wrist morphology grades, and
+       the `forehead` choice that row asks for would have inherited the same borrowed literature.
+       A limb this registry cannot grade is `Assumed`. Every `wrist` arm keeps its former reading,
+       so the two-arg back-compat promise below still holds exactly. */
+    if (!suffix) {
+      if (site !== 'wrist') suffix = 'Assumed';
+      else if (siteSource && siteSource !== 'declared') suffix = 'Assumed';
+    }
     if (!suffix) return id;
     var scoped = id + suffix;
     return Object.prototype.hasOwnProperty.call(PPG_REGISTRY, scoped) ? scoped : id;
