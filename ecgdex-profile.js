@@ -502,10 +502,12 @@
     d.innerHTML =
       grp(
         'Body composition',
-        di('BMI', bmi.toFixed(1) + ' (' + bmiCat + ')', 'kg ÷ m² = ' + p.weight + ' ÷ ' + (p.height / 100).toFixed(2) + '²') +
-          di('IBW', ibw.toFixed(1) + ' kg', 'Devine: ' + (p.sex === 'M' ? '50' : '45.5') + ' + 2.3·(' + inch + 'in−60)') +
-          di('BSA', bsa.toFixed(2) + ' m²', 'DuBois: 0.007184·W^0.425·H^0.725') +
-          di('BMR', rmr + ' kcal', rmrF)
+        // §∅ — the shared engine refuses a non-positive weight/height (null), so every tile prints an
+        // absent value and names the term it needs. `null.toFixed` would otherwise throw mid-render.
+        di('BMI', bmi == null ? '— needs weight & height' : bmi.toFixed(1) + ' (' + bmiCat + ')', 'kg ÷ m² = ' + p.weight + ' ÷ ' + (p.height / 100).toFixed(2) + '²') +
+          di('IBW', ibw == null ? '— needs height' : ibw.toFixed(1) + ' kg', 'Devine: ' + (p.sex === 'M' ? '50' : '45.5') + ' + 2.3·(' + inch + 'in−60)') +
+          di('BSA', bsa == null ? '— needs weight & height' : bsa.toFixed(2) + ' m²', 'DuBois: 0.007184·W^0.425·H^0.725') +
+          di('BMR', rmr == null ? '— needs weight & height' : rmr + ' kcal', rmrF)
       ) +
       grp(
         'Age-relative norms',

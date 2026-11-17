@@ -104356,6 +104356,166 @@
       }
     });
 
+    group(
+      '∅ a body measure of 0 is not a measurement — BMI, BSA, IBW, BMR and the ideal weight refuse',
+      'dex-profile · ecgdex-profile · ppgdex-profile · oxydex-profile · absence · body-measure',
+      function (T) {
+        var DP = env.DexProfile;
+        function mem() {
+          var m = {};
+          return {
+            getItem: function (k) {
+              return k in m ? m[k] : null;
+            },
+            setItem: function (k, v) {
+              m[k] = '' + v;
+            },
+            removeItem: function (k) {
+              delete m[k];
+            }
+          };
+        }
+        /* ONE DEFECT, FOUR SURFACES. A manual 0 is accepted by the cascade (the manual tier tests only
+         `!= null && !== ''`), so a height of 0 published BMI 0.0 — which the label chain read as
+         "Underweight" — plus BSA 0.00, the Devine 50 kg base as IBW, and a Mifflin BMR of −240 kcal at
+         age 49. A weight of 0 did the same to BSA, RMR and absolute VO₂. The refusal is null (the shape
+         PulseDex's pxProfile and OxyDex's elevation already use); the POP tier is untouched, so an
+         UNENTERED field still resolves to its cited norm and says `pop default`. */
+        T.ok('ANTI-VACUITY · the shared engine is exposed in this lane', !!DP && !!DP._setStore, 'env.DexProfile missing');
+        if (!DP || !DP._setStore) return;
+
+        // ── the shared engine — the LIVE producer: derive() feeds every node's derived tiles ──
+        DP._setStore(mem());
+        DP.setManual('age', 50);
+        DP.setManual('sex', 'M');
+        DP.setManual('weight', 90);
+        DP.setManual('height', 0);
+        var d0 = DP.derive(DP.get());
+        T.eq('engine · height 0 ⇒ BMI null, not 0.0', d0.bmi, null);
+        T.eq('engine · …and no category, because `null < 18.5` is true', d0.bmiCat, null);
+        T.eq('engine · height 0 ⇒ BSA null, not 0.00 m²', d0.bsa, null);
+        T.eq('engine · height 0 ⇒ Devine IBW null, not the 50 kg base', d0.ibw, null);
+        T.eq('engine · height 0 ⇒ RMR null (Mifflin needs both terms)', d0.rmr, null);
+        T.eq('engine · the refused RMR names the missing terms', d0.rmrFormula, 'needs weight & height');
+        T.eq('engine · a refused BMI discloses no basis chip', d0.basis.bmi, null);
+        T.ok('engine · CONTROL · the refusal is not a renamed 0', d0.bmi !== 0 && d0.bsa !== 0 && d0.ibw !== 0, JSON.stringify([d0.bmi, d0.bsa, d0.ibw]));
+
+        DP.setManual('height', 175);
+        DP.setManual('weight', 0);
+        var dw = DP.derive(DP.get());
+        T.eq('engine · weight 0 ⇒ BMI null', dw.bmi, null);
+        T.eq('engine · weight 0 ⇒ BSA null', dw.bsa, null);
+        T.eq('engine · weight 0 ⇒ RMR null', dw.rmr, null);
+        DP.setManual('bodyfat', 20);
+        T.eq('engine · weight 0 ⇒ the Katch arm refuses too (no 370 from an all-lean 0 kg body)', DP.derive(DP.get()).rmr, null);
+        DP.setManual('bodyfat', null);
+
+        DP.setManual('weight', 90);
+        var dOk = DP.derive(DP.get());
+        T.approx('engine · CONTROL · 90 kg at 175 cm ⇒ BMI 29.4', dOk.bmi, 29.4, 0.05);
+        T.eq('engine · CONTROL · …and its category is recorded', dOk.bmiCat, 'Overweight');
+        T.approx('engine · CONTROL · BSA is still DuBois', dOk.bsa, +(0.007184 * Math.pow(90, 0.425) * Math.pow(175, 0.725)).toFixed(2), 0.001);
+        T.eq('engine · CONTROL · RMR is still Mifflin', dOk.rmr, Math.round(10 * 90 + 6.25 * 175 - 5 * 50 + 5));
+
+        /* The POP path must stay intact: an UNENTERED height is not a refusal, it is the cited norm.
+         Refusing 0 must never turn "nobody said" into "nothing measured". */
+        DP._setStore(mem());
+        DP.setManual('age', 50);
+        DP.setManual('sex', 'M');
+        var dPop = DP.derive(DP.get());
+        T.ok(
+          'engine · CONTROL · an unentered height still resolves to the labelled population norm',
+          dPop.bmi != null && dPop.basis.bmi === 'pop',
+          JSON.stringify({ bmi: dPop.bmi, basis: dPop.basis && dPop.basis.bmi })
+        );
+
+        // ── OxyDex's own twin formulas — the second producer, same defect ──
+        var OX = { BMI: env.OxyBMI, BSA: env.OxyBSA, BMR: env.OxyBMR, IBW: env.OxyIBW, IDEAL: env.OxyIdealWt, LABEL: env.OxyBMILabel, VABS: env.OxyVO2abs };
+        var wired = ['BMI', 'BSA', 'BMR', 'IBW', 'IDEAL', 'LABEL', 'VABS'].every(function (k) {
+          return typeof OX[k] === 'function';
+        });
+        /* The realm accessor, not env.OxyUP: `upFromDOM()` REASSIGNS UP, so a handle captured at env build
+         time can point at a dead object (the OxyDex §∅ group earlier in this file calls upFromDOM). */
+        var R = env.oxyProfileRealm;
+        var up = R && typeof R.get === 'function' ? R.get('UP') : null;
+        /* Node lane only: oxyProfileRealm is a run-tests.mjs seam the browser lane does not build (see the OxyDex profile group above). */
+        if (env.nodeFs) T.ok('ANTI-VACUITY · the seven OxyDex body-term seams are wired (Node lane)', wired && !!up, 'env.OxyBMI/OxyBSA/OxyBMR/OxyIBW/OxyIdealWt missing');
+        if (wired && up) {
+          var sv = { h: up.height, w: up.weight, vo2: up.vo2GT, age: up.age };
+          try {
+            up.height = 0;
+            up.weight = 90;
+            T.eq('oxydex · upBMI(height 0) ⇒ null, not 0', OX.BMI(), null);
+            T.eq('oxydex · upBSA(height 0) ⇒ null, not 0.00 m²', OX.BSA(), null);
+            T.eq('oxydex · upIBW(height 0) ⇒ null, not 50 kg', OX.IBW(), null);
+            T.eq('oxydex · upIdealWt(height 0) ⇒ null, not 0.0 kg', OX.IDEAL(), null);
+            T.eq('oxydex · upBMR(height 0) ⇒ null, not −240 kcal', OX.BMR(), null);
+            T.eq('oxydex · upBMILabel(null) ⇒ null, not Underweight', OX.LABEL(null), null);
+            up.height = 175;
+            up.weight = 0;
+            T.eq('oxydex · upBMI(weight 0) ⇒ null', OX.BMI(), null);
+            T.eq('oxydex · upBMR(weight 0) ⇒ null', OX.BMR(), null);
+            up.vo2GT = 40;
+            T.eq('oxydex · upVO2abs(weight 0) ⇒ null, not 0.00 L/min', OX.VABS(), null);
+            up.height = 175;
+            up.weight = 90;
+            var age = typeof up.age === 'number' ? up.age : 49;
+            T.eq('oxydex · CONTROL · 90 kg / 1.75 m ⇒ BMI 29.4', OX.BMI(), 29.4);
+            T.eq('oxydex · CONTROL · …labelled Overweight', OX.LABEL(OX.BMI()), 'Overweight');
+            T.eq('oxydex · CONTROL · BSA is still DuBois', OX.BSA(), +(0.007184 * Math.pow(90, 0.425) * Math.pow(175, 0.725)).toFixed(2));
+            T.eq('oxydex · CONTROL · RMR is still Mifflin', OX.BMR(), Math.round(10 * 90 + 6.25 * 175 - 5 * age + 5));
+          } finally {
+            up.height = sv.h;
+            up.weight = sv.w;
+            up.vo2GT = sv.vo2;
+            up.age = sv.age;
+          }
+        }
+
+        // ── the renderers the new null reaches: an absent value, never 0 and never the word null ──
+        var src = env.sources || {};
+        var eng = src['dex-profile.js'] || '',
+          ecg = src['ecgdex-profile.js'] || '',
+          ppg = src['ppgdex-profile.js'] || '',
+          oxy = src['oxydex-profile.js'] || '';
+        T.ok('ANTI-VACUITY · all four body-term surfaces are in the sources this leg reads', !!eng.trim() && !!ecg.trim() && !!ppg.trim() && !!oxy.trim(), 'a source is missing from env.sources');
+        T.ok(
+          'engine panel · BMI, BSA and RMR print an absent value',
+          /d\.bmi == null \? '— needs weight & height'/.test(eng) && /d\.bsa == null \? '— needs weight & height'/.test(eng) && /d\.rmr == null \? '— needs weight & height'/.test(eng),
+          'a derived tile still concatenates the raw value'
+        );
+        T.ok(
+          'ECGDex panel · all four body tiles refuse before calling toFixed on null',
+          /bmi == null \? '— needs weight & height' : bmi\.toFixed\(1\)/.test(ecg) &&
+            /ibw == null \? '— needs height' : ibw\.toFixed\(1\)/.test(ecg) &&
+            /bsa == null \? '— needs weight & height' : bsa\.toFixed\(2\)/.test(ecg) &&
+            /rmr == null \? '— needs weight & height' : rmr \+ ' kcal'/.test(ecg),
+          'a tile would throw on the refused null'
+        );
+        T.ok(
+          'PpgDex panel · all four body tiles refuse before calling toFixed on null',
+          /bmi == null \? '— needs weight & height' : bmi\.toFixed\(1\)/.test(ppg) &&
+            /ibw == null \? '— needs height' : ibw\.toFixed\(1\)/.test(ppg) &&
+            /bsa == null \? '— needs weight & height' : bsa\.toFixed\(2\)/.test(ppg) &&
+            /rmr == null \? '— needs weight & height' : rmr \+ ' kcal'/.test(ppg),
+          'a tile would throw on the refused null'
+        );
+        T.ok(
+          'OxyDex · all five body formulas refuse a non-positive term',
+          /if \(!\(UP\.weight > 0\) \|\| !\(UP\.height > 0\)\) return null;/.test(oxy) && /if \(!\(UP\.height > 0\)\) return null;/.test(oxy) && /rel > 0 && UP\.weight > 0 \?/.test(oxy),
+          (oxy.match(/function upBMI\(\) \{[^}]*\}/) || ['no upBMI'])[0]
+        );
+        T.ok('OxyDex · the BMI tile prints an absent value', /bmi == null \? '<b>BMI:<\/b> enter height &amp; weight'/.test(oxy), 'pd_bmi still concatenates the raw value');
+        T.ok('OxyDex · the height sublabel does not print `null m²`', /bsa == null \? '— \(enter height & weight\)' : bsa \+ ' m² \(DuBois\)'/.test(oxy), 'profileHtSub concatenates bsa raw');
+
+        // ── CONTROLS: what the old arms manufactured, and why a bare removal is not enough ──
+        T.eq('CONTROL · BMI 0 takes the Underweight branch', 0 < 18.5, true);
+        T.eq('CONTROL · the old Mifflin arm on 0 kg / 0 cm at age 49 published −240 kcal', 10 * 0 + 6.25 * 0 - 5 * 49 + 5, -240);
+        T.eq('CONTROL · the old Devine arm on a 0 height published the 50 kg base', 50 + 2.3 * Math.max(0, 0 / 2.54 - 60), 50);
+        T.eq('CONTROL · and 0.00 m² is what pow(0, 0.725) yields', Math.pow(0, 0.725), 0);
+      }
+    );
+
     group('OxyDex readiness composite — every scoring ladder, at both sides of each threshold', 'oxydex-dsp · karvonen · readiness · known-answer', function (T) {
       var O = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
       var K = O && O.computeKarvonenZones;
