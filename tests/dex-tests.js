@@ -43709,6 +43709,54 @@
        nearly the same level, the offsets come out [1, 0, -1], and at that size an operand swap, a
        dropped `Math.round` and a broken subtraction all look alike. At 90/110/130 the offsets are
        [+20, 0, -20] — signed, exact, and each one a different number from its negation. */
+    /* ════ ∅ · A WEAR'S LENGTH IS `cells × cadence`, AND THE CADENCE CAN BE NULL ════
+       `clean` publishes `cadence: null` beside its reason when no inter-sample delta lands in
+       (0,240) min. `detectSessions` then computed the wear's day count as `(e - s) * c.cadence`:
+       `null` multiplies to 0, so a nine-day wear published `days: 0.0` — a wear shorter than an hour,
+       a DIFFERENT claim from "not measured". The de-drift correction then re-centred each wear on
+       `days / 2` = 0, i.e. on its FIRST cell, and shifted every reading by `drift × span / 2`
+       (measured: mean 124 → 110 mg/dL over a 9-day wear drifting 3/day, reported `deDrifted: true`).
+       Both defects are one null read as a zero; the group pins the null AND the reader that ate it. */
+    group('GlucoDex ∅ — an unmeasured cadence leaves the session span null, and de-drift never pivots on a zero', 'glucodex-dsp · absence · session-span', function (T) {
+      var G = env.GLUDSP;
+      if (!G || typeof G.analyze !== 'function') {
+        T.ok('GLUDSP.analyze is available', false, 'not loaded');
+        return;
+      }
+      var day = 86400000,
+        t0 = Date.UTC(2026, 9, 1, 8, 0, 0);
+      var tMs = [],
+        vMgdl = [];
+      for (var i = 0; i < 10; i++) {
+        tMs.push(t0 + i * day);
+        vMgdl.push(110 + i * 3);
+      }
+      var r = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: t0 }, null, {});
+      var s = r.sessions[0];
+      T.eq('ANTI-VACUITY · 10 daily readings span exactly nine days', Math.round((s.endMs - s.startMs) / day), 9);
+      T.eq('…and that file measures NO cadence (the reachable absence)', JSON.stringify(r.cadence), 'null');
+      T.eq('…with its reason, so the null is not bare', JSON.stringify(r.cadenceReason), JSON.stringify('cadence-unmeasurable: no inter-sample delta in (0,240) min'));
+      T.ok('the session still carries a `days` KEY — absence readable, not missing', 'days' in s, 'keys=' + Object.keys(s).join(','));
+      T.eq('…and its value is NULL, never 0.0 days', JSON.stringify(s.days), 'null');
+      T.eq('…while the stamps the span IS measured from still travel (9 days)', Math.round((s.endMs - s.startMs) / day), 9);
+      T.eq('the minute totals beside it stay null too (already §∅)', JSON.stringify([r.activeMin, r.durDays]), '[null,null]');
+      var dr = G.analyze({ tMs: tMs.slice(), vMgdl: vMgdl.slice(), unit: 'mg/dL', t0Ms: t0 }, null, { deDrift: true });
+      T.ok('de-drift leaves a readable `deDrifted` verdict', 'deDrifted' in (dr.sessionCorr || {}), 'corr=' + JSON.stringify(dr.sessionCorr));
+      T.eq('…and it is FALSE, because no wear had a midpoint to re-centre on', dr.sessionCorr && dr.sessionCorr.deDrifted, false);
+      T.eq('…so the published mean is untouched by the request', JSON.stringify([dr.mean, dr.median, dr.max]), JSON.stringify([r.mean, r.median, r.max]));
+      T.eq('…and the session span is still null after the request', JSON.stringify(dr.sessions[0].days), 'null');
+      var t5 = [],
+        v5 = [];
+      for (var k = 0; k < 2 * 288 + 1; k++) {
+        t5.push(t0 + k * 5 * 60000);
+        v5.push(100 + (k % 40));
+      }
+      var q = G.analyze({ tMs: t5, vMgdl: v5, unit: 'mg/dL', t0Ms: t0 }, null, {});
+      T.eq('CONTROL · a measured 5-min cadence keeps a NUMBER of days', q.sessions[0].days, 2);
+      var qd = G.analyze({ tMs: t5.slice(), vMgdl: v5.slice(), unit: 'mg/dL', t0Ms: t0 }, null, { deDrift: true });
+      T.eq('CONTROL · de-drift over a measured wear still reports that it ran', qd.sessionCorr && qd.sessionCorr.deDrifted, true);
+    });
+
     group('GlucoDex cadence — unmeasurable is null with a reason, never 5 (§∅)', 'glucodex-dsp · absence', function (T) {
       var G = env.GLUDSP;
       if (!G || typeof G.analyze !== 'function') {
