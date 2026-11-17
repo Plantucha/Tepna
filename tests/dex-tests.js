@@ -44579,6 +44579,119 @@
         return pi >= 0 && e.gF[pi] === FLAG.GAP_LONG;
       });
       T.eq('no excursion peak sits on a GAP_LONG interpolated cell', onGap.length, 0);
+
+      /* §∅ THE ABSENCE DROP AT THE ANALYZE BOUNDARY (glucodex-dsp.js `_gdDropAbsent`).
+         `coreMetrics` rejects a null — the legs at the top of this group hold that — and it never
+         saw one, because the cleaner arithmetised an absent member into a finite 0 one function
+         earlier. `tools/null-fuzz.mjs --target glucodex` measured 130 failing assertions in 11
+         groups at 2026-11-17: an all-absent series published mean 0, sd 0, cv 0, GMI 3.3 % and
+         eA1c 1.6 %, and a partly absent series disagreed with its own absence-free twin on six
+         metrics. The drop sits in `analyze`, which is published on GLUDSP, so these legs drive both
+         the `compute` roads and the direct call. */
+      var GX = env.GlucoDex;
+      T.ok('GlucoDex.compute is wired for the absence-boundary legs', !!(GX && typeof GX.compute === 'function'));
+      if (GX && typeof GX.compute === 'function') {
+        var aT0 = Date.UTC(2026, 4, 10, 0, 0, 0);
+        var aT = [],
+          aV = [];
+        for (var ai = 0; ai < 288; ai++) {
+          aT.push(aT0 + ai * 300000);
+          aV.push(95 + 40 * Math.sin(ai / 9) + (ai % 7));
+        }
+        var allAbsent = 'published';
+        try {
+          var rBad = GX.compute({
+            tMs: aT.slice(),
+            vMgdl: aV.map(function () {
+              return null;
+            })
+          });
+          allAbsent = 'published mean ' + JSON.stringify(rBad.glucose.mean) + ' gmi ' + JSON.stringify(rBad.glucose.gmi);
+        } catch (_e) {
+          allAbsent = 'refused';
+        }
+        T.eq('288 absent readings refuse — they published mean 0 and GMI 3.3 %', allAbsent, 'refused');
+        var allAbsentAnalyze = 'published';
+        try {
+          var rA = G.analyze({
+            tMs: aT.slice(),
+            vMgdl: aV.map(function () {
+              return null;
+            }),
+            unit: 'mg/dL',
+            t0Ms: aT0
+          });
+          allAbsentAnalyze = 'published mean ' + JSON.stringify(rA.mean);
+        } catch (_e2) {
+          allAbsentAnalyze = 'refused';
+        }
+        T.eq('the published analyze() entry refuses the same frame, not just compute()', allAbsentAnalyze, 'refused');
+
+        // a partly absent series must read exactly as its absence-free twin: the nulls must not act
+        // as zeros, and they must not shift the cadence the cleaner derives either
+        var fV = aV.slice(),
+          planted = 0;
+        for (var fi = 5; fi < 288; fi += 7) {
+          fV[fi] = fi % 14 === 5 ? null : NaN;
+          planted++;
+        }
+        var cT = [],
+          cV = [];
+        for (var ci = 0; ci < 288; ci++) {
+          // `isFinite(null)` is TRUE (null coerces to 0), which is the same coercion this fix is
+          // about — the twin has to be built with a typeof guard or it carries the nulls too
+          if (typeof fV[ci] === 'number' && isFinite(fV[ci])) {
+            cT.push(aT[ci]);
+            cV.push(fV[ci]);
+          }
+        }
+        var rF = GX.compute({ tMs: aT.slice(), vMgdl: fV });
+        var rC = GX.compute({ tMs: cT, vMgdl: cV });
+        var mKeys = ['mean', 'sd', 'cv', 'gmi', 'ea1c', 'titr', 'lbgi', 'hbgi'];
+        var differ = mKeys.filter(function (k) {
+          return JSON.stringify(rF.glucose[k]) !== JSON.stringify(rC.glucose[k]);
+        });
+        T.eq('a partly absent series reads as its absence-free twin on all 8 metrics', differ.join(',') + '|' + differ.length, '|0');
+        T.eq('and the export reports the absence it dropped, out of band', rF.recording.nAbsentIn, planted);
+        T.eq('the twin carried none, and says so with 0 rather than null', JSON.stringify(rC.recording.nAbsentIn), '0');
+        T.eq('a fully measured frame publishes 0, never null', JSON.stringify(GX.compute({ tMs: aT.slice(), vMgdl: aV.slice() }).recording.nAbsentIn), '0');
+
+        // the canonical cgm SignalFrame road: the branch test reads samples[0].v only, so a frame
+        // that starts measured and goes absent later reached the cleaner with its nulls intact
+        var sm = [];
+        for (var si = 0; si < 288; si++) sm.push({ tMs: aT[si], v: si >= 3 && si % 5 === 3 ? null : aV[si] });
+        var rS = GX.compute({ samples: sm, unit: 'mg/dL' });
+        T.ok('the samples road counts the absent samples it dropped', rS.recording.nAbsentIn > 0, JSON.stringify(rS.recording.nAbsentIn));
+        T.ok('and still publishes a mean over the measured samples', typeof rS.glucose.mean === 'number' && isFinite(rS.glucose.mean), JSON.stringify(rS.glucose.mean));
+        // an absent first STAMP used to name the whole record's t0 (`t0Ms: sm[0].tMs`)
+        var sm2 = sm.slice();
+        sm2[0] = { tMs: null, v: aV[0] };
+        var rS2 = GX.compute({ samples: sm2, unit: 'mg/dL' });
+        T.eq('an absent first stamp does not become the record start', rS2.recording.startEpochMs, aT[1]);
+        /* And the shape test itself reads `samples[0].v` ONLY, so a frame whose FIRST READING is
+           absent does not look like a cgm SignalFrame at all and compute() refuses it as an
+           unrecognised shape. That refusal fabricates nothing, and this leg pins the message so the
+           next reader knows the road is closed rather than silently taking the text branch. */
+        var firstAbsent = 'accepted';
+        try {
+          var sm2b = sm.slice();
+          sm2b[0] = { tMs: aT[0], v: null };
+          GX.compute({ samples: sm2b, unit: 'mg/dL' });
+        } catch (_e4) {
+          firstAbsent = /need a CSV string/.test(_e4.message) ? 'refused as an unrecognised shape' : 'refused: ' + _e4.message;
+        }
+        T.eq('a samples frame whose first reading is absent refuses, it does not fabricate', firstAbsent, 'refused as an unrecognised shape');
+        var sm3 = sm.slice();
+        sm3[7] = null;
+        var threwOnNullSample = 'threw';
+        try {
+          var rS3 = GX.compute({ samples: sm3, unit: 'mg/dL' });
+          threwOnNullSample = rS3.recording.nAbsentIn > 0 ? 'dropped' : 'kept';
+        } catch (_e3) {
+          threwOnNullSample = 'threw';
+        }
+        T.eq('a null sample object is dropped, not dereferenced', threwOnNullSample, 'dropped');
+      }
     });
 
     /* ── THE TIME-IN-RANGE BAND EDGES ARE PINNED, NOT ASSUMED ──

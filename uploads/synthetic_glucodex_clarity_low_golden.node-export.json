@@ -15,6 +15,7 @@
     "contentId": "d7273db603e0",
     "startEpochMs": 1778371200000,
     "events": 2,
+    "nAbsentIn": 0,
     "coverage": {
       "kind": "continuous",
       "spanSec": 172500,
