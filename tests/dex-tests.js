@@ -2811,6 +2811,48 @@
         0
       );
     });
+    group('OxyDex ∅ — a clean run, a nadir density and a mean over zero events are not zero when nothing produced them', 'oxydex-dsp · absence · in-band-default', function (T) {
+      var _odI = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var OD = (_odI && _odI._bare) || _odI;
+      if (!OD || typeof OD.processNight !== 'function') {
+        T.ok('OxyDex.processNight is reachable (this group cannot run and must not read as a pass)', false, 'not loaded');
+        return;
+      }
+      var t0 = Date.UTC(2026, 0, 1, 22, 0, 0);
+      var mk = function (spo2, hr) {
+        var rows = [];
+        for (var i = 0; i < 900; i++) rows.push({ tMs: t0 + i * 1000, t: new Date(t0 + i * 1000), spo2: spo2, hr: hr, motion: 0 });
+        return rows;
+      };
+      /* ── 1 · PULSE ONLY. Fifteen minutes of measured HR at 60 bpm, and not one SpO2 sample: the
+         real shape of a finger-off night after the parser started carrying absence. Every value below
+         was measured through the module; the pre-fix reading is in each assertion's name. */
+      var pulseOnly = OD.processNight(mk(null, 60), 'pulse-only.csv');
+      var ex = pulseOnly.extras;
+      T.ok('a night with no SpO2 sample still carries an extras block', !!ex);
+      if (!ex) return;
+      T.ok('∅ · the clean-run KEY is present, so the null below is a value and not a missing field', 'longestCleanRun' in ex);
+      T.eq('∅ · a clean run over an unmeasured SpO2 channel is null, not 0 minutes', ex.longestCleanRun, null);
+      T.ok('∅ · the nadir-density KEY is present', 'nadirDensity' in ex);
+      T.eq('∅ · …and its rate is null, not 0.00/hr', ex.nadirDensity, null);
+      T.ok('∅ · the vagal KEY is present', 'vagal' in pulseOnly);
+      T.eq('∅ · so the vagal index refuses instead of publishing 0 labelled "Low" over no signal', pulseOnly.vagal, null);
+
+      /* ── 2 · MEASURED, NO DESATURATION. Nine hundred one-second samples at 97 %: the control that
+         the fix did not turn a measured night’s real zeros into nulls. */
+      var clean = OD.processNight(mk(97, 60), 'clean.csv');
+      T.ok('control · the measured night carries a nadir block', !!(clean.desat && clean.desat.nadir));
+      if (!clean.desat || !clean.desat.nadir) return;
+      var nd = clean.desat.nadir;
+      T.eq('control · zero desaturations is a MEASURED zero, and stays one', nd.count, 0);
+      T.eq('control · …and the clean run is the measured 15 min', clean.extras.longestCleanRun, 15);
+      T.eq('control · …and nadir density is a real 0.00/hr over measured time', clean.extras.nadirDensity, 0);
+      T.eq('control · …and the sibling meanRecovery already refused this way', nd.meanRecovery, null);
+      T.ok('∅ · the mean-depth KEY is present on the no-event night', 'meanDepth' in nd);
+      T.eq('∅ · a mean over zero events is null, not a 0 % mean depth', nd.meanDepth, null);
+      T.ok('∅ · the mean-duration KEY is present on the no-event night', 'meanDuration' in nd);
+      T.eq('∅ · …and its mean duration is null, not 0 s', nd.meanDuration, null);
+    });
     group('OxyDex §∅ — processNight reports an unmeasured SpO2/HR night as null, never 0', 'oxydex-dsp · absence-as-value · primary-builder', function (T) {
       var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var OD = (_od && _od._bare) || _od;
