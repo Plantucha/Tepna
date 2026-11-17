@@ -32,8 +32,12 @@
  *   --keep N         examples kept per group (default 3)
  *   --target NAME    oxydex (default) | pulsedex | glucodex | machinery. One target per run and per bundle;
  *                    a bundle records its target, so --summary/--resume pick it up. Add a DSP in TARGETS.
- *   --verdict-sample  print ONLY the tepna.verdict/1 object for a fixed two-night run (seed 1, bundle in the
- *                    OS temp dir) — the command tools/verdict-adoption.json runs. Exit code as a normal run.
+ *   --verdict-sample  print ONLY the tepna.verdict/1 object for a fixed two-night run of EVERY target
+ *                    (seed 1) — the command tools/verdict-adoption.json runs. ONE aggregate object under
+ *                    the gate `null-fuzz`, because that file keys a producer by tool path and carries one
+ *                    emits.cmd, so a sample that ran the default target alone left the other three out of
+ *                    CI. A normal run keeps its per-target `null-fuzz-<target>` object. Exit code as a
+ *                    normal run.
  *   --selftest       per target: a night with NO nulls must equal its own clean twin (the comparator is not
  *                    noisy), the P2 plant where one exists must red, and the P1 arm must carry a proof —
  *                    a `plantP1` that reds or a `noP1` declaration whose `p1()` stays empty.
@@ -334,6 +338,25 @@ function buildVerdict(b, s) {
   }
   return v;
 }
+/** The aggregate sample's status and reason, pure so `--selftest` can prove every branch.
+ *  Takes the counts, never the bundles: `targets` eligible, `iters` fuzzed nights actually run,
+ *  `failures` failing assertions, `absent` the targets that ran nothing, `fabricating` one
+ *  description per failing target. ∅ An unmeasured target is never a clean one, so a clean run
+ *  with an absent target is UNDERPOWERED, and a fabrication outranks an absence. */
+function sampleStatus({ targets, iters, failures, absent, fabricating }) {
+  if (iters === 0) return { status: 'NOT_RUN', reason: 'no target ran' };
+  if (failures > 0)
+    return {
+      status: 'FAIL',
+      reason: `fabrication in ${fabricating.length} of ${targets} target(s): ${fabricating.join('; ')}`
+    };
+  if (absent.length > 0)
+    return {
+      status: 'UNDERPOWERED',
+      reason: `${targets - absent.length} of ${targets} targets ran — clean so far, not the planned population (unmeasured: ${absent.join(', ')})`
+    };
+  return { status: 'PASS', reason: null };
+}
 function renderReport(b, s, v, narrative) {
   const L = [];
   const live = b.completed_seeds.length < b.seeds;
@@ -493,8 +516,8 @@ async function finish(b) {
   const narrative = NARRATE ? await narrate(b) : null;
   const report = renderReport(b, s, v, narrative);
   writeFileSync(REPORT_PATH, report);
-  if (SAMPLE) process.stdout.write(`${JSON.stringify(v)}\n`);
-  else process.stdout.write(report);
+  // --verdict-sample never reaches here: it runs every target below and emits one aggregate object.
+  process.stdout.write(report);
   return { s, v };
 }
 
@@ -1030,8 +1053,122 @@ if (has('selftest')) {
     if (ctl !== 0) bad++;
     console.log(`selftest ${name}: control (no nulls) ${ctl} failures${ctl === 0 ? ' ✓' : ' ✗ NOISY'}${plantMsg}`);
   }
+  /* ∅ The AGGREGATE sample's status mapping. `--verdict-sample` is the only command CI runs that
+     fuzzes anything, and it reports every target through one object, so a mapping that answered PASS
+     over an unmeasured or fabricating target would hide exactly what the fuzzer is for. The arms
+     below are the whole mapping, each with the population that drives it. */
+  const mapCases = [
+    { name: 'clean', arg: { targets: 4, iters: 8, failures: 0, absent: [], fabricating: [] }, status: 'PASS', inReason: null },
+    { name: 'fabricating', arg: { targets: 4, iters: 8, failures: 9, absent: [], fabricating: ['glucodex (9 assertion(s) in 5 group(s), 5 novel)'] }, status: 'FAIL', inReason: 'glucodex' },
+    { name: 'absent', arg: { targets: 4, iters: 6, failures: 0, absent: ['machinery'], fabricating: [] }, status: 'UNDERPOWERED', inReason: 'machinery' },
+    { name: 'fabrication outranks absence', arg: { targets: 4, iters: 6, failures: 1, absent: ['machinery'], fabricating: ['oxydex (1)'] }, status: 'FAIL', inReason: 'oxydex' },
+    { name: 'nothing ran', arg: { targets: 4, iters: 0, failures: 0, absent: ['oxydex', 'pulsedex', 'glucodex', 'machinery'], fabricating: [] }, status: 'NOT_RUN', inReason: 'no target ran' }
+  ];
+  const mapBad = [];
+  for (const c of mapCases) {
+    ran += 1;
+    const got = sampleStatus(c.arg);
+    const okStatus = got.status === c.status;
+    const okReason = c.inReason === null ? got.reason === null : typeof got.reason === 'string' && got.reason.includes(c.inReason);
+    if (!okStatus || !okReason) {
+      bad++;
+      mapBad.push(`${c.name}: want ${c.status}${c.inReason ? ` naming ${c.inReason}` : ' with no reason'}, got ${got.status} “${got.reason}”`);
+    }
+  }
+  console.log(`selftest aggregate status map: ${mapCases.length - mapBad.length}/${mapCases.length} arms ✓${mapBad.length ? ` ✗ ${mapBad.join(' | ')}` : ''}`);
   console.log(bad === 0 ? `selftest PASS — ${ran} assertions passed` : `selftest FAIL (${bad} of ${ran})`);
   process.exit(bad === 0 ? 0 : 1);
+}
+
+/* ── the CI sample: EVERY target, ONE aggregate object ─────────────────────
+ * tools/verdict-adoption.json keys a producer by tool PATH and holds one
+ * emits.cmd, so the sample is the only place where CI fuzzes this tool at all.
+ * A sample that ran the default target alone left pulsedex, glucodex and
+ * machinery reaching CI through --selftest only, whose control injects NO
+ * nulls and therefore cannot detect an absence fabrication by construction.
+ * So the sample now runs every TARGETS entry at the sample size and emits one
+ * object: gate `null-fuzz`, population counted in fuzzed nights across all
+ * targets, the per-target breakdown in result.targets, and a reason naming
+ * each fabricating target. A target that does not load reports iters_run 0
+ * and failures null — an unmeasured target is never a clean one — and holds
+ * the aggregate at UNDERPOWERED. A normal run keeps its own per-target
+ * `null-fuzz-<target>` object and its report. */
+if (SAMPLE) {
+  const names = Object.keys(TARGETS);
+  const perTarget = [];
+  const fabricating = [];
+  const absent = [];
+  let totalIters = 0;
+  let totalFailures = 0;
+  let totalGroups = 0;
+  let totalNovel = 0;
+  for (const [name, def] of Object.entries(TARGETS)) {
+    TARGET = name; // blankBundle(), resolveKnown() and the runners read the module-level target
+    KNOWN = resolveKnown();
+    bundle = blankBundle();
+    let r;
+    try {
+      r = def.setup(loadDsp(def.files));
+    } catch (e) {
+      perTarget.push({ target: name, iters_run: 0, failures: null, groups: null, novel: null, note: `setup failed: ${String(e.message).slice(0, 120)}` });
+      absent.push(name);
+      continue;
+    }
+    reseed(SEED_START);
+    seedFailures = [];
+    try {
+      for (const f of r.p1()) fail({ ...f, seed: SEED_START, iter: -1 });
+    } catch (e) {
+      fail({ property: 'P1', seed: SEED_START, iter: -1, metric: '(threw)', fuzzed: String(e.message).slice(0, 80), clean: null, note: 'p1 threw' });
+    }
+    for (let it = 0; it < ITERS; it++) {
+      try {
+        for (const f of r.p2()) fail({ ...f, seed: SEED_START, iter: it });
+      } catch (e) {
+        fail({ property: 'P2', seed: SEED_START, iter: it, metric: '(threw)', fuzzed: String(e.message).slice(0, 80), clean: null, note: 'target threw' });
+      } finally {
+        bundle.stats.iters_run++;
+      }
+    }
+    for (const f of seedFailures) addFailure(bundle, f);
+    seedFailures = [];
+    const s = buildSummary(bundle);
+    perTarget.push({ target: name, iters_run: bundle.stats.iters_run, failures: s.failures, groups: s.groups, novel: s.novel_groups.length, known: s.known_groups.length });
+    totalIters += bundle.stats.iters_run;
+    totalFailures += s.failures;
+    totalGroups += s.groups;
+    totalNovel += s.novel_groups.length;
+    if (s.failures > 0) fabricating.push(`${name} (${s.failures} assertion(s) in ${s.groups} group(s), ${s.novel_groups.length} novel)`);
+    if (bundle.stats.iters_run === 0) absent.push(name);
+  }
+  const plannedIters = names.length * ITERS;
+  const { status, reason } = sampleStatus({ targets: names.length, iters: totalIters, failures: totalFailures, absent, fabricating });
+  const agg = Verdict.make({
+    gate: 'null-fuzz',
+    status,
+    population: { checked: totalIters, eligible: plannedIters, excluded: Math.max(0, plannedIters - totalIters) },
+    criterion: { name: 'fabrication_groups', threshold: 0, unit: 'groups', direction: 'eq' },
+    result: {
+      targets: perTarget,
+      targets_run: names.length - absent.length,
+      targets_eligible: names.length,
+      iters_per_target: ITERS,
+      seed: SEED_START,
+      groups: totalGroups,
+      novel: totalNovel,
+      failures: totalFailures
+    },
+    evidence: ['tools/null-fuzz.mjs'],
+    reason,
+    producedBy: { tool: 'tools/null-fuzz.mjs', commit: null, commitReason: 'the sample writes no bundle; the commit is the checkout that ran it' }
+  });
+  const aggChk = Verdict.validate(agg);
+  if (!aggChk.ok) {
+    console.error(`verdict object INVALID: ${aggChk.errors.join('; ')}`);
+    process.exit(2);
+  }
+  process.stdout.write(`${JSON.stringify(agg)}\n`);
+  process.exit(status === 'PASS' ? 0 : 1);
 }
 
 const targetDef = TARGETS[TARGET];
