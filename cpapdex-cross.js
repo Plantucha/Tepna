@@ -270,7 +270,18 @@
       const psFloor = Math.max(psRaw, 1e-6 * Math.max(1, Math.abs(pm)));
       baselineSd = r1(psFloor);
       let z = (vals[n - 1] - pm) / psFloor;
-      if (!isFinite(z)) z = 0;
+      /* §∅ — AN UNMEASURABLE RATIO IS ABSENT, NEVER 0σ — the sibling of residue
+         `2026-11-11-crossnight-z-prints-a-saturated-clamp`. This read `if (!isFinite(z)) z = 0`, so a
+         baseline that produced no number at all published "the newest night sits exactly at your
+         baseline". It is reachable: `crossNight` reads `p.w` without a numeric check, and ONE
+         non-finite weight in the prior makes every weighted moment NaN — CPAPDex's own
+         `nightWeight` answers NaN for a non-numeric usage statement, and the legacy block path
+         hands it straight through, where one series read `zLatest 0` beside `baselineSd null`.
+         `zLatest` keeps `null` (its `zLatest != null` readers print an em dash and `zFlag` answers
+         null), and `zSaturated` stays false rather than claiming a clamp that never ran.
+         Same fix as `oxydex-cross.js` (unit `oxycross`); the six clones are graded against each
+         other, so a fallback in three of them is a fallback in the family. */
+      if (!isFinite(z)) z = null;
       /* A SATURATED BOUND IS NOT A MEASUREMENT (residue
          `2026-11-11-crossnight-z-prints-a-saturated-clamp`). The clamp above is a DISPLAY guard, so
          AT the bound the published number stops being the ratio it names: three steady recordings
@@ -282,8 +293,8 @@
          as "≥", and the projection in `crossnight-envelope.js` is hand-picked, so the field is
          invisible to the export until it is named there too. */
       const Z_SAT = 20;
-      zSaturated = Math.abs(z) > Z_SAT;
-      zLatest = r2(Math.max(-Z_SAT, Math.min(Z_SAT, z)));
+      zSaturated = z != null && Math.abs(z) > Z_SAT;
+      zLatest = z == null ? null : r2(Math.max(-Z_SAT, Math.min(Z_SAT, z)));
     }
     // significance
     const boot = bootstrapDeltaCI(vals);
