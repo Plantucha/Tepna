@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="dc9610ea822f" data-compute-hash="2fe232d285af">
+<html lang="en" data-manifest-hash="2558c3af8da9" data-compute-hash="9fef8fd129bd">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ESQkjSoYYCU+pERgKSMHNYg5XTIdL5asMqd0RnX+JEY=' 'sha256-GYeKJg9Ht0UATjCGGSxqImq9I8l616TYUUSN2yVjvUY=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-MfTmRPQyAUpqm7hPpBVTmqyqOvfKMXD1kKxywZ1Sc9o=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-W+rK8y+1cYa6Z+X29oFEt18aIuLICrAQUkCSrqlVGKE=' 'sha256-a30wD1q1DhXb/hp/9CiNJnGcfilKag1nrqd5UVk34sw=' 'sha256-al6Y47L6DjS948zFsA4a/jhCOnTvvG7ts9HX95Zrdvs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ESQkjSoYYCU+pERgKSMHNYg5XTIdL5asMqd0RnX+JEY=' 'sha256-GYeKJg9Ht0UATjCGGSxqImq9I8l616TYUUSN2yVjvUY=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Mb5s/1oAJ11rz2/gGSlZip6WjGPHkA51vOsZoxcnuqI=' 'sha256-MfTmRPQyAUpqm7hPpBVTmqyqOvfKMXD1kKxywZ1Sc9o=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-W+rK8y+1cYa6Z+X29oFEt18aIuLICrAQUkCSrqlVGKE=' 'sha256-a30wD1q1DhXb/hp/9CiNJnGcfilKag1nrqd5UVk34sw=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.34.0</title>
@@ -18573,8 +18573,16 @@ __exports.PpgDex = window.PpgDex;
   function ppgSessionT0(s) {
     return s && s.t0Ms != null ? s.t0Ms : null;
   }
+  /* §∅ — An unmeasured share answers `null`, never an in-band 0.05. The old `|| 0` arm sent an
+     absent share through the floor clamp, so the recording published as one MEASURED at 5 per
+     cent and no reader could tell the two apart (#6802). The envelope reads `null` as
+     UNMEASURED: it applies the same floor coefficient, flags the row `weightAbsent`, leaves
+     `lowQuality` null, and counts the rows in `window.weightAbsentCount`. The local floor clamp
+     stays, for parity with the five other providers. A measured 0 keeps the floor, because 0 is a
+     real share. */
   function ppgSessionWeight(s) {
-    return Math.max(0.05, ((s && s.analyzablePct) || 0) / 100);
+    const pct = s == null ? null : s.analyzablePct;
+    return typeof pct === 'number' && isFinite(pct) ? Math.max(0.05, pct / 100) : null;
   }
   function crossNightBlock(list) {
     if (global.CrossNightEnvelope) {
@@ -18596,14 +18604,20 @@ __exports.PpgDex = window.PpgDex;
     }
     // ── legacy fallback (pre-envelope flat shape) — only when the shared builder is ABSENT ──
     const sorted = [...list].sort((a, b) => (a.t0Ms || 0) - (b.t0Ms || 0));
-    const cov = sorted.map((s) => Math.max(0.05, (s.analyzablePct || 0) / 100));
+    /* §∅ — The fallback arm cannot answer `null`: `crossNight` reads `p.w != null ? p.w : 1`, so a
+       null weight becomes a FULL recording one layer down. So an absence keeps the floor COEFFICIENT
+       and travels on a flag beside the number, in the envelope's own vocabulary. */
+    const covAbsent = sorted.map((s) => typeof s.analyzablePct !== 'number' || !isFinite(s.analyzablePct));
+    const cov = sorted.map((s, i) => (covAbsent[i] ? 0.05 : Math.max(0.05, Math.min(1, s.analyzablePct / 100))));
     const out = { doc: 'night-to-night robust stats — same crossNight() engine as ECGDex/OxyDex', metrics: {} };
     for (const k in PPG_DEFS) {
       const ser = sorted.map((s, i) => ({ x: i, t: s.t0Ms, v: PPG_DEFS[k].get(s), w: cov[i] }));
       out.metrics[k] = crossNight(ser, { good: PPG_DEFS[k].good });
     }
-    out.nights = sorted.map((s) => ({
+    out.weightAbsentCount = covAbsent.filter(Boolean).length;
+    out.nights = sorted.map((s, i) => ({
       t0Ms: s.t0Ms,
+      ...(covAbsent[i] ? { weightAbsent: true } : {}),
       date: window.PPGDSP ? window.PPGDSP.fmtDate(s.t0Ms) : null,
       analyzablePct: s.analyzablePct,
       rmssd: s.rmssd,
