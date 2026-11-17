@@ -359,27 +359,60 @@ import { PPGUI } from './ppgdex-render.js';
      ankle, while every export said `wrist`. Nothing in the waveform recovers that, so it is never
      guessed; the wearer declares it once and it sticks per device layout.
 
-     Scope note: the choice is stored per SITE-LAYOUT ('wrist' = the 3-column strap), not per file,
-     because a strap does not move between files in a session. It is NOT applied retroactively to
-     already-exported JSON — those keep the siteSource they were written with, which is the honest
-     record of what was known at export time. */
+     Row 2026-11-15-ppgdex-site-declaration-shared-by-two-devices. The store held ONE bare site
+     string for every non-finger layout, and the layout names a device CLASS, never a unit. So a
+     second 3-column device inherited the first device's limb, and no second device could declare
+     its own. The key now holds a MAP from a device SCOPE to a site, and a recording outside that
+     map reads undeclared. One `localStorage` key still carries the whole store, which is what
+     keeps `DexForget.eraseAll` able to erase it by name — a per-recording KEY would have slipped
+     both that inventory and the suite's literal-key drift guard.
+
+     The scope is the Polar `model_id` prefix when the name carries one, so every file of one strap
+     shares its declaration. Any other name scopes to the file. A record with no name does not
+     persist, exactly as private mode does not.
+
+     A legacy bare-string value names no subject, so this reads it as absent rather than apply it to
+     a recording it may not describe. The wearer re-declares once, and the undeclared grade is the
+     honest `experimental` tier meanwhile.
+
+     Scope note: a declaration is NOT applied retroactively to already-exported JSON — those keep
+     the siteSource they were written with, which is the honest record of what was known at export
+     time. */
   const SITE_DECL_KEY = 'ppgdex_site_declared';
   const SITE_CHOICES = [
     { v: 'wrist', l: 'Wrist' },
     { v: 'ankle', l: 'Ankle' },
-    { v: 'upper-arm', l: 'Upper arm' }
+    { v: 'upper-arm', l: 'Upper arm' },
+    { v: 'forehead', l: 'Forehead' }
   ];
+  /* The scope a declaration is stored against. `POLAR_<model>_<id>_` is the anchored shape
+     `fnameStampMs` reads above, so two straps of one model stay distinct while one strap's files
+     stay together. */
+  function siteScope(r) {
+    const f = r && r.fname;
+    if (!f || typeof f !== 'string') return null;
+    const m = f.match(/^(POLAR_[A-Z0-9]+_[A-Z0-9]+)_/i);
+    return m ? m[1].toLowerCase() : f;
+  }
+  function siteDeclStore() {
+    try {
+      const raw = localStorage.getItem(SITE_DECL_KEY);
+      if (!raw) return {};
+      const o = JSON.parse(raw);
+      return o && typeof o === 'object' && !Array.isArray(o) ? o : {};
+    } catch {
+      return {};
+    }
+  }
   function declaredSite(r) {
     // The finger site is device-determined (a 1-column pleth IS an O2Ring ring) — nothing to
     // declare there. `!== 'finger'` rather than `=== 'wrist'` so a record already stamped 'ankle'
     // on a previous render still resolves its declaration instead of falling back to the default.
     if (!r || r.site === 'finger') return null;
-    try {
-      const v = localStorage.getItem(SITE_DECL_KEY);
-      return SITE_CHOICES.some((c) => c.v === v) ? v : null;
-    } catch {
-      return null;
-    }
+    const scope = siteScope(r);
+    if (!scope) return null;
+    const v = siteDeclStore()[scope];
+    return SITE_CHOICES.some((c) => c.v === v) ? v : null;
   }
   /* Stamp the declaration onto the RECORD, so the render path and the export cannot disagree about
      the site — buildNodeExport reads r.site / r.siteSource, and this is the single place either is
@@ -391,9 +424,14 @@ import { PPGUI } from './ppgdex-render.js';
     r.site = v;
     r.siteSource = 'declared';
   }
-  function setDeclaredSite(v) {
+  function setDeclaredSite(r, v) {
+    const scope = siteScope(r);
+    if (!scope) return;
     try {
-      if (v) localStorage.setItem(SITE_DECL_KEY, v);
+      const store = siteDeclStore();
+      if (v) store[scope] = v;
+      else delete store[scope];
+      if (Object.keys(store).length) localStorage.setItem(SITE_DECL_KEY, JSON.stringify(store));
       else localStorage.removeItem(SITE_DECL_KEY);
     } catch {
       /* private mode — the declaration simply does not persist */
@@ -429,7 +467,7 @@ import { PPGUI } from './ppgdex-render.js';
     const sel = $('siteDecl');
     if (sel)
       sel.onchange = () => {
-        setDeclaredSite(sel.value || null);
+        setDeclaredSite(r, sel.value || null);
         renderSession(r); // re-render: the badges are what the declaration changes
       };
   }
