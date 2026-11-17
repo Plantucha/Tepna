@@ -25,8 +25,8 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 175,
-  "fixed": 112,
+  "open": 170,
+  "fixed": 117,
   "accepted-with-reason": 3
  },
  "consumerCensus": {
@@ -749,7 +749,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 788,
-   "state": "open"
+   "state": "fixed",
+   "note": "pxProfile publishes an unentered age as null, so Tanaka refuses and the VO2 estimate refuses with it; an entered HRmax still wins, and only the ESTIMATE goes away with the age. A bare removal would have published VO2 base 0.0, because (15.3 * null) / 60 is 0 and not NaN. Plant: tests/dex-tests.js group '∅ PulseDex profile body terms — absent stays null, never a population mean', 26 of its 35 legs red on the pre-fix sources, plus 3 tanakaHRmax legs that sit in the render-harness group and red there too."
   },
   {
    "key": "27fed719ee6a",
@@ -758,7 +759,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 35,
-   "state": "open"
+   "state": "fixed",
+   "note": "pxProfile keeps an unentered age, weight and height null on BOTH of its paths, and every derived tile refuses and names the term it needs: BMI, BSA, IBW, BMR, HRmax, absolute VO2 and the Cooper percentile. The percentile also stopped reading an absent age as the 20s band, and the category stopped reading a refused percentile as the verdict Poor. Plant: tests/dex-tests.js group '∅ PulseDex profile body terms — absent stays null, never a population mean', 26 of its 35 legs red on the pre-fix sources, plus 3 tanakaHRmax legs that sit in the render-harness group and red there too."
   },
   {
    "key": "fb3dc0ff334b",
@@ -2110,7 +2112,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 806,
-   "state": "open"
+   "state": "fixed",
+   "note": "BOOKKEEPING ONLY: the code was fixed earlier, by #5137, which kept an absent profile elevation null at all four PulseDex sites; this row stayed open because no PR lowered it. Plant: tests/dex-tests.js group '∅ PulseDex profile elevation — absent stays null, never sea level', landed with that fix."
   },
   {
    "key": "bb5bdd974405",
@@ -2173,7 +2176,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 148,
-   "state": "open"
+   "state": "fixed",
+   "note": "the re-render road reads an absent age as null, the one Tanaka decision function tanakaHRmax refuses a null age (it returned a 208 bpm HRmax), and the metric table prints a dash for a refused VO2 base or adj instead of the word null. Plant: tests/dex-tests.js group '∅ PulseDex profile body terms — absent stays null, never a population mean', 26 of its 35 legs red on the pre-fix sources, plus 3 tanakaHRmax legs that sit in the render-harness group and red there too."
   },
   {
    "key": "baf049829de1",
@@ -2182,7 +2186,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 156,
-   "state": "open"
+   "state": "fixed",
+   "note": "BOOKKEEPING ONLY: the code was fixed earlier, by #5137, at the same time as the compute road above; the row stayed open because no PR lowered it. Plant: tests/dex-tests.js group '∅ PulseDex profile elevation — absent stays null, never sea level', landed with that fix."
   },
   {
    "key": "0c11a5099cd8",

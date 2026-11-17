@@ -135,6 +135,7 @@ function renderGraphs(r) {
 // single, TESTABLE function (§RN render-harness): the render module carried its OWN duplicate of the
 // 208−0.7·age formula, drift-prone vs the canonical ECGProfile copy and unpinnable by any gate.
 function tanakaHRmax(age) {
+  if (age == null || !isFinite(age)) return null; // §∅ — no age entered, so there is no estimate
   return Math.round(208 - 0.7 * age);
 }
 
@@ -145,7 +146,7 @@ function reRender() {
     // profile-dependent values (age · HRmax) recompute live so cards aren't stale
     const r = lastResult;
     const _pp = typeof pxProfile === 'function' ? pxProfile() : {};
-    const age = _pp.age || 40;
+    const age = _pp.age == null || !isFinite(_pp.age) ? null : +_pp.age; // §∅ — absent ≠ 40 years
     const tanaka = tanakaHRmax(age);
     const hrmaxIn = _pp.hrmax || 0;
     const rhrIn = _pp.rhr || 0;
@@ -156,8 +157,9 @@ function reRender() {
     r.hrmaxRejected = hrmaxIn > 0 && !hrmaxValid;
     r.elev = _pp.elev == null || !isFinite(_pp.elev) ? null : +_pp.elev; // §∅ — absent ≠ sea level
     r.altFactor = r.elev == null ? 1 : +altVO2Factor(r.elev).toFixed(3); // no elevation entered ⇒ no correction
-    r.vo2base = +(vo2Base(r.rhrEff, r.hrmaxEff) * r.altFactor).toFixed(1);
-    r.vo2adj = r.lnrmssd == null ? null : +vo2Adj(r.vo2base, r.lnrmssd).toFixed(1);
+    // §∅ — an absent HRmax gives no VO₂ estimate; `15.3 * null` is 0, which would read as measured
+    r.vo2base = r.hrmaxEff == null ? null : +(vo2Base(r.rhrEff, r.hrmaxEff) * r.altFactor).toFixed(1);
+    r.vo2adj = r.lnrmssd == null || r.vo2base == null ? null : +vo2Adj(r.vo2base, r.lnrmssd).toFixed(1);
     const gtIn = _pp.vo2gt;
     r.vo2gt = gtIn > 0 ? +Number(gtIn).toFixed(1) : null;
     renderContext(r);
@@ -270,8 +272,8 @@ function renderTable(r) {
     ],
     // SBP est / DBP est / HTN Pattern rows REMOVED 2026-06-22 (DEX-SUITE-EXTERNAL-REVIEW-v2 §🔴):
     // HRV→BP has no validity and these rendered unbadged after their registry entries were dropped.
-    ['VO₂ base', r.vo2base, 'ml/kg/min', '—', 'neutral', 'Uth–Sørensen HR ratio'],
-    ['VO₂ adj', r.vo2adj, 'ml/kg/min', '—', 'neutral', 'HRV-adjusted VO₂ proxy'],
+    ['VO₂ base', r.vo2base == null ? '—' : r.vo2base, 'ml/kg/min', '—', 'neutral', 'Uth–Sørensen HR ratio'],
+    ['VO₂ adj', r.vo2adj == null ? '—' : r.vo2adj, 'ml/kg/min', '—', 'neutral', 'HRV-adjusted VO₂ proxy'],
     ['VO₂ GT', r.vo2gt || '—', 'ml/kg/min', 'lab', 'neutral', 'Ground truth (if entered)'],
     ['Stress est', r.stress, '0–100', '<50', r.stress == null ? 'neutral' : r.stress <= 45 ? 'ok' : r.stress <= 60 ? 'warn' : 'bad', 'Welltory-style estimate'],
     ['HRV Score', r.hrv, '0–100', '>50', sc(r.hrv, 50, 35), 'Welltory-style estimate'],
