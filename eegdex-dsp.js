@@ -664,10 +664,18 @@
       i;
     for (i = 0; i < nEp; i++) {
       bands.push(epochBands(sig, i * spe, (i + 1) * spe, fs));
-      var ef = rec.emgFs || fs,
-        of = rec.eogFs || fs;
-      emgR.push(rec.emg ? rms(rec.emg, Math.round(i * EPOCH_SEC * ef), Math.round((i + 1) * EPOCH_SEC * ef)) : null);
-      eogR.push(rec.eog ? rms(rec.eog, Math.round(i * EPOCH_SEC * of), Math.round((i + 1) * EPOCH_SEC * of)) : null);
+      /* ∅ — A RATE WE DO NOT HAVE IS NOT THE EEG RATE. `rec.emgFs || fs` read an EMG or EOG lead of
+         undeclared rate at the EEG's rate, which multiplies every window bound by the ratio of the two:
+         measured on one 480 s synthetic frame, an EMG lead at 25 Hz read at 100 Hz covered only the first
+         four epochs and left twelve with no tone, so the stager's permissive `== null` arm drove them
+         into REM — 8 REM epochs instead of the 3 a declared `emgFs: 25` produces, TST 0.117 h instead of
+         0.108, SE 87.5 instead of 81.3. An undeclared (or non-positive) rate now makes the leg ABSENT,
+         which is a state these arms already model, instead of inventing a rate the caller never stated.
+         `rec.emgFs`/`eogFs` in the contract at the top of this block is what a caller declares. */
+      var ef = rec.emgFs > 0 ? rec.emgFs : null,
+        of = rec.eogFs > 0 ? rec.eogFs : null;
+      emgR.push(rec.emg && ef != null ? rms(rec.emg, Math.round(i * EPOCH_SEC * ef), Math.round((i + 1) * EPOCH_SEC * ef)) : null);
+      eogR.push(rec.eog && of != null ? rms(rec.eog, Math.round(i * EPOCH_SEC * of), Math.round((i + 1) * EPOCH_SEC * of)) : null);
     }
     /* per-recording normalisation — see the stager's note on absolute thresholds */
     var emgMed = median(emgR),
@@ -735,6 +743,12 @@
       /* The spindle answer over the epochs THIS function staged, so the density and the hypnogram
          it is a density over can never come from two different stagings. */
       spindles: detectSpindles(sig, fs, hypnogram),
+      /* ∅ · a lead the caller passed but could not be read, each with its own reason. A lead the
+         caller never passed is not listed: that is a frame without the lead, not a refusal. */
+      leadAbsence: {
+        emg: rec.emg && !(rec.emgFs > 0) ? 'emg-rate-undeclared' : null,
+        eog: rec.eog && !(rec.eogFs > 0) ? 'eog-rate-undeclared' : null
+      },
       quality: {
         analyzablePct: +((100 * scored) / nEp).toFixed(1),
         nUnscorable: nNull
