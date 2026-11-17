@@ -610,7 +610,10 @@ function parseWelltoryCSV(txt) {
 function findWTRow(dateStr) {
   if (!welltoryData || !welltoryData.rows.length) return null;
   const match = welltoryData.rows.find((r) => (r[0] || '').slice(0, 10) === dateStr);
-  return match || welltoryData.rows[0];
+  /* ∅ — NO ROW FOR THIS DATE IS NULL, NEVER ANOTHER DAY'S ROW. The fallback returned
+     `welltoryData.rows[0]`, so a recording with no same-day reference was drawn beside the FIRST
+     row of the log, under a caption reading "same day". Nothing distinguished it from a match. */
+  return match || null;
 }
 
 // ─── ACTIONS ──────────────────────────────────────────────────────────────────

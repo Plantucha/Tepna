@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="ed82e695cf1c" data-compute-hash="fa9c05fc2d07"><head>
+<html lang="en" data-manifest-hash="75cd7c984861" data-compute-hash="fa9c05fc2d07"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-73I9zddw3MGywut28p68vwrlHD+uz63tD3g0rTO2Ad8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-7QtTVzqMyqS1BK+GMi6PXbFqQke2DuH3rtRrVWV6RXc=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BOMugTEuReq3WxdS1LfEIbRCSQ8HYa0kCcFGTrgE+5k=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-sT1+vtq8jPdjKLkkjRhD7sO4xD2UufB5H3vGsoX0ImA=' 'sha256-wtJN8xtR89LNNOj5mqnsH6ASsaMTM6LsFtBRUvfWt9E=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-73I9zddw3MGywut28p68vwrlHD+uz63tD3g0rTO2Ad8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-Vh4NGXhRdDPT/oFgxxGvxM+Si2nd9MAgmKJidn1gZ0M=' 'sha256-aNYl8fbPzUjU62k8Nx2oQlFqOdv+V7iuo91Hhfs1ZPU=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-sT1+vtq8jPdjKLkkjRhD7sO4xD2UufB5H3vGsoX0ImA=' 'sha256-wtJN8xtR89LNNOj5mqnsH6ASsaMTM6LsFtBRUvfWt9E=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.34.0</title>
@@ -10647,6 +10647,14 @@ function wtRowObj(r) {
   };
 }
 
+// ∅ — the reference caption states WHICH day the row came from, or that no row matched.
+// Hoisted so the suite pins it without a DOM: `findWTRow` refuses an unmatched date, and the
+// caption is the only place a reader learns that the comparison column is empty for that reason.
+function wtRefLabel(dateStr, matched) {
+  const d = dateStr || 'an unstamped recording';
+  return matched ? '\uD83D\uDCF1 WELLTORY export \u2014 ' + d + ' (matched)' : '\uD83D\uDCF1 WELLTORY export \u2014 no row for ' + d;
+}
+
 function renderWTTable(r) {
   const obj = wtRowObj(r);
   const dateStr = (r.datetime || '').slice(0, 10);
@@ -10661,7 +10669,7 @@ function renderWTTable(r) {
   document.getElementById('wtBody').innerHTML =
     `<tr class="wt-row-label"><td colspan="${WT_COLS.length}">📊 PULSEDEX — this measurement${r.longRec ? ' (per-window medians)' : ''}</td></tr>` +
     `<tr class="wt-row-raw">${rawCols.map((c) => `<td>${escapeHTML(c)}</td>`).join('')}</tr>` +
-    `<tr class="wt-row-label"><td colspan="${WT_COLS.length}">📱 WELLTORY export — same day, if matched</td></tr>` +
+    `<tr class="wt-row-label"><td colspan="${WT_COLS.length}">${escapeHTML(wtRefLabel(dateStr, !!wtRow))}</td></tr>` +
     `<tr class="wt-row-wt">${wtCols.map((c) => `<td>${escapeHTML(c)}</td>`).join('')}</tr>`;
   document.getElementById('wtWrap').classList.add('show');
   document.getElementById('slWT').style.display = 'flex';
@@ -10891,6 +10899,7 @@ Object.assign(window, {
   renderANS,
   renderTable,
   wtRowObj,
+  wtRefLabel,
   renderWTTable,
   pulseRenderReview,
   pulseClearReview,
@@ -15157,7 +15166,10 @@ function parseWelltoryCSV(txt) {
 function findWTRow(dateStr) {
   if (!welltoryData || !welltoryData.rows.length) return null;
   const match = welltoryData.rows.find((r) => (r[0] || '').slice(0, 10) === dateStr);
-  return match || welltoryData.rows[0];
+  /* ∅ — NO ROW FOR THIS DATE IS NULL, NEVER ANOTHER DAY'S ROW. The fallback returned
+     `welltoryData.rows[0]`, so a recording with no same-day reference was drawn beside the FIRST
+     row of the log, under a caption reading "same day". Nothing distinguished it from a match. */
+  return match || null;
 }
 
 // ─── ACTIONS ──────────────────────────────────────────────────────────────────
