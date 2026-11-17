@@ -31690,7 +31690,7 @@
           hostMs += (1000 / 128) * gapLen;
           skipped = gapLen;
         }
-        lines.push(row(counter, eegRecord(index, tick % M.TICK_MOD, i), hostMs + (o.jitterHost ? Math.round((rnd() - 0.5) * 12) : 0), tick * 100));
+        lines.push(row(counter, eegRecord(index, Math.floor(((tick * 100) % M.WRAP_NS) / 100), i), hostMs + (o.jitterHost ? Math.round((rnd() - 0.5) * 12) : 0), tick * 100));
         index = (index + 1) & 0xff;
         counter = (counter + 1 + skipped) & 0xff;
         skipped = 0;
@@ -31730,17 +31730,38 @@
       T.eq('a repeated counter reads as 255 lost, not as 0', M.lostBetween(5, 5), 255);
       T.eq('the first frame of a chain loses nothing', M.lostBetween(null, 9), 0);
 
-      T.eq('a one-tick step across the 24-bit wrap is one tick', M.tickSeconds(M.TICK_MOD - 1, 0), 1 / M.TICK_HZ);
-      /* The clock unwraps with a SIGNED half-modulus step, so it follows the shorter path. A forward
-         wrap accumulates; a backward step of one tick reads as -1 and not as the whole modulus. A
-         silence longer than the half-modulus therefore aliases, which is why a gap is counted from
-         the record index and never from the clock. */
+      /* THE DEVICE CLOCK FOLDS AT 2^28 ns, which is 2 684 354.56 ticks: no integer tick count. Measured
+         2026-11-16 on one 632 s session, 2779 EEG folds: 1567 imply 2 684 355 ticks and 1212 imply
+         2 684 354 (share 0.564, the fraction of 2^28/100). A 2^24 fold read each one as a step back. */
+      T.eq('the fold is 2^28 ns at 100 ns per tick', [M.WRAP_NS, M.NS_PER_TICK].join(), '268435456,100');
+      var top = Math.floor(M.WRAP_NS / 100);
+      T.eq('a step across the fold is the ns left to it plus the ticks after it', M.tickSeconds(top, 0), (M.WRAP_NS - top * 100) / 1e9);
+      /* Three consecutive EEG records from a recorded session, one record (78 125 ticks) apart, each
+         across a fold. The last carries the tick one fold above the modulus. */
+      [
+        [2746625, 140395],
+        [2952895, 346666],
+        [112291, 2874770]
+      ].forEach(function (pr) {
+        var c = new M.TickClock();
+        c.feed(pr[0]);
+        T.ok('recorded pair ' + pr + ' steps one record forward', Math.abs(c.feed(pr[1]) - pr[0] * 100 - 7812500) < 100);
+      });
+      /* The clock unwraps with a SIGNED half-fold step, so it follows the shorter path. A forward fold
+         accumulates; a slightly older record steps back and never forward by a whole fold. A silence
+         longer than half a fold therefore aliases, which is why a gap is counted from the record index
+         and never from the clock. */
       var ck = new M.TickClock();
-      ck.feed(M.TICK_MOD - 500);
-      T.eq('a forward wrap accumulates across the modulus', ck.feed(500), M.TICK_MOD - 500 + 1000);
+      ck.feed(top);
+      T.eq('a forward fold accumulates across the modulus, in ns', ck.feed(5), M.WRAP_NS + 500);
+      T.eq('a slightly older record steps back, never forward a fold', ck.feed(1), M.WRAP_NS + 100);
       var ck2 = new M.TickClock();
       ck2.feed(0);
-      T.eq('a one-tick step backwards reads as -1, not as the modulus', ck2.feed(M.TICK_MOD - 1), -1);
+      T.eq('a one-tick step backwards reads as -100 ns, not as the fold', ck2.feed(top), top * 100 - M.WRAP_NS);
+      var ck3 = new M.TickClock();
+      ck3.feed(0);
+      /* 2^25 ticks is 2^27 + 12 * 2^28 ns: EXACTLY half a fold past the modulus, which reads as a step back. */
+      T.eq('exactly half a fold forward reads as a step back', ck3.feed(33554432), -M.WRAP_NS / 2);
 
       /* Every tokenise refusal is NAMED. A packet that cannot be read is never a packet with no
          records: the first would hide a framing bug behind an empty answer. */
@@ -31840,7 +31861,8 @@
       T.eq('the measured rate is the same under both host columns', jit.fs, got.fs);
 
       /* ── THE DEVICE COLUMN IS DRAWN, SO THE RATE IS A DECLARATION READ BACK ────────────────────
-         Measured 2026-11-15: `drawnShare` 0.9999 — the record tick advances by ONE constant, which
+         Measured 2026-11-15: `drawnShare` 0.9999 (0.970 since the 2^28 ns fold, below) — the record
+         tick advances by ONE constant, which
          is what `clock.js` reads as a synthesised counter rather than a clock (CK_AXIS_DRAWN_SHARE).
          So the rate this reader publishes is the cadence the device DECLARES through its own
          counter, and not an independent measurement of it. `fsBasis.source` is the field that says
@@ -31849,7 +31871,11 @@
          `deviceDrawn`: a summary carrying `ok` and `independent` ALONE leaves that builder's `drawn`
          null, and its own comment calls the result an under-claim to `host`. */
       T.eq('the device tick column is DRAWN - a counter, not a clock', got.hostAxis.deviceDrawn, true);
-      T.ok('...and the share it read that verdict from travels beside it', got.hostAxis.drawnShare > 0.99, 'drawnShare = ' + got.hostAxis.drawnShare);
+      /* The share sits near 1 - 1/34.4, not at 1: the tick field holds whole ticks and the clock folds
+         at 2^28 ns (2 684 354.56 ticks), so the step across each fold differs from the others. One fold
+         falls every 34.4 EEG records. Measured 2026-11-16 on this stream: 0.970 (0.9999 under the old
+         2^24-tick fold). */
+      T.ok('...and the share it read that verdict from travels beside it', got.hostAxis.drawnShare > 0.96 && got.hostAxis.drawnShare < 0.98, 'drawnShare = ' + got.hostAxis.drawnShare);
       T.eq('...so the rate names its basis rather than claiming a measurement', got.fsBasis.source, 'device-tick-median');
       T.ok(
         'the drawn verdict carries the spine own sentence, not a borrowed one',

@@ -9,7 +9,7 @@
 # `briefs/MUSE-ATHENA-PROTOCOL-2026-11-14-BRIEF.md`. No third-party decoder source was read or copied.
 #
 # What is MEASURED (brief §2): the packet frame, the five record tags and their sizes, the per-tag
-# record index, the 24-bit device tick, and the bit packing of the optics and motion records.
+# record index, the 24-bit device tick field, and the bit packing of the optics and motion records.
 # Measured on the worn probe of 2026-11-14 (brief §6): the GATT table, the control channel and its
 # start sequence, the battery in record 0x88, the EEG record as 2 samples x 8 channels, and the sizes
 # of three more tags (0x11, 0x34, 0x35). Those three have layouts INFERRED from their sizes only, so
@@ -32,7 +32,7 @@ CHAR_0015 = "273e0015-4c4d-454d-96be-f03bac821358"  # write-without-response + n
 NOTIFY_CHARS = (CONTROL_CHAR, DATA_CHAR, CHAR_0014, CHAR_0015)
 
 HEADER_LEN = 9  # [length u8][packet counter u8][7 bytes, see brief §2.1]
-RECORD_HEAD = 5  # [tag u8][record index u8][device tick, 24 bit little-endian]
+RECORD_HEAD = 5  # [tag u8][record index u8][device tick field, 24 bit little-endian]
 
 TAG_EEG = 0x12
 TAG_OPTICS = 0x36
@@ -59,7 +59,11 @@ RECORD_SIZE = {
 }
 
 TICK_HZ = 10_000_000  # device ticks per second: 78 125 per EEG record at 128 records/s (brief §2.4)
-TICK_MOD = 1 << 24  # the tick field wraps every 1.6777 s
+NS_PER_TICK = 1_000_000_000 // TICK_HZ  # 100 ns per tick
+# The device clock folds every 2^28 ns (0.268 s), which is 2 684 354.56 ticks: no integer tick count.
+# Measured on one 632 s session, 2779 EEG folds: 1567 imply 2 684 355 ticks, 1212 imply 2 684 354
+# (share 0.564, the fraction of 2^28/100). In ns the modulus is an exact integer, so the unwrap runs in ns.
+WRAP_NS = 1 << 28
 
 EEG_FIELDS = 16  # 14-bit, LSB-first: 2 samples x 8 channels, sample after sample (brief §6.5)
 EEG_WIDTH = 14
@@ -78,7 +82,7 @@ MOTION_SAMPLES = 3
 class Record:
     tag: int
     index: int  # per-tag counter, +1 modulo 256 from one record of this tag to the next
-    tick: int  # low 24 bits of the device clock, TICK_HZ units
+    tick: int  # the device clock in TICK_HZ units, folded at 2^28 ns (see WRAP_NS)
     data: bytes
 
 
@@ -135,8 +139,8 @@ def lost_between(prev: int | None, cur: int) -> int:
 
 
 def tick_seconds(prev: int, cur: int) -> float:
-    """Device time from one tick to a later one, in seconds, across at most one wrap."""
-    return ((cur - prev) % TICK_MOD) / TICK_HZ
+    """Device time from one tick to a later one, in seconds, across at most one 2^28 ns fold."""
+    return ((cur - prev) * NS_PER_TICK % WRAP_NS) / 1e9
 
 
 def unpack_lsb(data: bytes, width: int, signed: bool = False) -> list[int]:
@@ -198,30 +202,33 @@ def frame_counter(pkt: bytes) -> int | None:
 
 
 class TickClock:
-    """The 24-bit device tick unwrapped into a running count of ticks.
+    """The device tick unwrapped into a running device time in nanoseconds.
 
-    Each step is read as a SIGNED step of less than half the modulus (0.84 s), so a packet whose first
-    record is a little older than the last packet's steps back a little and never forward by a whole
-    wrap. A real silence longer than 0.84 s aliases by a multiple of 1.68 s. The host stamp beside each
-    row still carries the true gap, and the seam sidecar compares the two clocks."""
+    The tick field folds at 2^28 ns, so the clock works in ns, where the modulus is an exact integer.
+    Each step is read as a SIGNED step of less than half the modulus (0.134 s). A record a little older
+    than the last read steps back a little and never forward by a whole fold. A packet can carry a tick
+    one fold above the modulus, and the signed step absorbs it. A real silence longer than 0.134 s
+    aliases by a multiple of 0.268 s. The host stamp beside each row still carries the true gap, and
+    the seam sidecar compares the two clocks."""
 
     def __init__(self) -> None:
-        self.ticks: int | None = None
+        self.ns_now: int | None = None
 
     def feed(self, tick: int) -> int:
-        # `ticks` is congruent to the last tick modulo TICK_MOD, so it is its own previous tick.
-        if self.ticks is None:
-            self.ticks = tick
+        """The unwrapped device time of `tick` in ns, exact to within the 100 ns of one tick."""
+        v = tick * NS_PER_TICK
+        if self.ns_now is None:
+            self.ns_now = v
         else:
-            step = (tick - self.ticks) % TICK_MOD
-            if 2 * step >= TICK_MOD:  # half a wrap or more forward reads as a step back
-                step -= TICK_MOD
-            self.ticks += step
-        return self.ticks
+            step = (v - self.ns_now) % WRAP_NS
+            if 2 * step >= WRAP_NS:  # half a fold or more forward reads as a step back
+                step -= WRAP_NS
+            self.ns_now += step
+        return self.ns_now
 
     def ns(self, tick: int) -> int:
-        """The unwrapped device time of `tick` in nanoseconds: 100 ns per tick at 10 MHz."""
-        return self.feed(tick) * 1_000_000_000 // TICK_HZ
+        """The same read as `feed`, under the name the recorder calls."""
+        return self.feed(tick)
 
 
 # ── The control channel (brief §6.3) ──────────────────────────────────────────────────────────────

@@ -58,7 +58,12 @@
   RECORD_SIZE[TAG_35] = 45;
 
   var TICK_HZ = 10000000; // device ticks per second (brief §2.4)
-  var TICK_MOD = 1 << 24; // the tick field wraps every 1.6777 s
+  var NS_PER_TICK = 1000000000 / TICK_HZ; // 100 ns per tick
+  /* The device clock folds every 2^28 ns (0.268 s), which is 2 684 354.56 ticks: no integer tick
+     count. Measured on one 632 s session, 2779 EEG folds: 1567 imply 2 684 355 ticks and 1212 imply
+     2 684 354 (share 0.564, the fraction of 2^28/100). In ns the modulus is an exact integer, so
+     the unwrap runs in ns. The Python twin is `muse_athena.WRAP_NS`. */
+  var WRAP_NS = 268435456;
 
   var EEG_FIELDS = 16, // 14-bit, LSB-first: 2 samples x 8 channels, sample after sample (§6.5)
     EEG_WIDTH = 14,
@@ -169,33 +174,35 @@
     return (((cur - prev - 1) % 256) + 256) % 256;
   }
 
-  /* Device time from one tick to a later one, in seconds, across at most one wrap. */
+  /* Device time from one tick to a later one, in seconds, across at most one 2^28 ns fold. */
   function tickSeconds(prev, cur) {
-    return ((((cur - prev) % TICK_MOD) + TICK_MOD) % TICK_MOD) / TICK_HZ;
+    return (((((cur - prev) * NS_PER_TICK) % WRAP_NS) + WRAP_NS) % WRAP_NS) / 1e9;
   }
 
-  /* The 24-bit device tick unwrapped into a running count of ticks. Each step is read as
-     a SIGNED step of less than half the modulus (0.84 s), so a packet whose first record
-     is a little older than the last packet's steps back a little and never forward by a
-     whole wrap. A real silence longer than 0.84 s ALIASES by a multiple of 1.68 s — the
-     host stamp beside each row carries the true gap, which is why a node reads the rate
-     from `DexClock.hostAxis` and not from this counter. */
+  /* The device tick unwrapped into a running device time in NANOSECONDS. The tick field folds at
+     2^28 ns, so the clock works in ns, where the modulus is an exact integer. Each step is read as a
+     SIGNED step of less than half the modulus (0.134 s), so a record a little older than the last
+     read steps back a little and never forward by a whole fold. A packet can carry a tick one fold
+     above the modulus, and the signed step absorbs it. A real silence longer than 0.134 s ALIASES by
+     a multiple of 0.268 s — the host stamp beside each row carries the true gap, which is why a node
+     reads the rate from `DexClock.hostAxis` and not from this counter. */
   function TickClock() {
-    this.ticks = null;
-    this._prev = null;
+    this.nsNow = null;
   }
+  /* The unwrapped device time of `tick` in ns, exact to within the 100 ns of one tick. */
   TickClock.prototype.feed = function (tick) {
-    if (this._prev == null || this.ticks == null) this.ticks = tick;
+    var v = tick * NS_PER_TICK;
+    if (this.nsNow == null) this.nsNow = v;
     else {
-      var half = TICK_MOD / 2;
-      this.ticks += ((((tick - this._prev + half) % TICK_MOD) + TICK_MOD) % TICK_MOD) - half;
+      var step = (((v - this.nsNow) % WRAP_NS) + WRAP_NS) % WRAP_NS;
+      if (2 * step >= WRAP_NS) step -= WRAP_NS; // half a fold or more forward reads as a step back
+      this.nsNow += step;
     }
-    this._prev = tick;
-    return this.ticks;
+    return this.nsNow;
   };
-  /* The unwrapped device time of `tick` in nanoseconds: 100 ns per tick at 10 MHz. */
+  /* The same read as `feed`, under the name the Python recorder calls. */
   TickClock.prototype.ns = function (tick) {
-    return this.feed(tick) * (1000000000 / TICK_HZ);
+    return this.feed(tick);
   };
 
   /* ── THE FIELDS ───────────────────────────────────────────────────────────────────
@@ -318,7 +325,8 @@
     TAG_MOTION: TAG_MOTION,
     TAG_BATTERY: TAG_BATTERY,
     TICK_HZ: TICK_HZ,
-    TICK_MOD: TICK_MOD,
+    NS_PER_TICK: NS_PER_TICK,
+    WRAP_NS: WRAP_NS,
     EEG_WIDTH: EEG_WIDTH,
     EEG_CHANNELS: EEG_CHANNELS,
     EEG_SAMPLES: EEG_SAMPLES,
