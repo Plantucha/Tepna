@@ -43709,6 +43709,54 @@
        nearly the same level, the offsets come out [1, 0, -1], and at that size an operand swap, a
        dropped `Math.round` and a broken subtraction all look alike. At 90/110/130 the offsets are
        [+20, 0, -20] — signed, exact, and each one a different number from its negation. */
+    /* ════ ∅ · A WEAR'S LENGTH IS `cells × cadence`, AND THE CADENCE CAN BE NULL ════
+       `clean` publishes `cadence: null` beside its reason when no inter-sample delta lands in
+       (0,240) min. `detectSessions` then computed the wear's day count as `(e - s) * c.cadence`:
+       `null` multiplies to 0, so a nine-day wear published `days: 0.0` — a wear shorter than an hour,
+       a DIFFERENT claim from "not measured". The de-drift correction then re-centred each wear on
+       `days / 2` = 0, i.e. on its FIRST cell, and shifted every reading by `drift × span / 2`
+       (measured: mean 124 → 110 mg/dL over a 9-day wear drifting 3/day, reported `deDrifted: true`).
+       Both defects are one null read as a zero; the group pins the null AND the reader that ate it. */
+    group('GlucoDex ∅ — an unmeasured cadence leaves the session span null, and de-drift never pivots on a zero', 'glucodex-dsp · absence · session-span', function (T) {
+      var G = env.GLUDSP;
+      if (!G || typeof G.analyze !== 'function') {
+        T.ok('GLUDSP.analyze is available', false, 'not loaded');
+        return;
+      }
+      var day = 86400000,
+        t0 = Date.UTC(2026, 9, 1, 8, 0, 0);
+      var tMs = [],
+        vMgdl = [];
+      for (var i = 0; i < 10; i++) {
+        tMs.push(t0 + i * day);
+        vMgdl.push(110 + i * 3);
+      }
+      var r = G.analyze({ tMs: tMs, vMgdl: vMgdl, unit: 'mg/dL', t0Ms: t0 }, null, {});
+      var s = r.sessions[0];
+      T.eq('ANTI-VACUITY · 10 daily readings span exactly nine days', Math.round((s.endMs - s.startMs) / day), 9);
+      T.eq('…and that file measures NO cadence (the reachable absence)', JSON.stringify(r.cadence), 'null');
+      T.eq('…with its reason, so the null is not bare', JSON.stringify(r.cadenceReason), JSON.stringify('cadence-unmeasurable: no inter-sample delta in (0,240) min'));
+      T.ok('the session still carries a `days` KEY — absence readable, not missing', 'days' in s, 'keys=' + Object.keys(s).join(','));
+      T.eq('…and its value is NULL, never 0.0 days', JSON.stringify(s.days), 'null');
+      T.eq('…while the stamps the span IS measured from still travel (9 days)', Math.round((s.endMs - s.startMs) / day), 9);
+      T.eq('the minute totals beside it stay null too (already §∅)', JSON.stringify([r.activeMin, r.durDays]), '[null,null]');
+      var dr = G.analyze({ tMs: tMs.slice(), vMgdl: vMgdl.slice(), unit: 'mg/dL', t0Ms: t0 }, null, { deDrift: true });
+      T.ok('de-drift leaves a readable `deDrifted` verdict', 'deDrifted' in (dr.sessionCorr || {}), 'corr=' + JSON.stringify(dr.sessionCorr));
+      T.eq('…and it is FALSE, because no wear had a midpoint to re-centre on', dr.sessionCorr && dr.sessionCorr.deDrifted, false);
+      T.eq('…so the published mean is untouched by the request', JSON.stringify([dr.mean, dr.median, dr.max]), JSON.stringify([r.mean, r.median, r.max]));
+      T.eq('…and the session span is still null after the request', JSON.stringify(dr.sessions[0].days), 'null');
+      var t5 = [],
+        v5 = [];
+      for (var k = 0; k < 2 * 288 + 1; k++) {
+        t5.push(t0 + k * 5 * 60000);
+        v5.push(100 + (k % 40));
+      }
+      var q = G.analyze({ tMs: t5, vMgdl: v5, unit: 'mg/dL', t0Ms: t0 }, null, {});
+      T.eq('CONTROL · a measured 5-min cadence keeps a NUMBER of days', q.sessions[0].days, 2);
+      var qd = G.analyze({ tMs: t5.slice(), vMgdl: v5.slice(), unit: 'mg/dL', t0Ms: t0 }, null, { deDrift: true });
+      T.eq('CONTROL · de-drift over a measured wear still reports that it ran', qd.sessionCorr && qd.sessionCorr.deDrifted, true);
+    });
+
     group('GlucoDex cadence — unmeasurable is null with a reason, never 5 (§∅)', 'glucodex-dsp · absence', function (T) {
       var G = env.GLUDSP;
       if (!G || typeof G.analyze !== 'function') {
@@ -48770,8 +48818,13 @@
          d_rmssd_rolling_ln, d_stress_auc, d_rmssd_cv7, d_sdnn_z, d_stress_ac, d_pnn50_slope,
          d_hrv_momentum, d_recovery_debt. The no-argument path is unchanged.
          62 → 64 (DEEP-AUDIT-VI F5): d_cvi_flagged + d_csi_flagged — the dispersion-guard verdicts,
-         surfaced instead of discarded at the call site. */
-      T.eq('computeDerived still produces 64 derived columns', produced.length, 64);
+         surfaced instead of discarded at the call site.
+         64 → 65 (ABSENCE-SURVEY row hrvdex-dsp.js:886): d_stress_auc_n, the count of measured
+         readings the 7-day stress sum covers. A sum stays defined over one reading, so the value
+         travels with its coverage count rather than refusing. The 21 digests below each gained
+         exactly 1 column and exactly 4.0, measured with the new column excluded: every digest then
+         reproduced its old literal, so the new column is the whole delta and n is 4 in all 21. */
+      T.eq('computeDerived still produces 65 derived columns', produced.length, 65);
     });
 
     group('HRVDex recovery debt — a window with no measured ARI day is absent, not 0 (residue 2026-11-08)', 'hrvdex-dsp · absence · known-answer', function (T) {
@@ -49021,6 +49074,110 @@
       T.eq('…and a REAL 0 still passes, because 0 is a legitimate Stress reading', Number.isFinite(0), true);
     });
 
+    /* ── §∅ · AN UNMEASURED SYMPATHETIC LEG, AND A SUM THAT HID ITS OWN COVERAGE ──────────────
+       Two rows of ABSENCE-SURVEY-2026-09-22 against one producer, and both published a number the
+       input could not support.
+       · hrvdex-dsp.js:1076 (medium) — `computeCAMQ` raises its LF/HF penalty only when the row
+         measured BOTH bands, so a night with no spectrum took the kindest sympathetic verdict on
+         the scale. rMSSD 40 alone scores a PERFECT 100, and a row with HF but no LF scores exactly
+         what a MEASURED LF/HF of 1.0 scores. The score alone can never separate them, so the DSP
+         now answers the coverage question and the chart marks the unmeasured points.
+       · hrvdex-dsp.js:886 (low) — `d_stress_auc` sums the window's measured readings and used to
+         publish that sum at full magnitude. One reading therefore read as a 7-day load. Both
+         siblings beside it gate their coverage, so the count now travels with the value.
+       The five sibling rows in this file are BOOKKEEPING: the code already refuses and the pins
+       below name where. */
+    group('∅ HRVDex derived metrics — the sympathetic leg and the AUC coverage count', 'hrvdex-dsp · camq · absence', function (T) {
+      var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
+      if (!D || typeof D.computeDerived !== 'function' || typeof D.computeCAMQ !== 'function') {
+        T.skip('computeDerived + computeCAMQ available', 'HRVDex._bare not loaded');
+        return;
+      }
+
+      /* ── 1 · the sympathetic leg answers for itself (row hrvdex-dsp.js:1076) ────────────────── */
+      T.ok('the DSP publishes a coverage answer for the sympathetic leg', typeof D.camqSympMeasured === 'function', typeof D.camqSympMeasured);
+      if (typeof D.camqSympMeasured === 'function') {
+        T.eq('both bands measured ⇒ the leg is measured', D.camqSympMeasured({ _rmssd: 40, _hf: 500, _lf: 500 }), true);
+        T.eq('HF alone ⇒ NOT measured, because the penalty reads LF/HF', D.camqSympMeasured({ _rmssd: 40, _hf: 500, _lf: null }), false);
+        T.eq('LF alone ⇒ NOT measured either', D.camqSympMeasured({ _rmssd: 40, _hf: null, _lf: 500 }), false);
+        T.eq('no spectrum at all ⇒ NOT measured', D.camqSympMeasured({ _rmssd: 40 }), false);
+        T.eq('a non-row argument answers NOT measured, rather than throwing', D.camqSympMeasured(null), false);
+      }
+
+      /* THE DEFECT ITSELF, as a known answer: the two rows below score IDENTICALLY, and one of them
+         measured no sympathetic drive at all. These values pin the arithmetic, so a later change to
+         the penalty cannot quietly move them. */
+      var lfhfOne = { _rmssd: 40, _hf: 500, _lf: 500 };
+      var noSpec = { _rmssd: 40, _hf: 500, _lf: null };
+      T.eq('ANTI-VACUITY · a measured LF/HF of exactly 1.0 scores 88', D.computeCAMQ(lfhfOne), 88);
+      T.eq('…and an UNMEASURED sympathetic leg scores the very same 88', D.computeCAMQ(noSpec), 88);
+      T.eq('CONTROL · a measured LF/HF of 2.0 carries the 15-point penalty', D.computeCAMQ({ _rmssd: 40, _hf: 500, _lf: 1000 }), 73);
+      T.eq('rMSSD alone scores a PERFECT 100 on a night with no spectrum', D.computeCAMQ({ _rmssd: 40 }), 100);
+      if (typeof D.camqSympMeasured === 'function') {
+        T.ok(
+          'the score cannot separate those two rows, and only the coverage answer can',
+          D.computeCAMQ(lfhfOne) === D.computeCAMQ(noSpec) && D.camqSympMeasured(lfhfOne) !== D.camqSympMeasured(noSpec),
+          'measured=' + D.camqSympMeasured(lfhfOne) + ' unmeasured=' + D.camqSympMeasured(noSpec)
+        );
+      }
+
+      /* ── 2 · the AUC carries its coverage count (row hrvdex-dsp.js:886) ─────────────────────── */
+      var DAY = 86400000;
+      var week = function (stressAt) {
+        var rows = [];
+        for (var n = 0; n < 7; n++) {
+          rows.push({ _tMs: Date.UTC(2026, 5, 10, 3, 0, 0) + n * DAY, _rmssd: 41, _sdnn: 54, _pnn50: 18.5, _stress: stressAt(n) });
+        }
+        D.computeDerived(rows);
+        return rows[rows.length - 1];
+      };
+      var full = week(function () {
+        return 3;
+      });
+      T.eq('ANTI-VACUITY · seven readings of Stress 3 sum to an AUC of 21', full.d_stress_auc, 21);
+      T.eq('…and the count beside it reads seven', full.d_stress_auc_n, 7);
+      var lone = week(function (n) {
+        return n === 6 ? 3 : null;
+      });
+      T.eq('ONE reading inside the window still publishes its own sum', lone.d_stress_auc, 3);
+      T.eq('…and the count says ONE, so no reader takes it for a 7-day load', lone.d_stress_auc_n, 1);
+      var bare = week(function () {
+        return null;
+      });
+      T.ok('an all-absent window refuses the AUC (row 879, already repaired)', Number.isNaN(bare.d_stress_auc), 'got ' + bare.d_stress_auc);
+      T.eq('…and the count is null there, never a 0 standing for a covered window', bare.d_stress_auc_n, null);
+
+      /* ── 3 · both remedies reach a consumer ────────────────────────────────────────────────── */
+      var rnd = (env.sources && env.sources['hrvdex-render.js']) || '';
+      T.ok('ANTI-VACUITY · the hrvdex-render.js source is readable in this lane', rnd.length > 1000, String(rnd.length));
+      if (rnd) {
+        T.ok('the coverage count is a TABLE_COLS column, so the CSV and JSONL keys carry it too', /key: 'd_stress_auc_n'/.test(rnd));
+        T.ok('ch_camq marks each point by the coverage answer', /pointStyles: camqPts\.map/.test(rnd) && /camqSympMeasured\(r\)/.test(rnd));
+        T.ok('…and drawSimpleLine honours that per-point style', /pointStyle: opts\.pointStyles/.test(rnd));
+        T.ok('…and the per-point colour too, because shape alone can be hard to see', /pointBackgroundColor: opts\.pointColors/.test(rnd));
+      }
+      var shell = (env.srcHtml || {})['HRVDex.src.html'] || '';
+      T.ok('ANTI-VACUITY · the HRVDex shell is readable in this lane', shell.length > 1000, String(shell.length));
+      if (shell) {
+        T.ok('the CAMQ card tells the reader what the marker means', /grey cross/.test(shell) && /no sympathetic correction applies/.test(shell));
+      }
+
+      /* ── 4 · the five BOOKKEEPING siblings, each already refusing ───────────────────────────── */
+      var two = [
+        { _tMs: Date.UTC(2026, 5, 10, 3, 0, 0), _rmssd: 50, _sdnn: 54, _pnn50: 18.5 },
+        { _tMs: Date.UTC(2026, 5, 11, 3, 0, 0), _rmssd: null, _sdnn: 54, _pnn50: 18.5 }
+      ];
+      D.computeDerived(two);
+      T.ok('row 860 · an absent rMSSD refuses the day-over-day delta, rather than reading −100 %', Number.isNaN(two[1].d_rmssd_delta_pct), 'got ' + two[1].d_rmssd_delta_pct);
+      T.ok('row 1074 · no parasympathetic indicator at all ⇒ null, never a mid-scale 50', D.computeCAMQ({ _lf: 9999 }) === null, String(D.computeCAMQ({ _lf: 9999 })));
+      var noAri = [];
+      for (var i = 0; i < 3; i++) noAri.push({ _tMs: Date.UTC(2026, 5, 10, 3, 0, 0) + i * DAY, _rmssd: null, _sdnn: 54, _pnn50: 18.5 });
+      D.computeDerived(noAri);
+      T.ok('row 946 · a window with no measured ARI refuses the recovery debt, rather than counting 0 days', Number.isNaN(noAri[2].d_recovery_debt), 'got ' + noAri[2].d_recovery_debt);
+      T.ok('row 909 · an all-absent Stress window refuses the autocorrelation', Number.isNaN(bare.d_stress_ac), 'got ' + bare.d_stress_ac);
+      T.eq('row 879 · `Number.isFinite(null)` is FALSE, which is the filter that repaired it', Number.isFinite(null), false);
+    });
+
     group('HRVDex computeDerived — the GUARDS, one seed absent at a time', 'hrvdex-dsp · known-answer · mutation-pinned', function (T) {
       var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
       if (!D || typeof D.computeDerived !== 'function') {
@@ -49175,27 +49332,27 @@
         return n2 + '/' + Math.round(s * 1e6) / 1e6;
       };
       var DIGESTS = [
-        ['_hr', '49/1533.61769'],
-        ['_meanRR', '47/639.765738'],
-        ['_sdnn', '46/1539.723031'],
-        ['_rmssd', '45/1541.436879'],
-        ['_mxdmn', '52/1616.77845'],
-        ['_pnn50', '52/2103.119766'],
-        ['_amo50', '52/1617.439607'],
-        ['_mode', '52/1617.439607'],
-        ['_totalPow', '49/1539.582699'],
-        ['_hf', '44/662.340908'],
-        ['_lf', '46/1602.089449'],
-        ['_vlf', '50/1610.17566'],
-        ['_stress', '45/1566.640181'],
-        ['_energy', '44/1660.318581'],
-        ['_focus', '46/1664.653649'],
-        ['_sns', '46/1661.997802'],
-        ['_psns', '45/1660.046604'],
-        ['_coherence', '44/1562.894606'],
-        ['_hrv', '53/1668.426449'],
-        ['_cv', '53/1668.426449'],
-        ['_spanMin', '53/1668.426449']
+        ['_hr', '50/1537.61769'],
+        ['_meanRR', '48/643.765738'],
+        ['_sdnn', '47/1543.723031'],
+        ['_rmssd', '46/1545.436879'],
+        ['_mxdmn', '53/1620.77845'],
+        ['_pnn50', '53/2107.119766'],
+        ['_amo50', '53/1621.439607'],
+        ['_mode', '53/1621.439607'],
+        ['_totalPow', '50/1543.582699'],
+        ['_hf', '45/666.340908'],
+        ['_lf', '47/1606.089449'],
+        ['_vlf', '51/1614.17566'],
+        ['_stress', '46/1570.640181'],
+        ['_energy', '45/1664.318581'],
+        ['_focus', '47/1668.653649'],
+        ['_sns', '47/1665.997802'],
+        ['_psns', '46/1664.046604'],
+        ['_coherence', '45/1566.894606'],
+        ['_hrv', '54/1672.426449'],
+        ['_cv', '54/1672.426449'],
+        ['_spanMin', '54/1672.426449']
       ];
       for (var q = 0; q < DIGESTS.length; q++) {
         T.eq('absent ' + DIGESTS[q][0] + ' → the surviving columns still compute the same values', digest(DIGESTS[q][0]), DIGESTS[q][1]);

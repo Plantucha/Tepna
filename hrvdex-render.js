@@ -13,7 +13,7 @@
 // ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
 // _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
 // runs on this page; every DSP helper this module uses is named here, import-style).
-const { smooth, getFilteredRows, computeCAMQ, _hrvUpdateExportHint } = window.HRVDex._bare;
+const { smooth, getFilteredRows, computeCAMQ, camqSympMeasured, _hrvUpdateExportHint } = window.HRVDex._bare;
 
 // ── evidence badge hook (System-Cohesion) — resolves a badge from a rendered
 // label via HrvRegistry (hrvdex-registry.js). Zero-touch; safe no-op if the
@@ -1557,6 +1557,9 @@ const TABLE_COLS = [
   { key: 'd_ari', label: 'Recov Index', fmt: (v) => fmt2(v), color: (v) => (v > 1.0 ? 'green' : v > 0.85 ? 'yellow' : 'red') },
   { key: 'd_sdnn_z', label: 'SDNN Z', fmt: (v) => fmt2(v), color: (v) => (v > -0.5 ? 'green' : v > -1.5 ? 'yellow' : 'red') },
   { key: 'd_stress_auc', label: 'Stress AUC 7d', fmt: (v) => fmt0(v) },
+  // ∅ the AUC sums the window's MEASURED readings, so its coverage count travels beside it
+  // through this table and through the CSV/JSONL keys (row hrvdex-dsp.js:886).
+  { key: 'd_stress_auc_n', label: 'Stress AUC n', fmt: (v) => fmt0(v) },
   { key: 'd_rmssd_cv7', label: 'rMSSD CV%', fmt: (v) => fmt1(v) + '%' },
   { key: 'd_bap', label: 'BAP (full)', fmt: (v) => fmt2(v), color: (v) => (v < 2.1 ? 'green' : v < 2.6 ? 'yellow' : 'red') },
   { key: 'd_hile', label: '⚑ Hi-Stress', fmt: (v) => (v ? '<span class="pill pill-red">YES</span>' : '<span class="pill pill-gray">—</span>'), noColor: true },
@@ -1641,20 +1644,37 @@ function renderCardiovascularResearch(rows) {
 
   // ch_htn_pattern (HRV→hypertension-risk) REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴).
 
-  var camqScores = rows.map(computeCAMQ).filter(function (v) {
-    return v != null;
+  /* ∅ — MARK EVERY POINT WHOSE SYMPATHETIC LEG WAS NEVER MEASURED. computeCAMQ raises its
+     LF/HF penalty only when the row carries both bands, so a spectrum-less night reaches this chart
+     with no sympathetic correction and used to look exactly like a measured LF/HF of 1.0. The point
+     now carries SHAPE and colour, because colour alone fails a colour-blind reader, and the card
+     note names what the marker means. Row hrvdex-dsp.js:1076 of ABSENCE-SURVEY-2026-09-22.
+     One pass also replaces two passes that called computeCAMQ over the same rows twice. */
+  var camqPts = [];
+  rows.forEach(function (r) {
+    var v = computeCAMQ(r);
+    if (v == null) return;
+    camqPts.push({ date: r._date, v: v, symp: camqSympMeasured(r) });
   });
-  var camqDates = rows
-    .filter(function (r) {
-      return computeCAMQ(r) != null;
-    })
-    .map(function (r) {
-      return r._date;
-    });
+  var camqDates = camqPts.map(function (p) {
+    return p.date;
+  });
+  var camqScores = camqPts.map(function (p) {
+    return p.v;
+  });
   drawSimpleLine('ch_camq', camqDates, camqScores, {
     label: 'CAMQ',
     yMin: 0,
     yMax: 100,
+    pointColors: camqPts.map(function (p) {
+      return p.symp ? '#3DE0D0' : '#9FB0C3';
+    }),
+    pointStyles: camqPts.map(function (p) {
+      return p.symp ? 'circle' : 'crossRot';
+    }),
+    pointRadii: camqPts.map(function (p) {
+      return p.symp ? 2 : 4;
+    }),
     bands: [
       { from: 60, to: 100, color: 'rgba(57,217,138,.06)' },
       { from: 30, to: 60, color: 'rgba(255,184,77,.06)' },
@@ -1692,7 +1712,11 @@ function drawSimpleLine(canvasId, dates, values, opts) {
           borderColor: '#3DE0D0',
           backgroundColor: 'rgba(61,224,208,.08)',
           tension: 0.3,
-          pointRadius: 2,
+          // Per-point overrides let a caller mark the points whose coverage differs; each falls
+          // back to the single value every other chart on this page already draws.
+          pointRadius: opts.pointRadii || 2,
+          pointBackgroundColor: opts.pointColors || '#3DE0D0',
+          pointStyle: opts.pointStyles || 'circle',
           borderWidth: 2,
           fill: true
         }
