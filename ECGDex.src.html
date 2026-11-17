@@ -177,6 +177,11 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
 .card-h::before{content:'';width:3px;height:14px;border-radius:2px;background:linear-gradient(180deg,var(--teal),var(--blue))}
 .q-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:12px}
 .q-stat{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:var(--r-sm);padding:13px 15px}
+/* A WHITE-ALPHA TILE IS INVISIBLE ON A WHITE GROUND. `.q-stat` paints a 2 % white fill and a 5 %
+   white border, which reads as a card on the dark surface and as nothing at all under `body.light`
+   (measured 2026-11-16: the quality strip and every signal-quality tile lost their edge). The light
+   rule paints the same tile out of the light token set, so one idiom carries both themes. */
+body.light .q-stat{background:var(--surface);border-color:var(--border)}
 .q-val{font-size:26px;font-weight:700;line-height:1;font-family:'IBM Plex Mono',monospace;letter-spacing:-.02em}
 .q-val.ok{color:var(--green)}.q-val.warn{color:var(--amber)}.q-val.bad{color:var(--red)}.q-val.neutral{color:var(--blue)}
 .q-lbl{font-size:11px;color:var(--text2);font-weight:600;margin-top:6px;text-transform:uppercase;letter-spacing:.05em}
@@ -202,10 +207,57 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
 @media(max-width:900px){.ch-grid,.ch-grid-wide{grid-template-columns:1fr}}
 .mini-h{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px}
 .mini-sub{font-weight:500;color:var(--text3);font-size:11px;margin-left:6px}
+/* ── SIGNAL QUALITY: ONE CARD PER FACT (owner 2026-11-16: the per-channel table took the space of
+   a page and said little, so each fact is now a tile in the same idiom as the KPI strip below it).
+   Every colour is a token, so both themes resolve as a set; var(--surface2) is the recessed ground
+   a tint of white would only give the dark theme. */
+.sq-scopes{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px;margin-bottom:11px}
+.sq-scope{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm,12px);padding:9px 13px 11px}
+.sq-scope-p{font-size:10.5px;line-height:1.55;color:var(--text3);max-width:92ch;margin-top:8px;padding-left:9px;border-left:1px solid var(--border)}
+.sq-scope-k{font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text4)}
+/* THE STRIP'S OWN GRID. The tile holds no prose, so every tile is the same height and a row grid
+   costs nothing (the column flow here, and the wrapper that kept a fact's two channels in one
+   column, both existed only to escape a 265 px row holding two tiles of 96 px). The track is wider
+   than the strip's 150 px because these tiles carry a channel line and a unit line. */
+.sq-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));margin-bottom:0}
+.sq-val-abs{color:var(--text3)}
+.sq-sub-ch{font-family:'IBM Plex Mono',monospace;color:var(--text2);font-size:10px;letter-spacing:.02em}
+.sq-abs{margin-top:11px;border:1px dashed var(--border);border-radius:var(--r-sm,12px);padding:11px 13px 13px}
+.sq-abs-h{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--text4);margin-bottom:9px}
+.sq-abs .q-stat{background:var(--surface2)}
+/* EVERY WORD THAT EXPLAINS A TILE SITS HERE, under the grid, the way the quality strip states its
+   method in one note under its own four tiles (owner, 2026-11-16). Each entry names the fact and
+   the channel it belongs to, so a reader meeting a `—` finds its reason by that name. */
+.sq-why{font-size:10.5px;line-height:1.55;color:var(--text3);max-width:46ch;margin-top:8px;padding-left:9px;border-left:1px solid var(--border)}
+/* A COLUMN FLOW HERE, AND A ROW GRID ABOVE — the two blocks differ in what they hold. Tiles are
+   uniform, so a row grid costs them nothing. These entries are prose of wildly different length,
+   and in a row grid the tallest entry of a row sets the height of every entry beside it: the same
+   coupling that cost the tiles 265 px rows, measured again here at 607 px over 17 entries. Columns
+   pack each entry against the one above it, and the entry is the unit the flow may not split. */
+.sq-notes{margin-top:11px;column-width:270px;column-gap:18px}
+.sq-note-row{break-inside:avoid;margin:0 0 9px}
+.sq-note-k{display:block;font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text4)}
+/* Inside a note the key already says which tile this is, so the hairline rule that marks the block
+   as subordinate under a drift panel only costs width here. */
+.sq-notes .sq-why{margin-top:3px;padding-left:0;border-left:0;max-width:none}
+.sq-foot{margin-top:15px;padding-top:12px;border-top:1px solid var(--border)}
+.sq-sc-h{font-size:12px;font-weight:700;color:var(--text2)}
+.sq-sc{margin-top:8px;display:grid;gap:4px}
+.sq-sc-row{display:grid;grid-template-columns:104px minmax(150px,1.05fr) 1.7fr;gap:10px;align-items:baseline;font-size:10.5px}
+.sq-sc-f{font-family:'IBM Plex Mono',monospace;color:var(--text2);word-break:break-all}
+.sq-sc-r{color:var(--text3);line-height:1.5}
+.sq-sc-more{margin-top:7px}
+.sq-sc-more>summary{font-size:10.5px;color:var(--text3);cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:6px}
+.sq-sc-more>summary::before{content:'▸';font-size:9px;color:var(--text4)}
+.sq-sc-more[open]>summary::before{content:'▾'}
+.sq-sc-more>summary:hover{color:var(--text2)}
+.sq-sc-more>summary:focus-visible{outline:2px solid var(--teal);outline-offset:2px;border-radius:3px}
+.sq-sc-more .sq-sc{margin-top:6px}
+@media(max-width:620px){.sq-sc-row{grid-template-columns:1fr;gap:2px}}
 /* Defect-C (BADGE-PLACEMENT-SWEEP): inline evidence disc gets a small trailing gap
    so it never touches its label text. Corner-anchored tiles (.kpi/.readiness-subscore
    via metric-registry.js) are excluded — that rule sets their margin:0. */
-.q-lbl .ev, .mini-h .ev, .card-h .ev, .section-card-title .ev, .metric-hero .m-label .ev,
+.q-lbl .ev, .sq-sc-h .ev, .mini-h .ev, .card-h .ev, .section-card-title .ev, .metric-hero .m-label .ev,
 .proj-factor .ev, .ps-label .ev, .proj-unit .ev, .ecg-tbl-m .ev, .cn-metric .ev,
 #morphIntervals td .ev { margin-right: 5px; }
 .poincare-stats{font-size:11px;color:var(--text3);text-align:center;margin-top:8px;font-family:'IBM Plex Mono',monospace}
