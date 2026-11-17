@@ -895,6 +895,41 @@ export const SEEDS = [
     at: 'hrvdex-profile.js:486',
     state: 'fixed',
     note: 'BOOKKEEPING \u2014 the code already refuses and only this ledger row stayed open. PR #2967 (55bc00f17) gave `vo2Percentile` its unset branch. Before it, 0 sat below the first Cooper point, the interpolation loop never matched, and the tail `: 1` published the 1st percentile \u2014 the worst possible fitness ranking, from no data at all. The function now answers null for a non-positive or non-finite VO\u2082, and the card prints a dash. A mutant deleting the branch reds 6 legs, which is the whole measured arm plus its controls.'
+  },
+  {
+    at: 'hrvdex-dsp.js:1076',
+    state: 'fixed',
+    note: "computeCAMQ raised its sympathetic penalty only when the row measured BOTH spectral bands, because the penalty reads LF/HF. So a night with no spectrum took the kindest sympathetic verdict on the scale: rMSSD 40 alone scores a PERFECT 100, and a row with HF but no LF scores exactly the 88 that a MEASURED LF/HF of 1.0 scores, so ch_camq could never separate them. The penalty has no honest substitute, and an absent leg reduces COVERAGE without breaking continuity, so the owner ruling of 2026-09-17 annotates here: camqSympMeasured answers whether the leg was measured, and ch_camq marks every unmarked point by shape AND colour, with the card note naming what the marker means. A refusal would have dropped a measured parasympathetic score from every spectrum-less night, which is the common Ganglior and ECGDex row. Pins: tests/dex-tests.js group '\u2205 HRVDex derived metrics \u2014 the sympathetic leg and the AUC coverage count', whose 9 legs red on the pre-fix source."
+  },
+  {
+    at: 'hrvdex-dsp.js:886',
+    state: 'fixed',
+    note: "d_stress_auc summed the window's measured readings and published that sum at full magnitude, so ONE reading read as a 7-day load in the 'Stress AUC 7d' column, and in the CSV and JSONL keys built from it. Both siblings beside it gate their own coverage, since d_ari needs four days and d_rmssd_cv7 needs two. A sum stays defined over one reading, so the owner ruling of 2026-09-17 annotates rather than refuses: d_stress_auc_n carries the count of contributing readings and is its own TABLE_COLS column, so the table, the CSV and the JSONL all publish it. The count is null exactly when the AUC refuses, so no consumer can read a 0 as a covered window. _dayWindow is span-bounded and holds no fixed row per day, so the count is readings, never days. Pins: tests/dex-tests.js group '\u2205 HRVDex derived metrics \u2014 the sympathetic leg and the AUC coverage count', whose 9 legs red on the pre-fix source."
+  },
+  {
+    at: 'hrvdex-dsp.js:860',
+    state: 'fixed',
+    note: "BOOKKEEPING \u2014 the code already refuses and only this ledger row stayed open. PR #2980 (174d4bda9) replaced the asymmetric guard pair on d_rmssd_delta_pct. The old line tested `prev._rmssd > 0` for the previous night and `!isNaN(r._rmssd)` for the current one, and isNaN(null) is false, so an absent rMSSD passed and ((null - prev) / prev) * 100 is exactly -100: the table printed '-100.0%' and the chart painted a red bar for a night that simply carries no rMSSD. The line now needs both nights above zero and a day gap of exactly 1. Pins: tests/dex-tests.js group '\u2205 HRVDex derived metrics \u2014 the sympathetic leg and the AUC coverage count' pins the refusal; the sibling group 'HRVDex \u2205 \u2014 an unrecorded rMSSD is absent, not a \u2212100 % collapse' carries its controls."
+  },
+  {
+    at: 'hrvdex-dsp.js:879',
+    state: 'fixed',
+    note: "BOOKKEEPING \u2014 the code already refuses and only this ledger row stayed open. PR #2969 (ab5653299) replaced the `!isNaN(v)` filter on stress7 with Number.isFinite. isNaN(null) is false, so an absent subjective Stress entered the window as a real 0 and a week with no Welltory Stress column at all summed to an AUC of 0, which reads as 'no stress'. Every ECGDex and Ganglior row lacks that column, so this was the common case. Number.isFinite drops absence and keeps a real 0, which is a legitimate reading. Pins: tests/dex-tests.js group '\u2205 HRVDex derived metrics \u2014 the sympathetic leg and the AUC coverage count' pins the all-absent refusal; the sibling group 'HRVDex \u2205 \u2014 an absent subjective Stress is not a Stress of zero' carries the controls."
+  },
+  {
+    at: 'hrvdex-dsp.js:909',
+    state: 'fixed',
+    note: "BOOKKEEPING \u2014 the code already refuses and only this ledger row stayed open. PR #2969 (ab5653299) also guarded the lag-1 autocorrelation pairs on Number.isFinite, so a day with no Stress drops its PAIRS rather than contributing a 0 to the correlation, and an all-absent window refuses. Pins: tests/dex-tests.js group '\u2205 HRVDex derived metrics \u2014 the sympathetic leg and the AUC coverage count' pins the all-absent refusal, and the sibling group 'HRVDex \u2014 the 14-day windows and the event confidence clamps' already pins the finite case at a lag-1 result of -1 across a gap."
+  },
+  {
+    at: 'hrvdex-dsp.js:946',
+    state: 'fixed',
+    note: "BOOKKEEPING \u2014 the code already refuses and only this ledger row stayed open. PR #4660 (796dcd56b) gated d_recovery_debt on ari14.length, so a 14-day window carrying no measured ARI refuses in place of counting 0 debt days. A 0 there read as a fortnight of perfect recovery over a fortnight with no rMSSD at all. Pins: tests/dex-tests.js group '\u2205 HRVDex derived metrics \u2014 the sympathetic leg and the AUC coverage count' pins the refusal, and the group 'HRVDex computeDerived \u2014 the ARGUMENT-PATH columns' already pins both the refusal and a real debt of 0 beside it."
+  },
+  {
+    at: 'hrvdex-dsp.js:1074',
+    state: 'fixed',
+    note: "BOOKKEEPING \u2014 the code already refuses and only this ledger row stayed open. PR #2922 (0bb0ca8d6) replaced `paraCount ? paraScore / paraCount : 50` with a refusal. The 50 was not a conservative default but a CONSTANT: sympPenalty needs _hf above zero, and an _hf above zero would itself have raised paraCount, so the branch could only ever return exactly 50 whatever else the row carried. A number that cannot vary with its input says nothing about the night, and 50 is mid-scale, so it drew as an average night on ch_camq. Pins: tests/dex-tests.js group '\u2205 HRVDex derived metrics \u2014 the sympathetic leg and the AUC coverage count' pins it against a row carrying only _lf, and the existing legs at the \u00a71.3 group pin the mid-scale value itself."
   }
 ];
 
