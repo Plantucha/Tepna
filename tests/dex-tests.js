@@ -48433,17 +48433,24 @@
         (app.match(/q = s\.coverage[^;]*;/) || ['no site'])[0]
       );
       // ── the three weighting sites ──
-      /* §∅ — THE POPULATION SPLIT, and the two halves now read differently. The cross PROVIDER
-         answers `null`, which the envelope reads as UNMEASURED and flags. The two FALLBACK arrays
-         keep the floor COEFFICIENT, because `crossNight` reads `p.w != null ? p.w : 1` and a null
-         point weight becomes a FULL recording one layer down. So the retired in-band arm survives
-         at exactly ONE site, the app's own fallback array, and there it is the correct arm — it
-         counts the absences in `covAbsentPx` and names them in the note below. */
-      T.eq('the retired in-band arm survives at exactly one site', ((crs + app).match(/coverage != null \? Math\.max\(0\.05, s\.coverage \/ 100\) : 0\.05/g) || []).length, 1);
+      /* §∅ — THE POPULATION SPLIT, and the two halves read differently. The cross PROVIDER
+         answers `null`, which the envelope reads as UNMEASURED and flags. The two FALLBACK arrays keep
+         the floor COEFFICIENT, because `crossNight` reads `p.w != null ? p.w : 1` and a null point
+         weight becomes a FULL recording one layer down. So a fallback takes the floor, never null.
+
+         The arm that does it is no longer `s.coverage != null`. That test passes a NaN straight into
+         `Math.max(0.05, NaN / 100)`, which is NaN, so a coverage the wall clock produced as NaN never
+         reached the floor at all. Both arms now route through one TOTAL absence predicate. */
+      T.eq('the `!= null` weight arm survives at no site, in either road', ((crs + app).match(/coverage != null \? Math\.max\(0\.05, s\.coverage \/ 100\) : 0\.05/g) || []).length, 0);
       T.ok(
-        'and that one site is the app fallback array, never the cross provider',
-        /coverage != null \? Math\.max\(0\.05, s\.coverage \/ 100\) : 0\.05/.test(app) && !/coverage != null \? Math\.max\(0\.05, s\.coverage \/ 100\) : 0\.05/.test(crs),
-        'the cross module still carries the in-band arm'
+        'the app fallback array takes the floor through a total absence predicate',
+        /covAbsent\(s\.coverage\) \? 0\.05 : Math\.max\(0\.05, s\.coverage \/ 100\)/.test(app),
+        'the app fallback arm is not the predicate one'
+      );
+      T.ok(
+        'and that predicate rejects a NaN, never nullity alone',
+        /covAbsent = \(v\) => v == null \|\| typeof v !== 'number' \|\| !isFinite\(v\)/.test(app),
+        'the app absence predicate reads nullity alone'
       );
       T.ok(
         'the cross provider answers null for a share nobody measured',
@@ -51618,6 +51625,116 @@
       T.ok('∅ · …so is the centre, rather than a fabricated 0', nanW.mean === null && nanW.baselineMean === null, 'mean=' + nanW.mean + ' baseline=' + nanW.baselineMean);
       T.ok('CONTROL · a measured series still publishes a finite z', typeof asNum.zLatest === 'number' && isFinite(asNum.zLatest), 'z=' + asNum.zLatest);
     });
+
+    group(
+      '∅ six cross clones — an unmeasurable cross-night z is absent, never 0σ',
+      'crossnight · pulsedex-cross · ppgdex-cross · ecgdex-cross · hrvdex-cross · glucodex-cross · motiondex-cross · absence · in-band-default',
+      function (T) {
+        /* ∅ — THE OXYDEX TWIN SHIPPED IN #5229 AND SIX MORE CLONES CARRIED THE SAME LINE.
+         `crossNight` read `if (!isFinite(z)) z = 0`, so a baseline that produced no number at all
+         published 0σ — the strongest claim the scale can carry, "the newest recording sits EXACTLY on
+         its baseline". Measured on `origin/main` at `ef555bd05`: every clone answers `zLatest` 0 beside
+         `mean` null, `baselineSd` null and `cv` null, so the ONE number a reader trusts was the only
+         fabricated one.
+
+         PulseDex reaches the line from `pulsedex-app.js`, whose weight arm read `s.coverage != null`
+         and sent NaN through `Math.max(0.05, NaN)`. The other five have no reaching app surface today,
+         and `crossNight` is a public entry, so the refusal is pinned in all six. The P12 drift group
+         grades these six byte-for-byte, so one text serves them all. `cpapdex-cross.js` carries its own
+         variant outside the drift set and lands separately. The saturation contract is a SEPARATE
+         claim and must not move. Found by Shrike in its ABSENCE audit. */
+        var CLONES = [
+          { name: 'PulseDex', cross: env.PulseCross },
+          { name: 'PpgDex', cross: env.PPGCross },
+          { name: 'ECGDex', cross: env.ECGCross },
+          { name: 'HRVDex', cross: env.HRVCross },
+          { name: 'GlucoDex', cross: env.GluCross },
+          { name: 'MotionDex', cross: env.MotionCross }
+        ];
+        var D = 86400000,
+          T0 = Date.UTC(2026, 5, 10, 22, 0),
+          STEADY = [52, 52.1, 52, 94];
+        var ser = function (w) {
+          return STEADY.map(function (v, i) {
+            return { x: i, t: T0 + i * D, v: v, w: w[i] };
+          });
+        };
+        var ran = 0;
+        CLONES.forEach(function (c) {
+          if (!(c.cross && typeof c.cross.crossNight === 'function')) return;
+          ran++;
+          /* CONTROL · the saturation contract. Three steady recordings plus one fragment give
+           `baselineSd` 0.1 and a true ratio near 890, which the DISPLAY clamp bounds at 20. A
+           SATURATED BOUND IS NOT A MEASUREMENT, so the bounded number stays and `zSaturated` says so
+           (residue `2026-11-11-crossnight-z-prints-a-saturated-clamp`, closed in #4940). */
+          var ctl = c.cross.crossNight(ser([1, 1, 1, 1]), { good: 'up' });
+          T.eq(c.name + ' · CONTROL · a saturated z keeps its bounded number', ctl.zLatest, 20);
+          T.eq(c.name + ' · CONTROL · …and flags the bound as a floor on |z|', ctl.zSaturated, true);
+          T.approx(c.name + ' · CONTROL · …over a baseline spread that WAS measured', ctl.baselineSd, 0.1, 1e-9);
+
+          var nanW = c.cross.crossNight(ser([Number.NaN, Number.NaN, Number.NaN, 1]), { good: 'up' });
+          T.ok(c.name + ' · ∅ · zLatest is PRESENT on a series whose weights are no number', 'zLatest' in nanW);
+          T.eq(c.name + ' · ∅ · …and it is null, never the 0σ that reads as on-baseline', nanW.zLatest, null);
+          T.eq(c.name + ' · ∅ · …and an absence is not a saturation either', nanW.zSaturated, false);
+          T.ok(
+            c.name + ' · ∅ · …while the centre already refused, which is what made the 0σ visible',
+            nanW.mean === null && nanW.baselineMean === null,
+            'mean=' + nanW.mean + ' baseline=' + nanW.baselineMean
+          );
+          T.eq(c.name + ' · ∅ · …and so did the spread', nanW.baselineSd, null);
+
+          /* A prior weight of 0 on EVERY earlier item sends `wmean` to NaN by the same road: the
+           weight sum is 0, so there is no weighted centre to subtract. */
+          var zeroW = c.cross.crossNight(ser([0, 0, 0, 1]), { good: 'up' });
+          T.eq(c.name + ' · ∅ · an all-zero prior weight set has no z to publish', zeroW.zLatest, null);
+          T.eq(c.name + ' · ∅ · …and reports no saturation', zeroW.zSaturated, false);
+
+          /* CONTROL · ONE zero weight is a measured down-weighting, not an absence. */
+          var oneZero = c.cross.crossNight(ser([0, 1, 1, 1]), { good: 'up' });
+          T.ok(c.name + ' · CONTROL · one zero weight still publishes a finite z', typeof oneZero.zLatest === 'number' && isFinite(oneZero.zLatest), 'z=' + oneZero.zLatest);
+          T.ok(c.name + ' · CONTROL · …and a finite centre', typeof oneZero.mean === 'number' && isFinite(oneZero.mean), 'mean=' + oneZero.mean);
+        });
+        T.eq('all six cross clones were exercised, so no leg above was vacuous', ran, 6);
+
+        /* The reaching surface. `pulsedex-app.js` builds the weight array the card feeds to
+         `crossNight`, and the app files are loaded as TEXT in both lanes, never executed. */
+        var src = env.sources || {};
+        var pApp = src['pulsedex-app.js'] || '';
+        if (!pApp) {
+          T.skip('pulsedex-app.js source not wired in this lane', 'add it to the runner source list');
+        } else {
+          T.ok('∅ · pulsedex-app tests the coverage share for a NUMBER, not for `!= null`', /covAbsent = \(v\) => v == null \|\| typeof v !== 'number' \|\| !isFinite\(v\)/.test(pApp));
+          T.ok('∅ · …so no `s.coverage != null` weight arm can hand NaN to crossNight', !/s\.coverage != null \? Math\.max\(0\.05/.test(pApp));
+          T.ok('∅ · …and the reported absent count uses the SAME predicate as the weight', /covAbsentPx = list\.filter\(\(s\) => covAbsent\(s\.coverage\)\)/.test(pApp));
+          T.ok('∅ · …while a share that IS a number still divides by 100', /covAbsent\(s\.coverage\) \? 0\.05 : Math\.max\(0\.05, s\.coverage \/ 100\)/.test(pApp));
+        }
+        var gApp = src['ppgdex-app.js'] || '';
+        T.ok(
+          'CONTROL · ppgdex-app already rejected a non-finite share before this change',
+          /pctAbsent = \(v\) => v == null \|\| !isFinite\(v\)/.test(gApp),
+          'ppgdex-app.js source absent or the predicate moved'
+        );
+        /* The source scan strips comments FIRST. The canonical text above quotes the retired line, so a
+         bare substring scan matches the very comment that records the repair (Shrike's form). */
+        var CROSS_FILES = ['pulsedex-cross.js', 'ppgdex-cross.js', 'ecgdex-cross.js', 'hrvdex-cross.js', 'glucodex-cross.js', 'motiondex-cross.js'];
+        var zeroed = [],
+          unread = [],
+          nulled = [];
+        CROSS_FILES.forEach(function (f) {
+          var raw = src[f] || '';
+          if (!raw) {
+            unread.push(f);
+            return;
+          }
+          var code = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+          if (/!\s*isFinite\(\s*z\s*\)\s*\)\s*z\s*=\s*0\b/.test(code)) zeroed.push(f);
+          if (/!isFinite\(z\)\) z = null;/.test(code)) nulled.push(f);
+        });
+        T.eq('∅ · the scan read all six cross clones, so it examined something', unread.join(','), '');
+        T.eq('∅ · no `z = 0` fabrication remains in any of the six', zeroed.join(','), '');
+        T.eq('∅ · and every one of the six carries the null arm instead', nulled.length, 6);
+      }
+    );
 
     group('Bootstrap LCG uses a 32-bit-exact multiply — no 2^53 overflow (DEEP-AUDIT-II §9.5)', 'crossnight · event-coupling · prng · source', function (T) {
       // `bootstrapDeltaCI`'s LCG (all 5 *-cross clones) + event-coupling.js used `seed * 1103515245`.

@@ -248,7 +248,17 @@
       const psFloor = Math.max(psRaw, 1e-6 * Math.max(1, Math.abs(pm)));
       baselineSd = r1(psFloor);
       let z = (vals[n - 1] - pm) / psFloor;
-      if (!isFinite(z)) z = 0;
+      /* §∅ — AN UNMEASURABLE RATIO IS ABSENT, NEVER 0σ. The line below read `z = 0` when the
+         ratio was not finite, which published the strongest claim the scale can carry — "the newest
+         item sits EXACTLY on its baseline" — for a baseline that produced no number at all. ONE
+         non-finite weight in the prior sends every weighted moment to NaN, so the same object reported
+         `mean`, `cv` and `baselineSd` as null beside a reassuring 0σ: the one number a reader trusts
+         was the only fabricated one. `z` keeps `null`, and `zSaturated` reads false rather than
+         claiming a clamp that never ran. Every reader already tests `zLatest != null` and prints an em
+         dash, and `crossnight-envelope.js` answers a null `zFlag`. These clones are graded
+         byte-for-byte by the P12 drift group, so this text is identical in all six. Found by Shrike in
+         its ABSENCE audit; the OxyDex twin shipped in #5229. */
+      if (!isFinite(z)) z = null;
       /* A SATURATED BOUND IS NOT A MEASUREMENT (residue
          `2026-11-11-crossnight-z-prints-a-saturated-clamp`). The clamp above is a DISPLAY guard, so
          AT the bound the published number stops being the ratio it names: three steady recordings
@@ -260,8 +270,8 @@
          as "≥", and the projection in `crossnight-envelope.js` is hand-picked, so the field is
          invisible to the export until it is named there too. */
       const Z_SAT = 20;
-      zSaturated = Math.abs(z) > Z_SAT;
-      zLatest = r2(Math.max(-Z_SAT, Math.min(Z_SAT, z)));
+      zSaturated = z != null && Math.abs(z) > Z_SAT;
+      zLatest = z == null ? null : r2(Math.max(-Z_SAT, Math.min(Z_SAT, z)));
     }
     // significance
     const boot = bootstrapDeltaCI(vals);
