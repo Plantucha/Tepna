@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="19ccf5b8019f" data-compute-hash="5bbb5eb61eeb">
+<html lang="en" data-manifest-hash="2b1515dbb351" data-compute-hash="98b99156dc09">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ESQkjSoYYCU+pERgKSMHNYg5XTIdL5asMqd0RnX+JEY=' 'sha256-GYeKJg9Ht0UATjCGGSxqImq9I8l616TYUUSN2yVjvUY=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LRa7VQaZD1GO9QtTgm/NOp9niJoNbsRPsWXzCbrnE10=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-MfTmRPQyAUpqm7hPpBVTmqyqOvfKMXD1kKxywZ1Sc9o=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-W+rK8y+1cYa6Z+X29oFEt18aIuLICrAQUkCSrqlVGKE=' 'sha256-a30wD1q1DhXb/hp/9CiNJnGcfilKag1nrqd5UVk34sw=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3QOLYKBsffbmLXFalO1pSufl+HcbSk6JP025X/WpQs=' 'sha256-ESQkjSoYYCU+pERgKSMHNYg5XTIdL5asMqd0RnX+JEY=' 'sha256-GYeKJg9Ht0UATjCGGSxqImq9I8l616TYUUSN2yVjvUY=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-JILflBbFZlUauzZxNZZD8ZsMaBZQBdB5UGMY1r5VM9E=' 'sha256-LRa7VQaZD1GO9QtTgm/NOp9niJoNbsRPsWXzCbrnE10=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-a30wD1q1DhXb/hp/9CiNJnGcfilKag1nrqd5UVk34sw=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.34.0</title>
@@ -8711,7 +8711,16 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   function idForSite(id, site, siteSource) {
     if (!id || !site) return id;
     var suffix = SITE_SUFFIX[site];
-    if (!suffix && site === 'wrist' && siteSource && siteSource !== 'declared') suffix = 'Assumed';
+    /* Row 2026-11-15-ppgdex-site-declaration-shared-by-two-devices. This registry holds a tier for
+       `finger` and `ankle` only, so EVERY other limb fell through to the BASE id — which is the
+       wrist-validated entry. A declared `upper-arm` therefore carried wrist morphology grades, and
+       the `forehead` choice that row asks for would have inherited the same borrowed literature.
+       A limb this registry cannot grade is `Assumed`. Every `wrist` arm keeps its former reading,
+       so the two-arg back-compat promise below still holds exactly. */
+    if (!suffix) {
+      if (site !== 'wrist') suffix = 'Assumed';
+      else if (siteSource && siteSource !== 'declared') suffix = 'Assumed';
+    }
     if (!suffix) return id;
     var scoped = id + suffix;
     return Object.prototype.hasOwnProperty.call(PPG_REGISTRY, scoped) ? scoped : id;
@@ -22055,27 +22064,60 @@ const { PPGUI } = __require('ppgdex-render.js');
      ankle, while every export said `wrist`. Nothing in the waveform recovers that, so it is never
      guessed; the wearer declares it once and it sticks per device layout.
 
-     Scope note: the choice is stored per SITE-LAYOUT ('wrist' = the 3-column strap), not per file,
-     because a strap does not move between files in a session. It is NOT applied retroactively to
-     already-exported JSON — those keep the siteSource they were written with, which is the honest
-     record of what was known at export time. */
+     Row 2026-11-15-ppgdex-site-declaration-shared-by-two-devices. The store held ONE bare site
+     string for every non-finger layout, and the layout names a device CLASS, never a unit. So a
+     second 3-column device inherited the first device's limb, and no second device could declare
+     its own. The key now holds a MAP from a device SCOPE to a site, and a recording outside that
+     map reads undeclared. One `localStorage` key still carries the whole store, which is what
+     keeps `DexForget.eraseAll` able to erase it by name — a per-recording KEY would have slipped
+     both that inventory and the suite's literal-key drift guard.
+
+     The scope is the Polar `model_id` prefix when the name carries one, so every file of one strap
+     shares its declaration. Any other name scopes to the file. A record with no name does not
+     persist, exactly as private mode does not.
+
+     A legacy bare-string value names no subject, so this reads it as absent rather than apply it to
+     a recording it may not describe. The wearer re-declares once, and the undeclared grade is the
+     honest `experimental` tier meanwhile.
+
+     Scope note: a declaration is NOT applied retroactively to already-exported JSON — those keep
+     the siteSource they were written with, which is the honest record of what was known at export
+     time. */
   const SITE_DECL_KEY = 'ppgdex_site_declared';
   const SITE_CHOICES = [
     { v: 'wrist', l: 'Wrist' },
     { v: 'ankle', l: 'Ankle' },
-    { v: 'upper-arm', l: 'Upper arm' }
+    { v: 'upper-arm', l: 'Upper arm' },
+    { v: 'forehead', l: 'Forehead' }
   ];
+  /* The scope a declaration is stored against. `POLAR_<model>_<id>_` is the anchored shape
+     `fnameStampMs` reads above, so two straps of one model stay distinct while one strap's files
+     stay together. */
+  function siteScope(r) {
+    const f = r && r.fname;
+    if (!f || typeof f !== 'string') return null;
+    const m = f.match(/^(POLAR_[A-Z0-9]+_[A-Z0-9]+)_/i);
+    return m ? m[1].toLowerCase() : f;
+  }
+  function siteDeclStore() {
+    try {
+      const raw = localStorage.getItem(SITE_DECL_KEY);
+      if (!raw) return {};
+      const o = JSON.parse(raw);
+      return o && typeof o === 'object' && !Array.isArray(o) ? o : {};
+    } catch {
+      return {};
+    }
+  }
   function declaredSite(r) {
     // The finger site is device-determined (a 1-column pleth IS an O2Ring ring) — nothing to
     // declare there. `!== 'finger'` rather than `=== 'wrist'` so a record already stamped 'ankle'
     // on a previous render still resolves its declaration instead of falling back to the default.
     if (!r || r.site === 'finger') return null;
-    try {
-      const v = localStorage.getItem(SITE_DECL_KEY);
-      return SITE_CHOICES.some((c) => c.v === v) ? v : null;
-    } catch {
-      return null;
-    }
+    const scope = siteScope(r);
+    if (!scope) return null;
+    const v = siteDeclStore()[scope];
+    return SITE_CHOICES.some((c) => c.v === v) ? v : null;
   }
   /* Stamp the declaration onto the RECORD, so the render path and the export cannot disagree about
      the site — buildNodeExport reads r.site / r.siteSource, and this is the single place either is
@@ -22087,9 +22129,14 @@ const { PPGUI } = __require('ppgdex-render.js');
     r.site = v;
     r.siteSource = 'declared';
   }
-  function setDeclaredSite(v) {
+  function setDeclaredSite(r, v) {
+    const scope = siteScope(r);
+    if (!scope) return;
     try {
-      if (v) localStorage.setItem(SITE_DECL_KEY, v);
+      const store = siteDeclStore();
+      if (v) store[scope] = v;
+      else delete store[scope];
+      if (Object.keys(store).length) localStorage.setItem(SITE_DECL_KEY, JSON.stringify(store));
       else localStorage.removeItem(SITE_DECL_KEY);
     } catch {
       /* private mode — the declaration simply does not persist */
@@ -22125,7 +22172,7 @@ const { PPGUI } = __require('ppgdex-render.js');
     const sel = $('siteDecl');
     if (sel)
       sel.onchange = () => {
-        setDeclaredSite(sel.value || null);
+        setDeclaredSite(r, sel.value || null);
         renderSession(r); // re-render: the badges are what the declaration changes
       };
   }

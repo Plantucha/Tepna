@@ -48061,6 +48061,16 @@
           T.eq('a DECLARED wrist keeps it', R.idForSite('ai', 'wrist', 'declared'), 'ai');
           T.eq('two-arg calls are unchanged (back-compat)', R.idForSite('ai', 'wrist'), 'ai');
 
+          /* Row 2026-11-15-ppgdex-site-declaration-shared-by-two-devices. `SITE_SUFFIX` names
+             `finger` and `ankle` only, so every OTHER limb fell through to the BASE id — which is
+             the wrist-validated entry. `upper-arm` was already declarable, so a declared upper arm
+             carried wrist morphology literature, and the `forehead` choice this row asks for would
+             have inherited the same borrowed tier. A limb this registry cannot grade is `Assumed`. */
+          T.eq('a declared UPPER ARM does not borrow the wrist id', R.idForSite('ai', 'upper-arm', 'declared'), 'aiAssumed');
+          T.eq('a declared FOREHEAD does not borrow it either', R.idForSite('ai', 'forehead', 'declared'), 'aiAssumed');
+          T.eq('an undeclared new limb is Assumed as well', R.idForSite('ai', 'upper-arm', 'device-default'), 'aiAssumed');
+          T.eq('a site-invariant metric stays invariant under the new limbs', R.idForSite('hr', 'forehead', 'declared'), 'hr');
+
           // Every site-scoped variant must exist at experimental — a missing entry silently falls
           // back to the base id, i.e. silently restores the bug for that one metric.
           var bases = ['dicrotic', 'ai', 'reflectionIdx', 'sdppgBA', 'agingIdx', 'notchTime', 'pulseWidth'];
@@ -48083,6 +48093,21 @@
           var setAt = appSrc.indexOf('setActiveSite', rs);
           var firstRender = appSrc.indexOf('renderMorph(', rs);
           T.ok('…and does so BEFORE the morphology render', rs >= 0 && setAt > rs && setAt < firstRender, 'set at ' + setAt + ', renderMorph at ' + firstRender);
+
+          /* Row 2026-11-15-ppgdex-site-declaration-shared-by-two-devices. ONE bare site string
+             covered every non-finger layout. The layout names a device CLASS, never a unit, so a
+             second 3-column device inherited the first device's limb and could declare nothing of
+             its own. The store is now a per-scope MAP under the SAME single key — a per-recording
+             KEY would have slipped `DexForget.eraseAll`'s literal-name inventory and the drift
+             guard that reads `getItem('<literal>')`. */
+          T.ok('the declaration store is a per-scope map, not one bare site string', /function siteDeclStore\(\)/.test(appSrc) && /JSON\.parse\(raw\)/.test(appSrc), 'the map reader is absent');
+          T.ok('the single-string write survives at no site', !/localStorage\.setItem\(SITE_DECL_KEY, v\)/.test(appSrc), 'the bare site string is still written');
+          T.ok('a declaration is scoped by the Polar model and id, so one strap keeps one entry', /\^\(POLAR_\[A-Z0-9\]\+_\[A-Z0-9\]\+\)_/.test(appSrc), 'the device scope is absent');
+          T.ok('a record with no name cannot persist a declaration', /const scope = siteScope\(r\);\n    if \(!scope\) return;/.test(appSrc), 'the unscoped write is not refused');
+          T.ok('the setter takes the record, so it cannot write another device entry', /function setDeclaredSite\(r, v\)/.test(appSrc), 'the setter still takes the site alone');
+          T.ok('a legacy bare string names no subject, so the reader rejects it', /typeof o === 'object' && !Array\.isArray\(o\)/.test(appSrc), 'a non-object store is not rejected');
+          T.ok('forehead can be declared at all', /\{ v: 'forehead', l: 'Forehead' \}/.test(appSrc), 'the forehead choice is absent');
+          T.eq('the store still lives under ONE key, so eraseAll reaches every declaration', (appSrc.match(/localStorage\.(?:get|set|remove)Item\(SITE_DECL_KEY/g) || []).length, 3);
         } else {
           T.skip('ppgdex-app.js source wired', 'not in env.sources');
         }
