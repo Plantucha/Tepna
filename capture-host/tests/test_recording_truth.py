@@ -78,7 +78,8 @@ def test_disconnected_is_never_recording_however_fresh_the_data():
 
 def test_note_data_stamps_the_device():
     """The caller passes the clock reading. Reading it inside would waste a call on a per-second hot
-    path AND perturb the stall tests, which drive a stateful fake clock that advances on every read."""
+    path. The stall tests used to turn on the read count too; since 2026-11-17 their fake clock
+    advances once per loop step, so only the hot-path reason stands."""
     capture.note_data("H10", 4242.0)
     assert capture._LAST_DATA["H10"] == 4242.0
 

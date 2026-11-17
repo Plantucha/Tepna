@@ -74,13 +74,60 @@ def _run(coro):
     return asyncio.run(coro)
 
 
-def _stop_after(monkeypatch, n=1):
+#: Simulated seconds one hold-loop iteration takes. Two steps pass the 90 s `_STREAM_STALL_S`
+#: threshold, which is what the stall legs below need, and no clock READ moves it.
+_STALL_STEP_S = 50.0
+
+
+def _stepping_clock(monkeypatch, start=0.0):
+    """A fake `monotonic` that answers a value the CALLER advances, never the number of reads.
+
+    The stall legs used to patch a lambda that added 50 s inside the read itself. Simulated time was
+    then a function of the call count, and the hold loop reads the clock twice per iteration. So one
+    clock read added anywhere under a runner moved the silence past the 90 s threshold and reded a
+    green leg, and a real watchdog defect looked exactly like that extra read. Residue row
+    `2026-11-16-a-capture-host-stall-test-clock-advances-per-read-not-per-step`.
+
+    The caller advances the returned dict on its own step, in its sleep hook or through
+    `_stop_after(..., clock=...)`. One iteration then holds ONE instant, whatever the runner reads.
+    The dict stays local, so a peer test cannot leak a value into it."""
+    clock = {"t": start}
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock["t"])
+    return clock
+
+
+def _published_errors(monkeypatch, name):
+    """Every `last_error` the runner publishes for `name`, in order.
+
+    A leg that reads `last_error` out of STATUS after the run reads whatever SURVIVED. The loop top
+    stamps `last_error=None` before every connect attempt, so a teardown message lives only until the
+    runner retries. The verdict then turns on how many iterations follow the event, which is the same
+    read-count sensitivity as a clock that moves inside a read. A NEGATIVE assertion over that field
+    is worse again: it holds when nothing happened at all."""
+    errs = []
+    real_set = capture._set
+
+    def spy_set(dev, **kv):
+        if dev == name and kv.get("last_error"):
+            errs.append(str(kv["last_error"]))
+        return real_set(dev, **kv)
+
+    monkeypatch.setattr(capture, "_set", spy_set)
+    return errs
+
+
+def _stop_after(monkeypatch, n=1, clock=None, step=_STALL_STEP_S):
     """Run the loop `n` iterations, then set _STOP on the next sleep so it exits. Patches capture's
-    asyncio.sleep to a no-op that counts and trips _STOP — the runners never really wait."""
+    asyncio.sleep to a no-op that counts and trips _STOP — the runners never really wait.
+
+    With a `clock` from `_stepping_clock`, every iteration also advances simulated time by `step`.
+    The advance belongs on the loop's own step, never inside a clock read."""
     calls = {"n": 0}
 
     async def fake_sleep(_secs):
         calls["n"] += 1
+        if clock is not None:
+            clock["t"] += step
         if calls["n"] >= n:
             capture._STOP.set()
 
@@ -4713,13 +4760,13 @@ def test_run_polar_stall_baseline_resets_when_rows_advance(tmp_path, monkeypatch
     _polar_common(monkeypatch)
     c = FlexPolarClient(data_frames=[], start_status=0x00)
     _inject_connect(monkeypatch, c)
-    clock = {"t": 0.0}
-    monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
+    clock = _stepping_clock(monkeypatch)
     # Feed a frame on every hold tick, so rows keep advancing past what would otherwise be the grace.
     calls = {"n": 0}
 
     async def feeding_sleep(_secs):
         calls["n"] += 1
+        clock["t"] += _STALL_STEP_S
         cb = c.cbs.get(pmd.PMD_DATA.uuid if hasattr(pmd.PMD_DATA, "uuid") else pmd.PMD_DATA)
         if cb:
             cb(0, bytearray(_ecg_frame()))
@@ -4738,12 +4785,12 @@ def _silent_ecg_live_hr(monkeypatch, feed_ecg_from_start=None):
     _polar_common(monkeypatch)
     c = FlexPolarClient(data_frames=[], start_status=0x00, hr_frame=bytes([0x06, 60]))
     _inject_connect(monkeypatch, c)
-    clock = {"t": 0.0}
-    monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
+    clock = _stepping_clock(monkeypatch)
     calls = {"n": 0}
 
     async def ticking_sleep(_secs):
         calls["n"] += 1
+        clock["t"] += _STALL_STEP_S
         hr = c.cbs.get(capture.HR_UUID)
         if hr:
             hr(0, bytearray([0x06, 60]))
@@ -4795,12 +4842,12 @@ def test_run_polar_requests_no_ppi_in_sdk_mode_and_keeps_the_link(tmp_path, monk
     monkeypatch.setattr(capture.StreamWriter, "__init__", _init)
     c = FakePolarClient(start_status=0x00)
     _inject_connect(monkeypatch, c)
-    clock = {"t": 0.0}
-    monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
+    clock = _stepping_clock(monkeypatch)
     calls = {"n": 0}
 
     async def ticking_sleep(_secs):
         calls["n"] += 1
+        clock["t"] += _STALL_STEP_S
         data = c.cbs.get(pmd.PMD_DATA)
         if data:
             data(0, bytearray(_ecg_frame()))
@@ -4935,11 +4982,11 @@ def test_run_oxyii_stall_watchdog_drops_a_frameless_link(tmp_path, monkeypatch):
     capture._OXYII_RTC_AT.clear()
     c = FakeGattClient()  # on_live stays None → never answers
     _inject_connect_scan(monkeypatch, c)
-    clock = {"t": 0.0}
-    monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
-    _stop_after(monkeypatch, 8)
+    clock = _stepping_clock(monkeypatch)
+    errs = _published_errors(monkeypatch, "Ring")
+    _stop_after(monkeypatch, 8, clock=clock)
     _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
-    assert "no frames" in (capture.STATUS["devices"]["Ring"].get("last_error") or "").lower()
+    assert any("no frames" in e.lower() for e in errs), f"a frameless link was never dropped: {errs}"
 
 
 def test_run_oxyii_unworn_ring_is_not_torn_down(tmp_path, monkeypatch):
@@ -4953,12 +5000,15 @@ def test_run_oxyii_unworn_ring_is_not_torn_down(tmp_path, monkeypatch):
     # Worn=False, spo2 absent → no SpO2 rows are written, but frames keep decoding.
     c.on_live = lambda data: c.notify(0, _o2ring_live_reply(spo2=0, worn=False)) if data[1] == oxyii.OP_LIVE else None
     _inject_connect_scan(monkeypatch, c)
-    clock = {"t": 0.0}
-    monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
-    _stop_after(monkeypatch, 8)
+    clock = _stepping_clock(monkeypatch)
+    errs = _published_errors(monkeypatch, "Ring")
+    _stop_after(monkeypatch, 8, clock=clock)
     _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
-    err = (capture.STATUS["devices"]["Ring"].get("last_error") or "").lower()
-    assert "no frames" not in err, "an unworn but healthy ring was torn down"
+    assert clock["t"] > capture._STREAM_STALL_S, (
+        f"ANTI-VACUITY — simulated time reached {clock['t']:.0f}s, under the "
+        f"{capture._STREAM_STALL_S:.0f}s the guard needs, so a torn-down ring could not show here"
+    )
+    assert not any("no frames" in e.lower() for e in errs), f"an unworn but healthy ring was dropped: {errs}"
 
 
 def test_run_oxyii_poll_write_failure_drops_the_link(tmp_path, monkeypatch):
@@ -5098,11 +5148,11 @@ def test_run_viatom_stall_watchdog_drops_a_silent_link(tmp_path, monkeypatch):
     c = FakeGattClient()
     c.services = [_ViatomService()]  # no on_live → never sends a packet
     _inject_connect(monkeypatch, c)
-    clock = {"t": 0.0}
-    monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
-    _stop_after(monkeypatch, 6)
+    clock = _stepping_clock(monkeypatch)
+    errs = _published_errors(monkeypatch, "Ring")
+    _stop_after(monkeypatch, 6, clock=clock)
     _run(capture.run_viatom(_viatom_dev(), str(tmp_path)))
-    assert "no data" in (capture.STATUS["devices"]["Ring"].get("last_error") or "").lower()
+    assert any("no data" in e.lower() for e in errs), f"a silent link was never dropped: {errs}"
 
 
 def test_run_viatom_discards_header_only_files(tmp_path, monkeypatch):
@@ -5149,21 +5199,49 @@ def test_run_viatom_stall_baseline_resets_when_rows_advance(tmp_path, monkeypatc
     c = FakeGattClient()
     c.services = [_ViatomService()]
     _inject_connect(monkeypatch, c)
-    clock = {"t": 0.0}
-    monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
+    clock = _stepping_clock(monkeypatch)
     calls = {"n": 0}
 
     async def feeding_sleep(_s):  # a packet on every hold tick
         calls["n"] += 1
+        clock["t"] += _STALL_STEP_S
         if c.notify:
             c.notify(0, bytearray(_viatom_packet()))
         if calls["n"] >= 5:
             capture._STOP.set()
 
     monkeypatch.setattr(capture.asyncio, "sleep", feeding_sleep)
+    errs = _published_errors(monkeypatch, "Ring")
     _run(capture.run_viatom(_viatom_dev(), str(tmp_path)))
-    err = (capture.STATUS["devices"]["Ring"].get("last_error") or "").lower()
-    assert "no data" not in err, "a delivering ring was torn down"
+    assert clock["t"] > capture._STREAM_STALL_S, (
+        f"ANTI-VACUITY — simulated time reached {clock['t']:.0f}s, under the "
+        f"{capture._STREAM_STALL_S:.0f}s the guard needs, so a torn-down ring could not show here"
+    )
+    assert not any("no data" in e.lower() for e in errs), f"a delivering ring was dropped: {errs}"
+
+
+def test_no_fake_clock_in_these_runner_tests_advances_on_a_read():
+    """A fake clock that moves inside the READ makes simulated time a function of the call count. The
+    hold loop reads the clock twice per iteration, so one read added under a runner crossed the 90 s
+    stall threshold and reded a leg that had no defect. Residue row
+    `2026-11-16-a-capture-host-stall-test-clock-advances-per-read-not-per-step`.
+
+    Every fake clock in this file and in its stall-plant peer answers a value its caller advances on
+    the loop's own step. This scan holds BOTH files, because the three plants there patch the same
+    clock through `_stepping_clock` and carry the same hazard."""
+    import pathlib
+
+    here = pathlib.Path(__file__)
+    peer = here.with_name("test_retry_sleep_connected.py")
+    patches = [
+        ln.strip()
+        for text in (here.read_text(), peer.read_text())
+        for ln in text.splitlines()
+        if 'capture._time, "monotonic"' in ln
+    ]
+    assert len(patches) > 20, f"ANTI-VACUITY — the scan read only {len(patches)} clock patch line(s)"
+    moving = [ln for ln in patches if "__setitem__" in ln or "update(" in ln or "setdefault" in ln]
+    assert moving == [], f"a fake clock advances inside the read: {moving}"
 
 
 def test_connect_timeout_error_says_what_it_means(monkeypatch):

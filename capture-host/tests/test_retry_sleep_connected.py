@@ -157,7 +157,7 @@ def test_a_repeated_down_stamp_is_a_noop_for_the_epoch():
 # True while the wait is in flight — which a single site standing in for three could not show.
 
 
-def _snap_stall_waits(monkeypatch, name, cap=400):
+def _snap_stall_waits(monkeypatch, name, cap=400, clock=None, step=50.0):
     """Snapshot the device's STATUS at every wait that carries a `retry` block, then stop AS SOON AS a
     stall wait has been seen.
 
@@ -167,7 +167,11 @@ def _snap_stall_waits(monkeypatch, name, cap=400):
     (`_STREAM_STALL_S` is assigned by the settings loader, so monkeypatch cannot restore it). Measured:
     the run_viatom plant passed alone and in a two-file run, and recorded ZERO waits in the full 6480-
     test suite, where the budget was spent before the stall ever fired. A plant that silently observes
-    nothing is the failure mode this whole unit exists to close, so it must not depend on ordering."""
+    nothing is the failure mode this whole unit exists to close, so it must not depend on ordering.
+
+    With a `clock` from `test_capture_runners._stepping_clock`, this hook also advances simulated time
+    once per iteration. The runner reads that clock several times per iteration, so an advance inside
+    the READ would make the stall verdict turn on the read count instead of on the elapsed time."""
 
     class _Snaps(list):
         """A list that also carries the sleep count, so a vacuous run can NAME why it saw nothing."""
@@ -182,6 +186,8 @@ def _snap_stall_waits(monkeypatch, name, cap=400):
         if st.get("retry"):
             snaps.append(dict(st))
         calls["n"] += 1
+        if clock is not None:
+            clock["t"] += step  # one STEP of simulated time, so no clock read can move the verdict
         if any((s.get("retry") or {}).get("why") == "stalled" for s in snaps) or calls["n"] >= cap:
             capture._STOP.set()
 
@@ -214,9 +220,8 @@ def test_run_polar_publishes_a_DOWN_link_while_it_waits_out_a_stall(tmp_path, mo
     c = T.FlexPolarClient(data_frames=[], start_status=0x00)  # ACKed, then total silence
     T._inject_connect(monkeypatch, c)
     monkeypatch.setattr(capture, "_STREAM_STALL_S", 90.0)  # pinned: the settings loader assigns it
-    clock = {"t": 0.0}  # globally, so a peer test can leak a value
-    monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
-    snaps = _snap_stall_waits(monkeypatch, "H10")
+    clock = T._stepping_clock(monkeypatch)  # local, so a peer test cannot leak a value
+    snaps = _snap_stall_waits(monkeypatch, "H10", clock=clock)
     T._run(capture.run_polar(T._pdev(), str(tmp_path)))
     _assert_stalled_wait_is_honest(snaps, "run_polar")
 
@@ -235,9 +240,8 @@ def test_run_viatom_publishes_a_DOWN_link_while_it_waits_out_a_stall(tmp_path, m
     c.services = [T._ViatomService()]  # no on_live → never sends a packet
     T._inject_connect(monkeypatch, c)
     monkeypatch.setattr(capture, "_STREAM_STALL_S", 90.0)  # pinned: the settings loader assigns it
-    clock = {"t": 0.0}  # globally, so a peer test can leak a value
-    monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
-    snaps = _snap_stall_waits(monkeypatch, "Ring")
+    clock = T._stepping_clock(monkeypatch)  # local, so a peer test cannot leak a value
+    snaps = _snap_stall_waits(monkeypatch, "Ring", clock=clock)
     T._run(capture.run_viatom(T._viatom_dev(), str(tmp_path)))
     _assert_stalled_wait_is_honest(snaps, "run_viatom")
 
@@ -251,8 +255,7 @@ def test_run_oxyii_publishes_a_DOWN_link_while_it_waits_out_a_stall(tmp_path, mo
     c = T.FakeGattClient()  # on_live stays None → no frames
     T._inject_connect_scan(monkeypatch, c)
     monkeypatch.setattr(capture, "_STREAM_STALL_S", 90.0)  # pinned: the settings loader assigns it
-    clock = {"t": 0.0}  # globally, so a peer test can leak a value
-    monkeypatch.setattr(capture._time, "monotonic", lambda: clock.__setitem__("t", clock["t"] + 50.0) or clock["t"])
-    snaps = _snap_stall_waits(monkeypatch, "Ring")
+    clock = T._stepping_clock(monkeypatch)  # local, so a peer test cannot leak a value
+    snaps = _snap_stall_waits(monkeypatch, "Ring", clock=clock)
     T._run(capture.run_oxyii(T._o2dev(), str(tmp_path)))
     _assert_stalled_wait_is_honest(snaps, "run_oxyii")

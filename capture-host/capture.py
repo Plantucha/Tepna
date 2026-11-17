@@ -1172,8 +1172,9 @@ def note_data(name: str, mono: float) -> None:
     bookkeeping between two tasks, not something to publish into `status.json`.
 
     `mono` is PASSED IN, not read here. Every caller already holds a fresh `_time.monotonic()`, so
-    reading it again would be a wasted call on a per-second hot path — and, less obviously, it would
-    perturb the stall tests, which drive a STATEFUL fake clock that advances on every read."""
+    reading it again would be a wasted call on a per-second hot path. The stall tests no longer turn
+    on the read count: since 2026-11-17 their fake clock advances once per loop step, through
+    `tests/test_capture_runners.py _stepping_clock`."""
     _LAST_DATA[name] = mono
 
 
