@@ -47272,6 +47272,62 @@
       );
     });
 
+    /* ── §∅ — NO SAME-DAY REFERENCE ROW IS NULL, NEVER ANOTHER DAY'S ROW ─────────────────────────
+       ABSENCE-SURVEY row `afe64d97a7b6` (`pulsedex-render.js:483`, high,
+       `default-reads-as-measured`). PulseDex draws the Welltory export beside its own measurement as
+       a reference row. The producer `findWTRow(dateStr)` ended `return match || welltoryData.rows[0]`,
+       so a recording with NO row for its own date was drawn beside the FIRST row of the whole log —
+       a different night, under a caption reading "same day, if matched". Nothing in the table told a
+       reader which of the two it was looking at. The fix refuses: the producer returns null, every
+       comparison cell then falls to its existing `—`, and the caption names the date and states that
+       no row matched. These legs extract both functions from their own sources and run them, so the
+       refusal and the caption are pinned by VALUE, not by spelling. */
+    group('∅ PulseDex Welltory reference — no row for the date is null, never another day', 'pulsedex-app · pulsedex-render · absence', function (T) {
+      var src = env.sources || {};
+      var app = src['pulsedex-app.js'] || '',
+        rnd = src['pulsedex-render.js'] || '';
+      if (!app.trim() || !rnd.trim()) {
+        T.skip('the PulseDex Welltory reference surfaces', 'sources not provided in this runner');
+        return;
+      }
+      var findSrc = (app.match(/function findWTRow\(dateStr\) \{[\s\S]*?\n\}/) || [''])[0];
+      var labelSrc = (rnd.match(/function wtRefLabel\(dateStr, matched\) \{[\s\S]*?\n\}/) || [''])[0];
+      T.ok('ANTI-VACUITY · findWTRow was extracted from pulsedex-app.js, so the value legs run on real code', findSrc.length > 0, 'extracted ' + findSrc.length + ' chars');
+      T.ok('ANTI-VACUITY · wtRefLabel was extracted from pulsedex-render.js', labelSrc.length > 0, 'extracted ' + labelSrc.length + ' chars');
+      if (!findSrc || !labelSrc) return;
+      var mkFind = new Function('welltoryData', findSrc + '\nreturn findWTRow;');
+      var wtRefLabel = new Function(labelSrc + '\nreturn wtRefLabel;')();
+      var WT = {
+        header: ['Date', 'RMSSD'],
+        rows: [
+          ['2026-06-10 22:40', '41'],
+          ['2026-06-20 23:10', '55']
+        ]
+      };
+      // ── the producer, run ──
+      T.ok('CONTROL · the first row of the log is a DIFFERENT day from the one asked for', WT.rows[0][0].slice(0, 10) !== '2026-06-20', 'first row day ' + WT.rows[0][0].slice(0, 10));
+      T.eq('CONTROL · a date that HAS a row still returns that row', mkFind(WT)('2026-06-20')[1], '55');
+      T.eq('CONTROL · and it is matched by date, not by position', mkFind(WT)('2026-06-10')[1], '41');
+      T.eq('a date with NO row in the export returns null', mkFind(WT)('2026-07-01'), null);
+      T.eq('an unstamped recording returns null, not the first row', mkFind(WT)(''), null);
+      T.eq('an empty export returns null', mkFind({ header: [], rows: [] })('2026-06-20'), null);
+      T.eq('an absent export returns null', mkFind(null)('2026-06-20'), null);
+      // ── the caption, run ──
+      T.ok('a matched caption names the day it matched', wtRefLabel('2026-06-20', true).indexOf('2026-06-20') >= 0, wtRefLabel('2026-06-20', true));
+      T.ok('an unmatched caption names the day that has no row', wtRefLabel('2026-07-01', false).indexOf('2026-07-01') >= 0, wtRefLabel('2026-07-01', false));
+      T.ok('an unmatched caption states that no row was found', /no row for/.test(wtRefLabel('2026-07-01', false)), wtRefLabel('2026-07-01', false));
+      T.ok('the two captions for one day differ, so a reader can tell them apart', wtRefLabel('2026-07-01', true) !== wtRefLabel('2026-07-01', false), 'matched and unmatched read the same');
+      T.ok('no caption claims "same day" over a row that did not match', !/same day/.test(wtRefLabel('2026-07-01', false)), wtRefLabel('2026-07-01', false));
+      T.ok('an unstamped recording is named, never left as an empty tail', /unstamped/.test(wtRefLabel('', false)), wtRefLabel('', false));
+      // ── the wiring: the refusal has to reach the caption and the cells ──
+      T.ok('the producer carries no first-row fallback', !/match \|\| welltoryData\.rows\[0\]/.test(app), 'the `|| welltoryData.rows[0]` fallback is back');
+      T.ok('ANTI-VACUITY · renderWTTable still reads findWTRow, so a null reaches the table', /const wtRow = findWTRow\(dateStr\);/.test(rnd), 'the consumer and the producer have parted ways');
+      T.ok('the caption row is built from wtRefLabel', /wtRefLabel\(dateStr, !!wtRow\)/.test(rnd), (rnd.match(/wt-row-label[^`]*WELLTORY[^`]*/) || ['no site'])[0]);
+      T.ok('the fixed "same day, if matched" caption is gone', !/same day, if matched/.test(rnd), 'the unconditional caption is back');
+      T.ok('every comparison cell refuses a null row before it reads an index', /wtRow && i >= 0 && wtRow\[i\] !== undefined/.test(rnd), (rnd.match(/return wtRow[^;]*;/) || ['no site'])[0]);
+      T.ok('wtRefLabel is published for the bare-global realm the page renders in', /^\s+wtRefLabel,$/m.test(rnd), 'the classifier is not on the export block');
+    });
+
     /* ── §∅ — NO WALL CLOCK MEANS NO COVERAGE ────────────────────────────────────────────────────
        PulseDex builds the same result object on two roads. The export road (`pulsedex-dsp.js`
        `pdComputeResult`) already publishes `coverage: null` when the stream carries no stamps, and
@@ -90285,6 +90341,16 @@
         /requested ID column "sofid" is not in this file/.test(N.parseAhiCsv(NOID, { idVar: 'sofid' }).error || '')
       );
       T.ok('{ idVar } · a bare id,ahi pair list cannot answer for a named id column', /bare id,ahi pair list/.test(N.parseAhiCsv('200001,12.5\n', { idVar: 'pid' }).error || ''));
+      /* COLUMN 0 IS A COLUMN. `idCol` starts at -1 for absence, so the not-found test is
+         `idCol < 0`; a `<= 0` reads a named column sitting FIRST as missing. This group's own header
+         comment offers `age` as that example and no leg ever named it, so the boundary went
+         untested: the mutation gate reported the `<` → `<=` survivor on 2026-11-17. Real NSRR
+         exports carry their id first, which is the case a `<= 0` would refuse. */
+      var firstCol = N.parseAhiCsv(NOID, { idVar: 'age' });
+      T.eq('{ idVar } · a named column in POSITION 0 is read, not reported missing', firstCol.error, null);
+      T.eq('{ idVar } · …and `age` is the reported identity, not the listed guess', firstCol.idVar, 'age');
+      T.eq('{ idVar } · …over both rows', firstCol.rows, 2);
+      T.eq('{ idVar } · …each keyed by its own first-column value', (N.lookupAhi(firstCol, 'shhs1-55') || {}).ahi, 42);
 
       /* ORDERING — a file missing both columns reports the longer-standing reason, so this repair
          cannot mask the AHI refusal it sits behind. */
@@ -99454,6 +99520,36 @@
         '…and the same epoch count — an hour is not one epoch',
         sumPlant && sumPlant.activity && sumCtl.activity && sumPlant.activity.epochs.length === sumCtl.activity.epochs.length && sumPlant.activity.epochs.length > 1,
         'plant epochs=' + (sumPlant && sumPlant.activity && sumPlant.activity.epochs.length) + ' · control=' + (sumCtl.activity && sumCtl.activity.epochs.length)
+      );
+
+      /* THE OTHER EDGE OF THE SAME GUARD. `idx.ns` starts at -1 for "the header named no counter",
+         so the read test is `c.ns >= 0`. A `> 0` there reads a counter sitting in COLUMN 0 as
+         absence, and the file then rides the host stamp while carrying a device clock. The column
+         order is a layout fact, and this file's own header comment counts 478 real files whose
+         layout moved. The mutation gate reported the `>=` → `>` survivor on 2026-11-17. */
+      var firstText =
+        'sensor timestamp [ns];Phone timestamp;X [mg];Y [mg];Z [mg]\n' +
+        lines
+          .slice(1)
+          .map(function (l) {
+            var c = l.split(';');
+            return c[1] + ';' + c[0] + ';' + c[2] + ';' + c[3] + ';' + c[4];
+          })
+          .join('\n');
+      var firstNs = MD.parseSensorXYZ(firstText);
+      T.ok('ANTI-VACUITY · the re-ordered text parses the same rows', firstNs.length === N, 'rows=' + firstNs.length);
+      T.ok(
+        'a device counter in COLUMN 0 is READ, because -1 is absence and 0 is a position',
+        firstNs.length === N &&
+          firstNs.every(function (r) {
+            return isFinite(r.relNs);
+          }),
+        'first relNs=' + JSON.stringify(firstNs[0] && firstNs[0].relNs)
+      );
+      T.ok(
+        '…and it carries the same counter the documented order carries',
+        firstNs.length === N && ctl.length === N && firstNs[0].relNs === ctl[0].relNs && firstNs[N - 1].relNs === ctl[N - 1].relNs,
+        'reordered=' + JSON.stringify(firstNs[N - 1] && firstNs[N - 1].relNs) + ' control=' + JSON.stringify(ctl[N - 1] && ctl[N - 1].relNs)
       );
     });
 

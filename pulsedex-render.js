@@ -487,6 +487,14 @@ function wtRowObj(r) {
   };
 }
 
+// ∅ — the reference caption states WHICH day the row came from, or that no row matched.
+// Hoisted so the suite pins it without a DOM: `findWTRow` refuses an unmatched date, and the
+// caption is the only place a reader learns that the comparison column is empty for that reason.
+function wtRefLabel(dateStr, matched) {
+  const d = dateStr || 'an unstamped recording';
+  return matched ? '\uD83D\uDCF1 WELLTORY export \u2014 ' + d + ' (matched)' : '\uD83D\uDCF1 WELLTORY export \u2014 no row for ' + d;
+}
+
 function renderWTTable(r) {
   const obj = wtRowObj(r);
   const dateStr = (r.datetime || '').slice(0, 10);
@@ -501,7 +509,7 @@ function renderWTTable(r) {
   document.getElementById('wtBody').innerHTML =
     `<tr class="wt-row-label"><td colspan="${WT_COLS.length}">📊 PULSEDEX — this measurement${r.longRec ? ' (per-window medians)' : ''}</td></tr>` +
     `<tr class="wt-row-raw">${rawCols.map((c) => `<td>${escapeHTML(c)}</td>`).join('')}</tr>` +
-    `<tr class="wt-row-label"><td colspan="${WT_COLS.length}">📱 WELLTORY export — same day, if matched</td></tr>` +
+    `<tr class="wt-row-label"><td colspan="${WT_COLS.length}">${escapeHTML(wtRefLabel(dateStr, !!wtRow))}</td></tr>` +
     `<tr class="wt-row-wt">${wtCols.map((c) => `<td>${escapeHTML(c)}</td>`).join('')}</tr>`;
   document.getElementById('wtWrap').classList.add('show');
   document.getElementById('slWT').style.display = 'flex';
@@ -731,6 +739,7 @@ Object.assign(window, {
   renderANS,
   renderTable,
   wtRowObj,
+  wtRefLabel,
   renderWTTable,
   pulseRenderReview,
   pulseClearReview,
