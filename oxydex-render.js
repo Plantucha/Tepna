@@ -34,6 +34,33 @@ function makeSVG(w, h, content) {
   return '<svg class="chart-svg" viewBox="0 0 ' + w + ' ' + h + '" xmlns="http://www.w3.org/2000/svg">' + content + '</svg>';
 }
 
+/* ONE PLACE GRADES THE SLEEP STABILITY SCORE.
+   Measured 2026-11-17: the composite's bands were written out THREE times in this file, and the
+   reference guide published a FOURTH set that agreed with none of them. `oxydex-dsp.js`
+   (computeSleepStabilityScore) grades at 80 and 60, and it exports the WORD from those thresholds.
+   The clinical-summary KPI coloured at 70 and 50, so a night scoring 70 printed the engine's word
+   "Fair" in GREEN, and a night scoring 55 printed "Poor" in AMBER. The readiness class tested
+   `n.stab.score ?`, which is FALSE at a measured 0, so the worst night the scale can express got no
+   class at all.
+   The engine already publishes `gradeClass`, and this helper prefers it. It cannot only read it: the
+   `ganglior.node-export` projection carries `score`, `grade` and `components` and NOT `gradeClass`
+   (oxydex-dsp.js), so a review rendered from a reloaded export has no class to read, and the
+   thresholds must be derivable here. They are derived ONCE.
+   `tests/dex-tests.js` ('oxydex · sleep-stability · source-scan') holds this file, the engine and the
+   guide against each other, so a fourth copy cannot return silently. */
+function stabGradeClass(stab) {
+  if (!stab || stab.score == null) return '';
+  if (stab.gradeClass) return stab.gradeClass;
+  return stab.score >= 80 ? 'good' : stab.score >= 60 ? 'warn' : 'bad';
+}
+
+/* The KPI strip spells the same three states `ok` / `warn` / `bad`, so the engine's `good` is
+   translated here rather than re-derived from a second pair of thresholds. */
+function stabKpiClass(stab) {
+  var c = stabGradeClass(stab);
+  return c === 'good' ? 'ok' : c;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  SELF-INGEST · review-mode banner + clinical "bring-to-doctor" summary
 //  (SELF-INGEST-2026-06-27-BRIEF §2/§3/§4)
@@ -333,8 +360,7 @@ function oxyClinicalSummary(review, nights) {
   if (st.minSpo2 != null) h += kpi('Min SpO₂', st.minSpo2 + '%', 'lowest reading', st.minSpo2 >= 90 ? 'ok' : st.minSpo2 >= 85 ? 'warn' : 'bad');
   if (st.t90pct != null) h += kpi('T90', st.t90pct + '%', 'time below 90%', st.t90pct > 1 ? 'bad' : st.t90pct > 0 ? 'warn' : 'ok');
   if (recent.hb && recent.hb.rate != null) h += kpi('Hypoxic Burden', recent.hb.rate + '', '%-min/hr <94%', recent.hb.rate < 10 ? 'ok' : recent.hb.rate < 30 ? 'warn' : 'bad');
-  if (recent.stab && recent.stab.score != null)
-    h += kpi('Sleep Stability', recent.stab.score + '/100', recent.stab.grade || '', recent.stab.score >= 70 ? 'ok' : recent.stab.score >= 50 ? 'warn' : 'bad');
+  if (recent.stab && recent.stab.score != null) h += kpi('Sleep Stability', recent.stab.score + '/100', recent.stab.grade || '', stabKpiClass(recent.stab));
   if (recent.mos && recent.mos.mos != null) h += kpi('MOS', recent.mos.mos + '', recent.mos.mosLabel || 'McGill Oximetry', recent.mos.mos < 2 ? 'ok' : recent.mos.mos < 3 ? 'warn' : 'bad');
   h += '</div>';
 
@@ -2405,7 +2431,7 @@ function nightRowInner(n) {
 
   // ── Readiness pill ──
   var readScore = n.karv ? n.karv.readiness : n.stab ? n.stab.score : null;
-  var readCls = n.karv ? n.karv.readinessColor : n.stab && n.stab.score ? (n.stab.score >= 80 ? 'good' : n.stab.score >= 60 ? 'warn' : 'bad') : '';
+  var readCls = n.karv ? n.karv.readinessColor : stabGradeClass(n.stab);
   var readPill = readScore != null ? '<span class="nr-readiness-pill ' + stsCls(readCls) + '">💪 ' + readScore + '</span>' : '';
 
   // ── LEFT: date + readiness ──
@@ -3760,7 +3786,7 @@ function nightDetail(n, idx) {
   if (n.stab && n.stab.components) {
     var st = n.stab,
       sc = st.components;
-    var _stabGradeCls = st.gradeClass || (st.score >= 80 ? 'good' : st.score >= 60 ? 'warn' : 'bad');
+    var _stabGradeCls = stabGradeClass(st);
     html += '<div class="proj-card proj-' + _stabGradeCls + '">';
     html +=
       '<div class="proj-header">' +
