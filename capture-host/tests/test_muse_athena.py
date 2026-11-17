@@ -77,12 +77,28 @@ def test_frame_counter_reads_a_trusted_header_only():
 
 def test_tick_clock_unwraps_forward_across_the_wrap_and_steps_back_a_little():
     c = M.TickClock()
-    assert c.ticks is None
-    assert c.feed(M.TICK_MOD - 10) == M.TICK_MOD - 10
-    assert c.feed(5) == M.TICK_MOD + 5  # forward 15 ticks across the wrap
-    assert c.feed(1) == M.TICK_MOD + 1  # a slightly older record steps back, never forward a wrap
+    assert c.ns_now is None
+    top = M.WRAP_NS // 100  # the last whole tick below the fold
+    assert c.feed(top) == top * 100
+    assert c.feed(5) == M.WRAP_NS + 500  # forward across the fold
+    assert c.feed(1) == M.WRAP_NS + 100  # a slightly older record steps back, never forward a fold
     ns = c.ns(78126)
-    assert ns == (M.TICK_MOD + 78126) * 100 and type(ns) is int
+    assert ns == M.WRAP_NS + 78126 * 100 and type(ns) is int
+
+
+def test_the_fold_is_2_to_the_28_ns_on_recorded_tick_pairs():
+    """The LITERAL modulus beside three consecutive-record tick pairs from one recorded session.
+
+    Population: 632 s of one Muse S Athena session, 2779 EEG folds. 1567 imply 2 684 355 ticks and 1212
+    imply 2 684 354, a share of 0.564, which is the fraction of 2^28/100. A 2^24 fold reads each pair as
+    a step back of 0.26 s. Each pair is one EEG record (78 125 ticks) apart; the last pair carries the
+    tick one fold above the modulus."""
+    assert M.WRAP_NS == 268_435_456 and M.NS_PER_TICK == 100
+    for prev, cur in ((2_746_625, 140_395), (2_952_895, 346_666), (112_291, 2_874_770)):
+        c = M.TickClock()
+        c.feed(prev)
+        assert abs(c.feed(cur) - prev * 100 - 7_812_500) < 100, (prev, cur)
+        assert abs(M.tick_seconds(prev, cur) - 1 / 128) < 1e-7
 
 
 def test_a_command_is_length_then_ascii_then_a_line_feed():
@@ -175,7 +191,8 @@ def test_lost_between_counts_a_gap_and_wraps():
 
 
 def test_tick_seconds_crosses_one_wrap():
-    assert M.tick_seconds(M.TICK_MOD - 78125, 0) == 78125 / M.TICK_HZ
+    prev = M.WRAP_NS // 100 - 78125
+    assert M.tick_seconds(prev, 0) == (M.WRAP_NS - prev * 100) / 1e9
 
 
 def test_unpack_lsb_drops_trailing_bits_and_sign_extends():
@@ -187,10 +204,14 @@ def test_unpack_lsb_drops_trailing_bits_and_sign_extends():
 def test_tick_clock_reads_half_a_wrap_as_a_step_back_and_less_than_half_as_forward():
     c = M.TickClock()
     c.feed(0)
-    assert c.feed(M.TICK_MOD // 2) == -(M.TICK_MOD // 2)
+    assert c.feed(1_342_178) == 134_217_800 - M.WRAP_NS  # just past 2^27 ns forward reads as a step back
     c = M.TickClock()
     c.feed(0)
-    assert c.feed(M.TICK_MOD * 2 // 5) == M.TICK_MOD * 2 // 5
+    assert c.feed(1_342_177) == 134_217_700  # just short of 2^27 ns reads as forward
+    c = M.TickClock()
+    c.feed(0)
+    # 2^25 ticks is 2^27 + 12 * 2^28 ns: EXACTLY half a fold after the modulus, which reads as a step back
+    assert c.feed(1 << 25) == -(M.WRAP_NS // 2)
 
 
 def test_battery_reads_two_bytes_only():

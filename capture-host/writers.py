@@ -1927,7 +1927,7 @@ class StreamWriter:
         # THE MUSE ATHENA RAW FRAME: one row per notification of the data characteristic, VERBATIM as
         # hex. Nothing is decoded at capture (MUSE-ATHENA-PROTOCOL brief): `counter` is the frame's own
         # packet counter (blank when the frame header does not hold), `bytes` its length, and the
-        # device clock is the first record's 24-bit tick unwrapped (`muse_athena.TickClock`).
+        # device clock is the first record's tick unwrapped at 2^28 ns (`muse_athena.TickClock`).
         "muse": "Phone timestamp;sensor timestamp [ns];counter;bytes;hex",
         "rr": "Phone timestamp;RR-interval [ms]",
         "gyro": "Phone timestamp;sensor timestamp [ns];X [dps];Y [dps];Z [dps]",
