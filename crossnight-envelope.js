@@ -24,6 +24,9 @@
 
   const SHAPE_VERSION = '1.0'; // envelope shape (this contract)
   const ENGINE_VERSION = '1.0.0'; // crossNight() algorithm version (suite-wide)
+  /* The weight a MEASURED near-zero coverage takes through the clamp below, and the weight the math
+     takes for an UNMEASURED one. One absence, one number, and the row states which it took. */
+  const W_FLOOR = 0.05;
 
   // ── Clock Contract — floating tMs rendered via getUTC* ──────────────────────
   function _p2(x) {
@@ -47,7 +50,8 @@
      unit,                               // "session" | "recording" | "night"
      items,                              // [] of the node's per-item result objects, ANY order
      t0Of(item)        → floating tMs | null,
-     weightOf(item)    → 0..1   (coverage weight; default 1),
+     weightOf(item)    → 0..1 | null   (coverage weight; `null` = UNMEASURED — see §∅ below.
+                                        Omit the function entirely to declare uniform weighting),
      qualityFloorPct,                    // default 50 — below ⇒ lowQuality flag
      coverageWeighted,                   // default true (informational flag in window{})
      metrics: [ { id, label, unit, goodDirection:'up'|'down', get(item)→number|null } ],
@@ -75,12 +79,29 @@
     const firstT0 = t0s.length ? t0s[0] : null,
       lastT0 = t0s.length ? t0s[t0s.length - 1] : null;
 
-    // per-item weight + quality flag
-    const weights = items.map((x) => {
-      const w = weightOf(x.it);
-      return w == null || !isFinite(w) ? 1 : Math.max(0.05, Math.min(1, w));
-    });
-    const lowQ = weights.map((w) => w * 100 < floor);
+    /* ── per-item weight + quality flag ──
+       §∅ — AN ABSENT COVERAGE IS `null`, NEVER A FULL NIGHT (residue row
+       2026-11-16-cross-night-envelope-weights-an-absent-coverage-as-a-full-night). This block read
+       `w == null || !isFinite(w) ? 1`, so a night whose provider could not measure coverage
+       OUTWEIGHED a night measured at 90 %. The clamp already holds a measured weight at the floor,
+       so only the absent arm took the other direction.
+       THE ABSENCE TRAVELS ON A FLAG, NEVER ON THE NUMBER. `weight` keeps publishing the
+       COEFFICIENT the fits applied, which is `W_FLOOR` here — the same number a measured
+       near-zero coverage takes — and `weightAbsent:true` states that the night never earned it.
+       That field is raw provenance for a re-derivation: `integrator-longitudinal.js seriesFor`
+       hands it on as `w`, and all eight node engines read `p.w != null ? p.w : 1`, so a published
+       `null` re-fabricates the FULL night at eight consumers one layer down (measured 2026-11-16,
+       board #7002). The item also keeps its place in the population, in `window.spanDays` and in
+       every metric's `n` — a FILTER would move the absence into the count and the published span
+       instead (measured, board #6997), and the 2026-09-17 ruling says reduced coverage ANNOTATES.
+       `lowQuality` reads `null`, because an unknown coverage is not a low one.
+       A node that passes NO `weightOf` is untouched: the default below answers 1 for every item,
+       which is uniform weighting DECLARED, and such a node carries `coverageWeighted:false` to say
+       which it is. */
+    const wRaw = items.map((x) => weightOf(x.it));
+    const wAbsent = wRaw.map((w) => w == null || !isFinite(w));
+    const weights = wRaw.map((w, i) => (wAbsent[i] ? W_FLOOR : Math.max(W_FLOOR, Math.min(1, w))));
+    const lowQ = weights.map((w, i) => (wAbsent[i] ? null : w * 100 < floor));
 
     // ── metrics block ──
     const metrics = {};
@@ -97,7 +118,13 @@
         const v = _safe(m.get(x.it));
         if (v != null) values[m.id] = v;
       });
-      return { i, t0Ms: x.t0, date: fmtDateUTC(x.t0), weight: _round(weights[i], 3), lowQuality: lowQ[i], values };
+      const row = { i, t0Ms: x.t0, date: fmtDateUTC(x.t0), weight: _round(weights[i], 3), lowQuality: lowQ[i], values };
+      /* Additive and present only where the absence is, so a row over measured items carries the
+         same bytes it carried before (spec §4: an additive optional field does not bump
+         `schema.version`). `window.weightAbsentCount` below is always present instead, because a
+         `0` there is a MEASURED zero — the envelope counted and found none. */
+      if (wAbsent[i]) row.weightAbsent = true;
+      return row;
     });
 
     // ── ranked headline callouts (|z| × significance) ──
@@ -143,7 +170,10 @@
         spanDays: firstT0 != null && lastT0 != null ? _round((lastT0 - firstT0) / 86400000, 2) : null,
         coverageWeighted: opts.coverageWeighted !== false,
         qualityFloorPct: floor,
-        lowQualityCount: lowQ.filter(Boolean).length
+        lowQualityCount: lowQ.filter(Boolean).length,
+        /* The population of items whose coverage nobody measured. `lowQualityCount` counts items
+           KNOWN to sit below the floor, and a `null` flag is not one of them. */
+        weightAbsentCount: wAbsent.filter(Boolean).length
       },
       metrics,
       series,

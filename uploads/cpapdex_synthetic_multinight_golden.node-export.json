@@ -33,7 +33,8 @@
       "spanDays": 2,
       "coverageWeighted": true,
       "qualityFloorPct": 50,
-      "lowQualityCount": 3
+      "lowQualityCount": 3,
+      "weightAbsentCount": 0
     },
     "metrics": {
       "residualAHI": {

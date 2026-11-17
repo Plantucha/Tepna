@@ -412,7 +412,11 @@
   }
   function nightWeight(n) {
     var c = n.stats && n.stats.coverage != null ? n.stats.coverage : n.stats && n.stats.analyzedPct != null ? n.stats.analyzedPct : null;
-    return c != null ? Math.max(0.05, c / 100) : 1;
+    /* §∅ — a night that states NEITHER coverage NOR an analysed share returns `null`, never 1. An
+       unmeasured night must not outweigh a night measured at 90 %. `crossnight-envelope.js` reads
+       this null, flags the row with `weightAbsent`, weights the fits at its floor and publishes
+       that floor as the coefficient it applied. */
+    return c != null ? Math.max(0.05, c / 100) : null;
   }
   // build the cross-night EXPORT block. MIGRATED to ganglior.crossnight v1.0 via the
   // shared CrossNightEnvelope.build (shape only) — math is OxyDex's local crossNight().

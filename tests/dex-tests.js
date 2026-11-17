@@ -27622,6 +27622,94 @@
       T.ok('survives JSON round-trip', JSON.stringify(round) === JSON.stringify(env3));
       T.ok('validate() passes on the round-tripped export', (CNE.validate(round) || {}).ok === true, (CNE.validate(round).errors || []).join('; '));
       T.ok('no NaN/Infinity anywhere in the envelope', countNonFinite(env3) === 0, countNonFinite(env3) + ' bad numbers');
+
+      /* ── §∅ · AN ABSENT COVERAGE IS FLAGGED AND FLOORED, NEVER A FULL NIGHT ────────────────────
+         Residue row 2026-11-16-cross-night-envelope-weights-an-absent-coverage-as-a-full-night: the
+         weight block read `w == null || !isFinite(w) ? 1`, so a night whose provider COULD NOT
+         MEASURE coverage outweighed a night measured at 90 %. The clamp already held a measured
+         weight at the 0.05 floor, so only the absent arm took the other direction.
+         Hand-derived on 4 items, nsi = [10, 20, 30, 40], item i=2 UNMEASURED (`weightOf` → null),
+         the other three measured at 1.0. `central.mean` is `wmean(vals, w)` (ecgdex-cross.js:186):
+           pre-fix   w = [1, 1, 1,    1] ⇒ (10+20+30+40)/4     = 25
+           post-fix  w = [1, 1, 0.05, 1] ⇒ (10+20+1.5+40)/3.05 = 71.5/3.05 = 23.4426 → r2 23.44
+         Both numbers are pinned below, so a regression to the full weight reds HERE.
+         THE ABSENCE TRAVELS ON THE FLAG, NEVER ON THE NUMBER. `weight` keeps stating the
+         coefficient the fits applied, because `integrator-longitudinal.js seriesFor` hands that
+         field on as `w` and all eight node engines read `p.w != null ? p.w : 1` — a published
+         `null` re-fabricates the FULL night one layer down (measured 2026-11-16, board #7002). */
+      var mkCov = function (covs) {
+        return CNE.build({
+          node: 'TEST',
+          unit: 'night',
+          items: [10, 20, 30, 40].map(function (v, i) {
+            return { t0Ms: U(2026, 4, 1 + i), v: v, cov: covs[i] };
+          }),
+          weightOf: function (it) {
+            return it.cov;
+          },
+          metrics: [
+            {
+              id: 'nsi',
+              label: 'NSI',
+              unit: '',
+              goodDirection: 'down',
+              get: function (it) {
+                return it.v;
+              }
+            }
+          ],
+          crossNight: CC.crossNight
+        });
+      };
+      var eAbs = mkCov([1, 1, null, 1]),
+        eAll = mkCov([1, 1, 1, 1]),
+        eZero = mkCov([1, 1, 0, 1]);
+      T.eq('an item whose coverage nobody measured is FLAGGED', eAbs.series[2].weightAbsent, true);
+      T.approx('and it weighs the 0.05 floor the fits applied', eAbs.series[2].weight, 0.05, 1e-9);
+      T.ok('the published weight is never the full night', eAbs.series[2].weight !== 1, 'an unmeasured coverage published weight 1');
+      T.eq('an unknown coverage is not a LOW one — lowQuality reads null', eAbs.series[2].lowQuality, null);
+      T.eq('a measured item carries NO absence flag', 'weightAbsent' in eAbs.series[0], false);
+      T.eq('and publishes its own measured weight', eAbs.series[0].weight, 1);
+      T.eq('the window counts the population nobody measured', eAbs.window.weightAbsentCount, 1);
+      T.eq('a fully measured envelope counts none', eAll.window.weightAbsentCount, 0);
+      /* The item KEEPS ITS PLACE. A filter relocates the lie: it would move the absence into
+         `count`, into `firstT0Ms`/`lastT0Ms`/`spanDays` and into every metric's `n` (board #6997),
+         and the 2026-09-17 ruling says reduced coverage ANNOTATES. */
+      T.eq('the unmeasured item stays in window.count', eAbs.window.count, 4);
+      T.eq('and in the metric n', eAbs.metrics.nsi.n, 4);
+      T.eq('and in the published span', eAbs.window.spanDays, eAll.window.spanDays);
+      T.eq('and in the series itself', eAbs.series.length, 4);
+      T.approx('the floor BITES the fit: wmean = 71.5/3.05 = 23.44', eAbs.metrics.nsi.central.mean, 23.44, 5e-3);
+      T.approx('a full weight on the same values reads 25 — the pre-fix number', eAll.metrics.nsi.central.mean, 25, 5e-3);
+      T.eq('a non-finite weight reads as absent too', mkCov([1, 1, NaN, 1]).series[2].weightAbsent, true);
+      T.eq('a MEASURED near-zero coverage is not flagged — somebody measured it', 'weightAbsent' in eZero.series[2], false);
+      T.approx('and it takes the same floor the absent item takes', eZero.series[2].weight, 0.05, 1e-9);
+      T.ok('so the flag, not the number, is what separates the two', eZero.series[2].weight === eAbs.series[2].weight && eZero.series[2].weightAbsent !== eAbs.series[2].weightAbsent);
+      var eUni = CNE.build({
+        node: 'TEST',
+        unit: 'night',
+        items: [
+          { t0Ms: U(2026, 4, 1), v: 10 },
+          { t0Ms: U(2026, 4, 2), v: 20 }
+        ],
+        metrics: [
+          {
+            id: 'nsi',
+            label: 'NSI',
+            unit: '',
+            goodDirection: 'down',
+            get: function (it) {
+              return it.v;
+            }
+          }
+        ],
+        crossNight: CC.crossNight
+      });
+      T.eq('a node with no weightOf declares uniform weighting and publishes 1', eUni.series[0].weight, 1);
+      T.eq('and reports no absence', eUni.window.weightAbsentCount, 0);
+      T.ok('the absence flag survives the JSON round-trip', JSON.parse(JSON.stringify(eAbs)).series[2].weightAbsent === true);
+      T.ok('validate() passes on an envelope carrying an absence', (CNE.validate(eAbs) || {}).ok === true, (CNE.validate(eAbs).errors || []).join('; '));
+      T.eq('no NaN/Infinity reaches the envelope through the absence', countNonFinite(eAbs), 0);
     });
 
     /* ════ 7b · NODE-EXPORT structural validator (validateNodeExport) ════ */
@@ -81653,6 +81741,16 @@
         T.eq('OxyDex odi4 rising + good:down → declining', oxB.metrics.odi4.trend.label, 'declining');
         T.eq('OXYCross.nightTms reads stats.startTs', OX.nightTms(oxN[0]), day(0));
         T.approx('OXYCross.nightWeight = coverage/100', OX.nightWeight(oxN[0]), 0.9, 1e-6);
+        /* §∅ — `nightWeight` answers "what coverage weight did this night EARN", so a night that
+           states no coverage answers `null`, never 1 (residue row
+           2026-11-16-cross-night-envelope-weights-an-absent-coverage-as-a-full-night). Pre-fix it
+           answered 1, which made a night nobody measured OUTWEIGH a night measured at 90 % in every
+           fit the envelope runs. The PROVIDER never reports a number it did not measure; the
+           envelope reads the null, flags the row with `weightAbsent` and floors the fit. */
+        T.eq('§∅ OXYCross.nightWeight — neither coverage nor analyzedPct ⇒ null, never 1', OX.nightWeight({ stats: { startTs: day(0), meanSpo2: 95 } }), null);
+        T.approx('OXYCross.nightWeight falls back to analyzedPct when coverage is absent', OX.nightWeight({ stats: { startTs: day(0), analyzedPct: 40 } }), 0.4, 1e-6);
+        T.eq('§∅ OXYCross.nightWeight — a night with no stats at all ⇒ null', OX.nightWeight({}), null);
+        T.approx('CONTROL · a MEASURED zero coverage still answers the floor, not null', OX.nightWeight({ stats: { startTs: day(0), coverage: 0 } }), 0.05, 1e-9);
         T.ok('OxyDex crossnight metrics all self-describe evidence (Longitudinal badge — COVERAGE-MANDATE)', everyEv(oxB));
         T.eq('OxyDex pbIndex evidence = experimental (registry)', oxB.metrics.pbIndex.evidence, 'experimental');
         // Cross-night spread MUST be the SAMPLE SD (Bessel ÷N−1), never population ÷N (finding #69). meanSpo2
@@ -82281,6 +82379,14 @@
         T.eq('CPAPDex residualAHI falling + good:down → improving', cpB.metrics.residualAHI.trend.label, 'improving');
         T.eq('CPAPCross.compliancePct — all nights ≥4 h → 100%', CP.compliancePct(cpN, 4), 100);
         T.approx('CPAPCross.nightOdi averages available oximeter sessions', CP.nightOdi(cpN[0]), 6, 1e-6);
+        /* §∅ — the same rule on the CPAP side, where the weight is mask-on hours / 6. A night that
+           states NO mask-on hours answers `null`, never 1: pre-fix an unmeasured session outweighed
+           a measured full night (same residue row as the OxyDex leg above). */
+        T.approx('CPAPCross.nightWeight = mask-on hours / 6, clamped to 1', CP.nightWeight(cpN[0]), 5 / 6, 1e-6);
+        T.eq('§∅ CPAPCross.nightWeight — a metrics block with no usageHours ⇒ null, never 1', CP.nightWeight({ t0Ms: day(0), metrics: { residualAHI: 3 } }), null);
+        T.eq('§∅ CPAPCross.nightWeight — no night at all ⇒ null', CP.nightWeight(null), null);
+        T.approx('CONTROL · a MEASURED zero mask-on hour count answers the floor, not null', CP.nightWeight({ metrics: { usageHours: 0 } }), 0.05, 1e-9);
+        T.approx('CONTROL · 8 mask-on hours clamp to 1, never above', CP.nightWeight({ metrics: { usageHours: 8 } }), 1, 1e-9);
         T.ok('CPAPDex crossnight metrics all self-describe evidence', everyEv(cpB));
         T.eq('CPAPDex periodicBreathingPct evidence = measured (registry)', cpB.metrics.periodicBreathingPct.evidence, 'measured');
         // deep-scout §CN — non-degenerate (varying) series so median/slope/τ are all distinct + pinnable.
@@ -86369,6 +86475,47 @@
         T.eq('the collision names the night that was LOST', r2.collisions[0].lostT0Ms, Date.UTC(2026, 5, 27, 23, 30));
         T.eq('and names the file it came from', r2.collisions[0].lostSrc, 'night-a.json');
       }
+      L.clear();
+
+      /* ── §∅ · AN UNMEASURED COVERAGE REACHES THE ENGINES AS THE FLOOR, NEVER AS A FULL NIGHT ──
+         Residue row 2026-11-16-cross-night-envelope-weights-an-absent-coverage-as-a-full-night.
+         This store read a missing weight as 1 and derived no absence flag at all, so an item whose
+         coverage NOBODY MEASURED arrived one layer down as a full-weight night. A rule enforced at
+         one layer is not enforced. The producer now states the floor COEFFICIENT its fits applied
+         and raises `weightAbsent` beside it; this store FORWARDS the flag instead of deriving it
+         from the number, and `seriesFor` hands both on — the eight node engines read `w` as a
+         number (`p.w != null ? p.w : 1`), so a `null` there would re-fabricate the full night. */
+      var waEnv = {
+        schema: { name: 'ganglior.crossnight', node: 'OxyDex' },
+        metrics: { spo2Mean: { label: 'SpO2 mean', unit: '%' } },
+        series: [
+          { t0Ms: Date.UTC(2026, 5, 20, 23, 0), date: '2026-06-20', values: { spo2Mean: 96 }, weight: 0.05, weightAbsent: true, lowQuality: null },
+          { t0Ms: Date.UTC(2026, 5, 21, 23, 0), date: '2026-06-21', values: { spo2Mean: 94 }, weight: 0.05, lowQuality: true }
+        ]
+      };
+      L.ingest(waEnv, 'absent.json');
+      var waS = L.seriesFor('OxyDex', 'spo2Mean');
+      T.eq('both nights reach the store', waS.length, 2);
+      T.approx('the unmeasured night hands the engines the floor coefficient, never 1', waS[0].w, 0.05, 1e-9);
+      T.eq('and it is FLAGGED, so a consumer can tell it from a measured 5 %', waS[0].weightAbsent, true);
+      T.eq('an unknown coverage is not a low one — the null travels', waS[0].lowQuality, null);
+      T.eq('CONTROL · the night measured at the same 0.05 carries NO flag', waS[1].weightAbsent, false);
+      T.eq('CONTROL · and keeps its own quality verdict', waS[1].lowQuality, true);
+      T.ok('so the flag, not the coefficient, separates the two', waS[0].w === waS[1].w && waS[0].weightAbsent !== waS[1].weightAbsent);
+      L.clear();
+      // a foreign envelope that states no weight at all is a DIFFERENT statement — a producer that
+      // does not weight — and it is not an absence of coverage.
+      L.ingest(
+        {
+          schema: { name: 'ganglior.crossnight', node: 'HRVDex' },
+          metrics: { rmssd: { label: 'RMSSD', unit: 'ms' } },
+          series: [{ t0Ms: Date.UTC(2026, 5, 22, 23, 0), date: '2026-06-22', values: { rmssd: 42 } }]
+        },
+        'unweighted.json'
+      );
+      var uwS = L.seriesFor('HRVDex', 'rmssd');
+      T.eq('an unweighted producer raises no absence flag', uwS[0].weightAbsent, false);
+      T.eq('and its weight is not fabricated as 1 in the store', uwS[0].w, null);
       L.clear();
     });
 
@@ -105094,9 +105241,15 @@
         }
         /* mutant: bool && → ||  @ var c = n.stats && n.stats.coverage != null ? n.stats.coverage : n.stats && n.st
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return a numeric value instead of throwing an error when stats.coverage is undefined. */
+        /* §∅ — RECORDED OUTPUT UPDATED DELIBERATELY, 2026-11-16. This draft recorded `1` for a
+           night with no mask-on hours, which is the defect residue row
+           2026-11-16-cross-night-envelope-weights-an-absent-coverage-as-a-full-night logs: the
+           provider reported a full night it never measured. The real code now answers `null`, and
+           the draft still discriminates the mutant it was written for — `&&` → `||` throws on
+           `n.stats` / `n.metrics` of a number, where the real code returns. */
         {
           var out = NS.nightWeight(0);
-          T.eq('NS.nightWeight(0) → out', JSON.stringify(out), '1');
+          T.eq('NS.nightWeight(0) → out', JSON.stringify(out), 'null');
         }
       }
     );
