@@ -577,7 +577,7 @@ import './glucodex-profile.js';
         (s) => `<tr>
     <td style="font-family:Inter,sans-serif;color:var(--text2);font-weight:600">#${s.idx}</td>
     <td class="mono">${new Date(s.startMs).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })}–${new Date(s.endMs).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })}</td>
-    <td class="mono">${s.days}d</td>
+    <td class="mono">${s.days == null ? '—' : s.days + 'd'}</td>
     <td class="mono">${s.median == null ? '—' : window.GluDisp.val(s.median)}</td>
     <td class="mono ${driftSev(s.driftPerDay)}">${s.driftPerDay == null ? '—' : (s.driftPerDay > 0 ? '+' : '') + window.GluDisp.spread(s.driftPerDay)}</td>
   </tr>`

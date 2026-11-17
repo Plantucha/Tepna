@@ -16581,6 +16581,18 @@ const PulseDex = window.PulseDex;
     return f === c.FLAG.GAP || f === c.FLAG.GAP_LONG;
   }
 
+  /* §∅ — A WEAR'S LENGTH IN DAYS IS `cells × cadence`, so it is null when the cadence was never
+     measured. `(e - s) * null` is 0, and 0.0 days is a DIFFERENT claim from "not measured": a wear
+     shorter than an hour. Measured 2026-11-17 on the 10-reading daily export the cadence gate uses:
+     one session with `days: 0` beside an `endMs − startMs` of exactly nine days, and the de-drift
+     request then re-centred on `days / 2 = 0` — the START of the wear — moving the published mean
+     from 124 to 110 mg/dL under `deDrifted: true`.
+     The span is not estimated here. `cadence` is the measurement; `step` (`cadenceAssumed`) is the
+     grid's assumption, and `cells × step` would be a second assumption wearing a measurement's name. */
+  function sessionDays(c, cells) {
+    return c.cadence == null ? null : +((cells * c.cadence) / 1440).toFixed(1);
+  }
+
   function detectSessions(c) {
     const boundaryGapMin = 90; // a ≥90-min gap ⇒ likely sensor change
     const minSessionCells = Math.round(360 / c.cadence); // ≥6 h to count
@@ -16618,8 +16630,7 @@ const PulseDex = window.PulseDex;
         xs.push((c.gT[p] - c.gT[s]) / dayMs);
         ys.push(c.gV[p]);
       }
-      if (ys.length < 10)
-        return { idx: k + 1, s, e, startMs: c.gT[s], endMs: c.gT[e - 1], days: +(((e - s) * c.cadence) / 1440).toFixed(1), n: ys.length, mean: null, median: null, driftPerDay: null };
+      if (ys.length < 10) return { idx: k + 1, s, e, startMs: c.gT[s], endMs: c.gT[e - 1], days: sessionDays(c, e - s), n: ys.length, mean: null, median: null, driftPerDay: null };
       const m = mean(ys),
         md = quantile(
           ys.slice().sort((a, b) => a - b),
@@ -16655,7 +16666,7 @@ const PulseDex = window.PulseDex;
         e,
         startMs: c.gT[s],
         endMs: c.gT[e - 1],
-        days: +(((e - s) * c.cadence) / 1440).toFixed(1),
+        days: sessionDays(c, e - s),
         n: ys.length,
         mean: Math.round(m),
         median: Math.round(md),
@@ -16674,6 +16685,9 @@ const PulseDex = window.PulseDex;
       0.5
     );
     const offsets = [];
+    /* Whether the correction ACTUALLY ran, not whether it was asked for: a wear with no measured span
+       has no midpoint, so it is skipped below and the report must not claim the series de-drifted. */
+    let didDrift = false;
     for (const sess of sessions) {
       if (sess.median == null) {
         offsets.push(0);
@@ -16685,15 +16699,21 @@ const PulseDex = window.PulseDex;
       for (let p = sess.s; p < sess.e; p++) {
         let v = c.gV[p];
         if (levelSessions) v += off;
-        if (deDrift && sess.driftPerDay != null) {
+        /* §∅ — de-drift re-centres each wear on its MIDPOINT, and that midpoint is `days / 2`. With an
+           unmeasured span `days` is null, `null / 2` is 0, and the correction pivots on the wear's first
+           cell instead: a constant `drift × span / 2` shift applied to every reading (measured
+           2026-11-17: 124 → 110 mg/dL over a nine-day wear drifting 3/day). No midpoint, no de-drift —
+           leveling still runs, because a session MEDIAN is measured either way. */
+        if (deDrift && sess.driftPerDay != null && sess.days != null) {
           const dDay = (c.gT[p] - c.gT[sess.s]) / dayMs;
           const mid = sess.days / 2;
           v -= sess.driftPerDay * (dDay - mid);
+          didDrift = true;
         }
         c.gV[p] = Math.max(20, v);
       }
     }
-    return { leveled: !!levelSessions, deDrifted: !!deDrift, offsets, globalMedian: Math.round(allMed) };
+    return { leveled: !!levelSessions, deDrifted: didDrift, offsets, globalMedian: Math.round(allMed) };
   }
 
   // ════════════════════════════════════════════════════════════════════════
