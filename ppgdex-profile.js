@@ -12,6 +12,13 @@
   'use strict';
   const $ = (id) => document.getElementById(id);
   const KEYS = ['ppgAge', 'ppgSex', 'ppgWeight', 'ppgHeight', 'ppgHRmax', 'ppgRHR', 'ppgVO2', 'ppgElev', 'ppgCPAP'];
+  /* AN ABSENT PERCENTAGE IS A DASH, NOT A FAILING GRADE. `null >= 90` is false, so a record whose
+     beat population was never measured fell to the `bad` arm and then printed `null%`. These two
+     one-liners are the vocabulary `ppgdex-app.js` carries as `pctAbsent`/`pctTxt`/`pctCls`; this
+     bundle is its own script scope, so it repeats them instead of reaching across the boundary. */
+  const pctAbsent = (v) => v == null || !isFinite(v);
+  const pctTxt = (v) => (pctAbsent(v) ? '\u2014' : v + '%');
+  const pctCls = (v, ok, warn) => (pctAbsent(v) ? 'neutral' : v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
   let reRenderFn = null;
   let _dexPanel = null; // handle to the shared DexProfile.renderPanel() instance
   const median = (a) => {
@@ -311,7 +318,7 @@
     }
     chips += `<div class="readiness-zone-chip ${pb.sev === 'neutral' ? 'warn' : pb.sev}">Perfusion · ${pb.txt}</div>`;
     chips += `<div class="readiness-zone-chip ${r.motionRejectedPct < 10 ? 'ok' : r.motionRejectedPct < 30 ? 'warn' : 'bad'}">${r.motionRejectedPct}% motion-rejected</div>`;
-    chips += `<div class="readiness-zone-chip ${r.analyzablePct >= 90 ? 'ok' : r.analyzablePct >= 75 ? 'warn' : 'bad'}">${r.analyzablePct}% analyzable</div>`;
+    chips += `<div class="readiness-zone-chip ${pctCls(r.analyzablePct, 90, 75)}">${pctTxt(r.analyzablePct)} analyzable</div>`;
     if (r.cpapInUse === true) chips += `<div class="readiness-zone-chip neutral">⊕ on CPAP therapy</div>`;
     else if (r.cpapInUse === false) chips += `<div class="readiness-zone-chip neutral">no CPAP</div>`;
     wrap.classList.add('show');
