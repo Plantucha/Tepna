@@ -376,6 +376,15 @@ function renderHrvBench(r) {
    untouched: a real value, 0 included, still reaches it. */
 const kgrade = (v, ladder) => (v == null || isNaN(v) ? 'neutral' : ladder(v));
 
+/* ∅ — A DELTA NEEDS BOTH MEMBERS MEASURED. Every value cell below guards `!= null`, and the five
+   delta cells guarded only `prev`, so `(null - 42).toFixed(1)` printed '-42.0' and the chip read a
+   confident 42-point drop under a value cell honestly reading '—'. Two absent rows read
+   `null - null`, which is 0, and the chip then claimed "no change" (`_stress` and `_energy` are a
+   literal null on the PulseDex-sourced row at hrvdex-dsp.js:644). An uncomputable delta is ABSENT,
+   not zero: kdelta answers null and the strip draws no chip for it. A measured 0 on either row is a
+   reading and still yields a delta. ABSENCE-SURVEY row a67da4ab5c84. */
+const kdelta = (cur, prv, digits) => (Number.isFinite(cur) && Number.isFinite(prv) ? (cur - prv).toFixed(digits) : null);
+
 function renderKPIs(rows) {
   const r = rows[rows.length - 1];
   const prev = rows.length > 1 ? rows[rows.length - 2] : null;
@@ -390,7 +399,7 @@ function renderKPIs(rows) {
       val: r._hrv != null ? r._hrv.toFixed(1) : undefined,
       sub: 'Today',
       color: kgrade(r._hrv, (x) => (x > 45 ? 'good' : x > 30 ? 'warn' : 'bad')),
-      delta: prev ? (r._hrv - prev._hrv).toFixed(1) : null,
+      delta: prev ? kdelta(r._hrv, prev._hrv, 1) : null,
       unit: ''
     },
     {
@@ -398,7 +407,7 @@ function renderKPIs(rows) {
       val: r._sdnn != null ? r._sdnn.toFixed(1) : undefined,
       sub: 'ms — today',
       color: kgrade(r._sdnn, (x) => (x > 60 ? 'good' : x > 40 ? 'warn' : 'bad')),
-      delta: prev ? (r._sdnn - prev._sdnn).toFixed(1) : null,
+      delta: prev ? kdelta(r._sdnn, prev._sdnn, 1) : null,
       unit: 'ms'
     },
     {
@@ -406,7 +415,7 @@ function renderKPIs(rows) {
       val: r._rmssd != null ? r._rmssd.toFixed(1) : undefined,
       sub: 'ms — parasympathetic',
       color: kgrade(r._rmssd, (x) => (x > 35 ? 'good' : x > 20 ? 'warn' : 'bad')),
-      delta: prev ? (r._rmssd - prev._rmssd).toFixed(1) : null,
+      delta: prev ? kdelta(r._rmssd, prev._rmssd, 1) : null,
       unit: 'ms'
     },
     {
@@ -414,7 +423,7 @@ function renderKPIs(rows) {
       val: r._stress != null ? r._stress.toFixed(0) : undefined,
       sub: 'HRV score',
       color: kgrade(r._stress, (x) => (x < 45 ? 'good' : x < 65 ? 'warn' : 'bad')),
-      delta: prev ? (r._stress - prev._stress).toFixed(0) : null,
+      delta: prev ? kdelta(r._stress, prev._stress, 0) : null,
       unit: '',
       inverse: true
     },
@@ -423,7 +432,7 @@ function renderKPIs(rows) {
       val: r._energy != null ? r._energy.toFixed(0) : undefined,
       sub: 'HRV score',
       color: kgrade(r._energy, (x) => (x > 55 ? 'good' : x > 35 ? 'warn' : 'bad')),
-      delta: prev ? (r._energy - prev._energy).toFixed(0) : null,
+      delta: prev ? kdelta(r._energy, prev._energy, 0) : null,
       unit: ''
     },
     {
@@ -1479,6 +1488,15 @@ function renderWeekday() {
   );
 }
 
+/* ∅ — THE COVERAGE TRAVELS WITH THE CORRELATION. `_patPearson` answers `{ r, n }`, renderHeatmap
+   bound only `res.r`, and a cell over 3 surviving pairs painted exactly like one over 40: same
+   text, same saturation, same tooltip. CLAUDE.md §∅ asks a reduced coverage to annotate, and the
+   sibling scatter consumer already appends `' · n ' + n`. This helper carries the pair count
+   into every cell tooltip, the diagonal included, and it reports an absent count as absent rather
+   than as 0. ABSENCE-SURVEY row 64f6cbb7d28f. */
+function _patCellTitle(labX, labY, r, n) {
+  return labX + ' ↔ ' + labY + ': r=' + (isFinite(r) ? r.toFixed(2) : 'n/a') + ' · n ' + (Number.isFinite(n) ? n : 'n/a');
+}
 function _patHeatColor(r) {
   if (!isFinite(r)) return 'rgba(120,140,170,0.05)';
   const a = Math.min(1, Math.abs(r));
@@ -1501,25 +1519,12 @@ function renderHeatmap() {
   for (let i = 0; i < n; i++) {
     html += '<tr><th>' + _patShort(keys[i]) + '</th>';
     for (let j = 0; j < n; j++) {
-      const res = i === j ? { r: 1 } : _patPearson(series[i], series[j]);
+      const res = i === j ? { r: 1, n: series[i].filter((v) => Number.isFinite(v)).length } : _patPearson(series[i], series[j]);
       const r = res.r;
       let txt = '';
       if (isFinite(r)) txt = i === j ? '1' : r.toFixed(2).replace(/^0\./, '.').replace(/^-0\./, '-.');
       const tc = isFinite(r) && Math.abs(r) > 0.55 ? '#fff' : 'var(--text2)';
-      html +=
-        '<td title="' +
-        _patShort(keys[i]) +
-        ' ↔ ' +
-        _patShort(keys[j]) +
-        ': r=' +
-        (isFinite(r) ? r.toFixed(2) : 'n/a') +
-        '" style="background:' +
-        _patHeatColor(r) +
-        ';color:' +
-        tc +
-        '">' +
-        txt +
-        '</td>';
+      html += '<td title="' + _patCellTitle(_patShort(keys[i]), _patShort(keys[j]), r, res.n) + '" style="background:' + _patHeatColor(r) + ';color:' + tc + '">' + txt + '</td>';
     }
     html += '</tr>';
   }
