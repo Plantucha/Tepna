@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="40cadbea6afb" data-compute-hash="463cd726d94e">
+<html lang="en" data-manifest-hash="dc9610ea822f" data-compute-hash="2fe232d285af">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ESQkjSoYYCU+pERgKSMHNYg5XTIdL5asMqd0RnX+JEY=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-Rr8G2mCxnUpYJeiwLlDBUV1mqaJGe8EBSh8w3KFYYEw=' 'sha256-UCsYvg3vndgZEqR75520kgXVtrJaFcqJ3w4HvtYU+6g=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-W+rK8y+1cYa6Z+X29oFEt18aIuLICrAQUkCSrqlVGKE=' 'sha256-a30wD1q1DhXb/hp/9CiNJnGcfilKag1nrqd5UVk34sw=' 'sha256-al6Y47L6DjS948zFsA4a/jhCOnTvvG7ts9HX95Zrdvs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ESQkjSoYYCU+pERgKSMHNYg5XTIdL5asMqd0RnX+JEY=' 'sha256-GYeKJg9Ht0UATjCGGSxqImq9I8l616TYUUSN2yVjvUY=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-MfTmRPQyAUpqm7hPpBVTmqyqOvfKMXD1kKxywZ1Sc9o=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-W+rK8y+1cYa6Z+X29oFEt18aIuLICrAQUkCSrqlVGKE=' 'sha256-a30wD1q1DhXb/hp/9CiNJnGcfilKag1nrqd5UVk34sw=' 'sha256-al6Y47L6DjS948zFsA4a/jhCOnTvvG7ts9HX95Zrdvs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.34.0</title>
@@ -13596,7 +13596,15 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     let _nCov = 0;
     for (let i = 0; i < nG; i++) if (covCell[i]) _nCov++;
     const motionCoveredFrac = nG ? _nCov / nG : 0;
-    const meanMI = mean(Array.from(sm));
+    /* ∅ The mean over the WHOLE grid enters every uncovered cell as stillness, so an inertial
+       gap reads as the BEST value on a lower-is-better scale. That is the `actigraphy()` defect
+       named above, reproduced in the summary. Average the COVERED cells only, and refuse when no
+       cell carries inertial data. The 3-cell smoother still bleeds a gap into its neighbours, so
+       this mean is honest about the population it averages, not about every member of it. */
+    const _miCov = [];
+    for (let i = 0; i < nG; i++) if (covCell[i]) _miCov.push(sm[i]);
+    const meanMIReason = _miCov.length ? null : 'no-inertial-coverage';
+    const meanMI = meanMIReason ? null : mean(_miCov);
     // display series (downsampled, per ~minute or per cell)
     const series = [];
     const stride = Math.max(1, Math.floor(nG / 600));
@@ -13784,7 +13792,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       motionCoveredFrac: r2(motionCoveredFrac),
       postureAtSec,
       postureDetailAtSec,
-      meanMotionIndex: r2(meanMI),
+      meanMotionIndex: r2n(meanMI),
+      meanMotionIndexReason: meanMIReason,
       series,
       accFs: _accHz != null ? Math.round(_accHz) : null,
       gyroFs: _gyroHz != null ? Math.round(_gyroHz) : null,
@@ -22203,7 +22212,7 @@ const { PPGUI } = __require('ppgdex-render.js');
       <div class="q-stat"><div class="q-val ${r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad'}">${r.meanSQI}</div><div class="q-lbl">Mean SQI${evBadge('Mean SQI')}</div><div class="q-sub">→ Ganglior conf</div></div>
       ${r.ledAgreementPct != null ? `<div class="q-stat"><div class="q-val ${r.ledAgreementPct >= 90 ? 'ok' : r.ledAgreementPct >= 75 ? 'warn' : 'bad'}">${r.ledAgreementPct}%</div><div class="q-lbl">3-LED agree${evBadge('LED agreement')}</div><div class="q-sub">${r.ledAgree3of3Pct != null ? r.ledAgree3of3Pct + '% all-3' : 'optical consensus'}</div></div>` : ''}
     </div>
-    <div class="q-note">Per-pulse SQI = template cross-correlation against the median pulse × the <b>ACC+GYRO motion gate</b>. PPIs &gt;20% off the local median (Malik) are corrected; ${r.nCorrected} of ${r.nPulses.toLocaleString()} fixed. ${m && m.hasData ? `Motion bursts (accel-magnitude variance + gyro magnitude, resampled to the PPG base) <b>down-weight</b> pulses — wrist PPG's signature quality channel that OxyDex/ECGDex don't have. Mean motion index ${m.meanMotionIndex}.` : '<b>No ACC/GYRO loaded</b> — motion gating skipped; load the companion files for the full quality channel.'} SQI feeds the <b>conf</b> of every Ganglior event.</div>
+    <div class="q-note">Per-pulse SQI = template cross-correlation against the median pulse × the <b>ACC+GYRO motion gate</b>. PPIs &gt;20% off the local median (Malik) are corrected; ${r.nCorrected} of ${r.nPulses.toLocaleString()} fixed. ${m && m.hasData ? `Motion bursts (accel-magnitude variance + gyro magnitude, resampled to the PPG base) <b>down-weight</b> pulses — wrist PPG's signature quality channel that OxyDex/ECGDex don't have. Mean motion index ${m.meanMotionIndex != null ? m.meanMotionIndex : '— (no inertial coverage)'}.` : '<b>No ACC/GYRO loaded</b> — motion gating skipped; load the companion files for the full quality channel.'} SQI feeds the <b>conf</b> of every Ganglior event.</div>
     ${r.ledSeries && r.ledSeries.length && UI.ledRibbon ? `<div class="mini-h" style="margin-top:14px">${evBadge('LED agreement')}3-LED agreement ribbon <span class="mini-sub">green 3/3 · amber 2/3 (kept) · red 1/3 (dropped) · ref ch${r.channel}</span></div>${UI.ledRibbon(r.ledSeries, { W: 680, H: 120 })}<div class="q-note" style="margin-top:4px">The Polar Sense streams 3 optical channels; a beat is kept only when <b>≥2 of 3</b> place a systolic peak within ±50 ms (optical bSQI) — single-LED beats are <b>dropped, not median-filled</b> (${r.nDroppedBeats || 0} dropped this session). Low-agreement spans line up with the motion / poor-perfusion windows.</div>` : ''}`;
     $('qualitySection').style.display = 'block';
   }
@@ -22327,7 +22336,7 @@ const { PPGUI } = __require('ppgdex-render.js');
         : '<div class="q-note" style="text-align:center;padding:16px">motion index unavailable</div>';
     $('motionCard').innerHTML = `
     <div class="q-grid">
-      <div class="q-stat">${evBadge('Mean motion idx')}<div class="q-val ${m.meanMotionIndex < 0.2 ? 'ok' : m.meanMotionIndex < 0.5 ? 'warn' : 'bad'}">${m.meanMotionIndex}</div><div class="q-lbl">Mean motion idx</div><div class="q-sub">0 still · 1 moving</div></div>
+      <div class="q-stat">${evBadge('Mean motion idx')}<div class="q-val ${pctClsDown(m.meanMotionIndex, 0.2, 0.5)}">${m.meanMotionIndex != null ? m.meanMotionIndex : '—'}</div><div class="q-lbl">Mean motion idx</div><div class="q-sub">${m.meanMotionIndexReason ? 'no inertial coverage' : '0 still · 1 moving'}</div></div>
       <div class="q-stat"><div class="q-val ${pctClsDown(r.motionRejectedPct, 10, 30)}">${pctTxt(r.motionRejectedPct)}</div><div class="q-lbl">Pulses rejected${evBadge('Pulses rejected')}</div><div class="q-sub">${r.motionRejectedPctReason ? 'the gate did not run' : 'idx &gt; 0.5'}</div></div>
       <div class="q-stat"><div class="q-val neutral">${m.accFs || '—'}</div><div class="q-lbl">ACC Hz${evBadge('ACC Hz')}</div><div class="q-sub">${m.nAcc.toLocaleString()} samples</div></div>
       <div class="q-stat"><div class="q-val neutral">${m.gyroFs || '—'}</div><div class="q-lbl">GYRO Hz${evBadge('GYRO Hz')}</div><div class="q-sub">${m.nGyro.toLocaleString()} samples</div></div>
@@ -22351,8 +22360,12 @@ const { PPGUI } = __require('ppgdex-render.js');
           .sort((a, b) => b[1] - a[1])
           .map(([p, n]) => chip(p, Math.round((n / tot) * 100)))
           .join('') || '<span class="dim">insufficient coverage (&lt;30 s/epoch)</span>';
+      /* ∅ A null here is `hasMag` with NO examinable epoch (`ppgdex-dsp.js` keys the percentage
+         on `magKnown.length`), so printing 0 claimed the cleanest possible field on a gate that
+         never ran. Report the absence and name it. */
+      const magIntTxt = r.magInterferencePct != null ? `on <b>${r.magInterferencePct}%</b> of epochs` : '<b>—</b> on no epoch carrying enough samples to examine';
       const mag = m.hasMag
-        ? `<div class="q-note" style="margin-top:8px"><b>Magnetometer ✓</b> ${(m.nMag || 0).toLocaleString()} samples @ ${m.magFs || '—'} Hz · |B| baseline ${m.magBaseG} G · L/R datum ${m.refHeadingDeg != null ? m.refHeadingDeg + '°' : '—'} <span class="dim">(relative)</span>. Splits <code>lateral</code> → <code>lateral_L/R</code> via tilt-compensated heading; <code>magInterference</code> on <b>${r.magInterferencePct != null ? r.magInterferencePct : 0}%</b> of epochs — informational, does <b>not</b> alter SQI. <span class="dim">Earth-field-scale only · not biomagnetic HR.</span></div>`
+        ? `<div class="q-note" style="margin-top:8px"><b>Magnetometer ✓</b> ${(m.nMag || 0).toLocaleString()} samples @ ${m.magFs || '—'} Hz · |B| baseline ${m.magBaseG} G · L/R datum ${m.refHeadingDeg != null ? m.refHeadingDeg + '°' : '—'} <span class="dim">(relative)</span>. Splits <code>lateral</code> → <code>lateral_L/R</code> via tilt-compensated heading; <code>magInterference</code> ${magIntTxt} — informational, does <b>not</b> alter SQI. <span class="dim">Earth-field-scale only · not biomagnetic HR.</span></div>`
         : `<div class="q-note dim" style="margin-top:8px">No <code>*_MAGN.txt</code> for this session — L/R lateral merged as <code>lateral</code>. Drop the MAGN file to disambiguate sides + flag magnetic artifacts.</div>`;
       return `<div class="mini-h" style="margin-top:12px">${typeof evBadge === 'function' ? evBadge('Limb position') : ''}Limb position <span class="mini-sub">ACC gravity${m.hasMag ? ' + MAGN heading' : ''} · per-epoch in export</span></div><div style="display:flex;flex-wrap:wrap">${rows}</div>${mag}`;
     })()}`;
@@ -23024,6 +23037,7 @@ const { PPGUI } = __require('ppgdex-render.js');
         r.motion && r.motion.hasData
           ? {
               meanMotionIndex: r.motion.meanMotionIndex,
+              meanMotionIndexReason: r.motion.meanMotionIndexReason,
               motionRejectedPct: r.motionRejectedPct,
               motionRejectedPctReason: r.motionRejectedPctReason,
               source: 'ACC+GYRO',
