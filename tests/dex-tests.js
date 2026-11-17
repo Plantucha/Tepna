@@ -12607,6 +12607,45 @@
       T.ok('no node drifted from its baseline', drift.length === 0, 'drifted: ' + drift.join(', '));
     });
 
+    /* ∅ A SPAN OF ZERO IS NOT A SHORT SPAN. `analyze` adopts `rec.devMsAt` as the beat clock; a
+       counter that returns ONE stamp makes buildNN's span exactly 0 — the stuck-counter input its own
+       comment (:1257) says arrives through `analyze`. Origin/main then published `spanMin: 0.1` (the
+       last beat's OFFSET, not a span), `durSec: 5` and `durMin: 0.1` for a series that never advanced,
+       and graded the tier "< 2 min". The control runs the same samples on the index axis, so only the
+       beat clock differs between the arms. */
+    group('ECGDex duration — ∅ a beat series that spans no time publishes no span and no duration', 'ecgdex-dsp · absence · duration', function (T) {
+      var E = env.ECGDSP || env.EcgDsp;
+      if (!E || typeof E.analyze !== 'function' || typeof E.genSynthetic !== 'function') {
+        T.skip('ECGDSP.analyze + genSynthetic available', 'not loaded');
+        return;
+      }
+      var SYN = E.genSynthetic({ durSec: 60, fs: 130, scenario: 'overnight' });
+      var T0 = Date.UTC(2026, 6, 31, 0, 0, 0);
+      var ctrl = E.analyze({ int16: SYN.int16, fs: 130, source: 'synthetic', t0Ms: T0 });
+      T.ok('ANTI-VACUITY · the index axis measured a span from the same samples', ctrl && ctrl.spanMin > 0, 'spanMin=' + (ctrl && ctrl.spanMin));
+      T.ok('ANTI-VACUITY · …and a duration', ctrl && ctrl.durSec > 0, 'durSec=' + (ctrl && ctrl.durSec));
+      var stuck = E.analyze({
+        int16: SYN.int16,
+        fs: 130,
+        source: 'synthetic',
+        t0Ms: T0,
+        devMsAt: function () {
+          return 5000;
+        }
+      });
+      T.eq('a zero span publishes NO spanMin — a last-beat offset is not a span', stuck && stuck.spanMin, null);
+      T.eq('…NO durSec', stuck && stuck.durSec, null);
+      T.ok('…and the null is a published field, not a missing one', !!stuck && 'durSec' in stuck && 'spanMin' in stuck && 'durMin' in stuck);
+      T.ok(
+        '…and the mode is not graded from a duration nobody measured',
+        !!stuck && stuck.mode === 'short-reading' && /unmeasured/.test(String(stuck.modeWhy)),
+        'mode=' + (stuck && stuck.mode) + ' why=' + JSON.stringify(stuck && stuck.modeWhy)
+      );
+      T.eq('…NO durMin', stuck && stuck.durMin, null);
+      T.eq('…and the beat-coverage refusal still carries its own reason', stuck && stuck.coveragePct, null);
+      T.ok('…and the tier names the unmeasured duration rather than grading it', stuck && /unmeasured/.test(String(stuck.tierMsg)), 'tierMsg=' + JSON.stringify(stuck && stuck.tierMsg));
+    });
+
     group('ECGDex RMSSD absence — an unmeasured RMSSD is null, never 0 (§∅)', 'ecgdex-dsp · absence', function (T) {
       var E = env.ECGDSP || env.EcgDsp;
       T.ok('ECGDSP reachable', !!(E && E.analyze && E.validateRR), 'ecgdex-dsp.js did not load');
@@ -19789,6 +19828,34 @@
       var escapeBranch = /ch === '\\\\' && i \+ 1 < line\.length/.test(rid);
       T.ok('residue-ids reads its cells through the scanner', routed, 'parseRows → splitRowCells: ' + (routed ? 'wired' : 'ABSENT'));
       T.ok('…and the scanner consumes a backslash pair as one unit', escapeBranch, 'escape branch: ' + (escapeBranch ? 'present' : 'ABSENT'));
+      /* ── THE `ok` LINE MUST POINT AT THE GATE IT DOES NOT COVER ─────────────────────────────────
+         Row 2026-11-16-a-malformed-residue-source-cell-is-caught-only-by-the-full-suite. This tool
+         and `residue-cite-drift.mjs` both report green over a row whose SHAPE check8b rejects, and
+         no document named the one-second command that reads the shape. The pointer now rides the
+         tool's own output, and these two legs stop it drifting back out.
+         THE GROUP NAME IS THE PINNED PART, never its index: `--group-index=478` reached the ledger
+         group on 2026-11-06 and runs an OxyDex group today. */
+      var pointsAtShapeGate = /--group=Docs-ledger/.test(rid);
+      var saysWhatItSkips = /does not read a row SHAPE/.test(rid);
+      T.ok(
+        'residue-ids names the command that reads the row SHAPE',
+        pointsAtShapeGate,
+        'pointer: ' + (pointsAtShapeGate ? 'present' : 'ABSENT — an author reads ok and meets check8b at step 26 of 71')
+      );
+      T.ok('…and says which question its own green leaves open', saysWhatItSkips, 'disclosure: ' + (saysWhatItSkips ? 'present' : 'ABSENT'));
+      /* ⚠️ `env.toolTexts` ENUMERATES `tools/` ONLY, so a leg keyed on a path outside it asserts
+         over an empty string and reads as ABSENT however the file actually reads — the
+         examined-nothing shape. The skill is read off disk instead, and an unreadable file is a
+         FAILURE here rather than a silent pass, because the pointer is the row's whole remedy. */
+      var skillText = '';
+      var skillErr = null;
+      try {
+        skillText = String(require('fs').readFileSync('.claude/skills/residue-row/SKILL.md', 'utf8'));
+      } catch (e) {
+        skillErr = String((e && e.message) || e);
+      }
+      T.ok('ANTI-VACUITY · the row-author skill was READ, not assumed', skillText.length > 0, skillErr ? 'unreadable: ' + skillErr : 'len=' + skillText.length);
+      T.ok('…and it names the same command the tool now prints', /--group=Docs-ledger/.test(skillText), 'SKILL.md pointer: ' + (/--group=Docs-ledger/.test(skillText) ? 'present' : 'ABSENT'));
     });
 
     /* ── A CITED RESIDUE KEY RESOLVES TO A ROW, OR THE GATE NAMES IT ──────────────────────────────
@@ -65694,11 +65761,27 @@
                the comma and `see the note in docs` reds for having no extension at all. check8d
                continues to require the path to be in the tree, which is what refuses a well-shaped
                invention.
-               ⚠️ A name with NO extension — `LICENSE`, `NOTICE`, `capture-host/Caddyfile`,
-               `tools/systemd/tepna-update` — is STILL uncitable here, because the shape test needs a
-               dot. That is a different root from this one and it needs its own ruling, so it rides a
-               residue row rather than a silent widening. */
-            var srcPath = !srcBrief && c[2].match(/^`((?:[A-Za-z0-9._\/'@-][A-Za-z0-9._\/'@ -]*\.[A-Za-z0-9]+)|(?:(?:[A-Za-z0-9._\/'@-][A-Za-z0-9._\/'@ -]*\/)?\.[A-Za-z0-9_-]+))`$/);
+               A NAME WITH NO EXTENSION IS A REPO PATH TOO, and the ruling the paragraph below used
+               to defer is now taken (row 2026-11-16-an-extensionless-file-cannot-be-a-residue-source,
+               board decision 7148). THE DOT IS NOT WHAT SEPARATES A PATH FROM A PROSE WORD; THE TREE
+               IS. So the third alternative accepts a dot-less final segment, and check8d still
+               resolves it against the tree, which is what refuses a well-shaped invention.
+               The row objected that a shape with no dot and no slash also accepts a single prose
+               word, and the narrowing answers it: the dot-less segment may carry NO SPACE, so a
+               multi-word cell stays refused on the space, and a single word reaches check8d, which
+               reds it BY NAME because the tree does not hold it. A red either way; this one names the
+               repair.
+               Measured on the ref at `1e9b6afd0` over the 3498 names of
+               `git ls-tree -r --name-only origin/main`: exactly 4 carry a dot-less basename —
+               `LICENSE`, `NOTICE`, `capture-host/Caddyfile` and `tools/systemd/tepna-update`. The
+               class gains exactly those 4, loses 0, and refuses no name in the tree. CLAUDE.md names
+               `LICENSE` and `NOTICE` as authoritative licensing surfaces, so a defect that starts in
+               one of them no longer has to borrow a PR number and move its stated origin. */
+            var srcPath =
+              !srcBrief &&
+              c[2].match(
+                /^`((?:[A-Za-z0-9._\/'@-][A-Za-z0-9._\/'@ -]*\.[A-Za-z0-9]+)|(?:(?:[A-Za-z0-9._\/'@-][A-Za-z0-9._\/'@ -]*\/)?\.[A-Za-z0-9_-]+)|(?:(?:[A-Za-z0-9._\/'@-][A-Za-z0-9._\/'@ -]*\/)?[A-Za-z0-9][A-Za-z0-9_@-]*))`$/
+              );
             var srcPr = !srcBrief && !srcPath && c[2].match(/^`(#\d+)`$/);
             var src = srcBrief || srcPath || srcPr;
             var srcKind = srcBrief ? 'brief' : srcPath ? 'path' : srcPr ? 'pr' : null;
@@ -66207,6 +66290,30 @@
         /* check8d still answers the OTHER question: a well-shaped path which is not in the tree. */
         T.eq('self-test · check8d RESOLVES a spaced path which the walk holds', residueVerdict(spacedRow.rows, {}, ['OxyDex Reference.html']).badSrc.length, 0);
         T.eq('CONTROL · check8d FIRES on a spaced path the walk does NOT hold', residueVerdict(spacedRow.rows, {}, ['some/other/file.html']).badSrc.length, 1);
+        /* ── A SOURCE CELL MAY NAME A FILE WITH NO EXTENSION (board decision 7148) ──────────────
+           Row 2026-11-16-an-extensionless-file-cannot-be-a-residue-source stated no remedy, because
+           lifting the dot asks what a source cell IS. The ruling: the dot is not what separates a
+           path from a prose word, the TREE is, so check8d stays the discriminator and the shape
+           keeps only the narrowing that refuses a phrase — no space in the dot-less segment.
+           All four names below are tracked files of this repo, measured on the ref at `1e9b6afd0`
+           over 3498 names; they are the WHOLE dot-less population, not a sample of it. */
+        var licRow = mkSrc('`LICENSE`');
+        T.ok('self-test · check8b ACCEPTS a ROOT name with no extension', licRow.malformed.length === 0, licRow.malformed.length ? licRow.malformed[0] : 'accepted');
+        T.ok('self-test · …and the second licensing surface beside it', mkSrc('`NOTICE`').malformed.length === 0);
+        T.ok('self-test · …a nested extensionless file', mkSrc('`capture-host/Caddyfile`').malformed.length === 0);
+        T.ok('self-test · …and a two-deep one', mkSrc('`tools/systemd/tepna-update`').malformed.length === 0);
+        T.eq('self-test · check8b reads it as a PATH source, not a brief or a PR', (licRow.rows[0] || {}).srcKind || 'REJECTED', 'path');
+        T.eq('self-test · check8d RESOLVES an extensionless path the walk holds', residueVerdict(licRow.rows, {}, ['LICENSE']).badSrc.length, 0);
+        /* THE PRICE OF THE RULING, STATED AS A LEG. A single prose word now passes the SHAPE, and
+           check8d is what reds it. That is a red either way, and this one names the repair instead
+           of saying `malformed`. The leg exists so the price cannot be forgotten. */
+        var wordRow = mkSrc('`residue`');
+        T.eq('self-test · a single prose word passes the SHAPE, which is the stated price', wordRow.malformed.length, 0);
+        T.eq('CONTROL · …and check8d FIRES on it, because the tree does not hold it', residueVerdict(wordRow.rows, {}, ['LICENSE']).badSrc.length, 1);
+        T.ok('CONTROL · a multi-word cell with no dot is still refused by the SHAPE, on the space', mkSrc('`LICENSE and NOTICE`').malformed.length === 1);
+        T.ok('CONTROL · a LEADING space before an extensionless name is still refused', mkSrc('` LICENSE`').malformed.length === 1);
+        T.ok('CONTROL · a PR source is still read as a PR, never as an extensionless path', (mkSrc('`#5143`').rows[0] || {}).srcKind === 'pr');
+        T.ok('CONTROL · a brief is still read as a brief', (mkSrc('`VERDICT-CONTRACT-2026-09-21-BRIEF.md`').rows[0] || {}).srcKind === 'brief');
         var bareRow = residueRows(mkRow('a bare | pipe'));
         T.ok(
           'self-test · …and still REJECTS a bare pipe, so the check is not loosened',
