@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="b59a059c69fc" data-compute-hash="e770588d5f90">
+<html lang="en" data-manifest-hash="8fb52629b187" data-compute-hash="c445afff70f8">
 <head>
 <!--
   EEGDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). EEGDex ships zero
      inline scripts (all init lives in eegdex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+5s/308ZZHLhEYgoeaMWJ/zCs2ZUakeHuo1fhny95Bc=' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-K7+uIbG5ZqPm405RoRfCVCG+Q2LLPZtHsZfR8aQyP8M=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-oA7joo+yJYrozWipOCSK8iJkQzHc2t2BpDuCsYHmyV4=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-x0L/DkDXKaFWh/McdlbmxM846Jz3JwuxDSIeMvltqg4=' 'sha256-zNrW85hAqNGql/xLaI8/ruXZeyqkmumE0Jh22zrFop0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+5s/308ZZHLhEYgoeaMWJ/zCs2ZUakeHuo1fhny95Bc=' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-K2BLQAofcf8GB+oB7qE6aL+TY3ZZk+3MJEK2wr9c5BY=' 'sha256-K7+uIbG5ZqPm405RoRfCVCG+Q2LLPZtHsZfR8aQyP8M=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-oA7joo+yJYrozWipOCSK8iJkQzHc2t2BpDuCsYHmyV4=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-zNrW85hAqNGql/xLaI8/ruXZeyqkmumE0Jh22zrFop0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>EEGDex — Sleep EEG Analyzer · v2.33.0</title>
@@ -8168,10 +8168,18 @@ global.EegRegistry = {
       i;
     for (i = 0; i < nEp; i++) {
       bands.push(epochBands(sig, i * spe, (i + 1) * spe, fs));
-      var ef = rec.emgFs || fs,
-        of = rec.eogFs || fs;
-      emgR.push(rec.emg ? rms(rec.emg, Math.round(i * EPOCH_SEC * ef), Math.round((i + 1) * EPOCH_SEC * ef)) : null);
-      eogR.push(rec.eog ? rms(rec.eog, Math.round(i * EPOCH_SEC * of), Math.round((i + 1) * EPOCH_SEC * of)) : null);
+      /* ∅ — A RATE WE DO NOT HAVE IS NOT THE EEG RATE. `rec.emgFs || fs` read an EMG or EOG lead of
+         undeclared rate at the EEG's rate, which multiplies every window bound by the ratio of the two:
+         measured on one 480 s synthetic frame, an EMG lead at 25 Hz read at 100 Hz covered only the first
+         four epochs and left twelve with no tone, so the stager's permissive `== null` arm drove them
+         into REM — 8 REM epochs instead of the 3 a declared `emgFs: 25` produces, TST 0.117 h instead of
+         0.108, SE 87.5 instead of 81.3. An undeclared (or non-positive) rate now makes the leg ABSENT,
+         which is a state these arms already model, instead of inventing a rate the caller never stated.
+         `rec.emgFs`/`eogFs` in the contract at the top of this block is what a caller declares. */
+      var ef = rec.emgFs > 0 ? rec.emgFs : null,
+        of = rec.eogFs > 0 ? rec.eogFs : null;
+      emgR.push(rec.emg && ef != null ? rms(rec.emg, Math.round(i * EPOCH_SEC * ef), Math.round((i + 1) * EPOCH_SEC * ef)) : null);
+      eogR.push(rec.eog && of != null ? rms(rec.eog, Math.round(i * EPOCH_SEC * of), Math.round((i + 1) * EPOCH_SEC * of)) : null);
     }
     /* per-recording normalisation — see the stager's note on absolute thresholds */
     var emgMed = median(emgR),
@@ -8239,6 +8247,12 @@ global.EegRegistry = {
       /* The spindle answer over the epochs THIS function staged, so the density and the hypnogram
          it is a density over can never come from two different stagings. */
       spindles: detectSpindles(sig, fs, hypnogram),
+      /* ∅ · a lead the caller passed but could not be read, each with its own reason. A lead the
+         caller never passed is not listed: that is a frame without the lead, not a refusal. */
+      leadAbsence: {
+        emg: rec.emg && !(rec.emgFs > 0) ? 'emg-rate-undeclared' : null,
+        eog: rec.eog && !(rec.eogFs > 0) ? 'eog-rate-undeclared' : null
+      },
       quality: {
         analyzablePct: +((100 * scored) / nEp).toFixed(1),
         nUnscorable: nNull
