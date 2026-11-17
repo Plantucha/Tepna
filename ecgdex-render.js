@@ -885,31 +885,52 @@ window.evBadge = evBadge;
   }
 
   /* THE READING ORDER IS THE INFORMATION ORDER: value, then what it is measured in, then the pair a
-     sidecar moves, then — last and quietest — the reason. The reason used to sit BETWEEN the number
-     and its own before-and-after pair, which split one fact across a paragraph. */
-  function _sqValueCell(cell, badgeId, kind, hoisted, book, site) {
-    var pad = 'padding:11px 14px 13px;border-top:1px solid var(--border);vertical-align:top';
-    if (!cell) return '<td class="sq-v" style="' + pad + '">' + _sqBadge(badgeId) + '<b>—</b>' + _sqWhy('this channel publishes no cell for this fact, so the table has nothing to read') + '</td>';
-    var n = _sqNum(cell.value, kind);
+     sidecar moves, then — last and quietest — the reason. One channel of one fact is this block.
+
+     IT WAS A TABLE CELL UNTIL 2026-11-16, and the table is what cost the card its space (owner,
+     measured on a two-channel recording: a 170 px label column, one fixed-width column per channel,
+     and 10 rows whose height was set by the tallest prose in the row — the motion column's reason
+     paragraphs — so a row carrying two numbers and a row carrying two dashes spent the same height.
+     ONE FACT ON ONE CHANNEL IS NOW ONE TILE, and the tile is the `.q-stat` the owner approved for
+     the quality strip above it (owner, 2026-11-16: "here should be all metrics with same look"),
+     so the section carries no second metric idiom of its own. The value is a `.q-val` and takes NO
+     status class, because this node grades none of these facts: the strip's green says a threshold
+     was met, and borrowing it here would state a verdict nothing computed. Each tile takes the
+     height its own content needs, so a fact carrying two dashes no longer spends the height of the
+     tallest prose beside it. */
+  function _sqTile(cell, row, chanLabel, hoisted, book) {
+    var n = cell ? _sqNum(cell.value, row.kind) : null;
+    var site = row.label + ' in ' + chanLabel.toUpperCase();
+    var body = '';
+    if (!cell) body = _sqWhy('this channel publishes no cell for this fact, so the tile has nothing to read');
+    else {
+      if (n != null) body += _sqQualifier(cell);
+      body += _sqBeforeAfter(cell, book, site);
+      if (n == null && (hoisted || []).indexOf(cell.reason || _SQ_NO_REASON) < 0) body += _sqWhy(cell.reason);
+    }
     return (
-      '<td class="sq-v" style="' +
-      pad +
+      '<div class="q-stat sq-stat">' +
+      _sqBadge(row.id) +
+      '<div class="q-val' +
+      (n == null ? ' sq-val-abs' : '') +
       '">' +
-      '<div class="sq-val-line" style="display:flex;gap:6px;align-items:baseline">' +
-      _sqBadge(badgeId) +
-      (n == null ? '<b>—</b>' : '<b style="font-family:IBM Plex Mono,monospace;font-size:13.5px;color:var(--text)">' + n + '</b>') +
+      (n == null ? '\u2014' : n) +
       '</div>' +
-      (cell.unit ? '<div class="sq-u" style="font-size:10px;color:var(--text3);margin-top:3px">' + cell.unit + '</div>' : '') +
-      (n == null ? '' : _sqQualifier(cell)) +
-      _sqBeforeAfter(cell, book, site) +
-      (n == null && (hoisted || []).indexOf(cell.reason || _SQ_NO_REASON) < 0 ? _sqWhy(cell.reason) : '') +
-      '</td>'
+      '<div class="q-lbl">' +
+      row.label +
+      '</div>' +
+      '<div class="q-sub sq-sub-ch">' +
+      chanLabel +
+      '</div>' +
+      (cell && cell.unit ? '<div class="q-sub">' + cell.unit + '</div>' : '') +
+      body +
+      '</div>'
     );
   }
 
   var _SQ_STATE_COLOR = { read: 'var(--green)', 'not-applicable': 'var(--text3)', 'not-read': 'var(--amber)' };
 
-  /* sqTable(sq) → HTML for the per-channel table and the sidecar ledger.
+  /* sqTable(sq) → HTML for the per-channel fact cards and the sidecar census.
      Returns a named absence rather than '' when the object is not there: an empty card is a
      question a reader cannot answer. */
   function sqTable(sq, why) {
@@ -923,16 +944,16 @@ window.evBadge = evBadge;
       );
     var chans = [];
     for (var ck in sq.channels) if (Object.prototype.hasOwnProperty.call(sq.channels, ck)) chans.push(ck);
-    /* THE REASON THAT GOVERNS A COLUMN BELONGS AT THE TOP OF IT. A channel this node does not ingest
-       publishes one sentence on most facts of the table: measured 2026-11-15 on the committed
-       synthetic, 8 of the 11 absent cells of the motion column read "this node ingests no motion
-       channel on this recording", beside 8 dashes. A reader has to read the whole column to learn
-       that it holds one finding. §∅ asks that an absence carry its named reason, and every absence
-       still does: the governing reason is stated ONCE, at the head of the column, with the count it
-       covers, and only the cells carrying THAT reason go bare. The other cells of the column keep
-       their own text, so a differing absence is never folded into a reason that is not its own.
-       The MAJORITY test, not an equality test, is what makes this work on a real column: an
-       equality test hoisted nothing here, because two cells of the eleven said something else. */
+    /* THE REASON THAT GOVERNS A CHANNEL BELONGS AT THE TOP OF THE SECTION, not inside every card
+       that carries it. A channel this node does not ingest publishes one sentence on most facts:
+       measured 2026-11-15 on the committed synthetic, 8 of the 11 absent cells of the motion column
+       read "this node ingests no motion channel on this recording", beside 8 dashes. §∅ asks that an
+       absence carry its named reason, and every absence still does: the governing reason is stated
+       ONCE, in that channel's scope card, with the count it covers, and only the cells carrying THAT
+       reason go bare. A cell whose absence says something else keeps its own text, so a differing
+       absence is never folded into a reason that is not its own. The MAJORITY test, not an equality
+       test, is what makes this work on a real channel: an equality test hoisted nothing here,
+       because two cells of the eleven said something else. */
     /* THE BEFORE-AND-AFTER REASONS REPEAT TOO, and for the same cause: one finding about the sidecar
        answers several facts, so two cells of the motion column carried the identical two-sentence
        pair (measured 2026-11-15, 8 lines of the card). The book prints the pair at the first cell
@@ -958,8 +979,8 @@ window.evBadge = evBadge;
         }
       });
       colWhy[ck] = topN >= 3 && topN * 2 >= absentCells ? { body: top, n: topN, of: absentCells } : null;
-      /* A CELL SAYS NOTHING THE COLUMN HEAD ALREADY SAID. The head carries the majority hoist and
-         the channel-level notes, so each of those bodies is struck from every cell below it. The
+      /* A CELL SAYS NOTHING THE SCOPE CARD ALREADY SAID. The scope card carries the majority hoist
+         and the channel-level notes, so each of those bodies is struck from every cell below it. The
          ACC column printed `inputNote` in full twice: once at the head and once inside the
          coverage cell, because the first version of this suppression held ONE body. */
       var ch0 = sq.channels[ck] || {};
@@ -967,69 +988,39 @@ window.evBadge = evBadge;
         return x;
       });
     });
-    var TH = 'text-align:left;vertical-align:top;padding:7px 14px 8px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)';
-    var head =
-      '<tr><th style="' +
-      TH +
-      '">Fact</th>' +
-      chans
-        .map(function (ck) {
-          return '<th style="' + TH + '">' + ((sq.channels[ck] || {}).stream || ck) + '</th>';
-        })
-        .join('') +
-      '</tr>';
-    /* THE CHANNEL NOTES RIDE THEIR OWN ROW, NOT THE HEADER. Each note is a paragraph, and a
-       paragraph inside a `<th>` drove the header to about 200 px tall while the Fact cell and every
-       channel without a note stayed one word tall. That reads as a hole in the table rather than as
-       space. The note now sits directly under the header, in its own column, above every cell it
-       governs — so what governs what did not change — and the first column carries a SCOPE label,
-       which gives the widest empty cell something to say.
-
-       A CHANNEL-LEVEL NOTE OUTRANKS A CELL-LEVEL ONE. The node publishes `scopeNote` for a channel
-       whose facts are bounded by how this node derives them, and `inputNote` for an input that did
-       not arrive. Both govern the whole column. The majority hoist (`colWhy`) speaks only for the
-       cells that still share one sentence, so it follows them.
-
-       ONE LINE PER FACT: the scope of the channel and the arrival of its input are two different
-       statements, and run together they read as one paragraph a reader skims. */
-    var _sqNoteCell = function (ck) {
-      var ch = sq.channels[ck] || {};
-      var notes = [];
-      if (ch.scopeNote) notes.push(ch.scopeNote);
-      if (ch.inputNote) notes.push(ch.inputNote);
-      var body =
-        notes
-          .map(function (n, i) {
-            return '<div class="sq-col-note" style="' + _SQ_PROSE + ';white-space:normal' + (i ? ';margin-top:7px' : '') + '">' + n + '</div>';
-          })
-          .join('') +
-        (colWhy[ck]
-          ? '<div class="sq-col-why" style="' +
-            _SQ_PROSE +
-            ';white-space:normal;margin-top:7px">' +
-            (colWhy[ck].n === colWhy[ck].of ? 'every absence here' : colWhy[ck].n + ' of the ' + colWhy[ck].of + ' absences here') +
-            ' \u2014 ' +
-            colWhy[ck].body +
-            '</div>'
-          : '');
-      return body;
+    var _sqChanName = function (ck) {
+      return String((sq.channels[ck] || {}).stream || ck);
     };
-    var _sqNoteBodies = chans.map(_sqNoteCell);
-    var scopeRow = _sqNoteBodies.some(function (b) {
-      return b;
-    })
-      ? '<tr><td style="' +
-        TH +
-        ';border-top:1px solid var(--border)">Scope</td>' +
-        _sqNoteBodies
-          .map(function (b) {
-            return '<td style="padding:7px 14px 9px;border-top:1px solid var(--border);vertical-align:top">' + b + '</td>';
-          })
-          .join('') +
-        '</tr>'
-      : '';
-    /* A FACT NO CHANNEL MEASURED SINKS BELOW THE RULE. It is still drawn, with its own reason — an
-       absence is a result (§∅) — but it stops standing between two rows that carry numbers. The
+    /* ONE SCOPE CARD PER CHANNEL THAT HAS SOMETHING TO SAY, and none for a channel that does not —
+       the old SCOPE row drew a cell for every channel whether or not it carried a note, and a note
+       is a paragraph, so one channel's finding set the height of the whole row. */
+    var scopeCards = chans
+      .map(function (ck) {
+        var ch = sq.channels[ck] || {};
+        var notes = [];
+        if (ch.scopeNote) notes.push(ch.scopeNote);
+        if (ch.inputNote) notes.push(ch.inputNote);
+        var cw = colWhy[ck];
+        if (!notes.length && !cw) return '';
+        return (
+          '<div class="sq-scope">' +
+          '<div class="sq-scope-k">' +
+          _sqChanName(ck) +
+          ' · scope</div>' +
+          notes
+            .map(function (t) {
+              return '<div class="sq-col-note sq-scope-p">' + t + '</div>';
+            })
+            .join('') +
+          (cw
+            ? '<div class="sq-col-why sq-scope-p">' + (cw.n === cw.of ? 'every absence on this channel' : cw.n + ' of the ' + cw.of + ' absences on this channel') + ' — ' + cw.body + '</div>'
+            : '') +
+          '</div>'
+        );
+      })
+      .join('');
+    /* A FACT NO CHANNEL MEASURED SINKS INTO ITS OWN CARD. It is still drawn, with its own reason —
+       an absence is a result (§∅) — but it stops standing between two facts that carry numbers. The
        split is computed from the cells of THIS recording, so nothing here hardcodes which facts
        this node happens to compute today. */
     var measured = [],
@@ -1045,41 +1036,30 @@ window.evBadge = evBadge;
       }
       (any ? measured : absent).push(row);
     });
-    function _sqRowHtml(row, i) {
-      /* The zebra is 1.6 % white: enough to carry the eye across a wide row, far below the contrast
-         of any text or rule on the card. The label cell is TOP-aligned, because a one-line label
-         centred against an eight-line cell floats away from the number it names. */
-      var bg = i % 2 ? 'background:rgba(255,255,255,.016);' : '';
+    /* THE CHANNELS OF ONE FACT TRAVEL TOGETHER. The tiles flow in columns rather than rows, so an
+       unwrapped tile set breaks a fact's two channels across a column boundary and puts the same
+       label half a screen from itself (measured 2026-11-16: Coverage on the motion channel sat at
+       the head of column 2 while Coverage on the ECG channel sat in column 1). The wrapper is the
+       unit the column flow may not split. */
+    function _sqFactTiles(row) {
       return (
-        '<tr>' +
-        '<td style="' +
-        bg +
-        'padding:11px 14px 13px;border-top:1px solid var(--border);color:var(--text2);font-weight:600;white-space:nowrap;vertical-align:top">' +
-        _sqBadge(row.id) +
-        row.label +
-        '</td>' +
+        '<div class="sq-pair">' +
         chans
           .map(function (ck) {
-            return _sqValueCell(
-              sq.channels[ck] ? sq.channels[ck][row.k] : null,
-              row.id,
-              row.kind,
-              hoisted[ck],
-              baBook,
-              row.label + ' in ' + String((sq.channels[ck] && sq.channels[ck].stream) || ck).toUpperCase()
-            ).replace('<td class="sq-v" style="', '<td class="sq-v" style="' + bg);
+            var c = sq.channels[ck] ? sq.channels[ck][row.k] : null;
+            return _sqTile(c, row, _sqChanName(ck), hoisted[ck], baBook);
           })
           .join('') +
-        '</tr>'
+        '</div>'
       );
     }
-    /* TWO ROWS, ONE NUMBER. `ecgdex-dsp.js` sets the axis-rate cell to `hostAxis.ppm` and builds
+    /* TWO CARDS, ONE NUMBER. `ecgdex-dsp.js` sets the axis-rate cell to `hostAxis.ppm` and builds
        the night figure as `night.ppm = hostAxis.ppm`, so on every recording that resolves a host
-       axis the two rows print the same rate and differ only in what they attribute it to: the axis
-       row names the host column, the night row names the §3d reference the profile selected. A
+       axis the two cards print the same rate and differ only in what they attribute it to: the axis
+       card names the host column, the night card names the §3d reference the profile selected. A
        reader who meets two rates with two labels reads two measurements and takes the agreement as
-       corroboration, which is the one thing it cannot be. The table states the identity rather than
-       hiding one row, because the ATTRIBUTION of each is a separate fact worth reading — and it
+       corroboration, which is the one thing it cannot be. The card states the identity rather than
+       hiding one fact, because the ATTRIBUTION of each is a separate fact worth reading — and it
        states it only for the channels where the two numbers are in fact equal, measured here, so a
        future node that computes an independent night rate silences this line by itself. */
     var dupChans = chans.filter(function (ck) {
@@ -1095,77 +1075,149 @@ window.evBadge = evBadge;
         : ' <b>Axis rate and Night drift are one measurement on ' +
           (dupChans.length === chans.length ? 'every channel here' : dupChans.join(', ')) +
           '</b>: the night rate is the host-axis rate, attributed to the reference the drift profile named. Their agreement corroborates nothing.';
-    var rows = measured.map(_sqRowHtml).join('');
-    if (absent.length && measured.length)
-      rows +=
-        '<tr class="sq-split"><td colspan="' +
-        (chans.length + 1) +
-        '" style="padding:16px 14px 6px;border-top:1px solid var(--border);font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--text4,var(--text3))">' +
-        'not measured on any channel of this recording</td></tr>';
-    rows += absent
-      .map(function (row, i) {
-        return _sqRowHtml(row, i + measured.length);
-      })
-      .join('');
+    var cards = measured.map(_sqFactTiles).join('');
+    var absentCard = !absent.length
+      ? ''
+      : '<div class="sq-abs">' + '<div class="sq-abs-h">Not measured on any channel of this recording</div>' + '<div class="q-grid sq-grid">' + absent.map(_sqFactTiles).join('') + '</div></div>';
+    /* THE SIDECAR LEDGER IS A CENSUS LINE, NOT A TABLE (owner, 2026-11-16: "eliminate side cars
+       section, nothing is used"). The 25-row scroller spent about 260 px to say one thing on this
+       recording — that no sidecar applied to it — and the row that would carry a defect is the one
+       that says `not-read`: a validity file this node should have read and did not. So the counts
+       are stated in one line, and a ROW is drawn only for a sidecar whose state is not
+       `not-applicable`. Nothing is hidden that could be acted on: a `not-applicable` sidecar's
+       reason is that the recording has no such stream, which the census states once, while every
+       `read` and every `not-read` entry keeps its own line and its own reason. */
     var sc = Array.isArray(sq.sidecars) ? sq.sidecars : [];
-    var scRows = sc
-      .map(function (r) {
-        var col = _SQ_STATE_COLOR[r.state] || 'var(--text3)';
-        return (
-          '<tr><td style="padding:4px 8px;border-top:1px solid var(--border);font-family:IBM Plex Mono,monospace;font-size:11px;color:var(--text2)">' +
-          r.file +
-          '</td>' +
-          '<td style="padding:4px 8px;border-top:1px solid var(--border);font-size:11px;color:var(--text3)">' +
-          r.label +
-          '</td>' +
-          '<td class="sq-state" style="padding:4px 8px;border-top:1px solid var(--border);font-size:11px;color:' +
-          col +
-          ';white-space:nowrap">' +
-          _sqBadge(SQ_LEDGER_ID) +
-          r.state +
-          '</td>' +
-          '<td style="padding:4px 8px;border-top:1px solid var(--border);font-size:10px;color:var(--text3)">' +
-          (r.state === 'read' ? '' : r.reason || _SQ_NO_REASON) +
-          '</td></tr>'
-        );
-      })
-      .join('');
-    var nRead = sc.filter(function (r) {
-      return r.state === 'read';
-    }).length;
-    var nNA = sc.filter(function (r) {
-      return r.state === 'not-applicable';
-    }).length;
+    /* THE CENSUS COUNTS EVERY STATE THE LEDGER PUBLISHES, not the three this node expects to meet.
+       The first line named `read`, `not-applicable` and `not-read`, and 3 of the 25 entries of the
+       synthetic carry `absent`: the line summed to 22 of 25 listed and said nothing about the three
+       it could not place. A tally cannot drop a state it has never heard of. `read` is printed at
+       zero, because how many validity files this node actually read is the first thing a reader
+       asks and an absent clause reads as an unasked question. */
+    var scTally = Object.create(null);
+    sc.forEach(function (r) {
+      var st = r.state || 'state not stated';
+      scTally[st] = (scTally[st] || 0) + 1;
+    });
+    if (!scTally.read) scTally.read = 0;
+    var _scRank = function (x) {
+      return x === 'read' ? 0 : x === 'not-read' ? 1 : 2;
+    };
+    var scCensus =
+      sc.length +
+      ' listed · ' +
+      Object.keys(scTally)
+        .sort(function (a, b) {
+          return _scRank(a) - _scRank(b) || (a < b ? -1 : a > b ? 1 : 0);
+        })
+        .map(function (k) {
+          return scTally[k] + ' ' + k;
+        })
+        .join(' · ');
+    /* THE SAME REASON ON SIXTEEN FILES IS ONE FINDING, SO IT IS STATED ONCE. Measured 2026-11-16 on
+       the synthetic ambulatory recording: 16 of the 25 sidecars drew a row, 13 of them `not-read`
+       and 3 `absent`, and each row repeated the same sentence — no such file reached this node, and
+       the recording published no origin, so whether a writer should have produced one is unknown.
+       The census spent 421 px to say that twice. A group names its state, counts its files, lists
+       them, and gives the sentence once. A `read` sidecar keeps its own row: its label is a fact
+       about that one file, and a recording has few of them. */
+    var scGroups = [];
+    sc.filter(function (r) {
+      return r.state !== 'not-applicable';
+    }).forEach(function (r) {
+      var isRead = r.state === 'read';
+      var reason = isRead ? null : r.reason || _SQ_NO_REASON;
+      /* THE FILE NAME INSIDE THE REASON IS WHY THE REASONS LOOKED DIFFERENT. Each absent sidecar's
+         sentence quotes its own file in backticks, so 13 sentences that state one finding share no
+         byte-equal text and nothing groups. The elision replaces the backticked name — and ONLY a
+         backticked run equal to this row's own file, so no other quoted token is touched — with a
+         visible ellipsis. The names are not lost: they are the row's file list, right beside the
+         sentence they belong to. */
+      var shape = isRead ? null : reason.split('`' + r.file + '`').join('`\u2026`');
+      var key = isRead ? 'read\u0000' + r.file : r.state + '\u0000' + shape;
+      var g = null;
+      for (var i = 0; i < scGroups.length; i++) if (scGroups[i].key === key) g = scGroups[i];
+      if (!g) {
+        g = { key: key, state: r.state, reason: shape, label: isRead ? r.label : null, files: [] };
+        scGroups.push(g);
+      }
+      g.files.push(r.file);
+    });
+    /* WHAT APPLIED STAYS OPEN; WHAT DID NOT APPLY FOLDS (owner, 2026-11-16: "nothing is used").
+       A `read` sidecar changed a number above, so it is a fact about this recording and it stays on
+       the page. Every other entry describes the node's reader inventory or a file that did not
+       arrive, which is the same on every recording this node sees, and 14 of those rows cost 393 px
+       measured on the synthetic ambulatory recording. They fold into a closed disclosure that
+       states the counts, so nothing is removed and the shut state costs one line. */
+    var _scRowHtml = function (g) {
+      return (
+        '<div class="sq-sc-row">' +
+        '<span class="sq-state" style="color:' +
+        (_SQ_STATE_COLOR[g.state] || 'var(--text3)') +
+        '">' +
+        g.state +
+        (g.files.length > 1 ? ' \u00d7 ' + g.files.length : '') +
+        '</span>' +
+        '<span class="sq-sc-f">' +
+        g.files.join(' ') +
+        '</span>' +
+        '<span class="sq-sc-r">' +
+        (g.reason || g.label || '') +
+        '</span>' +
+        '</div>'
+      );
+    };
+    var scOpen = scGroups.filter(function (g) {
+      return g.state === 'read';
+    });
+    var scShut = scGroups.filter(function (g) {
+      return g.state !== 'read';
+    });
+    var _scCount = function (gs) {
+      var by = {};
+      gs.forEach(function (g) {
+        by[g.state] = (by[g.state] || 0) + g.files.length;
+      });
+      return Object.keys(by)
+        .map(function (k) {
+          return by[k] + ' ' + k;
+        })
+        .join(' \u00b7 ');
+    };
+    var scBlock =
+      (scOpen.length ? '<div class="sq-sc">' + scOpen.map(_scRowHtml).join('') + '</div>' : '') +
+      (scShut.length
+        ? '<details class="sq-sc-more"><summary>' +
+          _scCount(scShut) +
+          ' \u2014 show each file and the reason it carries</summary>' +
+          '<div class="sq-sc">' +
+          scShut.map(_scRowHtml).join('') +
+          '</div></details>'
+        : '');
     return (
       '<div class="mini-h">Signal quality per channel <span class="mini-sub">' +
       (sq.epochSec ? sq.epochSec + ' s windows' : 'window grid not stated') +
+      ' · ' +
+      chans.length +
+      (chans.length === 1 ? ' channel' : ' channels') +
       '</span></div>' +
-      '<div style="overflow-x:auto"><table class="sq-tbl" style="width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed">' +
-      '<colgroup><col style="width:170px">' +
-      chans
-        .map(function () {
-          return '<col style="width:' + (100 / chans.length).toFixed(2) + '%">';
-        })
-        .join('') +
-      '</colgroup>' +
-      head +
-      scopeRow +
-      rows +
-      '</table></div>' +
-      '<div class="mini-h" style="margin-top:12px">Validity sidecars <span class="mini-sub">' +
-      sc.length +
-      ' listed · ' +
-      nRead +
-      ' read · ' +
-      nNA +
-      ' not-applicable</span></div>' +
-      '<div style="overflow-x:auto;max-height:260px;overflow-y:auto"><table class="sq-sidecars" style="width:100%;border-collapse:collapse">' +
-      scRows +
-      '</table></div>' +
-      '<div class="q-note" style="margin-top:8px">Every cell above is the byte the node export carries. A <b>—</b> is a fact no one measured, ' +
-      'and the line under it is the reason; a cell a sidecar changes shows the value before and after that sidecar applies.' +
+      (scopeCards ? '<div class="sq-scopes">' + scopeCards + '</div>' : '') +
+      '<div class="q-grid sq-grid">' +
+      cards +
+      '</div>' +
+      absentCard +
+      '<div class="sq-foot">' +
+      '<div class="sq-sc-h">' +
+      _sqBadge(SQ_LEDGER_ID) +
+      'Validity sidecars <span class="mini-sub">' +
+      scCensus +
+      '</span></div>' +
+      scBlock +
+      '<div class="q-note" style="margin-top:8px">Every value on these tiles is the byte the node export carries. A <b>—</b> is a fact no one measured, ' +
+      'and the line under it is the reason; a value a sidecar changes shows itself before and after that sidecar applies. ' +
+      'A sidecar that did not apply to this recording is counted above and not listed; one this node should have read and did not keeps its own line.' +
       dupNote +
-      '</div>'
+      '</div></div>'
     );
   }
 

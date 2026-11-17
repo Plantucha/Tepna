@@ -59198,10 +59198,27 @@
         T.ok('CONTROL · an absent side draws a reason span rather than a bare dash', /class="sq-ba-r"/.test(html));
         T.ok('CONTROL · the unexplained-absence fallback string never reaches the page', html.indexOf('no reason travelled with this absence') < 0);
         T.ok('every cell carries a measured disc, and none carries a fabricated one', /ev-measured/.test(html) && !/ev-experimental/.test(html));
-        /* THREE discs per fact, not two: the row-label column carries the grade of the measurement,
-           and each of the two channel columns carries it again on its own cell. Plus one per ledger
-           row. A disc that stops being drawn moves this count, which is the point of reading it. */
-        T.eq('one disc on every row label, every channel cell and every ledger row', (html.match(/class="ev ev-/g) || []).length, UI.SQ_ROWS.length * 3 + 25);
+        /* ONE DISC PER FACT CARD AND ONE PER CHANNEL BLOCK INSIDE IT, plus one on the sidecar
+           census: the card header carries the grade of the measurement and each channel carries it
+           again on its own number. The channel count is READ FROM THE OBJECT rather than typed,
+           because a hardcoded 2 would turn a node that stops publishing a channel into a passing
+           leg about a card that is no longer drawn. A disc that stops being drawn moves this count,
+           which is the point of reading it. */
+        var nChanSq = Object.keys(sqPsl2.channels || {}).length;
+        T.ok('ANTI-VACUITY · the fixture publishes more than one channel, so the per-channel half of the count below is not zero', nChanSq > 1, 'channels=' + nChanSq);
+        T.eq('one disc on every fact tile and one on the sidecar census', (html.match(/class="ev ev-/g) || []).length, UI.SQ_ROWS.length * nChanSq + 1);
+        /* THE LEDGER IS A CENSUS LINE, NOT A TABLE (owner, 2026-11-16: "eliminate side cars
+           section, nothing is used"). A `not-applicable` sidecar's reason is that the recording has
+           no such stream, which the census states once for all 25 of them; a `read` or `not-read`
+           entry still draws its own row, and this fixture has neither. The leg reads the ROW class,
+           so a regression that brings the 25-row scroller back fails here rather than only looking
+           tall. */
+        T.ok('the 25 not-applicable sidecars collapse to the census line and draw no row', !/class="sq-sc-row"/.test(html));
+        T.ok(
+          'every fact wears the KPI tile the owner approved rather than a row of a fixed-width table',
+          /class="q-grid sq-grid"/.test(html) && /class="q-stat sq-stat"/.test(html) && !/class="sq-tbl"/.test(html)
+        );
+        T.ok('…and a fact no channel measured says so on its own card', /Not measured on any channel of this recording/.test(html));
       }
 
       /* 3 · THE ABSENT OBJECT. An empty card is a question a reader cannot answer, so the builder
