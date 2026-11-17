@@ -2065,11 +2065,19 @@
       const wins = (r.windows || []).filter((w) => isFinite(w.rmssd) && isFinite(w.tMin));
       if (wins.length) {
         const rms = wins.map((w) => w.rmssd).sort((a, b) => a - b),
-          med = rms[Math.floor(rms.length / 2)] || 1;
+          /* ∅ A ZERO WINDOW-MEDIAN IS NO LEVEL TO DROP FROM (board #6802). The old `|| 1` put a
+             1 ms divisor here, so every window of a flat record cleared `0 < 0.7`. The bus then took
+             one maximum-confidence `hrv_drop` per window, each carrying `medianRMSSD: 1`. Nobody
+             measured that 1. The median stays measured now. The `med > 0` arm below refuses the drop
+             instead, and it guards the divisor the way `_estOk` guards its arguments above. The
+             in-tree producer writes `rmssd` from an RMS, so it cannot reach a zero median. A caller
+             of the published `eventsFromResult` can, and `(0.7 * med - w.rmssd) / (0.7 * med)` is
+             then Infinity. */
+          med = rms[Math.floor(rms.length / 2)];
         wins.forEach((w) => {
           const tMs = t0 + w.tMin * 60000,
             st = stressEst(w.sdnn, w.rmssd);
-          if (w.rmssd < 0.7 * med && w.rmssd < 25)
+          if (med > 0 && w.rmssd < 0.7 * med && w.rmssd < 25)
             ev.push({
               tMs,
               t: _pdClockS(tMs),

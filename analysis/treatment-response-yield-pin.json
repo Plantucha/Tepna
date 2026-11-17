@@ -32,7 +32,7 @@
       "kernel-constants.js": "0050ad3f9dc7",
       "clock.js": "1c56de0b671c",
       "clock-seam.js": "eca421bd5c5e",
-      "pulsedex-dsp.js": "3ff585370feb"
+      "pulsedex-dsp.js": "6a0499213014"
     }
   },
   "yield": {
@@ -270,11 +270,18 @@
       "old": "41871f5b7790",
       "new": "1c56de0b671c",
       "reason": "Unit hostppm (board claim #6974): DexClock.hostAxis divides the running median's end clamp out of the published rate and names the arm in a new ppmEstimator field. Neither realm reaches that code, measured as 0 hits for hostAxis, ppmEstimator and _ckDevAtIdx over the other 9 closure sources. The paper-scale re-cut at nSubj 900 / minN 10 returned 233 tx / 239 flat in 541 s, so the counts did not change."
+    },
+    {
+      "date": "2026-11-17",
+      "file": "pulsedex-dsp.js",
+      "old": "3ff585370feb",
+      "new": "6a0499213014",
+      "reason": "board #6802, the in-band-default lesson: the `hrv_drop` guard in `pdEventsFromResult` refuses a zero window-median rMSSD, where `|| 1` used to put a 1 ms divisor there. That function emits bus impulses and never runs on the survival path, which reads the ODI and rMSSD series through `measureFromResults`. Re-cut at paper scale: 233 tx / 239 flat, unchanged."
     }
   ],
-  "measuredAt": "2026-11-16T20:11:33.733Z",
+  "measuredAt": "2026-11-17T04:10:28.840Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "737774e6b"
+    "commit": "9a3f84f43"
   }
 }
