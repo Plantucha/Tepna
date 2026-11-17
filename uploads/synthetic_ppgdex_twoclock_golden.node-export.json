@@ -85,8 +85,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "2558c3af8da9",
-        "computeHash": "9fef8fd129bd"
+        "manifestHash": "19ccf5b8019f",
+        "computeHash": "5bbb5eb61eeb"
       },
       "evidence": {
         "envelopeRef": null,
@@ -115,8 +115,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "2558c3af8da9",
-        "computeHash": "9fef8fd129bd"
+        "manifestHash": "19ccf5b8019f",
+        "computeHash": "5bbb5eb61eeb"
       },
       "evidence": {
         "envelopeRef": null,
