@@ -775,10 +775,12 @@ window.evBadge = evBadge;
      subordinate to the number above it, and a measure cap keeps the line length readable when the
      column is wide. Spacing is the point of the rule, not decoration — the old 3 px gap between the
      value, the unit and two prose blocks of the same size and colour made one grey slab of all four. */
-  var _SQ_PROSE = 'font-size:10.5px;line-height:1.55;color:var(--text3);max-width:46ch;margin-top:8px;padding-left:9px;border-left:1px solid var(--border)';
-
+  /* THE STYLE IS A CLASS, NOT AN INLINE RUN. An inline style cannot be overridden by a rule, and
+     this block is read in two places that want different spacing: under a drift panel, where the
+     hairline rule marks it as subordinate to the number above it, and inside the note under the
+     tile grid, where the entry already carries its own key and the rule only adds clutter. */
   function _sqWhy(reason) {
-    return '<div class="sq-why" style="' + _SQ_PROSE + '">' + (reason || _SQ_NO_REASON) + '</div>';
+    return '<div class="sq-why">' + (reason || _SQ_NO_REASON) + '</div>';
   }
 
   /* The before-and-after pair of §6: a fact a sidecar changes shows both sides, and an absent side
@@ -895,10 +897,17 @@ window.evBadge = evBadge;
      the quality strip above it (owner, 2026-11-16: "here should be all metrics with same look"),
      so the section carries no second metric idiom of its own. The value is a `.q-val` and takes NO
      status class, because this node grades none of these facts: the strip's green says a threshold
-     was met, and borrowing it here would state a verdict nothing computed. Each tile takes the
-     height its own content needs, so a fact carrying two dashes no longer spends the height of the
-     tallest prose beside it. */
-  function _sqTile(cell, row, chanLabel, hoisted, book) {
+     was met, and borrowing it here would state a verdict nothing computed.
+
+     THE TILE CARRIES NO PROSE (owner, 2026-11-16, rejecting the first version of this block and
+     sending the strip itself back as the request). The first version kept the strip's classes and
+     put the qualifier, the before-and-after pair and the absence reason INSIDE the tile, which made
+     a tall ragged tile that reads as a second design rather than the approved one. The strip states
+     every method and every exception in ONE `.q-note` under the grid, so this section does the
+     same: the tile holds the disc, the number, the label, the channel and the unit, and every word
+     that explains a tile sits in the note below, named by `<fact> \u00b7 <channel>`. Nothing is
+     hidden. A `\u2014` still carries its own reason, one line lower. */
+  function _sqTile(cell, row, chanLabel, hoisted, book, notes) {
     var n = cell ? _sqNum(cell.value, row.kind) : null;
     var site = row.label + ' in ' + chanLabel.toUpperCase();
     var body = '';
@@ -908,6 +917,7 @@ window.evBadge = evBadge;
       body += _sqBeforeAfter(cell, book, site);
       if (n == null && (hoisted || []).indexOf(cell.reason || _SQ_NO_REASON) < 0) body += _sqWhy(cell.reason);
     }
+    if (body && notes) notes.push('<div class="sq-note-row"><span class="sq-note-k">' + row.label + ' \u00b7 ' + chanLabel + '</span>' + body + '</div>');
     return (
       '<div class="q-stat sq-stat">' +
       _sqBadge(row.id) +
@@ -923,7 +933,6 @@ window.evBadge = evBadge;
       chanLabel +
       '</div>' +
       (cell && cell.unit ? '<div class="q-sub">' + cell.unit + '</div>' : '') +
-      body +
       '</div>'
     );
   }
@@ -1036,22 +1045,20 @@ window.evBadge = evBadge;
       }
       (any ? measured : absent).push(row);
     });
-    /* THE CHANNELS OF ONE FACT TRAVEL TOGETHER. The tiles flow in columns rather than rows, so an
-       unwrapped tile set breaks a fact's two channels across a column boundary and puts the same
-       label half a screen from itself (measured 2026-11-16: Coverage on the motion channel sat at
-       the head of column 2 while Coverage on the ECG channel sat in column 1). The wrapper is the
-       unit the column flow may not split. */
+    /* A ROW GRID AGAIN, BECAUSE EVERY TILE IS NOW THE SAME HEIGHT. The first version carried prose
+       inside the tile, so one fact's absence reason set the height of every tile beside it in its
+       row (measured 2026-11-16: a 265 px row holding two tiles of 96 px). That is what pushed the
+       tiles into a column flow, and the flow then needed a wrapper to stop a fact's two channels
+       landing in different columns. Moving the prose under the grid removes the cause, so the
+       section uses the strip's own `.q-grid` and both repairs go away with it. */
+    var tileNotes = [];
     function _sqFactTiles(row) {
-      return (
-        '<div class="sq-pair">' +
-        chans
-          .map(function (ck) {
-            var c = sq.channels[ck] ? sq.channels[ck][row.k] : null;
-            return _sqTile(c, row, _sqChanName(ck), hoisted[ck], baBook);
-          })
-          .join('') +
-        '</div>'
-      );
+      return chans
+        .map(function (ck) {
+          var c = sq.channels[ck] ? sq.channels[ck][row.k] : null;
+          return _sqTile(c, row, _sqChanName(ck), hoisted[ck], baBook, tileNotes);
+        })
+        .join('');
     }
     /* TWO CARDS, ONE NUMBER. `ecgdex-dsp.js` sets the axis-rate cell to `hostAxis.ppm` and builds
        the night figure as `night.ppm = hostAxis.ppm`, so on every recording that resolves a host
@@ -1206,6 +1213,7 @@ window.evBadge = evBadge;
       cards +
       '</div>' +
       absentCard +
+      (tileNotes.length ? '<div class="q-note sq-notes">' + tileNotes.join('') + '</div>' : '') +
       '<div class="sq-foot">' +
       '<div class="sq-sc-h">' +
       _sqBadge(SQ_LEDGER_ID) +
@@ -1214,7 +1222,7 @@ window.evBadge = evBadge;
       '</span></div>' +
       scBlock +
       '<div class="q-note" style="margin-top:8px">Every value on these tiles is the byte the node export carries. A <b>—</b> is a fact no one measured, ' +
-      'and the line under it is the reason; a value a sidecar changes shows itself before and after that sidecar applies. ' +
+      'and the note above names the reason against that fact and that channel; a value a sidecar changes shows itself before and after that sidecar applies. ' +
       'A sidecar that did not apply to this recording is counted above and not listed; one this node should have read and did not keeps its own line.' +
       dupNote +
       '</div></div>'

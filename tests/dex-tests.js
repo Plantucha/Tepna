@@ -59219,6 +59219,25 @@
           /class="q-grid sq-grid"/.test(html) && /class="q-stat sq-stat"/.test(html) && !/class="sq-tbl"/.test(html)
         );
         T.ok('…and a fact no channel measured says so on its own card', /Not measured on any channel of this recording/.test(html));
+        /* THE TILE CARRIES THE NUMBER AND NOTHING ELSE (owner, 2026-11-16, rejecting the first
+           version and sending the quality strip back as the request). The strip states its method
+           in one note under its four tiles, so this section does the same. The leg reads POSITION
+           rather than absence: every explanatory block must open AFTER the note container does, so
+           a qualifier, a before-and-after pair or a reason creeping back inside a tile fails here.
+           ANTI-VACUITY first, because a page that draws no prose at all would pass the order check
+           on nothing. */
+        var iNotes = html.indexOf('class="q-note sq-notes"');
+        var proseKeys = ['class="sq-why"', 'class="sq-qual"', 'class="sq-ba"', 'class="sq-ba-row"'];
+        var nProse = 0,
+          nBeforeNotes = 0;
+        for (var pk = 0; pk < proseKeys.length; pk++) {
+          var at = html.indexOf(proseKeys[pk]);
+          if (at < 0) continue;
+          nProse++;
+          if (at < iNotes) nBeforeNotes++;
+        }
+        T.ok('ANTI-VACUITY · the card draws explanatory prose at all, so the order check below reads something', iNotes > 0 && nProse > 0, 'iNotes=' + iNotes + ' nProse=' + nProse);
+        T.eq('the tile holds the number and nothing else — every explanation sits in the note under the grid', nBeforeNotes, 0);
       }
 
       /* 3 · THE ABSENT OBJECT. An empty card is a question a reader cannot answer, so the builder
