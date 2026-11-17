@@ -3413,6 +3413,11 @@ async function main() {
        literals so a value added without a vocabulary entry reds. Source text rather than imports
        because the literals live inside functions the suite never calls on every path. */
     ecgdexDspSource: _readOpt('ecgdex-dsp.js'),
+    /* TASK 32 — the GlucoDex profile's two render surfaces (the hero disclosure and the app's
+       provenance/QTc/TBR rows) sit behind a DOM this harness cannot drive, so the group reads the
+       shipped text. Same trade as `ecgdexDspSource`, and said out loud in the group. */
+    glucodexProfileSource: _readOpt('glucodex-profile.js'),
+    glucodexAppSource: _readOpt('glucodex-app.js'),
     oxydexDspSource: _readOpt('oxydex-dsp.js'),
     nightqcSource: _readOpt('capture-host/nightqc.py'),
     /* The pull script's header is a CLAIM about the box, so a group reads it like one. Row

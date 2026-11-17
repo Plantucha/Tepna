@@ -44280,6 +44280,113 @@
       T.eq('CONTROL · and respConfident reads TRUE', real.respConfident, true);
     });
 
+    /* ════ TASK 32 · AN UNENTERED THERAPY OR DIABETES STATUS IS ABSENT, NOT A VOCABULARY MEMBER ════
+       `glucodex-profile.js` substituted `|| 'none'` for both fields. Neither has a population norm
+       behind it (the NHANES priors carry no diabetes-status or therapy column), so 'none' there was
+       a word invented for someone who never answered — and it then produced two published numbers:
+       `expGMI` 5.4 % (the non-diabetic reference) and `hypoGoal` 1 % (the INSULIN therapy goal).
+       The other four defaults in the same object are NOT this defect and are pinned as controls:
+       age 45, sex 'M' and the 70/180 mg/dL targets ARE the engine's cited priors, carried with
+       `_origins` and read the same way by every node, so they keep their values while the renders
+       that print them now honour the origin (the ECGDex `ageEnteredIn` rule). */
+    group('GlucoDex profile: an unentered therapy or diabetes status is absent, not a vocabulary member (§∅)', 'glucodex-profile · absence · in-band-default', function (T) {
+      var P = env.DexProfile;
+      if (!(env.GLUProfile && P && typeof P._setStore === 'function')) {
+        T.ok('GLUProfile + DexProfile store are wired into env', false, 'GLUProfile or DexProfile missing');
+        return;
+      }
+      var mk = function () {
+        var m = {};
+        return {
+          getItem: function (q) {
+            return q in m ? m[q] : null;
+          },
+          setItem: function (q, v) {
+            m[q] = String(v);
+          },
+          removeItem: function (q) {
+            delete m[q];
+          }
+        };
+      };
+      var rec = function () {
+        return { tir: { tir: 70, tbr1: 2, tbr2: 1 }, cv: 36, mean: 170, biasOffset: 0, gmi: 6.8, activeMin: 1000, compMin: 50, pctActive: 95 };
+      };
+      var fresh = function () {
+        P._setStore(mk());
+        return env.GLUProfile.personalize(rec());
+      };
+
+      /* ── NOTHING ENTERED ───────────────────────────────────────────────────────────────────── */
+      P._setStore(mk());
+      var p0 = env.GLUProfile.getProfile();
+      T.eq('an unentered diabetes status is NULL, not the in-band "none"', JSON.stringify(p0.diab), 'null');
+      T.eq('an unentered therapy is NULL, not the in-band "none"', JSON.stringify(p0.therapy), 'null');
+      T.eq('…and the origin sidecar still files both as population defaults', p0._origins.diabetes + '/' + p0._origins.dxTherapy, 'pop/pop');
+      /* CONTROL · the fields that DO have a cited prior keep it. Nulling those would break the
+         shared cascade every other node reads, so their values are pinned here, not their labels. */
+      /* 42 is the engine's DEFAULT_AGE (`resolve('age')`), NOT this file's legacy literal 45 — the
+         `num(p.age, 45)` fallback in the shared branch is therefore dead code, and the legacy branch's
+         45 disagrees with the engine. Pinned as the prior it actually is, so a later change to either
+         literal shows up here rather than in a rendered age. */
+      T.eq('CONTROL · an unentered age still resolves to the engine prior (42, not the legacy 45)', p0.age, 42);
+      T.eq('CONTROL · the consensus target range is untouched', p0.tgtLo + '/' + p0.tgtHi, '70/180');
+
+      var r0 = fresh();
+      T.eq('an absent diabetes status computes NO expected GMI', JSON.stringify(r0.expGMI), 'null');
+      T.ok('…and never the diabetic reference 6.8 (the old ladder had no null arm)', r0.expGMI !== 6.8, 'expGMI=' + JSON.stringify(r0.expGMI));
+      T.eq('an absent therapy publishes NO TBR goal', JSON.stringify(r0.hypoGoal), 'null');
+      T.eq('…grading keeps the stricter 1 % bound, so a real low is over-flagged rather than cleared', r0.hypoGoalInForce, 1);
+      T.eq('…and names that basis', r0.hypoGoalBasis, 'unstated');
+      T.eq('…without claiming insulin therapy', r0.onInsulin, false);
+      T.eq('CONTROL · a1c 0 still opens no GMI check and no calibration', JSON.stringify([r0.gmiCheck, r0.calib]), '[null,null]');
+
+      /* ── STATED · every reference arm survives ─────────────────────────────────────────────── */
+      P._setStore(mk());
+      P.setManual('diabetes', 'none');
+      P.setManual('dxTherapy', 'none');
+      var rN = env.GLUProfile.personalize(rec());
+      T.eq('a STATED "no diabetes" still expects 5.4 %', rN.expGMI, 5.4);
+      T.eq('a STATED non-insulin therapy keeps the 1 % goal', rN.hypoGoal, 1);
+      T.eq('…and its basis is named', rN.hypoGoalBasis, 'non-insulin');
+      P._setStore(mk());
+      P.setManual('diabetes', 'predm');
+      T.eq('a stated pre-diabetes expects 5.9 %', env.GLUProfile.personalize(rec()).expGMI, 5.9);
+      P._setStore(mk());
+      P.setManual('diabetes', 'type1');
+      P.setManual('dxTherapy', 'mdi');
+      var rT = env.GLUProfile.personalize(rec());
+      T.eq('a stated type-1 expects the 6.8 % reference', rT.expGMI, 6.8);
+      T.eq('…on insulin the goal tightens to 4 %', rT.hypoGoal, 4);
+      T.eq('…basis insulin', rT.hypoGoalBasis, 'insulin');
+      T.eq('CONTROL · a stated therapy reads as stated in the sidecar', rT.profile._origins.dxTherapy, 'you');
+
+      /* ── THE RENDERS ─────────────────────────────────────────────────────────────────────────
+         The hero disclosure, the KPI card, the daily table and the QTc row all sit behind a DOM this
+         harness cannot drive, so — like the `ageEntered` group above — these legs read the SHIPPED
+         text. That is weaker than a render and it is said here rather than dressed up: a mutant that
+         keeps both strings but re-wires the branch would pass. The behavioural legs above carry the
+         value contract; these carry the fact that the surfaces were taught about the absence. */
+      /* Node lane only: glucodexProfileSource and glucodexAppSource are run-tests.mjs seams the browser lane does not build. */
+      if (env.nodeFs) {
+        var src = env.glucodexProfileSource || '',
+          app = env.glucodexAppSource || '';
+        T.ok('the two render sources are readable for the source legs', src.length > 1000 && app.length > 1000, 'source seam missing: ' + src.length + '/' + app.length);
+        T.ok(
+          'the legacy DOM twin refuses the same two vocabularies',
+          /diab: sel\('gluDiab'\) \|\| null/.test(src) && /therapy: sel\('gluTherapy'\) \|\| null/.test(src),
+          'legacy twin still substitutes none'
+        );
+        T.ok('the hero disclosure fires on an ABSENT status as well as a stated "none"', /p\.diab == null \|\| p\.diab === 'none'/.test(src), 'hero disclosure condition');
+        T.ok('the KPI card names the goal basis it graded against', /hypoGoalInForce/.test(app) && /hypoGoalBasis === 'unstated'/.test(app), 'KPI sub');
+        T.ok('the app provenance row gates the age it prints on the cascade origin', /_origins\.age === 'you' \|\| r\.profile\._origins\.age === 'detected'/.test(app), 'provenance row');
+        T.ok('the QTc bound says when the sex was assumed', /sex not set — male bound/.test(app), 'QTc bound annotation');
+        T.ok('…and the export carries the same flag beside the bound', /sexStated:/.test(app), 'qtcThresholds.sexStated');
+      }
+
+      P._setStore(null); // the shared store is read by later groups — put the module's own back
+    });
+
     group('GlucoDex calibration offset: absent is null, a measured 0 stays 0 (§∅)', 'glucodex-dsp · glucodex-profile · absence · calibration', function (T) {
       var G = env.GLUDSP;
       if (!G || typeof G.analyze !== 'function') {
@@ -89739,9 +89846,17 @@
       var gPre = env.GLUProfile.personalize({ tir: { tir: 80, tbr1: 0, tbr2: 0 }, cv: 30, mean: 130, biasOffset: 0, gmi: 5.9, activeMin: 1000, compMin: 20, pctActive: 95 });
       T.eq('GLU · expected GMI for pre-diabetes = 5.9 % (distinct from diabetic 6.8)', gPre.expGMI, 5.9);
       P._setStore(mk());
-      P.setManual('diabetes', null); // no status ⇒ p.diab falls back to "none"
+      /* §∅ (task 32) — this leg used to pin the OPPOSITE. An unset status fell back to 'none' and
+         published the non-diabetic reference 5.4 % as the person's expected GMI; the reference is
+         now reachable only for a status the user stated. Both halves are pinned, because a fix that
+         deleted the 5.4 % arm instead of the substitution would take the stated answer with it. */
+      P.setManual('diabetes', null);
       var gNone = env.GLUProfile.personalize({ tir: { tir: 80, tbr1: 0, tbr2: 0 }, cv: 30, mean: 130, biasOffset: 0, gmi: 5.4, activeMin: 1000, compMin: 20, pctActive: 95 });
-      T.eq('GLU · expected GMI for no-diabetes = 5.4 %', gNone.expGMI, 5.4);
+      T.eq('GLU · an UNSET diabetes status expects NO GMI (null, not the 5.4 % reference)', JSON.stringify(gNone.expGMI), 'null');
+      P._setStore(mk());
+      P.setManual('diabetes', 'none'); // a stated answer, which saveProfile would also store as null
+      var gStated = env.GLUProfile.personalize({ tir: { tir: 80, tbr1: 0, tbr2: 0 }, cv: 30, mean: 130, biasOffset: 0, gmi: 5.4, activeMin: 1000, compMin: 20, pctActive: 95 });
+      T.eq('GLU · a STATED "no diabetes" still expects 5.4 %', gStated.expGMI, 5.4);
 
       /* ════ THE PROFILE-DERIVATION SWEEP — ECGDEX-CARDIOPULMONARY-COUPLING-FOLLOWUPS §3 ════
          §3 was raised because a profile-derived field (`estAHI`) reached users while every corpus
