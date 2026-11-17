@@ -9843,6 +9843,42 @@
       T.ok('strong monotone rise → significant=true', rising.metrics.m.change && rising.metrics.m.change.significant === true);
     });
 
+    /* ════ ∅ · CPAPDex cross-night — an unmeasurable z is absent, not 0σ ════ */
+    group('∅ cpapdex-cross — an unmeasurable z is absent, never 0σ', 'crossnight · cpapdex-cross · absence · in-band-default', function (T) {
+      var CP = env.CPAPCross;
+      if (!(CP && CP.crossNight)) {
+        T.skip('cpapdex crossNight engine', 'cpapdex-cross.js not co-loaded in this runner');
+        return;
+      }
+      var clean = [
+        { x: 0, v: 10, w: 1 },
+        { x: 1, v: 10.2, w: 1 },
+        { x: 2, v: 10.1, w: 1 },
+        { x: 3, v: 20, w: 1 }
+      ];
+      /* ONE non-finite weight in the PRIOR makes every weighted moment NaN, so `z` is NaN and the
+         old fallback published 0σ beside `baselineSd: null`. Fix credited to Shrike (task 29). */
+      var badW = [
+        { x: 0, v: 10, w: NaN },
+        { x: 1, v: 10.2, w: 1 },
+        { x: 2, v: 10.1, w: 1 },
+        { x: 3, v: 20, w: 1 }
+      ];
+      var bad = CP.crossNight(badW, {});
+      T.ok('∅ zLatest is PRESENT when a weight is no number', 'zLatest' in bad);
+      T.eq('∅ …and it is null, never 0σ', bad.zLatest, null);
+      T.eq('∅ …and zSaturated claims no clamp that never ran', bad.zSaturated, false);
+      T.eq('∅ …while the baseline SD that does not exist stays null', bad.baselineSd, null);
+      var ok = CP.crossNight(clean, {});
+      T.ok('CONTROL · a clean series still publishes a finite z', typeof ok.zLatest === 'number' && isFinite(ok.zLatest), 'z=' + ok.zLatest);
+      T.ok('CONTROL · …and still saturates the real clamp it runs', ok.zSaturated === true, 'z=' + ok.zLatest);
+      var src = env.sources && env.sources['cpapdex-cross.js'];
+      if (src) {
+        var code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+        T.ok('SOURCE SCAN · cpapdex-cross.js answers no non-finite z with 0', !/!\s*isFinite\(\s*z\s*\)\s*\)\s*z\s*=\s*0\b/.test(code));
+      }
+    });
+
     /* ════ 3 · CROSS-NIGHT BASELINE mean/sd (#7) ════ */
     group('Cross-night baseline mean/sd published (#7)', 'ecgdex-cross · crossnight-envelope', function (T) {
       var CC = env.ECGCross,
@@ -110514,6 +110550,83 @@
       T.ok('ANTI-VACUITY · the sweep read all nine node registries', sweep.regs === 9, sweep.regs + ' of 9 registries');
       T.ok('ANTI-VACUITY · the sweep read every declaration', sweep.ids >= 500, sweep.ids + ' entr(ies) passed through entry()');
       T.ok('no real declaration is overruled today, so the rule is a tripwire', sweep.warns === 0, sweep.warns + ' report(s) over ' + sweep.ids + ' entr(ies) in ' + sweep.regs + ' registries');
+    });
+
+    /* ── ∅ profile panel · an unentered elevation is not a measured sea level ──────────────────────
+       Residue 2026-09-15-profile-elevation-defaults-to-sea-level (#2854) removed the COERCION: the
+       shared engine answers null for an elevation nobody entered. The PANEL caption kept reading that
+       null through `r.v > 1500`, whose false arm says "~ sea level" — so the one place a user meets the
+       field contradicted the record, and said it IDENTICALLY for a measured 0 m, which is a legal
+       coastal reading. Three states, three messages; oxydex-profile.js:413 already does this for its
+       own sublabel. Rendered headless into a plain mount object, so the assertion reads the string a
+       user would see rather than a copy of the condition. */
+    group('∅ profile panel — an unentered elevation is not a measured sea level', 'profile · dex-profile · absence · in-band-default', function (T) {
+      var P = env.DexProfile;
+      T.ok('profile · the shared engine is co-loaded with its panel renderer', !!P && typeof P.renderPanel === 'function');
+      if (!P || typeof P.renderPanel !== 'function') return;
+      var mount = {
+        innerHTML: '',
+        contains: function () {
+          return false;
+        },
+        querySelector: function () {
+          return null;
+        },
+        querySelectorAll: function () {
+          return [];
+        },
+        getAttribute: function () {
+          return null;
+        }
+      };
+      var mem = {};
+      var store = {
+        getItem: function (k) {
+          return k in mem ? mem[k] : null;
+        },
+        setItem: function (k, v) {
+          mem[k] = String(v);
+        },
+        removeItem: function (k) {
+          delete mem[k];
+        }
+      };
+      function caption() {
+        P.renderPanel({ node: 'oxydex', mount: mount });
+        var h = String(mount.innerHTML || '');
+        var i = h.indexOf('data-k="elevation"');
+        if (i < 0) return null;
+        var before = h.slice(0, i);
+        var j = before.lastIndexOf('prof-sublabel');
+        if (j < 0) return null;
+        var a = before.indexOf('>', j);
+        var b = before.indexOf('<', a + 1);
+        return before.slice(a + 1, b);
+      }
+      try {
+        P._setStore(store);
+        var none = caption();
+        T.ok('profile · the elevation field renders with a caption', none != null, String(none));
+        T.ok('profile · resolve(elevation) is NULL for a profile nobody filled in — absent, not 0 m', P.resolve('elevation').v === null, String(P.resolve('elevation').v));
+        T.ok(
+          'profile · …and the field is PRESENT carrying that null (`in` plus value)',
+          'elevation' in P.get() && P.get().elevation === null,
+          'elevation' in P.get() ? String(P.get().elevation) : 'FIELD MISSING'
+        );
+        T.ok('profile · an UNMEASURED elevation does not read as sea level', String(none).indexOf('sea level') < 0, String(none));
+        T.ok('profile · …it says the field is not set', /not set/i.test(String(none)), String(none));
+        P.setManual('elevation', 0);
+        var zero = caption();
+        T.ok('profile · CONTROL · a MEASURED 0 m is a legal elevation and is named as one', String(zero).indexOf('0 m') >= 0, String(zero));
+        T.ok('profile · CONTROL · …and is not called unset', !/not set/i.test(String(zero)), String(zero));
+        P.setManual('elevation', 2400);
+        var high = caption();
+        T.ok('profile · CONTROL · 2400 m takes the altitude arm', /⛰/.test(String(high)) && /2400 m/.test(String(high)), String(high));
+      } finally {
+        try {
+          P._setStore();
+        } catch (_e) {}
+      }
     });
 
     /* Selection already happened at declaration time (see group() above) — a group that
