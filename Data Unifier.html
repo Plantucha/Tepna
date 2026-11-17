@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="06789663e9db" data-compute-hash="ac6719f1a856"><head>
+<html lang="en" data-manifest-hash="96d2d9566a13" data-compute-hash="3e4a51d059ab"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-73XqvW3QPszVNJSGP0gS6Awhvf88TLJs80AD7soU2Zw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-Kj5zpRSjfKRUvZk+RC3I7xokQf+6hDYGqLeXsQQ+CKc=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UX7aBEim6eaSJRuFyp7TxqgAe7hlYHBlX6WDGl1pOIw=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gRMuCmVfIh+FVa9tCfsSVuKoym/UFb1cm7mHx4OiU/Y=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oBZMdqHbLFQRnb4o/LvL9OJ2eQrQOb/2n50vzDHkOZo=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-wtJN8xtR89LNNOj5mqnsH6ASsaMTM6LsFtBRUvfWt9E=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-73XqvW3QPszVNJSGP0gS6Awhvf88TLJs80AD7soU2Zw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-K+h5thoekEgjAVsTOJH/LoQr+vkP1LPzjqBYtooYmg8=' 'sha256-Kj5zpRSjfKRUvZk+RC3I7xokQf+6hDYGqLeXsQQ+CKc=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gRMuCmVfIh+FVa9tCfsSVuKoym/UFb1cm7mHx4OiU/Y=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oBZMdqHbLFQRnb4o/LvL9OJ2eQrQOb/2n50vzDHkOZo=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-wtJN8xtR89LNNOj5mqnsH6ASsaMTM6LsFtBRUvfWt9E=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -18081,7 +18081,17 @@ __exports.OxyDex = window.OxyDex;
       const mean7lnrmssd = rmssd7.length ? rmssd7.map((v) => Math.log(v)).reduce((a, b) => a + b, 0) / rmssd7.length : NaN;
       r.d_ari = r._rmssd > 0 && mean7rmssd > 0 && window7.length >= 4 ? r._rmssd / mean7rmssd : NaN; // Finding 5: guard the row's OWN rMSSD (mirror d_sdnn_z) — a null numerator coerces to 0, rendering d_ari=0 RED and firing a false d_ari<0.85 "recovery collapse" alert on a no-reading night
       r.d_rmssd_rolling_ln = mean7lnrmssd;
+      /* ∅ — A 7-DAY SUM OVER A PARTIAL WINDOW IS REDUCED COVERAGE, NOT A DISCONTINUITY, so the
+         owner ruling of 2026-09-17 annotates here instead of refusing. One measured reading used to
+         publish a full-magnitude "Stress AUC 7d" with nothing beside it, while BOTH siblings gate
+         their own coverage — `d_ari` needs `window7.length >= 4` and `d_rmssd_cv7` needs `length > 1`.
+         A sum stays defined over one reading, so the value travels with the count that produced it
+         and the table prints that count (hrvdex-render.js TABLE_COLS). `_dayWindow` is span-bounded
+         and holds no fixed row-per-day, so the count is CONTRIBUTING READINGS, never days. It is
+         null exactly when the AUC refuses, so no consumer can read a 0 as a covered window.
+         Row hrvdex-dsp.js:886 of ABSENCE-SURVEY-2026-09-22 (low). */
       r.d_stress_auc = stress7.length ? stress7.reduce((a, b) => a + b, 0) : NaN;
+      r.d_stress_auc_n = stress7.length ? stress7.length : null;
       r.d_rmssd_cv7 = rmssd7.length > 1 ? (std(rmssd7) / mean7rmssd) * 100 : NaN;
 
       const meanSDNN7 = sdnn7.length ? sdnn7.reduce((a, b) => a + b, 0) / sdnn7.length : NaN;
@@ -18236,6 +18246,14 @@ __exports.OxyDex = window.OxyDex;
   // HRV→hypertension-risk and HRV→MAP are cuffless-BP-from-HRV proxies with no individual
   // validity (medical-claim risk). CAMQ below is an autonomic-balance index (NOT blood
   // pressure) and stays. prof_sbp/prof_dbp remain USER-ENTERED cuff inputs elsewhere.
+  /* ∅ companion to computeCAMQ: did this row measure the sympathetic leg at all? The penalty
+     reads LF/HF, so both bands must be present. The answer is a fact about COVERAGE and never a
+     stand-in for the penalty the row could not measure. The `> 0` test matches the producer above:
+     a band at or below zero is how this node carries an absent power. */
+  function camqSympMeasured(r) {
+    return !!(r && r._hf > 0 && r._lf > 0);
+  }
+
   function computeCAMQ(r) {
     // Cardiac Autonomic Modulation Quality
     // Parasympathetic indicators (positive contribution): RMSSD, HF power, pNN50
@@ -18269,8 +18287,19 @@ __exports.OxyDex = window.OxyDex;
     if (!paraCount) return null;
     var paraAvg = paraScore / paraCount;
 
+    /* ∅ — AN UNMEASURED SYMPATHETIC LEG IS NOT A ZERO PENALTY. `sympPenalty` can only rise when
+       the row measured BOTH bands, because the penalty reads LF/HF. So a night with no spectrum
+       earned the kindest sympathetic verdict on the scale, and `ch_camq` could not tell it from a
+       measured LF/HF of 1.0 — a default that reads as a measurement. The penalty has no honest
+       substitute, so the score keeps its measured parasympathetic value and REPORTS the coverage:
+       `camqSympMeasured` answers whether the leg was measured, and the consumer marks every point
+       that carries no sympathetic correction (hrvdex-render.js renderCardiovascularResearch).
+       An absent leg reduces COVERAGE and breaks no continuity, so the owner ruling of 2026-09-17
+       annotates here. A refusal would drop a measured parasympathetic score from every
+       spectrum-less night, which is the common Ganglior/ECGDex row.
+       Row hrvdex-dsp.js:1076 of ABSENCE-SURVEY-2026-09-22 (medium). */
     var sympPenalty = 0;
-    if (r._hf > 0 && r._lf > 0) {
+    if (camqSympMeasured(r)) {
       var lfhf = r._lf / r._hf;
       sympPenalty = Math.max(0, (lfhf - 1.0) * 15); // penalty grows above LF/HF=1.0
     }
@@ -18703,6 +18732,7 @@ __exports.OxyDex = window.OxyDex;
     smooth,
     getFilteredRows,
     computeCAMQ,
+    camqSympMeasured,
     _hrvClockS,
     hrvEventsFromRows,
     hrvBuildNodeExport,
