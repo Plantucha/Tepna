@@ -45763,6 +45763,91 @@
       }
     });
 
+    /* ∅ AN ABSENT SAMPLE RATE IS NOT A NUMBER (task 19). `cpapdex-edf.js:296` writes `fs: null` when
+       the header's record duration is 0, and five sites here turned that absence — or an absent
+       `raw.fs` — into 1, 0.5, 25 or 60. Measured before the fix: `prepare` halved a 0.5 Hz hour
+       (0.5 h for 1800 samples), a PLD with no record duration read 1.0 h where a 60 s record says
+       2.0 h, a 25 Hz BRP fallback read 0.139 h for 10 s (50×), a mode call pooled 8 windows of 150
+       samples as if they were 5 min, a breath count used a guessed 25 Hz, the ODI used samples as
+       seconds, and an open CSL span scored 98.61 % periodic breathing against a fabricated 7200 s
+       envelope. Every leg below reds on the pre-fix file. */
+    group('∅ CPAPDex — an absent sample rate or record duration is refused, never defaulted', 'cpapdex-dsp · absence · sample-rate', function (T) {
+      var D = env.CpapDsp || env.CPAPDSP;
+      T.ok('CpapDsp exposed', !!(D && typeof D.prepare === 'function'), 'CPAPDex not co-loaded in this runner');
+      if (!D) return;
+      var T0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+      var fill = function (n, v) {
+        var a = new Float32Array(n);
+        for (var i = 0; i < n; i++) a[i] = v;
+        return a;
+      };
+      var sig = function (n, v, fs, spr) {
+        return { data: fill(n, v), fs: fs, _spr: spr, _w: n };
+      };
+      var pldSet = function (recDurSec, spr, records) {
+        return {
+          PLD: {
+            clock: { t0Ms: T0 },
+            recordsRead: records,
+            recDurSec: recDurSec,
+            numRecords: records,
+            truncated: false,
+            signals: { Press: sig(spr * records, 8, recDurSec > 0 ? spr / recDurSec : null, spr) }
+          }
+        };
+      };
+
+      // ── ARM 1 · prepare ─────────────────────────────────────────────────────────────────────
+      var noRate = D.prepare({ t0Ms: T0, fs: null, pressure: fill(1800, 8) });
+      T.eq('prepare · a lane with no rate publishes no usage hours', noRate.usageHours, null);
+      T.eq('prepare · …and names the absence', noRate.usageReason, 'no-sample-rate');
+      T.eq('prepare · …and claims no rate', noRate.fs, null);
+      var halfHz = D.prepare({ t0Ms: T0, fs: 0.5, pressure: fill(1800, 8) });
+      T.eq('CONTROL · the SAME 1800 samples at 0.5 Hz are one hour', [halfHz.fs, halfHz.usageHours], [0.5, 1]);
+      var absentArg = D.prepare(0);
+      T.eq('an absent argument keeps the pinned legacy shape', [absentArg.fs, absentArg.usageHours], [1, 0]);
+
+      // ── ARM 2 · the EDF session ─────────────────────────────────────────────────────────────
+      var noDur = D.buildSessionFromEdf(pldSet(null, 15, 120), {});
+      T.eq('a header with no record duration invents no 60 s record', noDur.metrics.usageHours, null);
+      T.eq('…and says which fact is absent', noDur.metrics.usageReason, 'no-sample-rate');
+      var sixty = D.buildSessionFromEdf(pldSet(60, 15, 120), {});
+      T.eq('CONTROL · the same set with a 60 s record is 2 h', sixty.metrics.usageHours, 2);
+      T.eq('CONTROL · …and names no absence', sixty.metrics.usageReason == null, true);
+      var brpOnly = D.buildSessionFromEdf({ BRP: { clock: { t0Ms: T0 }, recordsRead: 10, recDurSec: null, signals: { 'Press.40ms': sig(250, 10, null, 25) } } }, {});
+      T.eq('a BRP fallback with no rate is not a 0.5 Hz lane (was 0.139 h for 10 s)', [brpOnly.metrics.usageHours, brpOnly.metrics.usageReason], [null, 'no-sample-rate']);
+
+      // ── ARM 3 · derived metrics ─────────────────────────────────────────────────────────────
+      var open = D.buildSessionFromEdf({ PLD: pldSet(null, 15, 120).PLD, CSL: { annotations: [{ class: 'Cheyne-Stokes', onsetSec: 100, durSec: 0, boundary: 'start' }] } }, {});
+      T.eq('an open CSL span is not scored against a made-up envelope (was 98.61 %)', open.metrics.periodicBreathingPct, null);
+      var openKnown = D.buildSessionFromEdf({ PLD: pldSet(60, 15, 120).PLD, CSL: { annotations: [{ class: 'Cheyne-Stokes', onsetSec: 100, durSec: 0, boundary: 'start' }] } }, {});
+      T.eq('CONTROL · with a measured envelope the same span IS scored', openKnown.metrics.periodicBreathingPct, 98.61);
+      // ∅ the WALL span: an absent duration is not a zero-length session (t0Ms + null × 1000 = t0Ms)
+      T.eq('no record duration ⇒ no session end and no session length', [noDur.endMs, noDur.durMin], [null, null]);
+      T.eq('CONTROL · a 60 s record gives a 2 h wall span', [sixty.endMs - sixty.t0Ms, sixty.durMin], [7200000, 120]);
+      var later = D.buildSessionFromEdf(pldSet(60, 15, 120), {});
+      later.t0Ms = T0 + 3 * 3600000;
+      later.endMs = later.t0Ms + 7200000;
+      var mixed = D.buildNight([noDur, later]);
+      T.eq('a night with an unknown session span reports no wall total, never a short sum', mixed.therapyHours, null);
+      T.eq('…and no off-mask gap after the session that has no end', mixed.offMaskGaps[0].gapMin, null);
+      var known = D.buildNight([sixty, later]);
+      T.eq('CONTROL · two known sessions give 4 h and a 60 min gap', [known.therapyHours, known.offMaskGaps[0].gapMin], [4, 60]);
+      var cls = D.classifyMode(fill(1200, 8), null);
+      T.eq('a mode call at no rate pools no window (was 8 × 150 samples)', [cls.mode, cls.nWindows], [null, 0]);
+      T.eq('CONTROL · 0.5 Hz gives 8 × 300 s windows', D.classifyMode(fill(1200, 8), 0.5).nWindows, 8);
+      T.eq('a window with no rate has no samples either', D.pressureEnvelope([1, 2, 3], null).length, 0);
+      var flow = fill(400, 0);
+      for (var i = 0; i < 400; i++) flow[i] = Math.sin(2 * Math.PI * (i / 25) * 0.25);
+      T.eq('a flow lane with no rate refuses the breath count (was counted at a guessed 25 Hz)', D.detectBreaths({ data: flow, fs: null }, null, {}).breathCount, null);
+      T.eq('CONTROL · 25 Hz still counts 4 breaths', D.detectBreaths({ data: flow, fs: 25 }, null, {}).breathCount, 4);
+      var sa2 = { signals: { SpO2: { data: fill(3600, 96), fs: 1, _spr: 60 } } };
+      var noSpan = D.oximetryLane(sa2, null);
+      T.eq('ODI refuses without a session duration (samples were taken as seconds)', [noSpan.odi, noSpan.odiReason], [null, 'no-session-duration']);
+      var withSpan = D.oximetryLane(sa2, 3600);
+      T.eq('CONTROL · with a duration the ODI is a rate', [typeof withSpan.odi, withSpan.odiReason], ['number', null]);
+    });
+
     group('CPAPDex helper floor — 9 + 2 drafts adopted: prepare defaults, envelope guards, EDF refusals (mutation-derived)', 'cpapdex-dsp · known-answer · mutation-pinned', function (T) {
       var C = env.CpapDsp || env.CPAPDSP;
       if (!C || typeof C.prepare !== 'function') {
@@ -90256,6 +90341,16 @@
         /requested ID column "sofid" is not in this file/.test(N.parseAhiCsv(NOID, { idVar: 'sofid' }).error || '')
       );
       T.ok('{ idVar } · a bare id,ahi pair list cannot answer for a named id column', /bare id,ahi pair list/.test(N.parseAhiCsv('200001,12.5\n', { idVar: 'pid' }).error || ''));
+      /* COLUMN 0 IS A COLUMN. `idCol` starts at -1 for absence, so the not-found test is
+         `idCol < 0`; a `<= 0` reads a named column sitting FIRST as missing. This group's own header
+         comment offers `age` as that example and no leg ever named it, so the boundary went
+         untested: the mutation gate reported the `<` → `<=` survivor on 2026-11-17. Real NSRR
+         exports carry their id first, which is the case a `<= 0` would refuse. */
+      var firstCol = N.parseAhiCsv(NOID, { idVar: 'age' });
+      T.eq('{ idVar } · a named column in POSITION 0 is read, not reported missing', firstCol.error, null);
+      T.eq('{ idVar } · …and `age` is the reported identity, not the listed guess', firstCol.idVar, 'age');
+      T.eq('{ idVar } · …over both rows', firstCol.rows, 2);
+      T.eq('{ idVar } · …each keyed by its own first-column value', (N.lookupAhi(firstCol, 'shhs1-55') || {}).ahi, 42);
 
       /* ORDERING — a file missing both columns reports the longer-standing reason, so this repair
          cannot mask the AHI refusal it sits behind. */
@@ -99465,6 +99560,36 @@
         '…and the same epoch count — an hour is not one epoch',
         sumPlant && sumPlant.activity && sumCtl.activity && sumPlant.activity.epochs.length === sumCtl.activity.epochs.length && sumPlant.activity.epochs.length > 1,
         'plant epochs=' + (sumPlant && sumPlant.activity && sumPlant.activity.epochs.length) + ' · control=' + (sumCtl.activity && sumCtl.activity.epochs.length)
+      );
+
+      /* THE OTHER EDGE OF THE SAME GUARD. `idx.ns` starts at -1 for "the header named no counter",
+         so the read test is `c.ns >= 0`. A `> 0` there reads a counter sitting in COLUMN 0 as
+         absence, and the file then rides the host stamp while carrying a device clock. The column
+         order is a layout fact, and this file's own header comment counts 478 real files whose
+         layout moved. The mutation gate reported the `>=` → `>` survivor on 2026-11-17. */
+      var firstText =
+        'sensor timestamp [ns];Phone timestamp;X [mg];Y [mg];Z [mg]\n' +
+        lines
+          .slice(1)
+          .map(function (l) {
+            var c = l.split(';');
+            return c[1] + ';' + c[0] + ';' + c[2] + ';' + c[3] + ';' + c[4];
+          })
+          .join('\n');
+      var firstNs = MD.parseSensorXYZ(firstText);
+      T.ok('ANTI-VACUITY · the re-ordered text parses the same rows', firstNs.length === N, 'rows=' + firstNs.length);
+      T.ok(
+        'a device counter in COLUMN 0 is READ, because -1 is absence and 0 is a position',
+        firstNs.length === N &&
+          firstNs.every(function (r) {
+            return isFinite(r.relNs);
+          }),
+        'first relNs=' + JSON.stringify(firstNs[0] && firstNs[0].relNs)
+      );
+      T.ok(
+        '…and it carries the same counter the documented order carries',
+        firstNs.length === N && ctl.length === N && firstNs[0].relNs === ctl[0].relNs && firstNs[N - 1].relNs === ctl[N - 1].relNs,
+        'reordered=' + JSON.stringify(firstNs[N - 1] && firstNs[N - 1].relNs) + ' control=' + JSON.stringify(ctl[N - 1] && ctl[N - 1].relNs)
       );
     });
 

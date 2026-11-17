@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="a93df051d0b1" data-compute-hash="8004fd315a43"><head>
+<html lang="en" data-manifest-hash="106bd1e24faa" data-compute-hash="fac5c6dc7ac7"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-73XqvW3QPszVNJSGP0gS6Awhvf88TLJs80AD7soU2Zw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G/ed+3S6lqfamd/es3CxNLEmb0fYSgRgAXYlWrD4Skw=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UX7aBEim6eaSJRuFyp7TxqgAe7hlYHBlX6WDGl1pOIw=' 'sha256-VB3Zc93k7O4DubLzPt3uiFoG0bWLZ+kJ9EWRRI6gKOE=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gRMuCmVfIh+FVa9tCfsSVuKoym/UFb1cm7mHx4OiU/Y=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jXqI/zPtSTNKqcXyZf2TWEgHFkhBEYTAJOpvrVagUuQ=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-tuGbI/PUov7ZEaEgiFuBvteKLRU5kjhHLZL/Mc1aANw=' 'sha256-wtJN8xtR89LNNOj5mqnsH6ASsaMTM6LsFtBRUvfWt9E=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6bpP68Tv+C2RfcA0kjTwzzkO9dJOOlM24L3mi3cNr6o=' 'sha256-73XqvW3QPszVNJSGP0gS6Awhvf88TLJs80AD7soU2Zw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G/ed+3S6lqfamd/es3CxNLEmb0fYSgRgAXYlWrD4Skw=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IDeAYFC+myKzaJhU+jd20soVrwGAVcq7iM1mIVcFTwM=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UX7aBEim6eaSJRuFyp7TxqgAe7hlYHBlX6WDGl1pOIw=' 'sha256-VB3Zc93k7O4DubLzPt3uiFoG0bWLZ+kJ9EWRRI6gKOE=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gRMuCmVfIh+FVa9tCfsSVuKoym/UFb1cm7mHx4OiU/Y=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jXqI/zPtSTNKqcXyZf2TWEgHFkhBEYTAJOpvrVagUuQ=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wtJN8xtR89LNNOj5mqnsH6ASsaMTM6LsFtBRUvfWt9E=' 'sha256-yS5frs7FO4HDqcSuAYI4rtjm7+gtWKSEozKGWUwHA/4=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -55575,7 +55575,15 @@ __exports.MotionDex = window.MotionDex;
      25 Hz session would out-vote a 0.5 Hz one 50:1 in every pooled percentile. Shape-identical
      output (`{ fs, data }`) so every downstream site is rate-agnostic. */
   function _decimateMean(ch, targetFs) {
-    var block = Math.max(1, Math.round((ch.fs || targetFs) / targetFs));
+    /* ∅ A DECIMATION WITHOUT THE SOURCE RATE IS A FABRICATED RATE. `ch.fs || targetFs` assumed the
+       source was already at the target cadence, so `block` fell to 1 and the output CLAIMED
+       `fs: targetFs` over samples that were never decimated: a 25 Hz BRP `Press.40ms` lane with an
+       unreadable record duration became a 0.5 Hz lane, and `usageHours` counted each 40 ms sample as
+       2 s — 10 s of mask-on read as 0.139 h (50×). Measured. The honest answer is a refusal: a block
+       factor needs a numerator. */
+    var srcFs = ch && ch.fs;
+    if (!(srcFs > 0) || !isFinite(srcFs)) return null;
+    var block = Math.max(1, Math.round(srcFs / targetFs));
     var n = Math.floor(ch.data.length / block);
     var out = new Float32Array(n);
     for (var i = 0; i < n; i++) {
@@ -55583,7 +55591,7 @@ __exports.MotionDex = window.MotionDex;
       for (var k = 0; k < block; k++) acc += ch.data[i * block + k];
       out[i] = acc / block;
     }
-    return { fs: (ch.fs || targetFs) / block, data: out };
+    return { fs: srcFs / block, data: out };
   }
 
   /* ── CPAP-vs-APAP mode (CPAP-REAL-CORPUS §F2) ─────────────────────────────────────────────
@@ -55625,7 +55633,12 @@ __exports.MotionDex = window.MotionDex;
 
   /* Minutes-scale pressure envelope: per-window P90, which is immune to EPR's expiratory dips. */
   function pressureEnvelope(pressureMaskOn, fs) {
-    var n = Math.max(1, Math.round((fs || 0.5) * MODE_WIN_SEC));
+    /* ∅ A WINDOW COUNTED IN SAMPLES IS NOT A MINUTE WINDOW WITHOUT A RATE. `(fs || 0.5)` made 150
+       samples into 5 min at a guessed cadence, so `classifyMode` pooled P90s over windows of the wrong
+       length and still reported `nWindows` as if the scale were measured. No rate ⇒ no window ⇒ the
+       mode call answers its existing `null` ("don't know") instead of a device setting. */
+    if (!(fs > 0) || !isFinite(fs)) return [];
+    var n = Math.max(1, Math.round(fs * MODE_WIN_SEC));
     var out = [];
     for (var i = 0; i + n <= pressureMaskOn.length; i += n) out.push(_p(pressureMaskOn.slice(i, i + n), 90));
     return out;
@@ -55714,9 +55727,14 @@ __exports.MotionDex = window.MotionDex;
        one node published two readings of one absence. The lane's PRESENCE now travels out of band
        in `leak`, exactly as the sibling carries it. */
     var leak = raw.leak || null;
+    /* ∅ A SAMPLE COUNT IS NOT A DURATION WITHOUT A RATE. `raw.fs || 1` treated every raw sample as one
+       second, so a 0.5 Hz hour of 1800 samples published `usageHours: 0.5` (half the therapy time) and
+       `fs: 1` — an in-band cadence that no consumer can question. A present `raw` with no rate now
+       publishes null and names it; a caller that passes nothing at all keeps the pinned legacy shape. */
+    var hasRate = !!(raw && raw.fs > 0 && isFinite(raw.fs));
     return {
       t0Ms: raw.t0Ms,
-      fs: raw.fs || 1,
+      fs: hasRate ? raw.fs : raw ? null : 1,
       mode: raw.mode || null,
       pressure: raw.pressure || new Float32Array(0),
       leak: leak,
@@ -55724,11 +55742,15 @@ __exports.MotionDex = window.MotionDex;
       maskOn: maskOn,
       pressureMaskOn: _filterBy(raw.pressure || [], maskOn),
       leakMaskOn: leak ? _filterBy(leak, maskOn) : [],
-      usageHours:
-        _countWhere(raw.pressure || [], function (v) {
-          return v > 0;
-        }) /
-        ((raw.fs || 1) * 3600)
+      usageHours: !raw
+        ? 0
+        : hasRate
+          ? _countWhere(raw.pressure || [], function (v) {
+              return v > 0;
+            }) /
+            (raw.fs * 3600)
+          : null,
+      usageReason: raw && !hasRate ? 'no-sample-rate' : null
     };
   }
 
@@ -55853,13 +55875,20 @@ __exports.MotionDex = window.MotionDex;
     });
     var gaps = [];
     for (var i = 1; i < s.length; i++) {
-      var gapMs = s[i].t0Ms - s[i - 1].endMs; // off-mask gap (monotonic; no 24h jump)
-      gaps.push({ afterIdx: i - 1, afterSession: i - 1, gapMin: +(gapMs / 60000).toFixed(1) });
+      // ∅ a session with no wall span has no end, so the gap after it is absent, never t0Ms − 0
+      var gapMs = s[i - 1].endMs == null ? null : s[i].t0Ms - s[i - 1].endMs; // off-mask gap (monotonic; no 24h jump)
+      gaps.push({ afterIdx: i - 1, afterSession: i - 1, gapMin: gapMs == null ? null : +(gapMs / 60000).toFixed(1) });
     }
     // night-level metrics = therapy-hour-weighted recompute over pooled mask-on time
-    var totalHours = s.reduce(function (a, x) {
-      return a + x.durMin / 60;
-    }, 0);
+    // ∅ one session with no duration makes the night's wall total unknown: null, never a short sum
+    var spanUnknown = s.some(function (x) {
+      return x.durMin == null;
+    });
+    var totalHours = spanUnknown
+      ? null
+      : s.reduce(function (a, x) {
+          return a + x.durMin / 60;
+        }, 0);
     return {
       t0Ms: s.length ? s[0].t0Ms : null, // night anchor = first session
       dateAnchorMs: s.length ? Date.UTC(new Date(s[0].t0Ms).getUTCFullYear(), new Date(s[0].t0Ms).getUTCMonth(), new Date(s[0].t0Ms).getUTCDate()) : null,
@@ -55867,7 +55896,7 @@ __exports.MotionDex = window.MotionDex;
       sessions: s,
       offMaskGaps: gaps,
       nSessions: s.length,
-      therapyHours: +totalHours.toFixed(2),
+      therapyHours: totalHours == null ? null : +totalHours.toFixed(2),
       metrics: nightMetrics(s) // pooled per-night surface (null for synthetic sessions w/o _pool)
     };
   }
@@ -56290,8 +56319,12 @@ __exports.MotionDex = window.MotionDex;
        analyzable time. The same correction OxyDex §5 already ratified for the ODI family. It carries
        correctly into the pooled indices (cpapdex-cross / cpapdex-fusion sum `analyzedHours` as the
        pooled denominator — you pool a numerator and a denominator, never rates). */
-    var spanSec = durSec || n;
-    var hours = n > 0 ? (valid * (spanSec / n)) / 3600 : 0;
+    /* ∅ SAMPLES ARE NOT SECONDS WITHOUT A SESSION DURATION. `durSec || n` made one sample one second
+       whenever the envelope was absent, which is the 1 Hz assumption again — and this value is the
+       denominator of the published ODI. With no measured span the rate is refused, naming the fact. */
+    var spanOk = durSec > 0 && isFinite(durSec);
+    var spanSec = spanOk ? durSec : n;
+    var hours = spanOk && n > 0 ? (valid * (spanSec / n)) / 3600 : 0;
     var events = detectDesats(spo2, OXI.DROP, durSec);
     events.forEach(function (ev) {
       selfGateDesat(ev, pulse, spo2);
@@ -56326,6 +56359,7 @@ __exports.MotionDex = window.MotionDex;
       pulseLane: pulse ? 'present' : 'absent',
       coverage: +coverage.toFixed(3),
       odi: hours > 0 ? +(real.length / hours).toFixed(2) : null,
+      odiReason: spanOk ? null : 'no-session-duration',
       desatCount: real.length,
       artifactCount: artifactCount,
       // The lane's OWN denominators, so a night that pools several sessions can weight them
@@ -56355,8 +56389,15 @@ __exports.MotionDex = window.MotionDex;
   function detectBreaths(flowCh, durSec, opts) {
     if (!flowCh || !flowCh.data || !flowCh.data.length) return null;
     var flow = flowCh.data,
-      fs = flowCh.fs || 25,
+      fs = flowCh.fs,
       n = flow.length;
+    /* ∅ A BREATH COUNT AT A GUESSED 25 Hz IS NOT A COUNT. The detrend window (`4 s`), the minimum
+       breath spacing (`1.2 s`) and the mask-on time map are all sample indices scaled by `fs`, so
+       `|| 25` silently fixed every one of them to the BRP cadence when the header carried none.
+       A count without a rate is absent, and the caller already reads `breathCount: null`. */
+    if (!(fs > 0) || !isFinite(fs)) {
+      return { breathCount: null, breathRate: null, ieRatio: null, breathMaskOnSec: null, breathRateReason: 'signal carries no sample rate' };
+    }
     var W = Math.max(1, Math.round(fs * 4)); // running-mean window for detrend
     // running mean via prefix sums
     var breaths = 0,
@@ -56373,7 +56414,13 @@ __exports.MotionDex = window.MotionDex;
       minBreathSamp = Math.round(fs * 1.2); // ≥1.2 s/breath (≤50 brpm ceiling)
     // mask index for sample i: the flow grid (25 Hz) and the pressure grid (0.5 Hz) differ, so map
     // by time rather than by index — off-mask samples take part in neither the count nor I:E.
-    var mOn = opts && opts.maskOn && opts.maskOn.length && opts.maskFs > 0 ? opts.maskOn : null;
+    /* A mask-on lane that cannot be timed cannot gate the count either: without `maskFs` the map
+       below would be skipped and off-mask crossings would be counted as breaths. */
+    var wantsMask = !!(opts && opts.maskOn && opts.maskOn.length);
+    if (wantsMask && !(opts.maskFs > 0 && isFinite(opts.maskFs))) {
+      return { breathCount: null, breathRate: null, ieRatio: null, breathMaskOnSec: null, breathRateReason: 'mask-on lane carries no sample rate' };
+    }
+    var mOn = wantsMask ? opts.maskOn : null;
     var mRatio = mOn ? opts.maskFs / fs : 0;
     for (var i = 0; i < n; i++) {
       if (mOn) {
@@ -56546,8 +56593,14 @@ __exports.MotionDex = window.MotionDex;
     var therapy = set.PLD || set.BRP || set.SA2; // therapy clock source
     if (!therapy || !therapy.clock) return null;
     var t0Ms = therapy.clock.t0Ms;
-    var recDur = therapy.recDurSec || 60;
-    var durSec = (therapy.recordsRead || 0) * recDur;
+    /* ∅ AN UNREADABLE RECORD DURATION IS NOT 60 SECONDS. `cpapdex-edf.js` exports `recDurSec: null`
+       when the header field does not parse, and `|| 60` turned it into a full envelope: 120 records
+       published `durSec: 7200` that no byte in the file supports, and a CSL span opened at 100 s was
+       then scored as 98.61 % periodic breathing against it. `durSec` is the envelope that closes an
+       unpaired PB span and scales the ODI lane, so a guess here is a guess in two published numbers.
+       `therapy.recDurSec > 0` is false for null, 0 and NaN alike. */
+    var recDur = therapy.recDurSec > 0 && isFinite(therapy.recDurSec) ? therapy.recDurSec : null;
+    var durSec = recDur != null && therapy.recordsRead > 0 ? therapy.recordsRead * recDur : null;
     /* ∅ A FILE THAT CARRIED NO RECORD IS NOT A NIGHT THE MASK STAYED OFF. `recordsRead` reads 0
        for a header-only or power-loss file, because `cpapdex-edf.js:277` computes it from the bytes
        actually present. The record count explains an empty lane, and it does not detect one: the
@@ -56588,14 +56641,23 @@ __exports.MotionDex = window.MotionDex;
        NEITHER file carries pressure there is no measurement at all: usage is `null` with a named
        reason — never 0.000. */
     var pressureSource = pressCh ? 'PLD' : null;
+    var brpRateAbsent = false;
     if (!pressCh) {
       var brpPress = chan(set.BRP, 'Press') || chan(set.BRP, 'MaskPress');
       if (brpPress && brpPress.data && brpPress.data.length) {
         pressCh = _decimateMean(brpPress, 0.5);
-        pressureSource = 'BRP';
+        // a decimation that could not name its source rate is not a usable lane, and not a 0.5 Hz one
+        if (pressCh) pressureSource = 'BRP';
+        else brpRateAbsent = true;
       }
     }
-    var fs = pressCh ? pressCh.fs : 0.5;
+    /* ∅ THE RATE IS A PRECONDITION, NOT A DEFAULT. `pressCh.fs` is `null` whenever the header's
+       record duration is 0 (`cpapdex-edf.js:296`), and both this line and the `usageHours`
+       denominator below used to substitute 0.5 Hz — a legal PLD cadence, so nothing downstream
+       could tell a guess from a measurement. Measured: a PLD of 15 samples/record with no record
+       duration published 1.0 h where a 60 s record says 2.0 h. */
+    var fs = pressCh ? pressCh.fs : null;
+    var fsOk = !!(fs > 0) && isFinite(fs);
     var pressure = pressCh ? pressCh.data : new Float32Array(0);
     /* ∅ THE TWO SOURCE ARMS DISAGREED ON WHAT A LANE IS. The BRP arm above requires
        `brpPress.data.length`, and the PLD arm requires only that the channel exists, so a PLD lane
@@ -56608,16 +56670,27 @@ __exports.MotionDex = window.MotionDex;
     for (var i = 0; i < pressure.length; i++) maskOn[i] = pressure[i] > 0 ? 1 : 0;
     var pressureMaskOn = pressureSource === 'BRP' ? [] : _filterBy(pressure, maskOn); // F8 — mask pressure is not set pressure
     var leakMaskOn = leak ? _filterBy(leak, maskOn) : [];
-    var usageHours = hasPressureSample
-      ? _countWhere(pressure, function (v) {
-          return v > 0;
-        }) /
-        ((fs || 0.5) * 3600)
-      : null;
+    var usageHours =
+      hasPressureSample && fsOk
+        ? _countWhere(pressure, function (v) {
+            return v > 0;
+          }) /
+          (fs * 3600)
+        : null;
     /* The arm order names the upstream fact first: an absent LANE, then an empty FILE, then a lane
        the file carried with no sample in it. A reason token is a claim, and these three are the
        only claims this file supports. */
-    var usageReason = !pressureSource ? 'no-pressure-channel' : hasPressureSample ? null : hasRecords ? 'empty-pressure-lane' : 'no-records';
+    var usageReason = !pressureSource
+      ? brpRateAbsent
+        ? 'no-sample-rate'
+        : 'no-pressure-channel'
+      : !fsOk
+        ? 'no-sample-rate'
+        : hasPressureSample
+          ? null
+          : hasRecords
+            ? 'empty-pressure-lane'
+            : 'no-records';
     // the index denominator: measured hours, or 0 when there is no measurement (every index → null)
     var idxHours = usageHours == null ? 0 : usageHours;
 
@@ -56695,7 +56768,7 @@ __exports.MotionDex = window.MotionDex;
          (`maskOnLatency NaN`, `medianPressure NaN`) for a set that lost its PLD file, and the
          note records real nights that did. The reason now leaves the node, as `usageReason` and
          `pbObserved` do. Row `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes`. */
-      maskOnLatency: pressOnset === -1 ? null : +(pressOnset / (fs * 60)).toFixed(2),
+      maskOnLatency: pressOnset === -1 || !fsOk ? null : +(pressOnset / (fs * 60)).toFixed(2),
       /* ∅ `therapy-never-started` IS A HUMAN FACT, so only a lane with a sample in it may carry
          that reason. An empty lane and a file with no record each name themselves instead. */
       maskOnLatencyReason: pressOnset !== -1 ? null : !pressureSource ? 'no-pressure-lane' : hasPressureSample ? 'therapy-never-started' : hasRecords ? 'empty-pressure-lane' : 'no-records',
@@ -56749,7 +56822,7 @@ __exports.MotionDex = window.MotionDex;
          lane IS knowable, so a genuine scored zero stays a real 0 and only true absence goes null.
          A CSL file with an empty annotation list is a MEASUREMENT (the device scored, found
          nothing); only the missing file is absence of evidence. */
-      periodicBreathingPct: pbObserved && durSec > 0 ? +((pbSec / durSec) * 100).toFixed(2) : null,
+      periodicBreathingPct: pbObserved && durSec != null && durSec > 0 ? +((pbSec / durSec) * 100).toFixed(2) : null,
       pbObserved: pbObserved,
       // Leak (converted to L/min)
       /* ∅ The lane's PRESENCE is not a sample: `leak` alone passed an empty `leakMaskOn`
@@ -56819,8 +56892,10 @@ __exports.MotionDex = window.MotionDex;
     var sqi = leakSqi(metrics);
     return {
       t0Ms: t0Ms,
-      endMs: t0Ms + durSec * 1000, // WALL duration (for off-mask gap math)
-      durMin: +(durSec / 60).toFixed(1),
+      /* ∅ An unreadable record duration leaves the WALL span absent. `t0Ms + null * 1000` is `t0Ms`
+         and `+(null / 60).toFixed(1)` is `0`, so both fields would publish a zero-length session. */
+      endMs: durSec == null ? null : t0Ms + durSec * 1000, // WALL duration (for off-mask gap math)
+      durMin: durSec == null ? null : +(durSec / 60).toFixed(1),
       usageHours: usageHours == null ? null : +usageHours.toFixed(3),
       mode: mode,
       fname: meta.fname || null,
@@ -57383,7 +57458,7 @@ __exports.MotionDex = window.MotionDex;
     ok('that off-mask gap ≈ 20 min', near((night.offMaskGaps[0] || {}).gapMin, 20, 0.2), JSON.stringify(night.offMaskGaps));
     ok('off-mask gap carries afterIdx (render/fusion contract)', night.offMaskGaps[0].afterIdx === 0, JSON.stringify(night.offMaskGaps[0]));
     ok('therapyHours ≈ 7 (4+3, no 24h jump)', near(night.therapyHours, 7, 0.05), night.therapyHours);
-    ok('overnight stays monotonic (gap > 0)', night.offMaskGaps[0].gapMin > 0, night.offMaskGaps[0].gapMin);
+    ok('overnight stays monotonic (gap > 0)', (night.offMaskGaps[0].gapMin ?? -1) > 0, night.offMaskGaps[0].gapMin);
 
     // longitudinal compliance
     var lng = buildLongitudinal([{ therapyHours: 7 }, { therapyHours: 3.5 }, { therapyHours: 6 }, { therapyHours: 5 }]);
