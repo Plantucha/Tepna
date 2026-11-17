@@ -47,7 +47,22 @@ DIFFERENT gates, measured 2026-10-12 against main's row `2026-10-12-wt-done-test
 | any non-state cell edited | `tools/residue-ids.mjs` exit 1: `a non-state cell was edited (rows are append-and-close)` |
 
 So a closure's evidence belongs in the PR body, or in a NEW row that names the old key — never appended
-to the row that the PR closes, and never as a parenthetical on the state. Four rows hit this when the clause
+to the row that the PR closes, and never as a parenthetical on the state.
+
+## Read the row SHAPE in one second, before the full gate
+
+```sh
+node tests/run-tests.mjs --group=Docs-ledger
+```
+
+The split in that table is not only about the state cell. **Neither tool a row author runs reads the
+row shape at all**: `tools/residue-ids.mjs` reads identity and state (`parseRows` declines the shape by
+design) and `tools/residue-cite-drift.mjs` reports `PASS` with `defectClass: 0`. A malformed SOURCE cell
+therefore reads two greens and reds at **step 26 of 71** of `npm run check`, after 19789 passing
+assertions. The command above runs the same `Docs-ledger` group by NAME in about a second.
+
+Name the group, never its index: `--group-index=478` reached this group on 2026-11-06 and runs an
+OxyDex group today. Four rows hit this when the clause
 above was read as licence to annotate a closure (Heron, #3466, reported 2026-10-12; that PR's only pushed
 head runs all-green, so the refusal was pre-push; this file credits it as reported and did not re-measure it).
 
