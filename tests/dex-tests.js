@@ -89959,6 +89959,88 @@
       T.ok('the page reads the shared reader rather than keeping a second copy', /NSRR\.parseAhiCsv/.test(src) && !/var\s+NSRR_AHI_VARS/.test(src));
     });
 
+    /* ∅ A COLUMN PICK HAS NO SENSIBLE DEFAULT — the second site of the family Magpie met in GlucoDex
+       (`locateColumns` ended `if (gCol < 0) gCol = 1;`). `parseAhiCsv` held TWO column picks under
+       OPPOSITE policies: the AHI pick refused a header it could not name, and the ID pick took
+       column 0. Measured 2026-11-17 at `41b75377d` on headers whose id variable `NSRR_ID_VARS` does
+       not name:
+         · `age,pid,nsrr_ahi_hp3r_aasm15` → `idVar: 'age'`, no error, both rows ingested, and every
+           lookup answered null. The reference was lost in full under a confident column name.
+         · the same header with 3 rows at one age → `rows: 3`, `subjects: 1`, the LAST row's AHI in
+           `byKey`, and `ambiguous: 0`. The field that reports a pooled key counts multi-visit bare
+           keys only, so it cannot see this one.
+         · `height,pid,…` with heights 170 and 165 → `lookupAhi('mros-170')` answered the AHI of the
+           row whose HEIGHT is 170, stamped `via: 'csv(id)'`. The provenance asserted an id join that
+           never happened.
+       Every leg below bites the deletion of one arm of the repair. The escape is `{ idVar }`,
+       symmetric with the `{ ahiVar }` the refit lane already uses, because the list cannot enumerate
+       every dataset's subject variable without inventing variable names. */
+    group('NSRR ∅ — an id column chosen by position refuses, and { idVar } names it instead', 'nsrr-adapter · ingest · id-column-refusal', function (T) {
+      var N = env.NSRR;
+      var ready = !!(N && typeof N.parseAhiCsv === 'function' && typeof N.lookupAhi === 'function');
+      T.ok('NSRR.parseAhiCsv · lookupAhi are wired into env', ready, 'window.NSRR reader absent');
+      if (!ready) return;
+
+      var NOID = 'age,pid,nsrr_ahi_hp3r_aasm15\n62,200001,5\n55,200062,42';
+
+      // ── the refusal ──
+      var g = N.parseAhiCsv(NOID);
+      T.ok('∅ · a header naming no known id column is refused', /no known ID column/.test(g.error || ''), 'error=' + g.error);
+      T.ok('∅ · …and the reason names the remedy', /pass \{ idVar \}/.test(g.error || ''), 'error=' + g.error);
+      T.eq('∅ · no key is published from a column chosen by position', Object.keys(g.byKey).length, 0);
+      T.eq('∅ · …and no row is counted as read', g.rows, 0);
+      T.eq('∅ · idVar stays null rather than naming the guessed header', g.idVar, null);
+      T.eq('∅ · lookupAhi answers nothing rather than another row’s AHI', N.lookupAhi(g, 'shhs1-200001'), null);
+
+      /* A guess that lands on the real id column is still a guess: `pid` IS this file's subject key,
+         and the reader cannot know that, so it refuses here too. This is the one capability the
+         repair narrows, and `{ idVar }` is what replaces it. */
+      var lucky = N.parseAhiCsv('pid,age,nsrr_ahi_hp3r_aasm15\n200001,62,5\n200062,55,42');
+      T.ok('∅ · an unlisted id variable sitting at column 0 is refused too', /no known ID column/.test(lucky.error || ''), 'error=' + lucky.error);
+
+      /* The collapse the old default produced, which `ambiguous` could not report. */
+      var pooled3 = N.parseAhiCsv('age,pid,nsrr_ahi_hp3r_aasm15\n62,200001,5\n62,200002,42\n62,200003,1.5');
+      T.ok('∅ · three subjects at one column-0 value are refused, not pooled onto one key', /no known ID column/.test(pooled3.error || ''));
+      T.eq('∅ · …so no last-row-wins value survives', Object.keys(pooled3.byKey).length, 0);
+
+      /* The collision that returned a neighbour’s AHI under this recording’s name. */
+      var coll = N.parseAhiCsv('height,pid,nsrr_ahi_hp3r_aasm15\n170,200001,5\n165,200062,42');
+      T.eq('∅ · a stem whose trailing id matches a column-0 value gets no borrowed reference', N.lookupAhi(coll, 'mros-170'), null);
+
+      // ── the escape ──
+      var named = N.parseAhiCsv(NOID, { idVar: 'pid' });
+      T.eq('{ idVar } · the named column is read, error-free', named.error, null);
+      T.eq('{ idVar } · …and reported as the identity', named.idVar, 'pid');
+      T.eq('{ idVar } · …so both subjects are keyed by their own id', Object.keys(named.byKey).length, 2);
+      T.eq('{ idVar } · …and each stem resolves to its OWN row', (N.lookupAhi(named, 'shhs1-200062') || {}).ahi, 42);
+      T.eq('{ idVar } · the name is matched case- and space-insensitively', N.parseAhiCsv(NOID, { idVar: '  PID ' }).idVar, 'pid');
+      T.ok(
+        '{ idVar } · a named column this file does not hold is an error, never a fallback',
+        /requested ID column "sofid" is not in this file/.test(N.parseAhiCsv(NOID, { idVar: 'sofid' }).error || '')
+      );
+      T.ok('{ idVar } · a bare id,ahi pair list cannot answer for a named id column', /bare id,ahi pair list/.test(N.parseAhiCsv('200001,12.5\n', { idVar: 'pid' }).error || ''));
+
+      /* ORDERING — a file missing both columns reports the longer-standing reason, so this repair
+         cannot mask the AHI refusal it sits behind. */
+      T.ok('∅ · with both columns absent the AHI reason comes first', /no known AHI column/.test(N.parseAhiCsv('age,pid,some_index\n62,200001,5').error || ''));
+
+      // ── CONTROLS: the shapes this reader exists for are unchanged ──
+      var ok = N.parseAhiCsv('nsrrid,age,nsrr_ahi_hp3r_aasm15\n200001,62,5\n200062,55,42');
+      T.eq('CONTROL · a listed id column still parses', ok.error, null);
+      T.eq('CONTROL · …is still reported by name', ok.idVar, 'nsrrid');
+      T.eq('CONTROL · …and still answers for its own stem', (N.lookupAhi(ok, 'shhs1-200062') || {}).ahi, 42);
+      var pair = N.parseAhiCsv('999999.edf,12.5\n999998,8');
+      T.eq('CONTROL · a headerless pair list still parses', pair.error, null);
+      T.eq('CONTROL · …over both pairs', pair.rows, 2);
+      T.eq('CONTROL · …and still answers', (N.lookupAhi(pair, 'shhs1-999999') || {}).ahi, 12.5);
+
+      /* SOURCE · the old default is gone, and this leg bites its reintroduction. */
+      var src = (env.sources || {})['nsrr-adapter.js'] || '';
+      T.ok('SOURCE · nsrr-adapter.js was read for this leg', src.length > 10000, 'len=' + src.length);
+      T.ok('SOURCE · no `idCol = 0` default remains', !/idCol\s*<\s*0\)\s*idCol\s*=\s*0/.test(src));
+      T.ok('SOURCE · the refusal is in the file', /no known ID column/.test(src));
+    });
+
     /* ════ NSRR DATASET CSV → REFERENCE AHI — known-answer (AHI-SURROGATE-REFIT-SIZING item 3) ════
        Three separately-silent defects, each of which hands a scored row a plausible wrong number:
 
