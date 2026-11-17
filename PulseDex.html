@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="7236af3f83c5" data-compute-hash="fa9c05fc2d07"><head>
+<html lang="en" data-manifest-hash="ed82e695cf1c" data-compute-hash="fa9c05fc2d07"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-2sr3vR/hmKkI6/kbcITX6kd8lNKdAYo3B6+vqfNAc34=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BwIEG5e/Uapft+skD25nEc+0xQkfGrQBUo+6rpvO7F0=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-bCPDj6a+6bTdhnxj8blByWpAC4axVkKliMEn9I/EH/U=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-sT1+vtq8jPdjKLkkjRhD7sO4xD2UufB5H3vGsoX0ImA=' 'sha256-wtJN8xtR89LNNOj5mqnsH6ASsaMTM6LsFtBRUvfWt9E=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-73I9zddw3MGywut28p68vwrlHD+uz63tD3g0rTO2Ad8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-7QtTVzqMyqS1BK+GMi6PXbFqQke2DuH3rtRrVWV6RXc=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BOMugTEuReq3WxdS1LfEIbRCSQ8HYa0kCcFGTrgE+5k=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-sT1+vtq8jPdjKLkkjRhD7sO4xD2UufB5H3vGsoX0ImA=' 'sha256-wtJN8xtR89LNNOj5mqnsH6ASsaMTM6LsFtBRUvfWt9E=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.33.0</title>
@@ -10295,6 +10295,7 @@ function renderGraphs(r) {
 // single, TESTABLE function (§RN render-harness): the render module carried its OWN duplicate of the
 // 208−0.7·age formula, drift-prone vs the canonical ECGProfile copy and unpinnable by any gate.
 function tanakaHRmax(age) {
+  if (age == null || !isFinite(age)) return null; // §∅ — no age entered, so there is no estimate
   return Math.round(208 - 0.7 * age);
 }
 
@@ -10305,7 +10306,7 @@ function reRender() {
     // profile-dependent values (age · HRmax) recompute live so cards aren't stale
     const r = lastResult;
     const _pp = typeof pxProfile === 'function' ? pxProfile() : {};
-    const age = _pp.age || 40;
+    const age = _pp.age == null || !isFinite(_pp.age) ? null : +_pp.age; // §∅ — absent ≠ 40 years
     const tanaka = tanakaHRmax(age);
     const hrmaxIn = _pp.hrmax || 0;
     const rhrIn = _pp.rhr || 0;
@@ -10316,8 +10317,9 @@ function reRender() {
     r.hrmaxRejected = hrmaxIn > 0 && !hrmaxValid;
     r.elev = _pp.elev == null || !isFinite(_pp.elev) ? null : +_pp.elev; // §∅ — absent ≠ sea level
     r.altFactor = r.elev == null ? 1 : +altVO2Factor(r.elev).toFixed(3); // no elevation entered ⇒ no correction
-    r.vo2base = +(vo2Base(r.rhrEff, r.hrmaxEff) * r.altFactor).toFixed(1);
-    r.vo2adj = r.lnrmssd == null ? null : +vo2Adj(r.vo2base, r.lnrmssd).toFixed(1);
+    // §∅ — an absent HRmax gives no VO₂ estimate; `15.3 * null` is 0, which would read as measured
+    r.vo2base = r.hrmaxEff == null ? null : +(vo2Base(r.rhrEff, r.hrmaxEff) * r.altFactor).toFixed(1);
+    r.vo2adj = r.lnrmssd == null || r.vo2base == null ? null : +vo2Adj(r.vo2base, r.lnrmssd).toFixed(1);
     const gtIn = _pp.vo2gt;
     r.vo2gt = gtIn > 0 ? +Number(gtIn).toFixed(1) : null;
     renderContext(r);
@@ -10430,8 +10432,8 @@ function renderTable(r) {
     ],
     // SBP est / DBP est / HTN Pattern rows REMOVED 2026-06-22 (DEX-SUITE-EXTERNAL-REVIEW-v2 §🔴):
     // HRV→BP has no validity and these rendered unbadged after their registry entries were dropped.
-    ['VO₂ base', r.vo2base, 'ml/kg/min', '—', 'neutral', 'Uth–Sørensen HR ratio'],
-    ['VO₂ adj', r.vo2adj, 'ml/kg/min', '—', 'neutral', 'HRV-adjusted VO₂ proxy'],
+    ['VO₂ base', r.vo2base == null ? '—' : r.vo2base, 'ml/kg/min', '—', 'neutral', 'Uth–Sørensen HR ratio'],
+    ['VO₂ adj', r.vo2adj == null ? '—' : r.vo2adj, 'ml/kg/min', '—', 'neutral', 'HRV-adjusted VO₂ proxy'],
     ['VO₂ GT', r.vo2gt || '—', 'ml/kg/min', 'lab', 'neutral', 'Ground truth (if entered)'],
     ['Stress est', r.stress, '0–100', '<50', r.stress == null ? 'neutral' : r.stress <= 45 ? 'ok' : r.stress <= 60 ? 'warn' : 'bad', 'Welltory-style estimate'],
     ['HRV Score', r.hrv, '0–100', '>50', sc(r.hrv, 50, 35), 'Welltory-style estimate'],
@@ -10943,10 +10945,14 @@ function pxProfile() {
       return r.origin === 'detected' && r.v > 0 ? r.v : 0;
     };
     return {
-      age: n(p.age, 40),
+      /* §∅ — AN UNENTERED BODY TERM IS NULL, NEVER A POPULATION MEAN. An age default of 40 published a
+         40-year-old's Tanaka HRmax, and 78 kg / 176 cm published a BMI, a BSA and a BMR, for a
+         reader who entered nothing. Each figure then read as that reader's own measurement, and
+         no surface said which term was assumed. The consumers refuse instead. */
+      age: n(p.age, null),
       sex: p.sex === 'F' ? 'F' : 'M',
-      weight: n(p.weight, 78),
-      height: n(p.height, 176),
+      weight: n(p.weight, null),
+      height: n(p.height, null),
       sbp: n(p.sbp, 120),
       dbp: n(p.dbp, 78),
       vo2gt: detOr0('vo2'),
@@ -10964,10 +10970,10 @@ function pxProfile() {
   };
   const sx = document.getElementById('profSex');
   return {
-    age: v('profAge', 40),
+    age: v('profAge', null), // §∅ — absent ≠ a population mean, the same rule as the path above
     sex: sx ? sx.value : 'M',
-    weight: v('profWeight', 78),
-    height: v('profHeight', 176),
+    weight: v('profWeight', null),
+    height: v('profHeight', null),
     sbp: v('profSBP', 120),
     dbp: v('profDBP', 78),
     vo2gt: v('profVO2', 0),
@@ -11220,18 +11226,23 @@ function renderProfileDerivedPx() {
   const d = document.getElementById('profileDerived');
   if (!d) return;
   const p = pxProfile();
-  const bmi = p.weight / (p.height / 100) ** 2;
-  const bsa = Math.sqrt((p.height * p.weight) / 3600);
-  const ibw = p.sex === 'M' ? 50 + 2.3 * (p.height / 2.54 - 60) : 45.5 + 2.3 * (p.height / 2.54 - 60);
-  const hrmax = p.hrmax > 0 ? Math.round(p.hrmax) : Math.round(208 - 0.7 * p.age); // entered HRmax, else Tanaka (matches VO₂ calc)
+  // §∅ — every tile below refuses while a term it needs is absent; none of them falls back to a mean.
+  const hasWH = p.weight != null && p.height != null;
+  const bmi = hasWH ? p.weight / (p.height / 100) ** 2 : null;
+  const bsa = hasWH ? Math.sqrt((p.height * p.weight) / 3600) : null;
+  const ibwRaw = p.sex === 'M' ? 50 + 2.3 * (p.height / 2.54 - 60) : 45.5 + 2.3 * (p.height / 2.54 - 60);
+  const ibw = p.height == null ? null : ibwRaw;
+  // entered HRmax, else Tanaka (matches VO₂ calc); with no age entered there is no Tanaka to give
+  const hrmax = p.hrmax > 0 ? Math.round(p.hrmax) : p.age == null ? null : Math.round(208 - 0.7 * p.age);
   const map_ = Math.round(p.dbp + (p.sbp - p.dbp) / 3);
   const pp = p.sbp - p.dbp;
-  const bmr = p.sex === 'M' ? Math.round(10 * p.weight + 6.25 * p.height - 5 * p.age + 5) : Math.round(10 * p.weight + 6.25 * p.height - 5 * p.age - 161);
-  const vo2abs = p.vo2gt > 0 ? ((p.vo2gt * p.weight) / 1000).toFixed(2) : '—';
-  const bmiCat = bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Overweight' : 'Obese';
+  const bmrRaw = p.sex === 'M' ? Math.round(10 * p.weight + 6.25 * p.height - 5 * p.age + 5) : Math.round(10 * p.weight + 6.25 * p.height - 5 * p.age - 161);
+  const bmr = hasWH && p.age != null ? bmrRaw : null;
+  const vo2abs = p.vo2gt > 0 && p.weight != null ? ((p.vo2gt * p.weight) / 1000).toFixed(2) : '—';
+  const bmiCat = bmi == null ? null : bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Overweight' : 'Obese';
   // VO₂ percentile (Cooper Institute bands)
   function vo2Perc(vo2, age, sex) {
-    if (!(vo2 > 0)) return null;
+    if (!(vo2 > 0) || age == null || !isFinite(age)) return null; // §∅ — no age, no Cooper band
     const m = {
       20: [
         [31, 5],
@@ -11327,34 +11338,40 @@ function renderProfileDerivedPx() {
     return vo2 >= pts[pts.length - 1][0] ? 99 : 1;
   }
   const vp = vo2Perc(p.vo2gt, p.age, p.sex);
-  const vCat = p.vo2gt > 0 ? (vp >= 80 ? 'Excellent' : vp >= 60 ? 'Good' : vp >= 40 ? 'Average' : vp >= 20 ? 'Fair' : 'Poor') : '(enter VO₂)';
-  const inch = (p.height / 2.54).toFixed(0);
+  // §∅ — a null percentile is not the bottom of the scale; `vp >= 20` is false for null, so the
+  // old expression read an absent age as the verdict 'Poor'.
+  const vCat = p.vo2gt > 0 ? (vp == null ? '(enter age)' : vp >= 80 ? 'Excellent' : vp >= 60 ? 'Good' : vp >= 40 ? 'Average' : vp >= 20 ? 'Fair' : 'Poor') : '(enter VO₂)';
+  const inch = p.height == null ? null : (p.height / 2.54).toFixed(0);
   const di = (l, v, f) => `<div class="prof-derived-item"><b>${l}</b> ${v}${f ? `<span class="pdi-formula">${f}</span>` : ''}</div>`;
+  // §∅ — a refused tile shows a dash and names the absent term, never a figure from a mean.
+  const bmiTxt = bmi == null ? '—' : bmi.toFixed(1) + ' (' + bmiCat + ')';
+  const bmiFml = bmi == null ? 'enter weight and height' : 'kg ÷ m² = ' + p.weight + ' ÷ ' + (p.height / 100).toFixed(2) + '²';
+  const ibwTxt = ibw == null ? '—' : ibw.toFixed(1) + ' kg';
+  const ibwFml = ibw == null ? 'enter height' : 'Devine: ' + (p.sex === 'M' ? '50' : '45.5') + ' + 2.3·(' + inch + 'in−60)';
+  const bsaTxt = bsa == null ? '—' : bsa.toFixed(2) + ' m²';
+  const bsaFml = bsa == null ? 'enter weight and height' : 'Mosteller: √(' + p.height + '·' + p.weight + '/3600)';
+  const bmrTxt = bmr == null ? '—' : bmr + ' kcal';
+  const bmrFml = bmr == null ? 'enter age, weight and height' : 'Mifflin: 10·w+6.25·h−5·a' + (p.sex === 'M' ? '+5' : '−161');
+  const hrmaxTxt = hrmax == null ? '—' : hrmax + ' bpm';
+  const hrmaxFml = p.hrmax > 0 ? 'your entry' : p.age == null ? 'enter age, or your own HRmax' : 'Tanaka: 208−0.7·' + p.age;
+  const vo2absFml = p.vo2gt > 0 ? (p.weight == null ? 'enter weight' : 'VO₂·weight/1000 = ' + p.vo2gt + '·' + p.weight + '/1000') : 'enter VO₂max ground truth';
+  const bandFml =
+    p.age == null
+      ? 'Cooper bands (enter age)'
+      : 'Cooper bands (' + (p.age < 30 ? '20s' : p.age < 40 ? '30s' : p.age < 50 ? '40s' : p.age < 60 ? '50s' : '60+') + ' ' + (p.sex === 'M' ? 'M' : 'F') + ')';
   const grp = (l, items) => `<div class="pd-group"><span class="pd-group-label">${l}</span><div class="pd-group-grid">${items}</div></div>`;
   d.innerHTML =
-    grp(
-      'Body composition',
-      di('BMI', bmi.toFixed(1) + ' (' + bmiCat + ')', 'kg ÷ m² = ' + p.weight + ' ÷ ' + (p.height / 100).toFixed(2) + '²') +
-        di('IBW', ibw.toFixed(1) + ' kg', 'Devine: ' + (p.sex === 'M' ? '50' : '45.5') + ' + 2.3·(' + inch + 'in−60)') +
-        di('BSA', bsa.toFixed(2) + ' m²', 'Mosteller: √(' + p.height + '·' + p.weight + '/3600)') +
-        di('BMR', bmr + ' kcal', 'Mifflin: 10·w+6.25·h−5·a' + (p.sex === 'M' ? '+5' : '−161'))
-    ) +
+    grp('Body composition', di('BMI', bmiTxt, bmiFml) + di('IBW', ibwTxt, ibwFml) + di('BSA', bsaTxt, bsaFml) + di('BMR', bmrTxt, bmrFml)) +
     grp(
       'Cardiovascular',
-      di('HRmax', hrmax + ' bpm', p.hrmax > 0 ? 'your entry' : 'Tanaka: 208−0.7·' + p.age) +
+      di('HRmax', hrmaxTxt, hrmaxFml) +
         di('MAP', map_ + ' mmHg', 'DBP + ⅓(SBP−DBP)') +
         di('Pulse pressure', pp + ' mmHg', 'SBP − DBP = ' + p.sbp + '−' + p.dbp) +
         di('Resting BP', p.sbp + '/' + p.dbp, 'your entry')
     ) +
     grp(
       'Respiratory / fitness',
-      di('VO₂ absolute', vo2abs + (vo2abs !== '—' ? ' L/min' : ''), p.vo2gt > 0 ? 'VO₂·weight/1000 = ' + p.vo2gt + '·' + p.weight + '/1000' : 'enter VO₂max ground truth') +
-        di('VO₂ category', vCat, 'Cooper Institute norms') +
-        di(
-          'VO₂ percentile',
-          vp != null ? '~' + vp + 'th' : '—',
-          'Cooper bands (' + (p.age < 30 ? '20s' : p.age < 40 ? '30s' : p.age < 50 ? '40s' : p.age < 60 ? '50s' : '60+') + ' ' + (p.sex === 'M' ? 'M' : 'F') + ')'
-        )
+      di('VO₂ absolute', vo2abs + (vo2abs !== '—' ? ' L/min' : ''), vo2absFml) + di('VO₂ category', vCat, 'Cooper Institute norms') + di('VO₂ percentile', vp != null ? '~' + vp + 'th' : '—', bandFml)
     );
 }
 
@@ -11579,7 +11596,8 @@ function popNorms(sex, age) {
 function applyAgeNorms(ideal) {
   if (!document.getElementById('profSex')) return; // unified panel active — legacy norm buttons removed
   const sex = document.getElementById('profSex').value;
-  const age = parseFloat(document.getElementById('profAge').value) || 40;
+  const age = parseFloat(document.getElementById('profAge').value);
+  if (!isFinite(age)) return; // §∅ — no age entered, so there is no population band to apply
   const n = popNorms(sex, age);
   const h = n.h;
   const w = ideal ? +(22.5 * (h / 100) ** 2).toFixed(1) : n.w;
@@ -15398,8 +15416,11 @@ function calculate() {
   const _r1 = (v, d) => (v == null || !isFinite(v) ? null : +v.toFixed(d));
   const si = _r1(siCalc(cAmo, cMo, cMx), 1); // SI is a short-term index → representative window
   const _pp = typeof pxProfile === 'function' ? pxProfile() : {};
-  const age = _pp.age || 40;
-  const tanaka = Math.round(208 - 0.7 * age);
+  /* §∅ — AN UNENTERED AGE IS NULL, AND TANAKA REFUSES. `|| 40` handed every reader who entered
+     nothing a 40-year-old's HRmax, and that figure then set `hrmaxEff` and the whole VO₂ road.
+     An entered HRmax still wins below, so only the ESTIMATE goes away with the age. */
+  const age = _pp.age == null || !isFinite(_pp.age) ? null : +_pp.age;
+  const tanaka = age == null ? null : Math.round(208 - 0.7 * age);
   const hrmaxIn = _pp.hrmax || 0;
   const rhrIn = _pp.rhr || 0;
   // Awake resting HR for VO₂: overnight HR is SLEEPING HR (~8 bpm below awake) —
@@ -15421,8 +15442,10 @@ function calculate() {
 altitude factor then sat at 1 without saying whether a height was entered at all. */
   const elev = _pp.elev == null || !isFinite(_pp.elev) ? null : +_pp.elev;
   const altFactor = elev == null ? 1 : altVO2Factor(elev); // ≤1 above 1500 m; 1 with no elevation entered (no correction)
-  const vo2b = +(vo2Base(rhrEff, hrmaxEff) * altFactor).toFixed(1);
-  const vo2a = lnrm == null ? null : +vo2Adj(vo2b, lnrm).toFixed(1);
+  /* §∅ — `(15.3 * null) / 60` is 0, not NaN, so an absent HRmax would publish VO₂ base 0.0 ml/kg/min:
+     an in-band figure on a research surface. The estimate refuses instead. */
+  const vo2b = hrmaxEff == null ? null : +(vo2Base(rhrEff, hrmaxEff) * altFactor).toFixed(1);
+  const vo2a = lnrm == null || vo2b == null ? null : +vo2Adj(vo2b, lnrm).toFixed(1);
   const efc = _hrvRefused ? null : +efcIdx(energy, focus, coh).toFixed(1);
   const crs = _r1(crsIdx(coh, cRm, cPn, stress), 4);
   const absV = _r1(absIdx(ans.psns, ans.sns), 3);

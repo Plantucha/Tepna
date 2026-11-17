@@ -43,10 +43,14 @@ function pxProfile() {
       return r.origin === 'detected' && r.v > 0 ? r.v : 0;
     };
     return {
-      age: n(p.age, 40),
+      /* §∅ — AN UNENTERED BODY TERM IS NULL, NEVER A POPULATION MEAN. An age default of 40 published a
+         40-year-old's Tanaka HRmax, and 78 kg / 176 cm published a BMI, a BSA and a BMR, for a
+         reader who entered nothing. Each figure then read as that reader's own measurement, and
+         no surface said which term was assumed. The consumers refuse instead. */
+      age: n(p.age, null),
       sex: p.sex === 'F' ? 'F' : 'M',
-      weight: n(p.weight, 78),
-      height: n(p.height, 176),
+      weight: n(p.weight, null),
+      height: n(p.height, null),
       sbp: n(p.sbp, 120),
       dbp: n(p.dbp, 78),
       vo2gt: detOr0('vo2'),
@@ -64,10 +68,10 @@ function pxProfile() {
   };
   const sx = document.getElementById('profSex');
   return {
-    age: v('profAge', 40),
+    age: v('profAge', null), // §∅ — absent ≠ a population mean, the same rule as the path above
     sex: sx ? sx.value : 'M',
-    weight: v('profWeight', 78),
-    height: v('profHeight', 176),
+    weight: v('profWeight', null),
+    height: v('profHeight', null),
     sbp: v('profSBP', 120),
     dbp: v('profDBP', 78),
     vo2gt: v('profVO2', 0),
@@ -320,18 +324,23 @@ function renderProfileDerivedPx() {
   const d = document.getElementById('profileDerived');
   if (!d) return;
   const p = pxProfile();
-  const bmi = p.weight / (p.height / 100) ** 2;
-  const bsa = Math.sqrt((p.height * p.weight) / 3600);
-  const ibw = p.sex === 'M' ? 50 + 2.3 * (p.height / 2.54 - 60) : 45.5 + 2.3 * (p.height / 2.54 - 60);
-  const hrmax = p.hrmax > 0 ? Math.round(p.hrmax) : Math.round(208 - 0.7 * p.age); // entered HRmax, else Tanaka (matches VO₂ calc)
+  // §∅ — every tile below refuses while a term it needs is absent; none of them falls back to a mean.
+  const hasWH = p.weight != null && p.height != null;
+  const bmi = hasWH ? p.weight / (p.height / 100) ** 2 : null;
+  const bsa = hasWH ? Math.sqrt((p.height * p.weight) / 3600) : null;
+  const ibwRaw = p.sex === 'M' ? 50 + 2.3 * (p.height / 2.54 - 60) : 45.5 + 2.3 * (p.height / 2.54 - 60);
+  const ibw = p.height == null ? null : ibwRaw;
+  // entered HRmax, else Tanaka (matches VO₂ calc); with no age entered there is no Tanaka to give
+  const hrmax = p.hrmax > 0 ? Math.round(p.hrmax) : p.age == null ? null : Math.round(208 - 0.7 * p.age);
   const map_ = Math.round(p.dbp + (p.sbp - p.dbp) / 3);
   const pp = p.sbp - p.dbp;
-  const bmr = p.sex === 'M' ? Math.round(10 * p.weight + 6.25 * p.height - 5 * p.age + 5) : Math.round(10 * p.weight + 6.25 * p.height - 5 * p.age - 161);
-  const vo2abs = p.vo2gt > 0 ? ((p.vo2gt * p.weight) / 1000).toFixed(2) : '—';
-  const bmiCat = bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Overweight' : 'Obese';
+  const bmrRaw = p.sex === 'M' ? Math.round(10 * p.weight + 6.25 * p.height - 5 * p.age + 5) : Math.round(10 * p.weight + 6.25 * p.height - 5 * p.age - 161);
+  const bmr = hasWH && p.age != null ? bmrRaw : null;
+  const vo2abs = p.vo2gt > 0 && p.weight != null ? ((p.vo2gt * p.weight) / 1000).toFixed(2) : '—';
+  const bmiCat = bmi == null ? null : bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Overweight' : 'Obese';
   // VO₂ percentile (Cooper Institute bands)
   function vo2Perc(vo2, age, sex) {
-    if (!(vo2 > 0)) return null;
+    if (!(vo2 > 0) || age == null || !isFinite(age)) return null; // §∅ — no age, no Cooper band
     const m = {
       20: [
         [31, 5],
@@ -427,34 +436,40 @@ function renderProfileDerivedPx() {
     return vo2 >= pts[pts.length - 1][0] ? 99 : 1;
   }
   const vp = vo2Perc(p.vo2gt, p.age, p.sex);
-  const vCat = p.vo2gt > 0 ? (vp >= 80 ? 'Excellent' : vp >= 60 ? 'Good' : vp >= 40 ? 'Average' : vp >= 20 ? 'Fair' : 'Poor') : '(enter VO₂)';
-  const inch = (p.height / 2.54).toFixed(0);
+  // §∅ — a null percentile is not the bottom of the scale; `vp >= 20` is false for null, so the
+  // old expression read an absent age as the verdict 'Poor'.
+  const vCat = p.vo2gt > 0 ? (vp == null ? '(enter age)' : vp >= 80 ? 'Excellent' : vp >= 60 ? 'Good' : vp >= 40 ? 'Average' : vp >= 20 ? 'Fair' : 'Poor') : '(enter VO₂)';
+  const inch = p.height == null ? null : (p.height / 2.54).toFixed(0);
   const di = (l, v, f) => `<div class="prof-derived-item"><b>${l}</b> ${v}${f ? `<span class="pdi-formula">${f}</span>` : ''}</div>`;
+  // §∅ — a refused tile shows a dash and names the absent term, never a figure from a mean.
+  const bmiTxt = bmi == null ? '—' : bmi.toFixed(1) + ' (' + bmiCat + ')';
+  const bmiFml = bmi == null ? 'enter weight and height' : 'kg ÷ m² = ' + p.weight + ' ÷ ' + (p.height / 100).toFixed(2) + '²';
+  const ibwTxt = ibw == null ? '—' : ibw.toFixed(1) + ' kg';
+  const ibwFml = ibw == null ? 'enter height' : 'Devine: ' + (p.sex === 'M' ? '50' : '45.5') + ' + 2.3·(' + inch + 'in−60)';
+  const bsaTxt = bsa == null ? '—' : bsa.toFixed(2) + ' m²';
+  const bsaFml = bsa == null ? 'enter weight and height' : 'Mosteller: √(' + p.height + '·' + p.weight + '/3600)';
+  const bmrTxt = bmr == null ? '—' : bmr + ' kcal';
+  const bmrFml = bmr == null ? 'enter age, weight and height' : 'Mifflin: 10·w+6.25·h−5·a' + (p.sex === 'M' ? '+5' : '−161');
+  const hrmaxTxt = hrmax == null ? '—' : hrmax + ' bpm';
+  const hrmaxFml = p.hrmax > 0 ? 'your entry' : p.age == null ? 'enter age, or your own HRmax' : 'Tanaka: 208−0.7·' + p.age;
+  const vo2absFml = p.vo2gt > 0 ? (p.weight == null ? 'enter weight' : 'VO₂·weight/1000 = ' + p.vo2gt + '·' + p.weight + '/1000') : 'enter VO₂max ground truth';
+  const bandFml =
+    p.age == null
+      ? 'Cooper bands (enter age)'
+      : 'Cooper bands (' + (p.age < 30 ? '20s' : p.age < 40 ? '30s' : p.age < 50 ? '40s' : p.age < 60 ? '50s' : '60+') + ' ' + (p.sex === 'M' ? 'M' : 'F') + ')';
   const grp = (l, items) => `<div class="pd-group"><span class="pd-group-label">${l}</span><div class="pd-group-grid">${items}</div></div>`;
   d.innerHTML =
-    grp(
-      'Body composition',
-      di('BMI', bmi.toFixed(1) + ' (' + bmiCat + ')', 'kg ÷ m² = ' + p.weight + ' ÷ ' + (p.height / 100).toFixed(2) + '²') +
-        di('IBW', ibw.toFixed(1) + ' kg', 'Devine: ' + (p.sex === 'M' ? '50' : '45.5') + ' + 2.3·(' + inch + 'in−60)') +
-        di('BSA', bsa.toFixed(2) + ' m²', 'Mosteller: √(' + p.height + '·' + p.weight + '/3600)') +
-        di('BMR', bmr + ' kcal', 'Mifflin: 10·w+6.25·h−5·a' + (p.sex === 'M' ? '+5' : '−161'))
-    ) +
+    grp('Body composition', di('BMI', bmiTxt, bmiFml) + di('IBW', ibwTxt, ibwFml) + di('BSA', bsaTxt, bsaFml) + di('BMR', bmrTxt, bmrFml)) +
     grp(
       'Cardiovascular',
-      di('HRmax', hrmax + ' bpm', p.hrmax > 0 ? 'your entry' : 'Tanaka: 208−0.7·' + p.age) +
+      di('HRmax', hrmaxTxt, hrmaxFml) +
         di('MAP', map_ + ' mmHg', 'DBP + ⅓(SBP−DBP)') +
         di('Pulse pressure', pp + ' mmHg', 'SBP − DBP = ' + p.sbp + '−' + p.dbp) +
         di('Resting BP', p.sbp + '/' + p.dbp, 'your entry')
     ) +
     grp(
       'Respiratory / fitness',
-      di('VO₂ absolute', vo2abs + (vo2abs !== '—' ? ' L/min' : ''), p.vo2gt > 0 ? 'VO₂·weight/1000 = ' + p.vo2gt + '·' + p.weight + '/1000' : 'enter VO₂max ground truth') +
-        di('VO₂ category', vCat, 'Cooper Institute norms') +
-        di(
-          'VO₂ percentile',
-          vp != null ? '~' + vp + 'th' : '—',
-          'Cooper bands (' + (p.age < 30 ? '20s' : p.age < 40 ? '30s' : p.age < 50 ? '40s' : p.age < 60 ? '50s' : '60+') + ' ' + (p.sex === 'M' ? 'M' : 'F') + ')'
-        )
+      di('VO₂ absolute', vo2abs + (vo2abs !== '—' ? ' L/min' : ''), vo2absFml) + di('VO₂ category', vCat, 'Cooper Institute norms') + di('VO₂ percentile', vp != null ? '~' + vp + 'th' : '—', bandFml)
     );
 }
 
@@ -679,7 +694,8 @@ function popNorms(sex, age) {
 function applyAgeNorms(ideal) {
   if (!document.getElementById('profSex')) return; // unified panel active — legacy norm buttons removed
   const sex = document.getElementById('profSex').value;
-  const age = parseFloat(document.getElementById('profAge').value) || 40;
+  const age = parseFloat(document.getElementById('profAge').value);
+  if (!isFinite(age)) return; // §∅ — no age entered, so there is no population band to apply
   const n = popNorms(sex, age);
   const h = n.h;
   const w = ideal ? +(22.5 * (h / 100) ** 2).toFixed(1) : n.w;

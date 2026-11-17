@@ -830,6 +830,31 @@ export const SEEDS = [
     at: 'oxydex-profile.js:311',
     state: 'fixed',
     note: "the Karvonen zones and the HRrest sublabel read ONE upRestingHR() decision (manual / data / estimate): estimated zones are marked with an approx sign, and a detected value outside 30-80 makes the sublabel say the zones use the age estimate, so the two can no longer disagree. Plant: tests/dex-tests.js group 'OxyDex profile · an unentered setting or unmeasured term is not a number', red on the pre-fix oxydex-profile.js."
+  },
+  {
+    at: 'pulsedex-app.js:788',
+    state: 'fixed',
+    note: "pxProfile publishes an unentered age as null, so Tanaka refuses and the VO2 estimate refuses with it; an entered HRmax still wins, and only the ESTIMATE goes away with the age. A bare removal would have published VO2 base 0.0, because (15.3 * null) / 60 is 0 and not NaN. Plant: tests/dex-tests.js group '∅ PulseDex profile body terms — absent stays null, never a population mean', 26 of its 35 legs red on the pre-fix sources, plus 3 tanakaHRmax legs that sit in the render-harness group and red there too."
+  },
+  {
+    at: 'pulsedex-render.js:148',
+    state: 'fixed',
+    note: "the re-render road reads an absent age as null, the one Tanaka decision function tanakaHRmax refuses a null age (it returned a 208 bpm HRmax), and the metric table prints a dash for a refused VO2 base or adj instead of the word null. Plant: tests/dex-tests.js group '∅ PulseDex profile body terms — absent stays null, never a population mean', 26 of its 35 legs red on the pre-fix sources, plus 3 tanakaHRmax legs that sit in the render-harness group and red there too."
+  },
+  {
+    at: 'pulsedex-overview.js:35',
+    state: 'fixed',
+    note: "pxProfile keeps an unentered age, weight and height null on BOTH of its paths, and every derived tile refuses and names the term it needs: BMI, BSA, IBW, BMR, HRmax, absolute VO2 and the Cooper percentile. The percentile also stopped reading an absent age as the 20s band, and the category stopped reading a refused percentile as the verdict Poor. Plant: tests/dex-tests.js group '∅ PulseDex profile body terms — absent stays null, never a population mean', 26 of its 35 legs red on the pre-fix sources, plus 3 tanakaHRmax legs that sit in the render-harness group and red there too."
+  },
+  {
+    at: 'pulsedex-app.js:806',
+    state: 'fixed',
+    note: "BOOKKEEPING ONLY: the code was fixed earlier, by #5137, which kept an absent profile elevation null at all four PulseDex sites; this row stayed open because no PR lowered it. Plant: tests/dex-tests.js group '∅ PulseDex profile elevation — absent stays null, never sea level', landed with that fix."
+  },
+  {
+    at: 'pulsedex-render.js:156',
+    state: 'fixed',
+    note: "BOOKKEEPING ONLY: the code was fixed earlier, by #5137, at the same time as the compute road above; the row stayed open because no PR lowered it. Plant: tests/dex-tests.js group '∅ PulseDex profile elevation — absent stays null, never sea level', landed with that fix."
   }
 ];
 
