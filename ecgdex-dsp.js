@@ -3828,7 +3828,14 @@
       deviceHR: rec.deviceHR || null,
       deviceACC: rec.deviceACC || null,
       accFs: rec.accFs || null,
-      t0Ms: rec.t0Ms || null,
+      /* ∅ A ZERO STAMP IS A STAMP. `|| null` published `startEpochMs: null` for a recording whose
+         anchor the caller gave as 0, which is floating 1970-01-01T00:00:00 and a legal `tMs` under
+         Clock Contract §1. The sibling stamp in this same reshape already reads
+         `endEpochMs: rec.endEpochMs != null ? rec.endEpochMs : null` (`:3627`), and the event
+         builder already takes `rec.t0Ms != null ? rec.t0Ms : null` (`:3570`), so this line was the
+         straggler of the three. The `|| 0` reads at `:1335`, `:3100`, `:3135` and `:3534` STAY,
+         because 0 is the correct base for a relative time and `0 || 0` is 0. */
+      t0Ms: rec.t0Ms != null ? rec.t0Ms : null,
       /* TIMING PROVENANCE, carried through the reshape (H10-2019-ORIGIN, 2026-09-01). Like `endEpochMs`
          above these are properties of the RECORDING, not of the analysis — and until this line they
          were DROPPED here, which made `ecgBuildNodeExport`'s `recording.hostAxis` block (HOSTAXIS-
