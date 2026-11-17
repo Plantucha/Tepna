@@ -25,9 +25,16 @@
  *   pending      the row reads OPEN and a declaring PR is still inside the window
  *   dropped      the row reads OPEN and every declaring PR has left the window — unreachable
  *   unknown-key  the body names a key that no row on the ref carries — a typo closes nothing
+ *   unparsed     a whole-line declaration that names something date-shaped and yields no key
  *
- * FAIL on any `dropped` or `unknown-key`. The window constant and both parsers are IMPORTED from the
- * walker, so this tool cannot disagree with the mechanism it audits.
+ * FAIL on any `dropped`, `unknown-key` or `unparsed`. The window constant and both parsers are
+ * IMPORTED from the walker, so this tool cannot disagree with the mechanism it audits.
+ *
+ * The fifth class exists because of the hole it closes. Measured 2026-11-17 over the 300 newest
+ * merged bodies (#4942 to #5242): one declaration line wrapped the whole declaration in backticks,
+ * and the walker's line-start anchor could not read it. Its key entered NO class here, because this
+ * tool reads the same parser, so the window reported clean while the row stayed OPEN (#5142). The
+ * parser now reads a decorated line, and this class reports the next spelling it cannot read.
  *
  *   node tools/residue-promises.mjs                 # scan 200 merges, window from the walker
  *   node tools/residue-promises.mjs --scan 400      # look further back
@@ -42,7 +49,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
-import { MERGED_WINDOW, parseResidueFixed, residueStates } from './pr-walker.mjs';
+import { MERGED_WINDOW, parseResidueFixed, residueDeclLines, residueStates } from './pr-walker.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)('../verdict.js');
@@ -83,6 +90,7 @@ export function judge({ merged, ledgerText, windowLimit = MERGED_WINDOW }) {
   rows.sort((a, b) => a.key.localeCompare(b.key));
 
   const of = (c) => rows.filter((r) => r.class === c);
+  const unparsed = unparsedDeclarations(prs);
   return {
     rows,
     counts: {
@@ -90,13 +98,35 @@ export function judge({ merged, ledgerText, windowLimit = MERGED_WINDOW }) {
       closed: of('closed').length,
       pending: of('pending').length,
       dropped: of('dropped').length,
-      unknownKey: of('unknown-key').length
+      unknownKey: of('unknown-key').length,
+      unparsed: unparsed.length
     },
     dropped: of('dropped'),
     unknownKey: of('unknown-key'),
+    unparsed,
     window: { limit: windowLimit, numbers: [...inWindow], spanHours: spanHours(prs.slice(0, windowLimit)) },
     scanned: prs.length
   };
+}
+
+/* ── A DECLARATION THIS TOOL CANNOT READ ───────────────────────────────────────────────────────
+   A line counts as an ATTEMPT only when it names something DATE-SHAPED. A body that quotes the
+   convention with a placeholder, such as a `<key>` stand-in, names no row and is not an attempt. The
+   keys come from the walker's own parser, so a line it can read is never reported here. */
+const DATEISH = /^\d{4}-\d{2}-\d{2}/;
+export function unparsedDeclarations(merged) {
+  const out = [];
+  for (const pr of merged || []) {
+    for (const d of residueDeclLines(pr.body)) {
+      if (d.keys.length > 0) continue;
+      const tokens = String(d.line)
+        .split(/[\s,]+/)
+        .map((s) => s.replace(/[`*_>]/g, '').trim());
+      if (!tokens.some((t) => DATEISH.test(t))) continue;
+      out.push({ number: pr.number, line: d.line });
+    }
+  }
+  return out;
 }
 
 /* The window's own age, so a reader can see how long a late declaration survives. null when the
@@ -109,18 +139,21 @@ export function spanHours(prs) {
 
 export function verdictFor(report, evidence) {
   const c = report.counts;
-  const unhonoured = c.dropped + c.unknownKey;
-  const status = c.promises === 0 ? 'NOT_APPLICABLE' : unhonoured > 0 ? 'FAIL' : 'PASS';
+  const unhonoured = c.dropped + c.unknownKey + c.unparsed;
+  /* The population is every declaration the body MADE: one row per key, plus each whole-line
+     declaration no key read out of. A line this tool cannot read is still a promise. */
+  const attempts = c.promises + c.unparsed;
+  const status = attempts === 0 ? 'NOT_APPLICABLE' : unhonoured > 0 ? 'FAIL' : 'PASS';
   const reason =
     status === 'NOT_APPLICABLE'
       ? `no \`Residue-fixed:\` declaration in the ${report.scanned} merges scanned`
       : status === 'FAIL'
-        ? `${c.dropped} declaration(s) past the ${report.window.limit}-merge window with the row still OPEN, ` + `${c.unknownKey} naming no row`
+        ? `${c.dropped} declaration(s) past the ${report.window.limit}-merge window with the row still OPEN, ` + `${c.unknownKey} naming no row, ${c.unparsed} the parser could not read`
         : null;
   return Verdict.make({
     gate: GATE,
     status,
-    population: { checked: c.promises, eligible: c.promises, excluded: 0 },
+    population: { checked: attempts, eligible: attempts, excluded: 0 },
     criterion: { name: 'unhonoured_declarations', threshold: 0, unit: 'declarations', direction: 'lte' },
     /* NOT_APPLICABLE carries `result: null` — the criterion does not bind, so no result exists
        (`verdict.js` refuses anything else). The scan count then lives in the reason. */
@@ -133,7 +166,8 @@ export function verdictFor(report, evidence) {
             windowSpanHours: report.window.spanHours,
             mergesScanned: report.scanned,
             droppedKeys: report.dropped.map((r) => r.key),
-            unknownKeys: report.unknownKey.map((r) => r.key)
+            unknownKeys: report.unknownKey.map((r) => r.key),
+            unparsedIn: report.unparsed.map((r) => `#${r.number}`)
           },
     evidence,
     reason,
@@ -187,8 +221,8 @@ function notRun(reason) {
 }
 
 /* THE ONE FIXTURE. The selftest legs and `--verdict-sample` read it, so a sample can never describe
-   a shape no leg holds. Window 2: #104 and #103 stay reachable, #102 and #101 have left it. The keys
-   carry pre-floor dates on purpose — see the selftest. */
+   a shape no leg holds. Window 2: #104 and #103 stay reachable, #102, #101 and #100 have left it. The
+   keys carry pre-floor dates on purpose — see the selftest. */
 export const SAMPLE_WINDOW = 2;
 export function plants() {
   const ledger = [
@@ -201,10 +235,11 @@ export function plants() {
     '| 2026-01-06-withdrawn-row | 2026-11-05 | #5 | d | e | withdrawn 2026-01-07-other |'
   ].join('\n');
 
-  /* Four merges, window 2: #104 and #103 are reachable, #102 and #101 have left it. */
+  /* Five merges, window 2: #104 and #103 are reachable, #102, #101 and #100 have left it. */
   const merged = [
-    { number: 104, mergedAt: '2026-11-09T20:00:00Z', body: 'Residue-fixed: 2026-01-03-open-reachable' },
-    { number: 103, mergedAt: '2026-11-09T19:00:00Z', body: 'Residue-fixed: `2026-01-05-two-declarers`' },
+    /* Two decorated spellings on purpose: a bold line, and the backticked line of #5142. */
+    { number: 104, mergedAt: '2026-11-09T20:00:00Z', body: '**Residue-fixed: 2026-01-03-open-reachable**' },
+    { number: 103, mergedAt: '2026-11-09T19:00:00Z', body: '`Residue-fixed: 2026-01-05-two-declarers`' },
     {
       number: 102,
       mergedAt: '2026-11-09T18:00:00Z',
@@ -214,7 +249,10 @@ export function plants() {
       number: 101,
       mergedAt: '2026-11-09T17:00:00Z',
       body: 'Residue-fixed: 2026-01-02-kept-row 2026-01-05-two-declarers\nResidue-fixed: 2026-01-06-withdrawn-row'
-    }
+    },
+    /* A date-shaped tail that is not a key: the capitals disqualify it, so no key reads out of the
+       line and the walker closes nothing from it. */
+    { number: 100, mergedAt: '2026-11-09T16:00:00Z', body: 'Residue-fixed: 2026-01-09-Not-A-Key' }
   ];
   return { merged, ledgerText: ledger };
 }
@@ -239,7 +277,7 @@ function selftest() {
   const r = judge({ merged, ledgerText: ledger, windowLimit: 2 });
   const cls = (k) => r.rows.find((x) => x.key === k)?.class;
 
-  check('ANTI-VACUITY · the plants produce all four classes', new Set(r.rows.map((x) => x.class)).size === 4);
+  check('ANTI-VACUITY · the plants produce all four row classes and one unreadable line', new Set(r.rows.map((x) => x.class)).size === 4 && r.counts.unparsed === 1);
   check('a row that no longer reads OPEN is closed', cls('2026-01-02-kept-row') === 'closed');
   check('a `withdrawn` state counts as closed, not as a drop', cls('2026-01-06-withdrawn-row') === 'closed');
   check('an OPEN row declared inside the window is pending', cls('2026-01-03-open-reachable') === 'pending');
@@ -255,6 +293,16 @@ function selftest() {
   );
   check('every key is counted once', r.counts.promises === 6 && r.rows.length === 6);
   check('the counts add up to the promises', r.counts.closed + r.counts.pending + r.counts.dropped + r.counts.unknownKey === r.counts.promises);
+
+  /* THE DECORATED LINE. Both plants above wear decoration, so a parser that reads only a bare line
+     drops two keys and reds the legs over them. These legs name the spellings. */
+  check('a backticked whole-line declaration names its key', parseResidueFixed('`Residue-fixed: 2026-01-03-open-reachable`').length === 1);
+  check('a bold whole-line declaration names its key', parseResidueFixed('**Residue-fixed: 2026-01-03-open-reachable**').length === 1);
+  check('a blockquoted whole-line declaration names its key', parseResidueFixed('> Residue-fixed: 2026-01-03-open-reachable').length === 1);
+  check('a key named inside a sentence still closes nothing', parseResidueFixed('Each merged PR named its row on a `Residue-fixed:` line.').length === 0);
+  check('a declaration the parser cannot read is reported', r.counts.unparsed === 1 && r.unparsed[0].number === 100);
+  check('a placeholder example is not an attempt', unparsedDeclarations([{ number: 1, body: '> `Residue-fixed: <key>`' }]).length === 0);
+  check('a readable declaration is never reported as unparsed', unparsedDeclarations(merged.filter((p) => p.number !== 100)).length === 0);
   check('the window span is reported in hours', r.window.spanHours === 1);
   check('a single-merge window reports a null span, never 0', spanHours([merged[0]]) === null);
 
@@ -265,10 +313,13 @@ function selftest() {
 
   const vFail = verdictFor(r, ['tools/residue-promises.mjs', LEDGER]);
   check('a dropped declaration FAILs', vFail.status === 'FAIL');
+  check('the population counts the unreadable line beside the keys', vFail.population.checked === r.counts.promises + r.counts.unparsed);
+  check('the FAIL names the pull request that carried the unreadable line', (vFail.result.unparsedIn || []).includes('#100'));
   check('the FAIL names the dropped key', (vFail.result.droppedKeys || []).includes('2026-01-04-open-unreachable'));
   check('the FAIL carries a reason', typeof vFail.reason === 'string' && vFail.reason.length > 0);
   check('the FAIL verdict validates', Verdict.validate(vFail).ok);
 
+  /* `merged[0]` is #104 alone: one reachable promise, and no unreadable line. */
   const clean = judge({
     merged: [merged[0]],
     ledgerText: ledger,
@@ -312,7 +363,8 @@ function selftest() {
 function main() {
   if (has('--selftest')) return selftest();
   /* The adoption manifest runs this: the object alone, from the plant fixture, with no network. It
-     FAILs by construction, because the fixture plants one dropped declaration and one unknown key. */
+     FAILs by construction: the fixture plants one dropped declaration, one unknown key, and one
+     declaration line the parser cannot read. */
   if (has('--verdict-sample')) {
     const v = verdictFor(judge({ ...plants(), windowLimit: SAMPLE_WINDOW }), ['tools/residue-promises.mjs', LEDGER]);
     console.log(JSON.stringify(v));
@@ -345,9 +397,10 @@ function main() {
 
   const c = report.counts;
   console.log(`▸ ${GATE} · ${report.scanned} merge(s) scanned · window ${report.window.limit} merge(s)` + `${report.window.spanHours === null ? '' : `, ${report.window.spanHours} h`}`);
-  console.log(`  promises ${c.promises} · closed ${c.closed} · pending ${c.pending} · dropped ${c.dropped} · unknown-key ${c.unknownKey}`);
+  console.log(`  promises ${c.promises} · closed ${c.closed} · pending ${c.pending} · dropped ${c.dropped} · unknown-key ${c.unknownKey} · unparsed ${c.unparsed}`);
   for (const r of report.dropped) console.log(`  ✗ dropped · ${r.key} — declared by ${r.declaredBy.map((n) => `#${n}`).join(' ')}, row still OPEN, past the window`);
   for (const r of report.unknownKey) console.log(`  ✗ unknown-key · ${r.key} — declared by ${r.declaredBy.map((n) => `#${n}`).join(' ')}, no such row on ${ref}`);
+  for (const r of report.unparsed) console.log(`  ✗ unparsed · #${r.number} — no key reads out of: ${r.line}`);
   if (c.pending > 0) console.log(`  … ${c.pending} declaration(s) still inside the window — the walker can close these`);
   console.log(JSON.stringify(v));
 
