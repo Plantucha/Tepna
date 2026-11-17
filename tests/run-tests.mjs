@@ -2890,11 +2890,17 @@ function readDiscoverability() {
      field, so they are the surfaces where a null guide can be published as `<site>/null`. Absent is
      tolerated: the group says WHICH surface it could not read rather than passing over nothing. */
   const abP = join(ROOT, 'docs', 'about.json'),
-    llP = join(ROOT, 'docs', 'llms.txt');
+    llP = join(ROOT, 'docs', 'llms.txt'),
+    /* The FRONT PAGE is the second hand-edited roster, and it stayed out of the env exactly as the
+       README table did. Its nine `a.dev` cards answered to no gate, so MotionDex reached the served
+       site with no card while every gate stayed green
+       (2026-11-15-index-node-cards-unheld-against-the-node-roster). */
+    ixP = join(ROOT, 'index.html');
   return {
     manifestText: readFileSync(manP, 'utf8'),
     sitemapText: readFileSync(smP, 'utf8'),
     readmeText: readFileSync(rmP, 'utf8'),
+    frontPageText: existsSync(ixP) ? readFileSync(ixP, 'utf8') : null,
     generated: {
       'docs/about.json': existsSync(abP) ? readFileSync(abP, 'utf8') : null,
       'docs/llms.txt': existsSync(llP) ? readFileSync(llP, 'utf8') : null
