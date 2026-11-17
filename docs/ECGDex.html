@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="0f829bb5fe9d" data-compute-hash="e7e7254f2003">
+<html lang="en" data-manifest-hash="1fc42a4f25b0" data-compute-hash="747768003a55">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F1fgBTxhzGmwhdT7LrlPyecY085wvd2ZVHDdrmyxxBU=' 'sha256-G/ed+3S6lqfamd/es3CxNLEmb0fYSgRgAXYlWrD4Skw=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-HP+npD7TDJQA1GWNoKqzz+yyx/qyYLDSbr6LD6+rxbM=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-iqPNvfgaOLLxsrqf67NdcyYbCf6pshw6DVlOebr7HSE=' 'sha256-jU+dw+IT2rwtLcI6NYHxMA0+3qLsJNGkAHJkagoo0D4=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-HP+npD7TDJQA1GWNoKqzz+yyx/qyYLDSbr6LD6+rxbM=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-XUjSD43KV2leg5dE+hvfnBFMzn7odvk/dFCIFspJu0U=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-iqPNvfgaOLLxsrqf67NdcyYbCf6pshw6DVlOebr7HSE=' 'sha256-jU+dw+IT2rwtLcI6NYHxMA0+3qLsJNGkAHJkagoo0D4=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-oBZMdqHbLFQRnb4o/LvL9OJ2eQrQOb/2n50vzDHkOZo=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.34.0</title>
@@ -13128,7 +13128,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   //  overnight / nap / short-reading classes. Decision is recorded transparently in modeWhy.
   // ════════════════════════════════════════════════════════════════════════
   function classifyMode(durSec, t0Ms, accEx, longRec) {
-    const durMin = durSec / 60;
+    const durMin = durSec == null ? null : durSec / 60;
     const _p = (x) => String(x).padStart(2, '0');
     let clockStr = '—';
     // floating wall-clock → read with UTC getters (Clock Contract §5) so time-of-day is
@@ -13194,12 +13194,12 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       if (accWakePct != null) bits.push('ACC-wake ' + accWakePct + '%');
       modeWhy = 'ambulatory: ' + (bits.join('; ') || 'sustained motion') + ' — overnight veto';
       modeConf = Math.round(Math.max(0.7, activityScore) * 100);
-    } else if (longRec) {
+    } else if (longRec && durMin != null) {
       mode = 'overnight';
       modeLabel = '🌙 Overnight';
       modeWhy = (durMin / 60).toFixed(1) + ' h from ' + clockStr;
       modeConf = 90;
-    } else if (durMin >= 20) {
+    } else if (durMin != null && durMin >= 20) {
       mode = 'nap';
       modeLabel = '😴 Nap';
       modeWhy = Math.round(durMin) + ' min from ' + clockStr;
@@ -13207,7 +13207,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     } else {
       mode = 'short-reading';
       modeLabel = '⏱ Short reading';
-      modeWhy = Math.round(durMin) + ' min reading';
+      modeWhy = durMin == null ? 'duration unmeasured — the beat series spans no time' : Math.round(durMin) + ' min reading';
       modeConf = 80;
     }
     return {
@@ -13409,9 +13409,22 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     const hr = +(60000 / meanRR).toFixed(1);
     // Duration = ACTIVE (beat-covered) time, not raw span. Stray beats detected in
     // noise hours after the strap comes off must NOT inflate duration or the tier.
-    const spanSec = nnRes.spanSec || tt[N - 1] || 0;
-    const durSec = nnRes.activeSec > 0 ? nnRes.activeSec : tt[N - 1] || rec.durSec || (N * meanRR) / 1000;
-    const longRec = durSec >= 90 * 60;
+    /* §∅ — A SPAN OF ZERO IS UNMEASURED, AND SO IS THE DURATION BUILT FROM IT. Both lines below
+       replaced an absent measurement with a DIFFERENT quantity, then with a plain 0:
+         · `nnRes.spanSec || tt[N - 1]` swapped a SPAN (end minus start) for the last beat's OFFSET
+           from the record start. The two agree only when the series begins at 0 s; across a stuck
+           device counter (`beatAxis: 'device-counter'` with one repeated stamp — the input buildNN's
+           own comment at :1257 says arrives through `analyze`) the span is 0 and the offset is
+           wherever the counter sat, so the node published `spanMin: 0.1` over a series that never
+           advanced.
+         · `|| 0` answered a duration of ZERO — a legal value for an instant, so indistinguishable
+           from "never timed" — and the chain behind it substituted `N * meanRR`, a duration beats
+           sharing one stamp cannot establish.
+       The measurement and its products refuse together, the same rule `coveragePct` follows at
+       :1258: a null here must not become 0 one line later. */
+    const spanSec = nnRes.spanSec > 0 ? nnRes.spanSec : null;
+    const durSec = nnRes.activeSec > 0 ? nnRes.activeSec : rec.durSec > 0 ? rec.durSec : null;
+    const longRec = durSec != null && durSec >= 90 * 60;
     const lowCoverage = nnRes.coveragePct != null && nnRes.coveragePct < 80;
 
     prog(72, '5-min epoch engine…');
@@ -13808,9 +13821,15 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     const totSleep = stageMin.REM + stageMin.Light + stageMin.Deep;
 
     // validity tier
-    const durMin = durSec / 60;
+    const durMin = durSec == null ? null : durSec / 60;
     let tier, tierMsg;
-    if (durMin < 2) {
+    if (durMin == null) {
+      /* `null < 2` is true in JavaScript, so an unguarded first arm graded an untimed record
+         "insufficient" and, worse, `durMin.toFixed(1)` published `0.0` min for it. The tier names
+         the absence instead of grading a number nobody measured. */
+      tier = 'insufficient';
+      tierMsg = 'duration unmeasured — the beat series spans no time, so no validity tier can be graded';
+    } else if (durMin < 2) {
       tier = 'insufficient';
       tierMsg = '< 2 min — HRV not reliable';
     } else if (durMin < 5) {
@@ -13823,7 +13842,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       tier = 'overnight';
       tierMsg = 'Overnight: + VLF · DFA α1 · CVHR/apnea · sleep staging';
     }
-    if (lowCoverage) {
+    if (lowCoverage && spanSec != null && durMin != null) {
       tierMsg += ` · ⚠ only ${nnRes.coveragePct}% beat coverage across a ${(spanSec / 60).toFixed(0)}-min span (${nnRes.nGaps} gap${nnRes.nGaps === 1 ? '' : 's'}, ${(nnRes.gapSec / 60).toFixed(0)} min off-body) — metrics reflect the ${durMin.toFixed(0)} min of usable signal only`;
     }
 
@@ -13866,7 +13885,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
          and ALWAYS populated for the same one: a night with no run sidecar reads as blanking UNKNOWN
          rather than as a night with none. The signal-quality ledger (§3b) publishes it. */
       runs: _ecgRunsState(rec),
-      durMin: +durMin.toFixed(1),
+      durMin: durMin == null ? null : +durMin.toFixed(1),
       longRec,
       tier,
       tierMsg,
@@ -13950,7 +13969,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       artifactSec: _conf.calibrated ? artifactSec : null,
       artifactSecReason: _conf.calibrated ? null : _conf.reason,
       artifactGate: { calibrated: !!_conf.calibrated, sqiSource: _conf.sqiSource || null, nSqi: _conf.nSqi != null ? _conf.nSqi : null },
-      spanMin: +(spanSec / 60).toFixed(1),
+      spanMin: spanSec == null ? null : +(spanSec / 60).toFixed(1),
       gapMin: +(nnRes.gapSec / 60).toFixed(1),
       activeMin: +(nnRes.activeSec / 60).toFixed(1),
       lowCoverage,
@@ -24410,15 +24429,7 @@ self.onmessage = async (e) => {
         renderCrossNight();
         document.body.classList.add('has-data');
         $('exportBar').classList.add('show');
-        showOK(
-          'Analyzed ' +
-            r.nBeats +
-            ' beats from ' +
-            (r.durSec >= 3600 ? (r.durSec / 3600).toFixed(1) + ' h' : (r.durSec / 60).toFixed(0) + ' min') +
-            ' of ECG · ' +
-            pv(r.analyzablePct, '%') +
-            ' analyzable'
-        );
+        showOK('Analyzed ' + r.nBeats + ' beats from ' + durTxt(r.durSec) + ' of ECG · ' + pv(r.analyzablePct, '%') + ' analyzable');
         setTimeout(() => {
           $('prog').classList.remove('show');
           $('proc').textContent = '';
@@ -24471,7 +24482,7 @@ self.onmessage = async (e) => {
       ' beats · ' +
       r.hr +
       ' bpm · ' +
-      (r.durSec >= 3600 ? (r.durSec / 3600).toFixed(1) + ' h' : (r.durSec / 60).toFixed(0) + ' min') +
+      durTxt(r.durSec) +
       '<br>' +
       pv(r.analyzablePct, '%') +
       ' analyzable';
@@ -24502,6 +24513,9 @@ self.onmessage = async (e) => {
      when the beat series spans no time, so every surface that printed them by concatenation read
      `null%` and graded the absence against a threshold. */
   const pv = (v, u) => (v == null || !isFinite(v) ? '—' : v + (u || ''));
+  /* §∅ — `analyze` returns `durSec: null` when the beat series spans no time. `null >= 3600` is
+     false and `(null / 60).toFixed(0)` is "0", so the bare ternary printed "0 min" over it. */
+  const durTxt = (sec) => (sec == null || !isFinite(sec) ? 'an unmeasured duration' : sec >= 3600 ? (sec / 3600).toFixed(1) + ' h' : (sec / 60).toFixed(0) + ' min');
   /* …and the same two halves where LOWER is better. The correction rate repeated this ternary at
      three surfaces with no refusal arm, so a null correction rate graded `bad` and printed `null%`. */
   const scLo = (v, ok, warn) => (v == null || !isFinite(v) ? 'neutral' : v < ok ? 'ok' : v < warn ? 'warn' : 'bad');
@@ -24524,7 +24538,7 @@ self.onmessage = async (e) => {
     const modeName = r.modeLabel || { insufficient: 'Insufficient', ['ultra-short']: 'Ultra-short', short: '5-min standard', overnight: 'Overnight' }[r.tier];
     $('ctxBanner').innerHTML = `<div class="ctx-main">
       <div><div class="ctx-mode">${modeName}</div>
-      <div class="ctx-why">${r.durMin} min · ${r.nBeats.toLocaleString()} beats · ${_fsReadable(r.fs)} Hz · ${r.epochs.length} × 5-min epochs</div></div>
+      <div class="ctx-why">${r.durMin != null ? r.durMin + ' min' : 'duration unmeasured'} · ${r.nBeats.toLocaleString()} beats · ${_fsReadable(r.fs)} Hz · ${r.epochs.length} × 5-min epochs</div></div>
       <div class="ctx-conf ${r.ambulatory ? 'warn' : tierColor}">${r.ambulatory ? 'Ambulatory — sleep/apnea suppressed' : r.tierMsg}</div>
     </div>${notes}`;
     $('ctxBanner').style.display = 'flex';
@@ -25595,7 +25609,7 @@ self.onmessage = async (e) => {
     const rows = [
       ['Source', r.source === 'synthetic' ? 'Synthetic ECG (demo)' : 'Raw ECG file', '—', '—', 'neutral', 'Single signal in — RR computed from ECG'],
       ['Tier', r.tier, '—', '—', 'neutral', r.tierMsg],
-      ['Duration', r.durMin, 'min', '—', 'neutral', r.epochs.length + ' × 5-min epochs'],
+      ['Duration', r.durMin == null ? '—' : r.durMin, 'min', '—', 'neutral', r.epochs.length + ' × 5-min epochs'],
       ['Sample rate', _fsReadable(r.fs), 'Hz', '130', 'neutral', 'Polar-H10-style chest sensor · measured rate at two decimals; the export keeps every digit'],
       ['Beats (NN)', r.nBeats, 'beats', '—', 'neutral', 'After SQI gate + interpolation'],
       ['Analyzable', r.analyzablePct == null ? '—' : r.analyzablePct, '%', '≥90', sc(r.analyzablePct, 90, 75), '% night above SQI threshold'],
@@ -26430,7 +26444,7 @@ self.onmessage = async (e) => {
             pv(s.analyzablePct, '%') +
             '</span></div>' +
             '<div class="ri-sub">' +
-            (s.durSec >= 3600 ? (s.durSec / 3600).toFixed(1) + ' h' : (s.durSec / 60).toFixed(0) + ' min') +
+            durTxt(s.durSec) +
             ' · ' +
             s.dispHr +
             ' bpm · rMSSD ' +
