@@ -797,8 +797,12 @@ async function main(){
     const sitemapText = await fetchText('docs/sitemap.xml');
     // README.md joins the two: the group's header names the README table, and no leg could read it.
     const readmeText = await fetchText('README.md');
+    /* The front page is the SECOND hand-edited roster, and both lanes read it, so holding the cards
+       against the roster costs no browser skip
+       (2026-11-15-index-node-cards-unheld-against-the-node-roster). */
+    const frontPageText = await fetchText('index.html');
     if (manifestText && sitemapText && readmeText)
-      discoverability = { manifestText, sitemapText, readmeText };
+      discoverability = { manifestText, sitemapText, readmeText, frontPageText: frontPageText || null };
   } catch(e) { /* absent → group skips */ }
 
   // FIXTURE-VERIFICATION-GATE §1 probe — mirrors run-tests.mjs readComputeHashProbe() byte-for-byte.

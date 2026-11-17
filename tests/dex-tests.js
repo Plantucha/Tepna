@@ -70013,6 +70013,121 @@
       );
       T.ok('control: a node with no README row is named, never skipped', deviceDrift({ nodes: [{ id: 'PlantDex', device: 'x' }] }, { A: 'a', B: 'b' }).join('') === 'PlantDex has no README table row');
       T.ok('control: a cell naming no device compares nothing', deviceDrift({ nodes: [{ id: 'HRVDex', device: '—' }] }, { HRVDex: 'exports', B: 'b' }).length === 0);
+
+      /* ════ THE FRONT PAGE IS THE SECOND HAND-EDITED ROSTER, AND IT ANSWERED TO NO GATE.
+         `index.html`'s `a.dev` node cards are hand-authored, and `tools/build-docs.mjs` leaves the
+         front door's bespoke head alone by design (Phase 0) and stamps only the version into it
+         (Phase 3). So a new node reached the served site with NO CARD while every gate stayed green:
+         measured on `origin/main` at `e7cddc898`, the page held 9 cards and 0 occurrences of the name
+         MotionDex, whose roster row carries no `planned` flag and whose two pages are served
+         (2026-11-15-index-node-cards-unheld-against-the-node-roster, board #6472).
+         THE SECOND FACE IS WORSE THAN THE FIRST. The draw loop reads `defs[cv.dataset.k]` and calls
+         `d.f(u, t)` with no guard, so a card whose `data-k` is absent from that table throws a
+         TypeError and KILLS THE SPARKLINE OF EVERY CARD on the page. A guard there would convert the
+         crash into silent disablement, so the crash stays loud and this group holds the two tables
+         against each other instead. ════ */
+      function frontPageCards(html) {
+        var out = [];
+        for (const m of String(html || '').matchAll(/<a class="dev" href="([^"]+)"[^>]*>[\s\S]*?data-k="([^"]*)"/g)) out.push({ app: m[1], k: m[2] });
+        return out;
+      }
+      function sparkDefKeys(html) {
+        var body = String(html || '').split('const defs={')[1] || '';
+        body = body.split('};')[0];
+        return [...body.matchAll(/(?:^|\n)\s*([A-Za-z][A-Za-z0-9_]*)\s*:\s*\{\s*col:/g)].map(function (m) {
+          return m[1];
+        });
+      }
+      /* Pure over their arguments, exactly like `rosterMisses` and `deviceDrift` above, so the
+         controls below run the REAL rule against a planted roster and a planted page. An unreadable
+         page says so: it never reads as agreement. */
+      function cardMisses(m, cards) {
+        if (!cards.length) return ['the front page named no a.dev card — this rule examined nothing'];
+        var have = {},
+          out = [];
+        cards.forEach(function (c) {
+          have[c.app] = 1;
+        });
+        (m.nodes || []).forEach(function (n) {
+          if (n.planned || !n.app) return;
+          if (n.deploy === false) {
+            if (have[n.app]) out.push(n.id + ' declares deploy:false and HAS a front-page card');
+            return;
+          }
+          if (!have[n.app]) out.push(n.id + ' is deployed with no front-page card (' + n.app + ')');
+        });
+        /* The other direction. A fusion app is a legitimate card and it is NOT a node, so the roster's
+           own `fusion` list names the allowed extras rather than a second literal here. */
+        var allowed = {};
+        (m.nodes || []).forEach(function (n) {
+          if (n.app) allowed[n.app] = 1;
+        });
+        (m.fusion || []).forEach(function (f) {
+          if (f.app) allowed[f.app] = 1;
+        });
+        cards.forEach(function (c) {
+          if (!allowed[c.app]) out.push('a card points at ' + c.app + ', which the roster does not carry');
+        });
+        return out;
+      }
+      function sparkMisses(cards, defKeys) {
+        if (!cards.length) return ['the front page named no a.dev card — this rule examined nothing'];
+        var out = [];
+        cards.forEach(function (c) {
+          if (!c.k) out.push(c.app + ' carries a live-spark with no data-k');
+          else if (defKeys.indexOf(c.k) < 0) out.push(c.app + ' draws data-k="' + c.k + '", which the defs table does not hold');
+        });
+        return out;
+      }
+      var fpText = D.frontPageText,
+        fpCards = frontPageCards(fpText),
+        fpKeys = sparkDefKeys(fpText);
+      T.ok('ANTI-VACUITY · the front page was READ, in this lane', !!fpText && fpCards.length > 0, 'cards=' + fpCards.length + (fpText ? '' : ' — index.html absent from env.discoverability'));
+      T.ok(
+        'every deployed roster node carries a front-page card',
+        cardMisses(man, fpCards).length === 0,
+        cardMisses(man, fpCards).join(' · ') || fpCards.length + ' card(s) over ' + (man.nodes || []).length + ' roster node(s)'
+      );
+      T.ok(
+        '…and every card draws a data-k the defs table holds',
+        sparkMisses(fpCards, fpKeys).length === 0,
+        sparkMisses(fpCards, fpKeys).join(' · ') || fpKeys.length + ' def key(s): ' + fpKeys.join(',')
+      );
+      T.ok(
+        'control: a roster node with no card is NAMED, never skipped',
+        cardMisses({ nodes: [{ id: 'PlantDex', app: 'PlantDex.html', guide: 'g' }] }, [{ app: 'OxyDex.html', k: 'spo2' }])
+          .join('')
+          .indexOf('PlantDex is deployed with no front-page card') === 0
+      );
+      T.ok('control: a PLANNED node needs no card', cardMisses({ nodes: [{ id: 'PlantDex', app: 'PlantDex.html', planned: true }] }, [{ app: 'OxyDex.html', k: 'spo2' }]).length === 1);
+      T.ok(
+        'control: a deploy:false node that HAS a card is named too (the rule holds both directions)',
+        cardMisses({ nodes: [{ id: 'PlantDex', app: 'PlantDex.html', deploy: false }] }, [{ app: 'PlantDex.html', k: 'spo2' }])
+          .join('')
+          .indexOf('declares deploy:false and HAS a front-page card') > 0
+      );
+      T.ok(
+        'control: a fusion app is an allowed card, and an unlisted surface is not',
+        cardMisses({ nodes: [], fusion: [{ id: 'Integrator', app: 'Integrator.html' }] }, [{ app: 'Integrator.html', k: 'fuse' }]).length === 0 &&
+          cardMisses({ nodes: [], fusion: [] }, [{ app: 'Ghost.html', k: 'fuse' }]).length === 1
+      );
+      T.ok(
+        'control: an unreadable front page reds, it never reads as agreement',
+        cardMisses({ nodes: [{ id: 'OxyDex', app: 'OxyDex.html' }] }, [])
+          .join('')
+          .indexOf('examined nothing') > 0 && sparkMisses([], ['spo2']).join('').indexOf('examined nothing') > 0
+      );
+      T.ok(
+        'control: a card whose data-k is absent from the defs table is named',
+        sparkMisses([{ app: 'PlantDex.html', k: 'imu' }], ['spo2', 'eeg'])
+          .join('')
+          .indexOf('does not hold') > 0
+      );
+      T.ok('control: a card with an EMPTY data-k is named, never passed over', sparkMisses([{ app: 'PlantDex.html', k: '' }], ['spo2']).length === 1);
+      T.ok(
+        'control: the def-key reader reads a real table shape and stops at its close',
+        sparkDefKeys("const defs={\n  a:{col:'#1',f:0},\n  b:{col:'#2',f:0},\n};\nlater:{col:'#3'}").join(',') === 'a,b'
+      );
     });
 
     /* ════ HOST EMIT ALLOWLIST — ecg/ppg/cgm now emit in the live hosts (HOST-EMIT-ALLOWLIST-2026-06-27).
