@@ -25,8 +25,8 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 169,
-  "fixed": 118,
+  "open": 167,
+  "fixed": 120,
   "accepted-with-reason": 3
  },
  "consumerCensus": {
@@ -1340,7 +1340,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 608,
-   "state": "open"
+   "state": "fixed",
+   "note": "calcVo2Cat refuses when the ACSM table carries no band for that age and sex, in place of the invented cut points 25, 30, 35, 40 and 45; femaleNorms stops at the 55-59 band, so every woman aged 60 or over read a fitness category over numbers no paper carries, while the male table runs to 65-69. The profile card names the absent band. Plant: tests/dex-tests.js group '∅ HRVDex profile — an unobserved HR maximum and an absent ACSM band refuse', 5 more of its 17 legs red on the pre-fix source."
   },
   {
    "key": "a05d35c3f075",
@@ -2454,7 +2455,8 @@
    "severity": "low",
    "occurrence": 0,
    "surveyLine": 49,
-   "state": "open"
+   "state": "fixed",
+   "note": "the observed heart-rate maximum stays null when no row carries a usable rate, in place of 0, and the auto-detection banner prints not detected beside it. Plant: tests/dex-tests.js group '∅ HRVDex profile — an unobserved HR maximum and an absent ACSM band refuse', 3 of its 17 legs red on the pre-fix hrvdex-profile.js."
   },
   {
    "key": "0db08d540800",
