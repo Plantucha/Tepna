@@ -1002,11 +1002,18 @@
         if (r.origin === 'detected') return ['est', '~ detected ' + r.v + ' (Uth–Sørensen) · ' + vo2Category(r.v, load().age, load().sex)];
         return ['est', '~ age/sex norm ' + pd.vo2 + ' · ' + vo2Category(pd.vo2, load().age, load().sex)];
       case 'elevation':
+        /* §∅ — AN UNMEASURED ELEVATION IS NOT A MEASURED COAST. #2854 removed the coercion (an absent
+           elevation resolves to null, never 0 m), but this caption still answered the null through
+           `r.v > 1500`, whose false arm reads "~ sea level": the record said ABSENT and the one place a
+           user meets the field said the opposite — identically for a MEASURED 0 m, which is a legal
+           coastal reading. Three states, three messages, which is what oxydex-profile.js:413 already
+           does for its own sublabel ("0 m = sea level (measured)"). */
+        if (r.v == null) return ['est', 'not set — no altitude adjustment (an elevation above ' + toDisp('elevation', 1500) + ' ' + unitLabel('elevation') + ' adjusts SpO₂ & VO₂ norms)'];
         return [
           '',
           r.v > 1500
             ? '⛰ ' + toDisp('elevation', r.v) + ' ' + unitLabel('elevation') + ' · adjusts VO₂ & SpO₂ norms'
-            : '~ sea level · adjusts above ' + toDisp('elevation', 1500) + ' ' + unitLabel('elevation')
+            : '✓ ' + toDisp('elevation', r.v) + ' ' + unitLabel('elevation') + ' measured · adjusts above ' + toDisp('elevation', 1500) + ' ' + unitLabel('elevation')
         ];
       case 'bodyfat':
         return r.origin === 'you' ? ['ok', '✓ ' + r.v + '% → Katch-McArdle (lean-mass) RMR'] : ['', 'optional · enables Katch-McArdle RMR'];
@@ -1113,7 +1120,9 @@
     function build() {
       // Preserve the field being edited so a full rebuild doesn't drop focus / caret /
       // the in-progress value (fixes "can only type one digit then focus is lost").
-      var _ae = global.document.activeElement;
+      // A realm with no `document` can still BUILD the panel (headless probes, the Node test lane); only
+      // the focus/caret carry-over needs one. `_injectCSS` above already assumes this.
+      var _ae = global.document && global.document.activeElement;
       var _fk = _ae && _ae.getAttribute && mount.contains && mount.contains(_ae) ? _ae.getAttribute('data-k') : null;
       var _caret = _fk && _ae.selectionStart != null ? _ae.selectionStart : null;
       var _live = _fk ? _ae.value : null;
