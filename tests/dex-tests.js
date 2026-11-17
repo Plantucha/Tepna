@@ -12072,6 +12072,177 @@
       }
     });
 
+    group('PpgDex scores an empty beat population as UNMEASURED, not as 0 percent', 'ppgdex-dsp ppgdex-app absence clean-beat-share', function (T) {
+      var P = env.PPGDSP;
+      if (!P || typeof P.parsePPG !== 'function' || typeof P.analyze !== 'function') {
+        T.skip('PPGDSP.parsePPG + analyze available', 'PPGDSP not co-loaded');
+        return;
+      }
+      /* WHY THIS EXISTS. `ppgdex-dsp.js` published `cleanBeatPct = sqi.length ? share : 0`, and
+         `analyzablePct` was its product, so a record on which the detector placed NO beats shipped
+         "0 % clean / 0 % analyzable" — a measured-looking score of the worst possible night. `sqi` has
+         one entry per detected beat, so an empty array is an ABSENCE. ECGDex already answers this pair
+         with null plus a cause of its own (`ecgdex-dsp.js:1276-1281`).
+
+         THE FIXTURE. A 300 s, three-channel file whose samples are all zero is the shape a real blanked
+         or unpulsatile optical record produces, and the detector finds NOTHING in it (nBeats 0). The
+         control is the same layout carrying a 60 bpm pulse, so no arm below can fire unconditionally. */
+      var p2 = function (x) {
+        return String(x).padStart(2, '0');
+      };
+      var file = function (secs, pulse) {
+        var fs = 55,
+          n = Math.round(secs * fs),
+          step = 1000 / fs;
+        var out = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
+        for (var i = 0; i < n; i++) {
+          var t = new Date(Date.UTC(2026, 6, 1, 0, 0, 0) + Math.round(i * step));
+          var ts =
+            t.getUTCFullYear() +
+            '-' +
+            p2(t.getUTCMonth() + 1) +
+            '-' +
+            p2(t.getUTCDate()) +
+            ' ' +
+            p2(t.getUTCHours()) +
+            ':' +
+            p2(t.getUTCMinutes()) +
+            ':' +
+            p2(t.getUTCSeconds()) +
+            '.' +
+            String(t.getUTCMilliseconds()).padStart(3, '0');
+          var ph = (i / fs) % 1;
+          var w = Math.exp(-Math.pow((ph - 0.15) / 0.07, 2)) + 0.35 * Math.exp(-Math.pow((ph - 0.42) / 0.1, 2)) - 0.15 * Math.exp(-Math.pow((ph - 0.75) / 0.25, 2));
+          var v = pulse ? 20000 + 800 * w : 0;
+          out.push(ts + ';' + Math.round(i * step * 1e6) + ';' + Math.round(v) + ';' + Math.round(v * 0.95 + 30) + ';' + Math.round(v * 1.03 - 25) + ';400');
+        }
+        return out.join('\n');
+      };
+      var run = function (text) {
+        try {
+          return P.analyze(P.parsePPG(text, undefined), null);
+        } catch (e) {
+          return { error: String(e.message) };
+        }
+      };
+      var dead = run(file(300, false));
+      var live = run(file(300, true));
+      /* ANTI-VACUITY FIRST: if the dead plant still yields a beat, everything below is about a busy
+         night and proves nothing. */
+      T.ok('the all-zero file produces NO beats at all', dead && dead.nBeats === 0, 'nBeats=' + (dead && dead.nBeats) + ' err=' + (dead && dead.error));
+      T.ok('...and the control carries a real beat train', live && live.nBeats > 40, 'nBeats=' + (live && live.nBeats) + ' err=' + (live && live.error));
+
+      /* THE PRODUCER. Mutant A (restore `: 0` on cleanBeatPct) reddens the first three; mutant B
+         (restore the unguarded `Math.round(cleanBeatPct * ...)`) reddens the analyzable leg alone. */
+      T.eq('a beat population of zero publishes NO clean-beat share', dead.cleanBeatPct, null);
+      T.eq('...no analyzable share either', dead.analyzablePct, null);
+      T.eq('...and `coveragePct`, which republishes the clean-beat share, is null too', dead.coveragePct, null);
+      T.ok(
+        'the two reasons are DIFFERENT, and each names its own cause rather than the other one',
+        dead.cleanBeatPctReason !== dead.analyzablePctReason && /no beats were detected/.test(dead.cleanBeatPctReason || '') && /clean-beat share is unmeasured/.test(dead.analyzablePctReason || ''),
+        'clean=' + dead.cleanBeatPctReason + ' | analyzable=' + dead.analyzablePctReason
+      );
+
+      /* THE CONSUMER INSIDE THE NODE. `null < 60` coerces the absent share to 0, so the gate answered
+         `true` by ACCIDENT over a record that scored nothing, and the sentence beside it printed
+         "analyzable 0 %" for a share that was never computed. Mutant C deletes the named-absence arm
+         and reddens the reason leg; the flag leg stays green because the coercion already answered
+         true, which is exactly why the arm is documented as intent rather than as a new verdict. */
+      T.ok(
+        'the low-confidence flag stays RAISED over the absence, naming it',
+        dead.hrvLowConfidence === true && /no beats were detected/.test(dead.hrvLowConfidenceReason || ''),
+        'flag=' + dead.hrvLowConfidence + ' reason=' + dead.hrvLowConfidenceReason
+      );
+      T.ok('...and it never prints a fabricated "analyzable 0%" to explain itself', !/analyzable 0%/.test(dead.hrvLowConfidenceReason || ''), dead.hrvLowConfidenceReason);
+
+      /* THE CONTROL. A record WITH beats keeps numeric shares and carries no reason. */
+      T.ok(
+        'a record with beats keeps numeric shares and both reasons stay null',
+        typeof live.cleanBeatPct === 'number' && typeof live.analyzablePct === 'number' && live.cleanBeatPctReason === null && live.analyzablePctReason === null,
+        'clean=' + live.cleanBeatPct + '/' + live.cleanBeatPctReason + ' analyzable=' + live.analyzablePct + '/' + live.analyzablePctReason
+      );
+      T.ok('...and the absence reason does not fire on it', !live.hrvLowConfidenceReason || !/no beats were detected/.test(live.hrvLowConfidenceReason), live.hrvLowConfidenceReason);
+
+      /* THE APP. Eight readers graded the pair against a band, and `null >= 90` is false, so an absence
+         read as 'bad'. The render path needs a DOM, so these legs read the shipped source. */
+      var app = (env.sources || {})['ppgdex-app.js'] || '';
+      T.ok('ppgdex-app.js is readable in this lane', !!app, 'not in env.sources');
+      T.ok('the app carries ONE absent-percentage vocabulary (dash value, neutral grade)', /const pctAbsent = /.test(app) && /const pctTxt = /.test(app) && /const pctCls = /.test(app));
+      T.ok('the Analyzable KPI reads it', /l: '% Analyzable', v: pctTxt\(r\.analyzablePct\)/.test(app) && /s: pctCls\(r\.analyzablePct, 90, 75\)/.test(app));
+      T.ok('both quality-card stats read it', /q-val \$\{pctCls\(r\.analyzablePct, 90, 75\)\}/.test(app) && /q-val \$\{pctCls\(r\.cleanBeatPct, 85, 65\)\}/.test(app));
+      T.ok('both metrics-table rows read it', /pctCls\(r\.analyzablePct, 90, 75\)\]/.test(app) && /pctCls\(r\.cleanBeatPct, 85, 65\)\]/.test(app));
+      T.ok('the session switcher reads it', /const q = pctCls\(s\.analyzablePct, 90, 75\)/.test(app) && /pctTxt\(s\.analyzablePct\)/.test(app));
+      T.ok('the sidebar sentence names the absence instead of printing "null%"', /analyzable not scored/.test(app));
+      T.ok(
+        'the app itself carries no band test that reads the pair directly',
+        !/r\.analyzablePct >= 90/.test(app) && !/r\.cleanBeatPct >= 85/.test(app) && !/s\.analyzablePct >= 90/.test(app),
+        'a bare band test remains'
+      );
+      /* THE CROSS-NIGHT WEIGHT. `(s.analyzablePct || 0)` turned an absence into 0 %, which then took the
+         0.05 floor: one absence earned a weight. `crossNight` treats an absent w as 1, so the null can
+         not simply be passed through either. */
+      T.ok(
+        'the cross-night fit weights only sessions whose coverage was MEASURED',
+        !/const cov = list\.map\(\(s\) => Math\.max\(0\.05, \(s\.analyzablePct \|\| 0\)/.test(app) && /const cov = weightedList\.map\(\(s\) => Math\.max\(0\.05, s\.analyzablePct \/ 100\)\)/.test(app),
+        'the || 0 fallback is still there'
+      );
+      T.ok('...and the note says how many sessions left the fit', /left the weighted fit/.test(app));
+
+      /* THE THIRD NODE FILE. The census above read `ppgdex-app.js` ALONE and still claimed that no
+         band test reads the pair unguarded, so the readiness chip in `ppgdex-profile.js` kept
+         grading the absence `bad` and printing `null%`. Count the NODE: every `ppgdex-*.js` source
+         this lane loads, so a fourth file cannot reopen the hole. A band test of the form
+         `x.analyzablePct >= 90` is the shape that must not survive — the helpers take the two
+         thresholds as ARGUMENTS (`pctCls(r.analyzablePct, 90, 75)`), so no such comparison remains. */
+      var prof = (env.sources || {})['ppgdex-profile.js'] || '';
+      T.ok('ppgdex-profile.js is readable in this lane', !!prof, 'not in env.sources');
+      T.ok(
+        'the readiness chip reads the app vocabulary instead of banding the absence',
+        /pctCls\(r\.analyzablePct, 90, 75\)/.test(prof) && /pctTxt\(r\.analyzablePct\)/.test(prof) && !/\$\{r\.analyzablePct\}% analyzable/.test(prof),
+        'the chip still interpolates the raw share'
+      );
+      var nodeFiles = Object.keys(env.sources || {}).filter(function (f) {
+        return /^ppgdex-.*\.js$/.test(f);
+      });
+      T.ok('the census population holds both files that render the pair', nodeFiles.indexOf('ppgdex-app.js') >= 0 && nodeFiles.indexOf('ppgdex-profile.js') >= 0, nodeFiles.join(','));
+      var banders = nodeFiles.filter(function (f) {
+        return /\.(analyzablePct|cleanBeatPct)\s*(>=|<=)/.test((env.sources || {})[f] || '');
+      });
+      T.eq('no PpgDex node file carries a band test that reads the pair directly', JSON.stringify(banders), '[]');
+
+      /* THE EXPORT. `analyze` names both causes and the rich export dropped them, so the only reader
+         that ever saw a reason was the in-page card. The three spreads must stay CONDITIONAL: an
+         unconditional key restamps every fixture, and a night with beats carries no cause at all. */
+      var bx = P.buildNodeExport;
+      if (typeof bx !== 'function') {
+        T.skip('PPGDSP.buildNodeExport exposed', 'export builder not exposed on this surface');
+      } else {
+        var richOf = function (r) {
+          try {
+            return bx(r, { rich: true });
+          } catch (e) {
+            return { error: String(e.message) };
+          }
+        };
+        var richDead = richOf(dead);
+        var richLive = richOf(live);
+        var rq = (richDead && richDead.quality) || {};
+        T.eq('`coveragePctReason` on the analyze result IS the clean-beat cause, by alias', dead.coveragePctReason, dead.cleanBeatPctReason);
+        T.eq('the rich export publishes the clean-beat cause beside the null share', rq.cleanBeatPctReason, dead.cleanBeatPctReason);
+        T.eq('...the analyzable cause too, each the producer\u2019s own sentence', rq.analyzablePctReason, dead.analyzablePctReason);
+        T.eq('...and the coverage cause, which borrows the clean-beat one', rq.coveragePctReason, dead.coveragePctReason);
+        T.eq(
+          'the spread stays CONDITIONAL: a scored night exports none of the three keys',
+          JSON.stringify(
+            ['cleanBeatPctReason', 'analyzablePctReason', 'coveragePctReason'].filter(function (k) {
+              return richLive && richLive.quality && k in richLive.quality;
+            })
+          ),
+          '[]'
+        );
+      }
+    });
+
     group('PpgDex device PPI — columns BY NAME, because position read the wrong one for four days', 'ppgdex-dsp · absence', function (T) {
       var P = env.PPGDSP || (env.PpgDex && env.PpgDex._bare);
       if (!P || typeof P.parseDevicePPI !== 'function') {
@@ -31519,7 +31690,7 @@
           hostMs += (1000 / 128) * gapLen;
           skipped = gapLen;
         }
-        lines.push(row(counter, eegRecord(index, tick % M.TICK_MOD, i), hostMs + (o.jitterHost ? Math.round((rnd() - 0.5) * 12) : 0), tick * 100));
+        lines.push(row(counter, eegRecord(index, Math.floor(((tick * 100) % M.WRAP_NS) / 100), i), hostMs + (o.jitterHost ? Math.round((rnd() - 0.5) * 12) : 0), tick * 100));
         index = (index + 1) & 0xff;
         counter = (counter + 1 + skipped) & 0xff;
         skipped = 0;
@@ -31559,17 +31730,38 @@
       T.eq('a repeated counter reads as 255 lost, not as 0', M.lostBetween(5, 5), 255);
       T.eq('the first frame of a chain loses nothing', M.lostBetween(null, 9), 0);
 
-      T.eq('a one-tick step across the 24-bit wrap is one tick', M.tickSeconds(M.TICK_MOD - 1, 0), 1 / M.TICK_HZ);
-      /* The clock unwraps with a SIGNED half-modulus step, so it follows the shorter path. A forward
-         wrap accumulates; a backward step of one tick reads as -1 and not as the whole modulus. A
-         silence longer than the half-modulus therefore aliases, which is why a gap is counted from
-         the record index and never from the clock. */
+      /* THE DEVICE CLOCK FOLDS AT 2^28 ns, which is 2 684 354.56 ticks: no integer tick count. Measured
+         2026-11-16 on one 632 s session, 2779 EEG folds: 1567 imply 2 684 355 ticks and 1212 imply
+         2 684 354 (share 0.564, the fraction of 2^28/100). A 2^24 fold read each one as a step back. */
+      T.eq('the fold is 2^28 ns at 100 ns per tick', [M.WRAP_NS, M.NS_PER_TICK].join(), '268435456,100');
+      var top = Math.floor(M.WRAP_NS / 100);
+      T.eq('a step across the fold is the ns left to it plus the ticks after it', M.tickSeconds(top, 0), (M.WRAP_NS - top * 100) / 1e9);
+      /* Three consecutive EEG records from a recorded session, one record (78 125 ticks) apart, each
+         across a fold. The last carries the tick one fold above the modulus. */
+      [
+        [2746625, 140395],
+        [2952895, 346666],
+        [112291, 2874770]
+      ].forEach(function (pr) {
+        var c = new M.TickClock();
+        c.feed(pr[0]);
+        T.ok('recorded pair ' + pr + ' steps one record forward', Math.abs(c.feed(pr[1]) - pr[0] * 100 - 7812500) < 100);
+      });
+      /* The clock unwraps with a SIGNED half-fold step, so it follows the shorter path. A forward fold
+         accumulates; a slightly older record steps back and never forward by a whole fold. A silence
+         longer than half a fold therefore aliases, which is why a gap is counted from the record index
+         and never from the clock. */
       var ck = new M.TickClock();
-      ck.feed(M.TICK_MOD - 500);
-      T.eq('a forward wrap accumulates across the modulus', ck.feed(500), M.TICK_MOD - 500 + 1000);
+      ck.feed(top);
+      T.eq('a forward fold accumulates across the modulus, in ns', ck.feed(5), M.WRAP_NS + 500);
+      T.eq('a slightly older record steps back, never forward a fold', ck.feed(1), M.WRAP_NS + 100);
       var ck2 = new M.TickClock();
       ck2.feed(0);
-      T.eq('a one-tick step backwards reads as -1, not as the modulus', ck2.feed(M.TICK_MOD - 1), -1);
+      T.eq('a one-tick step backwards reads as -100 ns, not as the fold', ck2.feed(top), top * 100 - M.WRAP_NS);
+      var ck3 = new M.TickClock();
+      ck3.feed(0);
+      /* 2^25 ticks is 2^27 + 12 * 2^28 ns: EXACTLY half a fold past the modulus, which reads as a step back. */
+      T.eq('exactly half a fold forward reads as a step back', ck3.feed(33554432), -M.WRAP_NS / 2);
 
       /* Every tokenise refusal is NAMED. A packet that cannot be read is never a packet with no
          records: the first would hide a framing bug behind an empty answer. */
@@ -31669,7 +31861,8 @@
       T.eq('the measured rate is the same under both host columns', jit.fs, got.fs);
 
       /* ── THE DEVICE COLUMN IS DRAWN, SO THE RATE IS A DECLARATION READ BACK ────────────────────
-         Measured 2026-11-15: `drawnShare` 0.9999 — the record tick advances by ONE constant, which
+         Measured 2026-11-15: `drawnShare` 0.9999 (0.970 since the 2^28 ns fold, below) — the record
+         tick advances by ONE constant, which
          is what `clock.js` reads as a synthesised counter rather than a clock (CK_AXIS_DRAWN_SHARE).
          So the rate this reader publishes is the cadence the device DECLARES through its own
          counter, and not an independent measurement of it. `fsBasis.source` is the field that says
@@ -31678,7 +31871,11 @@
          `deviceDrawn`: a summary carrying `ok` and `independent` ALONE leaves that builder's `drawn`
          null, and its own comment calls the result an under-claim to `host`. */
       T.eq('the device tick column is DRAWN - a counter, not a clock', got.hostAxis.deviceDrawn, true);
-      T.ok('...and the share it read that verdict from travels beside it', got.hostAxis.drawnShare > 0.99, 'drawnShare = ' + got.hostAxis.drawnShare);
+      /* The share sits near 1 - 1/34.4, not at 1: the tick field holds whole ticks and the clock folds
+         at 2^28 ns (2 684 354.56 ticks), so the step across each fold differs from the others. One fold
+         falls every 34.4 EEG records. Measured 2026-11-16 on this stream: 0.970 (0.9999 under the old
+         2^24-tick fold). */
+      T.ok('...and the share it read that verdict from travels beside it', got.hostAxis.drawnShare > 0.96 && got.hostAxis.drawnShare < 0.98, 'drawnShare = ' + got.hostAxis.drawnShare);
       T.eq('...so the rate names its basis rather than claiming a measurement', got.fsBasis.source, 'device-tick-median');
       T.ok(
         'the drawn verdict carries the spine own sentence, not a borrowed one',

@@ -1263,7 +1263,7 @@
           lostRecords += missed;
           for (k = missed * lib.EEG_SAMPLES; k > 0; k--) out.push(NaN);
         }
-        tsec = clk.feed(rec.tick) / lib.TICK_HZ;
+        tsec = clk.feed(rec.tick) / 1e9;
         /* The rate is MEASURED from the device clock, over consecutive records with no gap between
            them. A step across a gap spans the missing records and is not an inter-record interval. */
         if (prevTick !== null && !missed) steps.push(tsec - prevTick);

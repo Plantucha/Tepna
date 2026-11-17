@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="6fad726e4203" data-compute-hash="f746cb0a5d39">
+<html lang="en" data-manifest-hash="96c0054ebc50" data-compute-hash="7c7ca1a74944">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LPrp8hK0D0+v2xwS0GCq1tNWT7f9dL570nUNGz6mqRg=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VGKG5vJIR04uTx8hbrJIOmR9CyzcZBrVdZGliP0uCUI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-W+rK8y+1cYa6Z+X29oFEt18aIuLICrAQUkCSrqlVGKE=' 'sha256-a30wD1q1DhXb/hp/9CiNJnGcfilKag1nrqd5UVk34sw=' 'sha256-al6Y47L6DjS948zFsA4a/jhCOnTvvG7ts9HX95Zrdvs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-vx6p49597M3rd4Vn11sOmNCbyhlCuIF+tdYJuUnLD3c=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-K+Eq964FOBEn5SBP9PaxEYFS9ei3xPc1iPas0uZynF8=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VB3Zc93k7O4DubLzPt3uiFoG0bWLZ+kJ9EWRRI6gKOE=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-W+rK8y+1cYa6Z+X29oFEt18aIuLICrAQUkCSrqlVGKE=' 'sha256-a30wD1q1DhXb/hp/9CiNJnGcfilKag1nrqd5UVk34sw=' 'sha256-al6Y47L6DjS948zFsA4a/jhCOnTvvG7ts9HX95Zrdvs=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-zmoYxw7fL9XcTut3PajOFlmQgGfs/1F5yolpdaVkZpI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.33.0</title>
@@ -15249,7 +15249,16 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     // quality
     const meanSQI = sqi.length ? r2(mean(sqi)) : 0;
     const cleanBeats = sqi.filter((s) => s >= 0.5).length;
-    const cleanBeatPct = sqi.length ? Math.round((100 * cleanBeats) / sqi.length) : 0;
+    /* §∅ — A SHARE OF NO BEATS IS UNMEASURED, NOT 0 %. `sqi` holds one entry per detected beat, so an
+       empty array means the detector placed NO beats: a record with no pulse population, not a record
+       that scored 0 % clean. The old `: 0` published a measured-looking zero, and `analyzablePct`
+       inherited it as a product of it, so a reader saw "0 % clean / 0 % analyzable" — the worst possible
+       night — when nothing had been scored at all. ECGDex answers the identical pair at
+       `ecgdex-dsp.js:1276-1281` with `null` plus a cause of its own; this follows that shape. The product
+       refuses with its OWN reason rather than borrowing the clean-beat one: `cleanBeatPct × …` coerces
+       `null` to 0, so a nulled clean-beat share alone would republish a fabricated 0 % analyzable. */
+    const cleanBeatPct = sqi.length ? Math.round((100 * cleanBeats) / sqi.length) : null;
+    const cleanBeatPctReason = sqi.length ? null : 'no beats were detected — no pulse population to score';
     const motionRejected = motion.hasData ? det.peaks.filter((p, k) => /** @type {any} */ (motionAt)(p) > 0.5).length : 0;
     const motionRejectedPct = det.peaks.length ? r1((100 * motionRejected) / det.peaks.length) : 0;
     /* §∅ — the refusal ECGDex published at `ecgdex-dsp.js:1292-1293`: an interval series with
@@ -15258,7 +15267,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
        tests — so a fabricated 0 reads as "nothing needed repair". */
     const correctionRate = rr.length ? r1((100 * corr.nCorr) / rr.length) : null;
     const correctionRateReason = rr.length ? null : 'no interval series — no population to correct';
-    const analyzablePct = Math.round(cleanBeatPct * (1 - motionRejectedPct / 100));
+    const analyzablePct = cleanBeatPct == null ? null : Math.round(cleanBeatPct * (1 - motionRejectedPct / 100));
+    const analyzablePctReason = analyzablePct != null ? null : 'the clean-beat share is unmeasured, so the motion gate has nothing to discount — no analyzable share exists';
     // magnetometer interference coverage (informational — does not alter SQI/conf)
     // §3a: epochs with no posture datum leave the DENOMINATOR — they are not evidence of a clean field.
     const magKnown = epochs.filter((e) => e.magInterference != null);
@@ -15364,7 +15374,10 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       // (b) GRADED per-metric confidence (0..1) from measured drivers — replaces the binary flag.
       // Each metric family is scored by the cause that predicts ITS error (validated on paired night):
       // motion→hf, posture/baseline drift→vlf/sdnn, coverage+correction→beat-to-beat.
-      const qCov = Math.max(0, Math.min(1, analyzablePct / 100));
+      /* §∅ — `Math.min(1, null / 100)` answers 0, so an unmeasured analyzable share entered every
+         product below as the WORST possible coverage. The block's own note already states the rule: a
+         confidence whose driver was never measured is `null`. */
+      const qCov = analyzablePct == null ? null : Math.max(0, Math.min(1, analyzablePct / 100));
       /* §∅ — `null` coerces to 0 in arithmetic, so `1 - null / 25` answers 1.0: an unmeasured
          correction rate would publish the PERFECT driver, and `c()` would round the product into a
          confident grade. A driver that was never measured makes its metrics unknown — the rule this
@@ -15402,16 +15415,16 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         epochs: epochs.length
       };
       hrvConfidence = {
-        beatToBeat: qCorr == null ? null : c(qCov * qCorr), // rmssd, sd1, pnn50 — already ECG-accurate; no inertial driver
+        beatToBeat: qCov == null || qCorr == null ? null : c(qCov * qCorr), // rmssd, sd1, pnn50 — already ECG-accurate; no inertial driver
         // + sd2 (robust); posture-drift aware
-        sdnn: qPosture == null || qCorr == null ? null : c(qCov * qCorr * (0.6 + 0.4 * qPosture)),
-        lf: qCorr == null ? null : c(qCov * qCorr),
-        hf: qLowMotion == null ? null : c(qLowMotion * qCov), // motion-graded (the earned part)
+        sdnn: qPosture == null || qCov == null || qCorr == null ? null : c(qCov * qCorr * (0.6 + 0.4 * qPosture)),
+        lf: qCov == null || qCorr == null ? null : c(qCov * qCorr),
+        hf: qLowMotion == null || qCov == null ? null : c(qLowMotion * qCov), // motion-graded (the earned part)
         // capped: single-site optical VLF inherently baseline-limited
         vlf: qPosture == null ? null : c(Math.min(0.7, qPosture * durFactor)),
         evidence,
         drivers: {
-          analyzableFrac: r2(qCov),
+          analyzableFrac: qCov == null ? null : r2(qCov),
           correctionOK: qCorr == null ? null : r2(qCorr),
           lowMotionFrac: qLowMotion == null ? null : r2(qLowMotion),
           postureStableFrac: qPosture == null ? null : r2(qPosture),
@@ -15474,28 +15487,32 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
        a record too short for the robust median (`sdnnRobust` null) simply does not get the test,
        because an absent comparand is not evidence of good shape. */
     const hrvShapeViolation = hrvShapeViolates(td.rmssd, sdnnRobust);
-    /* §∅ — an unmeasured correction rate is not a clean one: `null > 20` is `false`, so the old
-       expression CLEARED a record whose interval series was never built. Measured on a 0.8 s
-       synthetic, which published `hrvLowConfidence: false` over zero intervals. The absent arm is
-       explicit rather than left to coercion, and the reason below names the arm that fired. */
-    const hrvLowConfidence = analyzablePct < 60 || correctionRate == null || correctionRate > 20 || hrvShapeViolation;
+    /* §∅ — BOTH ABSENCES HAVE THEIR OWN ARM. `null < 60` and `null > 20` coerce to `0 < 60` and
+       `0 > 20`: the first answered `true` by accident over a record that scored nothing, the second
+       CLEARED a record whose interval series was never built. Neither verdict rested on a measurement,
+       and the sentence below printed "analyzable 0 %" for a share that was never computed. The arms
+       state the intent; they are behaviour-identical to the coercions they replace. The shape
+       violation keeps the first arm, so a real finding still wins over an absence. */
+    const hrvLowConfidence = analyzablePct == null || analyzablePct < 60 || correctionRate == null || correctionRate > 20 || hrvShapeViolation;
     const hrvLowConfidenceReason = hrvShapeViolation
       ? 'interval-shape violation — rMSSD ' +
         r1(td.rmssd) +
         ' ms exceeds sdnnRobust ' +
         r1(sdnnRobust) +
         ' ms, which a whole night cannot do physiologically; the interval series is alternating (detector artifact, not autonomic tone) → whole-record short-term HRV unusable; use per-5-min epochs[] and prefer a chest-ECG leg'
-      : analyzablePct < 60
-        ? 'low coverage — analyzable ' +
-          analyzablePct +
-          '%' +
-          (correctionRate == null ? '' : ' / correction ' + correctionRate + '%') +
-          ' → whole-record short-term HRV down-weighted; use per-5-min epochs[] + ledAgreementPct'
-        : correctionRate == null
-          ? 'no interval series — the correction rate is unmeasured, so nothing clears the whole-record short-term HRV on that axis; use per-5-min epochs[] and prefer a chest-ECG leg'
-          : hrvLowConfidence
-            ? 'heavy correction — ' + correctionRate + '% of intervals repaired → whole-record short-term HRV down-weighted; use per-5-min epochs[] + ledAgreementPct'
-            : null;
+      : analyzablePct == null
+        ? 'no beats were detected — analyzable and clean-beat shares are unmeasured, not 0 %, so the whole-record short-term HRV has no population to rest on; use per-5-min epochs[] where any exist'
+        : analyzablePct < 60
+          ? 'low coverage — analyzable ' +
+            analyzablePct +
+            '%' +
+            (correctionRate == null ? '' : ' / correction ' + correctionRate + '%') +
+            ' → whole-record short-term HRV down-weighted; use per-5-min epochs[] + ledAgreementPct'
+          : correctionRate == null
+            ? 'no interval series — the correction rate is unmeasured, so nothing clears the whole-record short-term HRV on that axis; use per-5-min epochs[] and prefer a chest-ECG leg'
+            : hrvLowConfidence
+              ? 'heavy correction — ' + correctionRate + '% of intervals repaired → whole-record short-term HRV down-weighted; use per-5-min epochs[] + ledAgreementPct'
+              : null;
 
     // tier (mirror ECGDex)
     const durMin = rec.durSec / 60;
@@ -15690,7 +15707,9 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       epochs,
       meanSQI,
       cleanBeatPct,
+      cleanBeatPctReason,
       analyzablePct,
+      analyzablePctReason,
       // §∅ raw span sets, per optical channel — projected into the export's `quality.pinnedCoverage`.
       pinnedSpanSets: rec.spans || null,
       /* The device-beat referee, carried HERE because this is the object the emitter reads as `r`.
@@ -15700,7 +15719,13 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
          reads as "export-inert" when it is "not wired at all". The goldens exposed it the same way,
          by NOT moving. Two authors, one wrong assumption, one note that was already there to be read. */
       deviceBeats,
+      /* `coveragePct` is an ALIAS of `cleanBeatPct` — one measurement under two names — so it borrows
+         the clean-beat cause rather than inventing a second sentence for the same absence. A reader
+         of `coveragePct` who finds a null and looks for its cause must not have to infer it from the
+         neighbour's name. ECGDex publishes the same triple (`coveragePct` + `coveragePctReason` +
+         `cleanBeatPctReason`) from `buildNN`. */
       coveragePct: cleanBeatPct,
+      coveragePctReason: cleanBeatPctReason,
       correctionRate,
       correctionRateReason,
       nCorrected: corr.nCorr,
@@ -16890,6 +16915,13 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         analyzablePct: nz(r.analyzablePct),
         cleanBeatPct: nz(r.cleanBeatPct),
         coveragePct: nz(r.coveragePct),
+        /* §∅ — a cause the producer computes and the export drops reaches no reader, so the three
+           refusals travel beside the three fields they explain. CONDITIONAL, for the reason the
+           correction rate below already records: an unconditional key would restamp every fixture
+           to say nothing, and a fixture with beats carries no cause to publish. */
+        ...(r.cleanBeatPctReason ? { cleanBeatPctReason: r.cleanBeatPctReason } : {}),
+        ...(r.analyzablePctReason ? { analyzablePctReason: r.analyzablePctReason } : {}),
+        ...(r.coveragePctReason ? { coveragePctReason: r.coveragePctReason } : {}),
         motionRejectedPct: nz(r.motionRejectedPct),
         correctionRatePct: nz(r.correctionRate),
         /* Published only when the rate is ABSENT: the refusal is the part a reader cannot
@@ -19178,6 +19210,13 @@ __exports.PPGUI = window.PPGUI;
   'use strict';
   const $ = (id) => document.getElementById(id);
   const KEYS = ['ppgAge', 'ppgSex', 'ppgWeight', 'ppgHeight', 'ppgHRmax', 'ppgRHR', 'ppgVO2', 'ppgElev', 'ppgCPAP'];
+  /* AN ABSENT PERCENTAGE IS A DASH, NOT A FAILING GRADE. `null >= 90` is false, so a record whose
+     beat population was never measured fell to the `bad` arm and then printed `null%`. These two
+     one-liners are the vocabulary `ppgdex-app.js` carries as `pctAbsent`/`pctTxt`/`pctCls`; this
+     bundle is its own script scope, so it repeats them instead of reaching across the boundary. */
+  const pctAbsent = (v) => v == null || !isFinite(v);
+  const pctTxt = (v) => (pctAbsent(v) ? '\u2014' : v + '%');
+  const pctCls = (v, ok, warn) => (pctAbsent(v) ? 'neutral' : v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
   let reRenderFn = null;
   let _dexPanel = null; // handle to the shared DexProfile.renderPanel() instance
   const median = (a) => {
@@ -19477,7 +19516,7 @@ __exports.PPGUI = window.PPGUI;
     }
     chips += `<div class="readiness-zone-chip ${pb.sev === 'neutral' ? 'warn' : pb.sev}">Perfusion · ${pb.txt}</div>`;
     chips += `<div class="readiness-zone-chip ${r.motionRejectedPct < 10 ? 'ok' : r.motionRejectedPct < 30 ? 'warn' : 'bad'}">${r.motionRejectedPct}% motion-rejected</div>`;
-    chips += `<div class="readiness-zone-chip ${r.analyzablePct >= 90 ? 'ok' : r.analyzablePct >= 75 ? 'warn' : 'bad'}">${r.analyzablePct}% analyzable</div>`;
+    chips += `<div class="readiness-zone-chip ${pctCls(r.analyzablePct, 90, 75)}">${pctTxt(r.analyzablePct)} analyzable</div>`;
     if (r.cpapInUse === true) chips += `<div class="readiness-zone-chip neutral">⊕ on CPAP therapy</div>`;
     else if (r.cpapInUse === false) chips += `<div class="readiness-zone-chip neutral">no CPAP</div>`;
     wrap.classList.add('show');
@@ -21888,8 +21927,7 @@ const { PPGUI } = __require('ppgdex-render.js');
       ' bpm · ' +
       (r.durSec >= 3600 ? (r.durSec / 3600).toFixed(1) + ' h' : (r.durSec / 60).toFixed(1) + ' min') +
       '<br>' +
-      r.analyzablePct +
-      '% analyzable';
+      (pctAbsent(r.analyzablePct) ? 'analyzable not scored — no beats detected' : r.analyzablePct + '% analyzable');
   }
 
   function updateScopeReadout(view, fs, N, secAt) {
@@ -21907,6 +21945,15 @@ const { PPGUI } = __require('ppgdex-render.js');
 
   const sc = (v, ok, warn) => (v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
   const hrStat = (v) => (v < 40 ? 'bad' : v <= 90 ? 'ok' : v <= 100 ? 'warn' : 'bad');
+  /* §∅ — AN UNMEASURED PERCENTAGE IS A DASH AND A NEUTRAL GRADE, NEVER "0 %" AND "bad".
+     `ppgdex-dsp.js` publishes `cleanBeatPct` and `analyzablePct` as `null` when the detector placed no
+     beats. Every band test below reads `v >= 90 ? 'ok' : … : 'bad'`, and `null >= 90` is false, so an
+     absent beat population was graded as the worst possible record on eight separate readers. The em
+     dash is the value PpgDex already uses for an absent number (the correction-rate readers), and
+     `neutral` is the grade it already uses for one. */
+  const pctAbsent = (v) => v == null || !isFinite(v);
+  const pctTxt = (v) => (pctAbsent(v) ? '\u2014' : v + '%');
+  const pctCls = (v, ok, warn) => (pctAbsent(v) ? 'neutral' : v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
 
   /* ── OPTICAL SITE DECLARATION (PPGDEX-SITE-WIRING §2/§3) ─────────────────────────────────────
      The parser can only read the file LAYOUT, which names the DEVICE: 3 optical columns = a Verity
@@ -22040,7 +22087,7 @@ const { PPGUI } = __require('ppgdex-render.js');
       });
     }
     items.push(
-      { l: '% Analyzable', v: r.analyzablePct + '%', sub: r.cleanBeatPct + '% clean beats', s: r.analyzablePct >= 90 ? 'ok' : r.analyzablePct >= 75 ? 'warn' : 'bad' },
+      { l: '% Analyzable', v: pctTxt(r.analyzablePct), sub: pctAbsent(r.cleanBeatPct) ? 'no beats detected' : r.cleanBeatPct + '% clean beats', s: pctCls(r.analyzablePct, 90, 75) },
       /* §∅ — `null < 5` is `true`, so an unmeasured correction rate graded 'ok' in this KPI and
          printed `null%`. ECGDex's twin already reads `r.correctionRate == null ? '—'` (ecgdex-app.js). */
       {
@@ -22089,8 +22136,8 @@ const { PPGUI } = __require('ppgdex-render.js');
     const m = r.motion;
     $('qualityCard').innerHTML = `
     <div class="q-grid">
-      <div class="q-stat">${evBadge('Analyzable')}<div class="q-val ${r.analyzablePct >= 90 ? 'ok' : r.analyzablePct >= 75 ? 'warn' : 'bad'}">${r.analyzablePct}%</div><div class="q-lbl">Analyzable</div><div class="q-sub">clean-beat × motion gate</div></div>
-      <div class="q-stat"><div class="q-val ${r.cleanBeatPct >= 85 ? 'ok' : r.cleanBeatPct >= 65 ? 'warn' : 'bad'}">${r.cleanBeatPct}%</div><div class="q-lbl">Clean pulses${evBadge('Clean pulses')}</div><div class="q-sub">SQI ≥ 0.5</div></div>
+      <div class="q-stat">${evBadge('Analyzable')}<div class="q-val ${pctCls(r.analyzablePct, 90, 75)}">${pctTxt(r.analyzablePct)}</div><div class="q-lbl">Analyzable</div><div class="q-sub">clean-beat × motion gate</div></div>
+      <div class="q-stat"><div class="q-val ${pctCls(r.cleanBeatPct, 85, 65)}">${pctTxt(r.cleanBeatPct)}</div><div class="q-lbl">Clean pulses${evBadge('Clean pulses')}</div><div class="q-sub">SQI ≥ 0.5</div></div>
       <div class="q-stat"><div class="q-val ${r.motionRejectedPct < 10 ? 'ok' : r.motionRejectedPct < 30 ? 'warn' : 'bad'}">${r.motionRejectedPct}%</div><div class="q-lbl">Motion-rejected${evBadge('Motion-rejected')}</div><div class="q-sub">${m && m.hasData ? 'ACC+GYRO' : 'no ACC/GYRO'}</div></div>
       <div class="q-stat"><div class="q-val ${r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad'}">${r.meanSQI}</div><div class="q-lbl">Mean SQI${evBadge('Mean SQI')}</div><div class="q-sub">→ Ganglior conf</div></div>
       ${r.ledAgreementPct != null ? `<div class="q-stat"><div class="q-val ${r.ledAgreementPct >= 90 ? 'ok' : r.ledAgreementPct >= 75 ? 'warn' : 'bad'}">${r.ledAgreementPct}%</div><div class="q-lbl">3-LED agree${evBadge('LED agreement')}</div><div class="q-sub">${r.ledAgree3of3Pct != null ? r.ledAgree3of3Pct + '% all-3' : 'optical consensus'}</div></div>` : ''}
@@ -22490,8 +22537,8 @@ const { PPGUI } = __require('ppgdex-render.js');
         ['Perfusion index', r.morph.perfusionIndexPct, '%', 'AC/DC', r.morph.perfusionIndexPct == null ? '' : r.morph.perfusionIndexPct >= 2 ? 'ok' : r.morph.perfusionIndexPct >= 0.5 ? 'warn' : 'bad']
       ]);
     html += sec('Quality', [
-      ['Analyzable', r.analyzablePct, '%', '', r.analyzablePct >= 90 ? 'ok' : r.analyzablePct >= 75 ? 'warn' : 'bad'],
-      ['Clean beats', r.cleanBeatPct, '%', 'SQI≥0.5', r.cleanBeatPct >= 85 ? 'ok' : r.cleanBeatPct >= 65 ? 'warn' : 'bad'],
+      ['Analyzable', r.analyzablePct, '%', pctAbsent(r.analyzablePct) ? 'no beats detected' : '', pctCls(r.analyzablePct, 90, 75)],
+      ['Clean beats', r.cleanBeatPct, '%', pctAbsent(r.cleanBeatPct) ? 'no beats detected' : 'SQI≥0.5', pctCls(r.cleanBeatPct, 85, 65)],
       ['Mean SQI', r.meanSQI, '', '0–1 · conf', r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad'],
       ['Motion-rejected', r.motionRejectedPct, '%', r.motion && r.motion.hasData ? 'ACC+GYRO' : 'n/a', r.motionRejectedPct < 10 ? 'ok' : r.motionRejectedPct < 30 ? 'warn' : 'bad'],
       [
@@ -22527,9 +22574,9 @@ const { PPGUI } = __require('ppgdex-render.js');
         .map((s) => {
           const key = s.t0Ms != null ? String(s.t0Ms) : 'nodate_' + s.fname;
           const active = key === activeKey;
-          const q = s.analyzablePct >= 90 ? 'ok' : s.analyzablePct >= 75 ? 'warn' : 'bad';
+          const q = pctCls(s.analyzablePct, 90, 75);
           return `<button class="sess-item ${active ? 'active' : ''}" data-key="${key}">
-      <div class="si-top"><span class="si-date">${DSP.fmtDateTime(s.t0Ms)}</span><span class="si-q ${q}">${s.analyzablePct}%</span></div>
+      <div class="si-top"><span class="si-date">${DSP.fmtDateTime(s.t0Ms)}</span><span class="si-q ${q}">${pctTxt(s.analyzablePct)}</span></div>
       <div class="si-sub">${s.durMin} min · ${s.dispHr} bpm · rMSSD ${s.rmssd}</div></button>`;
         })
         .join('');
@@ -22592,11 +22639,19 @@ const { PPGUI } = __require('ppgdex-render.js');
       { k: 'ai', label: 'Aug. index', unit: '%', good: 'down', get: (s) => (s.morph ? s.morph.augmentationIndexPct : null) },
       { k: 'motion', label: 'Motion-rej', unit: '%', good: 'down', get: (s) => s.motionRejectedPct }
     ];
-    const cov = list.map((s) => Math.max(0.05, (s.analyzablePct || 0) / 100));
+    /* §∅ — A SESSION WHOSE COVERAGE WAS NEVER MEASURED EARNS NO WEIGHT, NOT THE FLOOR WEIGHT.
+       This read `(s.analyzablePct || 0)`, so an absent share became 0 % and then took the 0.05 floor:
+       one absence was weighted as if it had been measured at almost zero coverage, and nothing in the
+       output said so. `crossNight` substitutes 1 for an absent `w` (`pts.map((p) => (p.w != null ? p.w : 1))`),
+       so passing the null through would be worse still. Such a session leaves the weighted fit, and the
+       note below says how many did. */
+    const weightedList = list.filter((s) => !pctAbsent(s.analyzablePct));
+    const unweighted = list.length - weightedList.length;
+    const cov = weightedList.map((s) => Math.max(0.05, s.analyzablePct / 100));
     let rows = '';
     const headline = [];
     metrics.forEach((m) => {
-      const series = list.map((s, i) => ({ x: i, t: s.t0Ms, v: m.get(s), w: cov[i] })).filter((p) => p.v != null && isFinite(p.v));
+      const series = weightedList.map((s, i) => ({ x: i, t: s.t0Ms, v: m.get(s), w: cov[i] })).filter((p) => p.v != null && isFinite(p.v));
       if (series.length < 2) {
         return;
       }
@@ -22632,7 +22687,7 @@ const { PPGUI } = __require('ppgdex-render.js');
           .join('')
       : `<div class="cn-head-label">Newest session vs baseline</div><div class="cn-head-item dim">No metric is beyond ±1σ of its personal baseline — a consistent stretch.</div>`;
     $('crossNightNote').innerHTML =
-      `${list.length} sessions over ${_pgNightSpan(list)} · OLS slope vs date + non-parametric <b>Mann–Kendall</b> (τ, p) for short noisy series · personal-baseline <b>z-scores</b> · coverage-weighted by each session's analyzable %. The same <code>crossNight()</code> engine powers ECGDex &amp; OxyDex trends.`;
+      `${list.length} sessions over ${_pgNightSpan(list)} · OLS slope vs date + non-parametric <b>Mann–Kendall</b> (τ, p) for short noisy series · personal-baseline <b>z-scores</b> · coverage-weighted by each session's analyzable %${unweighted ? ` · ${unweighted} of ${list.length} sessions left the weighted fit — no analyzable % was measured` : ''}. The same <code>crossNight()</code> engine powers ECGDex &amp; OxyDex trends.`;
   }
   function trendColor(label, good) {
     if (label === 'improving') return UI.COLORS.green;
