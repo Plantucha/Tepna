@@ -719,8 +719,19 @@ export function journalText(page, fresh, prevBody) {
    work unit spent editing one state cell after its fix merged. The fix PR now DECLARES the row on a
    `Residue-fixed: <key>` line in its body, and after the merge the walker opens the RESIDUE-only PR
    that writes `fixed #<that PR>`. Only the declaration counts — a key the body merely mentions closes
-   nothing — and only a row that reads exactly `OPEN` on main is edited. Nothing else moves. */
-export const RESIDUE_FIXED_RE = /^Residue-fixed:\s*(.+)$/gm;
+   nothing — and only a row that reads exactly `OPEN` on main is edited. Nothing else moves.
+
+   A pull request body is markdown, so a bird decorates the WHOLE declaration line: backticks around
+   it, bold marks, or a blockquote arrow. Measured 2026-11-17 over the 300 newest merged bodies
+   (#4942 to #5242): one such line, on #5142, which wrapped the declaration in backticks. The old
+   line-start anchor could not read it. That row stayed OPEN while its fix sat on main, and
+   `tools/residue-promises.mjs` imports this parser, so it reported the window clean. The decoration
+   must be the whole of the line around the declaration. A key named inside a sentence still closes
+   nothing, which is what keeps the walker's own closure body from declaring a row. */
+export const RESIDUE_FIXED_RE = /^[ \t>*_`-]*Residue-fixed:[ \t]*(.+?)[ \t*_`]*$/gm;
+/* The same line shape, for ONE line and without the global flag: what a body MEANT as a declaration,
+   whether or not a key reads out of it. */
+export const RESIDUE_DECL_LINE_RE = /^[ \t>*_`-]*Residue-fixed:[ \t]*(.*?)[ \t*_`]*$/;
 export const RESIDUE_KEY_RE = /^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*$/;
 export const CLOSE_BRANCH_PREFIX = 'claude/residue-close-walker-';
 export function parseResidueFixed(body) {
@@ -728,6 +739,17 @@ export function parseResidueFixed(body) {
   for (const m of String(body || '').matchAll(RESIDUE_FIXED_RE))
     for (const k of m[1].split(/[\s,]+/).map((s) => s.replace(/`/g, '').trim())) if (RESIDUE_KEY_RE.test(k) && !keys.includes(k)) keys.push(k);
   return keys;
+}
+/* Every line a body MEANT as a declaration, with the keys that read out of it. A line whose keys come
+   back empty names a row that no mechanism can reach, and the parser above drops it in silence.
+   `tools/residue-promises.mjs` reports that line instead. */
+export function residueDeclLines(body) {
+  const out = [];
+  for (const line of String(body || '').split(/\r?\n/)) {
+    const m = RESIDUE_DECL_LINE_RE.exec(line);
+    if (m) out.push({ line: line.trim(), keys: parseResidueFixed(line) });
+  }
+  return out;
 }
 export function residueStates(text) {
   const out = new Map();

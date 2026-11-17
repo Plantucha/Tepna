@@ -64922,6 +64922,11 @@
       if (typeof prf === 'function' && typeof pcl === 'function' && typeof crt === 'function') {
         T.eq('a declaration line names its keys', prf('x\nResidue-fixed: `2020-01-07-a-b`, 2020-01-06-c\ny').join(' '), '2020-01-07-a-b 2020-01-06-c');
         T.eq('a key merely mentioned in prose closes nothing', prf('This relates to 2020-01-07-a-b.').length, 0);
+        /* MEASURED 2026-11-17 over the 300 newest merged bodies: one declaration wrapped its whole
+           line in backticks, and the line-start anchor read nothing. The row stayed OPEN. */
+        T.eq('a decorated declaration line names its key', prf('## h\n\n`Residue-fixed: 2020-01-07-a-b`\n').join(''), '2020-01-07-a-b');
+        T.eq('a bold declaration line names its key', prf('**Residue-fixed: 2020-01-07-a-b**').join(''), '2020-01-07-a-b');
+        T.eq('the token inside a sentence closes nothing', prf('Each merged PR named its row on a `Residue-fixed:` line.').length, 0);
         T.eq('a malformed key is dropped', prf('Residue-fixed: not-a-key').length, 0);
         var LED = [
           '| key | logged | source | defect | evidence | state |',
