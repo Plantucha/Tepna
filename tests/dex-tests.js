@@ -40651,6 +40651,50 @@
       T.ok('the filename already said "undated" — now the contents agree', /: 'undated'/.test(R));
     });
 
+    group('ECGDex §∅ — a zero anchor is an anchor, through the reshape and into both exports', 'ecgdex-dsp · ecgdex-app · clock-absence · export-boundary', function (T) {
+      /* `analyze`'s reshape read the recording anchor as `rec.t0Ms || null`, so an anchor of 0 left
+         the reshape as ABSENCE. 0 is floating 1970-01-01T00:00:00 and a legal `tMs` under Clock
+         Contract §1, and `analyze` is a PUBLIC entry a consumer calls with its own rec. Both export
+         builders already read the anchor by PRESENCE (`ecgdex-dsp.js:8509` and the app's v2 block),
+         so the reshape alone decided the answer and a repair in either builder would have changed
+         nothing. This group drives the reshape and then the export, so the next inversion reds at
+         the layer that owns it. */
+      var D = env.ECGDSP;
+      var R = String((env.sources || {})['ecgdex-app.js'] || '');
+      if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function' && typeof D.buildNodeExport === 'function')) {
+        T.skip('ECGDSP.analyze + genSynthetic + buildNodeExport available', 'not loaded');
+        return;
+      }
+      var syn = D.genSynthetic({ durSec: 120 });
+      var mk = function (t0) {
+        return { int16: syn.int16, fs: syn.fs, t0Ms: t0 };
+      };
+      var DATED = Date.UTC(2026, 10, 1, 22, 0, 0);
+      var startOf = function (r) {
+        var ex = D.buildNodeExport(r, {});
+        return ex && ex.recording ? ex.recording.startEpochMs : 'NO-RECORDING-BLOCK';
+      };
+
+      /* CONTROL FIRST — a dated recording must carry its anchor all the way, or every case below
+         passes over a pipeline that publishes nothing at all. */
+      var rD = D.analyze(mk(DATED), function () {});
+      T.eq('ANTI-VACUITY · a DATED anchor survives the reshape', rD.t0Ms, DATED);
+      T.eq('ANTI-VACUITY · …and the export publishes it', startOf(rD), DATED);
+
+      var rZ = D.analyze(mk(0), function () {});
+      T.eq('a ZERO anchor survives the reshape — 0, never null', rZ.t0Ms, 0);
+      T.eq('…and the export publishes 0, so the recording is not reported undated', startOf(rZ), 0);
+      T.eq('…because floating 0 is a real civil instant, not a refusal', new Date(0).toISOString(), '1970-01-01T00:00:00.000Z');
+
+      var rN = D.analyze(mk(null), function () {});
+      T.eq('an ABSENT anchor is STILL null after the repair', rN.t0Ms, null);
+      T.eq('…and the export still says undated', startOf(rN), null);
+
+      T.ok('ANTI-VACUITY · the app source loaded', R.length > 10000, R.length + ' chars');
+      T.ok("the app's v2 export reads the anchor by PRESENCE", /startEpochMs: r\.t0Ms != null \? r\.t0Ms : null/.test(R));
+      T.ok('…and no falsy anchor read survives in it', !/t0Ms \|\| null/.test(R));
+    });
+
     group('ECGDex §∅ — an AF screen with nothing to score says INSUFFICIENT, not no-af', 'ecgdex-morph · af-screen · absence', function (T) {
       var M = env.ECGMorph;
       if (!M || typeof M.afScreen !== 'function') {
