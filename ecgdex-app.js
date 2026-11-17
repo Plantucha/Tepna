@@ -2295,10 +2295,22 @@ self.onmessage = async (e) => {
       return 0;
     };
   }
-  function ecgReviewTimeline(events) {
+  /* §6 · THE CONSUMER REBUILDS A DATE-LESS STAMP. `ganglior_events[]` carries `t` as a date-less
+     wall-clock string, and the Clock Contract names the CONSUMER as the party that tolerates a
+     `t`-only export. `_byStamp('tMs')` held every such event last and answered 0 for two of them,
+     so a legacy export carrying a real `startEpochMs` and `t`-only events read its ingest order
+     back, while the time column below printed `e.t` and looked fully populated: an order that is
+     not time, with nothing on the surface saying so. `DexClock.sortEventsByClock` rebuilds the
+     stamp from the recording's own date and rolls it past midnight, and it stays absence-last for
+     an event it still cannot place. An anchor-less recording passes `null` and reads its arrival
+     order back unchanged, which is the honest answer where no date exists to rebuild from. The
+     shape is the fleet's, settled by PR 5162 over five sites; `hrvdex-app.js:327` is the review
+     twin. `_byStamp` stays for the four recording lists, which carry an absolute `t0Ms` and have
+     no date-less half to rebuild. */
+  function ecgReviewTimeline(events, t0Ms) {
     var evs = Array.isArray(events) ? events.slice() : [];
     if (!evs.length) return '<div class="erv-none">No scored events in this export.</div>';
-    evs.sort(_byStamp('tMs'));
+    evs = DexClock.sortEventsByClock(evs, typeof t0Ms === 'number' && isFinite(t0Ms) ? t0Ms : null);
     var CAP = 40,
       shown = evs.slice(0, CAP);
     var nm = function (e) {
@@ -2397,7 +2409,7 @@ self.onmessage = async (e) => {
         })
         .join('') +
       '</div>';
-    h += '<div class="erv-sec">Event timeline</div>' + ecgReviewTimeline(review.events);
+    h += '<div class="erv-sec">Event timeline</div>' + ecgReviewTimeline(review.events, rec.startEpochMs);
     h +=
       '<div class="erv-sec">Raw signal</div>' +
       '<div class="erv-greyed"><strong>ECG waveform &amp; per-beat morphology not included</strong>Raw ECG samples are not carried in the export \u2014 review mode shows the derived HRV/quality layer only. Re-run the original *_ECG.txt for the waveform + morphology charts.</div>';

@@ -8546,7 +8546,7 @@
           })
           .join('\n');
       };
-      var SITES = ['hrvdex-app.js', 'oxydex-render.js', 'ppgdex-app.js', 'pulsedex-render.js', 'pulsedex-overview.js'];
+      var SITES = ['ecgdex-app.js', 'hrvdex-app.js', 'oxydex-render.js', 'ppgdex-app.js', 'pulsedex-render.js', 'pulsedex-overview.js'];
       SITES.forEach(function (f) {
         var raw = (env.sources || {})[f];
         T.ok(f + ' is wired into env.sources', typeof raw === 'string' && raw.length > 0, 'unwired ⇒ the census reads nothing');
@@ -41703,6 +41703,25 @@
       );
       T.eq('an all-undated list keeps its order', ids([{ id: 'x' }, { id: 'y', tMs: null }].sort(by('tMs'))), 'x,y');
       T.ok('no sort in the app reads an or-zero stamp key', !/\((?:a|b)\.(?:t0Ms|tMs) \|\| 0\)/.test(src), 'an or-zero stamp key is back in ecgdex-app.js');
+      /* §6 · THE REBUILD HALF. Every leg above proves the ABSENCE half: an event this node cannot
+         place sorts last and never to 1970. The Clock Contract names the CONSUMER as the party that
+         tolerates a `t`-only export, and `_byStamp` could not rebuild such a stamp and never claimed
+         to, so a legacy export with a real `startEpochMs` read its INGEST order back while the time
+         column printed `e.t` and looked fully populated. `DexClock.sortEventsByClock` owns the
+         rebuild and the census group above owns its behaviour, including the roll past midnight and
+         the anchor-less arm. What is ECGDex's alone is the WIRING, and it is pinned on the source
+         the way PR 5162 pinned its five sites, because this renderer closes over `_eesc` and the
+         module's CSS and does not slice out. */
+      T.ok(
+        'the review timeline sorts through DexClock.sortEventsByClock, not the local comparator',
+        /evs = DexClock\.sortEventsByClock\(/.test(src),
+        'the §6 rebuild left ecgReviewTimeline, so a `t`-only export keeps its ingest order'
+      );
+      T.ok(
+        'the timeline receives the recording anchor, so a date exists to rebuild from',
+        /ecgReviewTimeline\(review\.events, rec\.startEpochMs\)/.test(src),
+        'the caller passes no startEpochMs, which leaves every `t`-only event unplaceable'
+      );
     });
     group('ECGDex stampless events — null clock + determinism (Clock §2.6)', 'ecgdex-dsp', function (T) {
       var D = env.ECGDSP;
