@@ -2731,7 +2731,9 @@ self.onmessage = async (e) => {
         ambulatory: r.ambulatory == null ? null : r.ambulatory,
         activityScore: r.activityScore,
         ...(r.activityScoreReason ? { activityScoreReason: r.activityScoreReason } : {}),
-        startEpochMs: r.t0Ms || null,
+        /* ∅ A ZERO ANCHOR IS AN ANCHOR, never absence. The DSP reshape carries a 0 through now
+           (`ecgdex-dsp.js:3831`), and this line nulled it again one layer later. */
+        startEpochMs: r.t0Ms != null ? r.t0Ms : null,
         beats: r.nBeats,
         epochs5min: r.epochs.length,
         longRecording: r.longRec
