@@ -311,6 +311,7 @@ footer{border-top:1px solid var(--border);padding:34px 0 56px;margin-top:24px;}
     <a class="dev" href="CPAPDex.html"><span class="pill">CPAPDex</span><canvas class="live-spark" data-k="cpap" width="520" height="80"></canvas><h3>Breathing support</h3><div class="device-name">CPAP · therapy log</div><p>Adds how well your breathing was supported overnight.</p><span class="open">Open CPAPDex →</span></a>
     <a class="dev" href="Integrator.html" style="border-color:rgba(167,139,250,.3)"><span class="pill" style="color:#A78BFA;background:rgba(167,139,250,.1);border-color:rgba(167,139,250,.28)">Integrator</span><canvas class="live-spark" data-k="fuse" width="520" height="80"></canvas><h3>All of it, combined</h3><div class="device-name">the fusion layer</div><p>Reads every device at once and fuses them into one daily picture.</p><span class="open">Open Integrator →</span></a>
     <a class="dev" href="EEGDex.html"><span class="pill">EEGDex</span><canvas class="live-spark" data-k="eeg" width="520" height="80"></canvas><h3>Brain waves</h3><div class="device-name">Muse · headband</div><p>Reads brain activity to deepen the sleep picture.</p><span class="open">Open EEGDex →</span></a>
+    <a class="dev" href="MotionDex.html"><span class="pill">MotionDex</span><canvas class="live-spark" data-k="acc" width="520" height="80"></canvas><h3>Body motion</h3><div class="device-name">Polar Verity Sense · H10 · IMU</div><p>Reads the raw accelerometer for body position and how still you lay.</p><span class="open">Open MotionDex →</span></a>
     <div class="dev" style="display:flex;flex-direction:column;justify-content:center;background:transparent;border-style:dashed;"><h3 style="color:var(--text2)">Wear one, or wear them all.</h3><p style="margin-top:8px">Every device you add gives the read-out one more honest signal to lean on. None are required to begin.</p></div>
   </div>
 </div></section>
@@ -432,6 +433,10 @@ dividerWave('div1',7,'#3DE0D0');dividerWave('div2',31,'#58A6FF');
     cpap:{col:'#3DE0D0',f:(u,t)=>Math.sin(u*3-t*.4)*.5+Math.sin(u*1.3-t*.2)*.18},
     fuse:{col:'#A78BFA',f:(u,t)=>Math.sin(u*5-t)*.32+Math.sin(u*13-t*2)*.2+Math.sin(u*2-t*.4)*.22},
     eeg:{col:'#5a6b7e',f:(u,t)=>Math.sin(u*30-t*3)*.5+Math.sin(u*11-t*1.5)*.3},
+    /* MotionDex reads a raw ACC stream, so the card draws actigraphy: long still stretches
+       broken by short bursts, never a periodic waveform. A card whose data-k is absent from this
+       table makes defs[k] undefined, and frame() then throws for EVERY card on the page. */
+    acc:{col:'#3DE0D0',f:(u,t)=>{const s=Math.floor(u*22-t*2);return (Math.sin(s*2.3)>.62?Math.sin(s*7.1)*.5:0)+Math.sin(s*1.1)*.05;}},
   };
   const cvs=[...document.querySelectorAll('.live-spark')].map(cv=>({cv,x:cv.getContext('2d'),d:defs[cv.dataset.k]}));
   let t=0;
