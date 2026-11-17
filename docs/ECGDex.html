@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="50cea4590b3e" data-compute-hash="5c315878c15d">
+<html lang="en" data-manifest-hash="5b6da6006a6a" data-compute-hash="5c315878c15d">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1tyQo4CppsC4mM8e/tB74Z/hxkeD1dDwj8X584GUEKA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-HP+npD7TDJQA1GWNoKqzz+yyx/qyYLDSbr6LD6+rxbM=' 'sha256-KB0DlIVUOnH4pPxopjbgB/i0bk/IqPauNTIHLPmXXvc=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jU+dw+IT2rwtLcI6NYHxMA0+3qLsJNGkAHJkagoo0D4=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sPJ3zpsuykDQcweXcxKFsTtbmCe8YVifjM5QeUME7Qg=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1tyQo4CppsC4mM8e/tB74Z/hxkeD1dDwj8X584GUEKA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-HP+npD7TDJQA1GWNoKqzz+yyx/qyYLDSbr6LD6+rxbM=' 'sha256-KB0DlIVUOnH4pPxopjbgB/i0bk/IqPauNTIHLPmXXvc=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-iqPNvfgaOLLxsrqf67NdcyYbCf6pshw6DVlOebr7HSE=' 'sha256-jU+dw+IT2rwtLcI6NYHxMA0+3qLsJNGkAHJkagoo0D4=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.33.0</title>
@@ -20361,12 +20361,29 @@ window.evBadge = evBadge;
        there is noise and a single draw of it says nothing about a lean. Those rows reported one draw
        each, and the repair's own first measurement repeated the mistake.
 
-       WHAT STILL LIMITS A SHORT SPAN, measured the same day over 400 draws at the node's own
-       391-anchor geometry: the published rate reads 56.80 ± 1.25 before the repair and 53.60 ± 1.56
-       after it, against the same planted 50. The clamp term is only 1.28 % of the span at that
-       density, so almost all of what is left is host jitter swamping a 3 ms drift. A node cannot fix
-       that by estimating better. It needs a longer span, and the §∅ question of whether `ok` should be
-       true at all over an unresolvable rate is logged and not answered here.
+       WHAT STILL LIMITS A SHORT SPAN, re-measured 2026-11-17 over 400 draws at the node's own
+       391-anchor geometry, 60 s of ±5 ms uniform jitter against a planted 50 ppm: the published
+       rate's PER-DRAW SPREAD is 31.3 ppm, which is 58 % of the value it qualifies, and the mean of
+       the draws lands between 49.8 and 53.6 ppm across three generators of that one jitter band —
+       the original probe's linear-congruential sequence, a mulberry32 and the platform
+       `Math.random`. So the SPREAD is the quantity a reader needs, and the mean is
+       generator-dependent. The clamp term
+       is only 1.28 % of the span at that density, so almost all of what is left is host jitter
+       swamping a 3 ms drift. A node cannot fix that by estimating better. It needs a longer span,
+       and the §∅ question of whether `ok` should be true at all over an unresolvable rate is logged
+       and not answered here.
+
+       ⚠ THIS PARAGRAPH USED TO READ `56.80 ± 1.25 before the repair and 53.60 ± 1.56 after it`.
+       Both ± figures were the STANDARD ERROR of a 400-draw mean, which is 1/20 of the spread and
+       shrinks with the number of times the probe ran. It sized the probe session and no recording,
+       and it read as a tight figure where the quantity under argument is 20 times wider. The
+       re-measurement reproduces `53.60 ± 1.56` exactly from the original probe's own generator, a
+       32-bit linear-congruential sequence seeded `31337 + k`, which is what identifies the committed
+       figures as that probe's standard-error column. The pre-repair 56.80 belongs to an estimator
+       the spine no longer publishes, so no figure here is quoted for it. `clock.js` carries the
+       repair's own before-and-after table at a planted 2000 ppm, where the drift is resolvable and
+       mean, standard error and standard deviation sit in separate columns. Read that table for the
+       repair and this paragraph for the limit.
 
        So this clause names the LIMIT rather than the estimator's origin. It rides the two cells whose
        unit names the host axis, which are the two the measurement covers. The §3d night-drift cell
