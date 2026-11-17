@@ -1011,7 +1011,17 @@
       const mean7lnrmssd = rmssd7.length ? rmssd7.map((v) => Math.log(v)).reduce((a, b) => a + b, 0) / rmssd7.length : NaN;
       r.d_ari = r._rmssd > 0 && mean7rmssd > 0 && window7.length >= 4 ? r._rmssd / mean7rmssd : NaN; // Finding 5: guard the row's OWN rMSSD (mirror d_sdnn_z) — a null numerator coerces to 0, rendering d_ari=0 RED and firing a false d_ari<0.85 "recovery collapse" alert on a no-reading night
       r.d_rmssd_rolling_ln = mean7lnrmssd;
+      /* ∅ — A 7-DAY SUM OVER A PARTIAL WINDOW IS REDUCED COVERAGE, NOT A DISCONTINUITY, so the
+         owner ruling of 2026-09-17 annotates here instead of refusing. One measured reading used to
+         publish a full-magnitude "Stress AUC 7d" with nothing beside it, while BOTH siblings gate
+         their own coverage — `d_ari` needs `window7.length >= 4` and `d_rmssd_cv7` needs `length > 1`.
+         A sum stays defined over one reading, so the value travels with the count that produced it
+         and the table prints that count (hrvdex-render.js TABLE_COLS). `_dayWindow` is span-bounded
+         and holds no fixed row-per-day, so the count is CONTRIBUTING READINGS, never days. It is
+         null exactly when the AUC refuses, so no consumer can read a 0 as a covered window.
+         Row hrvdex-dsp.js:886 of ABSENCE-SURVEY-2026-09-22 (low). */
       r.d_stress_auc = stress7.length ? stress7.reduce((a, b) => a + b, 0) : NaN;
+      r.d_stress_auc_n = stress7.length ? stress7.length : null;
       r.d_rmssd_cv7 = rmssd7.length > 1 ? (std(rmssd7) / mean7rmssd) * 100 : NaN;
 
       const meanSDNN7 = sdnn7.length ? sdnn7.reduce((a, b) => a + b, 0) / sdnn7.length : NaN;
@@ -1166,6 +1176,14 @@
   // HRV→hypertension-risk and HRV→MAP are cuffless-BP-from-HRV proxies with no individual
   // validity (medical-claim risk). CAMQ below is an autonomic-balance index (NOT blood
   // pressure) and stays. prof_sbp/prof_dbp remain USER-ENTERED cuff inputs elsewhere.
+  /* ∅ companion to computeCAMQ: did this row measure the sympathetic leg at all? The penalty
+     reads LF/HF, so both bands must be present. The answer is a fact about COVERAGE and never a
+     stand-in for the penalty the row could not measure. The `> 0` test matches the producer above:
+     a band at or below zero is how this node carries an absent power. */
+  function camqSympMeasured(r) {
+    return !!(r && r._hf > 0 && r._lf > 0);
+  }
+
   function computeCAMQ(r) {
     // Cardiac Autonomic Modulation Quality
     // Parasympathetic indicators (positive contribution): RMSSD, HF power, pNN50
@@ -1199,8 +1217,19 @@
     if (!paraCount) return null;
     var paraAvg = paraScore / paraCount;
 
+    /* ∅ — AN UNMEASURED SYMPATHETIC LEG IS NOT A ZERO PENALTY. `sympPenalty` can only rise when
+       the row measured BOTH bands, because the penalty reads LF/HF. So a night with no spectrum
+       earned the kindest sympathetic verdict on the scale, and `ch_camq` could not tell it from a
+       measured LF/HF of 1.0 — a default that reads as a measurement. The penalty has no honest
+       substitute, so the score keeps its measured parasympathetic value and REPORTS the coverage:
+       `camqSympMeasured` answers whether the leg was measured, and the consumer marks every point
+       that carries no sympathetic correction (hrvdex-render.js renderCardiovascularResearch).
+       An absent leg reduces COVERAGE and breaks no continuity, so the owner ruling of 2026-09-17
+       annotates here. A refusal would drop a measured parasympathetic score from every
+       spectrum-less night, which is the common Ganglior/ECGDex row.
+       Row hrvdex-dsp.js:1076 of ABSENCE-SURVEY-2026-09-22 (medium). */
     var sympPenalty = 0;
-    if (r._hf > 0 && r._lf > 0) {
+    if (camqSympMeasured(r)) {
       var lfhf = r._lf / r._hf;
       sympPenalty = Math.max(0, (lfhf - 1.0) * 15); // penalty grows above LF/HF=1.0
     }
@@ -1633,6 +1662,7 @@
     smooth,
     getFilteredRows,
     computeCAMQ,
+    camqSympMeasured,
     _hrvClockS,
     hrvEventsFromRows,
     hrvBuildNodeExport,
