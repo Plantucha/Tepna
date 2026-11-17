@@ -366,6 +366,16 @@ function renderHrvBench(r) {
 }
 
 /* ===== KPIs ===== */
+/* ABSENT ≠ WORST (§∅). Every d_* producer in hrvdex-dsp.js answers NaN when its inputs were not
+   measured, and the raw parsed fields answer null when the import carried no such column. A bare
+   ladder compares that absence: NaN > 4.4 and null > 4.4 are both false, so the value falls to the
+   LAST arm, and the kc mapping below paints a band that is not good, warn or neutral as --red. An
+   unmeasured number therefore read as the WORST possible reading. kgrade routes an absence to the
+   'neutral' band that the same mapping resolves to ordinary text, which is the idiom renderHrvBench
+   already uses for Baevsky SI and the LF/HF tile uses for an all-night row. The ladder itself is
+   untouched: a real value, 0 included, still reaches it. */
+const kgrade = (v, ladder) => (v == null || isNaN(v) ? 'neutral' : ladder(v));
+
 function renderKPIs(rows) {
   const r = rows[rows.length - 1];
   const prev = rows.length > 1 ? rows[rows.length - 2] : null;
@@ -379,7 +389,7 @@ function renderKPIs(rows) {
       label: 'HRV Score',
       val: r._hrv != null ? r._hrv.toFixed(1) : undefined,
       sub: 'Today',
-      color: r._hrv > 45 ? 'good' : r._hrv > 30 ? 'warn' : 'bad',
+      color: kgrade(r._hrv, (x) => (x > 45 ? 'good' : x > 30 ? 'warn' : 'bad')),
       delta: prev ? (r._hrv - prev._hrv).toFixed(1) : null,
       unit: ''
     },
@@ -387,7 +397,7 @@ function renderKPIs(rows) {
       label: 'SDNN',
       val: r._sdnn != null ? r._sdnn.toFixed(1) : undefined,
       sub: 'ms — today',
-      color: r._sdnn > 60 ? 'good' : r._sdnn > 40 ? 'warn' : 'bad',
+      color: kgrade(r._sdnn, (x) => (x > 60 ? 'good' : x > 40 ? 'warn' : 'bad')),
       delta: prev ? (r._sdnn - prev._sdnn).toFixed(1) : null,
       unit: 'ms'
     },
@@ -395,7 +405,7 @@ function renderKPIs(rows) {
       label: 'rMSSD',
       val: r._rmssd != null ? r._rmssd.toFixed(1) : undefined,
       sub: 'ms — parasympathetic',
-      color: r._rmssd > 35 ? 'good' : r._rmssd > 20 ? 'warn' : 'bad',
+      color: kgrade(r._rmssd, (x) => (x > 35 ? 'good' : x > 20 ? 'warn' : 'bad')),
       delta: prev ? (r._rmssd - prev._rmssd).toFixed(1) : null,
       unit: 'ms'
     },
@@ -403,7 +413,7 @@ function renderKPIs(rows) {
       label: 'Stress',
       val: r._stress != null ? r._stress.toFixed(0) : undefined,
       sub: 'HRV score',
-      color: r._stress < 45 ? 'good' : r._stress < 65 ? 'warn' : 'bad',
+      color: kgrade(r._stress, (x) => (x < 45 ? 'good' : x < 65 ? 'warn' : 'bad')),
       delta: prev ? (r._stress - prev._stress).toFixed(0) : null,
       unit: '',
       inverse: true
@@ -412,11 +422,18 @@ function renderKPIs(rows) {
       label: 'Energy',
       val: r._energy != null ? r._energy.toFixed(0) : undefined,
       sub: 'HRV score',
-      color: r._energy > 55 ? 'good' : r._energy > 35 ? 'warn' : 'bad',
+      color: kgrade(r._energy, (x) => (x > 55 ? 'good' : x > 35 ? 'warn' : 'bad')),
       delta: prev ? (r._energy - prev._energy).toFixed(0) : null,
       unit: ''
     },
-    { label: 'Baevsky SI', val: r.d_si != null ? r.d_si.toFixed(0) : undefined, sub: '&lt;150 normal', color: r.d_si < 150 ? 'good' : r.d_si < 250 ? 'warn' : 'bad', delta: null, unit: '' },
+    {
+      label: 'Baevsky SI',
+      val: r.d_si != null ? r.d_si.toFixed(0) : undefined,
+      sub: '&lt;150 normal',
+      color: kgrade(r.d_si, (x) => (x < 150 ? 'good' : x < 250 ? 'warn' : 'bad')),
+      delta: null,
+      unit: ''
+    },
     // LF/HF · the 0.5–2.0 band is a MORNING-REST reference and does not transfer to an all-night
     // recording, which spans sleep architecture rather than a resting spot sample. Rather than
     // invent an overnight band we do not have a citation for, an all-night row shows the VALUE with
@@ -426,7 +443,7 @@ function renderKPIs(rows) {
       label: 'LF/HF',
       val: r.d_lfhf != null ? r.d_lfhf.toFixed(2) : undefined,
       sub: r.d_all_night ? 'all-night — morning band n/a' : '0.5–2.0 optimal',
-      color: r.d_all_night ? 'neutral' : r.d_lfhf > 0.4 && r.d_lfhf < 2.5 ? 'good' : 'warn',
+      color: r.d_all_night || r.d_lfhf == null || isNaN(r.d_lfhf) ? 'neutral' : r.d_lfhf > 0.4 && r.d_lfhf < 2.5 ? 'good' : 'warn',
       delta: null,
       unit: ''
     },
@@ -434,7 +451,7 @@ function renderKPIs(rows) {
       label: 'ANS Load',
       val: r.d_ans_load != null ? r.d_ans_load.toFixed(2) : undefined,
       sub: 'composite burden',
-      color: r.d_ans_load < 1 ? 'good' : r.d_ans_load < 2 ? 'warn' : 'bad',
+      color: kgrade(r.d_ans_load, (x) => (x < 1 ? 'good' : x < 2 ? 'warn' : 'bad')),
       delta: null,
       unit: ''
     },
@@ -442,7 +459,7 @@ function renderKPIs(rows) {
       label: 'Recov Index',
       val: r.d_ari != null ? r.d_ari.toFixed(2) : undefined,
       sub: '>1.05 = above baseline',
-      color: r.d_ari > 1.0 ? 'good' : r.d_ari > 0.85 ? 'warn' : 'bad',
+      color: kgrade(r.d_ari, (x) => (x > 1.0 ? 'good' : x > 0.85 ? 'warn' : 'bad')),
       delta: null,
       unit: ''
     },
@@ -450,7 +467,7 @@ function renderKPIs(rows) {
       label: 'Coherence',
       val: r._coherence != null ? r._coherence.toFixed(0) : undefined,
       sub: 'HRV coherence',
-      color: r._coherence > 60 ? 'good' : r._coherence > 30 ? 'warn' : 'bad',
+      color: kgrade(r._coherence, (x) => (x > 60 ? 'good' : x > 30 ? 'warn' : 'bad')),
       delta: null,
       unit: ''
     },
@@ -458,7 +475,7 @@ function renderKPIs(rows) {
       label: 'SDNN Z-score',
       val: r.d_sdnn_z != null ? r.d_sdnn_z.toFixed(2) : undefined,
       sub: 'vs 7d baseline',
-      color: r.d_sdnn_z > -0.5 ? 'good' : r.d_sdnn_z > -1.5 ? 'warn' : 'bad',
+      color: kgrade(r.d_sdnn_z, (x) => (x > -0.5 ? 'good' : x > -1.5 ? 'warn' : 'bad')),
       delta: null,
       unit: ''
     },
@@ -466,19 +483,40 @@ function renderKPIs(rows) {
       label: 'SD1/SD2',
       val: r.d_sd1_sd2 != null ? r.d_sd1_sd2.toFixed(3) : undefined,
       sub: '0.25–0.35 typical',
-      color: r.d_sd1_sd2 > 0.2 && r.d_sd1_sd2 < 0.5 ? 'good' : 'warn',
+      color: kgrade(r.d_sd1_sd2, (x) => (x > 0.2 && x < 0.5 ? 'good' : 'warn')),
       delta: null,
       unit: ''
     },
-    { label: 'Toichi CVI', val: r.d_cvi != null ? r.d_cvi.toFixed(2) : undefined, sub: 'cardiac vagal (ms×ms)', color: r.d_cvi > 4.4 ? 'good' : r.d_cvi > 4.1 ? 'warn' : 'bad', delta: null, unit: '' },
-    { label: 'Toichi CSI', val: r.d_csi != null ? r.d_csi.toFixed(3) : undefined, sub: 'cardiac sympathetic', color: r.d_csi < 0.25 ? 'good' : r.d_csi < 0.4 ? 'warn' : 'bad', delta: null, unit: '' },
+    {
+      label: 'Toichi CVI',
+      val: r.d_cvi != null ? r.d_cvi.toFixed(2) : undefined,
+      sub: 'cardiac vagal (ms×ms)',
+      color: kgrade(r.d_cvi, (x) => (x > 4.4 ? 'good' : x > 4.1 ? 'warn' : 'bad')),
+      delta: null,
+      unit: ''
+    },
+    {
+      label: 'Toichi CSI',
+      val: r.d_csi != null ? r.d_csi.toFixed(3) : undefined,
+      sub: 'cardiac sympathetic',
+      color: kgrade(r.d_csi, (x) => (x < 0.25 ? 'good' : x < 0.4 ? 'warn' : 'bad')),
+      delta: null,
+      unit: ''
+    },
     /* ANS Age row REMOVED 2026-06-21 (external-review WP-A) */
-    { label: 'EFC Index', val: r.d_efc != null ? r.d_efc.toFixed(3) : undefined, sub: 'readiness 0–1', color: r.d_efc > 0.55 ? 'good' : r.d_efc > 0.4 ? 'warn' : 'bad', delta: null, unit: '' },
+    {
+      label: 'EFC Index',
+      val: r.d_efc != null ? r.d_efc.toFixed(3) : undefined,
+      sub: 'readiness 0–1',
+      color: kgrade(r.d_efc, (x) => (x > 0.55 ? 'good' : x > 0.4 ? 'warn' : 'bad')),
+      delta: null,
+      unit: ''
+    },
     {
       label: 'VO2max Est',
       val: r.d_vo2_hrv != null ? r.d_vo2_hrv.toFixed(1) : undefined,
       sub: 'ml/kg/min HRV-adj',
-      color: r.d_vo2_hrv >= 45 ? 'good' : r.d_vo2_hrv >= 41 ? 'warn' : 'bad',
+      color: kgrade(r.d_vo2_hrv, (x) => (x >= 45 ? 'good' : x >= 41 ? 'warn' : 'bad')),
       delta: null,
       unit: ''
     },
@@ -486,20 +524,27 @@ function renderKPIs(rows) {
       label: 'VO2 7d Avg',
       val: r.d_vo2_roll7 != null ? r.d_vo2_roll7.toFixed(1) : undefined,
       sub: 'rolling baseline',
-      color: r.d_vo2_roll7 >= 43 ? 'good' : r.d_vo2_roll7 >= 40 ? 'warn' : 'bad',
+      color: kgrade(r.d_vo2_roll7, (x) => (x >= 43 ? 'good' : x >= 40 ? 'warn' : 'bad')),
       delta: null,
       unit: ''
     },
     /* SBP Est / DBP Est / BP Risk rows REMOVED 2026-06-21 (external-review WP-A)
        — cuffless BP from HRV is indefensible as a surfaced metric. */
-    { label: 'ABS', val: r.d_abs != null ? r.d_abs.toFixed(3) : undefined, sub: '-1=SNS +1=PSNS', color: r.d_abs > 0 ? 'good' : r.d_abs > -0.3 ? 'warn' : 'bad', delta: null, unit: '' },
-    { label: 'VEI (rMSSD/HR)', val: r.d_vei != null ? r.d_vei.toFixed(2) : undefined, sub: 'vagal efficiency', color: r.d_vei > 0.45 ? 'good' : r.d_vei > 0.3 ? 'warn' : 'bad', delta: null, unit: '' },
-    { label: 'CAI', val: r.d_cai != null ? r.d_cai.toFixed(1) : undefined, sub: '√(SD1×SD2) ms', color: r.d_cai > 45 ? 'good' : r.d_cai > 30 ? 'warn' : 'bad', delta: null, unit: 'ms' },
+    { label: 'ABS', val: r.d_abs != null ? r.d_abs.toFixed(3) : undefined, sub: '-1=SNS +1=PSNS', color: kgrade(r.d_abs, (x) => (x > 0 ? 'good' : x > -0.3 ? 'warn' : 'bad')), delta: null, unit: '' },
+    {
+      label: 'VEI (rMSSD/HR)',
+      val: r.d_vei != null ? r.d_vei.toFixed(2) : undefined,
+      sub: 'vagal efficiency',
+      color: kgrade(r.d_vei, (x) => (x > 0.45 ? 'good' : x > 0.3 ? 'warn' : 'bad')),
+      delta: null,
+      unit: ''
+    },
+    { label: 'CAI', val: r.d_cai != null ? r.d_cai.toFixed(1) : undefined, sub: '√(SD1×SD2) ms', color: kgrade(r.d_cai, (x) => (x > 45 ? 'good' : x > 30 ? 'warn' : 'bad')), delta: null, unit: 'ms' },
     {
       label: 'Restoration Index',
       val: r.d_welfare != null ? r.d_welfare.toFixed(1) : undefined,
       sub: 'E×Coh/Stress',
-      color: r.d_welfare > 40 ? 'good' : r.d_welfare > 20 ? 'warn' : 'bad',
+      color: kgrade(r.d_welfare, (x) => (x > 40 ? 'good' : x > 20 ? 'warn' : 'bad')),
       delta: null,
       unit: ''
     },
@@ -507,7 +552,7 @@ function renderKPIs(rows) {
       label: 'HRV Momentum',
       val: r.d_hrv_momentum != null && !isNaN(r.d_hrv_momentum) ? (r.d_hrv_momentum > 0 ? '+' : '') + r.d_hrv_momentum.toFixed(4) : undefined,
       sub: '14d ln(rMSSD) slope',
-      color: r.d_hrv_momentum > 0 ? 'good' : r.d_hrv_momentum > -0.01 ? 'warn' : 'bad',
+      color: kgrade(r.d_hrv_momentum, (x) => (x > 0 ? 'good' : x > -0.01 ? 'warn' : 'bad')),
       delta: null,
       unit: ''
     },
@@ -515,7 +560,7 @@ function renderKPIs(rows) {
       label: 'Recov Debt',
       val: r.d_recovery_debt != null ? r.d_recovery_debt.toString() : undefined,
       sub: 'ARI<0.9 days/14d',
-      color: r.d_recovery_debt < 3 ? 'good' : r.d_recovery_debt < 7 ? 'warn' : 'bad',
+      color: kgrade(r.d_recovery_debt, (x) => (x < 3 ? 'good' : x < 7 ? 'warn' : 'bad')),
       delta: null,
       unit: 'd'
     },
@@ -523,7 +568,7 @@ function renderKPIs(rows) {
       label: 'DFA α1',
       val: r.d_dfa_proxy != null && !isNaN(r.d_dfa_proxy) ? r.d_dfa_proxy.toFixed(2) : undefined,
       sub: 'fractal scaling proxy',
-      color: r.d_dfa_proxy > 0.8 ? 'good' : r.d_dfa_proxy > 0.7 ? 'warn' : 'bad',
+      color: kgrade(r.d_dfa_proxy, (x) => (x > 0.8 ? 'good' : x > 0.7 ? 'warn' : 'bad')),
       delta: null,
       unit: ''
     },
@@ -531,7 +576,7 @@ function renderKPIs(rows) {
       label: 'Spectral Ent',
       val: r.d_spectral_ent != null && !isNaN(r.d_spectral_ent) ? r.d_spectral_ent.toFixed(2) : undefined,
       sub: 'regulatory complexity',
-      color: r.d_spectral_ent > 0.7 ? 'good' : r.d_spectral_ent > 0.5 ? 'warn' : 'bad',
+      color: kgrade(r.d_spectral_ent, (x) => (x > 0.7 ? 'good' : x > 0.5 ? 'warn' : 'bad')),
       delta: null,
       unit: ''
     },
@@ -539,7 +584,7 @@ function renderKPIs(rows) {
       label: 'HF n.u.',
       val: r.d_hfnu != null && !isNaN(r.d_hfnu) ? r.d_hfnu.toFixed(0) : undefined,
       sub: 'parasympathetic %',
-      color: r.d_hfnu > 35 ? 'good' : r.d_hfnu > 20 ? 'warn' : 'bad',
+      color: kgrade(r.d_hfnu, (x) => (x > 35 ? 'good' : x > 20 ? 'warn' : 'bad')),
       delta: null,
       unit: ''
     },
@@ -547,7 +592,7 @@ function renderKPIs(rows) {
       label: 'PTI',
       val: r.d_pti != null && !isNaN(r.d_pti) ? r.d_pti.toFixed(1) : undefined,
       sub: 'PSNS × rMSSD tone',
-      color: r.d_pti > 18 ? 'good' : r.d_pti > 10 ? 'warn' : 'bad',
+      color: kgrade(r.d_pti, (x) => (x > 18 ? 'good' : x > 10 ? 'warn' : 'bad')),
       delta: null,
       unit: ''
     },
@@ -555,7 +600,7 @@ function renderKPIs(rows) {
       label: 'Overtrain Risk',
       val: r.d_otr_sat ? '500+' : r.d_otr != null && !isNaN(r.d_otr) ? r.d_otr.toFixed(0) : undefined,
       sub: 'SNS/PSNS load',
-      color: r.d_otr < 50 ? 'good' : r.d_otr < 150 ? 'warn' : 'bad',
+      color: kgrade(r.d_otr, (x) => (x < 50 ? 'good' : x < 150 ? 'warn' : 'bad')),
       delta: null,
       unit: '',
       inverse: true
