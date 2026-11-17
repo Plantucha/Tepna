@@ -158,8 +158,8 @@ import { CpapRender } from './cpapdex-render.js';
         '<div class="nh-meta">' +
         (D ? D.fmtClock(CURRENT.t0Ms) : '') +
         ' start · ' +
-        CURRENT.therapyHours +
-        ' h therapy · ' +
+        (CURRENT.therapyHours != null ? CURRENT.therapyHours + ' h' : 'unknown hours of') +
+        ' therapy · ' +
         CURRENT.nSessions +
         ' session' +
         (CURRENT.nSessions === 1 ? '' : 's') +
@@ -286,12 +286,14 @@ import { CpapRender } from './cpapdex-render.js';
     var groups = [],
       cur = null;
     sessions.forEach(function (s) {
+      // a session with no wall span (`endMs: null`) ends where it starts, as cpapdex-coimport.js reads it
+      var end = s.endMs != null ? s.endMs : s.t0Ms;
       if (!cur || s.t0Ms - cur._lastEnd > NIGHT_GAP_MS) {
-        cur = { ss: [], _lastEnd: s.endMs };
+        cur = { ss: [], _lastEnd: end };
         groups.push(cur);
       }
       cur.ss.push(s);
-      cur._lastEnd = Math.max(cur._lastEnd, s.endMs);
+      cur._lastEnd = Math.max(cur._lastEnd, end);
     });
     var nights = groups.map(function (g) {
       return CpapDsp.buildNight(g.ss);

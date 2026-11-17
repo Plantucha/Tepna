@@ -45791,6 +45791,91 @@
       }
     });
 
+    /* ∅ AN ABSENT SAMPLE RATE IS NOT A NUMBER (task 19). `cpapdex-edf.js:296` writes `fs: null` when
+       the header's record duration is 0, and five sites here turned that absence — or an absent
+       `raw.fs` — into 1, 0.5, 25 or 60. Measured before the fix: `prepare` halved a 0.5 Hz hour
+       (0.5 h for 1800 samples), a PLD with no record duration read 1.0 h where a 60 s record says
+       2.0 h, a 25 Hz BRP fallback read 0.139 h for 10 s (50×), a mode call pooled 8 windows of 150
+       samples as if they were 5 min, a breath count used a guessed 25 Hz, the ODI used samples as
+       seconds, and an open CSL span scored 98.61 % periodic breathing against a fabricated 7200 s
+       envelope. Every leg below reds on the pre-fix file. */
+    group('∅ CPAPDex — an absent sample rate or record duration is refused, never defaulted', 'cpapdex-dsp · absence · sample-rate', function (T) {
+      var D = env.CpapDsp || env.CPAPDSP;
+      T.ok('CpapDsp exposed', !!(D && typeof D.prepare === 'function'), 'CPAPDex not co-loaded in this runner');
+      if (!D) return;
+      var T0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+      var fill = function (n, v) {
+        var a = new Float32Array(n);
+        for (var i = 0; i < n; i++) a[i] = v;
+        return a;
+      };
+      var sig = function (n, v, fs, spr) {
+        return { data: fill(n, v), fs: fs, _spr: spr, _w: n };
+      };
+      var pldSet = function (recDurSec, spr, records) {
+        return {
+          PLD: {
+            clock: { t0Ms: T0 },
+            recordsRead: records,
+            recDurSec: recDurSec,
+            numRecords: records,
+            truncated: false,
+            signals: { Press: sig(spr * records, 8, recDurSec > 0 ? spr / recDurSec : null, spr) }
+          }
+        };
+      };
+
+      // ── ARM 1 · prepare ─────────────────────────────────────────────────────────────────────
+      var noRate = D.prepare({ t0Ms: T0, fs: null, pressure: fill(1800, 8) });
+      T.eq('prepare · a lane with no rate publishes no usage hours', noRate.usageHours, null);
+      T.eq('prepare · …and names the absence', noRate.usageReason, 'no-sample-rate');
+      T.eq('prepare · …and claims no rate', noRate.fs, null);
+      var halfHz = D.prepare({ t0Ms: T0, fs: 0.5, pressure: fill(1800, 8) });
+      T.eq('CONTROL · the SAME 1800 samples at 0.5 Hz are one hour', [halfHz.fs, halfHz.usageHours], [0.5, 1]);
+      var absentArg = D.prepare(0);
+      T.eq('an absent argument keeps the pinned legacy shape', [absentArg.fs, absentArg.usageHours], [1, 0]);
+
+      // ── ARM 2 · the EDF session ─────────────────────────────────────────────────────────────
+      var noDur = D.buildSessionFromEdf(pldSet(null, 15, 120), {});
+      T.eq('a header with no record duration invents no 60 s record', noDur.metrics.usageHours, null);
+      T.eq('…and says which fact is absent', noDur.metrics.usageReason, 'no-sample-rate');
+      var sixty = D.buildSessionFromEdf(pldSet(60, 15, 120), {});
+      T.eq('CONTROL · the same set with a 60 s record is 2 h', sixty.metrics.usageHours, 2);
+      T.eq('CONTROL · …and names no absence', sixty.metrics.usageReason == null, true);
+      var brpOnly = D.buildSessionFromEdf({ BRP: { clock: { t0Ms: T0 }, recordsRead: 10, recDurSec: null, signals: { 'Press.40ms': sig(250, 10, null, 25) } } }, {});
+      T.eq('a BRP fallback with no rate is not a 0.5 Hz lane (was 0.139 h for 10 s)', [brpOnly.metrics.usageHours, brpOnly.metrics.usageReason], [null, 'no-sample-rate']);
+
+      // ── ARM 3 · derived metrics ─────────────────────────────────────────────────────────────
+      var open = D.buildSessionFromEdf({ PLD: pldSet(null, 15, 120).PLD, CSL: { annotations: [{ class: 'Cheyne-Stokes', onsetSec: 100, durSec: 0, boundary: 'start' }] } }, {});
+      T.eq('an open CSL span is not scored against a made-up envelope (was 98.61 %)', open.metrics.periodicBreathingPct, null);
+      var openKnown = D.buildSessionFromEdf({ PLD: pldSet(60, 15, 120).PLD, CSL: { annotations: [{ class: 'Cheyne-Stokes', onsetSec: 100, durSec: 0, boundary: 'start' }] } }, {});
+      T.eq('CONTROL · with a measured envelope the same span IS scored', openKnown.metrics.periodicBreathingPct, 98.61);
+      // ∅ the WALL span: an absent duration is not a zero-length session (t0Ms + null × 1000 = t0Ms)
+      T.eq('no record duration ⇒ no session end and no session length', [noDur.endMs, noDur.durMin], [null, null]);
+      T.eq('CONTROL · a 60 s record gives a 2 h wall span', [sixty.endMs - sixty.t0Ms, sixty.durMin], [7200000, 120]);
+      var later = D.buildSessionFromEdf(pldSet(60, 15, 120), {});
+      later.t0Ms = T0 + 3 * 3600000;
+      later.endMs = later.t0Ms + 7200000;
+      var mixed = D.buildNight([noDur, later]);
+      T.eq('a night with an unknown session span reports no wall total, never a short sum', mixed.therapyHours, null);
+      T.eq('…and no off-mask gap after the session that has no end', mixed.offMaskGaps[0].gapMin, null);
+      var known = D.buildNight([sixty, later]);
+      T.eq('CONTROL · two known sessions give 4 h and a 60 min gap', [known.therapyHours, known.offMaskGaps[0].gapMin], [4, 60]);
+      var cls = D.classifyMode(fill(1200, 8), null);
+      T.eq('a mode call at no rate pools no window (was 8 × 150 samples)', [cls.mode, cls.nWindows], [null, 0]);
+      T.eq('CONTROL · 0.5 Hz gives 8 × 300 s windows', D.classifyMode(fill(1200, 8), 0.5).nWindows, 8);
+      T.eq('a window with no rate has no samples either', D.pressureEnvelope([1, 2, 3], null).length, 0);
+      var flow = fill(400, 0);
+      for (var i = 0; i < 400; i++) flow[i] = Math.sin(2 * Math.PI * (i / 25) * 0.25);
+      T.eq('a flow lane with no rate refuses the breath count (was counted at a guessed 25 Hz)', D.detectBreaths({ data: flow, fs: null }, null, {}).breathCount, null);
+      T.eq('CONTROL · 25 Hz still counts 4 breaths', D.detectBreaths({ data: flow, fs: 25 }, null, {}).breathCount, 4);
+      var sa2 = { signals: { SpO2: { data: fill(3600, 96), fs: 1, _spr: 60 } } };
+      var noSpan = D.oximetryLane(sa2, null);
+      T.eq('ODI refuses without a session duration (samples were taken as seconds)', [noSpan.odi, noSpan.odiReason], [null, 'no-session-duration']);
+      var withSpan = D.oximetryLane(sa2, 3600);
+      T.eq('CONTROL · with a duration the ODI is a rate', [typeof withSpan.odi, withSpan.odiReason], ['number', null]);
+    });
+
     group('CPAPDex helper floor — 9 + 2 drafts adopted: prepare defaults, envelope guards, EDF refusals (mutation-derived)', 'cpapdex-dsp · known-answer · mutation-pinned', function (T) {
       var C = env.CpapDsp || env.CPAPDSP;
       if (!C || typeof C.prepare !== 'function') {
@@ -90907,6 +90992,46 @@
          26.0 (below the cut) anchors "Very Poor"; 27 (just above the real cut, below 30.9) MUST read "Poor". */
       T.eq('calcVo2Cat · M 50-54 · VO₂ 26.0 (below the 26.1 cut) ⇒ "Very Poor"', vo2Cat(26.0, 52, 'M'), 'Very Poor');
       T.eq('calcVo2Cat · M 50-54 · VO₂ 27 (above the 26.1 cut, below 30.9) ⇒ "Poor"', vo2Cat(27, 52, 'M'), 'Poor');
+    });
+
+    /* ════ ∅ HRVDex profile — an unobserved maximum and an absent ACSM band ════
+     ABSENCE-SURVEY rows `524292f7b587` (`hrvdex-profile.js:49`) and `f168e1cda8fd` (`:608`). Two
+     defaults read as measurements on the profile card. `hrMax` fell to 0, so a dataset with no usable
+     heart rate printed "Max HR observed: 0 bpm" under a banner headed "Auto-detected from your data".
+     `calcVo2Cat` fell to an invented [25, 30, 35, 40, 45] ladder, and `femaleNorms` stops at '55-59',
+     so every woman aged 60 or over read a fitness category over cut points no paper carries. The male
+     table runs to '65-69', which is why the gap stayed hidden. */
+    group('∅ HRVDex profile — an unobserved HR maximum and an absent ACSM band refuse', 'hrvdex-profile · absence', function (T) {
+      var src = (env.sources && env.sources['hrvdex-profile.js']) || '';
+      var vo2Cat = env.HrvCalcVo2Cat;
+      T.ok('ANTI-VACUITY · the hrvdex-profile.js source is readable in this lane', src.length > 1000, 'env.sources["hrvdex-profile.js"] absent');
+      T.ok('ANTI-VACUITY · calcVo2Cat is wired into env', typeof vo2Cat === 'function', 'env.HrvCalcVo2Cat absent');
+      if (!src || typeof vo2Cat !== 'function') return;
+
+      var m = src.match(/const hrMax = ([^;]+);/);
+      T.ok('ANTI-VACUITY · the hrMax expression was extracted', !!m, 'the const hrMax line moved');
+      if (m) {
+        var hrMaxOf = new Function('_hrAll', 'return ' + m[1] + ';');
+        T.eq('no usable heart rate ⇒ the observed maximum is null', hrMaxOf([]), null);
+        T.eq('CONTROL · rows carrying heart rate ⇒ the real maximum', hrMaxOf([52, 71, 64]), 71);
+      }
+      var b = src.match(/Max HR observed: <strong>' \+ ([^,]+) \+ '<\/strong>'/);
+      T.ok('ANTI-VACUITY · the banner value was extracted', !!b, 'the Max HR banner line moved');
+      if (b) {
+        var bannerOf = new Function('hrMax', 'return ' + b[1] + ';');
+        T.eq('the banner says not detected, never 0 bpm', bannerOf(null), 'not detected');
+        T.eq('CONTROL · the banner prints a measured maximum', bannerOf(188), '188 bpm');
+      }
+      T.ok('the 0 arm is gone from the hrMax line', !/_hrAll\.length \? Math\.max\(\.\.\._hrAll\) : 0/.test(src), 'the : 0 default is back');
+
+      T.eq('a woman aged 62 has no published band ⇒ no category', vo2Cat(25, 62, 'F'), null);
+      T.eq('a woman aged 67 has no published band ⇒ no category', vo2Cat(25, 67, 'F'), null);
+      T.eq('CONTROL · a woman aged 52 sits in 50-54 and keeps her category', vo2Cat(25, 52, 'F'), 'Fair');
+      T.eq('CONTROL · a man aged 67 sits in 65-69, which the male table carries', vo2Cat(25, 67, 'M'), 'Fair');
+      T.ok('the invented cut points are gone', !/\[25, 30, 35, 40, 45\]/.test(src.replace(/\/\*[\s\S]*?\*\//g, '')), 'the fallback ladder is back');
+      T.ok('the band lookup refuses an absent band', /\[ab\];[\s\S]{0,40}if \(!t\) return null;/.test(src), 'the refusal is not wired');
+      T.ok('the card names the absent band', /no ACSM band \(age/.test(src), 'the caption does not name the gap');
+      T.ok('the call site still guards on an entered ground truth', /p\.vo2gt > 0 \? calcVo2Cat/.test(src), 'the vo2gt guard moved');
     });
 
     /* ════ 21g · OxyDex PROFILE PERSONALIZATION — known-answer (TEST-COVERAGE-FOLLOWUPS-II §1b) ════

@@ -49,7 +49,10 @@ function inferFromData() {
 
   // Max HR observed in ALL rows (lower bound for HRmax)
   const _hrAll = allRows.map((r) => r._hr).filter((v) => v > 0);
-  const hrMax = _hrAll.length ? Math.max(..._hrAll) : 0; // v2.9: guard empty array
+  /* ∅ — NO USABLE HEART RATE MEANS NO OBSERVED MAXIMUM. The `: 0` arm printed "Max HR observed:
+     0 bpm" under a banner headed "Auto-detected from your data", so a dataset carrying no heart rate at
+     all reported a measured maximum of zero. The resting-HR line four rows above already refuses. */
+  const hrMax = _hrAll.length ? Math.max(..._hrAll) : null;
 
   // ANS AGE composite REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴): a population
   // age-regression presented as a personal “autonomic age” — indefensible framing, no
@@ -140,7 +143,7 @@ function inferFromData() {
       ' &nbsp;·&nbsp; ' + morningPct + '% morning',
       ' &nbsp;·&nbsp; Resting HR: <strong>' + (restingHR != null ? restingHR + ' bpm' : 'not detected') + '</strong>',
       ' &nbsp;·&nbsp; HR range: <strong>' + (hrs.length ? Math.min(...hrs) + '–' + Math.max(...hrs) : '?–?') + ' bpm</strong>',
-      ' &nbsp;·&nbsp; Max HR observed: <strong>' + hrMax + ' bpm</strong>',
+      ' &nbsp;·&nbsp; Max HR observed: <strong>' + (hrMax != null ? hrMax + ' bpm' : 'not detected') + '</strong>',
       ' &nbsp;·&nbsp; <span style="color:var(--yellow)">🟡 Yellow = auto-estimated from HRV · Override with your real values</span>'
     ].join('');
     banner.style.display = 'block';
@@ -412,7 +415,9 @@ function updateProfile() {
   const vo2_abs = p.vo2gt > 0 ? ((p.vo2gt * p.weight) / 1000).toFixed(2) + ' L/min' : '—';
 
   // Use shared calcVo2Cat() — no duplicate table needed
-  const vo2CatStr = p.vo2gt > 0 ? calcVo2Cat(p.vo2gt, p.age, p.sex) : '(enter VO₂ GT)';
+  /* ∅ — the card names the absent band, in place of a category over invented cut points. */
+  const _vo2Cat = p.vo2gt > 0 ? calcVo2Cat(p.vo2gt, p.age, p.sex) : null;
+  const vo2CatStr = p.vo2gt > 0 ? (_vo2Cat != null ? _vo2Cat : 'no ACSM band (age ' + p.age + ' ' + p.sex + ')') : '(enter VO₂ GT)';
 
   // Full Baevsky AP (requires SBP+DBP)
   // BAP = 0.011×HR + 0.014×age + 0.008×SBP + 0.014×DBP - 0.009×weight - 0.009×height - 0.27
@@ -651,7 +656,11 @@ function calcVo2Cat(vo2, age, sex) {
                     : age < 65
                       ? '60-64'
                       : '65-69';
-  const t = (sex === 'M' ? maleNorms : femaleNorms)[ab] || [25, 30, 35, 40, 45];
+  /* ∅ — AN ABSENT ACSM BAND IS NOT A SET OF CUT POINTS. `femaleNorms` stops at '55-59', so every
+     woman aged 60 or over fell on the invented [25, 30, 35, 40, 45] ladder and read a category computed
+     from numbers no paper carries. The male table runs to '65-69', which is why the gap stayed hidden. */
+  const t = (sex === 'M' ? maleNorms : femaleNorms)[ab];
+  if (!t) return null;
   if (vo2 < t[0]) return 'Very Poor';
   if (vo2 < t[1]) return 'Poor';
   if (vo2 < t[2]) return 'Fair';
