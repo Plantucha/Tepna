@@ -31341,6 +31341,39 @@
       );
     });
 
+    group('∅ EEGDex — an EMG lead with no declared rate is absent, never read at the EEG rate', 'eegdex · compute · emg-rate', function (T) {
+      /* `rec.emgFs || fs` read an EMG or EOG lead of undeclared rate at the EEG's rate. Measured on one
+         480 s synthetic frame with the EMG decimated to 25 Hz: every window bound was multiplied by 4, so
+         four epochs saw tone and twelve saw none, and the permissive `== null` arm put those twelve into
+         REM — 8 REM epochs instead of 3, TST 0.117 h against 0.108, SE 87.5 against 81.3. The fix makes
+         an undeclared rate mean ABSENT, which stages exactly like a frame that never carried the lead. */
+      var E = env.EEGDSP || env.EEGDex || (typeof window !== 'undefined' && window.EEGDSP) || null;
+      if (!E || typeof E.compute !== 'function' || typeof E.genSynthetic !== 'function') {
+        T.ok('EEGDSP.compute is loaded', false, 'the engine is absent — this group must not read as a pass');
+        return;
+      }
+      var base = E.genSynthetic({ hz: 100, sec: 480 });
+      var emg25 = new Float32Array(base.emg.length / 4);
+      for (var i = 0; i < emg25.length; i++) emg25[i] = base.emg[i * 4];
+      var sig = function (r) {
+        return JSON.stringify([
+          r.stageCounts,
+          (r.hypnogram || []).map(function (e) {
+            return e.stage;
+          })
+        ]);
+      };
+      var none = E.compute({ samples: base.samples, fs: 100, t0Ms: null });
+      var undeclared = E.compute({ samples: base.samples, fs: 100, emg: emg25, t0Ms: null });
+      var declared = E.compute({ samples: base.samples, fs: 100, emg: emg25, emgFs: 25, t0Ms: null });
+      T.eq('§∅ · an EMG lead with no declared rate stages exactly as no EMG lead at all', sig(undeclared), sig(none));
+      T.ok('§∅ · …which is not the night a fabricated EEG rate produces', sig(undeclared) !== sig(declared));
+      T.eq('CONTROL · a declared rate still uses the lead', declared.stageCounts.REM, 3);
+      T.eq('§∅ · the dropped lead names its own reason', undeclared.leadAbsence && undeclared.leadAbsence.emg, 'emg-rate-undeclared');
+      T.eq('CONTROL · a declared lead names no reason', declared.leadAbsence.emg, null);
+      T.eq('CONTROL · a frame without the lead names no reason', none.leadAbsence.emg, null);
+    });
+
     group('EEGDex scores the deterministic synthetic to its pinned values', 'eegdex · compute · known-answer', function (T) {
       var D = env.EEGDSP;
       if (!D) {
