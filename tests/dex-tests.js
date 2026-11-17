@@ -48245,6 +48245,95 @@
       T.ok('the SignalFrame path throws rather than assuming 1 Hz', /refusing rather than assuming 1 Hz/.test(dsp), 'frame refusal present');
       T.ok('the frame duration rides the same refused rate', /durSec: s\.durSec != null \? s\.durSec : n > 1 \? \(n - 1\) \/ fs : 0,/.test(dsp), 'durSec reads fs directly');
     });
+    group('∅ PpgDex absence — the mean motion index averages covered cells only, and the magnetometer note reports its own absence', 'ppgdex-dsp · ppgdex-app · absence', function (T) {
+      var src = env.sources || {};
+      var dsp = src['ppgdex-dsp.js'] || '';
+      var app = src['ppgdex-app.js'] || '';
+      if (!dsp.trim() || !app.trim()) {
+        T.skip('the PpgDex motion-index road', 'sources not provided in this runner');
+        return;
+      }
+      // ── ANTI-VACUITY ──
+      T.ok(
+        'ANTI-VACUITY · the DSP still publishes a mean motion index and the app still renders one',
+        /meanMotionIndex:/.test(dsp) && /Mean motion idx/.test(app),
+        'dsp sites: ' + (dsp.match(/meanMotionIndex/g) || []).length + ' · app sites: ' + (app.match(/meanMotionIndex/g) || []).length
+      );
+
+      // ── THE PRODUCER, DRIVEN ──
+      var a0 = dsp.indexOf('const _miCov = [];');
+      var a1 = dsp.indexOf(';', dsp.indexOf('const meanMI = meanMIReason'));
+      T.ok('the mean and its cause are declared together', a0 > 0 && a1 > a0, 'start=' + a0 + ' end=' + a1);
+      if (a0 < 0 || a1 < a0) return;
+      var miBlock = dsp.slice(a0, a1 + 1);
+      var mean = function (a) {
+        if (!a.length) return NaN;
+        var s = 0;
+        for (var i = 0; i < a.length; i++) s += a[i];
+        return s / a.length;
+      };
+      var runMi = function (smArr, cov) {
+        return new Function('nG', 'covCell', 'sm', 'mean', miBlock + '\nreturn { v: meanMI, reason: meanMIReason };')(smArr.length, cov, smArr, mean);
+      };
+      // a ten-cell grid where only the first two cells carry inertial data, and both are moving
+      var sm10 = [0.8, 0.8, 0, 0, 0, 0, 0, 0, 0, 0];
+      var covered = runMi(sm10, [1, 1, 0, 0, 0, 0, 0, 0, 0, 0]);
+      T.eq('two moving covered cells of ten read the mean of those two', +covered.v.toFixed(2), 0.8);
+      T.eq('a measured mean carries no cause', covered.reason, null);
+      T.eq('CONTROL · the retired whole-grid mean read the eight uncovered cells as stillness', +mean(sm10).toFixed(2), 0.16);
+      var none = runMi(sm10, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+      T.eq('a grid with no covered cell refuses the mean', none.v, null);
+      T.ok('the refusal names the absent coverage', /no-inertial-coverage/.test(none.reason), '' + none.reason);
+      T.eq('CONTROL · the retired rounding helper turned that refusal into 0, the best value on the scale', new Function('v', 'return Math.round(v * 100) / 100;')(null), 0);
+      T.ok('so the publish site rounds through the absence-safe helper', /meanMotionIndex: r2n\(meanMI\),/.test(dsp), 'publish site reads r2n');
+      T.ok('the cause travels beside the value', /meanMotionIndexReason: meanMIReason,/.test(dsp), 'cause published');
+
+      // ── EVERY READER ──
+      T.eq('no reader grades the index with a raw lower-is-better ternary', (app.match(/meanMotionIndex < 0\.2/g) || []).length, 0);
+      T.ok('the KPI grades through the inverted helper', /pctClsDown\(m\.meanMotionIndex, 0\.2, 0\.5\)/.test(app), 'KPI migrated');
+      T.eq('both value readers print an em dash on an absence', (app.match(/m\.meanMotionIndex != null \? m\.meanMotionIndex :/g) || []).length, 2);
+      T.ok('the KPI sub-label names the cause', /m\.meanMotionIndexReason \? 'no inertial coverage'/.test(app), 'sub-label migrated');
+      T.ok('the node-export forwards the cause', /meanMotionIndexReason: r\.motion\.meanMotionIndexReason,/.test(app), 'export forwards the cause');
+      var mDown = app.match(/const pctClsDown = [^\n]*/);
+      T.ok('the app declares the inverted helper', !!mDown, 'helper present: ' + !!mDown);
+      if (mDown) {
+        var grade = function (v) {
+          return new Function('v', 'const pctAbsent = (x) => x == null || !isFinite(x);\n' + mDown[0] + '\nreturn pctClsDown(v, 0.2, 0.5);')(v);
+        };
+        T.eq('an absent index grades neutral', grade(null), 'neutral');
+        T.eq('a still 0.1 index grades ok', grade(0.1), 'ok');
+        T.eq('a restless 0.9 index grades bad', grade(0.9), 'bad');
+        var absentIdx = /** @type {any} */ (null);
+        T.eq('CONTROL · the retired band graded an absent index the best green', absentIdx < 0.2 ? 'ok' : absentIdx < 0.5 ? 'warn' : 'bad', 'ok');
+      }
+
+      // ── THE MAGNETOMETER NOTE: `hasMag` with no examinable epoch ──
+      var p0 = dsp.indexOf('const magInterferencePct = motion.hasMag');
+      T.ok('the percentage producer is readable', p0 > 0, 'at ' + p0);
+      if (p0 > 0) {
+        var pLine = dsp.slice(p0, dsp.indexOf('\n', p0));
+        var pct = function (hasMag, known, epochs) {
+          return new Function('motion', 'magKnown', 'magEpochs', pLine + '\nreturn magInterferencePct;')({ hasMag: hasMag }, known, epochs);
+        };
+        T.eq('a magnetometer with no examinable epoch refuses the percentage', pct(true, [], 0), null);
+        T.eq('two interfering epochs of four read 50', pct(true, [1, 2, 3, 4], 2), 50);
+        T.eq('no magnetometer refuses it too', pct(false, [1, 2], 1), null);
+      }
+      var m0 = app.indexOf('const magIntTxt =');
+      var m1 = app.indexOf(';', m0);
+      T.ok('the note text and its absence branch are declared together', m0 > 0 && m1 > m0, 'start=' + m0 + ' end=' + m1);
+      if (m0 > 0 && m1 > m0) {
+        var noteBlock = app.slice(m0, m1 + 1);
+        var txt = function (v) {
+          return new Function('r', noteBlock + '\nreturn magIntTxt;')({ magInterferencePct: v });
+        };
+        T.ok('a measured 7 percent still names the epochs', /on <b>7%<\/b> of epochs/.test(txt(7)), txt(7));
+        T.ok('an unexamined gate prints an em dash', /<b>—<\/b>/.test(txt(null)), txt(null));
+        T.ok('and it names why nothing was examined', /enough samples to examine/.test(txt(null)), txt(null));
+        T.eq('CONTROL · the retired expression published 0 percent, the cleanest possible field', new Function('v', "return (v != null ? v : 0) + '%';")(null), '0%');
+      }
+      T.eq('no reader coerces the percentage to zero', (app.match(/magInterferencePct != null \? r\.magInterferencePct : 0/g) || []).length, 0);
+    });
     group('∅ PulseDex absence — a nominal 14d/7d window is not a covered span, plus five pinned refusals', 'pulsedex-overview · pulsedex-dsp · pulsedex-render · absence', function (T) {
       var src = env.sources || {};
       var ov = src['pulsedex-overview.js'] || '';

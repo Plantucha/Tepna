@@ -540,7 +540,7 @@ import { PPGUI } from './ppgdex-render.js';
       <div class="q-stat"><div class="q-val ${r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad'}">${r.meanSQI}</div><div class="q-lbl">Mean SQI${evBadge('Mean SQI')}</div><div class="q-sub">→ Ganglior conf</div></div>
       ${r.ledAgreementPct != null ? `<div class="q-stat"><div class="q-val ${r.ledAgreementPct >= 90 ? 'ok' : r.ledAgreementPct >= 75 ? 'warn' : 'bad'}">${r.ledAgreementPct}%</div><div class="q-lbl">3-LED agree${evBadge('LED agreement')}</div><div class="q-sub">${r.ledAgree3of3Pct != null ? r.ledAgree3of3Pct + '% all-3' : 'optical consensus'}</div></div>` : ''}
     </div>
-    <div class="q-note">Per-pulse SQI = template cross-correlation against the median pulse × the <b>ACC+GYRO motion gate</b>. PPIs &gt;20% off the local median (Malik) are corrected; ${r.nCorrected} of ${r.nPulses.toLocaleString()} fixed. ${m && m.hasData ? `Motion bursts (accel-magnitude variance + gyro magnitude, resampled to the PPG base) <b>down-weight</b> pulses — wrist PPG's signature quality channel that OxyDex/ECGDex don't have. Mean motion index ${m.meanMotionIndex}.` : '<b>No ACC/GYRO loaded</b> — motion gating skipped; load the companion files for the full quality channel.'} SQI feeds the <b>conf</b> of every Ganglior event.</div>
+    <div class="q-note">Per-pulse SQI = template cross-correlation against the median pulse × the <b>ACC+GYRO motion gate</b>. PPIs &gt;20% off the local median (Malik) are corrected; ${r.nCorrected} of ${r.nPulses.toLocaleString()} fixed. ${m && m.hasData ? `Motion bursts (accel-magnitude variance + gyro magnitude, resampled to the PPG base) <b>down-weight</b> pulses — wrist PPG's signature quality channel that OxyDex/ECGDex don't have. Mean motion index ${m.meanMotionIndex != null ? m.meanMotionIndex : '— (no inertial coverage)'}.` : '<b>No ACC/GYRO loaded</b> — motion gating skipped; load the companion files for the full quality channel.'} SQI feeds the <b>conf</b> of every Ganglior event.</div>
     ${r.ledSeries && r.ledSeries.length && UI.ledRibbon ? `<div class="mini-h" style="margin-top:14px">${evBadge('LED agreement')}3-LED agreement ribbon <span class="mini-sub">green 3/3 · amber 2/3 (kept) · red 1/3 (dropped) · ref ch${r.channel}</span></div>${UI.ledRibbon(r.ledSeries, { W: 680, H: 120 })}<div class="q-note" style="margin-top:4px">The Polar Sense streams 3 optical channels; a beat is kept only when <b>≥2 of 3</b> place a systolic peak within ±50 ms (optical bSQI) — single-LED beats are <b>dropped, not median-filled</b> (${r.nDroppedBeats || 0} dropped this session). Low-agreement spans line up with the motion / poor-perfusion windows.</div>` : ''}`;
     $('qualitySection').style.display = 'block';
   }
@@ -664,7 +664,7 @@ import { PPGUI } from './ppgdex-render.js';
         : '<div class="q-note" style="text-align:center;padding:16px">motion index unavailable</div>';
     $('motionCard').innerHTML = `
     <div class="q-grid">
-      <div class="q-stat">${evBadge('Mean motion idx')}<div class="q-val ${m.meanMotionIndex < 0.2 ? 'ok' : m.meanMotionIndex < 0.5 ? 'warn' : 'bad'}">${m.meanMotionIndex}</div><div class="q-lbl">Mean motion idx</div><div class="q-sub">0 still · 1 moving</div></div>
+      <div class="q-stat">${evBadge('Mean motion idx')}<div class="q-val ${pctClsDown(m.meanMotionIndex, 0.2, 0.5)}">${m.meanMotionIndex != null ? m.meanMotionIndex : '—'}</div><div class="q-lbl">Mean motion idx</div><div class="q-sub">${m.meanMotionIndexReason ? 'no inertial coverage' : '0 still · 1 moving'}</div></div>
       <div class="q-stat"><div class="q-val ${pctClsDown(r.motionRejectedPct, 10, 30)}">${pctTxt(r.motionRejectedPct)}</div><div class="q-lbl">Pulses rejected${evBadge('Pulses rejected')}</div><div class="q-sub">${r.motionRejectedPctReason ? 'the gate did not run' : 'idx &gt; 0.5'}</div></div>
       <div class="q-stat"><div class="q-val neutral">${m.accFs || '—'}</div><div class="q-lbl">ACC Hz${evBadge('ACC Hz')}</div><div class="q-sub">${m.nAcc.toLocaleString()} samples</div></div>
       <div class="q-stat"><div class="q-val neutral">${m.gyroFs || '—'}</div><div class="q-lbl">GYRO Hz${evBadge('GYRO Hz')}</div><div class="q-sub">${m.nGyro.toLocaleString()} samples</div></div>
@@ -688,8 +688,12 @@ import { PPGUI } from './ppgdex-render.js';
           .sort((a, b) => b[1] - a[1])
           .map(([p, n]) => chip(p, Math.round((n / tot) * 100)))
           .join('') || '<span class="dim">insufficient coverage (&lt;30 s/epoch)</span>';
+      /* ∅ A null here is `hasMag` with NO examinable epoch (`ppgdex-dsp.js` keys the percentage
+         on `magKnown.length`), so printing 0 claimed the cleanest possible field on a gate that
+         never ran. Report the absence and name it. */
+      const magIntTxt = r.magInterferencePct != null ? `on <b>${r.magInterferencePct}%</b> of epochs` : '<b>—</b> on no epoch carrying enough samples to examine';
       const mag = m.hasMag
-        ? `<div class="q-note" style="margin-top:8px"><b>Magnetometer ✓</b> ${(m.nMag || 0).toLocaleString()} samples @ ${m.magFs || '—'} Hz · |B| baseline ${m.magBaseG} G · L/R datum ${m.refHeadingDeg != null ? m.refHeadingDeg + '°' : '—'} <span class="dim">(relative)</span>. Splits <code>lateral</code> → <code>lateral_L/R</code> via tilt-compensated heading; <code>magInterference</code> on <b>${r.magInterferencePct != null ? r.magInterferencePct : 0}%</b> of epochs — informational, does <b>not</b> alter SQI. <span class="dim">Earth-field-scale only · not biomagnetic HR.</span></div>`
+        ? `<div class="q-note" style="margin-top:8px"><b>Magnetometer ✓</b> ${(m.nMag || 0).toLocaleString()} samples @ ${m.magFs || '—'} Hz · |B| baseline ${m.magBaseG} G · L/R datum ${m.refHeadingDeg != null ? m.refHeadingDeg + '°' : '—'} <span class="dim">(relative)</span>. Splits <code>lateral</code> → <code>lateral_L/R</code> via tilt-compensated heading; <code>magInterference</code> ${magIntTxt} — informational, does <b>not</b> alter SQI. <span class="dim">Earth-field-scale only · not biomagnetic HR.</span></div>`
         : `<div class="q-note dim" style="margin-top:8px">No <code>*_MAGN.txt</code> for this session — L/R lateral merged as <code>lateral</code>. Drop the MAGN file to disambiguate sides + flag magnetic artifacts.</div>`;
       return `<div class="mini-h" style="margin-top:12px">${typeof evBadge === 'function' ? evBadge('Limb position') : ''}Limb position <span class="mini-sub">ACC gravity${m.hasMag ? ' + MAGN heading' : ''} · per-epoch in export</span></div><div style="display:flex;flex-wrap:wrap">${rows}</div>${mag}`;
     })()}`;
@@ -1361,6 +1365,7 @@ import { PPGUI } from './ppgdex-render.js';
         r.motion && r.motion.hasData
           ? {
               meanMotionIndex: r.motion.meanMotionIndex,
+              meanMotionIndexReason: r.motion.meanMotionIndexReason,
               motionRejectedPct: r.motionRejectedPct,
               motionRejectedPctReason: r.motionRejectedPctReason,
               source: 'ACC+GYRO',

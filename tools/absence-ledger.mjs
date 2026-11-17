@@ -1025,6 +1025,53 @@ export const SEEDS = [
     at: 'ppgdex-dsp.js:6203',
     state: 'fixed',
     note: 'the same refusal covers `durSec`, which took `(n - 1) / (fs || 1)` from the same absent rate. Pinned beside the relSec leg.'
+  },
+  {
+    at: 'ppgdex-dsp.js:3585',
+    state: 'fixed',
+    note: '`meanMotionIndex` averaged the WHOLE motion grid, so every cell with no ACC or GYRO sample entered as stillness and an inertial gap read as the best value on a lower-is-better scale. The mean now covers the `covCell` cells only, refuses with `meanMotionIndexReason` when no cell is covered, and rounds through `r2n` so the refusal survives the publish. Every reader grades through `pctClsDown` and prints an em dash. Plant: drop the `covCell` guard and 2 legs red; restore `r2` and a third reds; restore the raw ternary and 2 more red.'
+  },
+  {
+    at: 'ppgdex-app.js:610',
+    state: 'fixed',
+    note: 'a null `magInterferencePct` printed `0%`, the cleanest possible field, over a magnetometer gate that examined no epoch. The producer refuses when `magKnown` is empty, and `magIntTxt` now prints an em dash and names the absent sample population. Plant: restore the `: 0` coercion and 2 text legs red.'
+  },
+  {
+    at: 'ppgdex-app.js:1002',
+    state: 'fixed',
+    note: 'the node-export forwarded `motionRejectedPct` 0 from a gate that never ran. PR 5226 made the producer refuse with `motionRejectedPctReason`, and the export carries the cause beside the value. Pinned by the PpgDex motion-rejection group.'
+  },
+  {
+    at: 'ppgdex-dsp.js:2389',
+    state: 'fixed',
+    note: 'the `n < 20` branch filled every second with SQI 1, the best possible trust, over a beat population too small to calibrate. It now publishes `nSqi` 0, `sqiMedian` null, `sqiSource` null, `calibrated` false and a reason naming the beat floor. Pinned by the leg asserting `calibrated === false` with `fewer than 20 beats` in the reason.'
+  },
+  {
+    at: 'ppgdex-dsp.js:2737',
+    state: 'fixed',
+    note: 'an omit mask leaving under two intervals fell back to the whole record, so SDNN described a population the mask had excluded. `dispersionReason` now refuses the dispersion arm and publishes the surviving count beside it. Pinned by the leg reading `[out.dispersionReason, out.nDispersion]`.'
+  },
+  {
+    at: 'ppgdex-dsp.js:2756',
+    state: 'fixed',
+    note: 'no clean adjacent pair fell back to every raw pair, so rMSSD and pNN50 described the intervals the clean mask had rejected. `beatPairReason` now refuses both, and an unmasked record still publishes both arms. Pinned by the leg reading `[out.dispersionReason, out.beatPairReason]`.'
+  },
+  {
+    at: 'ppgdex-dsp.js:4246',
+    state: 'fixed',
+    note: 'the export published `magInterference` false for a window the magnetometer gate refused, which reads as a clean field. `magInterfAtSec` returns null with no magnetometer or under the sample floor, and the export guard reads `post.magInterf != null`. Pinned by three legs asserting null rather than false.'
+  },
+  {
+    at: 'ppgdex-dsp.js:2146',
+    state: 'accepted-with-reason',
+    reason:
+      '0 is the IDENTITY of this axis, not a fabricated stillness: `motFactor = 1 - min(1, mot)` makes `mot` 0 leave the per-beat quality untouched, so a recording with no inertial stream carries no motion axis at all. The absence travels out of band at every surface, through `motion.hasData`, `motionRejectedPctReason` and `motionCoveredAtSec`.'
+  },
+  {
+    at: 'ppgdex-dsp.js:3396',
+    state: 'accepted-with-reason',
+    reason:
+      '`motionAtSec` keeps a numeric contract deliberately: it runs on every beat in two hot loops and several callers compare it against a threshold, so a tri-state return would change every caller. The tri-state companion `motionCoveredAtSec` answers the coverage question beside it, and the comment above the function states the concession and names the companion.'
   }
 ];
 

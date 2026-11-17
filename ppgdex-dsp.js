@@ -4840,7 +4840,15 @@
     let _nCov = 0;
     for (let i = 0; i < nG; i++) if (covCell[i]) _nCov++;
     const motionCoveredFrac = nG ? _nCov / nG : 0;
-    const meanMI = mean(Array.from(sm));
+    /* ∅ The mean over the WHOLE grid enters every uncovered cell as stillness, so an inertial
+       gap reads as the BEST value on a lower-is-better scale. That is the `actigraphy()` defect
+       named above, reproduced in the summary. Average the COVERED cells only, and refuse when no
+       cell carries inertial data. The 3-cell smoother still bleeds a gap into its neighbours, so
+       this mean is honest about the population it averages, not about every member of it. */
+    const _miCov = [];
+    for (let i = 0; i < nG; i++) if (covCell[i]) _miCov.push(sm[i]);
+    const meanMIReason = _miCov.length ? null : 'no-inertial-coverage';
+    const meanMI = meanMIReason ? null : mean(_miCov);
     // display series (downsampled, per ~minute or per cell)
     const series = [];
     const stride = Math.max(1, Math.floor(nG / 600));
@@ -5028,7 +5036,8 @@
       motionCoveredFrac: r2(motionCoveredFrac),
       postureAtSec,
       postureDetailAtSec,
-      meanMotionIndex: r2(meanMI),
+      meanMotionIndex: r2n(meanMI),
+      meanMotionIndexReason: meanMIReason,
       series,
       accFs: _accHz != null ? Math.round(_accHz) : null,
       gyroFs: _gyroHz != null ? Math.round(_gyroHz) : null,
