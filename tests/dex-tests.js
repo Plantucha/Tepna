@@ -9843,6 +9843,42 @@
       T.ok('strong monotone rise → significant=true', rising.metrics.m.change && rising.metrics.m.change.significant === true);
     });
 
+    /* ════ ∅ · CPAPDex cross-night — an unmeasurable z is absent, not 0σ ════ */
+    group('∅ cpapdex-cross — an unmeasurable z is absent, never 0σ', 'crossnight · cpapdex-cross · absence · in-band-default', function (T) {
+      var CP = env.CPAPCross;
+      if (!(CP && CP.crossNight)) {
+        T.skip('cpapdex crossNight engine', 'cpapdex-cross.js not co-loaded in this runner');
+        return;
+      }
+      var clean = [
+        { x: 0, v: 10, w: 1 },
+        { x: 1, v: 10.2, w: 1 },
+        { x: 2, v: 10.1, w: 1 },
+        { x: 3, v: 20, w: 1 }
+      ];
+      /* ONE non-finite weight in the PRIOR makes every weighted moment NaN, so `z` is NaN and the
+         old fallback published 0σ beside `baselineSd: null`. Fix credited to Shrike (task 29). */
+      var badW = [
+        { x: 0, v: 10, w: NaN },
+        { x: 1, v: 10.2, w: 1 },
+        { x: 2, v: 10.1, w: 1 },
+        { x: 3, v: 20, w: 1 }
+      ];
+      var bad = CP.crossNight(badW, {});
+      T.ok('∅ zLatest is PRESENT when a weight is no number', 'zLatest' in bad);
+      T.eq('∅ …and it is null, never 0σ', bad.zLatest, null);
+      T.eq('∅ …and zSaturated claims no clamp that never ran', bad.zSaturated, false);
+      T.eq('∅ …while the baseline SD that does not exist stays null', bad.baselineSd, null);
+      var ok = CP.crossNight(clean, {});
+      T.ok('CONTROL · a clean series still publishes a finite z', typeof ok.zLatest === 'number' && isFinite(ok.zLatest), 'z=' + ok.zLatest);
+      T.ok('CONTROL · …and still saturates the real clamp it runs', ok.zSaturated === true, 'z=' + ok.zLatest);
+      var src = env.sources && env.sources['cpapdex-cross.js'];
+      if (src) {
+        var code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+        T.ok('SOURCE SCAN · cpapdex-cross.js answers no non-finite z with 0', !/!\s*isFinite\(\s*z\s*\)\s*\)\s*z\s*=\s*0\b/.test(code));
+      }
+    });
+
     /* ════ 3 · CROSS-NIGHT BASELINE mean/sd (#7) ════ */
     group('Cross-night baseline mean/sd published (#7)', 'ecgdex-cross · crossnight-envelope', function (T) {
       var CC = env.ECGCross,

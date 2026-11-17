@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="f1f85e2df27c" data-compute-hash="6c2d7de3b176">
+<html lang="en" data-manifest-hash="75a7be1b6b1d" data-compute-hash="6348577fa9ed">
 <head>
 <!--
   CPAPDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8/+58wkmV9rUBvGXaXo+7w//UmA5VNCP8WCnW0wmW0E=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-IYtPQQAttPMNB2NiNkS8S1qpXYYVSRc7XSOhVhskBdU=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-niNMad+2HhdGRiknIhdE7D9k7mwlZ9ih4f5RuvbWEyk=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-tNA+Z0bcxEDDSAtStUUWR6iaE5gbxxPZMmCJPSWoD0o=' 'sha256-u2kUGQHnA4mMyIEJVB73p+8Gx1l8YYCl+risG672p+c='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8/+58wkmV9rUBvGXaXo+7w//UmA5VNCP8WCnW0wmW0E=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-lHdzqkO8gBEYxuhqJ6Td1ND6NheTWM2QYHMdLI4LcUw=' 'sha256-niNMad+2HhdGRiknIhdE7D9k7mwlZ9ih4f5RuvbWEyk=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-tNA+Z0bcxEDDSAtStUUWR6iaE5gbxxPZMmCJPSWoD0o=' 'sha256-u2kUGQHnA4mMyIEJVB73p+8Gx1l8YYCl+risG672p+c='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.34.0</title>
@@ -9730,7 +9730,18 @@ __exports.CPAPDex = window.CPAPDex;
       const psFloor = Math.max(psRaw, 1e-6 * Math.max(1, Math.abs(pm)));
       baselineSd = r1(psFloor);
       let z = (vals[n - 1] - pm) / psFloor;
-      if (!isFinite(z)) z = 0;
+      /* §∅ — AN UNMEASURABLE RATIO IS ABSENT, NEVER 0σ — the sibling of residue
+         `2026-11-11-crossnight-z-prints-a-saturated-clamp`. This read `if (!isFinite(z)) z = 0`, so a
+         baseline that produced no number at all published "the newest night sits exactly at your
+         baseline". It is reachable: `crossNight` reads `p.w` without a numeric check, and ONE
+         non-finite weight in the prior makes every weighted moment NaN — CPAPDex's own
+         `nightWeight` answers NaN for a non-numeric usage statement, and the legacy block path
+         hands it straight through, where one series read `zLatest 0` beside `baselineSd null`.
+         `zLatest` keeps `null` (its `zLatest != null` readers print an em dash and `zFlag` answers
+         null), and `zSaturated` stays false rather than claiming a clamp that never ran.
+         Same fix as `oxydex-cross.js` (unit `oxycross`); the six clones are graded against each
+         other, so a fallback in three of them is a fallback in the family. */
+      if (!isFinite(z)) z = null;
       /* A SATURATED BOUND IS NOT A MEASUREMENT (residue
          `2026-11-11-crossnight-z-prints-a-saturated-clamp`). The clamp above is a DISPLAY guard, so
          AT the bound the published number stops being the ratio it names: three steady recordings
@@ -9742,8 +9753,8 @@ __exports.CPAPDex = window.CPAPDex;
          as "≥", and the projection in `crossnight-envelope.js` is hand-picked, so the field is
          invisible to the export until it is named there too. */
       const Z_SAT = 20;
-      zSaturated = Math.abs(z) > Z_SAT;
-      zLatest = r2(Math.max(-Z_SAT, Math.min(Z_SAT, z)));
+      zSaturated = z != null && Math.abs(z) > Z_SAT;
+      zLatest = z == null ? null : r2(Math.max(-Z_SAT, Math.min(Z_SAT, z)));
     }
     // significance
     const boot = bootstrapDeltaCI(vals);
