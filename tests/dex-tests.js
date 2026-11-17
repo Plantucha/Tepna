@@ -6759,6 +6759,101 @@
        These assertions plant the counter-example that premise forbids: a channel that is the best in
        the middle and among the worst everywhere else. Known-answer, since the test chooses the
        noise it plants. */
+    /* TASK 22 — IN-BAND DEFAULTS. Two absences that used to answer with a number: a sample rate the
+       file did not establish (the 176 Hz literal at ppgdex-dsp.js:1544) and a reference channel
+       nobody scored (`pickChannel`'s `best = 0`, published as "ch0 (best SNR)").
+       The 20-row arm is the live one: `deltas.length > 20` discarded the device deltas the file DID
+       carry, so a 125 Hz file published 176 Hz and a duration 41 % short. The stuck-counter arm is
+       the residual: no delta and no readable clock means no axis, and an axis cannot be annotated. */
+    group('PPGDex ∅ — a measured rate is never replaced by 176, and no scored channel is not ch0', 'ppgdex-dsp · absence · sample-rate · channel', function (T) {
+      var P = env.PPGDSP || env.PpgDex;
+      if (!P || typeof P.parsePPG !== 'function') {
+        T.skip('PpgDex.parsePPG available', 'PPGDSP not co-loaded in this runner');
+        return;
+      }
+      var HDR1 = 'Phone timestamp;sensor timestamp [ns];channel 0';
+      var mk = function (n, nsAt, phoneAt) {
+        var L = [HDR1];
+        for (var i = 0; i < n; i++) L.push(phoneAt(i) + ';' + nsAt(i) + ';' + (200000 + i));
+        return L.join('\n');
+      };
+      var at125 = function (i) {
+        return String(i * 8000000);
+      };
+      var noClock = function () {
+        return '-'; // a phone column that is present and unparseable — the layout still resolves
+      };
+
+      /* A · THE RATE. 20 rows is under the old `> 20` gate, so the else arm ran and 176 survived. */
+      var a = P.parsePPG(mk(20, at125, noClock), {});
+      T.ok('CONTROL — a 20-row file with an unreadable phone column parses', !!(a && a.fs > 0), 'fs ' + (a && a.fs));
+      T.eq('…and its rate is the one its OWN device deltas measured, not the 176 Hz default', a.fs, 125);
+      T.approx('…so its duration follows 125 Hz, not 176', a.durSec, 19 / 125, 1e-9);
+      T.ok('…and the rate is present on the record, not merely truthy', 'fs' in a);
+
+      var b = P.parsePPG(mk(44, at125, noClock), {});
+      T.eq('CONTROL — a 44-row file (the old `> 20` arm) is unchanged at its device median', b.fs, 125);
+
+      /* B · NO RATE AT ALL: a stuck device counter and no readable clock. 176 is a guess, so refuse. */
+      var stuckTxt = mk(
+        12,
+        function () {
+          return '0';
+        },
+        noClock
+      );
+      var stuck;
+      try {
+        P.parsePPG(stuckTxt, {});
+        stuck = { ok: true };
+      } catch (e) {
+        stuck = { ok: false, reason: e.reason, msg: e.message };
+      }
+      T.eq('a stuck counter with no readable clock refuses a sample rate rather than assuming 176', JSON.stringify(stuck.reason), '"no-sample-rate"');
+      T.ok('…and the refusal names the rate, not a column layout', /rate/i.test(stuck.msg || '') && !/column layout/i.test(stuck.msg || ''), String(stuck.msg));
+
+      var stamp = function (i) {
+        return new Date(Date.UTC(2026, 10, 17, 3, 0, 0) + i * 8).toISOString().replace('Z', '');
+      };
+      var c = P.parsePPG(
+        mk(
+          12,
+          function () {
+            return '0';
+          },
+          stamp
+        ),
+        {}
+      );
+      T.eq('CONTROL — the same stuck rows WITH a readable clock take the phone span instead of refusing', c.fs, 125);
+
+      /* C · THE CHANNEL. Every channel unscored: the pick has no rank to publish. */
+      var absent = new Float64Array(2000);
+      absent.fill(NaN);
+      var sel0 = P.pickChannel({ ch: [absent, absent], fs: 100 });
+      T.eq('a record whose every channel is unscored marks the pick as UNSCORED', JSON.stringify(sel0.scored), 'false');
+      T.eq("…while the detector still runs on the layout's first channel", sel0.idx, 0);
+
+      var relSec = function (n, fs) {
+        var r = new Float64Array(n);
+        for (var i = 0; i < n; i++) r[i] = i / fs;
+        return r;
+      };
+      var rec = function (chs) {
+        return { ch: chs, fs: 100, n: chs[0].length, relSec: relSec(chs[0].length, 100), durSec: (chs[0].length - 1) / 100, t0Ms: 1763348400000 };
+      };
+      var an0 = P.analyze(rec([absent, absent]), null);
+      T.eq('the analysis publishes NO reference channel when none was scored', JSON.stringify(an0.channel), 'null');
+      T.ok('…and the null is a published field, not a missing one', 'channel' in an0 && 'channelReason' in an0);
+      T.ok('…and names the absence rather than leaving a bare null', typeof an0.channelReason === 'string' && an0.channelReason.length > 20, String(an0.channelReason));
+
+      var pulse = new Float64Array(2000);
+      for (var k = 0; k < pulse.length; k++) pulse[k] = Math.sin((2 * Math.PI * 1.0 * k) / 100) * 1000;
+      var an1 = P.analyze(rec([absent, pulse]), null);
+      T.eq('CONTROL — one scored channel is still named as the reference', an1.channel, 1);
+      T.eq('…and carries no absence reason', an1.channelReason, null);
+    });
+
     group('the reference channel is scored over the whole night, so a clean midpoint cannot win it', 'ppgdex-dsp · PPGDEX-ALGORITHM-DEEP-DIVE-item-6 · known-answer', function (T) {
       var P = env.PPGDSP || env.PpgDSP;
       if (!P || typeof P.pickChannel !== 'function' || typeof P.bandpass !== 'function' || typeof P.std !== 'function') {
