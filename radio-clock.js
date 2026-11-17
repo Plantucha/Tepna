@@ -344,7 +344,14 @@
       hostSpanMs: hostSpan,
       devSpanMs: devSpan,
       spanMs: span,
-      ratio: span > 0 ? step / span : step > 0 ? Infinity : 0
+      /* §∅ — A SEQUENCE WITH NO SPAN HAS NO RATIO, AND 0 IS THE MOST PERMISSIVE ANSWER A BOUND
+         CAN RECEIVE: `radioAxis` admits continuity on anything under 1, so a zero-span twin of a
+         healthy stream would pass the one criterion this reader keeps of its own — the defect the
+         `wild-anchor-census` row measured on the accepted streams, published here as a pass. The
+         division is undefined, not small, so it is `null`: `radioAxis` already refuses a null ratio
+         by name ('continuity cannot be decided'), and `tools/wild-anchor-census.mjs:163` already
+         maps a non-finite ratio to null, which is the vocabulary this field is read in. */
+      ratio: span > 0 ? step / span : step > 0 ? Infinity : null
     };
   }
 
@@ -571,10 +578,19 @@
     for (i = 0; i < list.length; i++) {
       var a = list[i];
       if (!a || !isFinite(a.devMs) || !isFinite(a.hostMs)) continue;
-      var r = a.hostMs - a.devMs - correctionAt(a.devMs);
+      /* §∅ — `null` IS NOT ZERO, AND THIS ARITHMETIC CANNOT SEE THE DIFFERENCE.
+         `hostMs - devMs - null` is `hostMs - devMs - 0`, so a curve that answers `null` — the
+         natural way to say "I have no correction at this instant" — handed this anchor the WHOLE
+         correction as a zero and the guard below found a finite residual. The offset would then
+         travel in the floor series as a step rather than a constant, which is the one thing the
+         header's shift-invariance argument does not cover: a constant cancels between the windows,
+         a missing correction does not. Read the curve first and make an absent answer the NaN the
+         guard already refuses by name. */
+      var corr = correctionAt(a.devMs);
+      var r = corr == null ? NaN : a.hostMs - a.devMs - corr;
       if (!isFinite(r)) {
-        /* A curve that answers a non-finite correction leaves this anchor
-           unreadable, which is a drop and never a residual of zero. */
+        /* A curve that answers no correction, or a non-finite one, leaves this
+           anchor unreadable, which is a drop and never a residual of zero. */
         dropped++;
         n--;
         continue;
@@ -602,7 +618,16 @@
     cs.sort(function (x, y) {
       return x - y;
     });
-    var counts = { windows: hi - lo + 1, usedWindows: keys.length, anchorsPerWindow: med(cs) };
+    /* §∅ — A WINDOW COUNT IS A SPAN, and the span of NO window is `hi - lo + 1` over an empty
+       key set, which is `-Infinity`: a number a consumer can print, average or compare, arriving
+       exactly when no residual survived to occupy a window. Measured before this line existed:
+       `anchorFloor(anchors, () => NaN)` published `windows: -Infinity` beside `usedWindows: 0`,
+       and the refusal's own sentence read "the anchors fill 0 window(s)". The population that was
+       read stays real in `usedWindows` and `dropped`; the span is absent. */
+    /* `med(<empty>)` answers NaN, so the per-window count of a key set that never formed is
+       read only when there is a population to read it over — `NaN` is a number to every guard
+       that tests `== null`, and it travels to a renderer as "NaN" (§∅). */
+    var counts = { windows: keys.length > 0 ? hi - lo + 1 : null, usedWindows: keys.length, anchorsPerWindow: cs.length ? med(cs) : null };
     if (keys.length < 2) {
       /* ONE WINDOW IS ONE NUMBER, and a MAD over one number is 0 — which reads
          as a perfectly sharp floor measured on nothing. The floor of the

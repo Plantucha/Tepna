@@ -2528,6 +2528,131 @@
       );
     });
 
+    group('∅ radio-clock floor — the residual a curve could not read, and the window count it left', 'clock · radio-clock · floor-absence', function (T) {
+      var DR = env.DexRadio || (typeof DexRadio !== 'undefined' ? DexRadio : null);
+      if (!DR || typeof DR.anchorFloor !== 'function' || typeof DR.anchorStep !== 'function') {
+        T.ok('DexRadio.anchorFloor is reachable', false, 'radio-clock.js not loaded — this group cannot run and must not read as a pass');
+        return;
+      }
+
+      /* The geometry the band group plants: 400 anchors at 1 s with a 5.5 ms
+         delay, so two windows of the default 300 s. `correctionAt` is INJECTED,
+         because this group asks what the floor does with a curve that answers
+         nothing — the spine's own curve never does, and a caller's can. */
+      function anchorsOf(n) {
+        var out = [];
+        for (var i = 0; i < n; i++) out.push({ devMs: 1000 + i * 1000, hostMs: 1000 + i * 1000 + 5.5, seg: null });
+        return out;
+      }
+      var A = anchorsOf(400);
+
+      var ctl = DR.anchorFloor(
+        A,
+        function () {
+          return 5.5;
+        },
+        {}
+      );
+      T.ok(
+        'CONTROL · a curve that answers a number fills two windows and reads a real floor',
+        ctl.reason === null && ctl.windows === 2 && ctl.usedWindows === 2 && ctl.anchorsPerWindow === 200 && ctl.n === 400 && ctl.dropped === 0,
+        JSON.stringify({ windows: ctl.windows, used: ctl.usedWindows, per: ctl.anchorsPerWindow, n: ctl.n, dropped: ctl.dropped })
+      );
+
+      /* ── 1 · a null correction was subtracted as 0 ────────────────────────
+         `hostMs - devMs - null` is `hostMs - devMs - 0`, so the anchor carried
+         the WHOLE clock correction as a zero and the finiteness guard below
+         never saw it. A constant correction cancels between the windows — a
+         MISSING one does not, which is why the header's shift-invariance
+         argument does not cover this. */
+      var nullC = DR.anchorFloor(
+        A,
+        function () {
+          return null;
+        },
+        {}
+      );
+      T.ok(
+        '∅ 🔴 a curve that answers `null` is NOT a curve that answers 0: every anchor is dropped and counted',
+        nullC.reason !== null && nullC.n === 0 && nullC.dropped === 400,
+        JSON.stringify({ n: nullC.n, dropped: nullC.dropped, reason: nullC.reason })
+      );
+      T.ok(
+        '∅ …and the floor it could not read is null, never a 0 ms scatter measured against a correction of zero',
+        'floorMadMs' in nullC && nullC.floorMadMs === null && 'floorOverBulk' in nullC && nullC.floorOverBulk === null,
+        JSON.stringify({ floorMadMs: nullC.floorMadMs, floorOverBulk: nullC.floorOverBulk })
+      );
+      T.ok(
+        '∅ …and every key is still PUBLISHED, so the absence travels as an absence and not as a missing field',
+        'windows' in nullC && 'floorBelowMedianMs' in nullC && 'asymmetry' in nullC && 'usedWindows' in nullC,
+        Object.keys(nullC).join(',')
+      );
+
+      /* ── 2 · the span of no window is not minus infinity ─────────────────── */
+      var nanC = DR.anchorFloor(
+        A,
+        function () {
+          return NaN;
+        },
+        {}
+      );
+      T.ok('∅ 🔴 no residual survived, so the window SPAN is null — it read -Infinity before this group existed', 'windows' in nanC && nanC.windows === null, 'windows=' + String(nanC.windows));
+      T.ok(
+        '∅ …while the population actually read stays real beside it',
+        nanC.usedWindows === 0 && nanC.dropped === 400 && nanC.n === 0 && nanC.reason !== null,
+        JSON.stringify({ used: nanC.usedWindows, dropped: nanC.dropped, n: nanC.n, reason: nanC.reason })
+      );
+      T.ok(
+        '∅ …and no statistic derived from a population that never formed is a number',
+        nanC.floorMadMs === null && nanC.bulkIqrMs === null && nanC.anchorsPerWindow === null && nanC.asymmetry === null,
+        JSON.stringify({ mad: nanC.floorMadMs, iqr: nanC.bulkIqrMs, per: nanC.anchorsPerWindow })
+      );
+
+      /* ── 3 · a sequence with no span has no ratio ─────────────────────────
+         `radioAxis` admits continuity on anything under 1, so 0 is the most
+         permissive value this bound can receive on the one criterion the reader
+         keeps of its own. */
+      var flat = [];
+      for (var j = 0; j < 40; j++) flat.push({ devMs: 1000, hostMs: 5000, seg: null });
+      var stFlat = DR.anchorStep(flat);
+      T.ok('∅ 🔴 a sequence with no span publishes NO ratio: a 0 would read as maximally continuous', 'ratio' in stFlat && stFlat.ratio === null && stFlat.spanMs === 0, JSON.stringify(stFlat));
+      T.ok(
+        '∅ …and the step it measured beside it is a real 0, which is what makes the ratio undefined rather than absent',
+        'rawStepMs' in stFlat && stFlat.rawStepMs === 0 && stFlat.hostSpanMs === 0 && stFlat.devSpanMs === 0,
+        JSON.stringify({ raw: stFlat.rawStepMs, host: stFlat.hostSpanMs, dev: stFlat.devSpanMs })
+      );
+      var stLive = DR.anchorStep([
+        { devMs: 0, hostMs: 0, seg: null },
+        { devMs: 1000, hostMs: 1001, seg: null }
+      ]);
+      T.ok('CONTROL · a real span still publishes a finite ratio', typeof stLive.ratio === 'number' && isFinite(stLive.ratio) && stLive.ratio > 0, String(stLive.ratio));
+      var stOne = DR.anchorStep([{ devMs: 0, hostMs: 0 }]);
+      T.ok(
+        'CONTROL · one anchor still answers the all-null shape, with every key present',
+        'ratio' in stOne && stOne.ratio === null && 'rawStepMs' in stOne && stOne.rawStepMs === null,
+        JSON.stringify(stOne)
+      );
+
+      /* ── the shape, not the lines I edited ────────────────────────────────
+         Each pattern is the fabricated-number expression itself, so a fourth
+         copy of the same mistake anywhere in the module reds this line. */
+      var src = ((env.sources || {})['radio-clock.js'] || '')
+        .split('\n')
+        .filter(function (ln) {
+          var t = ln.trim();
+          return t.indexOf('//') !== 0 && t.indexOf('*') !== 0 && t.indexOf('/*') !== 0;
+        })
+        .join('\n');
+      if (!src.trim()) {
+        T.skip('radio-clock.js source', 'sources not provided in this runner');
+      } else {
+        var bad = [];
+        var pats = [/-\s*correctionAt\(a\.devMs\)/, /windows: hi - lo \+ 1/, /\? Infinity : 0\b/];
+        for (var pi = 0; pi < pats.length; pi++) if (pats[pi].test(src)) bad.push(pats[pi].source);
+        T.ok('∅ the three fabricated-number shapes are gone from the module, scanned rather than assumed', bad.length === 0, 'still present: ' + bad.join(' | '));
+      }
+    });
+
     group('OxyDex §∅ — an ABSENT oximetry index is not a measured zero, and Normal is a claim', 'oxydex-dsp · absence', function (T) {
       var _odn = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var OD = (_odn && _odn._bare) || _odn;
