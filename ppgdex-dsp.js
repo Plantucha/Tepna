@@ -1541,7 +1541,13 @@
       throw err;
     }
     // fs from median ns delta (precise) — fall back to phone-clock span
-    let fs = 176;
+    /* §∅ — A RATE NOBODY MEASURED IS NULL, NEVER 176. The literal used to stand in for the rate and
+       then answer for it: with 21 or fewer samples the `deltas.length > 20` gate below ignored the
+       device deltas the file DID carry, so a 125 Hz file published 176 Hz (the Verity's nominal
+       rate) and a duration 41 % short. 176 is not a floor here, it is a guess. Where NO rate can be
+       measured this refuses, as the frame path in `compute` already does: the axis itself would be
+       fabricated, and a fabricated axis cannot be annotated (owner ruling 2026-09-17). */
+    let fs = /** @type {number|null} */ (null);
     const deltas = [];
     for (let i = 1; i < n; i++) {
       const d = nsArr[i] - nsArr[i - 1];
@@ -1609,10 +1615,15 @@
       _lastTsMemo = t;
       return t;
     };
-    if (deltas.length > 20) {
+    if (deltas.length) {
       const md = median(deltas);
       if (md > 0) fs = 1e9 / md;
-      if (md > 0) {
+      /* TWO QUESTIONS, TWO FLOORS. The RATE needs one delta; the delta CONCENTRATION is a share over a
+         population and keeps its 20-delta floor — a 20-delta share is a sample of one, and the
+         drawn-axis contract (and its group) publish `quantizedShare: null` rather than a share over
+         it. One gate answered both before this split, so the rate had to wait for a population it
+         never needed. */
+      if (deltas.length > 20 && md > 0) {
         let same = 0;
         for (let i = 0; i < deltas.length; i++) if (deltas[i] === md) same++;
         quantizedShare = same / deltas.length;
@@ -1624,6 +1635,15 @@
       if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {
         fs = (n - 1) / ((lastTs.tMs - firstTs.tMs) / 1000);
       }
+    }
+    if (fs == null || !(fs > 0)) {
+      const err = /** @type {any} */ (
+        new Error(
+          'PpgDex.parsePPG: this stream carries no measurable sample rate — every device ns delta is zero or unreadable, and no row carries a parseable clock to span — so the time axis cannot be built. Refusing rather than assuming 176 Hz (CLAUDE.md §∅: a rate that was not measured is null, never a number).'
+        )
+      );
+      err.reason = 'no-sample-rate';
+      throw err;
     }
     // `fs` is derived from the DEVICE's ns deltas, so it is samples per DEVICE second. Once relSec is
     // host-disciplined, it must become samples per HOST second or `1/fs` no longer matches the spacing
@@ -2486,7 +2506,9 @@
         best = c;
       }
     }
-    return { idx: best, scores };
+    /* `scored` is the absence channel: `idx` must stay a real position so the detector has a
+       waveform, but a record where every channel returned `snr: null` never chose a reference. */
+    return { idx: best, scores, scored: bestScore !== -Infinity };
   }
 
   // ── HARMONIC-OUTLIER REFERENCE GUARD (PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE §1 residual) ──
@@ -6884,8 +6906,12 @@
       tierMsg,
       longRec,
       relSec: rec.relSec,
-      channel: sel.idx,
+      /* §∅ — A RANK NOBODY SCORED IS NULL, NEVER ch0. `pickChannel` keeps `idx = 0` so the detector
+         still has a waveform; a record whose every channel scored null never picked a reference, and
+         the banner's "ch0 (best SNR)" was a rank with no measurement behind it. */
+      channel: sel.scored ? sel.idx : null,
       channelScores: sel.scores,
+      channelReason: sel.scored ? null : 'no channel carried a scoreable window — the analysis ran on the layout’s first channel, which is a position, not a measured best',
       disp: bp,
       peakSamp: det.peaks,
       footSamp: det.feet,
