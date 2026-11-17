@@ -16203,6 +16203,95 @@
       });
     });
 
+    /* §CHART-GRID — a two-column chart row sizes to its TALLEST card, and the `align-items` default
+       of `stretch` grows the short card's border box while the svg inside it keeps the intrinsic
+       height its own viewBox gives it. That leaves empty bordered surface under the short chart.
+       ECGDex met it first and `align-items:start` repaired it there, and the repair landed with NO
+       gate, so the same declaration in PpgDex and GlucoDex kept the default for two more days.
+       Measured 2026-11-17 from the source geometry: PpgDex's HRV row holds a Poincare svg clamped
+       square at 340 px against a tachogram of viewBox 680x170, about 250 px of empty surface;
+       GlucoDex's daily row holds `distribution` at viewBox 340x200 with no `max-width`, about 341 px
+       tall in a 580 px column, against `dayOverlay` at viewBox 720x200, about 161 px, so about
+       180 px of empty surface. Row
+       2026-11-16-the-chart-grid-stretches-the-short-card-in-ppgdex-and-glucodex.
+       THIS GROUP NEVER SKIPS: both lanes hold env.srcHtml, so the scan reads the same population in
+       the browser realm and costs the fleet no skip-budget raise. */
+    group('every .ch-grid declaration ends its cards where their content ends', 'ui · chart-grid · source-scan', function (T) {
+      /* The population rule is the DECLARATION that opens the grid, which is the one carrying
+         `display:grid`. The `@media(max-width:900px)` override beside it re-declares only the column
+         track and inherits the alignment, so it is out of the population by the same rule rather
+         than by a name. */
+      function chGridDecls(text) {
+        var out = [];
+        for (const m of String(text || '').matchAll(/\.ch-grid\s*\{([^}]*)\}/g)) {
+          if (!/display\s*:\s*grid/.test(m[1])) continue;
+          out.push(m[1]);
+        }
+        return out;
+      }
+      function gridAlignMisses(shells) {
+        var names = Object.keys(shells || {}).filter(function (k) {
+          return chGridDecls(shells[k]).length > 0;
+        });
+        if (!names.length) return ['no shell declared a .ch-grid display:grid rule — this rule examined nothing'];
+        var out = [];
+        names.sort().forEach(function (k) {
+          chGridDecls(shells[k]).forEach(function (body, i) {
+            var m = /align-items\s*:\s*([A-Za-z-]+)/.exec(body);
+            if (!m) out.push(k + ' declaration ' + (i + 1) + ' sets no align-items, so the short card stretches');
+            else if (!/^(start|flex-start)$/.test(m[1])) out.push(k + ' declaration ' + (i + 1) + ' aligns ' + m[1] + ', which grows the short card');
+          });
+        });
+        return out;
+      }
+
+      var shells = env.srcHtml || {};
+      var carriers = Object.keys(shells)
+        .filter(function (k) {
+          return chGridDecls(shells[k]).length > 0;
+        })
+        .sort();
+      /* ANTI-VACUITY. Three authored shells carry the class on 2026-11-17: ECGDex, GlucoDex and
+         PpgDex. A floor cannot detect exclusion, so the leg names what it read. */
+      T.ok('ANTI-VACUITY · the shells were READ, in this lane', carriers.length >= 3, carriers.length + ' carrier(s): ' + (carriers.join(' ') || 'none — wire env.srcHtml in BOTH runners'));
+      T.eq('every carrier aligns its chart cards to the start', gridAlignMisses(shells).join('; '), '');
+
+      /* Controls. The planted shells run the REAL rule, never a second copy of it. */
+      T.eq(
+        'control: a declaration with no align-items is named',
+        gridAlignMisses({ 'Plant.src.html': '.ch-grid{display:grid;grid-template-columns:1fr 1fr}' }).join('; '),
+        'Plant.src.html declaration 1 sets no align-items, so the short card stretches'
+      );
+      T.eq(
+        'control: an explicit stretch is named, because it restores the default',
+        gridAlignMisses({ 'Plant.src.html': '.ch-grid{display:grid;align-items:stretch}' }).join('; '),
+        'Plant.src.html declaration 1 aligns stretch, which grows the short card'
+      );
+      T.eq('control: flex-start passes, because it ends the card at its content too', gridAlignMisses({ 'Plant.src.html': '.ch-grid{display:grid;align-items:flex-start}' }).join('; '), '');
+      T.eq('control: whitespace between the properties changes nothing', gridAlignMisses({ 'Plant.src.html': '.ch-grid {\n  display: grid;\n  align-items: start;\n}' }).join('; '), '');
+      T.eq(
+        'control: a media-query override that re-declares only the track is out of the population',
+        gridAlignMisses({
+          'Plant.src.html': '.ch-grid{display:grid;align-items:start}@media(max-width:900px){.ch-grid{grid-template-columns:1fr}}'
+        }).join('; '),
+        ''
+      );
+      T.eq(
+        'control: a shell that declares no .ch-grid contributes nothing',
+        gridAlignMisses({
+          'Plant.src.html': '.ch-grid{display:grid;align-items:start}',
+          'Other.src.html': '.card{border:1px solid}'
+        }).join('; '),
+        ''
+      );
+      T.eq('control: an empty shell map reports that it examined nothing', gridAlignMisses({}).join('; '), 'no shell declared a .ch-grid display:grid rule — this rule examined nothing');
+      T.eq(
+        'control: two bad declarations in one shell are both named',
+        gridAlignMisses({ 'Plant.src.html': '.ch-grid{display:grid}.ch-grid{display:grid;align-items:center}' }).join('; '),
+        'Plant.src.html declaration 1 sets no align-items, so the short card stretches; Plant.src.html declaration 2 aligns center, which grows the short card'
+      );
+    });
+
     group('every corpus enumerator reports its population or is named here', 'tools · corpus-reads · source-scan', function (T) {
       var TT = env.toolTexts;
       var CR = env.corpusReads;
