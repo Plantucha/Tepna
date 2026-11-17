@@ -569,6 +569,9 @@
   //  signalCtx (optional): { rmssd, sdnn, ... } passed by a node from its DSP.
   // ════════════════════════════════════════════════════════════════════════════
   function bmiLabel(b) {
+    // §∅ — NO BMI, NO CATEGORY. `null < 18.5` is true, so an unguarded chain labelled an absent BMI
+    // "Underweight": a refusal rendered as a diagnosis (same shape as PulseDex's `vp == null` guard).
+    if (b == null || !isFinite(b)) return null;
     return b < 18.5 ? 'Underweight' : b < 25 ? 'Normal' : b < 30 ? 'Overweight' : 'Obese';
   }
   // DEEP-AUDIT-II §13.1 — these are the SUITE'S OWN heuristics, NOT ACSM. ACSM's fitness categories
@@ -597,21 +600,35 @@
     var bb = p.betablk === 'yes',
       af = p.afib === 'yes';
     var hM = H / 100;
-    var bmi = hM > 0 ? +(W / (hM * hM)).toFixed(1) : 0;
-    var bsa = +(0.007184 * Math.pow(W, 0.425) * Math.pow(H, 0.725)).toFixed(2); // DuBois (OxyDex canonical)
-    var ibw = +((sex === 'M' ? 50 : 45.5) + 2.3 * Math.max(0, H / 2.54 - 60)).toFixed(1);
+    /* §∅ — A NON-POSITIVE BODY MEASURE IS NOT A MEASUREMENT. resolve() accepts a manual 0 (its manual
+       tier tests only `!= null && !== ''`), so a height of 0 produced BMI 0.0 — which bmiLabel read
+       as "Underweight" — plus BSA 0.00 and Devine IBW 50 kg; a weight of 0 produced BSA 0.00 and a
+       Mifflin RMR built from no mass. The value is CONSUMED as a finding, so it is refused here at the
+       single derivation choke point as null, and every tile below prints an absent value. This is the
+       shape PulseDex's pxProfile adopted (`hasWH`), and it deliberately does NOT touch the pop tier: an
+       UNENTERED field still resolves to its cited norm, which is labelled `pop default`. */
+    var _wOk = isFinite(W) && W > 0,
+      _hOk = isFinite(H) && H > 0;
+    var bmi = _wOk && _hOk ? +(W / (hM * hM)).toFixed(1) : null;
+    var bsa = _wOk && _hOk ? +(0.007184 * Math.pow(W, 0.425) * Math.pow(H, 0.725)).toFixed(2) : null; // DuBois (OxyDex canonical)
+    var ibw = _hOk ? +((sex === 'M' ? 50 : 45.5) + 2.3 * Math.max(0, H / 2.54 - 60)).toFixed(1) : null;
     var map = Math.round(dbp + (sbp - dbp) / 3);
     var pp = sbp - dbp;
     // RMR — Katch-McArdle when body-fat known, else Mifflin-St Jeor
     var rmr, rmrFormula;
     var bf = +p.bodyfat;
-    if (bf > 3 && bf < 60) {
+    // §∅ — Katch needs a mass, Mifflin needs a mass and a height. With either at 0 the old arms
+    // answered 370 (an all-lean 0 kg body) or `10·0 + 6.25·0 − 5·age + 5` (−240 kcal at age 49).
+    if (bf > 3 && bf < 60 && _wOk) {
       var lean = W * (1 - bf / 100);
       rmr = Math.round(370 + 21.6 * lean);
       rmrFormula = 'Katch-McArdle 370 + 21.6·LBM (' + lean.toFixed(1) + ' kg)';
-    } else {
+    } else if (_wOk && _hOk) {
       rmr = Math.round(10 * W + 6.25 * H - 5 * age + (sex === 'M' ? 5 : -161));
       rmrFormula = 'Mifflin-St Jeor';
+    } else {
+      rmr = null;
+      rmrFormula = 'needs weight & height';
     }
     // HRmax — Tanaka, gated by β-blocker
     var hrMax = +p.hrMax || Math.round(208 - 0.7 * age);
@@ -685,12 +702,13 @@
     }
     var usedBodyFat = bf > 3 && bf < 60;
     var basis = {
-      bmi: basisOf(['weight', 'height']),
-      bsa: basisOf(['weight', 'height']),
-      ibw: basisOf(['height', 'sex']),
+      // A refused value has no basis to disclose — null, like `whtr` below (never a 'you' chip on a dash).
+      bmi: bmi != null ? basisOf(['weight', 'height']) : null,
+      bsa: bsa != null ? basisOf(['weight', 'height']) : null,
+      ibw: ibw != null ? basisOf(['height', 'sex']) : null,
       map: basisOf(['sbp', 'dbp']),
       pp: basisOf(['sbp', 'dbp']),
-      rmr: usedBodyFat ? basisOf(['weight', 'bodyfat']) : basisOf(['weight', 'height', 'age', 'sex']),
+      rmr: rmr == null ? null : usedBodyFat ? basisOf(['weight', 'bodyfat']) : basisOf(['weight', 'height', 'age', 'sex']),
       hrMax: +p.hrMax ? basisOf(['hrMax']) : basisOf(['age']),
       vo2: +p.vo2 ? basisOf(['vo2']) : basisOf(['age', 'sex']),
       vo2Cat: basisOf(+p.vo2 ? ['vo2', 'age', 'sex'] : ['age', 'sex']),
@@ -981,8 +999,12 @@
       case 'sex':
         return ['', '— drives BMR · IBW · VO₂ & body norms'];
       case 'weight':
+        // §∅ — a stored 0 (or below) is echoed in the input so it can be corrected, but it is never
+        // affirmed as "your value": no derived tile rests on it (derive() refuses the term).
+        if (r.origin === 'you' && !(+r.v > 0)) return ['est', '— 0 or below is not a measurement · derived values wait for a real weight'];
         return [r.origin === 'you' ? 'ok' : 'est', r.origin === 'you' ? '✓ your value' : '~ pop avg ' + toDisp('weight', pd.weight) + ' ' + unitLabel('weight')];
       case 'height':
+        if (r.origin === 'you' && !(+r.v > 0)) return ['est', '— 0 or below is not a measurement · derived values wait for a real height'];
         return [r.origin === 'you' ? 'ok' : 'est', r.origin === 'you' ? '✓ your value' : '~ pop avg ' + toDisp('height', pd.height) + ' ' + unitLabel('height') + ' (age ' + load().age + ')'];
       case 'hrRest':
         if (r.origin === 'you') return ['ok', '✓ your value (awake)'];
@@ -1264,12 +1286,12 @@
       }
       var items = '';
       if (hasBody) {
-        items += di('BMI', d.bmi + ' (' + d.bmiCat + ')', 'kg ÷ m²', 'validated', 'bmi');
-        items += di('BSA', d.bsa + ' m²', 'DuBois', 'validated', 'bsa');
+        items += di('BMI', d.bmi == null ? '— needs weight & height' : d.bmi + ' (' + d.bmiCat + ')', 'kg ÷ m²', 'validated', 'bmi');
+        items += di('BSA', d.bsa == null ? '— needs weight & height' : d.bsa + ' m²', 'DuBois', 'validated', 'bsa');
       }
       if (hasFit) items += di('VO₂ category', d.vo2Cat, 'ratio vs 50th-pct norm' + (d.vo2AgedOut ? ' · norm held at 65+' : ''), 'heuristic', 'vo2Cat');
       if (hasBody && d.whtr != null) items += di('WHtR', d.whtr + (d.whtrRisk === 'elevated' ? ' (↑ risk)' : ' (ok)'), 'waist ÷ height', 'validated', 'whtr');
-      if (hasBody) items += di('RMR', d.rmr + ' kcal', d.rmrFormula, 'validated', 'rmr');
+      if (hasBody) items += di('RMR', d.rmr == null ? '— needs weight & height' : d.rmr + ' kcal', d.rmrFormula, 'validated', 'rmr');
       if (hasFit) items += di('VO₂ percentile', '~' + d.vo2Pct + 'th', 'linear proxy vs 50th-pct norm' + (d.vo2AgedOut ? ' · norm held at 65+' : ''), 'heuristic', 'vo2Pct');
       if (hasCardio)
         items += di(

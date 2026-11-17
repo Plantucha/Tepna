@@ -152,12 +152,20 @@ function upHRmaxSource() {
   return UP.hrmaxOverride > 0 ? 'Manual override' : 'Tanaka 2001 formula';
 }
 
+/* §∅ — A NON-POSITIVE BODY MEASURE IS NOT A MEASUREMENT, and no formula here may answer 0 for it
+   (2026-11-17, task 31). A manual height of 0 reaches every one of these functions, and each answered
+   a NUMBER: BMI 0.0 (which upBMILabel read as "Underweight"), BSA 0.00, Devine IBW 50 kg, an ideal
+   weight 0.0 kg, and a Mifflin BMR of 10·0 + 6.25·0 − 5·age (−240 kcal at 49). Same refusal as the
+   shared engine's derive() and PulseDex's pxProfile: the term is null, the renderer prints an absent
+   value, and an UNENTERED field still falls to the labelled population prior (upLoad), never here. */
 function upBMI() {
+  if (!(UP.weight > 0) || !(UP.height > 0)) return null;
   var h = UP.height / 100;
-  return h > 0 ? +(UP.weight / (h * h)).toFixed(1) : 0;
+  return +(UP.weight / (h * h)).toFixed(1);
 }
 
 function upBMILabel(bmi) {
+  if (bmi == null || !isFinite(bmi)) return null; // null < 18.5 is true — an absent BMI is not "Underweight"
   if (bmi < 18.5) return 'Underweight';
   if (bmi < 25) return 'Normal';
   if (bmi < 30) return 'Overweight';
@@ -166,11 +174,13 @@ function upBMILabel(bmi) {
 
 function upBSA() {
   // DuBois: 0.007184 × W^0.425 × H^0.725
+  if (!(UP.weight > 0) || !(UP.height > 0)) return null; // pow(0, 0.725) = 0 ⇒ a published 0.00 m²
   return +(0.007184 * Math.pow(UP.weight, 0.425) * Math.pow(UP.height, 0.725)).toFixed(2);
 }
 
 function upIBW() {
   // Devine: male = 50 + 2.3*(inches over 5ft), female = 45.5 + 2.3
+  if (!(UP.height > 0)) return null; // the Math.max(0, …) floor turned no height into a 50 kg "ideal"
   var base = UP.sex === 'male' ? 50 : 45.5;
   var inchesOver = UP.height / 2.54 - 60;
   return +(base + 2.3 * Math.max(0, inchesOver)).toFixed(1);
@@ -182,6 +192,7 @@ function upMAP() {
 
 function upBMR() {
   // Mifflin-St Jeor
+  if (!(UP.weight > 0) || !(UP.height > 0)) return null;
   var base = 10 * UP.weight + 6.25 * UP.height - 5 * UP.age;
   return Math.round(UP.sex === 'male' ? base + 5 : base - 161);
 }
@@ -195,7 +206,7 @@ function upBAP() {
 function upVO2abs() {
   // Absolute VO2 = relative × weight / 1000
   var rel = UP.vo2GT > 0 ? UP.vo2GT : 0;
-  return rel > 0 ? +((rel * UP.weight) / 1000).toFixed(2) : null;
+  return rel > 0 && UP.weight > 0 ? +((rel * UP.weight) / 1000).toFixed(2) : null;
 }
 
 function upVO2category(vo2rel) {
@@ -237,6 +248,7 @@ function upPopAvg() {
 
 function upIdealWt() {
   // BMI 22.5
+  if (!(UP.height > 0)) return null; // 22.5·0² was a published 0.0 kg "ideal"
   var h = UP.height / 100;
   return +(22.5 * h * h).toFixed(1);
 }
@@ -281,12 +293,13 @@ function profileDerivedUpdate() {
   }
 
   pd('pd_hrmax', '<b>HRmax: ' + hrm + ' bpm</b> (' + upHRmaxSource() + ')');
-  pd('pd_bmi', '<b>BMI: ' + bmi + '</b> (' + upBMILabel(bmi) + ')');
-  pd('pd_bsa', '<b>BSA: ' + bsa + ' m²</b> (DuBois)');
-  pd('pd_ibw', '<b>IBW: ' + ibw + ' kg</b> (Devine)');
+  // A refused body term prints an absent value and names what it needs — never "0" and never "null".
+  pd('pd_bmi', bmi == null ? '<b>BMI:</b> enter height &amp; weight' : '<b>BMI: ' + bmi + '</b> (' + upBMILabel(bmi) + ')');
+  pd('pd_bsa', bsa == null ? '<b>BSA:</b> enter height &amp; weight' : '<b>BSA: ' + bsa + ' m²</b> (DuBois)');
+  pd('pd_ibw', ibw == null ? '<b>IBW:</b> enter height' : '<b>IBW: ' + ibw + ' kg</b> (Devine)');
   pd('pd_map', '<b>MAP: ' + map + ' mmHg</b> (DBP+(SBP−DBP)/3)');
   pd('pd_pp', '<b>Pulse Pressure: ' + pp + ' mmHg</b> (' + (pp < 50 ? '✅ <50=optimal' : '⚠️ elevated') + ')');
-  pd('pd_bmr', '<b>BMR: ' + bmr + ' kcal</b> (Mifflin-St Jeor)');
+  pd('pd_bmr', bmr == null ? '<b>BMR:</b> enter height &amp; weight' : '<b>BMR: ' + bmr + ' kcal</b> (Mifflin-St Jeor)');
   pd('pd_bap', '<b>BAP: ' + bap + '</b> (' + (bap < 2.1 ? '✅ <2.1=good' : '⚠️ elevated') + ') <span class="bap-note">(non-standard · trend only)</span>');
   pd('pd_vo2abs', vo2abs !== null ? '<b>VO₂ absolute: ' + vo2abs + ' L/min</b>' : '<b>VO₂ absolute:</b> enter VO₂max above');
   pd('pd_vo2cat', vo2cat ? '<b>VO₂ category: ' + vo2cat.cat + '</b> (~' + vo2cat.pct + ' pct)' : '<b>VO₂ category:</b> enter VO₂max above');
@@ -332,8 +345,7 @@ function profileDerivedUpdate() {
       pop.ht +
       ' cm' +
       ' &nbsp;·&nbsp; 🎯 Ideal wt (BMI 22.5): ' +
-      ideal +
-      ' kg' +
+      (ideal == null ? '— (enter height)' : ideal + ' kg') +
       ' &nbsp;·&nbsp; Updates when age or sex changes';
 
   // ── Per-field projected value + formula sublabels ───────────────
@@ -364,10 +376,13 @@ function profileDerivedUpdate() {
   _sub('profileSexSub', '— manual · drives BMR (Mifflin), IBW (Devine), VO₂ norms (ACSM)');
 
   // Weight — CDC pop avg using detected/manual age + ideal weight
-  _sub('profileWtSub', '∼ CDC pop avg ' + _popProj.wt + ' kg (' + UP.sex + ', age ' + _projAge + _ageNote + ')' + ' · ideal (BMI 22.5) ' + _idealProj + ' kg');
+  _sub(
+    'profileWtSub',
+    '∼ CDC pop avg ' + _popProj.wt + ' kg (' + UP.sex + ', age ' + _projAge + _ageNote + ')' + ' · ideal (BMI 22.5) ' + (_idealProj == null ? '— (enter height)' : _idealProj + ' kg')
+  );
 
   // Height — CDC pop avg by sex + BSA from current values
-  _sub('profileHtSub', '∼ CDC pop avg ' + _popProj.ht + ' cm (' + UP.sex + ') · BSA ' + bsa + ' m² (DuBois)');
+  _sub('profileHtSub', '∼ CDC pop avg ' + _popProj.ht + ' cm (' + UP.sex + ') · BSA ' + (bsa == null ? '— (enter height & weight)' : bsa + ' m² (DuBois)'));
 
   // HRmax — Tanaka using projection age
   if (UP.hrmaxOverride > 0) {

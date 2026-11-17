@@ -23,7 +23,7 @@
       "clock-seam.js": "3820c4fb6529",
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "46faf431bb51",
-      "oxydex-profile.js": "410146545439",
+      "oxydex-profile.js": "7f65bccefb87",
       "oxydex-dsp.js": "84068a4357c0"
     },
     "pulse": {
@@ -300,9 +300,9 @@
       "reason": "Unit seamnull (Shrike absence audit of clock-seam.js): an absent stamp or window bound was read as the epoch. +null is 0 and isFinite(null) is true, so seamScan took a null stamp as a real 1970 stamp and windowVerdict took an absent bound as 0. seamScan now counts null, undefined, boolean and empty stamps in skipped, and windowVerdict refuses an absent bound. Both callers read only continuous === false, and the six OxyDex goldens diff on hash lines alone. This run RE-CUT the cohort at paper scale on top of #5223, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped, so no synthetic patient changed arm."
     }
   ],
-  "measuredAt": "2026-11-17T15:28:28.815Z",
+  "measuredAt": "2026-11-17T20:58:05.685Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "f5238e853"
+    "commit": "e8e49e200"
   }
 }

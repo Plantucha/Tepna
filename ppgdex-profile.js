@@ -427,7 +427,12 @@
     d.innerHTML =
       grp(
         'Body composition',
-        di('BMI', bmi.toFixed(1) + ' (' + bmiCat + ')', 'kg ÷ m²') + di('IBW', ibw.toFixed(1) + ' kg', 'Devine') + di('BSA', bsa.toFixed(2) + ' m²', 'DuBois') + di('BMR', rmr + ' kcal', rmrF)
+        // §∅ — the shared engine refuses a non-positive weight/height (null): print an absent value
+        // rather than calling toFixed on null (which would throw) or publishing a 0.
+        di('BMI', bmi == null ? '— needs weight & height' : bmi.toFixed(1) + ' (' + bmiCat + ')', 'kg ÷ m²') +
+          di('IBW', ibw == null ? '— needs height' : ibw.toFixed(1) + ' kg', 'Devine') +
+          di('BSA', bsa == null ? '— needs weight & height' : bsa.toFixed(2) + ' m²', 'DuBois') +
+          di('BMR', rmr == null ? '— needs weight & height' : rmr + ' kcal', rmrF)
       ) +
       grp(
         'Age-relative norms',
