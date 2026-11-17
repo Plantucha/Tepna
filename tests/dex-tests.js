@@ -89745,6 +89745,55 @@
       );
     });
 
+    /* ∅ A SIGNAL WITH NO SAMPLE RATE IS ABSENT, NOT 1 Hz (board #7105). `cpapdex-edf.js:296` writes
+       `fs: null` when an EDF record duration is 0 — no periodic sampling, absent rather than zero — and
+       two consumers turned that null back into 1: `to1Hz`'s `sig.fs || 1` and `statFs`'s `stat.fs || 1`.
+       Measured before the fix: 1800 SaO₂ samples from a 0.5 Hz hour published `durSec: 1800` (half the
+       night) at 100 % coverage, and a 0.25 Hz status channel with a truly-flagged 600 s block nulled
+       150 s and published 95.83 % coverage instead of 83.33 %. Neither throws, neither looks wrong. */
+    group('∅ NSRR adapter — a signal with no sample rate is refused, never assumed 1 Hz', 'nsrr-adapter · ingest · absence · sample-rate', function (T) {
+      var N = env.NSRR;
+      T.ok('adapter exposed', !!(N && N.edfToOxyRows), 'window.NSRR missing');
+      if (!N || !N.edfToOxyRows) return;
+      var t0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+      var fill = function (n, v) {
+        var a = new Array(n);
+        for (var j = 0; j < n; j++) a[j] = v;
+        return a;
+      };
+
+      // ── ARM 1 · to1Hz refuses a signal whose rate is absent ───────────────────────────────────
+      var gone = N.edfToOxyRows({ signals: { SpO2: { fs: null, data: fill(1800, 97) } }, clock: { t0Ms: t0 } });
+      T.eq('fs:null refuses the night, never a 1 Hz grid', gone, null);
+      T.eq('…and names the missing rate', N.edfToOxyRows.lastReason, 'spo2-fs-absent');
+      T.eq('fs:0 refuses too (not an infinite rate)', N.edfToOxyRows({ signals: { SpO2: { fs: 0, data: fill(1800, 97) } }, clock: { t0Ms: t0 } }), null);
+      var half = N.edfToOxyRows({ signals: { SpO2: { fs: 0.5, data: fill(1800, 97) } }, clock: { t0Ms: t0 } });
+      T.eq('CONTROL · the SAME 1800 samples at 0.5 Hz are a 3600 s night', half.durSec, 3600);
+      T.eq('CONTROL · …and 3600 rows', half.rows.length, 3600);
+      var plain = N.edfToOxyRows({ signals: { SpO2: { fs: 1, data: [95, 96, 97] } }, clock: { t0Ms: t0 } });
+      T.eq('CONTROL · a 1 Hz signal is untouched', [plain.rows.length, plain.durSec], [3, 3]);
+      T.eq('…a success clears the refusal', N.edfToOxyRows.lastReason, null);
+      var noHrRate = N.edfToOxyRows({ signals: { SpO2: { fs: 1, data: fill(60, 97) }, Pulse: { fs: null, data: fill(60, 60) } }, clock: { t0Ms: t0 } });
+      T.eq('a present HR channel with no rate refuses too, rather than publishing hr 0', [noHrRate, N.edfToOxyRows.lastReason], [null, 'hr-fs-absent']);
+
+      // ── ARM 2 · the status channel is applied only at its OWN rate ────────────────────────────
+      var stat = fill(900, 0);
+      for (var i = 150; i < 300; i++) stat[i] = 1; // 600 s flagged, sampled at 0.25 Hz
+      var aligned = N.edfToOxyRows({ signals: { SpO2: { fs: 1, data: fill(3600, 97) }, 'OX stat': { fs: 0.25, data: stat } }, clock: { t0Ms: t0 } });
+      T.eq('CONTROL · a 0.25 Hz status channel nulls the true 600 s', [aligned.oxStat.flaggedSec, aligned.oxStat.uncoveredSec, aligned.spo2CoveragePct], [600, 0, 83.33]);
+      var unaligned = N.edfToOxyRows({ signals: { SpO2: { fs: 1, data: fill(3600, 97) }, 'OX stat': { fs: null, data: stat } }, clock: { t0Ms: t0 } });
+      T.eq('a status channel with no rate is present but NOT applied', [unaligned.oxStat.present, unaligned.oxStat.applied], [true, false]);
+      T.eq('…and it names why', unaligned.oxStat.reason, 'status-fs-absent');
+      T.eq(
+        '…so no flag is applied at a guessed resolution',
+        unaligned.rows.filter(function (r) {
+          return r.spo2 === null;
+        }).length,
+        0
+      );
+      T.eq('…and coverage reports the SaO₂ channel as measured', unaligned.spo2CoveragePct, 100);
+    });
+
     /* ════ 21c-bis · THE ODI-4 → AHI SURROGATE (deep-scout §AD, the last adapter residue) ════
        OxyDex's ODI-4→AHI surrogate is `ahiODI4 = +(odi4Rate * 1.1).toFixed(1)` (oxydex-dsp.js,
        `computeAHIestimates`). That ×1.1 had NO known-answer test anywhere in the suite: every existing

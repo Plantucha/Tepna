@@ -16347,8 +16347,14 @@ const OxyDex = window.OxyDex;
      comparisons, so a NaN row passes the guard and reaches the detector. Only `null` is skipped
      (`null < 50` is true). So: a plain Array, carrying `null`. */
   function to1Hz(sig, validLo, validHi) {
-    var fs = sig.fs || 1,
-      n = sig.data.length;
+    /* ∅ A SIGNAL WITH NO SAMPLE RATE IS NOT 1 Hz (board #7105). `cpapdex-edf.js:296` writes `fs: null`
+       when the EDF record duration is 0, and its comment states what that means: no periodic sampling,
+       absent rather than zero. `|| 1` turned that absence into a 1 Hz grid, so the 1800 SaO₂ samples of
+       a 0.5 Hz hour published `durSec: 1800` — half the night — at 100 % coverage, and no gate could
+       see it. The honest answer is a refusal: a sample count cannot become a duration without a rate. */
+    var fs = sig && sig.fs;
+    if (!(fs > 0) || !isFinite(fs)) return null;
+    var n = sig.data.length;
     var durSec = Math.floor(n / fs);
     var out = new Array(durSec);
     var valid = 0;
@@ -16397,20 +16403,39 @@ const OxyDex = window.OxyDex;
      status channel at all. Those rows are passed through untouched and `oxStat.present` is false, so a
      consumer can see the night was not status-qualified rather than infer it was. */
   function edfToOxyRows(edf, opts) {
+    edfToOxyRows.lastReason = null; // the refusal is read off the function, so a later success clears it
     if (!edf || !edf.signals) return null;
     var spo2Key = findSignal(edf.signals, SPO2_LABELS);
     if (!spo2Key) return null;
     var spo2 = to1Hz(edf.signals[spo2Key], 40, 100); // <40% or >100% = artifact
+    if (!spo2) {
+      edfToOxyRows.lastReason = 'spo2-fs-absent';
+      return null;
+    }
     var statKey = findSignal(edf.signals, OXSTAT_LABELS);
     var statPresent = !!(statKey && edf.signals[statKey] && edf.signals[statKey].data);
-    var statApplied = statPresent && !(opts && opts.ignoreOxStat);
-    var stat = statApplied ? edf.signals[statKey] : null; // present-but-ignored is reported, never silently equated with absent
-    var statFs = stat ? stat.fs || 1 : 1;
+    var statSignal = statPresent ? edf.signals[statKey] : null;
+    /* ∅ THE STATUS CHANNEL'S OWN RATE IS A PRECONDITION (board #7105): `si = Math.floor(i * statFs)`
+       aligns each SaO₂ second to a status sample, and `|| 1` assumed 1 Hz. A 0.25 Hz channel with a
+       truly-flagged 600 s block then nulled 150 s, published 95.83 % coverage instead of 83.33 %, and
+       reported the other 2700 s as uncovered. An unalignable status channel is present-but-not-applied,
+       which this function already has a field for — never applied at a guessed rate. */
+    var statRateOk = !!(statSignal && statSignal.fs > 0 && isFinite(statSignal.fs));
+    var statApplied = statPresent && !(opts && opts.ignoreOxStat) && statRateOk;
+    var stat = statApplied ? statSignal : null; // present-but-ignored is reported, never silently equated with absent
+    var statFs = stat ? stat.fs : null;
+    var statReason = !statPresent ? null : opts && opts.ignoreOxStat ? 'ignored-by-caller' : !statRateOk ? 'status-fs-absent' : null;
     var statFlagged = 0,
       statInRangeFlagged = 0,
       statUncovered = 0;
     var hrKey = findSignal(edf.signals, HR_LABELS);
     var hr = hrKey ? to1Hz(edf.signals[hrKey], 20, 240) : null;
+    /* A present HR channel with no rate cannot be aligned either. Publishing it as `0` would make every
+       row fail `hr < 20` in `processNight` and the night would vanish as an empty record; refuse. */
+    if (hrKey && !hr) {
+      edfToOxyRows.lastReason = 'hr-fs-absent';
+      return null;
+    }
     var t0Ms = edf.clock && edf.clock.t0Ms != null ? edf.clock.t0Ms : Date.UTC(2020, 0, 1, 22, 0, 0);
     var rows = [];
     for (var i = 0; i < spo2.length; i++) {
@@ -16463,7 +16488,9 @@ const OxyDex = window.OxyDex;
       /* §∅: the device's own validity verdict travels with the rows. `present:false` is the honest
          shape for the 22/300 records without the channel — not flagged, not clean, not qualified. */
       oxStat: statPresent
-        ? { present: true, applied: statApplied, label: statKey, flaggedSec: statFlagged, inRangeFlaggedSec: statInRangeFlagged, uncoveredSec: statUncovered }
+        ? statApplied
+          ? { present: true, applied: true, label: statKey, flaggedSec: statFlagged, inRangeFlaggedSec: statInRangeFlagged, uncoveredSec: statUncovered }
+          : { present: true, applied: false, label: statKey, reason: statReason }
         : { present: false, applied: false }
     };
   }
@@ -16664,7 +16691,12 @@ const OxyDex = window.OxyDex;
     }
     var conv = edfToOxyRows(edf);
     if (!conv) {
-      out.err = 'no SpO₂ channel in EDF (labels: ' + Object.keys(edf.signals).join(',') + ')';
+      out.err =
+        edfToOxyRows.lastReason === 'spo2-fs-absent'
+          ? 'SpO₂ channel carries no sample rate (EDF record duration 0) — refused, never assumed 1 Hz'
+          : edfToOxyRows.lastReason === 'hr-fs-absent'
+            ? 'HR channel carries no sample rate (EDF record duration 0) — refused, never assumed 1 Hz'
+            : 'no SpO₂ channel in EDF (labels: ' + Object.keys(edf.signals).join(',') + ')';
       return out;
     }
     out.spo2Label = conv.spo2Label;
