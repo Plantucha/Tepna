@@ -25,8 +25,8 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 141,
-  "fixed": 146,
+  "open": 136,
+  "fixed": 151,
   "accepted-with-reason": 3
  },
  "consumerCensus": {
@@ -722,7 +722,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 6193,
-   "state": "open"
+   "state": "fixed",
+   "note": "the SignalFrame path refused `fs || 1` in PR 2921 — a 540-second recording read 95,039 seconds on a 1 Hz axis. Pinned by two legs of the PpgDex absence group."
   },
   {
    "key": "cc03514ece9c",
@@ -731,7 +732,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 6203,
-   "state": "open"
+   "state": "fixed",
+   "note": "the same refusal covers `durSec`, which took `(n - 1) / (fs || 1)` from the same absent rate. Pinned beside the relSec leg."
   },
   {
    "key": "afe64d97a7b6",
@@ -2010,7 +2012,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 960,
-   "state": "open"
+   "state": "fixed",
+   "note": "`let fs = 176` is gone; the rate starts null and `parsePPG` throws `no-sample-rate` when no ns delta and no host-stamp span yields one. Plant: restore a numeric seed and the refusal leg reds."
   },
   {
    "key": "4bf4c72bf4b5",
@@ -2019,7 +2022,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 1075,
-   "state": "open"
+   "state": "fixed",
+   "note": "the index/fs axis is reached only after that refusal, so its rate is measured from host stamps rather than assumed, and `quality.axisDrawn` declares the drawn axis out of band. Plant: remove the refusal and the same leg reds."
   },
   {
    "key": "fe505b259a07",
@@ -2091,7 +2095,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 4672,
-   "state": "open"
+   "state": "fixed",
+   "note": "a recording with no inertial stream published `motionRejectedPct` 0, the BEST value on the scale, over a gate that never ran; the rate is now null with `motionRejectedPctReason`, `analyzablePct` discounts an explicit 0, and every reader grades through `pctClsDown`. Plant: flip the refusal back to `: 0` and the PpgDex motion legs red."
   },
   {
    "key": "9a24586582cd",

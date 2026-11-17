@@ -348,6 +348,10 @@ import { PPGUI } from './ppgdex-render.js';
   const pctAbsent = (v) => v == null || !isFinite(v);
   const pctTxt = (v) => (pctAbsent(v) ? '\u2014' : v + '%');
   const pctCls = (v, ok, warn) => (pctAbsent(v) ? 'neutral' : v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
+  /* §∅ — THE MOTION GATE IS LOWER-IS-BETTER, SO `pctCls` ABOVE CANNOT GRADE IT: that helper
+     reads `v >= ok`. A raw `v < 10 ? 'ok' : …` is worse than wrong on an absence, because
+     `null < 10` is TRUE and every reader painted an unexamined gate the best possible green. */
+  const pctClsDown = (v, ok, warn) => (pctAbsent(v) ? 'neutral' : v < ok ? 'ok' : v < warn ? 'warn' : 'bad');
 
   /* ── OPTICAL SITE DECLARATION (PPGDEX-SITE-WIRING §2/§3) ─────────────────────────────────────
      The parser can only read the file LAYOUT, which names the DEVICE: 3 optical columns = a Verity
@@ -466,9 +470,9 @@ import { PPGUI } from './ppgdex-render.js';
       { l: 'Perfusion Idx', v: r.perfusionIndex == null ? '—' : r.perfusionIndex + '%', sub: 'AC/DC · contact', s: pb },
       {
         l: 'Motion-rejected',
-        v: r.motionRejectedPct + '%',
-        sub: r.motion && r.motion.hasData ? 'ACC+GYRO gate' : 'no motion data',
-        s: r.motionRejectedPct < 10 ? 'ok' : r.motionRejectedPct < 30 ? 'warn' : 'bad'
+        v: pctTxt(r.motionRejectedPct),
+        sub: r.motionRejectedPctReason ? 'the gate did not run' : 'ACC+GYRO gate',
+        s: pctClsDown(r.motionRejectedPct, 10, 30)
       }
     ];
     if (r.morph) {
@@ -532,7 +536,7 @@ import { PPGUI } from './ppgdex-render.js';
     <div class="q-grid">
       <div class="q-stat">${evBadge('Analyzable')}<div class="q-val ${pctCls(r.analyzablePct, 90, 75)}">${pctTxt(r.analyzablePct)}</div><div class="q-lbl">Analyzable</div><div class="q-sub">clean-beat × motion gate</div></div>
       <div class="q-stat"><div class="q-val ${pctCls(r.cleanBeatPct, 85, 65)}">${pctTxt(r.cleanBeatPct)}</div><div class="q-lbl">Clean pulses${evBadge('Clean pulses')}</div><div class="q-sub">SQI ≥ 0.5</div></div>
-      <div class="q-stat"><div class="q-val ${r.motionRejectedPct < 10 ? 'ok' : r.motionRejectedPct < 30 ? 'warn' : 'bad'}">${r.motionRejectedPct}%</div><div class="q-lbl">Motion-rejected${evBadge('Motion-rejected')}</div><div class="q-sub">${m && m.hasData ? 'ACC+GYRO' : 'no ACC/GYRO'}</div></div>
+      <div class="q-stat"><div class="q-val ${pctClsDown(r.motionRejectedPct, 10, 30)}">${pctTxt(r.motionRejectedPct)}</div><div class="q-lbl">Motion-rejected${evBadge('Motion-rejected')}</div><div class="q-sub">${r.motionRejectedPctReason ? 'the gate did not run' : 'ACC+GYRO'}</div></div>
       <div class="q-stat"><div class="q-val ${r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad'}">${r.meanSQI}</div><div class="q-lbl">Mean SQI${evBadge('Mean SQI')}</div><div class="q-sub">→ Ganglior conf</div></div>
       ${r.ledAgreementPct != null ? `<div class="q-stat"><div class="q-val ${r.ledAgreementPct >= 90 ? 'ok' : r.ledAgreementPct >= 75 ? 'warn' : 'bad'}">${r.ledAgreementPct}%</div><div class="q-lbl">3-LED agree${evBadge('LED agreement')}</div><div class="q-sub">${r.ledAgree3of3Pct != null ? r.ledAgree3of3Pct + '% all-3' : 'optical consensus'}</div></div>` : ''}
     </div>
@@ -661,7 +665,7 @@ import { PPGUI } from './ppgdex-render.js';
     $('motionCard').innerHTML = `
     <div class="q-grid">
       <div class="q-stat">${evBadge('Mean motion idx')}<div class="q-val ${m.meanMotionIndex < 0.2 ? 'ok' : m.meanMotionIndex < 0.5 ? 'warn' : 'bad'}">${m.meanMotionIndex}</div><div class="q-lbl">Mean motion idx</div><div class="q-sub">0 still · 1 moving</div></div>
-      <div class="q-stat"><div class="q-val ${r.motionRejectedPct < 10 ? 'ok' : r.motionRejectedPct < 30 ? 'warn' : 'bad'}">${r.motionRejectedPct}%</div><div class="q-lbl">Pulses rejected${evBadge('Pulses rejected')}</div><div class="q-sub">idx &gt; 0.5</div></div>
+      <div class="q-stat"><div class="q-val ${pctClsDown(r.motionRejectedPct, 10, 30)}">${pctTxt(r.motionRejectedPct)}</div><div class="q-lbl">Pulses rejected${evBadge('Pulses rejected')}</div><div class="q-sub">${r.motionRejectedPctReason ? 'the gate did not run' : 'idx &gt; 0.5'}</div></div>
       <div class="q-stat"><div class="q-val neutral">${m.accFs || '—'}</div><div class="q-lbl">ACC Hz${evBadge('ACC Hz')}</div><div class="q-sub">${m.nAcc.toLocaleString()} samples</div></div>
       <div class="q-stat"><div class="q-val neutral">${m.gyroFs || '—'}</div><div class="q-lbl">GYRO Hz${evBadge('GYRO Hz')}</div><div class="q-sub">${m.nGyro.toLocaleString()} samples</div></div>
     </div>
@@ -934,7 +938,7 @@ import { PPGUI } from './ppgdex-render.js';
       ['Analyzable', r.analyzablePct, '%', pctAbsent(r.analyzablePct) ? 'no beats detected' : '', pctCls(r.analyzablePct, 90, 75)],
       ['Clean beats', r.cleanBeatPct, '%', pctAbsent(r.cleanBeatPct) ? 'no beats detected' : 'SQI≥0.5', pctCls(r.cleanBeatPct, 85, 65)],
       ['Mean SQI', r.meanSQI, '', '0–1 · conf', r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad'],
-      ['Motion-rejected', r.motionRejectedPct, '%', r.motion && r.motion.hasData ? 'ACC+GYRO' : 'n/a', r.motionRejectedPct < 10 ? 'ok' : r.motionRejectedPct < 30 ? 'warn' : 'bad'],
+      ['Motion-rejected', r.motionRejectedPct, '%', r.motionRejectedPctReason ? 'the gate did not run' : 'ACC+GYRO', pctClsDown(r.motionRejectedPct, 10, 30)],
       [
         'Correction rate',
         r.correctionRate == null ? '—' : r.correctionRate,
@@ -1176,6 +1180,7 @@ import { PPGUI } from './ppgdex-render.js';
         coveragePct: r.coveragePct,
         meanSQI: r.meanSQI,
         motionRejectedPct: r.motionRejectedPct,
+        motionRejectedPctReason: r.motionRejectedPctReason,
         correctionRatePct: r.correctionRate,
         ledAgreementPct: r.ledAgreementPct != null ? r.ledAgreementPct : null,
         ledAgree3of3Pct: r.ledAgree3of3Pct != null ? r.ledAgree3of3Pct : null,
@@ -1357,6 +1362,7 @@ import { PPGUI } from './ppgdex-render.js';
           ? {
               meanMotionIndex: r.motion.meanMotionIndex,
               motionRejectedPct: r.motionRejectedPct,
+              motionRejectedPctReason: r.motionRejectedPctReason,
               source: 'ACC+GYRO',
               accFs: r.motion.accFs,
               gyroFs: r.motion.gyroFs,

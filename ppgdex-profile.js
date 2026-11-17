@@ -19,6 +19,10 @@
   const pctAbsent = (v) => v == null || !isFinite(v);
   const pctTxt = (v) => (pctAbsent(v) ? '\u2014' : v + '%');
   const pctCls = (v, ok, warn) => (pctAbsent(v) ? 'neutral' : v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
+  /* §∅ — THE MOTION GATE IS LOWER-IS-BETTER, SO `pctCls` ABOVE CANNOT GRADE IT: that helper
+     reads `v >= ok`. A raw `v < 10 ? 'ok' : …` is worse than wrong on an absence, because
+     `null < 10` is TRUE and every reader painted an unexamined gate the best possible green. */
+  const pctClsDown = (v, ok, warn) => (pctAbsent(v) ? 'neutral' : v < ok ? 'ok' : v < warn ? 'warn' : 'bad');
   let reRenderFn = null;
   let _dexPanel = null; // handle to the shared DexProfile.renderPanel() instance
   const median = (a) => {
@@ -317,7 +321,7 @@
       }
     }
     chips += `<div class="readiness-zone-chip ${pb.sev === 'neutral' ? 'warn' : pb.sev}">Perfusion · ${pb.txt}</div>`;
-    chips += `<div class="readiness-zone-chip ${r.motionRejectedPct < 10 ? 'ok' : r.motionRejectedPct < 30 ? 'warn' : 'bad'}">${r.motionRejectedPct}% motion-rejected</div>`;
+    chips += `<div class="readiness-zone-chip ${pctClsDown(r.motionRejectedPct, 10, 30)}">${pctTxt(r.motionRejectedPct)} motion-rejected</div>`;
     chips += `<div class="readiness-zone-chip ${pctCls(r.analyzablePct, 90, 75)}">${pctTxt(r.analyzablePct)} analyzable</div>`;
     if (r.cpapInUse === true) chips += `<div class="readiness-zone-chip neutral">⊕ on CPAP therapy</div>`;
     else if (r.cpapInUse === false) chips += `<div class="readiness-zone-chip neutral">no CPAP</div>`;

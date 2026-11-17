@@ -1000,6 +1000,31 @@ export const SEEDS = [
     at: 'hrvdex-profile.js:70',
     state: 'fixed',
     note: "`getProfile` substitutes a population age for an absent one with no marker, 35 at the cascade and 40 at the estimate, so the Uth-S\u00f8rensen VO\u2082 estimate could rest on an age nobody entered and still reach the shared DETECTED tier through `prefillFrom` (dex-profile.js:472), where another node resolves it as a measured fact. The age reaches the estimate through Tanaka ONLY: an entered HRmax that passes the plausibility guard replaces Tanaka, and the estimate then owes the age nothing. So `getProfile` reports `ageKnown` in both arms, and `_vo2RestsOnDefaultAge` answers true only when the age is unknown AND Tanaka supplied HRmax. The identity write then passes null, which `prefillFrom` already skips, and the VO\u2082 ground-truth field keeps its documented auto value, because that field is the second surface of the one row. Pins: tests/dex-tests.js group '\u2205 HRVDex profile \u2014 a VO\u2082 estimate over a default age is not written as a fact', where 7 of 13 legs red on the pre-fix source, which is every leg that source reaches."
+  },
+  {
+    at: 'ppgdex-dsp.js:4672',
+    state: 'fixed',
+    note: 'a recording with no inertial stream published `motionRejectedPct` 0, the BEST value on the scale, over a gate that never ran; the rate is now null with `motionRejectedPctReason`, `analyzablePct` discounts an explicit 0, and every reader grades through `pctClsDown`. Plant: flip the refusal back to `: 0` and the PpgDex motion legs red.'
+  },
+  {
+    at: 'ppgdex-dsp.js:960',
+    state: 'fixed',
+    note: '`let fs = 176` is gone; the rate starts null and `parsePPG` throws `no-sample-rate` when no ns delta and no host-stamp span yields one. Plant: restore a numeric seed and the refusal leg reds.'
+  },
+  {
+    at: 'ppgdex-dsp.js:1075',
+    state: 'fixed',
+    note: 'the index/fs axis is reached only after that refusal, so its rate is measured from host stamps rather than assumed, and `quality.axisDrawn` declares the drawn axis out of band. Plant: remove the refusal and the same leg reds.'
+  },
+  {
+    at: 'ppgdex-dsp.js:6193',
+    state: 'fixed',
+    note: 'the SignalFrame path refused `fs || 1` in PR 2921 — a 540-second recording read 95,039 seconds on a 1 Hz axis. Pinned by two legs of the PpgDex absence group.'
+  },
+  {
+    at: 'ppgdex-dsp.js:6203',
+    state: 'fixed',
+    note: 'the same refusal covers `durSec`, which took `(n - 1) / (fs || 1)` from the same absent rate. Pinned beside the relSec leg.'
   }
 ];
 
