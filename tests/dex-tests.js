@@ -1648,6 +1648,56 @@
       }
     });
 
+    /* ∅ AN IN-BAND DEFAULT ON THE EVENT ROAD (board #6802). `med = rms[...] || 1` substituted a
+       1 ms divisor when the window-median rMSSD was 0, so `w.rmssd < 0.7 * 1` held for every flat
+       window: a planted 96-min zero-variability night published 20 maximum-confidence `hrv_drop`
+       impulses onto the bus, each carrying `medianRMSSD: 1` — a median nobody measured. A zero-only
+       census cannot see this shape, because the defect is the 1, not a 0. */
+    group('∅ PulseDex — a zero window-median rMSSD refuses hrv_drop, never a 1 ms stand-in (board #6802)', 'pulsedex-dsp · absence · in-band-default', function (T) {
+      var P = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!P || typeof P.pdEventsFromResult !== 'function') {
+        T.skip('PulseDex._bare.pdEventsFromResult exposed', 'PulseDex not co-loaded in this runner');
+        return;
+      }
+      var t0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+      var winsOf = function (rms) {
+        return rms.map(function (v, i) {
+          return { tMin: i * 5, rmssd: v, sdnn: 20, hr: 60, meanRR: 1000, pnn: 5 };
+        });
+      };
+      var nImp = function (ev, name) {
+        return ev.filter(function (e) {
+          return e.impulse === name;
+        }).length;
+      };
+      var flat = P.pdEventsFromResult({ t0Ms: t0, windows: winsOf([0, 0, 0]) });
+      T.eq('a zero window-median rMSSD emits no hrv_drop onto the bus', nImp(flat, 'hrv_drop'), 0);
+      T.ok(
+        '…and no fabricated median travels beside one',
+        flat.every(function (e) {
+          return !(e.meta && e.meta.medianRMSSD === 1);
+        }),
+        JSON.stringify(flat)
+      );
+      var real = P.pdEventsFromResult({ t0Ms: t0, windows: winsOf([40, 20, 12]) });
+      T.eq('CONTROL · a genuine drop below 0.7× the MEASURED median still emits exactly one', nImp(real, 'hrv_drop'), 1);
+      T.eq(
+        '…and it carries the median it measured, not a floor',
+        real.filter(function (e) {
+          return e.impulse === 'hrv_drop';
+        })[0].meta.medianRMSSD,
+        20
+      );
+      T.eq('CONTROL · the dated whole-record branch beside it is untouched', nImp(P.pdEventsFromResult({ t0Ms: t0, windows: null, rmssd: 12, sdnn: 20, stress: 50 }), 'hrv_drop'), 1);
+      /* The in-tree producer writes `rmssd` from an RMS (`pulsedex-dsp.js:1492`), so it cannot
+         reach a zero median through a negative window. `PulseDex.eventsFromResult` is a published
+         surface, and this file guards its arguments at the producer (∅ N1-35). Drop the `med > 0`
+         arm and a caller reaching a median of 0 divides by it: `(0 - -5) / 0` is Infinity, the
+         ceiling clamp reads 0.92, and the bus takes a maximum-confidence drop from no level. */
+      var hostile = P.pdEventsFromResult({ t0Ms: t0, windows: winsOf([-5, 0, 0]) });
+      T.eq('a zero median refuses a drop even when the published surface is handed a negative rMSSD', nImp(hostile, 'hrv_drop'), 0);
+    });
+
     group('∅ radio-clock sidecar — the under-2 ms band, and the four streams that would have forged it', 'clock · radio-clock · absence', function (T) {
       var DR = env.DexRadio || (typeof DexRadio !== 'undefined' ? DexRadio : null);
       if (!DR || typeof DR.radioAxis !== 'function') {
