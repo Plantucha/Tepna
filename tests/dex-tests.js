@@ -59159,10 +59159,15 @@
         /* THE AXIS-RATE CELL CARRIES ITS LIMIT, and the limit changed on 2026-11-16. `clock.js` now
            divides the running median's end clamp out of `ppm`, so the figure is no longer an
            end-point read against the first anchor's own raw residual, and that clause retired with
-           it. What still limits a short span is host jitter swamping the drift: measured over 400
-           draws at the node's own 391-anchor geometry, the published rate reads 56.80 \u00b1 1.25
-           before the repair and 53.60 \u00b1 1.56 after it against a planted 50 ppm, where the clamp
-           term is only 1.28 % of the span. The fixture is built here rather than taken from the
+           it. What still limits a short span is host jitter swamping the drift: re-measured
+           2026-11-17 over 400 draws at the node's own 391-anchor geometry, with 60 s of
+           \u00b15 ms uniform jitter against a planted 50 ppm, the published rate's PER-DRAW SPREAD
+           is 31.3 ppm, which is 58 % of the value, while the draw mean lands between 49.8 and 53.6
+           ppm across three generators of that one jitter band, so the spread is the quantity to
+           read and the mean is generator-dependent. The clamp term is only 1.28 % of the
+           span. \u26a0 This comment used to quote `56.80 \u00b1 1.25` and `53.60 \u00b1 1.56`, and both
+           \u00b1 figures were the STANDARD ERROR of the 400-draw mean rather than the spread, so they
+           understated the quantity under argument by a factor of 20. The fixture is built here rather than taken from the
            vendor export above, which publishes no host axis and therefore draws no qualifier at all.
            ANTI-VACUITY first, because the clause renders only when the cell carried an anchor count
            or a span: without that leg the retired-string check passes on any page that draws no
