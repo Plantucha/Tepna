@@ -35,6 +35,8 @@
  *   --verdict-sample  print ONLY the tepna.verdict/1 object for a fixed two-night run (seed 1, bundle in the
  *                    OS temp dir) — the command tools/verdict-adoption.json runs. Exit code as a normal run.
  *   --selftest       per target: a night with NO nulls must equal its own clean twin (the comparator is not
+ *                    noisy), the P2 plant where one exists must red, and the P1 arm must carry a proof —
+ *                    a `plantP1` that reds or a `noP1` declaration whose `p1()` stays empty.
  *                    noisy); machinery also plants the `null + x === x` bug and demands a red. Exit 1 on either.
  *   --narrate        after the run (or with --summary), ask the LOCAL Ollama
  *                    model (the same endpoint and model as tools/qwen-agent.mjs)
@@ -615,7 +617,11 @@ function compareMetrics(fz, cl, note, opts = {}) {
  * A target = { files, known, setup(ctx) → { p1(), p2(it) } }. p1/p2 return an array of
  * { property, metric, fuzzed, clean, note }; the runner adds seed/iter and groups them. `known` is the
  * routed set for that target (see KNOWN above). To add a DSP: name its files, build a night, build the
- * clean twin (null rows REMOVED), list the order-independent metrics, and say what an all-null night must give. */
+ * clean twin (null rows REMOVED), list the order-independent metrics, and say what an all-null night must give.
+ * EVERY target owes a P1 PROOF: either a `plantP1()` that makes `p1()` red and restores itself, or a
+ * `noP1` string stating why the target has no all-null series to present. `--selftest` fails a target
+ * that brings neither, because its control runs `p2()` and cannot tell a working P1 leg from a vacuous
+ * one (residue 2026-11-16-null-fuzz-p1-legs-unproven-on-three-targets). */
 const TARGETS = {
   oxydex: {
     files: ['kernel-constants.js', 'clock.js', 'clock-seam.js', 'oxydex-util.js', 'oxydex-dsp.js'],
@@ -783,6 +789,22 @@ const TARGETS = {
         });
       };
       return {
+        /** ∅ Selftest plant for P1: the all-null RR series answers a RESULT instead of null, and the leg
+         *  must red. Residue 2026-11-16-null-fuzz-p1-legs-unproven-on-three-targets: before this plant
+         *  `--selftest` ran `p2()` alone here, so the P1 leg carried no proof that it can fire, and a leg
+         *  that can never fire reads exactly like a clean one. The patch fabricates ONLY over an
+         *  all-null series, so it cannot reach the P2 comparator. */
+        plantP1() {
+          const orig = PD.pdComputeResult;
+          PD.pdComputeResult = (...a) => {
+            const v = (a[0] && a[0].vals) || [];
+            if (v.length > 0 && v.every((x) => x == null)) return { N: 0, meanRR: 0, hr: 0, sdnn: 0 };
+            return orig.apply(null, a);
+          };
+          return () => {
+            PD.pdComputeResult = orig;
+          };
+        },
         p1() {
           const vals = new Array(LEN).fill(null);
           let r;
@@ -827,6 +849,21 @@ const TARGETS = {
       };
       const tms = (n) => Array.from({ length: n }, (_, i) => T0 + i * 300000);
       return {
+        /** ∅ Selftest plant for P1: the all-null CGM series answers 0 for every sample statistic, and the
+         *  leg must red. The leg accepts an explicit THROW as a refusal, so the plant returns a
+         *  fabricating result instead of throwing — a plant that threw would exercise the acceptable
+         *  path and read as VACUOUS. It fabricates only over an all-null series. */
+        plantP1() {
+          const orig = GD.compute;
+          GD.compute = (...a) => {
+            const v = (a[0] && a[0].vMgdl) || [];
+            if (v.length > 0 && v.every((x) => x == null)) return { glucose: { mean: 0, sd: 0, cv: 0, gmi: 0, ea1c: 0, titr: 0, lbgi: 0, hbgi: 0 } };
+            return orig.apply(null, a);
+          };
+          return () => {
+            GD.compute = orig;
+          };
+        },
         p1() {
           let r;
           try {
@@ -884,6 +921,12 @@ const TARGETS = {
             Q.prototype.add = orig;
           };
         },
+        /** ∅ This target carries NO P1 arm, and says so rather than leaving an empty leg that reads
+         *  like a clean one. `Quantity.add`, `Quantity.as` and `DexClock.parseTimestamp` each take ONE
+         *  value, so there is no all-null SERIES to present and no dropout geometry; the absence
+         *  contract here is the M1 set inside `p2()`, which the `plant` below proves can fire. The
+         *  selftest reads this string as an assertion and demands that `p1()` stay empty. */
+        noP1: 'no all-null-series producer: Quantity and parseTimestamp each take one value, so absence is a single argument and the contract is the M1 set in p2()',
         p1() {
           return [];
         },
@@ -966,6 +1009,22 @@ if (has('selftest')) {
       restoreP1();
       plantMsg += ` · P1 plant red ${hitP1}${hitP1 > 0 ? '' : ' ✗ VACUOUS'}`;
       if (hitP1 === 0) bad++;
+    } else if (typeof r.noP1 === 'string' && r.noP1.length > 0) {
+      /* ∅ A target with no all-null-series producer DECLARES it, and the declaration is itself an
+         assertion: `p1()` must stay empty, or the declaration and the leg disagree and one of them is
+         wrong. An empty leg beside no declaration is the defect this arm closes. */
+      ran += 1;
+      const stray = r.p1().length;
+      plantMsg += ` · no P1 by declaration${stray === 0 ? ' ✓' : ` ✗ CONTRADICTED (${stray} finding(s))`}`;
+      if (stray !== 0) bad++;
+    } else {
+      /* ∅ Neither a P1 plant nor a declaration. The P1 arm of this target carries no proof that it can
+         fire, and the control above runs `p2()`, so it cannot tell a working leg from a vacuous one.
+         Residue 2026-11-16-null-fuzz-p1-legs-unproven-on-three-targets. A new target must bring one of
+         the two, which is why this arm FAILS instead of warning. */
+      ran += 1;
+      bad++;
+      plantMsg += ' · P1 UNPROVEN ✗ (no plantP1 and no noP1 declaration)';
     }
     ran += 1;
     if (ctl !== 0) bad++;
