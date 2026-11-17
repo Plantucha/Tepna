@@ -3807,6 +3807,262 @@
        its correlation time. A run-length criterion is not a periodicity criterion — hence criterion 4
        (REGULARITY, CV < PB_MAX_CYCLE_CV), whose threshold sits between two MEASURED distributions:
        red noise never below CV 0.147, PB never above 0.111 out to +/-10 s cycle jitter. */
+    /* ── THE GUIDE, THE ENGINE AND THE RENDER LAYER PUBLISHED THREE DIFFERENT GRADE SCALES ────────
+       Residue 2026-11-15-oxydex-reference-guide-states-equal-weights-and-five-grades. Measured
+       2026-11-17 against ea6353fb9:
+         · `oxydex-dsp.js` computeSleepStabilityScore weights the six sub-scores 0.2, 0.1, 0.15, 0.2,
+           0.2 and 0.15, renormalizes over the MEASURED ones, and grades at 80 and 60 into Good, Fair
+           and Poor.
+         · `OxyDex Reference.html` published "Six equally weighted sub-scores … Mean of all six gives
+           the final score" and FIVE bands: 80 Excellent, 65 Good, 50 Fair, 35 Poor and under 35 Very
+           poor. Every band disagreed with the engine. A score of 85 read Excellent where the engine
+           says Good, 70 read Good where it says Fair, and 55 read Fair where it says Poor.
+         · `oxydex-render.js` coloured the clinical-summary KPI at 70 and 50, beside the engine's own
+           word, so the word and the colour disagreed on every score in [50, 60) and in [70, 80). The
+           readiness class tested `n.stab.score ?`, which is FALSE at a measured 0.
+       A number a reader can act on is a published number, so the divergence IS the defect, and the
+       remedy is the DOC plus ONE place that grades (CLAUDE.md §🎫). This group is what holds the
+       three together: the lesson from the chart-grid unit is that a repair which lands with no rule
+       leaves its twin standing.
+       PURE SOURCE SCAN over `env.sources` and `env.docs`, and both lanes fill both, so THIS GROUP
+       NEVER SKIPS. The render leg reads the file's WHOLE `.score >=` population deliberately: a
+       future unrelated threshold must either sit behind its own named helper or extend this leg on
+       purpose, because an alias-scoped regex is evaded by renaming one variable.
+       The sweep leg is the generalisation. An equal-weight claim in ANY of the nine node guides must
+       name a metric this table holds, so the next card cannot make the same claim unexamined. Its
+       live population is ZERO after this repair, which is why it carries a planted positive control
+       rather than standing on the live scan alone. A gate over every card's formula prose is a
+       separate unit, and most cards state prose no scanner can decide — stated here rather than
+       attempted. */
+    group('the sleep stability score is published with the weights and bands the engine uses', 'oxydex · sleep-stability · source-scan', function (T) {
+      var RANGE = /^(\d+)&#x2013;(\d+)$/,
+        BELOW = /^&lt;(\d+)$/;
+
+      function cardOf(doc, id) {
+        var i = String(doc || '').indexOf('data-id="' + id + '"');
+        if (i < 0) return null;
+        var rest = String(doc).slice(i);
+        var j = rest.indexOf('<div class="mc"', 1);
+        return j < 0 ? rest : rest.slice(0, j);
+      }
+      function engineWeights(src) {
+        var m = /var _parts = \[([\s\S]*?)\]\s*\.filter/.exec(String(src || ''));
+        if (!m) return null;
+        var out = [];
+        for (const w of m[1].matchAll(/\[\s*s(\d)\s*,\s*([0-9.]+)\s*\]/g)) out.push([+w[1], +w[2]]);
+        return out.length ? out : null;
+      }
+      function engineBands(src) {
+        var m = /var grade\s*=\s*([^;]+);/.exec(String(src || ''));
+        if (!m) return null;
+        var out = [];
+        for (const t of m[1].matchAll(/score\s*>=\s*(\d+)\s*\?\s*'([A-Za-z ]+)'/g)) out.push({ lo: +t[1], name: t[2] });
+        var tail = /:\s*'([A-Za-z ]+)'\s*$/.exec(m[1].trim());
+        if (tail) out.push({ lo: null, name: tail[1] });
+        return out.length ? out : null;
+      }
+      function guideWeights(card) {
+        var out = [];
+        for (const m of String(card || '').matchAll(/s(\d)\s*=\s*f\([^)]*\)\s*w\s*=\s*([0-9.]+)/g)) out.push([+m[1], +m[2]]);
+        return out.length ? out : null;
+      }
+      function guideBands(card) {
+        var out = [];
+        for (const m of String(card || '').matchAll(/<tr class="[a-z]+"><td>([\s\S]*?)<\/td><td class="nr">([^<]*)<\/td><\/tr>/g)) {
+          var cell = m[1].replace(/&#x202F;|&#xA0;|&nbsp;|\s/g, ''),
+            r = RANGE.exec(cell),
+            b = BELOW.exec(cell);
+          out.push({ lo: r ? +r[1] : null, top: r ? +r[2] : b ? +b[1] : null, open: !!b, name: String(m[2]).trim(), raw: cell });
+        }
+        return out.length ? out : null;
+      }
+      /* The engine's thresholds and the table's own continuity, in one place: a band below the top
+         one must start where its neighbour stops. A RANGE row states an inclusive ceiling, so it ends
+         one below the neighbour's floor; an open `< N` row states the exclusive bound itself. */
+      function bandMisses(eng, gui) {
+        if (!eng || !gui) return ['one side could not be parsed'];
+        var out = [];
+        if (eng.length !== gui.length) out.push('the engine grades into ' + eng.length + ' bands and the guide tables ' + gui.length);
+        var n = Math.min(eng.length, gui.length);
+        for (var i = 0; i < n; i++) {
+          if (eng[i].name !== gui[i].name) out.push('band ' + (i + 1) + ' is "' + gui[i].name + '" in the guide and "' + eng[i].name + '" in the engine');
+          if ((eng[i].lo == null ? null : eng[i].lo) !== gui[i].lo) out.push('band ' + (i + 1) + ' starts at ' + gui[i].lo + ' in the guide and ' + eng[i].lo + ' in the engine');
+          if (i > 0 && gui[i - 1].lo != null && gui[i].top != null) {
+            var owed = gui[i].open ? gui[i - 1].lo : gui[i - 1].lo - 1;
+            if (gui[i].top !== owed) out.push('band ' + (i + 1) + ' stops at ' + gui[i].top + ' and its neighbour starts at ' + gui[i - 1].lo);
+          }
+        }
+        return out;
+      }
+      function weightMisses(eng, gui) {
+        if (!eng || !gui) return ['one side could not be parsed'];
+        var out = [];
+        if (eng.length !== gui.length) out.push('the engine weights ' + eng.length + ' sub-scores and the guide states ' + gui.length);
+        var n = Math.min(eng.length, gui.length);
+        for (var i = 0; i < n; i++) {
+          if (eng[i][0] !== gui[i][0]) out.push('position ' + (i + 1) + ' is s' + gui[i][0] + ' in the guide and s' + eng[i][0] + ' in the engine');
+          if (Math.abs(eng[i][1] - gui[i][1]) > 1e-9) out.push('s' + eng[i][0] + ' is ' + gui[i][1] + ' in the guide and ' + eng[i][1] + ' in the engine');
+        }
+        return out;
+      }
+      /* Every card in every guide that claims equal weighting must be one this group holds. */
+      function unheldEqualWeightClaims(docs, held) {
+        var out = [];
+        Object.keys(docs || {})
+          .filter(function (k) {
+            return / Reference\.html$/.test(k);
+          })
+          .sort()
+          .forEach(function (g) {
+            var text = docs[g];
+            if (text == null) {
+              out.push(g + ' is unreadable, so no claim in it was examined');
+              return;
+            }
+            String(text)
+              .split('<div class="mc"')
+              .slice(1)
+              .forEach(function (cardBody) {
+                if (!/equal(?:ly)? weight/i.test(cardBody)) return;
+                var id = /^[^>]*data-id="([^"]+)"/.exec(cardBody);
+                var name = id ? id[1] : 'a card with no data-id';
+                if (((held || {})[g] || []).indexOf(name) < 0) out.push(g + ' · ' + name + ' claims equal weighting and no rule holds it');
+              });
+          });
+        return out;
+      }
+      function scoreThresholds(src) {
+        var out = [];
+        for (const m of String(src || '').matchAll(/\.score\s*>=\s*(\d+)/g)) out.push(+m[1]);
+        return out;
+      }
+
+      var dsp = (env.sources && env.sources['oxydex-dsp.js']) || null,
+        rnd = (env.sources && env.sources['oxydex-render.js']) || null,
+        guide = (env.docs && env.docs['OxyDex Reference.html']) || null;
+
+      /* ANTI-VACUITY FIRST, in BOTH lanes: a leg over an unread artifact reports success about
+         something it never examined (CLAUDE.md §4b). */
+      T.ok(
+        'ANTI-VACUITY · the engine, the render layer and the guide were all READ, in this lane',
+        !!(dsp && rnd && guide),
+        'dsp ' + (dsp ? dsp.length : 0) + ' · render ' + (rnd ? rnd.length : 0) + ' · guide ' + (guide ? guide.length : 0)
+      );
+      if (!(dsp && rnd && guide)) {
+        T.skip('the three artifacts are readable here', 'wire oxydex-dsp.js + oxydex-render.js into SOURCE_FILES and OxyDex Reference.html into env.docs in BOTH lanes');
+        return;
+      }
+
+      var eW = engineWeights(dsp),
+        eB = engineBands(dsp),
+        card = cardOf(guide, 'sleepStability');
+      T.ok('the engine states six weights, and they were parsed', !!eW && eW.length === 6, eW ? JSON.stringify(eW) : 'the _parts table did not parse');
+      T.ok(
+        'the engine states three grades, and they were parsed',
+        !!eB && eB.length === 3,
+        eB
+          ? eB
+              .map(function (b) {
+                return b.name + '@' + b.lo;
+              })
+              .join(' ')
+          : 'the grade chain did not parse'
+      );
+      T.ok('the guide carries a sleepStability card', !!card, card ? card.length + ' chars' : 'no data-id="sleepStability" in the guide');
+      if (!(eW && eB && card)) return;
+
+      var sum = eW.reduce(function (a, p) {
+        return a + p[1];
+      }, 0);
+      T.ok('the engine weights sum to 1 over a complete night', Math.abs(sum - 1) < 1e-9, 'sum ' + sum);
+      T.eq('the guide states the engine weights, in the engine order', weightMisses(eW, guideWeights(card)).join('; '), '');
+      T.eq('the guide tables the engine grade bands, with no gap and no overlap', bandMisses(eB, guideBands(card)).join('; '), '');
+
+      /* The two statements the old prose got wrong beyond the numbers: the engine drops an unmeasured
+         sub-score and renormalizes, and it refuses outright when nothing was measured (CLAUDE.md §∅). */
+      var renorm = /_wSum/.test(dsp) && /_parts[\s\S]{0,600}?\.filter/.test(dsp);
+      T.ok(
+        'the guide states the renormalization the engine performs',
+        !renorm || (/renormalized/i.test(card) && /dropped/i.test(card)),
+        renorm ? 'engine renormalizes' : 'engine does not renormalize'
+      );
+      var refuses = /'no-measured-component'/.test(dsp);
+      T.ok('the guide names the refusal the engine emits over no measured sub-score', !refuses || card.indexOf('no-measured-component') >= 0, refuses ? 'engine refuses' : 'engine does not refuse');
+      T.ok('the guide no longer calls the sub-scores a plain mean', !/mean\(s1\.\.s6\)/.test(card) && !/equal(?:ly)? weight/i.test(card));
+
+      /* ONE place in the render layer derives the bands, and it derives the ENGINE's. */
+      T.eq('one named helper grades the score in the render layer', (rnd.match(/function stabGradeClass\(/g) || []).length, 1);
+      T.ok('that helper prefers the class the engine itself published', /function stabGradeClass\([\s\S]{0,400}?stab\.gradeClass/.test(rnd));
+      T.eq(
+        'the render layer compares a score to no threshold the engine does not grade at',
+        scoreThresholds(rnd)
+          .sort(function (a, b) {
+            return b - a;
+          })
+          .join(','),
+        eB
+          .filter(function (b) {
+            return b.lo != null;
+          })
+          .map(function (b) {
+            return b.lo;
+          })
+          .join(',')
+      );
+
+      /* The sweep: live population ZERO, so the control below is what proves the leg can see one. */
+      T.eq('no guide card claims equal weighting outside the rules that hold one', unheldEqualWeightClaims(env.docs, { 'OxyDex Reference.html': [] }).join('; '), '');
+      var GUIDES = Object.keys(env.docs || {}).filter(function (k) {
+        return / Reference\.html$/.test(k);
+      });
+      T.ok('ANTI-VACUITY · the sweep read all nine node guides', GUIDES.length >= 9, GUIDES.length + ' guide(s): ' + GUIDES.join(' '));
+
+      /* ── planted controls · each is the live leg over text that carries the defect ───────────── */
+      var pDsp =
+        'var _parts = [\n[s1, 0.2],\n[s2, 0.1],\n[s3, 0.15],\n[s4, 0.2],\n[s5, 0.2],\n[s6, 0.15]\n].filter(function (p) { return p[0] != null; });\n' +
+        "var grade = score >= 80 ? 'Good' : score >= 60 ? 'Fair' : 'Poor';";
+      T.eq('PLANT · the planted engine parses to the real one', JSON.stringify([engineWeights(pDsp), engineBands(pDsp)]), JSON.stringify([eW, eB]));
+      var pCard = card;
+      T.ok('PLANT · a reweighted engine reds the weight leg', weightMisses(engineWeights(pDsp.replace('[s2, 0.1]', '[s2, 0.25]')), guideWeights(pCard)).length > 0);
+      T.ok('PLANT · a guide dropping one weight reds the weight leg', weightMisses(eW, guideWeights(pCard.replace(/s6=f\([^)]*\) w=0.15/, 's6=f(T95)'))).length > 0);
+      T.ok('PLANT · a renamed guide band reds the band leg', bandMisses(eB, guideBands(pCard.replace('>Fair<', '>Moderate<'))).length > 0);
+      T.ok('PLANT · a guide band off by one reds the continuity leg', bandMisses(eB, guideBands(pCard.replace('60&#x202F;&#x2013;&#x202F;79', '60&#x202F;&#x2013;&#x202F;78'))).length > 0);
+      T.ok('PLANT · an open band that does not meet its neighbour reds the continuity leg', bandMisses(eB, guideBands(pCard.replace('&lt;&#x202F;60', '&lt;&#x202F;55'))).length > 0);
+      T.ok(
+        'PLANT · the five-band guide this repair replaced reds the band leg',
+        bandMisses(
+          eB,
+          guideBands(
+            '<tr class="ok"><td>80&#x202F;&#x2013;&#x202F;100</td><td class="nr">Excellent</td></tr>' +
+              '<tr class="ok"><td>65&#x202F;&#x2013;&#x202F;79</td><td class="nr">Good</td></tr>' +
+              '<tr class="wn"><td>50&#x202F;&#x2013;&#x202F;64</td><td class="nr">Fair</td></tr>' +
+              '<tr class="bd"><td>35&#x202F;&#x2013;&#x202F;49</td><td class="nr">Poor</td></tr>' +
+              '<tr class="cr"><td>&lt;&#x202F;35</td><td class="nr">Very poor</td></tr>'
+          )
+        ).length > 0
+      );
+      T.ok('PLANT · the KPI thresholds this repair replaced red the render leg', scoreThresholds("recent.stab.score >= 70 ? 'ok' : recent.stab.score >= 50 ? 'warn' : 'bad'").join(',') !== '80,60');
+      T.eq(
+        'PLANT · an unheld equal-weight claim is NAMED, with its card',
+        unheldEqualWeightClaims({ 'ZDex Reference.html': '<div class="mc" data-id="fakeComposite"><p>Four equally weighted parts.</p></div>' }, {}).join('; '),
+        'ZDex Reference.html · fakeComposite claims equal weighting and no rule holds it'
+      );
+      T.eq(
+        'PLANT · a HELD card makes the same claim pass',
+        unheldEqualWeightClaims({ 'ZDex Reference.html': '<div class="mc" data-id="fakeComposite"><p>Four equally weighted parts.</p></div>' }, { 'ZDex Reference.html': ['fakeComposite'] }).join(
+          '; '
+        ),
+        ''
+      );
+      T.eq(
+        'PLANT · an unreadable guide is NAMED, never passed over',
+        unheldEqualWeightClaims({ 'ZDex Reference.html': null }, {}).join('; '),
+        'ZDex Reference.html is unreadable, so no claim in it was examined'
+      );
+      T.eq('PLANT · an engine with no weight table parses to null, so no leg reads nothing', String(engineWeights('function f() { return 1; }')), 'null');
+      T.eq('PLANT · a guide with no such card returns null, so no leg reads nothing', String(cardOf('<div class="mc" data-id="other"></div>', 'sleepStability')), 'null');
+    });
+
     group('periodic breathing is separated from burden, from randomness, and from red noise', 'oxydex · pb-detector', function (T) {
       var cand = [env.OxyDex && env.OxyDex._bare, env.OxyDex, env.OxyDSP, env.OXYDSP];
       var OD = null,

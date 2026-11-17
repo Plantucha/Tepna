@@ -1635,14 +1635,12 @@ body.light .ev-measured { border-color:var(--surface); }
 
 <div class="mc" data-id="sleepStability">
   <div class="mh"><div class="mi"><span class="ma">Sleep Stability Score</span><span class="mf">0&#x202F;&#x2013;&#x202F;100 composite</span></div><span class="mt tc">Core</span></div>
-  <p class="md">Six equally weighted sub-scores (SpO&#x2082; SD, HR floor, motion %, oscillation count, hypoxic burden rate, T95), each normalized 0&#x202F;&#x2013;&#x202F;100. Mean of all six gives the final score.</p>
-  <div class="fb"><div class="fl">Components</div><div class="ft">s1=f(SpO&#x2082;&#x202F;SD); s2=f(HR floor); s3=f(motion %);&#x0A;s4=f(oscillation count); s5=f(hypoxic burden); s6=f(T95)&#x0A;Score = mean(s1..s6)</div></div>
+  <p class="md">Six WEIGHTED sub-scores, each normalized 0&#x202F;&#x2013;&#x202F;100. The weights differ: SpO&#x2082; SD 0.20, HR floor 0.10, motion % 0.15, oscillation count 0.20, hypoxic burden rate 0.20 and T95 0.15. The score is their weighted mean. A sub-score whose input was not measured is dropped, and the remaining weights are renormalized, so the night scores on what it measured. The <code>wMeasured</code> field reports the weight the score rests on. With no measured sub-score the score and the grade are both null, and the reason reads <code>no-measured-component</code>.</p>
+  <div class="fb"><div class="fl">Components</div><div class="ft">s1=f(SpO&#x2082;&#x202F;SD) w=0.20; s2=f(HR floor) w=0.10; s3=f(motion %) w=0.15;&#x0A;s4=f(oscillation count) w=0.20; s5=f(hypoxic burden) w=0.20; s6=f(T95) w=0.15&#x0A;Score = &#x3A3;(w&#xB7;s over measured) / &#x3A3;(w over measured)</div></div>
   <div class="nt-wrap"><table class="nt"><tr><th>Score</th><th>Classification</th></tr>
-  <tr class="ok"><td>80&#x202F;&#x2013;&#x202F;100</td><td class="nr">Excellent</td></tr>
-  <tr class="ok"><td>65&#x202F;&#x2013;&#x202F;79</td><td class="nr">Good</td></tr>
-  <tr class="wn"><td>50&#x202F;&#x2013;&#x202F;64</td><td class="nr">Fair</td></tr>
-  <tr class="bd"><td>35&#x202F;&#x2013;&#x202F;49</td><td class="nr">Poor</td></tr>
-  <tr class="cr"><td>&lt;&#x202F;35</td><td class="nr">Very poor</td></tr></table></div>
+  <tr class="ok"><td>80&#x202F;&#x2013;&#x202F;100</td><td class="nr">Good</td></tr>
+  <tr class="wn"><td>60&#x202F;&#x2013;&#x202F;79</td><td class="nr">Fair</td></tr>
+  <tr class="bd"><td>&lt;&#x202F;60</td><td class="nr">Poor</td></tr></table></div>
 <span class="ev-corner ev-experimental" title="Experimental — derived from other metrics or uses approximation"></span></div>
 
 </div>
