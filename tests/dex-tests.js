@@ -87962,6 +87962,74 @@
       }
     });
 
+    /* ════ ∅ · IN-BAND DEFAULTS IN integrator-dsp.js (task 24) ══════════════════════════════════════
+       Two sites turned an absence into a number, and each number travels. A CGM cadence defaulted to
+       5 min scales BOTH the coverage gate (which decides whether a glucose⟷autonomic pair exists at
+       all) and the minutes-below-threshold figure; an OxyDex night with no `stats.n` had its desat and
+       arousal INDICES placed on the floating axis at a nominal 1 Hz. Both probes below assert on the
+       published shape, not on an internal literal. */
+    group('Integrator ∅ — an undeclared CGM cadence and an uncounted OxyDex night are not five minutes and 1 Hz', 'integrator-dsp · absence · in-band-default', function (T) {
+      var IG = env.IntegratorDSP,
+        gmw = IG && IG.glucoseMetricsInWindow;
+      if (typeof gmw !== 'function') {
+        T.ok('IntegratorDSP.glucoseMetricsInWindow exposed', false, 'not wired');
+      } else {
+        var T0 = U(2026, 6, 13, 0, 0, 0),
+          M = 60000;
+        var cellsAt = function (n, cadMin, v) {
+          var out = [];
+          for (var i = 0; i < n; i++) out.push({ tMs: T0 + i * cadMin * M, v: v, f: 0 });
+          return out;
+        };
+        /* A 15-MIN CGM THAT STATES NO CADENCE, over a 6 h window. Pre-fix the denominator used 5 min
+           (expected 73 cells), coverage read 0.34, and the minCoverage gate dropped a fully covered
+           wear — after which the glucose⟷autonomic pair vanished from the fusion entirely. */
+        var q15 = gmw({ series: { cells: cellsAt(25, 15, 110) } }, T0, T0 + 360 * M, {});
+        T.ok('∅ · a fully covered 15-min wear that declares no cadence still measures', !!q15, JSON.stringify(q15 && { cov: q15.coverage, n: q15.nCells }));
+        T.eq('∅ · …its coverage is the MEASURED 1, not the 0.34 a 5-min default wrote', q15 && q15.coverage, 1);
+        /* A DECLARED cadence is untouched by the derivation. */
+        var declared = gmw({ series: { cells: cellsAt(25, 15, 110), cadenceMin: 15 } }, T0, T0 + 360 * M, {});
+        T.eq('∅ · a DECLARED cadence reads the same as the derived one', declared && declared.coverage, 1);
+        /* THE MINUTES. 121 one-minute cells all below 70 over 2 h = 121 min below 70. Pre-fix
+           `below * 5` published 605 — five times the truth, from a cadence nobody measured. */
+        var low = gmw({ series: { cells: cellsAt(121, 1, 60) } }, T0, T0 + 120 * M, {});
+        T.eq('∅ · time below 70 at a 1-min cadence is 121 min, not the 605 a 5-min default wrote', low && low.timeBelow70Min, 121);
+        /* NO DERIVABLE CADENCE AT ALL — every stamp identical. Coverage and the minute figure are
+           UNKNOWN, and both keys are PRESENT so a reader can tell null from missing. */
+        var flatCells = [];
+        for (var fi = 0; fi < 40; fi++) flatCells.push({ tMs: T0, v: 60, f: 0 });
+        var unk = gmw({ series: { cells: flatCells } }, T0, T0 + 120 * M, {});
+        T.eq('∅ · a cadence the cells cannot yield leaves coverage NULL', unk && unk.coverage, null);
+        T.ok('∅ · …and the coverage key is PRESENT, so null reads as unknown rather than missing', !!unk && 'coverage' in unk, JSON.stringify(unk && Object.keys(unk)));
+        T.eq('∅ · …timeBelow70Min is NULL with it', unk && unk.timeBelow70Min, null);
+        T.ok('∅ · …and that key is present too', !!unk && 'timeBelow70Min' in unk);
+      }
+      /* THE OXYDEX ADAPTER. A 480-min night whose real step is 30 s (n = 960) puts index 900 at
+         t0 + 7 h 30 min. With `stats.n` absent the index has no measured step, so the night must NOT
+         publish a stamp for it, and must say how many it could not place. */
+      var NF = env.normalizeFile;
+      if (typeof NF !== 'function') {
+        T.ok('env.normalizeFile available', false, 'not wired');
+        return;
+      }
+      var t0 = U(2026, 5, 13, 22, 0, 0);
+      // `normalizeFile` returns { recs, warnings } in the Node lane and a bare array in some tools.
+      var recsOf = function (r) {
+        return Array.isArray(r) ? r : (r && r.recs) || [];
+      };
+      var oxy = function (n, label) {
+        var night = { t0Ms: t0, stats: { durationMin: 480 }, desatProfile: { events: [{ nadirIdx: 900, nadir: 88, duration: 30 }] } };
+        if (n != null) night.stats.n = n;
+        return recsOf(NF({ schema: { node: 'OxyDex' }, recording: { startEpochMs: t0, durationMin: 480, offsetMin: null }, nights: [night] }, label));
+      };
+      var withN = oxy(960, 'OxyDex_2026-06-13_2200_summary.json');
+      T.eq('∅ · a MEASURED sample count places the desat on the real axis (30 s step)', withN[0].events[0] && withN[0].events[0].tMs, t0 + 27000 * 1000);
+      var noN = oxy(null, 'OxyDex_2026-06-13_2300_summary.json');
+      T.eq('∅ · an uncounted night publishes NO desat stamped at a nominal 1 Hz', noN[0].events.length, 0);
+      T.eq('∅ · …and says how many it could not place', noN[0].summary.undatedEvents, 1);
+      T.ok('∅ · …as a PRESENT key, so the count is readable', 'undatedEvents' in noN[0].summary, JSON.stringify(Object.keys(noN[0].summary).slice(0, 12)));
+    });
+
     group('Integrator §8.3 — long-gap interpolation is not measured glucose, and not coverage', 'integrator-dsp · glucose · regression', function (T) {
       var IG = env.IntegratorDSP;
       var gmw = IG && IG.glucoseMetricsInWindow;
