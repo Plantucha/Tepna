@@ -30,6 +30,81 @@ changesets.)
 
 ---
 
+## [2.34.0] — 2026-11-17
+
+### Added
+- Draw the ECGDex signal-quality table and the three drift series at the top of the Signal Quality (`SIGNAL-QUALITY-TABLE-2026-11-14-BRIEF.md`)
+- The native Muse S Athena recorder now feeds a live EEG card on the monitor. The card shows the four identified electrodes at 256 Hz as raw counts, and each push carries the record's own device time. A Muse remembered from the Devices page now gets `protocol: athena`, so it records through the native recorder and not through the child-tool supervisor. The battery chip already came from the 0x88 record. The `run_muse_athena` docstring now names `_CounterGapSidecar`. (`MUSE-ATHENA-PROTOCOL-2026-11-14-BRIEF.md`)
+- Pin the independence tri-state of the shared timing block, so an unmeasured verdict cannot read as false.
+
+### Changed
+- Reorder the ECGDex page into reading order and repair what the signal-quality table and the three (`SIGNAL-QUALITY-TABLE-2026-11-14-BRIEF.md`)
+- Draw each signal-quality fact as the quality-strip tile, state every explanation in one note under (`SIGNAL-QUALITY-TABLE-2026-11-14-BRIEF.md`)
+- Name `hypnogram` in the export filename vocabulary, and hold that vocabulary against every `exportName` call site in the suite.
+
+### Fixed
+- Refuse a respiration rate and a calibration offset that nothing measured.
+- Report a null desaturation ceiling where the OxyDex window holds no sample, instead of a baseline of 95.
+- The CPAPDex AHI-by-hour chart no longer draws an event with no time in hour 1. The bucketing now counts such an event as `untimed`, and the chart states that count. A timed event outside the chart's hours counts as `outside`. Shrike wrote the first patch, and Kestrel reviewed and corrected it.
+- Read the ECGDex night drift rate off `driftProfile.night.ppm`. The producer publishes `night` as an object, and the render read it as a number. The panel threw on every capture-host night. That throw stopped `renderAll` at the quality section, so no later section rendered. The label now gives the anchor count, the span and the uncertainty beside the rate. (`SIGNAL-QUALITY-TABLE-2026-11-14-BRIEF.md`)
+- Refuse eight ECGDex and PpgDex metrics that published a number over input the node never measured. The group covers validateRR, pnn50, hrvStability, the Lomb-Scargle respiratory rate, the cardiorespiratory PLV, the activity score and the per-beat trust statistic. The trust statistic now marks its own calibration out of band, so the artifact-second count refuses rather than answering 0. PpgDex carries the same mirror and a third state on its own confidence channel.
+- Pin two EEGDex refusals that no assertion held. `rms` returns null over a window with no finite sample. `swaTrend` excludes a stretch with fewer than four N2 or N3 epochs.
+- Pin three GlucoDex refusals that no assertion held. `pearson` returns null over fewer than three pairs. `pearson` also returns null when one series has no variance. `mage` returns null over fewer than four readings.
+- Pin two HRVDex guards that no assertion held: the sample SD refuses below two values, and `commitRows` drops a row with no finite stamp.
+- Report absence as null in three Integrator outputs: the activity envelope, the arrival pair bounds and the glucose-autonomic confidence.
+- Keep a measured zero in five Integrator adapter read chains.
+- Pool the previous day when a night crossed midnight into a folder that holds no night signal of its own.
+- Refuse an OxyDex stability score over a night that measured nothing, and null the oscillation counts when the SpO2 channel never reported. Guard every stability subscore on its own field.
+- Pin the three-field floor of the headerless ACC column map in PpgDex and MotionDex. A row with one or two numeric fields maps nothing, and the parser counts every such row in `_unmappedDropped`. Before this change, no assertion caught a lower floor, which drops every row and counts none.
+- Skip every beat pair that touches an omitted interval in the PPGDex `timeDomain` beat-to-beat arm. rMSSD and pNN50 no longer read intervals the caller excluded. The return carries `nBeatPairsOmitted` beside `nBeatPairs`.
+- Publish the PulseDex artifact share and refuse a respiration peak or an estimator value that no input measured.
+- Report a null `maxAbsBias` with the reason `no-key-scored` when the TCH reference record scored no night, instead of 0. The privacy scrub of such a record reads `NOT_RUN`, never `PASS`, so `tools/tch-reference-record.mjs` refuses to write it. A private-data finding still reads `FAIL`.
+- Refuse a MotionDex respiratory rate and a posture distribution that nothing measured.
+- An event the node cannot place in time now sorts last in every review timeline, instead of leading it as 1970-01-01.
+- The motion channel reads its clock uncertainty from the clock module's own Allan curve. The tau0 jitter floor stays beside it, under its own name. Both figures refuse where the rate refuses. (`HOSTAXIS-STABILITY-2026-08-13-BRIEF.md`)
+- Refuse a CPAPDex pressure, leak or latency that no mask-on sample measured, and name the cause beside each refusal.
+- Refuse every CPAPDex leak metric over a session with no leak channel, and name the absent lane.
+- Name the reason beside an absent CPAPDex snore-pressure correlation at the pooled site, and split the sample floor out of the constant-lane refusal.
+- Refuse CPAPDex usage hours over a pressure lane that carries no sample, and name the absence at the session and the night.
+- An absent night coverage no longer weighs a full night in a cross-night envelope.
+- Refuse the ECGDex motion placement when no measurement supports it, and name the cause.
+- Grade the ECGDex profile card against the age the user entered, never the population prior behind it.
+- Refuse the ECGDex artifact-masked beat count when the trust gate could not calibrate.
+- ECGDex re-renders the signal-quality table when a motion file loads after the analysis. Before, the motion cells kept the ACC-less verdict while the comparison panel above them drew the motion channel.
+- ECGDex sorts an undated recording after every dated one. Before this fix, four lists read an absent `t0Ms` as 0: the recording switcher, the cross-night panel and two multi-recording exports. So an undated recording took the first place. The event timeline in the review panel had the same defect for an event with no `tMs`. A measured stamp of 0 still sorts as a stamp.
+- Refuse an ECGDex beat coverage that no span measured. `buildNN` published `coveragePct` 100 whenever `spanSec` was 0, and `analyzablePct` carried that to the KPI card as 100 % analyzable. A series under two intervals and a device counter that never advances both reach it. `coveragePct`, `analyzablePct`, `cleanBeatPct` and `correctionRate` now refuse together. Each one names its own cause. The ECGDex surfaces print an em dash with a neutral grade, instead of `null%` graded against a threshold.
+- Order the GlucoDex review-mode events on a stamp rebuilt from the recording start. An event with no placeable stamp sorts last.
+- Divide the `DexClock.hostAxis` rate out of the running median's end clamp, and name the estimator that produced it.
+- HRVDex draws an absent reading as a gap on its smoothed charts and on the monthly High-Stress/Low-Energy bar. The smoothing filter kept a `null` reading and averaged it as 0. So a 60 beside an absent night plotted 30, and an all-absent window plotted 0. The monthly bar added a NaN night, which reset the month and dropped the days counted before it. A month that measured no night now draws no bar.
+- Bound every HRVDex rolling window to the calendar days its name states, so a stale row no longer enters a 7-day or 14-day mean.
+- Count a refused body-position label as unmeasured in the Integrator positional-apnea pass, not as a measured non-supine posture.
+- Build the motion stream's host axis from its own two clocks, before the parser rewrites the phone stamps. Publish the rate, its uncertainty, the anchor count and the timing source as the motion stream's own facts. No beat enters any of them. The rail cell now publishes no value, and it names the input it does not have, because no declared full-scale range reaches this node.
+- MotionDex no longer places an unstamped chest sample at its index time. Such a sample has no device counter and no host stamp, so it has no instant. The effort series skipped no such sample, and a block of them could fill an epoch that the chest never covered. That epoch then read `present: true`, and the Integrator reads that flag for apnea typing. The effort series now leaves the sample out of every epoch, and `respiratoryEffort` counts it in `unstampedSamples`.
+- Make a new Muse optional for the solid-night judge, and re-judge a night when its expected devices change.
+- Read the Muse EEG stream under its `_RAW.txt` file tag, so a recorded night stops reporting the device absent.
+- Ask the previous day's folder about a crossing whenever this folder holds no night signal at all, whatever the clock says.
+- Make the null fuzzer judge every projection key over an all-null night. Count the keys it cannot judge, and plant a P1 failure that proves the leg fires.
+- OverDex now names unreadable files in its status pill after a drop. The pill counted four of the five file classes and left out read errors and refused seals. A failed read now draws the red pill, because the `err` tone had no CSS rule and drew the neutral one.
+- Make each mutation-gate plant test wait for a cmdline sample that names its own child process.
+- Grade a PpgDex age-relative subscore only against an age the reader entered.
+- Answer null for the PpgDex correction rate over an empty interval series, never a measured zero.
+- The PR walker opens no residue closure PR while an out-of-draft PR waits on its required checks. A closure PR runs fast CI, so Kodiak merged it ahead of a PR that waited on the capture-host mutation job. That merge cancelled the long run. The pass prints the PR that holds the closure. The next pass after that PR merges opens the closure.
+- Report an absent PulseDex coverage as null, and weight a night without coverage at the floor.
+- Keep an absent PulseDex profile elevation null at each of its four sites.
+- Name why a night-QC stream with rows and no reference rate carries no coverage number.
+- `tools/rebase-safe.mjs` now resolves the generated conflicts of every stopped commit, not only the first one. It skips a commit that the resolution leaves empty. Before, a second conflicting commit threw out of `rebase --continue` and left the tree mid-rebase. The walker's own generated-only rebuild commit caused that second stop on #5132. `tools/pr-walker.mjs` `stepResult` no longer records git fetch progress as the reason a step stopped.
+- Let a residue row name a source file whose name carries a space, an apostrophe or an `@`. The docs-ledger shape check refused 70 tracked names.
+- Rebuild a date-less event stamp in the ECGDex review timeline, so a `t`-only export sorts by time and not by its ingest order.
+- Carry a zero ECGDex recording anchor through the analyze reshape and both exports, because 0 is a legal floating stamp and not absence.
+- Read an EMG or EOG lead only at the rate that the caller declared.
+- Refuse a CGM export whose glucose column cannot be found, rather than read column 1 as glucose, and
+- Grade an absent HRVDex KPI value as neutral, never as the worst band. (`MUSE-HUNT-RECORD-2026-11-08-BRIEF.md`)
+- Unwrap the Muse device tick at its 2^28 ns fold, not at 2^24 ticks. (`MUSE-ATHENA-PROTOCOL-2026-11-14-BRIEF.md`)
+- Answer null for the PpgDex clean-beat and analyzable shares when the detector placed no beats.
+- Correct the ECGDex signal-quality rate comment, which quoted the standard error of a synthetic mean where it argued about the per-draw spread.
+
+---
+
 ## [2.33.0] — 2026-11-15
 
 ### Added
@@ -4448,7 +4523,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.33.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.34.0...HEAD
+[2.34.0]: https://github.com/Plantucha/Tepna/compare/v2.33.0...v2.34.0
 [2.33.0]: https://github.com/Plantucha/Tepna/compare/v2.32.0...v2.33.0
 [2.32.0]: https://github.com/Plantucha/Tepna/compare/v2.31.0...v2.32.0
 [2.31.0]: https://github.com/Plantucha/Tepna/compare/v2.30.0...v2.31.0
