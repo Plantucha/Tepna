@@ -32,7 +32,7 @@
       "kernel-constants.js": "0050ad3f9dc7",
       "clock.js": "1c56de0b671c",
       "clock-seam.js": "eca421bd5c5e",
-      "pulsedex-dsp.js": "6a0499213014"
+      "pulsedex-dsp.js": "3e683cafe54f"
     }
   },
   "yield": {
@@ -284,11 +284,18 @@
       "old": "a6e8cd23f237",
       "new": "84068a4357c0",
       "reason": "Unit oxydef (Shrike absence audit of oxydex-dsp.js): three summary fields published 0 where nothing produced them. longestCleanRun read 0 min over a night with no measured SpO2 sample, nadirDensity read 0 per hour when the desaturation detector produced no nadir result, and meanDepth and meanDuration read 0 over zero real events. Each now reports null in that case. A measured night keeps its numbers, and of the six OxyDex goldens only OxyDex_2026-09-19_2245_stored_summary moved content, where meanDepth and meanDuration go from 0 to null at count 0. This run RE-CUT the cohort at paper scale, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped, so no synthetic patient changed arm."
+    },
+    {
+      "date": "2026-11-17",
+      "file": "pulsedex-dsp.js",
+      "old": "6a0499213014",
+      "new": "3e683cafe54f",
+      "reason": "_pdDropAbsent drops a non-finite RR interval with its stamp instead of letting artifactClean replace it with the local median, and the result reports the count as nAbsentIn. The counts did not change: a full --paper-scale rerun under the new closure reproduced 233 tx / 239 flat."
     }
   ],
-  "measuredAt": "2026-11-17T12:37:32.131Z",
+  "measuredAt": "2026-11-17T13:46:04.589Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "335728064"
+    "commit": "2d056c8a8"
   }
 }

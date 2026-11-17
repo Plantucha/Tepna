@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="eaad0fb36790" data-compute-hash="fa9c05fc2d07"><head>
+<html lang="en" data-manifest-hash="803f12459194" data-compute-hash="97b9b8aac844"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-GmgMQZDnDX8YfDu0dKlToI8OQ1385ikEgA074ihSoUA=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LA7FzxwxP2tLxmKV4tPt3XC4QDa4uxZkD9f3pr6DVRU=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-Vh4NGXhRdDPT/oFgxxGvxM+Si2nd9MAgmKJidn1gZ0M=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-sT1+vtq8jPdjKLkkjRhD7sO4xD2UufB5H3vGsoX0ImA=' 'sha256-wtJN8xtR89LNNOj5mqnsH6ASsaMTM6LsFtBRUvfWt9E=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-GmgMQZDnDX8YfDu0dKlToI8OQ1385ikEgA074ihSoUA=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-KWDMRagpDhkrEKgurTOBXHctXtLVmvs0VbMDxL2Sen8=' 'sha256-LA7FzxwxP2tLxmKV4tPt3XC4QDa4uxZkD9f3pr6DVRU=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-Vh4NGXhRdDPT/oFgxxGvxM+Si2nd9MAgmKJidn1gZ0M=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-sT1+vtq8jPdjKLkkjRhD7sO4xD2UufB5H3vGsoX0ImA=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.34.0</title>
@@ -9403,26 +9403,58 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
   }
 
   // SignalFrame(rr) | {vals,…} | vals[] → { vals, tsMs, t0Ms, offsetMin }
+  /* ∅ ABSENCE IS NOT A BEAT — the one place the DSP boundary states the policy the TEXT road already
+     has. `parseRRInput` drops a non-finite interval on both its roads (`if (!isFinite(v)) continue`
+     on the delimited road; the bare-number scrape matches digits only), so absence reaches the
+     computer as a SHORTER series and never as a member. `pdComputeResult` is a published surface
+     (`PulseDex.computeResult`), and its own road accepted `input.intervals` verbatim — where
+     `artifactClean` reads a null as out-of-range and REPLACES it with the local median, turning an
+     unmeasured beat into a manufactured one and counting it in `N`. Measured 2026-11-17 by
+     `tools/null-fuzz.mjs --target pulsedex`: 82 failing assertions over 20 nights, `N` 900 against
+     the clean twin's 610 and `sdnn` 417.86 against 33.08.
+     Dropping the member with its stamp makes the two roads agree, and the count travels out of band
+     as `nAbsentIn` so the output reports the absence (§∅). A NaN STAMP beside a finite interval does
+     NOT drop the beat: the beat was measured and its clock was not, which is what `tsMs.push(NaN)`
+     on the text road records. */
+  function _pdDropAbsent(vals, tsMs) {
+    /** @type {number[]} */
+    const keptV = [];
+    /** @type {number[] | null} */
+    const keptT = tsMs ? [] : null;
+    for (let i = 0; i < vals.length; i++) {
+      const v = vals[i];
+      if (typeof v !== 'number' || !isFinite(v)) continue;
+      keptV.push(v);
+      if (keptT) keptT.push(tsMs[i]);
+    }
+    return { vals: keptV, tsMs: keptT, nAbsent: vals.length - keptV.length };
+  }
+
   function _pdNormalizeRRInput(input) {
-    if (Array.isArray(input)) return { vals: input.slice(), tsMs: null, t0Ms: null, offsetMin: null };
+    if (Array.isArray(input)) {
+      const d = _pdDropAbsent(input, null);
+      return { vals: d.vals, tsMs: null, t0Ms: null, offsetMin: null, nAbsentIn: d.nAbsent };
+    }
     if (input && typeof input === 'object') {
       const vals = input.intervals || input.vals || null;
-      if (vals)
+      const _d = vals ? _pdDropAbsent(vals, input.tsMs && input.tsMs.length ? input.tsMs : null) : null;
+      if (_d)
         /* THE SIDECAR CROSSES THE FRAME BOUNDARY HERE. `compute()` rebuilds its input from the
            SignalFrame, so a key the rebuild does not carry is a sidecar parsed and then discarded —
            the gap #4441 shipped on two nodes. Both spellings are accepted: `_seamsSidecar` from a
            parse result, `seamsSidecar` from `emitRRNodeExport`'s rebuilt object. */
         return attachPdSeams(
           {
-            vals: vals.slice(),
-            tsMs: input.tsMs && input.tsMs.length ? input.tsMs.slice() : null,
+            vals: _d.vals,
+            tsMs: _d.tsMs,
+            nAbsentIn: _d.nAbsent,
             t0Ms: input.t0Ms != null ? input.t0Ms : null,
             offsetMin: input.offsetMin != null ? input.offsetMin : null
           },
           input._seamsSidecar || input.seamsSidecar || null
         );
     }
-    return { vals: null, tsMs: null, t0Ms: null, offsetMin: null };
+    return { vals: null, tsMs: null, t0Ms: null, offsetMin: null, nAbsentIn: null };
   }
 
   // Pure reproduction of the EXPORT-relevant subset of calculate(): artifact-clean
@@ -9706,6 +9738,10 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
          always ran over every parsed interval — a clean record reads 0, and 0 here is measured. */
       artifactPct: cleanR.pct,
       nArtifact: cleanR.nArt,
+      /* ∅ THE ABSENCE REPORTS ITSELF. `_pdDropAbsent` removed this many non-finite members before the
+         cleaner ran, so a consumer can tell 610 beats out of 610 from 610 out of 900. It is null, not
+         0, when the input carried no array to count (§∅: a number that was not measured is not 0). */
+      nAbsentIn: f.nAbsentIn != null ? f.nAbsentIn : null,
       windows: win ? win.wins : null,
       meanRR: +meanRR.toFixed(1),
       hr,

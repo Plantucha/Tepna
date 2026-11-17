@@ -39380,7 +39380,35 @@
       // ── 3 · GUARDS RETURN NULL, NEVER THROW — the `||` guards read null.length as `&&`.
       T.eq('pdComputeResult(null) refuses, not throws', B.pdComputeResult(null), null);
       T.eq('_pdSeriesStats(null) refuses, not throws', B._pdSeriesStats(null), null);
-      T.eq('_pdNormalizeRRInput(null) normalizes to honest nulls', JSON.stringify(B._pdNormalizeRRInput(null)), '{"vals":null,"tsMs":null,"t0Ms":null,"offsetMin":null}');
+      T.eq('_pdNormalizeRRInput(null) normalizes to honest nulls', JSON.stringify(B._pdNormalizeRRInput(null)), '{"vals":null,"tsMs":null,"t0Ms":null,"offsetMin":null,"nAbsentIn":null}');
+      /* ∅ ABSENCE IS NOT A BEAT, AND THE COUNT TRAVELS OUT OF BAND. `pdComputeResult` is published as
+         `PulseDex.computeResult`, and its object road took `input.intervals` verbatim — where
+         `artifactClean` read a null as out of range and REPLACED it with the local median, so an
+         unmeasured beat became a manufactured one and counted in `N`. Measured 2026-11-17 by
+         `tools/null-fuzz.mjs --target pulsedex`: 82 failing assertions over 20 nights, `N` 900 against
+         the clean twin's 610 and `sdnn` 417.86 against 33.08. The drop is what the TEXT road already
+         does (`parseRRInput` skips a non-finite interval), so the two roads now agree. */
+      var _pdAbs = B._pdNormalizeRRInput({ vals: [800, null, 810, NaN, 790], tsMs: [1000, 1900, 2700, 3600, 4400] });
+      T.eq('_pdNormalizeRRInput drops a non-finite interval', JSON.stringify(_pdAbs.vals), '[800,810,790]');
+      T.eq('_pdNormalizeRRInput drops the stamp beside it', JSON.stringify(_pdAbs.tsMs), '[1000,2700,4400]');
+      T.eq('_pdNormalizeRRInput counts what it dropped', _pdAbs.nAbsentIn, 2);
+      T.ok('nAbsentIn is present, not merely falsy', 'nAbsentIn' in _pdAbs);
+      /* AND A NaN STAMP BESIDE A FINITE INTERVAL KEEPS ITS BEAT — the beat has a measurement and its
+         clock does not, which is exactly what the text road records with `tsMs.push(NaN)`. */
+      var _pdNaNTs = B._pdNormalizeRRInput({ vals: [800, 810, 790], tsMs: [1000, NaN, 2600] });
+      T.eq('a NaN stamp does not drop a measured beat', JSON.stringify(_pdNaNTs.vals), '[800,810,790]');
+      T.eq('and that beat is not counted absent', _pdNaNTs.nAbsentIn, 0);
+      /* THE FABRICATION ITSELF: twelve beats of which two are absent must read as the ten that were
+         measured, not as twelve with two medians in them. */
+      var _pdRR = [800, 810, 795, 805, 820, 790, 800, 815, 805, 798];
+      var _pdHoled = [800, 810, 795, null, 805, 820, 790, 800, NaN, 815, 805, 798];
+      var _pdClean = B.pdComputeResult({ vals: _pdRR, tsMs: null, t0Ms: null });
+      var _pdFuzzed = B.pdComputeResult({ vals: _pdHoled, tsMs: null, t0Ms: null });
+      T.eq('an absent beat does not inflate N', _pdFuzzed.N, _pdClean.N);
+      T.eq('an absent beat does not move meanRR', _pdFuzzed.meanRR, _pdClean.meanRR);
+      T.eq('an absent beat does not move sdnn', _pdFuzzed.sdnn, _pdClean.sdnn);
+      T.eq('and the result reports the absence it dropped', _pdFuzzed.nAbsentIn, 2);
+      T.eq('a record with nothing absent reports a measured 0', _pdClean.nAbsentIn, 0);
       T.eq('lineChartSVG with no beats renders nothing, not a frame', B.lineChartSVG(0), '');
 
       // ── 4 · AND THE SAME GUARDS PASS REAL DATA — the refusal thresholds are pinned from both sides.
