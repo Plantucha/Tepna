@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="68c630f13ac4" data-compute-hash="c3b5f6052fcb">
+<html lang="en" data-manifest-hash="95f817a80860" data-compute-hash="c3b5f6052fcb">
 <head>
 <!--
   GlucoDex.src.html — Tepna
@@ -2830,7 +2830,15 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
 .q-note code{font-family:'IBM Plex Mono',monospace;font-size:10.5px;background:rgba(88,166,255,.08);padding:1px 5px;border-radius:4px;color:var(--blue)}
 .q-note b{color:var(--text2)}
 
-.ch-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:6px}
+/* A STRETCHED CARD LEAVES ITS CHART BEHIND, AND THE DAILY ROW CARRIES THE MISMATCH. The row
+   height comes from the tallest card, and an `align-items` default of `stretch` grows the SHORT
+   card's border box while its svg keeps the intrinsic height its own viewBox gives it. Measured
+   2026-11-17 from the source geometry of the daily row: `dayOverlay` draws viewBox 720x200 at
+   `width:100%;height:auto`, so a 580 px column renders it about 161 px tall, while `distribution`
+   draws viewBox 340x200 with NO `max-width`, which renders about 341 px tall in the same column.
+   That is about 180 px of empty bordered surface under the overlay. `start` ends each card where
+   its content ends. ECGDex and PpgDex carry the same declaration and the same reason. */
+.ch-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:6px;align-items:start}
 @media(max-width:900px){.ch-grid{grid-template-columns:1fr}}
 .mini-h{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px}
 .mini-sub{font-weight:500;color:var(--text3);font-size:11px;margin-left:6px}

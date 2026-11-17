@@ -128,7 +128,16 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
 .dim{color:var(--text4)}
 
 /* chart grid */
-.ch-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+/* A STRETCHED CARD LEAVES ITS CHART BEHIND. The row height comes from the tallest card, and an
+   `align-items` default of `stretch` grows the SHORT card's border box while its svg keeps the
+   intrinsic height its own viewBox gives it. Measured 2026-11-17 on the HRV row from the source
+   geometry: the Poincare svg is clamped square at 340 px over a viewBox of 320x300 and carries a
+   statistics line under it, against a tachogram svg of viewBox 680x170 at `height:auto`, which
+   draws about 105 px in the same column. That left about 250 px of empty bordered surface under
+   the tachogram. `start` ends each card where its content ends. Stretching the svg instead is the
+   WRONG repair: `lineChart` draws with `preserveAspectRatio="none"`, so a non-uniform scale
+   distorts every tick label it prints. ECGDex carries the same declaration and the same reason. */
+.ch-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;align-items:start}
 @media(max-width:900px){.ch-grid{grid-template-columns:1fr}}
 .mini-h{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px}
 .mini-sub{font-weight:500;color:var(--text3);font-size:11px;margin-left:6px}
