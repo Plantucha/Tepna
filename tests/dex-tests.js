@@ -91073,6 +91073,26 @@
       T.ok('the call site still guards on an entered ground truth', /p\.vo2gt > 0 \? calcVo2Cat/.test(src), 'the vo2gt guard moved');
     });
 
+    group('∅ HRVDex profile — a null resting HR refuses the Baevsky adaptation potential', 'hrvdex-profile · absence', function (T) {
+      var src = (env.sources && env.sources['hrvdex-profile.js']) || '';
+      T.ok('ANTI-VACUITY · the hrvdex-profile.js source is readable in this lane', src.length > 1000, 'env.sources["hrvdex-profile.js"] absent');
+      if (!src) return;
+
+      var m = src.match(/const bap_full = ([^;]+);/);
+      T.ok('ANTI-VACUITY · the bap_full expression was extracted', !!m, 'the const bap_full line moved');
+      var body = { age: 35, sbp: 120, dbp: 78, weight: 75, height: 175 };
+      if (m) {
+        var bapOf = new Function('hrRest', 'p', 'return ' + m[1] + ';');
+        T.eq('no measured resting HR ⇒ the Baevsky AP is null', bapOf(null, body), null);
+        T.ok('CONTROL · a measured resting HR yields the seven-term value', Math.abs(parseFloat(bapOf(58, body)) - 0.66) < 0.0005, 'the control value moved: ' + bapOf(58, body));
+        T.ok('a null resting HR does not read as 0 bpm', bapOf(null, body) !== bapOf(0, body), 'null and 0 bpm produce one answer');
+      }
+      T.ok('the unguarded seven-term line is gone', !/const bap_full = \(0\.011 \* hrRest/.test(src), 'bap_full computes over hrRest with no guard');
+      T.ok('the card prints an em dash for an absent AP', /di\('BAP \(full\)', bap_full != null \? bap_full : '—'/.test(src), 'the BAP card value lost its guard');
+      T.ok('the card hint names the absent resting HR', /'no resting HR measured'/.test(src), 'the BAP hint does not name the absence');
+      T.ok('CONTROL · the card still cites Baevsky for a real value', /'Baevsky 1984 regression'/.test(src), 'the citation went away with the guard');
+    });
+
     /* ════ 21g · OxyDex PROFILE PERSONALIZATION — known-answer (TEST-COVERAGE-FOLLOWUPS-II §1b) ════
      The OxyDex sibling of §1b. Execution found this ALSO needs no re-bundle: oxydex-profile.js's up*
      helpers are top-level globals, and it loads headless once oxydex-util.js (sv/gv, DOM-guarded) is
