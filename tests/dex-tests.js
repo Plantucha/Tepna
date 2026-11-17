@@ -43543,14 +43543,34 @@
 
       /* Out of both bands the column is still the only numeric one, so it is still chosen — the band
          score ranks columns, it does not veto them. A mutant that made in-band a REQUIREMENT would
-         reject this file entirely. */
+         reject this file entirely.
+         THE STEP IS 7, NOT 1, AND THAT IS LOAD-BEARING (measured 2026-11-17). This leg used to write
+         `1000 + i`, which advances by exactly one, so the F6 serial-index rule DISQUALIFIED the column
+         and `gCol` came back −1. The leg passed anyway, because `locateColumns` then ended
+         `if (gCol < 0) gCol = 1;` and column 1 happened to be the glucose column in this layout. So the
+         leg read as a statement about the band score while the band score never ran. Removing that
+         default is what exposed it. A non-serial out-of-band column exercises the claim the leg makes. */
       var high = parse(
         mk(60, 'tg', function (i) {
-          return 1000 + i;
+          return 1000 + i * 7;
         })
       );
       T.eq('a wholly out-of-band numeric column is still the glucose column', high.tMs && high.tMs.length, 60);
       T.eq('…and is left in mg/dL rather than converted', high.unit, 'mg/dL');
+
+      /* The other half of the same measurement: when the ONLY numeric column IS a serial counter, F6
+         disqualifies it and there is nothing left to read. That file used to become a glucose series of
+         row numbers through the same default. It now refuses by name. */
+      var serialOnly = parse(
+        mk(60, 'tg', function (i) {
+          return 1000 + i;
+        })
+      );
+      T.ok(
+        'a serial-only numeric column leaves no glucose column, and the file is refused',
+        /glucose-column-not-found/.test(serialOnly.error || ''),
+        JSON.stringify(serialOnly.error || '').slice(0, 120)
+      );
 
       /* ── TWO NUMERIC COLUMNS, WHICH IS THE ONLY CASE WHERE THE BAND SCORE HAS TO CHOOSE ──
          With one numeric column the scorer picks it whatever the band test says, so the
@@ -43575,6 +43595,50 @@
       /* ── THE REFUSAL: too few readings names what it wanted, rather than returning an empty set ── */
       var tiny = parse(mk(2, 'tg'));
       T.ok('two rows is refused with a message naming the two columns it needs', /timestamp \+ glucose/.test(tiny.error || ''), JSON.stringify(tiny.error || '').slice(0, 90));
+
+      /* ── THE COLUMN PICK HAS NO DEFAULT (CLAUDE.md §∅ · measured 2026-11-17) ──
+         `locateColumns` used to end `if (gCol < 0) gCol = 1;`. On a Dexcom-Clarity-shaped export whose
+         glucose cells mostly read 'Low'/'High', no column clears the 60 % numeric bar, so the parser
+         read column 1 — the TIMESTAMP — as glucose. parseFloat('2026-05-10T00:00:00') is 2026, so all
+         60 readings came out at the YEAR and the analysis published a mean of 2026 mg/dL. The first two
+         legs are the anti-vacuity partner: the same layout with a fully numeric glucose column must
+         still parse in band, or the refusal below would be a verdict about the file SHAPE rather than
+         about the numeric share it was written to judge. */
+      var clarity = function (numericShare) {
+        var L = ['Index,Timestamp (YYYY-MM-DDThh:mm:ss),Event Type,Glucose Value (mg/dL)'];
+        for (var ci = 0; ci < 60; ci++) {
+          var isNum = ci % 100 < numericShare * 100;
+          L.push([ci + 1, stamp(ci).replace(' ', 'T') + ':00', 'EGV', isNum ? 60 + (ci % 40) : ci % 2 ? 'Low' : 'High'].join(','));
+        }
+        return L.join('\n');
+      };
+      var tryParse = function (t) {
+        try {
+          var r = G.parseCSV(t);
+          return { n: r.vMgdl.length, max: Math.max.apply(null, r.vMgdl) };
+        } catch (e) {
+          return { error: String(e.message), reason: e && e.reason };
+        }
+      };
+      var full = tryParse(clarity(1));
+      T.eq('ANTI-VACUITY · a Clarity-shaped export with a numeric glucose column parses every row', full.n, 60);
+      T.ok('…and in the physiologic band, so the refusal below is about the numeric SHARE', full.max < 600, 'max ' + full.max);
+      var low = tryParse(clarity(0.35));
+      T.eq('…at a 35 % numeric share the pick is REFUSED, never defaulted to column 1', low.reason, 'glucose-column-not-found');
+      T.ok('…the reader gets the same reason in the message', /glucose-column-not-found/.test(low.error || ''), JSON.stringify(low.error || '').slice(0, 130));
+      T.ok('…so the file yields NO series, rather than 60 readings of the year', !('n' in low) && typeof low.error === 'string', Object.keys(low).join(','));
+      T.eq('…and two rows name the population instead of a missing column', tryParse(mk(2, 'tg')).reason, 'too-few-rows-to-locate-columns');
+
+      /* ── THE ROW PARSER MUST NOT FABRICATE EITHER ──
+         With the RIGHT column, one date-shaped cell in the glucose column still became a number: the
+         detector demanded a numeric shape, and the row parser called bare parseFloat. 59 of 60 is the
+         honest answer — a dropped cell is reduced coverage, and a 2026 in the series is a manufactured
+         value. Both sites now read one predicate, so a mutant that relaxes either one reds here. */
+      var withDate = [];
+      for (var wd = 0; wd < 60; wd++) withDate.push(stamp(wd) + ',' + (wd === 7 ? stamp(wd) : 100 + (wd % 40)));
+      var mixed = tryParse(withDate.join('\n'));
+      T.eq('a date-shaped cell in the glucose column is dropped, not read as the year', mixed.n, 59);
+      T.ok('…so no reading sits anywhere near 2026', mixed.max < 600, 'max ' + mixed.max);
     });
 
     group(

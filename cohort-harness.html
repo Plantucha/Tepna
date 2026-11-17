@@ -16085,6 +16085,20 @@ const PulseDex = window.PulseDex;
     return best;
   }
 
+  /* ONE definition of a numeric cell, read by BOTH the column detector and the row parser. The two
+     used to disagree: the detector demanded this shape, and the row parser called bare parseFloat.
+     parseFloat('2026-05-10T00:00:00') is 2026, so a cell the detector would never count as numeric
+     still became a glucose value of 2026 mg/dL whenever the column pick landed on a timestamp column
+     (measured 2026-11-17 on a Clarity-shaped export: mean 2026.00 mg/dL over 60 readings). A consumer
+     that accepts a number the detector would reject re-opens every column-pick defect one layer down,
+     so the predicate lives in one place. */
+  function _gNumCell(cell) {
+    const raw = String(cell == null ? '' : cell);
+    if (!/^[\s+-]*[\d.,]+\s*$/.test(raw)) return NaN; // not a number at all - never 0, never a guess
+    const n = parseFloat(raw.replace(',', '.'));
+    return isFinite(n) ? n : NaN;
+  }
+
   // Find which column is the glucose value & which is the timestamp.
   function locateColumns(rows, delim) {
     // Scan up to ~40 rows; a glucose column is mostly numeric in a physiologic band,
@@ -16119,8 +16133,8 @@ const PulseDex = window.PulseDex;
         if (!cell) continue;
         total++;
         if (isFinite(parseTimestamp(cell)) && /[:\-/]/.test(cell) && cell.length >= 8) dateHits++;
-        const num = parseFloat(cell.replace(',', '.'));
-        if (isFinite(num) && /^[\s+-]*[\d.,]+\s*$/.test(cell)) {
+        const num = _gNumCell(cell);
+        if (isFinite(num)) {
           numHits++;
           if ((num >= 2 && num <= 30) || (num >= 30 && num <= 600)) inBand++;
           if (Number.isInteger(num)) intHits++;
@@ -16148,9 +16162,18 @@ const PulseDex = window.PulseDex;
         gCol = c;
       }
     }
-    if (tsCol < 0) tsCol = 0;
-    if (gCol < 0) gCol = 1;
-    return { tsCol, gCol };
+    /* ABSENCE IS NULL (CLAUDE.md §∅). These two lines used to read `if (tsCol < 0) tsCol = 0;` and
+       `if (gCol < 0) gCol = 1;` - an absence answered with a column INDEX. When no column cleared the
+       60 % numeric bar the parser read column 1 as glucose. On a Clarity-shaped export whose glucose
+       cells mostly read 'Low'/'High' (35 % numeric in the probe) column 1 is the TIMESTAMP, so every
+       reading parsed to the year and the analysis published a mean of 2026 mg/dL over 60 readings
+       (measured 2026-11-17). A column pick has no sensible default: either the file names the column
+       or this parser cannot read the file. Name the absence and let the caller refuse.
+       `sample.length < 3` is its own reason, because 'no glucose column' over two rows is a verdict
+       about a population too small to decide - an examined-nothing answer wearing a finding's words. */
+    if (sample.length < 3) return { tsCol, gCol, reason: 'too-few-rows-to-locate-columns' };
+    const miss = (tsCol < 0 ? ['timestamp'] : []).concat(gCol < 0 ? ['glucose'] : []);
+    return { tsCol, gCol, reason: miss.length ? miss.join('-and-') + '-column-not-found' : null };
   }
 
   function parseCSV(text) {
@@ -16159,7 +16182,27 @@ const PulseDex = window.PulseDex;
     const nonEmpty = lines.filter((l) => l.trim().length);
     if (nonEmpty.length < 2) throw new Error('File has too few rows to be a CGM export.');
     const delim = detectDelimiter(nonEmpty[0]);
-    const { tsCol, gCol } = locateColumns(nonEmpty, delim);
+    const { tsCol, gCol, reason: colReason } = locateColumns(nonEmpty, delim);
+    /* A named refusal, never a borrowed column (CLAUDE.md §∅ - a discontinuity refuses). The reason
+       travels on the Error, so a caller reads it without parsing prose; the message is what the reader
+       sees, and it names the pair this parser needs. */
+    if (colReason) {
+      const why =
+        colReason === 'too-few-rows-to-locate-columns'
+          ? 'GlucoDex needs at least 3 rows to decide which column is which'
+          : colReason === 'glucose-column-not-found'
+            ? 'no column holds mostly numeric readings'
+            : colReason === 'timestamp-column-not-found'
+              ? 'no column holds mostly readable timestamps'
+              : 'no column holds mostly numeric readings, and none holds mostly readable timestamps';
+      const err = /** @type {Error & { reason?: string }} */ (
+        new Error(
+          'This export names no timestamp + glucose column pair GlucoDex can read: ' + why + '. GlucoDex refuses the file rather than read another column as glucose (reason: ' + colReason + ').'
+        )
+      );
+      err.reason = colReason;
+      throw err;
+    }
 
     // Contract §3 file-level DMY/MDY lock: pre-scan the timestamp column ONCE so a single day>12 row
     // fixes the order for the WHOLE file (a European DMY Libre export can no longer let ambiguous rows
@@ -16176,12 +16219,9 @@ const PulseDex = window.PulseDex;
     for (const line of nonEmpty) {
       const cells = line.split(delim);
       if (gCol >= cells.length) continue;
-      const gRaw = (cells[gCol] || '')
-        .trim()
-        .replace(/^["']|["']$/g, '')
-        .replace(',', '.');
-      const g = parseFloat(gRaw);
-      if (!isFinite(g)) continue; // header / non-numeric
+      const gRaw = (cells[gCol] || '').trim().replace(/^["']|["']$/g, '');
+      const g = _gNumCell(gRaw);
+      if (!isFinite(g)) continue; // header / non-numeric / a cell that is not a number at all
       const tRaw = (cells[tsCol] || '').trim();
       const tParsed = _ckParse(tRaw, tsOpts); // file-locked order (not the per-row parseTimestamp default)
       const ms = tParsed ? tParsed.tMs : NaN;

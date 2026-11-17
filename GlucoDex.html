@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="b1cf70004c57" data-compute-hash="5459610b711c">
+<html lang="en" data-manifest-hash="68c630f13ac4" data-compute-hash="c3b5f6052fcb">
 <head>
 <!--
   GlucoDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Aqb8GASMBaVFfonlv4Ztb/qk9t6bBzgtvl6z53P+ieU=' 'sha256-Cv0u2I9YwZm5jvAom4gFQfIMWPy64JRPiXEm2o7elJ4=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-YPG9qZlJbV5n7TmDidZiS/0+/ye+qD4JVw4Q/GUHAKM=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-xeo/SvJn5pePZ1SM5sKHX3dRwul+yLMPUvGj5yOK8ns=' 'sha256-xsaUWNGGZbOoKTfIfjZBFlKbv0gwUBClaxYgzpMtB+8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Cv0u2I9YwZm5jvAom4gFQfIMWPy64JRPiXEm2o7elJ4=' 'sha256-IikqYxHC3BIwGwBPFp8Jp5IDGx29Y8y9PXhJvfwvHfM=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-YPG9qZlJbV5n7TmDidZiS/0+/ye+qD4JVw4Q/GUHAKM=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-gRMuCmVfIh+FVa9tCfsSVuKoym/UFb1cm7mHx4OiU/Y=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-xeo/SvJn5pePZ1SM5sKHX3dRwul+yLMPUvGj5yOK8ns=' 'sha256-xsaUWNGGZbOoKTfIfjZBFlKbv0gwUBClaxYgzpMtB+8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>GlucoDex — Continuous Glucose Analyzer · v2.33.0</title>
@@ -8255,6 +8255,20 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     return best;
   }
 
+  /* ONE definition of a numeric cell, read by BOTH the column detector and the row parser. The two
+     used to disagree: the detector demanded this shape, and the row parser called bare parseFloat.
+     parseFloat('2026-05-10T00:00:00') is 2026, so a cell the detector would never count as numeric
+     still became a glucose value of 2026 mg/dL whenever the column pick landed on a timestamp column
+     (measured 2026-11-17 on a Clarity-shaped export: mean 2026.00 mg/dL over 60 readings). A consumer
+     that accepts a number the detector would reject re-opens every column-pick defect one layer down,
+     so the predicate lives in one place. */
+  function _gNumCell(cell) {
+    const raw = String(cell == null ? '' : cell);
+    if (!/^[\s+-]*[\d.,]+\s*$/.test(raw)) return NaN; // not a number at all - never 0, never a guess
+    const n = parseFloat(raw.replace(',', '.'));
+    return isFinite(n) ? n : NaN;
+  }
+
   // Find which column is the glucose value & which is the timestamp.
   function locateColumns(rows, delim) {
     // Scan up to ~40 rows; a glucose column is mostly numeric in a physiologic band,
@@ -8289,8 +8303,8 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         if (!cell) continue;
         total++;
         if (isFinite(parseTimestamp(cell)) && /[:\-/]/.test(cell) && cell.length >= 8) dateHits++;
-        const num = parseFloat(cell.replace(',', '.'));
-        if (isFinite(num) && /^[\s+-]*[\d.,]+\s*$/.test(cell)) {
+        const num = _gNumCell(cell);
+        if (isFinite(num)) {
           numHits++;
           if ((num >= 2 && num <= 30) || (num >= 30 && num <= 600)) inBand++;
           if (Number.isInteger(num)) intHits++;
@@ -8318,9 +8332,18 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         gCol = c;
       }
     }
-    if (tsCol < 0) tsCol = 0;
-    if (gCol < 0) gCol = 1;
-    return { tsCol, gCol };
+    /* ABSENCE IS NULL (CLAUDE.md §∅). These two lines used to read `if (tsCol < 0) tsCol = 0;` and
+       `if (gCol < 0) gCol = 1;` - an absence answered with a column INDEX. When no column cleared the
+       60 % numeric bar the parser read column 1 as glucose. On a Clarity-shaped export whose glucose
+       cells mostly read 'Low'/'High' (35 % numeric in the probe) column 1 is the TIMESTAMP, so every
+       reading parsed to the year and the analysis published a mean of 2026 mg/dL over 60 readings
+       (measured 2026-11-17). A column pick has no sensible default: either the file names the column
+       or this parser cannot read the file. Name the absence and let the caller refuse.
+       `sample.length < 3` is its own reason, because 'no glucose column' over two rows is a verdict
+       about a population too small to decide - an examined-nothing answer wearing a finding's words. */
+    if (sample.length < 3) return { tsCol, gCol, reason: 'too-few-rows-to-locate-columns' };
+    const miss = (tsCol < 0 ? ['timestamp'] : []).concat(gCol < 0 ? ['glucose'] : []);
+    return { tsCol, gCol, reason: miss.length ? miss.join('-and-') + '-column-not-found' : null };
   }
 
   function parseCSV(text) {
@@ -8329,7 +8352,27 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     const nonEmpty = lines.filter((l) => l.trim().length);
     if (nonEmpty.length < 2) throw new Error('File has too few rows to be a CGM export.');
     const delim = detectDelimiter(nonEmpty[0]);
-    const { tsCol, gCol } = locateColumns(nonEmpty, delim);
+    const { tsCol, gCol, reason: colReason } = locateColumns(nonEmpty, delim);
+    /* A named refusal, never a borrowed column (CLAUDE.md §∅ - a discontinuity refuses). The reason
+       travels on the Error, so a caller reads it without parsing prose; the message is what the reader
+       sees, and it names the pair this parser needs. */
+    if (colReason) {
+      const why =
+        colReason === 'too-few-rows-to-locate-columns'
+          ? 'GlucoDex needs at least 3 rows to decide which column is which'
+          : colReason === 'glucose-column-not-found'
+            ? 'no column holds mostly numeric readings'
+            : colReason === 'timestamp-column-not-found'
+              ? 'no column holds mostly readable timestamps'
+              : 'no column holds mostly numeric readings, and none holds mostly readable timestamps';
+      const err = /** @type {Error & { reason?: string }} */ (
+        new Error(
+          'This export names no timestamp + glucose column pair GlucoDex can read: ' + why + '. GlucoDex refuses the file rather than read another column as glucose (reason: ' + colReason + ').'
+        )
+      );
+      err.reason = colReason;
+      throw err;
+    }
 
     // Contract §3 file-level DMY/MDY lock: pre-scan the timestamp column ONCE so a single day>12 row
     // fixes the order for the WHOLE file (a European DMY Libre export can no longer let ambiguous rows
@@ -8346,12 +8389,9 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     for (const line of nonEmpty) {
       const cells = line.split(delim);
       if (gCol >= cells.length) continue;
-      const gRaw = (cells[gCol] || '')
-        .trim()
-        .replace(/^["']|["']$/g, '')
-        .replace(',', '.');
-      const g = parseFloat(gRaw);
-      if (!isFinite(g)) continue; // header / non-numeric
+      const gRaw = (cells[gCol] || '').trim().replace(/^["']|["']$/g, '');
+      const g = _gNumCell(gRaw);
+      if (!isFinite(g)) continue; // header / non-numeric / a cell that is not a number at all
       const tRaw = (cells[tsCol] || '').trim();
       const tParsed = _ckParse(tRaw, tsOpts); // file-locked order (not the per-row parseTimestamp default)
       const ms = tParsed ? tParsed.tMs : NaN;
