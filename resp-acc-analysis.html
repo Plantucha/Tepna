@@ -10460,59 +10460,72 @@ window.IntegratorDSP = {
       }
       var ts = parseTimestamp(p[c.phone >= 0 ? c.phone : 0]);
       var relNs = NaN;
-      try {
-        var b = BigInt(p[c.ns >= 0 ? c.ns : 1].trim());
-        if (ns0 === null) ns0 = b;
-        /* ── MID-FILE CLOCK RESYNC on the DEVICE counter (DEEP-AUDIT-VI FOLLOWUPS §1.1) ────────────
-           The H10 boots on its 2019-01-01 firmware epoch and adopts real time when a sync lands. When
-           that happens MID-FILE the sensor-ns column steps by the whole epoch difference while the
-           phone column advances seconds — and `relSecOf` PREFERS this counter, so every duration and
-           every epoch grid downstream rides the step. Measured on the real 2026-08-27 file: the
-           counter jumps +241,586,764 s at row 470 while the phone advances 85.8 s, and MotionDex
-           published `recording.durSec` 241,589,697 — **7.66 years for a 50-minute recording** — with
-           a declared window ending 2034-04-22, which is the window the Integrator's gap-aware overlap
-           tests against. It does NOT crash: it returns a plausible-looking summary in 1.9 s, which is
-           why nothing caught it. This is the ACC sibling of the ECGDex defect F1 fixed in the same
-           corpus nights, and it is fixed here with F1's discriminator, deliberately identical.
-           THE DISCRIMINATOR IS PHYSICAL: through a real BLE dropout BOTH clocks keep ticking, so the
-           device delta ≈ the phone delta; only a clock step makes them disagree. Census over the whole
-           corpus (1278 ACC files): 137 files' worst step is a real dropout — left untouched, because
-           the counter is RIGHT about those — and exactly 3 are resyncs, the same three nights F1
-           found on the ECG side. 0 seams had unparseable stamps.
-           An over-24h step whose seam stamps do NOT parse still re-anchors, with `phoneDeltaMs: null`
-           and no fabricated duration (§2.6): an unmeasured gap stays visibly unmeasured. */
-        if (prevNsB !== null) {
-          var devDeltaMs = Number(b - prevNsB) / 1e6;
-          if (devDeltaMs > MOTION_RESYNC_BOUND_MS) {
-            var phoneDeltaMs = ts && ts.tMs != null && prevRowTMs != null ? Math.max(0, ts.tMs - prevRowTMs) : null;
-            if (phoneDeltaMs != null ? devDeltaMs - phoneDeltaMs > MOTION_RESYNC_BOUND_MS : devDeltaMs > MOTION_GAP_CEIL_MS) {
-              /* RE-ANCHOR ON THE HOST, NOT BY SUBTRACTING THE STEP — ONE DEVICE CLOCK PER AXIS.
-                 Imposing the phone delta alone would make the axis continuous but would carry the
-                 PRE-SYNC segment's error forward as a constant, because the counter before the sync
-                 is a different oscillator state, not merely a shifted one. Measured on 2026-08-27:
-                 the host−device residual walks 1.449 s across the 10.6 s BEFORE the seam (136,064
-                 ppm — the ACC sibling of the +1508 ms/9.5 s F1 measured on the same night's ECG) and
-                 then holds FLAT for the remaining 2930 s. Re-anchoring the new segment to the seam
-                 row's own host offset leaves that error confined to the 469 pre-seam rows (0.3 % of
-                 the file) instead of offsetting all 148,860.
-                 The post-seam segment then rides its own counter, which is the clock the rest of the
-                 night is actually on. */
-              /* BLIND SEAM: when the seam's own stamp does not parse there is no host offset to
-                 anchor on, and `Number(b - ns0)` would re-admit the very step being removed (caught
-                 by the blind-seam leg — it published a 241,586,834 s span). The honest anchor is the
-                 PREVIOUS row's position: an unmeasured gap contributes nothing rather than a
-                 fabricated duration (§2.6), which is exactly what F1 does on the ECG side — the
-                 resync is recorded with `phoneDeltaMs: null` and NO gap entry. */
-              segBaseNs = firstRowTMs != null && ts && ts.tMs != null ? (ts.tMs - firstRowTMs) * 1e6 : isFinite(prevRelNs) ? prevRelNs : Number(b - ns0);
-              segNs0 = b;
-              resyncs.push({ idx: out.length, deviceStepMs: Math.round(devDeltaMs), phoneDeltaMs: phoneDeltaMs == null ? null : Math.round(phoneDeltaMs) });
+      /* §∅ — A HEADER THAT NAMED NO COUNTER HAS NO COUNTER. `xyzColsFromHeader` answers `ns: -1`
+         when the header carried no `sensor timestamp` column, and this read used to fall back to
+         COLUMN 1 regardless — on a header naming `X;Y;Z` beside a bare `timestamp`, that is the X
+         AXIS. Measured on a 1 h, 26 Hz stream (93,600 rows): column 1 read as a nanosecond counter
+         moved `relNs` by 3e-9 s across the whole file, so `compute()` published `durSec: 0` and ONE
+         epoch where the documented header publishes 3600 s and 120 epochs. Nothing threw — every
+         value stayed finite, which is why no finite guard could see it.
+         THE HEADERLESS TAIL MAP (`xyzColsByTail`, pinned once by `xyzColsPinnedFromPrefix`) sets
+         `ns: 1` on purpose and keeps today's bytes: that is a fact about a file with no header, not
+         a stand-in for one. A header that named no counter leaves `relNs` ABSENT, and `relSecOf`
+         then reads the host stamp — the only clock the file ever carried. */
+      if (c.ns >= 0) {
+        try {
+          var b = BigInt(p[c.ns].trim());
+          if (ns0 === null) ns0 = b;
+          /* ── MID-FILE CLOCK RESYNC on the DEVICE counter (DEEP-AUDIT-VI FOLLOWUPS §1.1) ────────────
+             The H10 boots on its 2019-01-01 firmware epoch and adopts real time when a sync lands. When
+             that happens MID-FILE the sensor-ns column steps by the whole epoch difference while the
+             phone column advances seconds — and `relSecOf` PREFERS this counter, so every duration and
+             every epoch grid downstream rides the step. Measured on the real 2026-08-27 file: the
+             counter jumps +241,586,764 s at row 470 while the phone advances 85.8 s, and MotionDex
+             published `recording.durSec` 241,589,697 — **7.66 years for a 50-minute recording** — with
+             a declared window ending 2034-04-22, which is the window the Integrator's gap-aware overlap
+             tests against. It does NOT crash: it returns a plausible-looking summary in 1.9 s, which is
+             why nothing caught it. This is the ACC sibling of the ECGDex defect F1 fixed in the same
+             corpus nights, and it is fixed here with F1's discriminator, deliberately identical.
+             THE DISCRIMINATOR IS PHYSICAL: through a real BLE dropout BOTH clocks keep ticking, so the
+             device delta ≈ the phone delta; only a clock step makes them disagree. Census over the whole
+             corpus (1278 ACC files): 137 files' worst step is a real dropout — left untouched, because
+             the counter is RIGHT about those — and exactly 3 are resyncs, the same three nights F1
+             found on the ECG side. 0 seams had unparseable stamps.
+             An over-24h step whose seam stamps do NOT parse still re-anchors, with `phoneDeltaMs: null`
+             and no fabricated duration (§2.6): an unmeasured gap stays visibly unmeasured. */
+          if (prevNsB !== null) {
+            var devDeltaMs = Number(b - prevNsB) / 1e6;
+            if (devDeltaMs > MOTION_RESYNC_BOUND_MS) {
+              var phoneDeltaMs = ts && ts.tMs != null && prevRowTMs != null ? Math.max(0, ts.tMs - prevRowTMs) : null;
+              if (phoneDeltaMs != null ? devDeltaMs - phoneDeltaMs > MOTION_RESYNC_BOUND_MS : devDeltaMs > MOTION_GAP_CEIL_MS) {
+                /* RE-ANCHOR ON THE HOST, NOT BY SUBTRACTING THE STEP — ONE DEVICE CLOCK PER AXIS.
+                   Imposing the phone delta alone would make the axis continuous but would carry the
+                   PRE-SYNC segment's error forward as a constant, because the counter before the sync
+                   is a different oscillator state, not merely a shifted one. Measured on 2026-08-27:
+                   the host−device residual walks 1.449 s across the 10.6 s BEFORE the seam (136,064
+                   ppm — the ACC sibling of the +1508 ms/9.5 s F1 measured on the same night's ECG) and
+                   then holds FLAT for the remaining 2930 s. Re-anchoring the new segment to the seam
+                   row's own host offset leaves that error confined to the 469 pre-seam rows (0.3 % of
+                   the file) instead of offsetting all 148,860.
+                   The post-seam segment then rides its own counter, which is the clock the rest of the
+                   night is actually on. */
+                /* BLIND SEAM: when the seam's own stamp does not parse there is no host offset to
+                   anchor on, and `Number(b - ns0)` would re-admit the very step being removed (caught
+                   by the blind-seam leg — it published a 241,586,834 s span). The honest anchor is the
+                   PREVIOUS row's position: an unmeasured gap contributes nothing rather than a
+                   fabricated duration (§2.6), which is exactly what F1 does on the ECG side — the
+                   resync is recorded with `phoneDeltaMs: null` and NO gap entry. */
+                segBaseNs = firstRowTMs != null && ts && ts.tMs != null ? (ts.tMs - firstRowTMs) * 1e6 : isFinite(prevRelNs) ? prevRelNs : Number(b - ns0);
+                segNs0 = b;
+                resyncs.push({ idx: out.length, deviceStepMs: Math.round(devDeltaMs), phoneDeltaMs: phoneDeltaMs == null ? null : Math.round(phoneDeltaMs) });
+              }
             }
           }
-        }
-        prevNsB = b;
-        relNs = segNs0 === null ? Number(b - ns0) : segBaseNs + Number(b - segNs0);
-        prevRelNs = relNs;
-      } catch {}
+          prevNsB = b;
+          relNs = segNs0 === null ? Number(b - ns0) : segBaseNs + Number(b - segNs0);
+          prevRelNs = relNs;
+        } catch {}
+      }
       if (ts && ts.tMs != null) {
         if (firstRowTMs === null) firstRowTMs = ts.tMs;
         prevRowTMs = ts.tMs;
