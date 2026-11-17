@@ -138,6 +138,31 @@ const pxStd = (a) => {
   const m = pxMean(a);
   return Math.sqrt(pxMean(a.map((v) => (v - m) ** 2)));
 };
+
+/* 🔴 §∅ (ABSENCE-SURVEY rows `fdecb819a9f7` and `b380fa8a306c`) — A NOMINAL WINDOW IS NOT A COVERED
+   ONE. Both surfaces below slice the last N ROWS of the Welltory history, and `pxHistory` returns a
+   file with as few as one row, so "Recovery debt 3/14d" stood over four measurements and "vs 7d
+   baseline" stood over a slice that can span a month. §∅ reduced COVERAGE annotates, so each surface
+   now states the span its own stamps cover. A row whose Welltory stamp never parsed holds `tMs: NaN`
+   and still counts as a measurement, so it can never widen a span it cannot place. */
+const pxSpanDays = (rws) => {
+  let n = 0,
+    lo = Infinity,
+    hi = -Infinity;
+  for (const r of rws) {
+    const t = r && r.tMs;
+    if (!isFinite(t)) continue;
+    n++;
+    if (t < lo) lo = t;
+    if (t > hi) hi = t;
+  }
+  if (n < 2) return null;
+  return Math.floor((hi - lo) / 86400000) + 1;
+};
+const pxSpanTxt = (rws) => {
+  const d = pxSpanDays(rws);
+  return d == null ? rws.length + ' meas' : d + 'd';
+};
 const pxMedian = (a) => {
   if (!a.length) return 0;
   const s = [...a].sort((x, y) => x - y),
@@ -174,7 +199,7 @@ function renderHeroPx(r) {
   const cssColor = color === 'good' ? 'var(--status-ok)' : color === 'warn' ? 'var(--status-caution)' : color === 'neutral' ? 'var(--text3)' : 'var(--status-concern)';
 
   const hist = pxHistory();
-  // recovery index = today's rMSSD vs 7-day baseline
+  // recovery index = today's rMSSD vs the mean of the last 7 MEASUREMENTS, which need not span 7 days
   let ari = null;
   if (hist) {
     const last7 = hist.rows.slice(-7).map((x) => x.rmssd);
@@ -223,11 +248,12 @@ function renderHeroPx(r) {
       const t = mom > 0.002 ? 'HRV trending up' : mom > -0.01 ? 'HRV holding steady' : 'HRV trending down';
       chips += `<div class="readiness-zone-chip ${c}">${a} ${t}</div>`;
     }
-    // recovery debt: days in last 14 with rMSSD below baseline
+    // recovery debt: measurements in the last 14 rows under baseline, over the span those rows cover
+    const last14 = hist.rows.slice(-14);
     const base = pxMean(hist.rows.map((x) => x.rmssd));
-    const debt = hist.rows.slice(-14).filter((x) => x.rmssd < base * 0.9).length;
+    const debt = last14.filter((x) => x.rmssd < base * 0.9).length;
     const dc = debt < 3 ? 'ok' : debt < 7 ? 'warn' : 'bad';
-    chips += `<div class="readiness-zone-chip ${dc}">Recovery debt ${debt}/14d</div>`;
+    chips += `<div class="readiness-zone-chip ${dc}">Recovery debt ${debt}/${pxSpanTxt(last14)}</div>`;
   }
 
   const dateStr = r.t0Ms != null ? new Date(r.t0Ms).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
@@ -482,14 +508,17 @@ function renderKpiGridPx(r) {
   let ari = null,
     ariSub = '>1.05 = above base',
     sdz = null,
-    sdzSub = 'vs 7d baseline';
+    sdzSub = 'vs rolling baseline';
   if (hist) {
     const r7 = hist.rows.slice(-7);
     if (r7.length >= 3) {
+      const r7txt = pxSpanTxt(r7);
       ari = r.dispRm == null ? null : +(r.dispRm / pxMean(r7.map((x) => x.rmssd))).toFixed(2);
+      ariSub = '>1.05 = above ' + r7txt + ' base';
       const sd7 = r7.map((x) => x.sdnn);
       const sg = pxStd(sd7);
       sdz = sg && r.dispSd != null ? +((r.dispSd - pxMean(sd7)) / sg).toFixed(2) : null;
+      sdzSub = 'vs ' + r7txt + ' baseline';
     }
   }
   // Intra-recording fallbacks so both always generate (esp. overnight, no log loaded)

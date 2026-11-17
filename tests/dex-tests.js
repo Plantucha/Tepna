@@ -48008,6 +48008,105 @@
         T.eq('CONTROL · the old denominator took 1 ms and published the short axis as a balance figure', +(ax.sd1v / (ax.sd2v || 1)).toFixed(3), ax.sd1v);
       }
     });
+    group('∅ PulseDex absence — a nominal 14d/7d window is not a covered span, plus five pinned refusals', 'pulsedex-overview · pulsedex-dsp · pulsedex-render · absence', function (T) {
+      var src = env.sources || {};
+      var ov = src['pulsedex-overview.js'] || '';
+      if (!ov.trim()) {
+        T.skip('the PulseDex overview span road', 'sources not provided in this runner');
+        return;
+      }
+      // ── the shipped text ──
+      T.ok(
+        'ANTI-VACUITY · the overview still renders a recovery-debt chip and a SDNN Z sublabel',
+        /Recovery debt /.test(ov) && /sdzSub = /.test(ov),
+        'chip: ' + (ov.match(/Recovery debt[^\n]*/) || ['absent'])[0].slice(0, 90)
+      );
+      var mChip = ov.match(/chips \+= `<div class="readiness-zone-chip \$\{dc\}">Recovery debt[^\n]*/);
+      T.ok('the recovery-debt chip line survives', !!mChip, mChip ? mChip[0].slice(0, 120) : 'absent');
+      T.ok('no nominal 14-day denominator stands on the chip line', !!mChip && !/14d/.test(mChip[0]), mChip ? mChip[0].slice(0, 120) : 'absent');
+      T.ok('the chip asks the span helper for its denominator', !!mChip && /pxSpanTxt\(last14\)/.test(mChip[0]), mChip ? mChip[0].slice(0, 120) : 'absent');
+      var mSdzDecl = ov.match(/\n    sdzSub = [^\n]*/);
+      T.ok('no nominal 7-day baseline stands in the SDNN Z default sublabel', !!mSdzDecl && !/7d/.test(mSdzDecl[0]), mSdzDecl ? mSdzDecl[0].trim() : 'absent');
+      T.ok(
+        'both KPI sublabels derive from the measured span',
+        /ariSub = '>1\.05 = above ' \+ r7txt \+ ' base'/.test(ov) && /sdzSub = 'vs ' \+ r7txt \+ ' baseline'/.test(ov),
+        'r7txt sites: ' + (ov.match(/r7txt/g) || []).length
+      );
+      // the §∅ comment QUOTES both retired strings, so the negative legs above read code lines only
+      T.eq('the retired 14d denominator survives once, as the quoted history', (ov.match(/Recovery debt 3\/14d/g) || []).length, 1);
+      T.eq('the retired 7d caption survives once, as the quoted history', (ov.match(/"vs 7d\n/g) || []).length, 1);
+
+      // ── the helpers, driven ──
+      var pDays = ov.match(/const pxSpanDays = \(rws\) => \{[\s\S]*?\n\};/);
+      var pTxt = ov.match(/const pxSpanTxt = \(rws\) => \{[\s\S]*?\n\};/);
+      T.ok('both span helpers are declared', !!pDays && !!pTxt, 'days=' + !!pDays + ' txt=' + !!pTxt);
+      if (!pDays || !pTxt) return;
+      var run = new Function('rws', 'mode', pDays[0] + pTxt[0] + 'return mode === "d" ? pxSpanDays(rws) : pxSpanTxt(rws);');
+      var DAY = 86400000;
+      var t0 = Date.UTC(2026, 10, 1, 22, 30);
+      var row = function (t) {
+        return { tMs: t, rmssd: 40 };
+      };
+      T.eq('two stamps one day apart cover two days', run([row(t0), row(t0 + DAY)], 'd'), 2);
+      T.eq('two stamps in the same instant cover one day', run([row(t0), row(t0)], 'd'), 1);
+      T.eq('one placeable stamp refuses a span', run([row(t0), row(NaN)], 'd'), null);
+      T.eq('no placeable stamp refuses a span', run([row(NaN), row(NaN)], 'd'), null);
+      T.eq('an unplaceable row never widens the span it cannot place', run([row(NaN), row(t0), row(t0 + 2 * DAY)], 'd'), 3);
+      T.eq('an empty slice refuses a span', run([], 'd'), null);
+      // THE MEASURED DEFECT: four measurements over three days read "/14d" before this fix
+      var four = [row(t0), row(t0 + DAY), row(t0 + 2 * DAY), row(t0 + 2 * DAY + 3600000)];
+      T.eq('four measurements over three days report three days', run(four, 'd'), 3);
+      T.eq('the chip text reports the covered span, not the slice length', run(four, 't'), '3d');
+      T.eq('a slice with no placeable stamp reports its measurement count', run([row(NaN), row(NaN)], 't'), '2 meas');
+      T.eq('a single measurement reports a count, never a day', run([row(t0)], 't'), '1 meas');
+      // CONTROL: the retired form printed 14 over the same four rows
+      T.eq('CONTROL · the retired denominator ignored the span entirely', '' + four.length + '/14d', '4/14d');
+      T.ok(
+        'CONTROL · the span helper and the slice length disagree here, so the fix is observable',
+        run(four, 't') !== four.length + ' meas' && run(four, 't') !== '14d',
+        'helper=' + run(four, 't') + ' rows=' + four.length
+      );
+
+      // ── the five rows this unit closes as BOOKKEEPING, pinned so no later edit reopens them ──
+      var dsp = src['pulsedex-dsp.js'] || '',
+        rnd = src['pulsedex-render.js'] || '';
+      if (!dsp.trim() || !rnd.trim()) {
+        T.skip('the five pinned PulseDex refusals', 'sources not provided in this runner');
+        return;
+      }
+      var mLf = dsp.match(/const lfHf = [^\n]*/),
+        mNu = dsp.match(/const nu = \(v, tp\)[^\n]*/);
+      T.ok('both spectral ratio helpers are declared', !!mLf && !!mNu, 'lfHf=' + !!mLf + ' nu=' + !!mNu);
+      if (!mLf || !mNu) return;
+      var f = new Function('lf', 'hf', 'tp', 'v', mLf[0] + mNu[0] + 'return { lfhf: lfHf(lf, hf), nu: nu(v, tp) };');
+      T.eq('row 79f517014148 · a zero HF power refuses an LF/HF ratio', f(300, 0, 1, 1).lfhf, null);
+      T.eq('row 79f517014148 · a zero total power refuses a normalised unit', f(1, 1, 0, 300).nu, null);
+      T.ok(
+        'ANTI-VACUITY · a measured pair still answers a number',
+        f(300, 150, 600, 150).lfhf === 2 && f(1, 1, 600, 300).nu === 50,
+        'lfhf=' + f(300, 150, 600, 150).lfhf + ' nu=' + f(1, 1, 600, 300).nu
+      );
+      T.ok(
+        'row 355d05bb00d1 · the window respiratory rate refuses when no window produced one',
+        /respRate: srr\.length \? \+medianOf\(srr\)\.toFixed\(1\) : null/.test(dsp),
+        (dsp.match(/respRate: srr\.length[^\n]{0,60}/) || ['absent'])[0]
+      );
+      T.ok(
+        'row 0907edcde0f0 · the spectral respiratory rate refuses when no HF bin beat the peak',
+        /respRate: peakP > 0 \? \+\(peakF \* 60\)/.test(dsp),
+        (dsp.match(/respRate: peakP[^\n]{0,60}/) || ['absent'])[0]
+      );
+      T.ok(
+        'row e48b693fb537 · no SDANN surface substitutes zero for an uncomputable long-recording index',
+        !/r\.sdann \|\| 0/.test(rnd) && /r\.sdann == null \? '—'/.test(rnd),
+        'zero-default sites: ' + (rnd.match(/r\.sdann \|\| 0/g) || []).length
+      );
+      T.ok(
+        'row c2feca060110 · the overview orders its history on the shared clock key, never on NaN read as 0',
+        /DexClock\.sortEventsByClock\(_rowsParsed/.test(ov) && !/\(a\.tMs \|\| 0\) - \(b\.tMs \|\| 0\)/.test(ov),
+        'sort call: ' + (ov.match(/DexClock\.sortEventsByClock[^\n]{0,40}/) || ['absent'])[0]
+      );
+    });
 
     group('DMY file-lock is threaded, not just preferred (DEEP-AUDIT-II §1.10)', 'hrvdex-dsp · pulsedex-overview · integrator-dsp · clock', function (T) {
       // A Welltory-shaped export spanning 12 -> 13 June: the 06/12 rows are AMBIGUOUS (both fields <= 12)

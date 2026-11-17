@@ -882,6 +882,41 @@ export const SEEDS = [
     note: "BOOKKEEPING ONLY: the code was fixed earlier, by #5147, which counts the recordings weighted at the coverage floor and names them in the cross-night note; this row stayed open because no PR lowered it. Plant: tests/dex-tests.js group '∅ PulseDex coverage — no wall clock means no coverage, never 100 %', the covAbsentPx leg."
   },
   {
+    at: 'pulsedex-dsp.js:130',
+    state: 'fixed',
+    note: "BOOKKEEPING ONLY: #5116 fixed both spectral helpers, which now read `hf > 0` and `tp > 0` and answer null, so a zero HF power no longer publishes an LF/HF ratio of 0 and a zero total power no longer publishes a normalised unit of 0. The row stayed open because no PR lowered it. Plant: tests/dex-tests.js group '∅ PulseDex absence — a nominal 14d/7d window is not a covered span, plus five pinned refusals', the two row 79f517014148 legs, which red on the restored zero form."
+  },
+  {
+    at: 'pulsedex-dsp.js:587',
+    state: 'fixed',
+    note: "BOOKKEEPING ONLY: #5116 gated the spectral respiratory rate on `peakP > 0`, so a spectrum where no HF bin ever beat the initial peak reports null rather than a rate of 0 breaths per minute. The row stayed open because no PR lowered it. Plant: tests/dex-tests.js group '∅ PulseDex absence — a nominal 14d/7d window is not a covered span, plus five pinned refusals', the row 0907edcde0f0 leg, which reds on the restored unguarded form."
+  },
+  {
+    at: 'pulsedex-dsp.js:1357',
+    state: 'fixed',
+    note: "BOOKKEEPING ONLY: #5116 made the window respiratory rate null when no window produced a usable rate, and the line carries its own absence comment. The row stayed open because no PR lowered it. Plant: tests/dex-tests.js group '∅ PulseDex absence — a nominal 14d/7d window is not a covered span, plus five pinned refusals', the row 355d05bb00d1 leg, which reds on the restored zero arm."
+  },
+  {
+    at: 'pulsedex-overview.js:110',
+    state: 'fixed',
+    note: "BOOKKEEPING ONLY: #5162 replaced the `(a.tMs || 0)` comparator with the shared clock key, so a Welltory row whose stamp never parsed sorts LAST instead of leading the series from 1970. The row stayed open because no PR lowered it. Plant: tests/dex-tests.js group '∅ PulseDex absence — a nominal 14d/7d window is not a covered span, plus five pinned refusals', the row c2feca060110 leg, which reds on the restored comparator."
+  },
+  {
+    at: 'pulsedex-overview.js:201',
+    state: 'fixed',
+    note: "the recovery-debt chip stated a 14-day denominator over whatever the last 14 ROWS covered, and pxHistory accepts a file with as few as one row, so four measurements read `Recovery debt 3/14d`. §∅ reduced COVERAGE annotates, so the chip now prints the span its own stamps cover, and a slice with fewer than two placeable stamps prints its measurement count instead. A row whose stamp never parsed holds `tMs: NaN` and can never widen a span it cannot place. Plant: tests/dex-tests.js group '∅ PulseDex absence — a nominal 14d/7d window is not a covered span, plus five pinned refusals', 7 of its 29 legs red on the pre-fix pulsedex-overview.js."
+  },
+  {
+    at: 'pulsedex-overview.js:447',
+    state: 'fixed',
+    note: "the KPI grid captioned its Recov Index and SDNN Z against a `7d baseline` that was the last 7 ROWS, accepted at three, so a slice spanning a month wore a seven-day label. Both sublabels now name the measured span through the same helper, and the ungated default reads `vs rolling baseline` rather than a day count. Plant: tests/dex-tests.js group '∅ PulseDex absence — a nominal 14d/7d window is not a covered span, plus five pinned refusals', the two sublabel legs plus the span-helper legs."
+  },
+  {
+    at: 'pulsedex-render.js:114',
+    state: 'fixed',
+    note: "BOOKKEEPING ONLY: #4701 deleted renderKPI, the dead function that held `(r.sdann || 0)`, so no surface substitutes zero for an uncomputable long-recording index; the table cell and the KPI card both refuse. The row stayed open because no PR lowered it. Plant: tests/dex-tests.js group '∅ PulseDex absence — a nominal 14d/7d window is not a covered span, plus five pinned refusals', the row e48b693fb537 leg, which reds on a restored zero default."
+  },
+  {
     at: 'hrvdex-profile.js:49',
     state: 'fixed',
     note: "the observed heart-rate maximum stays null when no row carries a usable rate, in place of 0, and the auto-detection banner prints not detected beside it. Plant: tests/dex-tests.js group '∅ HRVDex profile — an unobserved HR maximum and an absent ACSM band refuse', 3 of its 17 legs red on the pre-fix hrvdex-profile.js."

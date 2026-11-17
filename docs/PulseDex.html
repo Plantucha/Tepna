@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="41b520f09446" data-compute-hash="fa9c05fc2d07"><head>
+<html lang="en" data-manifest-hash="eaad0fb36790" data-compute-hash="fa9c05fc2d07"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-73I9zddw3MGywut28p68vwrlHD+uz63tD3g0rTO2Ad8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-GmgMQZDnDX8YfDu0dKlToI8OQ1385ikEgA074ihSoUA=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-Vh4NGXhRdDPT/oFgxxGvxM+Si2nd9MAgmKJidn1gZ0M=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-sT1+vtq8jPdjKLkkjRhD7sO4xD2UufB5H3vGsoX0ImA=' 'sha256-wtJN8xtR89LNNOj5mqnsH6ASsaMTM6LsFtBRUvfWt9E=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7KQhvVxe+9oPwq5vx2nTrMtsXaajyP4hgK9C1OYS0Qw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-GmgMQZDnDX8YfDu0dKlToI8OQ1385ikEgA074ihSoUA=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LA7FzxwxP2tLxmKV4tPt3XC4QDa4uxZkD9f3pr6DVRU=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VZYxcRugw3IewdW4CZcRoNAI/huUvwfZN5FWmVOJaMs=' 'sha256-Vh4NGXhRdDPT/oFgxxGvxM+Si2nd9MAgmKJidn1gZ0M=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-sT1+vtq8jPdjKLkkjRhD7sO4xD2UufB5H3vGsoX0ImA=' 'sha256-wtJN8xtR89LNNOj5mqnsH6ASsaMTM6LsFtBRUvfWt9E=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.34.0</title>
@@ -11049,6 +11049,31 @@ const pxStd = (a) => {
   const m = pxMean(a);
   return Math.sqrt(pxMean(a.map((v) => (v - m) ** 2)));
 };
+
+/* 🔴 §∅ (ABSENCE-SURVEY rows `fdecb819a9f7` and `b380fa8a306c`) — A NOMINAL WINDOW IS NOT A COVERED
+   ONE. Both surfaces below slice the last N ROWS of the Welltory history, and `pxHistory` returns a
+   file with as few as one row, so "Recovery debt 3/14d" stood over four measurements and "vs 7d
+   baseline" stood over a slice that can span a month. §∅ reduced COVERAGE annotates, so each surface
+   now states the span its own stamps cover. A row whose Welltory stamp never parsed holds `tMs: NaN`
+   and still counts as a measurement, so it can never widen a span it cannot place. */
+const pxSpanDays = (rws) => {
+  let n = 0,
+    lo = Infinity,
+    hi = -Infinity;
+  for (const r of rws) {
+    const t = r && r.tMs;
+    if (!isFinite(t)) continue;
+    n++;
+    if (t < lo) lo = t;
+    if (t > hi) hi = t;
+  }
+  if (n < 2) return null;
+  return Math.floor((hi - lo) / 86400000) + 1;
+};
+const pxSpanTxt = (rws) => {
+  const d = pxSpanDays(rws);
+  return d == null ? rws.length + ' meas' : d + 'd';
+};
 const pxMedian = (a) => {
   if (!a.length) return 0;
   const s = [...a].sort((x, y) => x - y),
@@ -11085,7 +11110,7 @@ function renderHeroPx(r) {
   const cssColor = color === 'good' ? 'var(--status-ok)' : color === 'warn' ? 'var(--status-caution)' : color === 'neutral' ? 'var(--text3)' : 'var(--status-concern)';
 
   const hist = pxHistory();
-  // recovery index = today's rMSSD vs 7-day baseline
+  // recovery index = today's rMSSD vs the mean of the last 7 MEASUREMENTS, which need not span 7 days
   let ari = null;
   if (hist) {
     const last7 = hist.rows.slice(-7).map((x) => x.rmssd);
@@ -11134,11 +11159,12 @@ function renderHeroPx(r) {
       const t = mom > 0.002 ? 'HRV trending up' : mom > -0.01 ? 'HRV holding steady' : 'HRV trending down';
       chips += `<div class="readiness-zone-chip ${c}">${a} ${t}</div>`;
     }
-    // recovery debt: days in last 14 with rMSSD below baseline
+    // recovery debt: measurements in the last 14 rows under baseline, over the span those rows cover
+    const last14 = hist.rows.slice(-14);
     const base = pxMean(hist.rows.map((x) => x.rmssd));
-    const debt = hist.rows.slice(-14).filter((x) => x.rmssd < base * 0.9).length;
+    const debt = last14.filter((x) => x.rmssd < base * 0.9).length;
     const dc = debt < 3 ? 'ok' : debt < 7 ? 'warn' : 'bad';
-    chips += `<div class="readiness-zone-chip ${dc}">Recovery debt ${debt}/14d</div>`;
+    chips += `<div class="readiness-zone-chip ${dc}">Recovery debt ${debt}/${pxSpanTxt(last14)}</div>`;
   }
 
   const dateStr = r.t0Ms != null ? new Date(r.t0Ms).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
@@ -11393,14 +11419,17 @@ function renderKpiGridPx(r) {
   let ari = null,
     ariSub = '>1.05 = above base',
     sdz = null,
-    sdzSub = 'vs 7d baseline';
+    sdzSub = 'vs rolling baseline';
   if (hist) {
     const r7 = hist.rows.slice(-7);
     if (r7.length >= 3) {
+      const r7txt = pxSpanTxt(r7);
       ari = r.dispRm == null ? null : +(r.dispRm / pxMean(r7.map((x) => x.rmssd))).toFixed(2);
+      ariSub = '>1.05 = above ' + r7txt + ' base';
       const sd7 = r7.map((x) => x.sdnn);
       const sg = pxStd(sd7);
       sdz = sg && r.dispSd != null ? +((r.dispSd - pxMean(sd7)) / sg).toFixed(2) : null;
+      sdzSub = 'vs ' + r7txt + ' baseline';
     }
   }
   // Intra-recording fallbacks so both always generate (esp. overnight, no log loaded)
