@@ -496,9 +496,13 @@ function exportCSV() {
         '  HR Range (bpm),' + _exCell(ex.hrRange),
         '  Mean HR Early (2h),' + _exCell(ex.meanHrEarly),
         '  Mean HR Late (2h),' + _exCell(ex.meanHrLate),
-        '  Motion Bursts,' + ex.motionBursts,
-        '  Longest Clean Run (min),' + ex.longestCleanRun,
-        '  Nadir Density (/hr),' + ex.nadirDensity,
+        /* §∅ the last three of the same family: `motionBursts` is already nulled when the motion
+           column is unusable, and `longestCleanRun` / `nadirDensity` are null when the SpO2 channel
+           never reported. A bare concatenation writes the word "null" into the cell, so each goes
+           through the helper the seven lines above already use. */
+        '  Motion Bursts,' + _exCell(ex.motionBursts),
+        '  Longest Clean Run (min),' + _exCell(ex.longestCleanRun),
+        '  Nadir Density (/hr),' + _exCell(ex.nadirDensity),
         '  T95 Burden Score,' + (ex.t95BurdenScore !== null ? ex.t95BurdenScore : ''),
         '  ODI-4/ODI-1 Ratio,' + (ex.odi41ratio !== null ? ex.odi41ratio : '')
       );
