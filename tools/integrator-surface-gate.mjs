@@ -292,8 +292,38 @@ export function nestedShapes(dspText, fnName, pre = prepare) {
     }
   }
   if (end < 0) return null;
+  /* 🔴 A BUILDER'S OWN SHAPE CAN SIT IN A GUARDED RETURN, AND FOUR FUSION BUILDERS PUT IT THERE.
+     `fuseHRVConsensus`, `fuseStagingConsensus`, `fuseSleepWakeReconciliation` and
+     `fusePeriodicBreathing` each close with `return blocks.length ? { blocks: blocks } : null;`, so
+     a reader that matches `return {` alone found NO own-scope shape and returned null for all four.
+     The gate then refused `builtBy` for every one of them, and `hrv`, `staging` and `sleepWake` sat
+     in `passThroughUnresolved` with no route to any declaration at all (measured 2026-11-17 against
+     origin/main at 690879921).
+
+     The form reads here under the SAME rules the rest of this reader keeps. The return must sit in
+     the builder's OWN scope, so the two guarded returns inside `fusePeriodicBreathing`'s `.map`
+     callbacks stay out. The consequent must hold no inner brace, and the alternative must start
+     with something other than a brace: a second literal there is a second shape, and this reader
+     must not pick one. A line that opens a guarded literal and does not meet those rules REFUSES,
+     because a silent skip is what hid `auditNodeKernels` from this gate.
+
+     Zero declared builder holds the form, so no shape beside it moves. All ten builders the
+     declaration names were scanned on 2026-11-17, and the census is identical either side of this
+     branch. */
+  const GUARDED_RET = /^\s*return\s+[^{};?]*\?\s*(\{[^{}]*\})\s*:\s*[^{\s][^;]*;\s*$/;
   const shapes = [];
   for (let i = start; i < end; i++) {
+    if (/^\s*return\s+[^{;]*\?[^;]*\{/.test(lines[i])) {
+      const gsc = enclosingFn(lines, i);
+      if (!gsc || gsc[0] !== start) continue;
+      if (/\bfunction\b|=>/.test(lines[i].slice(0, lines[i].indexOf('return')))) continue;
+      const gm = GUARDED_RET.exec(lines[i]);
+      if (!gm) return null;
+      const gk = oneLineShape('return ' + gm[1] + ';');
+      if (!gk) return null;
+      shapes.push({ at: i + 1, end: i + 1, keys: gk });
+      continue;
+    }
     if (!/return \{/.test(lines[i])) continue;
     /* 🔴 A NESTED CALLBACK'S RETURN IS NOT THIS FUNCTION'S SHAPE. `fuseApneaEvents:2268` is
        `.map(function (k) { return { node: k, surges: hrByNode[k] }; })`, and reading it as a shape
@@ -516,35 +546,56 @@ export function mapShapes(dspText, fnName, arrayVar) {
     }
   }
   if (last < 0) return null;
-  const mapAt = [];
-  let mapCalls = 0;
+  /* 🔴 A `.map(` COUNT WITH NO SCOPE REFUSES EVERY BUILDER THAT MAPS INSIDE ITS OWN CALLBACK.
+     The old count read every `.map(` in the statement. So `fusePeriodicBreathing`, which holds one
+     element map over eight nested ones, had no shape source at all, and the render file read six of
+     its ten element keys unjudged. A nested map is not a second element producer. It belongs to the
+     element, one layer down.
+
+     The element producer is the ONE `.map(` at the statement's own bracket depth. The element
+     literal is the ONE `return {` whose enclosing function is that callback. A deeper map's return
+     sits in a deeper callback, and the `.filter` beside it sits in another one, so both drop out.
+     Two own-scope returns are a branch pair, and the shape is then a union this reader does not
+     build. It REFUSES, rather than reading one branch and calling the shape complete. */
+  const bd = (s) => (s.match(/[{[(]/g) || []).length - (s.match(/[}\])]/g) || []).length;
+  let rel = 0;
+  const topMaps = [];
   for (let j = decl[0]; j <= last; j++) {
-    const n = (lines[j].match(/\.\s*map\s*\(/g) || []).length;
-    if (!n) continue;
-    mapCalls += n;
-    mapAt.push(j);
+    for (const m of lines[j].matchAll(/\.\s*map\s*\(/g)) {
+      if (rel + bd(lines[j].slice(0, m.index)) === 0) topMaps.push(j);
+    }
+    rel += bd(lines[j]);
   }
-  if (mapCalls !== 1) return null;
-  for (let j = mapAt[0]; j <= last; j++) {
-    const m = /\breturn\s*\{/.exec(lines[j]);
-    if (!m) continue;
-    const open = m.index + m[0].length - 1;
-    if (!/return\s*\{\s*$/.test(lines[j])) {
-      const one = oneLineObject(lines[j], open);
-      if (!one) return null;
-      return mergeShapes([{ at: j + 1, keys: one, via: 'map' }]);
+  if (topMaps.length !== 1) return null;
+  const mapLine = topMaps[0];
+  const litAt = [];
+  for (let j = mapLine; j <= last; j++) {
+    if (!/\breturn\s*\{/.test(lines[j])) continue;
+    if (j === mapLine) {
+      litAt.push(j);
+      continue;
     }
-    let od = 0;
-    const keys = [];
-    for (let k = j; k <= last; k++) {
-      if (k > j && od === 1) {
-        const km = lines[k].match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/);
-        if (km) keys.push(km[1]);
-      }
-      od += (lines[k].match(/[{[]/g) || []).length - (lines[k].match(/[}\]]/g) || []).length;
-      if (k > j && od <= 0) return mergeShapes([{ at: j + 1, keys, via: 'map' }]);
+    const fnc = enclosingFn(lines, j);
+    if (fnc && fnc[0] === mapLine) litAt.push(j);
+  }
+  if (litAt.length !== 1) return null;
+  const lit = litAt[0];
+  const m = /\breturn\s*\{/.exec(lines[lit]);
+  const open = m.index + m[0].length - 1;
+  if (!/return\s*\{\s*$/.test(lines[lit])) {
+    const one = oneLineObject(lines[lit], open);
+    if (!one) return null;
+    return mergeShapes([{ at: lit + 1, keys: one, via: 'map' }]);
+  }
+  let od = 0;
+  const keys = [];
+  for (let k = lit; k <= last; k++) {
+    if (k > lit && od === 1) {
+      const km = lines[k].match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/);
+      if (km) keys.push(km[1]);
     }
-    return null;
+    od += (lines[k].match(/[{[]/g) || []).length - (lines[k].match(/[}\]]/g) || []).length;
+    if (k > lit && od <= 0) return mergeShapes([{ at: lit + 1, keys, via: 'map' }]);
   }
   return null;
 }
@@ -3209,6 +3260,25 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('…so the builder has two shapes and no refusal', nestedShapes(K1S, 'buildS').shapes.length, 2);
   ck('…and the key the guard route omits is conditional', nestedShapes(K1S, 'buildS').partial, ['rate']);
   ck('…while the SAME line read raw is what oneLineShape refuses', oneLineShape("  if (!recs.length) return { available: false, note: 'no series' };"), null);
+  /* 🔴 THE BUILDER'S SHAPE CAN SIT IN A GUARDED RETURN, AND THE FOUR FUSION BLOCK BUILDERS PUT IT
+     ONLY THERE. `fuseHRVConsensus`, `fuseStagingConsensus`, `fuseSleepWakeReconciliation` and
+     `fusePeriodicBreathing` all close with `return blocks.length ? { blocks: blocks } : null;`, so
+     this reader found no own-scope shape and the gate refused `builtBy` for all four. These legs
+     hold the form that reads and the four forms that refuse. */
+  const K1G = ['function buildG(recs) {', '  var blocks = recs.map(function (r) {', '    return { node: r.n, rate: 1 };', '  });', '  return blocks.length ? { blocks: blocks } : null;', '}'].join(
+    '\n'
+  );
+  ck('🔴 a GUARDED return is the builder shape', nestedShapes(K1G, 'buildG').union, ['blocks']);
+  ck('…one shape only, so the key is not conditional', nestedShapes(K1G, 'buildG').partial, []);
+  ck('…and the callback return beside it is still not the builder shape', nestedShapes(K1G, 'buildG').shapes.length, 1);
+  ck(
+    '…a guarded return in a CALLBACK scope credits nothing, which is what fusePeriodicBreathing needs',
+    nestedShapes('function buildH(recs) {\n  var o = recs.map(function (r) {\n    return r.ok ? { rec: r } : null;\n  });\n  return { rows: o };\n}', 'buildH').union,
+    ['rows']
+  );
+  ck('…a second literal in the alternative REFUSES, because that is a second shape', nestedShapes('function buildI(r) {\n  return r.ok ? { a: 1 } : { b: 2 };\n}', 'buildI'), null);
+  ck('…a nested literal in the consequent refuses too', nestedShapes('function buildJ(r) {\n  return r.ok ? { a: { b: 1 } } : null;\n}', 'buildJ'), null);
+  ck('…and an empty consequent refuses rather than reading no key', nestedShapes('function buildM(r) {\n  return r.ok ? {} : null;\n}', 'buildM'), null);
   ck('oneLineShape refuses a line whose braces do not balance', oneLineShape('  return { a: 1,'), null);
   ck('oneLineShape refuses an empty object', oneLineShape('  return {};'), null);
   ck('oneLineShape does not credit a nested object key', oneLineShape('  return { a: { b: 1 }, c: 2 };'), ['a', 'c']);
@@ -3697,7 +3767,42 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('an array the builder does not declare refuses', mapShapes(M1, 'build', 'other'), null);
   ck('a second declaration of the array name refuses', mapShapes(M1.replace('  var out = (recs || [])', '  var out = [];\n  var out = (recs || [])'), 'build', 'out'), null);
   ck('a statement with no map refuses', mapShapes('function b(r) {\n  var o = (r || []).slice();\n  return o;\n}', 'b', 'o'), null);
-  ck('a statement with TWO maps is ambiguous and refuses', mapShapes('function b(r) {\n  var o = (r || []).map(f).map(function (x) {\n    return { a: 1 };\n  });\n  return o;\n}', 'b', 'o'), null);
+  ck(
+    'a statement with TWO maps at its OWN depth is ambiguous and refuses',
+    mapShapes('function b(r) {\n  var o = (r || []).map(f).map(function (x) {\n    return { a: 1 };\n  });\n  return o;\n}', 'b', 'o'),
+    null
+  );
+  /* 🔴 A MAP INSIDE THE ELEMENT IS NOT A SECOND ELEMENT PRODUCER. This fixture maps the
+     element's own items, so the statement holds two maps and only the outer one is at the
+     statement's depth. The reader takes the outer one, and it reads the own-scope literal. */
+  const MN = [
+    'function build(recs) {',
+    '  var out = (recs || [])',
+    '    .map(function (g) {',
+    '      var tags = g.items.map(function (i) {',
+    '        return { tag: i.tag };',
+    '      });',
+    '      return {',
+    '        node: g.node,',
+    '        tags: tags',
+    '      };',
+    '    });',
+    '  return out;',
+    '}'
+  ].join('\n');
+  ck('🔴 a map inside the element reads, and the nested one is not the producer', mapShapes(MN, 'build', 'out').keys, ['node', 'tags']);
+  ck("…naming the own-scope literal, never the nested callback's", mapShapes(MN, 'build', 'out').at, 7);
+  ck('…from one site', mapShapes(MN, 'build', 'out').sites.length, 1);
+  ck(
+    '🔴 a branch pair of own-scope literals refuses, because the shape is a union this reader does not build',
+    mapShapes(
+      'function build(recs) {\n  var out = (recs || []).map(function (g) {\n    if (g.ok) {\n      return {\n        a: 1\n      };\n    }\n    return {\n      b: 2\n    };\n  });\n  return out;\n}',
+      'build',
+      'out'
+    ),
+    null
+  );
+  ck('a named callback carries no literal here, so it refuses', mapShapes('function build(recs) {\n  var out = (recs || []).map(toRow);\n  return out;\n}', 'build', 'out'), null);
   ck(
     'a literal that never closes refuses, and is not read short',
     mapShapes('function b(r) {\n  var o = (r || []).map(function (x) {\n    return {\n      a: 1\n  });\n  return o;\n}', 'b', 'o'),

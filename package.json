@@ -11,6 +11,7 @@
     "build": "node tools/build.mjs --all",
     "build:app": "node tools/build.mjs --app",
     "build:check": "node tools/build.mjs --check",
+    "verify:build-first": "node tools/pr-walker.mjs --build-first",
     "typecheck": "npx -y -p typescript@5.5.4 tsc --noEmit -p tsconfig.json",
     "lint": "biome ci --no-errors-on-unmatched",
     "lint:only": "biome lint --no-errors-on-unmatched",

@@ -104684,6 +104684,118 @@
       }
     });
 
+    /* ── §∅ · task 35 · oxydex-render.js + oxydex-app.js ─────────────────────────────────────────
+       Three sites where a value nobody measured was DRAWN as a number. Each is extracted and RUN
+       (the group convention above), so a red here is the behaviour and never a failed regex; every
+       site carries a CONTROL whose value WAS measured and must keep its number and its band. */
+    group('§∅ · OxyDex render+app · task 35 · an unmeasured value is not drawn as 0', 'oxydex-render · oxydex-app · absence · extract-and-run', function (T) {
+      var R = String((env.sources || {})['oxydex-render.js'] || '');
+      var A = String((env.sources || {})['oxydex-app.js'] || '');
+      var U = String((env.sources || {})['oxydex-util.js'] || '');
+      if (!R || !A) {
+        T.skip('oxydex-render.js + oxydex-app.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      var block = function (src, start, close) {
+        var i = src.indexOf(start);
+        if (i < 0) return null;
+        var ls = src.lastIndexOf('\n', i) + 1;
+        var indent = (src.slice(ls, i).match(/^\s*/) || [''])[0];
+        var j = src.indexOf('\n' + indent + close, i);
+        return j < 0 ? null : src.slice(ls, j + 1 + indent.length + close.length);
+      };
+      // the SHIPPED helper, lifted out of the util file so the CSV legs exercise the real one
+      var csvSrc = (U.match(/function csvNum\(v\) \{[\s\S]*?\n\}/) || [])[0];
+      T.ok('util · csvNum extracted from oxydex-util.js', !!csvSrc, 'the CSV legs must not run on a stub');
+      var csvNum = csvSrc
+        ? new Function('return (' + csvSrc + ')')()
+        : function () {
+            return '';
+          };
+
+      // ── SITE 1 · exportCSV()'s T-INDEX row ──
+      var aBlk = block(A, '[95, 94, 93, 92, 91, 90, 89, 88, 85, 80].forEach(function (t) {', '});');
+      T.ok('app · the T-INDEX row block extracted', !!aBlk);
+      var row = aBlk ? new Function('n', 'csvNum', 'var lines = [];' + aBlk + 'return lines.join("|");') : null;
+      if (row) {
+        var none = row({ tIdx: { 95: { secs: 0, pct: null, measured: 0 } } }, csvNum);
+        T.eq('app · no SpO2 sample measured => BOTH cells blank, not a measured 0 %/0 s', none, 'T95,,');
+        T.ok('app · ...and no 0 is written for an unmeasured threshold', none.indexOf('0') < 0, none);
+        T.eq('app · CONTROL · a measured 2.5 % keeps its figure and its seconds', row({ tIdx: { 95: { secs: 900, pct: 2.5 } } }, csvNum), 'T95,2.5,900');
+        T.eq('app · CONTROL · a measured 0 % still prints 0, not a blank', row({ tIdx: { 95: { secs: 0, pct: 0 } } }, csvNum), 'T95,0,0');
+        T.eq('app · a percentage imported WITHOUT seconds gets no fabricated 0 s', row({ tIdx: { 95: { secs: null, pct: 3.2 } } }, csvNum), 'T95,3.2,');
+      }
+      T.ok('app · the `(_td.pct || 0)` default is gone from the CSV row', A.indexOf('(_td.pct || 0)') < 0, 'an absent threshold renders as 0 %');
+      T.ok('app · ...and both cells are routed through csvNum', /csvNum\(_td\.pct\)/.test(A) && /csvNum\(_tMeas \?/.test(A), 'the util helper is the convention');
+
+      // ── SITE 2 · the sleep card's "Deep ~est" grade ──
+      var bBlk = block(R, "ssKPI(\n      'Deep ~est'", ');');
+      T.ok('render · the Deep ~est KPI extracted', !!bBlk);
+      /* the block starts at the line holding `html += ssKPI(`, so it carries its own assignment — the
+         stub captures the ARGUMENTS (value, class) and returns an empty string for the sink. */
+      var deep = bBlk
+        ? new Function(
+            'n',
+            'var cv = function (v) { return v == null ? "\u2014" : v; }; var _last = null; var ssKPI = function (l, v, c) { _last = [v, c]; return ""; }; var html = "";' + bBlk + ' return _last;'
+          )
+        : null;
+      if (deep) {
+        var u = deep({ stageProxy: { nremDeepMin: null } });
+        T.eq('render · an unmeasured deep-sleep estimate draws the dash', u[0], '\u2014');
+        T.eq('render · ...and earns NO band, not the worst one', u[1], 'neutral');
+        T.eq('render · CONTROL · 70 min => good', JSON.stringify(deep({ stageProxy: { nremDeepMin: 70 } })), '[70,"good"]');
+        T.eq('render · CONTROL · 45 min => warn', JSON.stringify(deep({ stageProxy: { nremDeepMin: 45 } })), '[45,"warn"]');
+        T.eq('render · CONTROL · 20 min => bad', JSON.stringify(deep({ stageProxy: { nremDeepMin: 20 } })), '[20,"bad"]');
+      }
+      T.ok('render · the `(n.stageProxy.nremDeepMin || 0) >= 60` grade is gone', R.indexOf('(n.stageProxy.nremDeepMin || 0)') < 0, 'an absent estimate read as a 0-minute night');
+      T.ok(
+        'render · ...and the no-op `!= null ? x : null` guard is gone too',
+        R.indexOf('nremDeepMin != null ? n.stageProxy.nremDeepMin : null') < 0,
+        'a guard that only re-states its input teaches the next reader nothing'
+      );
+
+      // ── SITE 2b · the sleep card's "Motion" grade (its producer NULLS the field on purpose) ──
+      var mLine = (R.match(/html \+= ssKPI\('Motion', cv\(_motPct[^\n]*\);/) || [])[0];
+      T.ok('render · the Motion KPI line extracted', !!mLine);
+      var motion = mLine
+        ? new Function(
+            '_motPct',
+            'var cv = function (v) { return v == null ? "\u2014" : v; }; var _last = null; var ssKPI = function (l, v, c) { _last = [v, c]; return ""; }; var html = ""; ' + mLine + ' return _last;'
+          )
+        : null;
+      if (motion) {
+        T.eq('render · an UNMEASURED motion share earns no band (the DSP nulls it deliberately)', JSON.stringify(motion(null)), '["\u2014","neutral"]');
+        T.eq('render · CONTROL · 5 % => good', JSON.stringify(motion(5)), '[5,"good"]');
+        T.eq('render · CONTROL · 15 % => warn', JSON.stringify(motion(15)), '[15,"warn"]');
+        T.eq('render · CONTROL · 25 % => bad', JSON.stringify(motion(25)), '[25,"bad"]');
+        T.eq('render · CONTROL · a measured 0 % is good, not absent', JSON.stringify(motion(0)), '[0,"good"]');
+      }
+
+      // ── SITE 3 · the spike-timeline dot ──
+      var cBlk = block(R, '(Array.isArray(n.spikes) ? n.spikes : []).forEach(function (sp) {', '});');
+      T.ok('render · the spike-dot block extracted', !!cBlk);
+      var C = { red: '#f00', amber: '#fa0', purple: '#a0f', blue: '#0af', teal: '#0fa', grid: '#333', text: '#777' };
+      var dots = cBlk ? new Function('n', 'xp', 'C', 'y', 'var svg = "";' + cBlk + 'return svg;') : null;
+      if (dots) {
+        var xp = function (m) {
+          return 54 + (m - 1200) / 10;
+        };
+        var nullMag = dots({ spikes: [{ mfm: 1380, peak: null, baseline: null }] }, xp, C, 20);
+        T.ok('render · an unmagnituded spike is a HOLLOW ring, not a 0 bpm dot', /fill="none"/.test(nullMag) && !/opacity="0.85"/.test(nullMag), nullMag || '(no dot at all)');
+        T.eq('render · ...placed at its KNOWN time', (nullMag.match(/cx="([^"]+)"/) || [])[1], '72');
+        T.eq('render · a spike with NO time is not drawn at a fabricated 24:00', dots({ spikes: [{ mfm: null, peak: 95, baseline: 55 }] }, xp, C, 20), '');
+        var real = dots({ spikes: [{ mfm: 1380, peak: 95, baseline: 55 }] }, xp, C, 20);
+        T.ok('render · CONTROL · a measured 40 bpm rise is a filled amber dot', /fill="#fa0"/.test(real) && /r="5"/.test(real), real);
+        T.eq('render · CONTROL · ...one dot per measured spike', (real.match(/<circle/g) || []).length, 1);
+        T.eq('render · CONTROL · a summary-mode {length:n} spike object draws nothing', dots({ spikes: { length: 7 } }, xp, C, 20), '');
+      }
+      T.ok(
+        'render · the `sp.peak - sp.baseline` subtraction sits behind a numeric guard',
+        R.indexOf('_riseKnown') >= 0 && R.indexOf('var rise = sp.peak - sp.baseline;') > R.indexOf('_riseKnown'),
+        'null - null === 0; the CSV twin of this defect is already documented as fixed'
+      );
+    });
+
     group('OxyDex profile · an unentered setting or unmeasured term is not a number', 'oxydex-profile · absence', function (T) {
       var R = env.oxyProfileRealm;
       /* A NODE-lane group: oxyProfileRealm and the Oxy* profile seams are run-tests.mjs env entries (a narrow get/set
