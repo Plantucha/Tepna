@@ -606,6 +606,36 @@ export function regenBody(paths, mainSha) {
     'Fleet-Session: pr-walker (unattended, tools/pr-walker.mjs)'
   ].join('\n');
 }
+/* CI BUILD-FIRST (GENERATED-OUT-OF-PRS §5.3 stage 1). A CI job runs `pr-walker.mjs --build-first`
+   before any step that reads a built page. It runs the regeneration pass's own REGEN_STEPS in the
+   checkout, so CI judges the same build the walker would commit. Then it reads the dirty set with
+   planRegen. A moved build output is expected: the PR may leave its bundles out. A moved path that is
+   NO build output means the PR omitted a fragment that only its author can write, such as
+   `provenance/<App>.json` or a regen fixture, so the step refuses and names it. The exit code is the
+   verdict: 0 judged and fine, 1 judged and refused, 2 could not judge. */
+export function buildFirstVerdict(plan) {
+  if (!plan) return { code: 2, line: 'build-first: ⏱ UNEXAMINED — the build failed before the dirty set was read' };
+  if (plan.verdict === 'current') return { code: 0, line: 'build-first: every generated tree equals the committed bytes' };
+  if (plan.verdict === 'stale') return { code: 0, line: `build-first: built ${plan.paths.length} build output(s) this PR leaves to the regeneration PR` };
+  if (plan.reason === 'the generated set is unreadable') return { code: 2, line: `build-first: ⏱ UNEXAMINED — ${plan.reason}` };
+  return { code: 1, line: `build-first: REFUSED — the build moved ${plan.other.length} path(s) that are no build output, so the PR must carry them: ${plan.other.slice(0, 5).join(', ')}` };
+}
+function buildFirst(wt) {
+  let plan = null;
+  try {
+    for (const s of REGEN_STEPS) sh(process.execPath, s, { cwd: wt, stdio: ['ignore', 'ignore', 'inherit'] });
+    let generated = null;
+    try {
+      generated = generatedSet();
+    } catch {
+      generated = null;
+    }
+    plan = planRegen(sh('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: wt }), generated);
+  } catch (e) {
+    console.error(`build-first: ${String(e.message || e).split('\n')[0]}`);
+  }
+  return buildFirstVerdict(plan);
+}
 function regenerate(wt, nowMs) {
   const g = (...args) => sh('git', args, { cwd: wt });
   if (!wt || !existsSync(path.join(wt, '.git'))) return { result: 'no-worktree' };
@@ -1307,6 +1337,12 @@ function selftest() {
     eq(/^Rule 0: /.test(regenBody(['OxyDex.html'], S)), true, 'regen: the body opens with Rule 0');
     eq(/Fleet-Session: /.test(regenBody(['OxyDex.html'], S)), true, 'regen: the body carries the trailer');
   }
+  /* BUILD-FIRST: a moved build output passes, a moved fragment refuses, an unread set cannot judge. */
+  eq(buildFirstVerdict(planRegen('', new Set())).code, 0, 'build-first: a clean build passes');
+  eq(buildFirstVerdict({ verdict: 'stale', paths: ['OxyDex.html'], other: [] }).code, 0, 'build-first: a PR that leaves its bundle out passes');
+  eq(buildFirstVerdict({ verdict: 'refused', paths: [], other: ['provenance/OxyDex.json'], reason: 'x' }).code, 1, 'build-first: a stale provenance fragment refuses');
+  eq(buildFirstVerdict({ verdict: 'refused', paths: [], other: [], reason: 'the generated set is unreadable' }).code, 2, 'build-first: an unread generated set cannot judge');
+  eq(buildFirstVerdict(null).code, 2, 'build-first: a failed build cannot judge');
   console.log(`all ${ran} selftests passed`);
 }
 
@@ -1316,7 +1352,11 @@ if (isCliEntry(import.meta.url)) {
   const val = (n, d) => (argv.includes(n) ? argv[argv.indexOf(n) + 1] : d);
   if (flag('--selftest')) selftest();
   else if (flag('--print-install')) console.log(installText());
-  else if (flag('--clean-worktree')) {
+  else if (flag('--build-first')) {
+    const v = buildFirst(val('--worktree', process.cwd()));
+    console.log(v.line);
+    process.exit(v.code);
+  } else if (flag('--clean-worktree')) {
     /* The unit's own pre-step calls this, so one dirty generated file can never again stop the pass
        that would have cleaned it. A refusal exits 1, names the path it would not discard, and writes
        the board's landing page itself — the pass that normally writes that page never runs. */
