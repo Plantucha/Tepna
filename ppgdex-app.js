@@ -728,8 +728,8 @@ import { PPGUI } from './ppgdex-render.js';
     <div class="q-grid">
       <div class="q-stat">${evBadge('Mean motion idx')}<div class="q-val ${pctClsDown(m.meanMotionIndex, 0.2, 0.5)}">${m.meanMotionIndex != null ? m.meanMotionIndex : '—'}</div><div class="q-lbl">Mean motion idx</div><div class="q-sub">${m.meanMotionIndexReason ? 'no inertial coverage' : '0 still · 1 moving'}</div></div>
       <div class="q-stat"><div class="q-val ${pctClsDown(r.motionRejectedPct, 10, 30)}">${pctTxt(r.motionRejectedPct)}</div><div class="q-lbl">Pulses rejected${evBadge('Pulses rejected')}</div><div class="q-sub">${r.motionRejectedPctReason ? 'the gate did not run' : 'idx &gt; 0.5'}</div></div>
-      <div class="q-stat"><div class="q-val neutral">${m.accFs || '—'}</div><div class="q-lbl">ACC Hz${evBadge('ACC Hz')}</div><div class="q-sub">${m.nAcc.toLocaleString()} samples</div></div>
-      <div class="q-stat"><div class="q-val neutral">${m.gyroFs || '—'}</div><div class="q-lbl">GYRO Hz${evBadge('GYRO Hz')}</div><div class="q-sub">${m.nGyro.toLocaleString()} samples</div></div>
+      <div class="q-stat"><div class="q-val neutral">${m.accFs || '—'}</div><div class="q-lbl">ACC Hz${evBadge('ACC Hz')}</div><div class="q-sub">${m.nAcc != null ? m.nAcc.toLocaleString() + ' samples' : 'no ACC stream'}</div></div>
+      <div class="q-stat"><div class="q-val neutral">${m.gyroFs || '—'}</div><div class="q-lbl">GYRO Hz${evBadge('GYRO Hz')}</div><div class="q-sub">${m.nGyro != null ? m.nGyro.toLocaleString() + ' samples' : 'no GYRO stream'}</div></div>
     </div>
     <div class="mini-h" style="margin-top:6px">${evBadge('Mean motion idx')}Motion index (ACC magnitude variance ∪ GYRO magnitude, resampled to PPG base) <span class="mini-sub">band ≥ 0.5 = rejected</span></div>
     ${ribbon}
@@ -750,12 +750,16 @@ import { PPGUI } from './ppgdex-render.js';
           .sort((a, b) => b[1] - a[1])
           .map(([p, n]) => chip(p, Math.round((n / tot) * 100)))
           .join('') || '<span class="dim">insufficient coverage (&lt;30 s/epoch)</span>';
-      /* ∅ A null here is `hasMag` with NO examinable epoch (`ppgdex-dsp.js` keys the percentage
+      /* ∅ THE THREE COUNTS AND THE BASELINE REPORT THEIR OWN ABSENCE. `ppgdex-dsp.js` published
+         `nAcc`, `nGyro` and `nMag` as 0 for a stream the session never carried, and a 0 G baseline
+         for a magnetometer whose samples all read non-finite. Both now arrive as null, so this
+         card names the absence instead of printing a measured zero.
+         ∅ A null here is `hasMag` with NO examinable epoch (`ppgdex-dsp.js` keys the percentage
          on `magKnown.length`), so printing 0 claimed the cleanest possible field on a gate that
          never ran. Report the absence and name it. */
       const magIntTxt = r.magInterferencePct != null ? `on <b>${r.magInterferencePct}%</b> of epochs` : '<b>—</b> on no epoch carrying enough samples to examine';
       const mag = m.hasMag
-        ? `<div class="q-note" style="margin-top:8px"><b>Magnetometer ✓</b> ${(m.nMag || 0).toLocaleString()} samples @ ${m.magFs || '—'} Hz · |B| baseline ${m.magBaseG} G · L/R datum ${m.refHeadingDeg != null ? m.refHeadingDeg + '°' : '—'} <span class="dim">(relative)</span>. Splits <code>lateral</code> → <code>lateral_L/R</code> via tilt-compensated heading; <code>magInterference</code> ${magIntTxt} — informational, does <b>not</b> alter SQI. <span class="dim">Earth-field-scale only · not biomagnetic HR.</span></div>`
+        ? `<div class="q-note" style="margin-top:8px"><b>Magnetometer ✓</b> ${m.nMag != null ? m.nMag.toLocaleString() : '—'} samples @ ${m.magFs || '—'} Hz · |B| baseline ${m.magBaseG != null ? m.magBaseG : '—'} G · L/R datum ${m.refHeadingDeg != null ? m.refHeadingDeg + '°' : '—'} <span class="dim">(relative)</span>. Splits <code>lateral</code> → <code>lateral_L/R</code> via tilt-compensated heading; <code>magInterference</code> ${magIntTxt} — informational, does <b>not</b> alter SQI. <span class="dim">Earth-field-scale only · not biomagnetic HR.</span></div>`
         : `<div class="q-note dim" style="margin-top:8px">No <code>*_MAGN.txt</code> for this session — L/R lateral merged as <code>lateral</code>. Drop the MAGN file to disambiguate sides + flag magnetic artifacts.</div>`;
       return `<div class="mini-h" style="margin-top:12px">${typeof evBadge === 'function' ? evBadge('Limb position') : ''}Limb position <span class="mini-sub">ACC gravity${m.hasMag ? ' + MAGN heading' : ''} · per-epoch in export</span></div><div style="display:flex;flex-wrap:wrap">${rows}</div>${mag}`;
     })()}`;
