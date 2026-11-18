@@ -1561,10 +1561,10 @@
     var el = JSON.parse(JSON.stringify(json));
     el._fromExport = true;
     el._reviewMode = true;
-    var evAll = Array.isArray(json.ganglior_events) ? json.ganglior_events.slice() : [];
-    evAll.sort(function (a, b) {
-      return ((a && a.tMs) || 0) - ((b && b.tMs) || 0);
-    });
+    /* ∅ §6 — the former `((a && a.tMs) || 0)` key read a `t`-only event as 1970-01-01, so an
+       event this path cannot place LED the reloaded timeline. The shared key rebuilds the stamp from
+       this export's own `recording.startEpochMs` and keeps an unplaceable event last. */
+    var evAll = Array.isArray(json.ganglior_events) ? DexClock.sortEventsByClock(json.ganglior_events, json.recording ? json.recording.startEpochMs : null) : [];
     return {
       ok: true,
       reviewMode: true,

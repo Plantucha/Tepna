@@ -8690,14 +8690,19 @@
       e._reviewMode = true;
       return e;
     });
-    var evAll = Array.isArray(json.ganglior_events) ? json.ganglior_events.slice() : [];
+    /* ∅ §6 — the former `((a && a.tMs) || 0)` key read a `t`-only event as 1970-01-01, so an
+       event this path cannot place LED the reloaded timeline. The shared key rebuilds the stamp from
+       the element's own `recording.startEpochMs`, rolling past midnight, and keeps an unplaceable
+       event last. Each element sorts under ITS OWN anchor, and the elements arrive chronological, so
+       no anchor stands in for another. */
+    var _evAnchor = function (el) {
+      return el && el.recording ? el.recording.startEpochMs : null;
+    };
+    var evAll = Array.isArray(json.ganglior_events) ? DexClock.sortEventsByClock(json.ganglior_events, _evAnchor(json)) : [];
     if (!evAll.length)
       carrier.forEach(function (el) {
-        if (Array.isArray(el.ganglior_events)) evAll = evAll.concat(el.ganglior_events);
+        if (Array.isArray(el.ganglior_events)) evAll = evAll.concat(DexClock.sortEventsByClock(el.ganglior_events, _evAnchor(el)));
       });
-    evAll.sort(function (a, b) {
-      return ((a && a.tMs) || 0) - ((b && b.tMs) || 0);
-    });
     return {
       ok: true,
       reviewMode: true,
