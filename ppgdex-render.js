@@ -422,6 +422,20 @@ window.evBadge = evBadge;
   // ════════════════════════════════════════════════════════════════════════
   function lineChart(pts, color, opts) {
     opts = opts || {};
+    /* ∅ — A POINT NOBODY MEASURED IS NOT A POINT AT ZERO, AND IT MUST NOT TAKE THE CHART DOWN WITH IT.
+       `renderCharts` maps EVERY epoch (`r.epochs.map((e) => ({ x: e.tMin, y: e.hr }))`), and
+       `ppgdex-dsp.js` publishes `hr`/`rmssd` as `null` for an epoch whose clean population fell under
+       two intervals — a documented refusal, not a gap. `null < Infinity` is true, so the min/max scan
+       below landed on `null` instead of a number; `(ymx === ymn)` then set ymx = 1 while ymn stayed
+       null, and the axis label's `ymn.toFixed(0)` threw a TypeError. One unmeasured epoch aborted
+       `renderSession` HALF-WAY: the charts rendered, and morphology / motion / validation / table /
+       switcher / cross-night never did. The filter lives HERE rather than in each caller because this
+       module also feeds the epoch trends, the cross-night sparkline, the motion ribbon and the drift
+       lines, and `ecgdex-render.js` takes the same shape. */
+    /* `Number.isFinite`, NOT the global `isFinite`: `isFinite(null)` is TRUE (null coerces to 0), so
+       the coercing form would keep the very point this filter exists to drop — measured, it kept the
+       null and the axis label threw exactly as before. */
+    pts = (pts || []).filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y));
     const W = opts.W || 680,
       H = opts.H || 150,
       P = { l: 46, r: 14, t: 14, b: 24 },
@@ -446,7 +460,9 @@ window.evBadge = evBadge;
     const xt = [];
     const xstep = (xmx - xmn) / 5;
     for (let i = 0; i <= 5; i++) xt.push(xmn + i * xstep);
-    const med = opts.med;
+    /* The dashed median line is drawn only when a MEDIAN was measured: a NaN would print "NaN" into
+       the axis instead of being omitted (the two arms below already test `med != null`). */
+    const med = Number.isFinite(opts.med) ? opts.med : null;
     const marks = (opts.marks || []).map((m) => `<line x1="${sx(m).toFixed(1)}" y1="${P.t}" x2="${sx(m).toFixed(1)}" y2="${H - P.b}" stroke="${C.red}" stroke-width="1" opacity=".5"/>`).join('');
     const gid = 'g' + Math.random().toString(36).slice(2, 7);
     return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" style="width:100%;height:auto">

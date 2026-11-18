@@ -12739,6 +12739,240 @@
       }
     });
 
+    group('PpgDex render/app ∅ — one unmeasured epoch cannot abort the render, and a no-beat record draws no SQI', 'ppgdex-render · ppgdex-app · absence · in-band-defaults', function (T) {
+      /* WHY THIS EXISTS. Two absences travelled from `ppgdex-dsp.js` into these two files as if they
+         were numbers.
+         (1) `renderCharts` maps EVERY epoch into a trend line, and the DSP nulls an epoch's `hr` /
+             `rmssd` when its clean population fell under two intervals (`timeDomain`'s per-arm
+             refusal). `null < Infinity` is true, so `lineChart`'s min/max scan landed on `null`;
+             `(ymx === ymn)` then set ymx = 1 while ymn stayed null, and the axis label's
+             `ymn.toFixed(0)` threw a TypeError — ONE unmeasured epoch aborted `renderSession` half-way,
+             after the charts and before morphology / motion / validation / table / switcher.
+         (2) `meanSQI` is published as `sqi.length ? r2(mean(sqi)) : 0`, so a record with no detected
+             beats arrived as a MEASURED 0 (the worst value on 0..1) and three readers drew
+             `Mean SQI 0` graded `bad` — beside `% Analyzable` reading `—`, "no beats detected".
+         The render layer is driven for real (its charts are pure string builders, so no DOM is needed);
+         the app layer's helpers are extracted from the shipped source and executed, and its DOM-bound
+         readers are read as text — the shape the neighbouring Poincaré group already uses. */
+      var U = env.PPGUI,
+        P = env.PPGDSP;
+      if (!U || typeof U.lineChart !== 'function') {
+        T.skip('env.PPGUI.lineChart available', 'render module not co-loaded in this runner');
+        return;
+      }
+      var cnt = function (s, re) {
+        return (String(s).match(re) || []).length;
+      };
+      /* The LINE path, not the filled area: both start `M` and both carry `L`, so the area's closing
+         segment made a three-point series look like four. `fill="none"` marks the line itself. */
+      var pathOf = function (s) {
+        var m = String(s).match(/<path d="([^"]+)" fill="none"/);
+        return m ? m[1] : '';
+      };
+      var measured = [
+        { x: 0, y: 42 },
+        { x: 5, y: 43.5 },
+        { x: 10, y: 44 }
+      ];
+      var withHole = [
+        { x: 0, y: 42 },
+        { x: 5, y: null },
+        { x: 10, y: 44 }
+      ];
+
+      var okSvg = U.lineChart(measured, U.COLORS.teal, { W: 300, H: 100, med: 43 });
+      T.ok(
+        'control (anti-vacuity): a fully measured series draws every point and its median line',
+        cnt(pathOf(okSvg), /L/g) === 2 && okSvg.indexOf('stroke-dasharray="4 4"') >= 0,
+        JSON.stringify({ segs: cnt(pathOf(okSvg), /L/g), med: okSvg.indexOf('stroke-dasharray="4 4"') })
+      );
+
+      var holeSvg = null,
+        thrown = null;
+      try {
+        holeSvg = U.lineChart(withHole, U.COLORS.teal, { W: 300, H: 100, med: 43 });
+      } catch (e) {
+        thrown = String(e && e.message);
+      }
+      T.ok('🔴 one unmeasured epoch does not THROW out of the chart (it used to abort the whole render)', holeSvg != null && thrown === null, 'threw: ' + thrown);
+      T.ok('...the two MEASURED points are drawn and the absent one is not', holeSvg != null && cnt(pathOf(holeSvg), /L/g) === 1, JSON.stringify({ segs: holeSvg && cnt(pathOf(holeSvg), /L/g) }));
+      T.ok('...and no NaN reaches the SVG it hands the page', holeSvg != null && String(holeSvg).indexOf('NaN') < 0, JSON.stringify({ nan: holeSvg && String(holeSvg).indexOf('NaN') }));
+
+      var allHole = null,
+        threw2 = null;
+      try {
+        allHole = U.lineChart(
+          [
+            { x: 0, y: null },
+            { x: 1, y: null }
+          ],
+          U.COLORS.teal,
+          {}
+        );
+      } catch (e) {
+        threw2 = String(e && e.message);
+      }
+      T.ok('a series with nothing measured draws NO chart rather than an axis with no data', allHole === '' && threw2 === null, JSON.stringify({ out: allHole, threw: threw2 }));
+
+      var nanMed = U.lineChart(measured, U.COLORS.teal, { W: 300, H: 100, med: NaN });
+      T.ok(
+        'an unmeasured MEDIAN is omitted, never printed as "NaN"',
+        String(nanMed).indexOf('NaN') < 0 && nanMed.indexOf('stroke-dasharray="4 4"') < 0,
+        JSON.stringify({ nan: String(nanMed).indexOf('NaN'), med: nanMed.indexOf('stroke-dasharray="4 4"') })
+      );
+
+      var src = env.sources || {};
+      var app = src['ppgdex-app.js'] || '';
+      T.ok('ppgdex-app.js is readable in this lane', !!app, 'not in env.sources — list it in BOTH lanes');
+      T.ok(
+        'the app still hands the chart EVERY epoch — which is why the filter belongs in the chart',
+        /r\.epochs\.map\(\(e\) => \(\{ x: e\.tMin, y: e\.rmssd \}\)\)/.test(app) && /r\.epochs\.map\(\(e\) => \(\{ x: e\.tMin, y: e\.hr \}\)\)/.test(app),
+        'the unfiltered epoch maps moved out of the app'
+      );
+
+      /* ── THE APP'S ONE ABSENT-VALUE VOCABULARY, EXTRACTED AND RUN ────────────────────────────────
+         Each helper is a single-line `const`, so the shipped text is the definition — a source match
+         that cannot be edited independently of the behaviour it asserts. */
+      var grab = function (name) {
+        var m = app.match(new RegExp('  const ' + name + ' = [^\\n]+;'));
+        return m ? m[0] : null;
+      };
+      var names = ['sqiAbsent', 'sqiTxt', 'sqiCls', 'sc', 'hrStat', 'numTxt'];
+      var parts = names.map(grab);
+      T.ok(
+        'every helper this group exercises is a runnable one-liner in the shipped source',
+        parts.every(Boolean),
+        names
+          .filter(function (n, i) {
+            return !parts[i];
+          })
+          .join(',') || 'ok'
+      );
+      var H = null;
+      if (parts.every(Boolean)) {
+        try {
+          H = new Function(parts.join('\n') + '\nreturn { sqiAbsent: sqiAbsent, sqiTxt: sqiTxt, sqiCls: sqiCls, sc: sc, hrStat: hrStat, numTxt: numTxt };')();
+        } catch {
+          H = null;
+        }
+      }
+      if (!H) {
+        T.skip('the app helpers execute', 'helper extraction failed');
+      } else {
+        var empty = { meanSQI: 0, sqi: [] };
+        var scoredZero = { meanSQI: 0, sqi: [0, 0.2, 0] };
+        var measuredSqi = { meanSQI: 0.62, sqi: [0.5, 0.7] };
+        T.eq('a mean over an EMPTY beat population draws the em dash', H.sqiTxt(empty), '\u2014');
+        T.eq('...and is graded neutral, not bad', H.sqiCls(empty, 0.7, 0.5), 'neutral');
+        T.ok(
+          '...while a MEASURED 0 (beats that all scored zero) keeps its 0 and its bad grade',
+          H.sqiTxt(scoredZero) === 0 && H.sqiCls(scoredZero, 0.7, 0.5) === 'bad',
+          JSON.stringify({ v: H.sqiTxt(scoredZero), c: H.sqiCls(scoredZero, 0.7, 0.5) })
+        );
+        T.ok(
+          '...and a measured pair keeps its band',
+          H.sqiTxt(measuredSqi) === 0.62 && H.sqiCls(measuredSqi, 0.7, 0.5) === 'warn',
+          JSON.stringify({ v: H.sqiTxt(measuredSqi), c: H.sqiCls(measuredSqi, 0.7, 0.5) })
+        );
+
+        T.ok(
+          '🔴 an absent HR/HRV metric is UNGRADED, not the worst grade',
+          H.sc(null, 30, 20) === 'neutral' && H.hrStat(null) === 'neutral' && H.sc(NaN, 30, 20) === 'neutral',
+          JSON.stringify({ sc: H.sc(null, 30, 20), hr: H.hrStat(null), nan: H.sc(NaN, 30, 20) })
+        );
+        T.ok(
+          'control: the bands still fire on measured values',
+          H.sc(30, 30, 20) === 'ok' && H.sc(25, 30, 20) === 'warn' && H.sc(10, 30, 20) === 'bad',
+          JSON.stringify({ ok: H.sc(30, 30, 20), warn: H.sc(25, 30, 20), bad: H.sc(10, 30, 20) })
+        );
+        T.ok(
+          '...HR too, on both sides of its band',
+          H.hrStat(55) === 'ok' && H.hrStat(35) === 'bad' && H.hrStat(95) === 'warn',
+          JSON.stringify({ ok: H.hrStat(55), bad: H.hrStat(35), warn: H.hrStat(95) })
+        );
+        T.ok(
+          'the switcher formatter refuses an absence and keeps a real zero',
+          H.numTxt(null) === '\u2014' && H.numTxt(NaN) === '\u2014' && H.numTxt(0) === 0,
+          JSON.stringify({ nul: H.numTxt(null), nan: H.numTxt(NaN), zero: H.numTxt(0) })
+        );
+        /* THE TRAP THIS PATCH ITSELF FELL INTO. `isFinite(null)` is TRUE, because null coerces to 0 —
+           so a guard spelled with the global `isFinite` keeps the absence and answers a band from a
+           fabricated zero. The first draft of these three helpers did exactly that and every leg above
+           stayed red with a 'bad' pill. The null-rejecting form is the one that must ship. */
+        T.ok(
+          'the guards reject null — and the COERCING isFinite(null) they must not use does not',
+          isFinite(null) === true && Number.isFinite(null) === false && H.numTxt(null) === '\u2014' && H.sqiTxt({ meanSQI: null, sqi: [1] }) === '\u2014',
+          JSON.stringify({ globalIsFiniteNull: isFinite(null), numberIsFiniteNull: Number.isFinite(null) })
+        );
+      }
+
+      /* ── THE READERS (DOM-bound, so read as text) ─────────────────────────────────────────────── */
+      T.ok('the mean SQI has ONE vocabulary in this layer', /const sqiAbsent = /.test(app) && /const sqiTxt = /.test(app) && /const sqiCls = /.test(app));
+      T.eq('all three mean-SQI readers route the value through it', cnt(app, /sqiTxt\(r\)/g), 3);
+      T.eq('...and the grade through it too', cnt(app, /sqiCls\(r, 0\.7, 0\.5\)/g), 3);
+      T.ok('no band test reads the raw mean any more', !/r\.meanSQI >= 0\.7/.test(app), 'a bare band test survives');
+      T.ok(
+        'the session switcher names an absent HR / rMSSD instead of interpolating it',
+        /numTxt\(s\.dispHr\)/.test(app) && /numTxt\(s\.rmssd\)/.test(app) && app.indexOf('rMSSD ${s.rmssd}') < 0 && app.indexOf('${s.dispHr} bpm') < 0,
+        'the raw interpolation is still there'
+      );
+
+      /* ── THE INPUT: what the DSP actually publishes for a record with no beats ───────────────── */
+      if (!P || typeof P.parsePPG !== 'function' || typeof P.analyze !== 'function') {
+        T.skip('PPGDSP.parsePPG + analyze available', 'PPGDSP not co-loaded');
+        return;
+      }
+      var p2 = function (x) {
+        return String(x).padStart(2, '0');
+      };
+      var file = function (secs, pulse) {
+        var fs = 55,
+          n = Math.round(secs * fs),
+          step = 1000 / fs;
+        var out = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
+        for (var i = 0; i < n; i++) {
+          var t = new Date(Date.UTC(2026, 6, 1, 0, 0, 0) + Math.round(i * step));
+          var ts =
+            t.getUTCFullYear() +
+            '-' +
+            p2(t.getUTCMonth() + 1) +
+            '-' +
+            p2(t.getUTCDate()) +
+            ' ' +
+            p2(t.getUTCHours()) +
+            ':' +
+            p2(t.getUTCMinutes()) +
+            ':' +
+            p2(t.getUTCSeconds()) +
+            '.' +
+            String(t.getUTCMilliseconds()).padStart(3, '0');
+          var ph = (i / fs) % 1;
+          var w = Math.exp(-Math.pow((ph - 0.15) / 0.07, 2)) + 0.35 * Math.exp(-Math.pow((ph - 0.42) / 0.1, 2)) - 0.15 * Math.exp(-Math.pow((ph - 0.75) / 0.25, 2));
+          var v = pulse ? 20000 + 800 * w : 0;
+          out.push(ts + ';' + Math.round(i * step * 1e6) + ';' + Math.round(v) + ';' + Math.round(v * 0.95 + 30) + ';' + Math.round(v * 1.03 - 25) + ';400');
+        }
+        return out.join('\n');
+      };
+      var run = function (text) {
+        try {
+          return P.analyze(P.parsePPG(text, undefined), null);
+        } catch (e) {
+          return { error: String(e.message) };
+        }
+      };
+      var dead = run(file(300, false));
+      var live = run(file(1800, true));
+      T.ok('the all-zero file places NO beats (anti-vacuity for every leg below)', dead && dead.nBeats === 0, 'nBeats=' + (dead && dead.nBeats) + ' err=' + (dead && dead.error));
+      T.ok('...and the control carries a real beat train', live && live.nBeats > 40, 'nBeats=' + (live && live.nBeats));
+      T.eq('the DSP still publishes a placeholder 0 for that record (the value this layer must not draw)', dead.meanSQI, 0);
+      T.eq('...with an EMPTY population beside it — which is how the app tells 0 from not-measured', dead.sqi ? dead.sqi.length : null, 0);
+      T.ok(
+        'control: a record with beats publishes a measured mean and a populated SQI',
+        typeof live.meanSQI === 'number' && live.meanSQI > 0 && live.sqi.length > 0,
+        'meanSQI=' + live.meanSQI + ' sqi=' + (live.sqi && live.sqi.length)
+      );
+      T.eq('...and the neighbouring shares already refuse on the dead record, so only the mean was left lying', dead.cleanBeatPct, null);
+    });
     group('PpgDex scores an empty beat population as UNMEASURED, not as 0 percent', 'ppgdex-dsp ppgdex-app absence clean-beat-share', function (T) {
       var P = env.PPGDSP;
       if (!P || typeof P.parsePPG !== 'function' || typeof P.analyze !== 'function') {
