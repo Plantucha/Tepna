@@ -828,6 +828,18 @@ async function main(){
     }
   } catch(e) { /* probe unavailable → group skips */ }
 
+  /* ppgdex-render.js — BOTH LANES OR NEITHER (2026-11-18, unit `ppgband`). The Node lane hands
+     run-tests.mjs's vm realm `PPGUI`; this lane never loaded the module, so every PPGUI group skipped
+     here. It is an ES module (a trailing `export`), so a classic <script> tag cannot load it, and a
+     deferred module tag races main(). A dynamic import before `env` is built is deterministic; a
+     failure leaves window.PPGUI undefined and the groups skip with their declared reason.
+     The module also publishes window.evBadge (PpgRegistry-backed), which would replace the
+     ecgdex-render.js one the ECG badge groups read; measured: two ECG disc legs red. Restore it. */
+  if (!window.PPGUI) {
+    const keepEvBadge = window.evBadge;
+    try { await import('./ppgdex-render.js'); } catch (e) { /* groups skip */ }
+    window.evBadge = keepEvBadge;
+  }
   const env = {
     DexKernel: window.DexKernel,
     MetricRegistry: window.MetricRegistry,
@@ -857,6 +869,7 @@ async function main(){
     ECGDSP: window.ECGDSP,
     ECGDex: window.ECGDex,
     PPGDSP: window.PPGDSP,
+    PPGUI: window.PPGUI,
     PpgDex: window.PpgDex,
     parseTimestamp: window.parseTimestamp,
     /* dex-escape.js's canonical escaper, in BOTH lanes. The Node lane got it with the §2 ATTRIBUTE-sink
