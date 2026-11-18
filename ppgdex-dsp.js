@@ -4833,8 +4833,22 @@
       grid[i] = Math.max(accNorm(accCell[i]), gyNorm(gyCell[i]));
       onsetGrid[i] = Math.max(accCell[i] / ACC_FULL, gyCell[i] / GY_FULL);
     }
-    // smooth
-    const sm = movavg(grid, 3);
+    /* ∅ A GAP IS NOT STILLNESS, AND A TRAILING AVERAGE SPREADS IT. `grid[i]` holds 0 for a cell no
+       inertial sample reached, so `movavg(grid, 3)` divided a COVERED cell's motion by three and
+       reported the gap as calm on a second the device DID measure. The window now averages the
+       covered cells it holds, which leaves every value identical under full coverage. A window with
+       no covered cell stays 0, and `motionCoveredAtSec` reports that absence beside it. */
+    const sm = new Float32Array(nG);
+    for (let i = 0; i < nG; i++) {
+      let _smS = 0;
+      let _smN = 0;
+      for (let k = i > 2 ? i - 2 : 0; k <= i; k++) {
+        if (covCell[k] !== 1) continue;
+        _smS += grid[k];
+        _smN++;
+      }
+      sm[i] = _smN ? _smS / _smN : 0;
+    }
     const motionAtSec = (sec) => {
       const g = Math.floor(sec / dt);
       return g >= 0 && g < nG ? sm[g] : 0;
@@ -4853,8 +4867,8 @@
     /* ∅ The mean over the WHOLE grid enters every uncovered cell as stillness, so an inertial
        gap reads as the BEST value on a lower-is-better scale. That is the `actigraphy()` defect
        named above, reproduced in the summary. Average the COVERED cells only, and refuse when no
-       cell carries inertial data. The 3-cell smoother still bleeds a gap into its neighbours, so
-       this mean is honest about the population it averages, not about every member of it. */
+       cell carries inertial data. The 3-cell smoother averages covered cells only, so every member
+       of that population is honest too. */
     const _miCov = [];
     for (let i = 0; i < nG; i++) if (covCell[i]) _miCov.push(sm[i]);
     const meanMIReason = _miCov.length ? null : 'no-inertial-coverage';

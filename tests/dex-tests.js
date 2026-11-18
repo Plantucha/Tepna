@@ -75920,6 +75920,53 @@
       T.ok('an ACC-only recording reports no gyro floor', P.analyzeMotion(acc, null, 1782000000000, DUR).gyroBiasDps == null);
     });
 
+    /* ∅ A GAP IS NOT STILLNESS, AND THE SMOOTHER MUST NOT SPREAD ONE. `analyzeMotion` builds a 4 Hz
+       grid, and `grid[i]` holds a structural 0 for every cell no inertial sample reached. The old
+       3-cell trailing average divided a COVERED cell's motion by three, so the first second after a
+       gap reported calm on data the device DID send. Measured on the stream below: the cell at 15.0 s
+       read 0.3333 and the next read 0.6667, against a true 1.0, and `meanMotionIndex` read 0.99
+       against 1. The window now averages the covered cells it holds.
+       The second half pins the divisor under FULL coverage, where the burst cell must still read
+       1/3. A smoother that averaged the NON-ZERO cells instead would read 1 there and red. */
+    group('PPGDex — a coverage gap does not bleed into the cells beside it', 'ppgdex-dsp · motion · absence', function (T) {
+      var P = env.PPGDSP;
+      if (!(P && typeof P.analyzeMotion === 'function')) {
+        T.ok('PPGDSP.analyzeMotion available', false);
+        return;
+      }
+      var FS = 52,
+        DUR = 40,
+        T0 = 1782000000000;
+      // A SATURATING ROTATION with a 5 s hole: no sample lands in 10.0-15.0 s, i.e. cells 40-59.
+      var gapRows = [];
+      for (var i = 0; i < FS * DUR; i++) {
+        var sec = i / FS;
+        if (sec >= 10 && sec < 15) continue;
+        gapRows.push({ x: 60, y: 0, z: 0, relNs: sec * 1e9 });
+      }
+      var mGap = P.analyzeMotion(null, gapRows, T0, DUR);
+      T.ok('the gap itself reports no coverage', mGap.motionCoveredAtSec(12) === false);
+      T.ok('the cell beside the gap reports coverage', mGap.motionCoveredAtSec(15) === true);
+      T.ok('the first covered cell after a gap keeps its full motion', Math.abs(mGap.motionAtSec(15) - 1) < 1e-6, 'got ' + mGap.motionAtSec(15) + ' — the trailing average read 0.3333 here');
+      T.ok('the second covered cell after a gap keeps it too', Math.abs(mGap.motionAtSec(15.25) - 1) < 1e-6, 'got ' + mGap.motionAtSec(15.25) + ' — the trailing average read 0.6667 here');
+      T.ok('the covered mean carries no gap residue', mGap.meanMotionIndex === 1, 'got ' + mGap.meanMotionIndex);
+
+      // FULL COVERAGE — every cell holds a sample and one of them holds a burst. The divisor stays 3.
+      var fullRows = [];
+      for (var j = 0; j < FS * DUR; j++) {
+        var s2 = j / FS;
+        fullRows.push({ x: s2 >= 20 && s2 < 20.25 ? 43.85 : 3.85, y: 0, z: 0, relNs: s2 * 1e9 });
+      }
+      var mFull = P.analyzeMotion(null, fullRows, T0, DUR);
+      T.ok('full coverage reports it', mFull.motionCoveredFrac === 1, 'got ' + mFull.motionCoveredFrac);
+      T.ok('under full coverage the 3-cell window is unchanged', Math.abs(mFull.motionAtSec(20) - 1 / 3) < 1e-6, 'got ' + mFull.motionAtSec(20) + ' — a count of NON-ZERO cells would read 1');
+      T.ok(
+        'and the window still trails the burst for two cells',
+        Math.abs(mFull.motionAtSec(20.5) - 1 / 3) < 1e-6 && mFull.motionAtSec(20.75) < 1e-6,
+        'got ' + mFull.motionAtSec(20.5) + ' / ' + mFull.motionAtSec(20.75)
+      );
+    });
+
     /* §∅ ABSENCE-AS-VALUE — the pinned-span rule and the DERIVED settling widening.
        The rule was designed against the real 04:53 O2Ring file after three other shapes failed their
        pre-stated acceptance; every number in this group is a measurement, and the group exists so a
