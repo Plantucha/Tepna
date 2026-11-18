@@ -315,18 +315,17 @@ export function checkCompliance({
     const changesetAdded = files.some((f) => f.startsWith('changes/') && f.endsWith('.md'));
     if (codeChanged && !changesetAdded) failures.push('code files changed but no changes/ changeset was added');
   }
-  /* 10 · A BUILD OUTPUT IN THE DIFF — BLOCKING (GENERATED-OUT-OF-PRS §5.3 stage 4; advisory in stage 2).
-     `buildOutputs` is the subset of `files` that `rebase-safe.mjs --build-outputs` names: generated
-     paths a rebuild on `main` re-earns, without `provenance/**` or a regen fixture. CI builds before
-     it judges (stage 1), and the walker's regeneration PR carries these paths after the merge
-     (stage 3), so an author PR no longer carries them. `null` means the builder list could not be
-     read, reported as not evaluated. The walker's regeneration PR is exempt by its declared head branch. */
+  /* 10 · A BUILD OUTPUT IN THE DIFF — ADVISORY (GENERATED-OUT-OF-PRS §5.3 stage 2). `buildOutputs` is
+     the subset of `files` that `rebase-safe.mjs --build-outputs` names: generated paths a rebuild on
+     `main` re-earns, without `provenance/**` or a regen fixture. `null` means the builder list could
+     not be read, reported as not evaluated. The finding goes to `advisories`, never to `failures`,
+     until stage 4 flips it. The walker's regeneration PR is exempt by its declared head branch. */
   if (buildOutputs) {
-    checked.push('no-build-outputs');
+    checked.push('build-outputs-advisory');
     const exempt = typeof headRef === 'string' && headRef.startsWith(REGEN_BRANCH_PREFIX);
     if (buildOutputs.length && !exempt) {
-      failures.push(
-        `${buildOutputs.length} build output(s) in the diff: ${buildOutputs.slice(0, 5).join(', ')}${buildOutputs.length > 5 ? ', …' : ''}. The walker's regeneration PR carries them after the merge. Restore main's copy with \`git checkout origin/main -- <path>\` and commit; keep provenance/ and the regen fixtures`
+      advisories.push(
+        `${buildOutputs.length} build output(s) in the diff, which the walker's regeneration PR will carry once stage 4 lands: ${buildOutputs.slice(0, 5).join(', ')}${buildOutputs.length > 5 ? ', …' : ''}`
       );
     }
   }
@@ -348,16 +347,15 @@ export function selftest() {
   ok(clean.failures.length === 0, 'CONTROL: a compliant body and changeset pass');
   ok(clean.advisories.length === 0, 'CONTROL: a diff with no build output carries no advisory');
 
-  /* CHECK 10 · A BUILD OUTPUT IN THE DIFF FAILS THE PR, and the regeneration branch is exempt. */
-  const withBundle = { body: good, files: ['oxydex-dsp.js', 'OxyDex.html', 'changes/2026-10-10-x.md'], ste: [], steChecked: 1, prStates: {}, newDocs: [], freshness: [] };
-  const blk = checkCompliance({ ...withBundle, buildOutputs: ['OxyDex.html'] });
-  ok(blk.failures.length === 1 && blk.failures[0].includes('OxyDex.html'), 'CHECK 10: a build output in the diff fails the PR and is named');
-  ok(blk.advisories.length === 0, 'CHECK 10: the finding is a failure, not an advisory');
-  ok(checkCompliance({ ...withBundle, buildOutputs: [] }).failures.length === 0, 'CHECK 10 CONTROL: a source-only diff passes');
-  ok(checkCompliance({ ...withBundle, buildOutputs: ['OxyDex.html'], headRef: `${REGEN_BRANCH_PREFIX}5254-abcde` }).failures.length === 0, 'CHECK 10: the walker regeneration branch is exempt');
-  ok(checkCompliance({ ...withBundle, buildOutputs: ['OxyDex.html'], headRef: 'claude/regen-walker' }).failures.length === 1, 'CHECK 10: a branch that only resembles the prefix is not exempt');
+  /* CHECK 10 · A BUILD OUTPUT IN THE DIFF IS ADVISORY, and the regeneration branch is exempt. */
+  const withBundle = { body: good, files: ['tools/x.mjs', 'changes/2026-10-10-x.md', 'OxyDex.html'], ste: [], steChecked: 1, prStates: {}, newDocs: [], freshness: [] };
+  const adv = checkCompliance({ ...withBundle, buildOutputs: ['OxyDex.html'] });
+  ok(adv.advisories.length === 1 && adv.advisories[0].includes('OxyDex.html'), 'CHECK 10: a build output in the diff is named in an advisory');
+  ok(adv.failures.length === 0, 'CHECK 10: the advisory does not fail the PR before stage 4');
+  ok(checkCompliance({ ...withBundle, buildOutputs: ['OxyDex.html'], headRef: `${REGEN_BRANCH_PREFIX}5254-abcde` }).advisories.length === 0, 'CHECK 10: the walker regeneration branch is exempt');
+  ok(checkCompliance({ ...withBundle, buildOutputs: ['OxyDex.html'], headRef: 'claude/regen-walker' }).advisories.length === 1, 'CHECK 10: a branch that only resembles the prefix is not exempt');
   const unread = checkCompliance({ ...withBundle, buildOutputs: null });
-  ok(!unread.checked.includes('no-build-outputs'), 'CHECK 10: an unread builder list reports the check as not evaluated');
+  ok(!unread.checked.includes('build-outputs-advisory'), 'CHECK 10: an unread builder list reports the check as not evaluated');
 
   // BOT EXEMPTION — a dependabot manifest-only diff is out of scope; anything else is not.
   ok(botManifestOnly({ author: 'dependabot[bot]', files: ['capture-host/requirements.txt'] }), 'BOT: a dependabot requirements bump is exempt');
