@@ -2529,11 +2529,8 @@ function _ecgPostureSeries(json, t0Ms) {
       }
     });
   }
-  /* Every element above was pushed under `tMs != null`, so no absence reaches this key and the
-     former `|| 0` could not fire. It is dropped rather than kept as a defence that would read an
-     absence as 1970-01-01 if that guard ever moved (∅ §6). */
   out.sort(function (a, b) {
-    return a.tMs - b.tMs;
+    return (a.tMs || 0) - (b.tMs || 0);
   });
   return out;
 }
