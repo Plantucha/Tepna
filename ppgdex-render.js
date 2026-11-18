@@ -435,28 +435,58 @@ window.evBadge = evBadge;
     /* `Number.isFinite`, NOT the global `isFinite`: `isFinite(null)` is TRUE (null coerces to 0), so
        the coercing form would keep the very point this filter exists to drop — measured, it kept the
        null and the axis label threw exactly as before. */
-    pts = (pts || []).filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y));
+    /* ∅ DROPPING THE ABSENT POINT KEPT THE CRASH OUT AND LEFT THE CLAIM IN. The filter above
+       removed the unmeasured epoch from the series, and the single path then ran STRAIGHT from the
+       epoch before it to the epoch after it. A reader saw one continuous trend across a stretch this
+       node refused to measure. `eegdex-render.js` states the house rule for every figure it draws:
+       a non-finite value leaves the domain AND BREAKS THE PATH, because a line ruled across absent
+       signal is a claim about that signal. So the series is cut into runs of adjacent measured
+       points, and each run draws its own subpath. The gap draws nothing.
+       A run holding ONE point draws a DOT: a lone measured epoch between two absences must stay
+       visible, and a one-point subpath paints no pixel. GlucoDex bridges a one-reading hole instead,
+       and that belongs where it sits — in the DSP, which knows the cadence and flags the cell it
+       filled. This renderer knows neither, so it never invents a segment it cannot flag. */
+    const segs = [];
+    let run = null;
+    for (const p of pts || []) {
+      if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+        if (!run) {
+          run = [];
+          segs.push(run);
+        }
+        run.push(p);
+      } else run = null;
+    }
     const W = opts.W || 680,
       H = opts.H || 150,
-      P = { l: 46, r: 14, t: 14, b: 24 },
-      n = pts.length;
-    if (!n) return '';
+      P = { l: 46, r: 14, t: 14, b: 24 };
+    if (!segs.length) return '';
     let ymn = opts.ymn != null ? opts.ymn : Infinity,
       ymx = opts.ymx != null ? opts.ymx : -Infinity,
       xmn = Infinity,
       xmx = -Infinity;
-    for (const p of pts) {
-      if (opts.ymn == null && p.y < ymn) ymn = p.y;
-      if (opts.ymx == null && p.y > ymx) ymx = p.y;
-      if (p.x < xmn) xmn = p.x;
-      if (p.x > xmx) xmx = p.x;
+    for (const s of segs) {
+      for (const p of s) {
+        if (opts.ymn == null && p.y < ymn) ymn = p.y;
+        if (opts.ymx == null && p.y > ymx) ymx = p.y;
+        if (p.x < xmn) xmn = p.x;
+        if (p.x > xmx) xmx = p.x;
+      }
     }
     if (ymx === ymn) ymx = ymn + 1;
     if (xmx === xmn) xmx = xmn + 1;
     const sx = (x) => P.l + ((x - xmn) / (xmx - xmn)) * (W - P.l - P.r);
     const sy = (y) => H - P.b - ((y - ymn) / (ymx - ymn)) * (H - P.t - P.b);
-    const line = pts.map((p, k) => (k ? 'L' : 'M') + sx(p.x).toFixed(1) + ' ' + sy(p.y).toFixed(1)).join(' ');
-    const area = `M${sx(pts[0].x).toFixed(1)} ${H - P.b} ` + pts.map((p) => 'L' + sx(p.x).toFixed(1) + ' ' + sy(p.y).toFixed(1)).join(' ') + ` L${sx(pts[n - 1].x).toFixed(1)} ${H - P.b} Z`;
+    const line = segs.map((s) => s.map((p, k) => (k ? 'L' : 'M') + sx(p.x).toFixed(1) + ' ' + sy(p.y).toFixed(1)).join(' ')).join(' ');
+    /* A one-point run has no area to fill, and its `M x base L x y L x base Z` would be a sliver. */
+    const area = segs
+      .filter((s) => s.length > 1)
+      .map((s) => `M${sx(s[0].x).toFixed(1)} ${H - P.b} ` + s.map((p) => 'L' + sx(p.x).toFixed(1) + ' ' + sy(p.y).toFixed(1)).join(' ') + ` L${sx(s[s.length - 1].x).toFixed(1)} ${H - P.b} Z`)
+      .join(' ');
+    const dots = segs
+      .filter((s) => s.length === 1)
+      .map((s) => `<circle cx="${sx(s[0].x).toFixed(1)}" cy="${sy(s[0].y).toFixed(1)}" r="1.6" fill="${color}"/>`)
+      .join('');
     const xt = [];
     const xstep = (xmx - xmn) / 5;
     for (let i = 0; i <= 5; i++) xt.push(xmn + i * xstep);
@@ -475,7 +505,7 @@ window.evBadge = evBadge;
     ${xt.map((x) => `<text x="${sx(x).toFixed(1)}" y="${H - 7}" fill="${C.dim}" font-size="9" text-anchor="middle" font-family="ui-monospace,monospace">${opts.xfmt ? opts.xfmt(x) : x.toFixed(0)}</text>`).join('')}
     ${marks}
     <path d="${area}" fill="url(#${gid})"/>
-    <path d="${line}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="${line}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>${dots}
   </svg>`;
   }
 
