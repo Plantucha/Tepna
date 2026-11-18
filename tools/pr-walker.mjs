@@ -58,11 +58,12 @@
  *   node tools/pr-walker.mjs --selftest
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { isCliEntry } from './argv-guard.mjs';
-import { classify as classifyPath, generatedSet } from './rebase-safe.mjs';
+import { REGEN_BRANCH_PREFIX } from './pr-compliance.mjs';
+import { classify as classifyPath, generatedSet, isBuildOutput } from './rebase-safe.mjs';
 
 export const CAP = 4;
 /* How many of the newest merges the closure pass reads. A `Residue-fixed:` line a body gains AFTER
@@ -567,6 +568,107 @@ function closeResidue(close, wt, nowMs) {
   }
 }
 
+/* ── THE REGENERATION PASS (GENERATED-OUT-OF-PRS §5.3 stage 3) ─────────────────────────────────
+   After a merge the walker builds `origin/main` in its OWN checkout. When a build output differs
+   from the committed bytes, it opens ONE draft PR that carries only those paths, on a branch that
+   starts with `REGEN_BRANCH_PREFIX`. `pr-compliance.mjs` exempts that branch from check 10, and
+   `commit-shape.mjs` exempts the `regen:` subject that Kodiak's squash takes from the PR title.
+
+   The partition is `isBuildOutput`: a generated path minus `provenance/**` and the regen fixtures.
+   A dirty path outside it refuses the whole pass. An author still commits provenance and fixtures,
+   so a build that moves one of them is a defect for a person to read, never a path to carry. */
+export const REGEN_SUBJECT = 'regen: rebuild the build outputs that main left stale';
+export const REGEN_STEPS = [['tools/build.mjs', '--all'], ['tools/build-docs.mjs'], ['tools/build-analysis.mjs'], ['tools/tools-index.mjs']];
+export function planRegen(porcelain, generated) {
+  const rows = String(porcelain || '')
+    .split('\n')
+    .filter((l) => l.trim());
+  if (!rows.length) return { verdict: 'current', paths: [], other: [] };
+  if (!generated) return { verdict: 'refused', paths: [], other: [], reason: 'the generated set is unreadable' };
+  const unquote = (q) => (/^".*"$/.test(q) ? q.slice(1, -1) : q);
+  const parsed = rows.map((l) => ({ code: l.slice(0, 2), path: unquote(l.slice(3).split(' -> ').pop().trim()) }));
+  const carry = (r) => !r.code.includes('R') && isBuildOutput(r.path, generated);
+  const other = parsed.filter((r) => !carry(r)).map((r) => r.path);
+  const paths = parsed.filter(carry).map((r) => r.path);
+  if (other.length) return { verdict: 'refused', paths, other, reason: `${other.length} dirty path(s) are no build output: ${other.slice(0, 5).join(', ')}` };
+  return { verdict: 'stale', paths, other: [] };
+}
+export function regenBody(paths, mainSha) {
+  return [
+    `Rule 0: generated out of PRs regeneration pass → \`briefs/GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md\``,
+    '',
+    `The walker built \`origin/main\` at \`${String(mainSha).slice(0, 9)}\` in its own checkout.`,
+    `${paths.length} build output(s) differ from the committed bytes, and this PR carries only those paths.`,
+    '',
+    ...paths.slice(0, 40).map((p) => `- \`${p}\``),
+    ...(paths.length > 40 ? [`- and ${paths.length - 40} more`] : []),
+    '',
+    'Fleet-Session: pr-walker (unattended, tools/pr-walker.mjs)'
+  ].join('\n');
+}
+function regenerate(wt, nowMs) {
+  const g = (...args) => sh('git', args, { cwd: wt });
+  if (!wt || !existsSync(path.join(wt, '.git'))) return { result: 'no-worktree' };
+  if (g('status', '--porcelain').trim()) return { result: 'dirty: the walker checkout was not clean' };
+  let step = 'fetch';
+  let sha = null;
+  let plan = null;
+  try {
+    g('fetch', '-q', 'origin', 'main');
+    step = 'checkout';
+    g('checkout', '-q', '--detach', 'origin/main');
+    sha = g('rev-parse', 'HEAD').trim();
+    for (const s of REGEN_STEPS) {
+      step = `build ${s[0]}`;
+      sh(process.execPath, s, { cwd: wt, stdio: ['ignore', 'ignore', 'pipe'] });
+    }
+    step = 'classify';
+    let generated = null;
+    try {
+      generated = generatedSet();
+    } catch {
+      generated = null;
+    }
+    plan = planRegen(g('status', '--porcelain', '--untracked-files=all'), generated);
+    if (plan.verdict === 'current') return { result: 'current', sha };
+    if (plan.verdict === 'refused') return { result: `refused: ${plan.reason}`, sha };
+    step = 'commit';
+    g('add', '--', ...plan.paths);
+    g('commit', '-q', '-m', `${REGEN_SUBJECT}\n\nFleet-Session: pr-walker (unattended, tools/pr-walker.mjs)`);
+    const branch = `${REGEN_BRANCH_PREFIX}${sha.slice(0, 9)}-${nowMs.toString(36).slice(-5)}`;
+    step = 'push';
+    g('push', '-q', 'origin', `HEAD:refs/heads/${branch}`);
+    step = 'pr';
+    const url = gh(['pr', 'create', '--draft', '--base', 'main', '--head', branch, '--title', REGEN_SUBJECT, '--body', regenBody(plan.paths, sha)]).trim();
+    return { result: `opened:${url.split('/').pop()}`, sha };
+  } catch (e) {
+    return { result: stepResult(step, e), sha };
+  } finally {
+    try {
+      g('checkout', '-q', '--detach', '-f', 'origin/main');
+    } catch (e) {
+      console.error(`pr-walker: the detach to origin/main failed — ${stepResult('detach', e)}`);
+    }
+    // A build adds an untracked output, and no checkout removes one. Remove only the paths the
+    // plan named as build outputs, never a blanket clean.
+    try {
+      const left = String(g('status', '--porcelain', '--untracked-files=all') || '')
+        .split('\n')
+        .filter((l) => l.startsWith('??'))
+        .map((l) => l.slice(3).trim());
+      for (const p of left) if (plan?.paths.includes(p)) rmSync(path.join(wt, p), { force: true });
+    } catch {}
+  }
+}
+
+export function regenDecision({ mainSha, last, regenOpen, dryRun }) {
+  if (!mainSha) return { run: false, line: 'REGEN not planned: origin/main unreadable in the walker checkout' };
+  if (last?.main === mainSha) return { run: false, line: null };
+  if (regenOpen) return { run: false, line: `REGEN waits: walker regeneration PR #${regenOpen.number} is open` };
+  if (dryRun) return { run: false, line: `REGEN would build main@${mainSha.slice(0, 9)}` };
+  return { run: true, line: null };
+}
+
 export function act(actions, state, opts) {
   const done = [];
   /* `opts.gh` stands in for the GitHub CLI in the selftest only. */
@@ -892,6 +994,22 @@ export function pass(opts) {
       }
     }
   } else resLines.push(`RESIDUE closures not planned: ${!snap.merged ? 'merged PRs unreadable' : 'main ledger unreadable'}`);
+  /* Regeneration: once per new main sha, with one walker regeneration PR in flight. */
+  state.regen ||= {};
+  let mainSha = null;
+  try {
+    mainSha = sh('git', ['rev-parse', 'origin/main'], { cwd: opts.worktree }).trim();
+  } catch {
+    mainSha = null;
+  }
+  const regenOpen = snap.prs.find((p) => (p.branch || '').startsWith(REGEN_BRANCH_PREFIX));
+  const rd = regenDecision({ mainSha, last: state.regen, regenOpen, dryRun: opts.dryRun });
+  if (rd.line) resLines.push(rd.line);
+  if (rd.run) {
+    const rr = regenerate(opts.worktree, now);
+    state.regen = { main: rr.sha || mainSha, result: rr.result, at: now };
+    resLines.push(`REGEN main@${String(rr.sha || mainSha).slice(0, 9)} → ${rr.result}`);
+  }
   const page =
     landingPage(rows, planned, done, {
       at: new Date(now).toISOString(),
@@ -1159,6 +1277,35 @@ function selftest() {
     const second = plan([red], st, { nowMs: 0, mainMovedAtMs: 0, cap: 4 });
     eq(second.actions.length, 0, 'second pass on the same head plans no rerun');
     eq(second.alerts.map((a) => a.kind).join(','), 'red', 'second pass hands the red to a coder');
+  }
+  // Regeneration pass (GENERATED-OUT-OF-PRS §5.3 stage 3).
+  {
+    const gen = { files: new Set(['OxyDex.html', 'docs/OxyDex.html', 'provenance/OxyDex.json']), dirs: [] };
+    let genReal = null;
+    try {
+      genReal = generatedSet();
+    } catch {
+      genReal = null;
+    }
+    eq(planRegen('', gen).verdict, 'current', 'regen: a clean build is current');
+    eq(planRegen(' M OxyDex.html\n', null).verdict, 'refused', 'regen: an unreadable set refuses');
+    eq(planRegen(' M oxydex-dsp.js\n', genReal || gen).verdict, 'refused', 'regen: a source path refuses');
+    eq(planRegen(' M provenance/OxyDex.json\n', genReal || gen).verdict, 'refused', 'regen: a provenance fragment is no build output');
+    if (genReal) {
+      const r = planRegen(' M OxyDex.html\n M docs/OxyDex.html\n', genReal);
+      eq(r.verdict, 'stale', 'regen: a moved bundle is stale');
+      eq(r.paths.join(','), 'OxyDex.html,docs/OxyDex.html', 'regen: it carries exactly the moved outputs');
+      eq(planRegen('R  OxyDex.html -> X.html\n', genReal).verdict, 'refused', 'regen: a rename refuses');
+    }
+    const S = 'a'.repeat(40);
+    eq(regenDecision({ mainSha: null }).run, false, 'regen: unreadable main does not build');
+    eq(regenDecision({ mainSha: S, last: { main: S } }).line, null, 'regen: a built sha is silent');
+    eq(regenDecision({ mainSha: S, last: {}, regenOpen: { number: 9 } }).run, false, 'regen: one PR in flight');
+    eq(regenDecision({ mainSha: S, last: {}, dryRun: true }).run, false, 'regen: a dry run builds nothing');
+    eq(regenDecision({ mainSha: S, last: { main: 'b' } }).run, true, 'regen: a new sha builds');
+    eq(REGEN_SUBJECT.startsWith('regen:'), true, 'regen: the subject carries the commit-shape prefix');
+    eq(/^Rule 0: /.test(regenBody(['OxyDex.html'], S)), true, 'regen: the body opens with Rule 0');
+    eq(/Fleet-Session: /.test(regenBody(['OxyDex.html'], S)), true, 'regen: the body carries the trailer');
   }
   console.log(`all ${ran} selftests passed`);
 }
