@@ -143,7 +143,11 @@ def test_a_session_subscribes_starts_the_preset_records_raw_frames_and_stops(tmp
     (arr,) = _files(tmp_path, "Muse_S-Athena_TEST0001_*_PMDARRIVAL.csv")
     arows = [ln.split(";") for ln in open(arr).read().splitlines()[1:]]
     assert [(a[2], a[3], a[4], a[5]) for a in arows[:1]] == [("MUSE_FRAME", "100000", str((1000 + 78125) * 100), "2")]
-    assert arows[3][3:6] == ["", "", "0"]
+    # A REFUSED FRAME HAS NO SAMPLE COUNT. This assertion used to pin "0", which claimed the undecodable
+    # frame carried no samples; blank is the absence the two ns columns already use, and the refusal is
+    # counted in STATUS so a night the decoder refused says so.
+    assert arows[3][3:6] == ["", "", ""], arows[3]
+    assert (st["frames_refused"], sum(st["refused_reasons"].values())) == (1, 1), st.get("refused_reasons")
 
 
 def test_a_silent_data_channel_behind_a_live_link_is_a_stall_and_the_header_only_file_goes(tmp_path, monkeypatch):
