@@ -18,14 +18,14 @@
 
 [![No network · CI-enforced](https://img.shields.io/badge/no_network-CI--enforced-1f8a5b)](no-network.html)
 [![Every metric graded](https://img.shields.io/badge/every_metric-evidence_graded-8a5cf6)](#every-number-is-graded)
-[![Reproducible](https://img.shields.io/badge/every_paper-regenerates_from_its_tool-8a5cf6)](papers/papers.html)
-![Nodes](https://img.shields.io/badge/nodes-8_live_%C2%B7_1_planned-555)
+[![Reproducible](https://img.shields.io/badge/20_of_23_papers-regenerate_from_their_tool-8a5cf6)](papers/papers.html)
+![Nodes](https://img.shields.io/badge/nodes-9_live-555)
 ![Releases](https://img.shields.io/badge/releases-60_shipped-555)
 
 **[tepna.net](https://tepna.net)**  ·  [github.com/Plantucha/Tepna](https://github.com/Plantucha/Tepna)
 
-<!-- readme-synced: 779f348d 2026-10-04 -->
-<sub>README last synced to commit `779f348d` (2026-10-04). Next refresh: `git log --oneline 779f348d..origin/main`
+<!-- readme-synced: 43082c083 2026-11-18 -->
+<sub>README last synced to commit `43082c083` (2026-11-18). Next refresh: `git log --oneline 43082c083..origin/main`
 lists what this page has not seen yet — fold that in, then move this stamp.</sub>
 
 </div>
@@ -51,7 +51,7 @@ git clone https://github.com/Plantucha/Tepna.git
 
 Open **`index.html`** in a browser and click your device. No build, no server, no install: every app
 is one self-contained HTML file that runs from disk. One sensor is a complete starting point — an
-O2Ring alone feeds OxyDex, an H10 alone feeds ECGDex and PulseDex — and an Android phone running the
+O2Ring alone feeds OxyDex, an H10 alone feeds ECGDex and PulseDex, a Muse headband feeds EEGDex — and an Android phone running the
 free Polar Sensor Logger or the Wellue app produces files the apps read directly. The capture box is
 the always-on, one-clock upgrade, not the entry fee.
 
@@ -90,7 +90,7 @@ only a louder one.
 | **experimental** | internally consistent, not externally confirmed | composite indices |
 | **heuristic** | directional only | sleep-derived BP estimate |
 
-The eight registries define **520 graded metrics**; just under half have the measured or validated grade and
+The nine registries define **566 graded metrics**; just under half have the measured or validated grade and
 nearly two-fifths sit at experimental or heuristic. The distribution is the honest version of the
 count, which is why the ladder leads. If you read nothing else, read the validated row.
 
@@ -105,11 +105,11 @@ Policy with `connect-src 'none'` and hash-only `script-src`. [`verify-provenance
 content-addresses every bundle and every known-answer fixture, so a shipped app is provably the code
 it claims to be.
 
-**Every pull request must pass nine checks:** `tests` (**20,148 assertions** across **1007 groups**,
+**Every pull request must pass nine checks:** `tests` (**21,139 assertions** across **1044 groups**,
 six partitioned shards) · `no-network` · `types` · `biome` · `browser-gates` (every bundle booted
 headless, computed values asserted in the DOM) · `stale-file` (an edit that never read the upstream
-version cannot overwrite a brief) · `capture-host` on py3.12 and py3.13 —
-**9,300+ Python tests** at a 100 % statement *and* branch floor — and a diff-scoped **mutation** gate
+version cannot overwrite a brief) · `capture-host` on py3.12, py3.13 and py3.14 —
+**12,900+ Python tests** at a 100 % statement *and* branch floor — and a diff-scoped **mutation** gate
 that breaks the lines a PR touched and refuses to merge what the suite would not notice. `CodeQL` runs beside them,
 and a `static` job re-derives every ledger the tree claims so a stale artefact reds the PR.
 
@@ -119,7 +119,7 @@ and a `static` job re-derives every ledger the tree claims so a stale artefact r
 
 The apps read files; something has to write them. **`capture-host/`** is a Python service for a small
 bedside PC that holds the live Bluetooth links — H10 ECG, Verity PPG and IMU, the O2Ring's SpO₂ and
-raw PPG, the CPAP's live flow — and writes the vendors' own file layouts into per-night folders. It
+raw PPG, the Muse's raw EEG, the CPAP's live flow — and writes the vendors' own file layouts into per-night folders. It
 is a producer outside the browser suite: no app ever talks to a device. It has its own gate,
 `capture-host/check.sh`, because this code runs unattended against hardware that misbehaves while
 nobody is awake.
@@ -156,9 +156,9 @@ Per-device capture instructions without the box live in [`how-to-collect/`](how-
 
 **Suite version:** 2.34.0 &nbsp;—&nbsp; **60** ledger-backed releases, each computed from a green tree, with **0 changesets** pending since (the tree is exactly the release).
 
-Every one of the **23 working preprints** in [`papers/`](papers/papers.html) regenerates from the live
-tool behind it. The methods overview is [`Science.html`](Science.html); the system design is
-[`Architecture.html`](Architecture.html).
+20 of the **23 working preprints** in [`papers/`](papers/papers.html) regenerate from the live
+tool behind them; the index tags the three that do not yet. The methods overview is
+[`Science.html`](Science.html); the system design is [`Architecture.html`](Architecture.html).
 
 ---
 
@@ -178,8 +178,8 @@ construction. Approximate US street prices, 2026:
 | | **core capture kit** | **≈ $550** |
 
 Optional: a GPS stratum-1 time server (the box holds microsecond offsets against it), a ResMed
-AirSense 11 (therapy equipment that was already there), an Abbott Lingo CGM, a Muse S for the planned
-EEG node. One attended lab night costs more than the whole kit and records one night; this records every
+AirSense 11 (therapy equipment that was already there), an Abbott Lingo CGM, a Muse S Athena for the
+EEG node (EEGDex). One attended lab night costs more than the whole kit and records one night; this records every
 night, raw, in your own bed. The two are not substitutes: if you suspect a sleep disorder, see a
 physician, and bring your exports.
 
