@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="7bc240fce75d" data-compute-hash="80b955f8e9df"><head>
+<html lang="en" data-manifest-hash="3037b0719cea" data-compute-hash="a2e4c8f6066a"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4esQYmoU7FYRSxckVGhsPB+ddHAbdUxK5/3OtftYgPQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Guo8R/USO+GAcDRQZp2BK3lfgF5ApB6E4TQiUzoPZNI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-K+h5thoekEgjAVsTOJH/LoQr+vkP1LPzjqBYtooYmg8=' 'sha256-KWDMRagpDhkrEKgurTOBXHctXtLVmvs0VbMDxL2Sen8=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-ZkNm5rfWprNM/ZufFLiknYzfQDyGaPr3z8KqKGzAPlg=' 'sha256-giYwCXjerkJjeQWVawZJi1PSQz95jk2fKeHBJNSpfic=' 'sha256-hZbxewOR/IJnt4wYW1xIXfi8LXLa6bhyJN5Io8hmutA=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-sWB90VzOrb6nJTXL7Cq4GwOY5VcEZdjBXeIo1Wl5NtQ=' 'sha256-xVxJq6soq2jdtCFhTVXDrCDVE6k0cE/YIV/2djM7KXc=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4esQYmoU7FYRSxckVGhsPB+ddHAbdUxK5/3OtftYgPQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Guo8R/USO+GAcDRQZp2BK3lfgF5ApB6E4TQiUzoPZNI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-K+h5thoekEgjAVsTOJH/LoQr+vkP1LPzjqBYtooYmg8=' 'sha256-KWDMRagpDhkrEKgurTOBXHctXtLVmvs0VbMDxL2Sen8=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-giYwCXjerkJjeQWVawZJi1PSQz95jk2fKeHBJNSpfic=' 'sha256-hZbxewOR/IJnt4wYW1xIXfi8LXLa6bhyJN5Io8hmutA=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-sWB90VzOrb6nJTXL7Cq4GwOY5VcEZdjBXeIo1Wl5NtQ=' 'sha256-xVxJq6soq2jdtCFhTVXDrCDVE6k0cE/YIV/2djM7KXc=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -42977,6 +42977,16 @@ __exports.ECGDex = window.ECGDex;
     if (!accRows || accRows.length < 10) return { hasData: false };
     // ∅ no unit ⇒ no magnitude means anything; `toG` would read the stream as already-in-g
     if (!unit) return { hasData: false, reason: 'unit-unknown' };
+    /* ∅ NO MEASURED DURATION, NO EPOCH GRID. `durSec` arrives as 0 when `durationOf` could not time a
+       single row (see `durMeasured` in compute), and `Math.max(1, Math.ceil(0 / 30))` turned that
+       absence into ONE 30 s epoch holding the whole stream: every row landed at epoch 0, one median
+       decided the posture, and the node published `supineFrac: 1` beside `coveredEpochs: 1` with no
+       reason attached — for a recording whose length it had just called unknown. Measured on a
+       400-row stream whose stamps never advance: `durSec: null`, `coveredEpochs: 1`,
+       `supineFrac: 1`, `dwellFracReason: null`. A distribution needs a measured axis, and the
+       refusal names why this one has none (§∅). The `covered === 0` refusal below is the sibling
+       case — there the axis was measured and no epoch held a sample. */
+    if (!(durSec > 0)) return { hasData: false, reason: 'duration-unknown' };
     var baseMs = streamBaseMs(accRows); // §7.2 anchor
     var epoch = 30; // s
     var nE = Math.max(1, Math.ceil(durSec / epoch));
@@ -43044,8 +43054,16 @@ __exports.ECGDex = window.ECGDex;
   function actigraphy(accRows, t0Ms, durSec, unit) {
     if (!accRows || accRows.length < 10) return { hasData: false };
     if (!unit) return { hasData: false, reason: 'unit-unknown' };
+    /* ∅ the bodyPosition refusal, for the same absence: an untimed stream was floored into a single
+       fabricated 30 s epoch, and the de-gravitation window was sized from a rate measured against
+       that fabrication (see the `hz` line below). Measured: `durSec: null` beside `hz: 400` — the
+       ROW COUNT published as a sample rate — and `immobileFrac: 1` over one epoch. */
+    if (!(durSec > 0)) return { hasData: false, reason: 'duration-unknown' };
     var baseMs = streamBaseMs(accRows); // §7.2 anchor
     var hz = sampleHz(accRows, t0Ms);
+    /* Reachable only over a MEASURED span now that the guard above refuses a zero one, so this
+       divides a row count by real seconds rather than by `Math.max(1, 0)` — which is what published
+       the row count as a sample rate. */
     if (!isFinite(hz) || hz <= 0) hz = accRows.length / Math.max(1, durSec);
     var mags = new Float32Array(accRows.length);
     for (var i = 0; i < accRows.length; i++) {
@@ -43695,6 +43713,7 @@ __exports.ECGDex = window.ECGDex;
     }
     var med = null;
     if (kept.length) med = median(kept);
+    var recordedWindows = series.length - nUncovered;
     return {
       hasData: kept.length > 0,
       epochSec: RR_HOP_SEC,
@@ -43702,7 +43721,13 @@ __exports.ECGDex = window.ECGDex;
       medianBrpm: med == null ? null : Math.round(med * 10) / 10,
       // Denominator = windows the sensor was actually RECORDING for. Counting sensor-off windows here
       // would let a strap that came off improve the score it is supposed to lower (class 3a).
-      coverage: series.length - nUncovered > 0 ? kept.length / (series.length - nUncovered) : 0,
+      /* §∅ ZERO OF ZERO IS NOT A COVERAGE OF ZERO. When no window was RECORDING, `kept / 0` is not a
+         measurement and 0 reads as "not one window produced a rate" — a claim about windows nothing
+         assessed. Measured on a chest stream with 20 s of data, a 600 s hole and 20 s more: 19
+         windows, all uncovered, and `coverage: 0` published beside `medianBrpm: null`. Null, with
+         the node's own reason token so a consumer cannot read it as a measured zero. */
+      coverage: recordedWindows > 0 ? kept.length / recordedWindows : null,
+      coverageReason: recordedWindows > 0 ? null : 'no-recorded-window',
       windowsUncovered: nUncovered,
       windowsTotal: series.length,
       biasApplied: bias,
@@ -43832,6 +43857,15 @@ __exports.ECGDex = window.ECGDex;
     if (!chestRows || chestRows.length < 30) return { hasData: false };
     if (!unit) return { hasData: false, reason: 'unit-unknown' };
     var m = chestEffortMeasure(chestRows, t0Ms, durSec, unit);
+    /* ∅ THE CHEST'S OWN SPAN IS THE FRAME — for the breath count, the rate and the epoch series alike.
+       `durSec` is 0 when no stream could be timed and the chest's own span is the documented fallback,
+       so when THAT is unmeasured there is no frame at all. Two numbers rode it: `Math.max(1, …)`
+       published a one-epoch effort series (with an amplitude), and `chestEffortMeasure`'s `hz`
+       fallback divided the row count by `Math.max(1, null)` = 1 — the row count AS a sample rate.
+       Measured on a 400-row untimed chest: `hz` 400, `rateBrpm` null, `hasData: false` and NO reason,
+       so the refusal was real but the fabrication unnamed. A chest that WAS timed beside an untimed
+       wrist keeps every number it had (§7.3). */
+    if (m.chestDurSec == null) return { hasData: false, reason: 'duration-unknown' };
     var hz = m.hz,
       breaths = m.breaths,
       rate = m.rate,
@@ -43883,6 +43917,17 @@ __exports.ECGDex = window.ECGDex;
       rateReason = 'no-respiratory-effort';
     }
 
+    /* §∅ THE RATE'S COVERAGE IS ABSENT WHEN THERE IS NO RATE TO COVER. This published 0 both when the
+       estimator never ran and when its series was discarded as the tracker's prior — beside a
+       `rateBrpm` the legacy zero-crossing path still reported. Measured on the gapped chest stream
+       above: `rateBrpm: 0.3`, `rateCoverage: 0`, `respRateReason: null`. Null travels with the
+       node's own token, so the pair cannot separate again. */
+    var rateCov = null,
+      rateCovReason = null;
+    if (spec.hasData && !noEffort) {
+      if (spec.coverage != null) rateCov = Math.round(spec.coverage * 1e3) / 1e3;
+      else rateCovReason = spec.coverageReason || 'no-recorded-window';
+    } else rateCovReason = noEffort ? 'no-respiratory-effort' : 'no-rate-series';
     return {
       hasData: (spec.hasData && outRate != null) || (breaths >= 3 && isFinite(rate)),
       hz: hz,
@@ -43895,7 +43940,8 @@ __exports.ECGDex = window.ECGDex;
       // ── added 2026-07-21 (additive; every field above is unchanged) ──
       rateSeries: spec.hasData && !noEffort ? spec.series : [],
       rateEpochSec: RR_HOP_SEC,
-      rateCoverage: spec.hasData && !noEffort ? Math.round(spec.coverage * 1e3) / 1e3 : 0,
+      rateCoverage: rateCov,
+      rateCoverageReason: rateCovReason,
       respRateMethod: method,
       respRateReason: rateReason,
       rateBrpmLegacy: legacyRate,
@@ -43908,9 +43954,18 @@ __exports.ECGDex = window.ECGDex;
   //  SQI — motion signal quality → Ganglior `conf`
   // ════════════════════════════════════════════════════════════════════════
   function motionSQI(accRows, unit) {
-    if (!accRows || accRows.length < 10) return { conf: 0, flags: ['no-data'] };
+    /* ∅ A PLACEHOLDER CONF IS NOT A QUALITY OF ZERO, at this layer either. The computed path below
+       BOTTOMS OUT at `clamp(…, 0, 1)` on a clipped or flatlined stream, so a 0 from this function is
+       a MEASURED worst case — exactly the confusion `sqiExportPair` was written to stop one layer
+       down. The two refusal arms answered that same 0, and the whole summary published it: the KPI
+       card drew `Signal quality 0.00×` beside the word `no-data`, a quality nobody measured on the
+       same scale as one that was. Measured on origin: `motionSQI([], 'mg')` →
+       `{conf: 0, flags:['no-data']}` and `compute({acc: 5 rows}).sqi.conf` → 0. Both readers already take a null arm
+       (`sqiExportPair` here, `motiondex-render.js` KPI and card), so the value and the reason travel
+       together as they do everywhere else in this node. */
+    if (!accRows || accRows.length < 10) return { conf: null, flags: ['no-data'] };
     // a quality score over magnitudes of unknown scale is not a quality score
-    if (!unit) return { conf: 0, flags: ['unit-unknown'] };
+    if (!unit) return { conf: null, flags: ['unit-unknown'] };
     var flags = [],
       n = accRows.length,
       clip = 0,
@@ -43938,9 +43993,10 @@ __exports.ECGDex = window.ECGDex;
   }
 
   /* ── ∅ · A PLACEHOLDER SQI IS NOT A QUALITY OF ZERO ───────────────────────────────────────────
-     `motionSQI` returns `{ conf: 0, flags: ['no-data'] }` under ten rows, and
-     `{ conf: 0, flags: ['unit-unknown'] }` over magnitudes of unknown scale. INSIDE the summary the
-     flags carry that reason out of band, so the summary itself is honest. The export projected the
+     `motionSQI` returns `{ conf: null, flags: ['no-data'] }` under ten rows, and
+     `{ conf: null, flags: ['unit-unknown'] }` over magnitudes of unknown scale. The flags carry the
+     reason, and since 2026-11-17 the VALUE is null too, so a consumer reading `.conf` alone cannot
+     take a placeholder for a measured worst case. The export projected the
      BARE conf under the `sqi` key and the flags stopped at that boundary. (The old line is NOT quoted
      here: a suite leg asserts this file no longer contains it, and a comment holding it would pass
      that leg over the very projection it guards.) The computed path reaches a real 0 as well — `clamp(1 - clipFrac*5 - flatFrac -
@@ -44046,12 +44102,16 @@ __exports.ECGDex = window.ECGDex;
     var posUnit = posSrc === chest ? chestUnit : accUnit;
     var actiSrc = acc && acc.length > 10 ? acc : posSrc;
     var actiUnit = actiSrc === acc ? accUnit : posUnit;
-    /* `durMeasured` is null when no stream could be timed. The windowing below is handed 0 in that
-       case — every consumer already floors it (`Math.max(1, Math.ceil(durSec / epoch))` in
-       bodyPosition/actigraphy/respiratoryEffort, `Math.max(1, durSec)` in the rate fallback), so 0 is
-       an established in-band value here and not a new branch. What must NOT be 0 is the PUBLISHED
-       duration: a zero-length recording is a claim, and `NODE-EXPORT-RECORDING-DURATION` shows a node
-       declaring one collapses to a point in the fold. That is published as null below. */
+    /* `durMeasured` is null when no stream could be timed. The windowing below is still handed 0 in
+       that case, and that 0 is now read as an ABSENCE by every consumer that builds an epoch grid:
+       bodyPosition, actigraphy and respiratoryEffort refuse with `duration-unknown` instead of
+       flooring 0 into ONE fabricated 30 s epoch (`Math.max(1, Math.ceil(0 / epoch))`). This used to
+       record the opposite — that 0 was an established in-band value because every consumer floored
+       it — and the floor was the defect: measured on a 400-row untimed stream, `supineFrac: 1`,
+       `immobileFrac: 1` and `hz: 400` (the row count) were all published off that one epoch. What
+       must NOT be 0 is the PUBLISHED duration: a zero-length recording is a claim, and
+       `NODE-EXPORT-RECORDING-DURATION` shows a node declaring one collapses to a point in the fold.
+       That is published as null below. */
     var durMeasured = maxDuration([durationOf(acc, t0Ms), durationOf(chest, t0Ms), durationOf(gyro, t0Ms)]);
     var durSec = durMeasured == null ? 0 : durMeasured;
 
