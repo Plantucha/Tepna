@@ -38,7 +38,7 @@ import {
    `process.exit(main())`, so importing it ran the whole gate and exited the importer before the
    import resolved — measured 2026-10-20. An unguarded entry takes this SUITE down, loudly, which is
    the right failure for a module whose exported surface other tools now depend on. */
-import { extractVerdicts as prExtractVerdicts } from '../tools/pr-compliance.mjs';
+import { extractVerdicts as prExtractVerdicts, QUEUE_BRANCH_PREFIX as PC_QUEUE_BRANCH_PREFIX, queueBatch as pcQueueBatch } from '../tools/pr-compliance.mjs';
 import { decide as landDecide } from '../tools/land-pr.mjs';
 import { corpusSearch, ownedListing as regenOwnedListing } from '../tools/regen-goldens-core.mjs';
 import {
@@ -73,6 +73,8 @@ import {
   journalText as pwJournalText,
   parseResidueFixed as pwParseResidueFixed,
   planClosures as pwPlanClosures,
+  QUEUE_BRANCH_PREFIX as PW_QUEUE_BRANCH_PREFIX,
+  queueBotOf as pwQueueBotOf,
   closureWaitsOn as pwClosureWaitsOn,
   closeRowsText as pwCloseRowsText,
   closureBody as pwClosureBody,
@@ -3761,6 +3763,10 @@ async function main() {
     pwJournalText: pwJournalText,
     pwParseResidueFixed: pwParseResidueFixed,
     pwPlanClosures: pwPlanClosures,
+    pwQueueBranchPrefix: PW_QUEUE_BRANCH_PREFIX,
+    pwQueueBotOf: pwQueueBotOf,
+    pcQueueBranchPrefix: PC_QUEUE_BRANCH_PREFIX,
+    pcQueueBatch: pcQueueBatch,
     pwClosureWaitsOn: pwClosureWaitsOn,
     pwCloseRowsText: pwCloseRowsText,
     pwClosureBody: pwClosureBody,

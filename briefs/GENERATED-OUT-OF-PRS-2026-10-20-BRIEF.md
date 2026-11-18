@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** IN-PROGRESS (2026-11-18: every stage of §5 is built: every CI lane and `npm run check` build first, check 10 `no-build-outputs` is blocking, the walker opens the regeneration PR after each merge, and `CLAUDE.md` §2c, §5 and the re-bundle checklist describe the new path; acceptance items 2 and 4, the same-node pair and the batched landing, are unmeasured — verified 2026-11-18) · **Created:** 2026-10-20
+**Status:** IN-PROGRESS (2026-11-18: `.mergify.yml` and its three cutover fixes ship inert, so §3.2 waits on the owner's app steps; every stage of §5 is built: every CI lane and `npm run check` build first, check 10 `no-build-outputs` is blocking, the walker opens the regeneration PR after each merge, and `CLAUDE.md` §2c, §5 and the re-bundle checklist describe the new path; acceptance items 2 and 4, the same-node pair and the batched landing, are unmeasured — verified 2026-11-18) · **Created:** 2026-10-20
 
 # GENERATED-OUT-OF-PRS — take the generated trees out of the PR diff, then batch the queue
 
@@ -97,39 +97,37 @@ The repo is user-owned, so the native merge queue is not available (`CLAUDE.md` 
 
 Both routes need an owner action: an app grant or a transfer.
 
-### 3.1 · A proposed Mergify configuration
+### 3.1 · The Mergify configuration (committed 2026-11-18)
 
-Do not commit this file while Kodiak runs. Two merge bots on one queue race each other.
+`.mergify.yml` is on main and stays inert until the owner installs the app. The file's header states
+each choice. The two changes from the October draft follow:
 
-```yaml
-queue_rules:
-  - name: default
-    batch_size: 4
-    batch_max_wait_time: 10 min
-    merge_method: squash
-    queue_conditions:
-      - base=main
-      - -draft
-      - label!=do-not-merge
-pull_request_rules:
-  - name: queue every ready PR
-    conditions:
-      - base=main
-      - -draft
-      - label!=do-not-merge
-    actions:
-      queue:
-        name: default
-```
+- The squash message keeps the title, the number and the PR body, so each commit on main still
+  carries the `Fleet-Session:` trailer, as under Kodiak.
+- The file holds no `merge_conditions` list. Mergify reads the required checks from the
+  `protect-main` ruleset, so the two lists cannot drift.
 
-`batch_size: 4` equals the WIP cap of four ready PRs. The merge method and the blocking label match `.kodiak.toml`.
+The same PR closes the two defects that would stop the first batch:
+
+| defect | effect without the fix | fix |
+|---|---|---|
+| `pr-compliance.mjs` runs inside the required `test` job, and a batch PR carries no `Rule 0:` line and no trailer | every batch reds, and the queue merges nothing | `queueBatch()` exempts the `mergify[bot]` author on a `mergify/merge-queue/` branch |
+| the walker undrafts every green draft, and Mergify tests a batch on a draft PR | the walker readies the batch PR and takes it from the queue | `plan()` drops a `QUEUE_BRANCH_PREFIX` branch before it counts the pool |
+| the walker merges a green PR after Kodiak stays quiet for 20 min | without Kodiak, the walker merges one PR around every batch | the fallback runs only while `.kodiak.toml` is on main |
+
+Two facts stay unmeasured until the app runs: the author login of a batch PR and the event that
+starts CI on it. The exemption keys on Mergify's documented defaults.
 
 ### 3.2 · Cutover
 
-1. Land §2 first. Batching before §2 conflicts on every orchestrator rebuild.
-2. The owner installs the app or moves the repo.
-3. One PR removes `.kodiak.toml` and adds `.mergify.yml`.
-4. Watch one full batch land. Then retire `tools/queue-doctor.mjs` and `tools/land-pr.mjs`, or keep them for the fallback.
+1. Land §2 first. Done: every stage of §5 is built.
+2. Land `.mergify.yml` and the three fixes above. This step needs no owner action, because the file
+   stays inert.
+3. The owner removes `.kodiak.toml` from main, or uninstalls the Kodiak app. From the next pass on, the
+   walker plans no fallback merge.
+4. The owner installs the Mergify app on this repository.
+5. Watch one full batch land. Then retire `tools/queue-doctor.mjs` and `tools/land-pr.mjs`, or keep
+   them for the fallback.
 
 ## 4 · Acceptance
 
