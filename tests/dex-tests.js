@@ -67108,6 +67108,30 @@
        `--resolve` is the sanctioned spelling, and this is its DECISION half: pure, so the suite can
        drive every verdict by value. It takes a path only on an AFFIRMATIVE answer, which is what makes
        an unreadable builder set resolve nothing instead of reverting the tree. */
+    /* ════ THE REBUILD ADVICE NAMES THE BUILD OUTPUTS IT MUST NOT STAGE ════════════════════════════
+       After a rebuild the tool printed one `git add` over every dirty path. That list holds build
+       outputs, which pr-compliance check 10 refuses, beside provenance/ and fixtures, which a PR must
+       carry. Row `2026-11-18-rebase-safe-advises-staging-the-build-outputs-check-10-refuses`; patch
+       drafted by Shrike. Node-lane only, so the browser lane SKIPs. */
+    group('Rebase-safe — the rebuild advice stages what a PR carries and withholds the build outputs (REBASE-SAFE)', 'tools · rebase-safe · advice', function (T) {
+      var advise = env.rebaseRebuildAdvice;
+      if (typeof advise !== 'function') {
+        T.skip('the rebuild advice is wired into this lane', 'Node-lane only (an ESM import of tools/rebase-safe.mjs) — the browser lane SKIPs');
+        return;
+      }
+      var GEN = new Set(['PpgDex.html', 'docs/index.html', 'provenance/PpgDex.json']);
+      var a = advise(['PpgDex.html', 'docs/index.html', 'provenance/PpgDex.json', 'tools/rebase-safe.mjs'], GEN);
+      T.eq('the two build outputs are withheld', a.outputs.join(','), 'PpgDex.html,docs/index.html');
+      T.eq('…and provenance plus the authored file are carried', a.carry.join(','), 'provenance/PpgDex.json,tools/rebase-safe.mjs');
+      T.eq('the git add line names only the carried paths', a.addLine, 'git add provenance/PpgDex.json tools/rebase-safe.mjs && git commit --amend --no-edit');
+      T.ok('…and never a build output', a.addLine.indexOf('PpgDex.html ') < 0 && a.addLine.indexOf('docs/index.html') < 0);
+      var b = advise(['PpgDex.html', 'docs/index.html'], GEN);
+      T.eq('build outputs alone print no git add line', b.addLine, null);
+      T.eq('…and still name both outputs', b.outputs.length, 2);
+      var c = advise(['docs/a b.md'], null);
+      T.eq('an unreadable builder set withholds nothing', c.outputs.length, 0);
+      T.eq('…and quotes a path with a space', c.addLine, 'git add "docs/a b.md" && git commit --amend --no-edit');
+    });
     group('Rebase-safe — --resolve takes only what a BUILDER or a REGENERATOR owns (REBASE-SAFE)', 'tools · rebase-safe · resolve', function (T) {
       var plan = env.rebaseResolvePlan;
       if (typeof plan !== 'function') {
