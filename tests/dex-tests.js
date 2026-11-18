@@ -69468,6 +69468,113 @@
       var files = MG.gateBFiles({ 'out.json': { bundle: 'A.html', inputHashes: { 'raw-input.csv': IN } }, _meta: { note: 'metadata — must be skipped' } });
       T.eq('gateBFiles · enumerates OUTPUT + every INPUT file, drops _metadata keys, sorted', files, ['out.json', 'raw-input.csv']);
       T.ok('gateBFiles · the code-gated INPUT file IS present (without it, input-drift is undetectable)', files.indexOf('raw-input.csv') !== -1, files.join(', '));
+
+      /* ══ §76–§79 · THE FOUR CONTRACTS THE 2026-11-18 SWEEP FOUND UNPINNED ═══════════════════════
+         BACKLOG 053 mutated `manifest-gate.js` ten ways at `--jobs=2`; six mutants left the whole Node
+         suite green. Each survivor named a refusal that a reader and a caller rely on, and no assertion
+         read it — so a future edit could delete the refusal and the gate would report success over an
+         input it never examined. One leg per contract here, each with a CONTROL beside it so a leg that
+         always fails cannot pass for a pin:
+           §76 · GATE A `ok` must carry `missing===0 && complete`, and `complete` must be a real field.
+           §77 · `isPlainInline` must refuse a bundle carrying BOTH markers (regressed inliner).
+           §78 · both hash entry points must answer `null`, never a digest, for a non-plain text.
+           §79 · GATE B must grade an unreadable output `output-absent`, not `reproducible`. */
+
+      /* ── §76 · GATE A — a committed record with NO manifestHash is `missing-committed`. Nothing was
+         checked for that bundle, so the set is incomplete and the verdict cannot be green. Two edits
+         survived 053: `ok: fail===0` (drops both terms) and `complete: true` (hardwired). The second
+         moves ONLY the field — `ok` is logically equal without it, because every status that leaves
+         `checked` short also increments `missing` — so `complete` is asserted as a FIELD, not through
+         `ok`, or the mutant would still pass. */
+      var aNoCm = MG.gateACompare({ 'A.html': H }, {}, ['A.html']);
+      T.ok('GATE A · a bundle with NO committed manifestHash ⇒ status:missing-committed, missing:1', aNoCm.results[0].status === 'missing-committed' && aNoCm.missing === 1, JSON.stringify(aNoCm));
+      T.ok('GATE A · …and nothing was checked for it (checked:0)', aNoCm.checked === 0, 'checked=' + aNoCm.checked);
+      T.ok('GATE A · …so the set is INCOMPLETE ⇒ complete:FALSE (the field itself, not only ok)', aNoCm.complete === false, 'complete=' + aNoCm.complete);
+      T.ok(
+        'GATE A · …and the verdict is ok:FALSE — a missing-committed bundle must never sit beside ok:true',
+        aNoCm.ok === false,
+        'ok=' + aNoCm.ok + ' · fail=' + aNoCm.fail + ' · missing=' + aNoCm.missing + ' · complete=' + aNoCm.complete
+      );
+      T.ok('GATE A · CONTROL · a fully committed, matching set still reports complete:true and ok:true', aClean.complete === true && aClean.ok === true, 'complete=' + aClean.complete);
+
+      if (typeof MG.isPlainInline !== 'function' || typeof MG.manifestHashFromText !== 'function' || typeof MG.computeHashFromText !== 'function') {
+        T.skip('§77–§79 · isPlainInline / manifestHashFromText / computeHashFromText wired', 'the guard above checks only the three gate functions; manifest-gate.js also exports these three');
+        return;
+      }
+
+      /* A bundle that carries BOTH the owned-bundle marker and the RETIRED platform-inliner manifest.
+         The only shape isPlainInline exists to refuse: hashing it as plain-inline would publish a digest
+         for a bundle that regressed through an inliner GATE A cannot grade. */
+      var LEGACY = '<script data-inline-src="x.js">var x=1;</script><script type="__bundler/manifest">{"x.zip":"AA=="}</script>';
+      var SRCONLY = '<html><body><script src="pulsedex-dsp.js"></script></body></html>';
+      var PLAIN = '<script data-inline-src="x.js">var x=1;</script>';
+
+      // ── §77 · isPlainInline refuses the hybrid. Removing the `!MANIFEST_RE.test(...)` term survived 053.
+      T.ok('isPlainInline · CONTROL · a plain-inline bundle is accepted', MG.isPlainInline(PLAIN) === true, String(MG.isPlainInline(PLAIN)));
+      T.ok(
+        'isPlainInline · a bundle carrying BOTH data-inline-src and a __bundler/manifest is REFUSED (a regressed bundle hashes to null, never to a plausible digest)',
+        MG.isPlainInline(LEGACY) === false,
+        'accepted a bundle the retired inliner produced — GATE A would grade it as current'
+      );
+      T.ok('isPlainInline · an un-bundled *.src.html is refused (no data-inline-src anywhere)', MG.isPlainInline(SRCONLY) === false, String(MG.isPlainInline(SRCONLY)));
+
+      /* ── §78 · both hash entry points answer `null` for every non-plain text. Deleting either guard
+         survived 053, and the mutant published the SHA-256 of an empty projection — a 12-hex digest a
+         caller cannot tell from a real one. Both are async (crypto.subtle) and a group body runs
+         synchronously, so a child computes the answers and the assertions read the RESULT. The control
+         proves the same child sees a real digest for a plain bundle, so a child that merely failed
+         would not read as a pass. */
+      if (!env.nodeSpawnSync || !env.repoRoot) {
+        T.skip('§78 · both hash entry points refuse a non-plain text', 'Node-lane only (spawns a child to await crypto.subtle); the browser lane cannot spawn');
+      } else {
+        var hashTexts = { legacy: LEGACY, src: SRCONLY, plain: PLAIN };
+        var hashChild =
+          'const MG=require(' +
+          JSON.stringify(env.repoRoot + '/manifest-gate.js') +
+          ');' +
+          '(async()=>{const T=' +
+          JSON.stringify(hashTexts) +
+          ';const o={};' +
+          'for(const k of Object.keys(T)){o[k]={m:await MG.manifestHashFromText(T[k]),c:await MG.computeHashFromText(T[k])}};' +
+          "process.stdout.write('__OUT__'+JSON.stringify(o))})().catch(e=>{process.stderr.write(String((e&&e.stack)||e));process.exit(3)});";
+        var hashOut = env.nodeSpawnSync(process.execPath, ['-e', hashChild], { encoding: 'utf8', timeout: 60000 });
+        var hashLine = String(hashOut.stdout || '')
+          .split('\n')
+          .filter(function (l) {
+            return l.indexOf('__OUT__') === 0;
+          })[0];
+        T.ok('§78 · the child loaded manifest-gate.js and awaited both entry points', !!hashLine, String(hashOut.stderr || hashOut.error || '').slice(0, 300));
+        if (hashLine) {
+          var HR = JSON.parse(hashLine.slice(7));
+          T.ok(
+            '§78 · CONTROL · a plain-inline text still hashes to 12 hex from BOTH entry points',
+            /^[0-9a-f]{12}$/.test(String(HR.plain.m)) && /^[0-9a-f]{12}$/.test(String(HR.plain.c)),
+            'manifestHash=' + HR.plain.m + ' · computeHash=' + HR.plain.c
+          );
+          T.eq('manifestHashFromText · a legacy __bundler/manifest text answers null (GATE A then reds missing-current)', HR.legacy.m, null);
+          T.eq('computeHashFromText · …and stays null for the same regressed text', HR.legacy.c, null);
+          T.eq('manifestHashFromText · an un-bundled *.src.html answers null (there is no code to hash)', HR.src.m, null);
+          T.eq('computeHashFromText · …and null here too, not the sha256 of an empty projection', HR.src.c, null);
+        }
+      }
+
+      /* ── §79 · GATE B grades an output the caller could not read `output-absent`. That row is a SKIP,
+         so `absent` moves and `checked`/`fail` do not — the caller decides severity from the STATUS
+         string, which is why the label (not the counters) is the contract. Regrading it `reproducible`
+         survived 053: the gate then claimed a fixture reproduced while uploads/ was never read. */
+      var bAbsent = MG.gateBEvaluate({ 'out.json': { bundle: 'A.html', manifestHash: H, inputHashes: {}, outputHash: OUT } }, { 'A.html': H }, {});
+      T.eq('GATE B · an unreadable output is graded output-absent — never reproducible', bAbsent.results[0].status, 'output-absent');
+      T.ok('GATE B · …counted as absent:1 and NOT as checked (a skip is not a verification)', bAbsent.absent === 1 && bAbsent.checked === 0, JSON.stringify(bAbsent));
+      T.ok(
+        'GATE B · …and it stays a SKIP: ok:true, fail:0 (the CALLER decides an absent row’s severity)',
+        bAbsent.ok === true && bAbsent.fail === 0,
+        'ok=' + bAbsent.ok + ' · fail=' + bAbsent.fail + ' · absent=' + bAbsent.absent
+      );
+      T.ok(
+        'GATE B · CONTROL · the same fixture with its output present is NOT absent (the label discriminates)',
+        MG.gateBEvaluate({ 'out.json': { bundle: 'A.html', manifestHash: H, inputHashes: {}, outputHash: OUT } }, { 'A.html': H }, { 'out.json': OUT }).results[0].status === 'reproducible',
+        'output present'
+      );
     });
 
     /* ── CITATION LEDGER — make it load-bearing instead of decorative ─────────────────────────────
