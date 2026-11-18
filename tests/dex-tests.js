@@ -12860,9 +12860,11 @@
              `(ymx === ymn)` then set ymx = 1 while ymn stayed null, and the axis label's
              `ymn.toFixed(0)` threw a TypeError — ONE unmeasured epoch aborted `renderSession` half-way,
              after the charts and before morphology / motion / validation / table / switcher.
-         (2) `meanSQI` is published as `sqi.length ? r2(mean(sqi)) : 0`, so a record with no detected
+         (2) `meanSQI` was published as `sqi.length ? r2(mean(sqi)) : 0`, so a record with no detected
              beats arrived as a MEASURED 0 (the worst value on 0..1) and three readers drew
              `Mean SQI 0` graded `bad` — beside `% Analyzable` reading `—`, "no beats detected".
+             The DSP now publishes `null` plus `meanSQIReason`; these readers keep reading the
+             POPULATION, so a legacy export carrying the old 0 beside an empty `sqi` still draws the dash.
          (3) The filter in (1) kept the crash out and left a CLAIM in. With the absent epoch dropped,
              the one path ran STRAIGHT from the epoch before it to the epoch after it, so a reader saw
              one continuous trend across a stretch this node refused to measure. `eegdex-render.js`
@@ -13129,14 +13131,16 @@
       var live = run(file(1800, true));
       T.ok('the all-zero file places NO beats (anti-vacuity for every leg below)', dead && dead.nBeats === 0, 'nBeats=' + (dead && dead.nBeats) + ' err=' + (dead && dead.error));
       T.ok('...and the control carries a real beat train', live && live.nBeats > 40, 'nBeats=' + (live && live.nBeats));
-      T.eq('the DSP still publishes a placeholder 0 for that record (the value this layer must not draw)', dead.meanSQI, 0);
+      T.eq('🔴 the DSP refuses the mean over no beats, rather than publishing a 0', dead.meanSQI, null);
+      T.eq('...and names the cause, so a consumer that cannot read `sqi` still learns why', dead.meanSQIReason, 'no beats were detected — no pulse population to score');
+      T.eq('control: a record with beats carries no cause beside its mean', live.meanSQIReason, null);
       T.eq('...with an EMPTY population beside it — which is how the app tells 0 from not-measured', dead.sqi ? dead.sqi.length : null, 0);
       T.ok(
         'control: a record with beats publishes a measured mean and a populated SQI',
         typeof live.meanSQI === 'number' && live.meanSQI > 0 && live.sqi.length > 0,
         'meanSQI=' + live.meanSQI + ' sqi=' + (live.sqi && live.sqi.length)
       );
-      T.eq('...and the neighbouring shares already refuse on the dead record, so only the mean was left lying', dead.cleanBeatPct, null);
+      T.eq('...and the neighbouring clean-beat share refuses on the same record, as it already did', dead.cleanBeatPct, null);
     });
     group('PpgDex scores an empty beat population as UNMEASURED, not as 0 percent', 'ppgdex-dsp ppgdex-app absence clean-beat-share', function (T) {
       var P = env.PPGDSP;

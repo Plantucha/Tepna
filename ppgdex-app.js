@@ -361,13 +361,14 @@ import { PPGUI } from './ppgdex-render.js';
      reads `v >= ok`. A raw `v < 10 ? 'ok' : …` is worse than wrong on an absence, because
      `null < 10` is TRUE and every reader painted an unexamined gate the best possible green. */
   const pctClsDown = (v, ok, warn) => (pctAbsent(v) ? 'neutral' : v < ok ? 'ok' : v < warn ? 'warn' : 'bad');
-  /* §∅ — A MEAN OVER AN EMPTY BEAT POPULATION IS NOT A MEAN OF ZERO. `ppgdex-dsp.js` publishes
+  /* §∅ — A MEAN OVER AN EMPTY BEAT POPULATION IS NOT A MEAN OF ZERO. `ppgdex-dsp.js` published
      `meanSQI` as `sqi.length ? r2(mean(sqi)) : 0`, so a record on which the detector placed NO beats
-     reaches this layer as a MEASURED 0 — the worst value on the 0..1 scale — and the three readers
+     reached this layer as a MEASURED 0 — the worst value on the 0..1 scale — and the three readers
      below drew `Mean SQI 0` graded `bad`, on the same page where `% Analyzable` beside it already
-     read `—` with "no beats detected". `sqi` carries one entry per detected beat and `analyze()`
-     publishes it, so the absence is read from the POPULATION that defines the mean, never inferred
-     from the number. A measured 0 (a record whose beats all scored zero) keeps its 0 and its grade. */
+     read `—` with "no beats detected". The DSP now answers with `null` plus `meanSQIReason`, and
+     these guards stay as they are: they read the POPULATION that defines the mean, so a LEGACY export
+     carrying the old 0 beside an empty `sqi` still draws the dash. A measured 0 (a record whose beats
+     all scored zero) keeps its 0 and its grade. */
   const sqiAbsent = (r) => !r || !r.sqi || !r.sqi.length;
   const sqiTxt = (r) => (sqiAbsent(r) || !Number.isFinite(r.meanSQI) ? '\u2014' : r.meanSQI);
   const sqiCls = (r, ok, warn) => (sqiAbsent(r) || !Number.isFinite(r.meanSQI) ? 'neutral' : r.meanSQI >= ok ? 'ok' : r.meanSQI >= warn ? 'warn' : 'bad');
@@ -1249,6 +1250,7 @@ import { PPGUI } from './ppgdex-render.js';
         cleanBeatPct: r.cleanBeatPct,
         coveragePct: r.coveragePct,
         meanSQI: r.meanSQI,
+        meanSQIReason: r.meanSQIReason != null ? r.meanSQIReason : null,
         motionRejectedPct: r.motionRejectedPct,
         motionRejectedPctReason: r.motionRejectedPctReason,
         correctionRatePct: r.correctionRate,
