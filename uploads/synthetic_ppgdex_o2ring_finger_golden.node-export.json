@@ -27,6 +27,8 @@
       "spanMs": 39757.27306,
       "ppm": null,
       "spanPpm": null,
+      "ppmEstimator": null,
+      "ppmUncertainty": null,
       "resyncs": 0,
       "seams": 0,
       "rate": 125.74,
@@ -93,8 +95,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "6e5b3f328748",
-        "computeHash": "03c90ae53604"
+        "manifestHash": "b75bfceb17f9",
+        "computeHash": "36881c05aa6e"
       },
       "evidence": {
         "envelopeRef": null,
@@ -123,8 +125,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "6e5b3f328748",
-        "computeHash": "03c90ae53604"
+        "manifestHash": "b75bfceb17f9",
+        "computeHash": "36881c05aa6e"
       },
       "evidence": {
         "envelopeRef": null,

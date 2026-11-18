@@ -25,12 +25,14 @@
       "spanMs": 361648.4221191406,
       "ppm": -0.024551424316301973,
       "spanPpm": -1.167208578296902,
+      "ppmEstimator": "end-to-end-median",
+      "ppmUncertainty": null,
       "resyncs": 0,
       "seams": 0,
       "rate": 129.95770788823395,
       "rateRaw": 129.95770788823395,
       "rateApplied": false,
-      "reason": "host ≡ device — residual spread 1.00 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock; the rate correction did not reach the published rate: host column is not a second clock (residual spread 1.00 ms, within one stamp quantum — the host stamp is the device stamp rounded), fs left on the device clock"
+      "reason": "host ≡ device — residual spread 1.00 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock; the rate correction did not reach the published rate: host column is not a second clock (residual spread 1.00 ms, within one stamp quantum — the host stamp is the device stamp rounded), fs left on the device clock; nothing here sizes the published ppm: the spine measured no sigma-y curve on this axis, so the rate travels without its spread"
     },
     "hostAxis": {
       "ok": true,
@@ -76,8 +78,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "1878e75c443b",
-        "computeHash": "a918dee22c0d"
+        "manifestHash": "4221087074d9",
+        "computeHash": "d5bc88cd04a5"
       },
       "evidence": {
         "envelopeRef": null,
@@ -106,8 +108,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "1878e75c443b",
-        "computeHash": "a918dee22c0d"
+        "manifestHash": "4221087074d9",
+        "computeHash": "d5bc88cd04a5"
       },
       "evidence": {
         "envelopeRef": null,
@@ -136,8 +138,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "1878e75c443b",
-        "computeHash": "a918dee22c0d"
+        "manifestHash": "4221087074d9",
+        "computeHash": "d5bc88cd04a5"
       },
       "evidence": {
         "envelopeRef": null,
@@ -166,8 +168,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "1878e75c443b",
-        "computeHash": "a918dee22c0d"
+        "manifestHash": "4221087074d9",
+        "computeHash": "d5bc88cd04a5"
       },
       "evidence": {
         "envelopeRef": null,
@@ -199,8 +201,8 @@
       },
       "sourceChannel": "H10:ecg",
       "code": {
-        "manifestHash": "1878e75c443b",
-        "computeHash": "a918dee22c0d"
+        "manifestHash": "4221087074d9",
+        "computeHash": "d5bc88cd04a5"
       },
       "evidence": {
         "envelopeRef": null,

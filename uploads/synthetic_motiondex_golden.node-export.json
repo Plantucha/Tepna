@@ -20,6 +20,8 @@
       "spanMs": 119230.7677,
       "ppm": null,
       "spanPpm": null,
+      "ppmEstimator": null,
+      "ppmUncertainty": null,
       "resyncs": 0,
       "seams": 0,
       "rate": null,

@@ -2243,6 +2243,16 @@
                here once, and the reason 173 committed exports of this node quote a rate with an anchor
                count and no span anywhere in the block. `spanPpm` is the same divergence ratio before the
                width-21 running median; read `ppm` WITH it, and apply neither as a rate. */
+            /* WHICH ARM MEASURED THE `ppm` ABOVE (row
+               `2026-11-16-the-host-axis-estimator-name-reaches-no-consumer`). The spine names the arm
+               on all three of its returns, and this hand-written intermediate dropped it, so
+               `dex-export.js timingBlock` read `undefined` and published a null over every PpgDex
+               export. The two arms do not carry the same bias, so the name belongs to the rate.
+               ⚠ NULLED WITH THE RATE, never beside a null one: a drawn column quotes no `ppm`, so
+               there is no measurement here to attribute to an arm. The export block at the bottom of
+               this file is a SEPARATE list and keeps its declared key set — this field travels to the
+               shared timing block, which is the consumer the row names. */
+            ppmEstimator: axisSynthetic === false ? hostAx.ppmEstimator || null : null,
             spanMs: hostAx.spanMs,
             spanPpm: axisSynthetic === false ? hostAx.spanPpm : null,
             /* THE SEGMENT MODEL'S FLATNESS, forwarded so the export's `rate` can apply this node's own

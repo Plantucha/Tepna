@@ -27,12 +27,14 @@
       "spanMs": 37029.62963,
       "ppm": -11.002189437793822,
       "spanPpm": -17.003410682049797,
+      "ppmEstimator": "single-window",
+      "ppmUncertainty": null,
       "resyncs": 0,
       "seams": 0,
       "rate": 135,
       "rateRaw": 135,
       "rateApplied": false,
-      "reason": "host ≡ device — residual spread 0.93 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock; the rate correction did not reach the published rate: the correction rounded out at the 0.01 Hz step the published rate carries — -11 ppm is under the ~74 ppm that step spans at 135 Hz"
+      "reason": "host ≡ device — residual spread 0.93 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock; the rate correction did not reach the published rate: the correction rounded out at the 0.01 Hz step the published rate carries — -11 ppm is under the ~74 ppm that step spans at 135 Hz; nothing here sizes the published ppm: the spine measured no sigma-y curve on this axis, so the rate travels without its spread"
     },
     "validity": {
       "seams": null,
@@ -85,8 +87,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "6e5b3f328748",
-        "computeHash": "03c90ae53604"
+        "manifestHash": "b75bfceb17f9",
+        "computeHash": "36881c05aa6e"
       },
       "evidence": {
         "envelopeRef": null,
@@ -115,8 +117,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "6e5b3f328748",
-        "computeHash": "03c90ae53604"
+        "manifestHash": "b75bfceb17f9",
+        "computeHash": "36881c05aa6e"
       },
       "evidence": {
         "envelopeRef": null,
