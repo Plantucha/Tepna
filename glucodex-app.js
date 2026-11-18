@@ -519,7 +519,14 @@ import './glucodex-profile.js';
       { l: 'Mean glucose', v: window.GluDisp.val(r.mean), sub: window.GluDisp.label(), s: r.mean < 140 ? 'ok' : r.mean < 160 ? 'warn' : 'bad' },
       { l: 'Time in Range', v: r.tir.tir + '%', sub: window.GluDisp.range(70, 180) + ' · goal >70', s: sevTIR(r.tir.tir) },
       { l: 'Tight Range', v: r.titr + '%', sub: window.GluDisp.range(70, 140) + ' · 2023 target', s: r.titr >= 50 ? 'ok' : r.titr >= 30 ? 'warn' : 'bad' },
-      { l: 'Time Below', v: hypo + '%', sub: window.GluDisp.cmp('<', 70) + ' · goal <' + r.hypoGoal, s: hypo <= r.hypoGoal ? 'ok' : hypo <= r.hypoGoal * 2 ? 'warn' : 'bad' },
+      {
+        l: 'Time Below',
+        v: hypo + '%',
+        /* §∅ (task 32) — the goal of the STATED therapy, or the stricter bound with "therapy not set"
+           beside it. Never a therapy goal presented as one this user stated. */
+        sub: window.GluDisp.cmp('<', 70) + ' · goal <' + r.hypoGoalInForce + (r.hypoGoalBasis === 'unstated' ? ' (therapy not set)' : ''),
+        s: hypo <= r.hypoGoalInForce ? 'ok' : hypo <= r.hypoGoalInForce * 2 ? 'warn' : 'bad'
+      },
       {
         l: 'Time Above',
         v: (r.tir.tar1 + r.tir.tar2).toFixed(1) + '%',
@@ -850,7 +857,7 @@ import './glucodex-profile.js';
       .map((d) => {
         const s = sevTIR(d.tir);
         return `<tr><td style="font-family:Inter,sans-serif;color:var(--text2);font-weight:600">${new Date(d.startMs).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })}</td>
-      <td class="mono">${d.mean}</td><td class="mono ${s}">${d.tir}%</td><td class="mono ${d.tbr <= r.hypoGoal ? 'ok' : 'warn'}">${d.tbr}%</td><td class="mono">${d.tar}%</td><td class="mono">${d.cv}%</td><td class="mono">${d.gmi}%</td></tr>`;
+      <td class="mono">${d.mean}</td><td class="mono ${s}">${d.tir}%</td><td class="mono ${d.tbr <= r.hypoGoalInForce ? 'ok' : 'warn'}">${d.tbr}%</td><td class="mono">${d.tar}%</td><td class="mono">${d.cv}%</td><td class="mono">${d.gmi}%</td></tr>`;
       })
       .join('');
 
@@ -1006,6 +1013,11 @@ import './glucodex-profile.js';
       qrsDur = mInt ? mInt.qrsDur : null,
       stLevel = mInt ? mInt.stLevel : null;
     const sex = (r.profile && r.profile.sex) || 'M';
+    /* §∅ (task 32) — `resolve('sex')` files an unentered sex under origin 'pop', so the sex-specific
+       QTc bound was published as though the user had stated the sex it depends on. The identity
+       stays the engine's labelled prior (ECG/Ppg read it the same way); the surfaces that print the
+       bound say when it was assumed, and an unknown sex keeps the STRICTER male bound so a real
+       prolongation is over-flagged rather than silently cleared. */
     // QTc prolongation thresholds (consensus): >450 M / >460 F borderline, >470/>480 prolonged.
     const qtcBorderline = sex === 'F' ? 460 : 450,
       qtcLong = sex === 'F' ? 480 : 470;
@@ -1506,7 +1518,21 @@ import './glucodex-profile.js';
       ],
       ['Nocturnal hypos', r.nocturnalHypo.length, 'episodes', '0', r.nocturnalHypo.length ? 'bad' : 'ok', '00:00–06:00 ≥15 min <70'],
       ['Excursions', r.excursions.length, 'events', '—', 'neutral', 'Slope-detected · unannotated'],
-      ['— Personalised —', '', '', '', 'neutral', 'vs profile (age ' + (r.profile ? r.profile.age : '—') + ' · ' + (r.profile ? r.profile.diab : '—') + ')'],
+      [
+        '— Personalised —',
+        '',
+        '',
+        '',
+        'neutral',
+        /* §∅ (task 32) — the age here is the engine's population prior unless the cascade says the
+           user entered it (the ECGDex `ageEnteredIn` rule), and an unstated diabetes status is not
+           the word 'none' any more. */
+        'vs profile (age ' +
+          (r.profile && r.profile._origins && (r.profile._origins.age === 'you' || r.profile._origins.age === 'detected') ? r.profile.age : '—') +
+          ' · ' +
+          (r.profile && r.profile.diab != null ? r.profile.diab : 'diabetes not set') +
+          ')'
+      ],
       ['Stability score', r.stabilityScore, '0–100', '≥65', r.stabilityScore >= 65 ? 'ok' : r.stabilityScore >= 50 ? 'warn' : 'bad', 'TIR + CV + hypo composite'],
       /* Metabolic age row REMOVED 2026-06-21 (external-review WP-A) */
       ...(r.gmiCheck
@@ -1566,7 +1592,17 @@ import './glucodex-profile.js';
             ['IR-risk band', f.irBand, '—', 'Lower', f.irSev, 'Directional insulin-resistance risk'],
             ...(f.morph && f.morph.qtc != null
               ? [
-                  ['QTc (ECGDex)', f.morph.qtc, 'ms', r.profile && r.profile.sex === 'F' ? '<460' : '<450', f.morph.qtcProlonged ? 'warn' : 'ok', f.morph.qtcMethod + ' · single-lead median beat'],
+                  [
+                    'QTc (ECGDex)',
+                    f.morph.qtc,
+                    'ms',
+                    (r.profile && r.profile.sex === 'F' ? '<460' : '<450') +
+                      (r.profile && r.profile._origins && (r.profile._origins.sex === 'you' || r.profile._origins.sex === 'detected') ? '' : '*'),
+                    f.morph.qtcProlonged ? 'warn' : 'ok',
+                    f.morph.qtcMethod +
+                      ' · single-lead median beat' +
+                      (r.profile && r.profile._origins && (r.profile._origins.sex === 'you' || r.profile._origins.sex === 'detected') ? '' : ' · *sex not set — male bound')
+                  ],
                   [
                     'Hypo⟷QTc risk',
                     { elevated: 'Elevated', 'qtc-only': 'QTc watch', 'hypo-only': 'Hypo only', clear: 'Clear', none: '—' }[f.morph.hypoQtcRisk],
@@ -1712,7 +1748,8 @@ import './glucodex-profile.js';
           cvStablePct: 36,
           tirGoalPct: 70,
           tbrGoalPct: r.hypoGoal,
-          note: 'mg/dL · consensus 2019. tbrGoal tightens to 4% on insulin therapy.'
+          tbrGoalInForcePct: r.hypoGoalInForce,
+          note: 'mg/dL · consensus 2019. tbrGoalPct is the goal of the STATED therapy — null when no therapy was entered; tbrGoalInForcePct is the threshold the badges graded against (1% for a stated non-insulin therapy, 4% on insulin, and the stricter 1% when no therapy was stated).'
         },
         labels: { gmi: 'GMI is a lab-A1c PROXY, NOT your A1c. estA1c (ADAG) and GMI use different formulas and will differ.' }
       },
@@ -1863,7 +1900,12 @@ import './glucodex-profile.js';
                   qtcMs: f.morph.qtc,
                   qtcMethod: f.morph.qtcMethod,
                   qtcProlonged: f.morph.qtcProlonged,
-                  qtcThresholds: { borderline: f.morph.qtcBorderline, prolonged: f.morph.qtcLong, note: 'sex-specific consensus; single-lead median-beat estimate, directional' },
+                  qtcThresholds: {
+                    borderline: f.morph.qtcBorderline,
+                    prolonged: f.morph.qtcLong,
+                    sexStated: !!(p && p._origins && (p._origins.sex === 'you' || p._origins.sex === 'detected')),
+                    note: 'sex-specific consensus (450/460 borderline, 470/480 prolonged); an unstated sex uses the MALE bound — sexStated=false says so; single-lead median-beat estimate, directional'
+                  },
                   prMs: f.morph.pr,
                   qrsDurMs: f.morph.qrsDur,
                   stLevelUv: f.morph.stLevel,

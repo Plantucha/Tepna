@@ -55,8 +55,13 @@
       return {
         age: clamp(num(p.age, 45), 6, 95),
         sex: p.sex === 'F' ? 'F' : 'M',
-        diab: man.diabetes || 'none',
-        therapy: man.dxTherapy || 'none',
+        /* §∅ (task 32) — `|| 'none'` is NOT a prior with a citation: the population norms carry no
+           diabetes-status or therapy column, so that word was invented for someone who never
+           answered. It then became the 5.4 % non-diabetic GMI reference and the 1 % insulin-therapy
+           TBR goal. Absent answers null; a stated answer (including the legacy select's 'none') is
+           still carried, and `_origins` files the distinction beside it. */
+        diab: man.diabetes || null,
+        therapy: man.dxTherapy || null,
         tgtLo: num(man.glucoseTargetLo, 70),
         tgtHi: num(man.glucoseTargetHi, 180),
         a1c: num(man.a1c, 0),
@@ -84,8 +89,10 @@
     return {
       age: clamp(v('gluAge', 45), 6, 95),
       sex: sel('gluSex') || 'M',
-      diab: sel('gluDiab') || 'none',
-      therapy: sel('gluTherapy') || 'none',
+      /* §∅ — the DOM twin of the same two vocabularies. `sel` already answers null for a MISSING
+         element, so the `|| 'none'` could only manufacture the word the user never said. */
+      diab: sel('gluDiab') || null,
+      therapy: sel('gluTherapy') || null,
       tgtLo: v('gluTgtLo', 70),
       tgtHi: v('gluTgtHi', 180),
       a1c: v('gluA1c', 0),
@@ -178,7 +185,10 @@
   // Metabolic Age composite REMOVED 2026-06-21 (external-review WP-A) — a mean+CV+TIR
   // heuristic dressed as a personal age. Validated TIR/GMI/CV KPIs carry the glycemic story.
   function expectedGMI(diab) {
-    return diab === 'none' ? 5.4 : diab === 'predm' ? 5.9 : 6.8;
+    /* §∅ (task 32) — the ladder has no arm for "never asked". Once the absent status stopped being
+       substituted with 'none', the else-arm would have answered the DIABETIC reference (6.8) for
+       every profile that never said. Absent is not a reference value. */
+    return diab == null ? null : diab === 'none' ? 5.4 : diab === 'predm' ? 5.9 : 6.8;
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -191,7 +201,14 @@
       tgtHi = clamp(p.tgtHi || 180, 130, 260);
     // therapy reframes hypo risk (insulin therapies carry real hypo danger)
     const onInsulin = ['basal', 'mdi', 'pump'].includes(p.therapy);
-    const hypoGoal = onInsulin ? 4 : 1; // consensus TBR<4% on insulin
+    /* §∅ (task 32) — `onInsulin ? 4 : 1` filed a therapy nobody stated under the non-insulin goal and
+       published it as the user's own target on the KPI card, the daily table and the export. A stated
+       therapy's goal stays a number; an unstated one answers null. The badges still grade an unstated
+       therapy against the STRICTER 1 % bound (the QTc rule below: over-flag rather than silently
+       clear), and `hypoGoalBasis` names that the bound was assumed. */
+    const hypoGoal = p.therapy == null ? null : onInsulin ? 4 : 1;
+    const hypoGoalInForce = hypoGoal != null ? hypoGoal : 1; // unstated → the stricter non-insulin bound
+    const hypoGoalBasis = hypoGoal == null ? 'unstated' : onInsulin ? 'insulin' : 'non-insulin';
     // GMI vs lab A1c validation (the family self-vs-device check)
     let gmiCheck = null;
     if (p.a1c > 0) {
@@ -231,6 +248,8 @@
       tgtHi,
       onInsulin,
       hypoGoal,
+      hypoGoalInForce,
+      hypoGoalBasis,
       stabilityScore: stabilityScore(r),
       gmiCheck,
       expGMI: expectedGMI(p.diab),
@@ -280,13 +299,13 @@
     if (r.dqLabel !== 'high')
       note += ` <b>Score confidence ${r.dqLabel}</b> (×${r.dataQualityConf}) given ${r.pctActive}% coverage${r.compMin > 0 ? ' + compression flagging' : ''} — read it as indicative.`;
     if (p.diab === 'predm') note += ` Targets shown are general-population; pre-diabetes interpretation applies.`;
-    if (p.diab === 'none' && p.therapy === 'none') note += ` <span style="opacity:.7">No diabetes status set — general-population ranges.</span>`;
+    if ((p.diab == null || p.diab === 'none') && (p.therapy == null || p.therapy === 'none')) note += ` <span style="opacity:.7">No diabetes status set — general-population ranges.</span>`;
 
     const subs = [
       { v: r.gmi, fmt: (v) => v.toFixed(1) + '%', label: 'GMI', cls: () => (r.gmi < 6 ? 'ok' : r.gmi < 6.5 ? 'warn' : 'bad') },
       { v: r.tir.tir, fmt: (v) => v + '%', label: 'In Range', cls: (v) => (v >= 70 ? 'ok' : v >= 50 ? 'warn' : 'bad') },
       { v: r.cv, fmt: (v) => v + '%', label: 'CV', cls: (v) => (v < 36 ? 'ok' : v < 42 ? 'warn' : 'bad') },
-      { v: hypo, fmt: (v) => v + '%', label: 'Below Range', cls: (v) => (v <= r.hypoGoal ? 'ok' : v <= r.hypoGoal * 2 ? 'warn' : 'bad') }
+      { v: hypo, fmt: (v) => v + '%', label: 'Below Range', cls: (v) => (v <= r.hypoGoalInForce ? 'ok' : v <= r.hypoGoalInForce * 2 ? 'warn' : 'bad') }
     ];
     let subsHtml = subs
       .map(
