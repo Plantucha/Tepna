@@ -12863,6 +12863,12 @@
          (2) `meanSQI` is published as `sqi.length ? r2(mean(sqi)) : 0`, so a record with no detected
              beats arrived as a MEASURED 0 (the worst value on 0..1) and three readers drew
              `Mean SQI 0` graded `bad` — beside `% Analyzable` reading `—`, "no beats detected".
+         (3) The filter in (1) kept the crash out and left a CLAIM in. With the absent epoch dropped,
+             the one path ran STRAIGHT from the epoch before it to the epoch after it, so a reader saw
+             one continuous trend across a stretch this node refused to measure. `eegdex-render.js`
+             states the house rule for every figure it draws: a non-finite value leaves the domain AND
+             BREAKS THE PATH. The legs below pin both halves — the gap draws nothing, and a lone
+             measured epoch still draws, because a one-point subpath paints no pixel.
          The render layer is driven for real (its charts are pure string builders, so no DOM is needed);
          the app layer's helpers are extracted from the shipped source and executed, and its DOM-bound
          readers are read as text — the shape the neighbouring Poincaré group already uses. */
@@ -12879,6 +12885,12 @@
          segment made a three-point series look like four. `fill="none"` marks the line itself. */
       var pathOf = function (s) {
         var m = String(s).match(/<path d="([^"]+)" fill="none"/);
+        return m ? m[1] : '';
+      };
+      /* The gradient area is the OTHER path in the same SVG, and it closes each drawn stretch with
+         `Z`. Its `Z` count is the number of spans the fill claims. */
+      var areaOf = function (s) {
+        var m = String(s).match(/<path d="([^"]+)" fill="url/);
         return m ? m[1] : '';
       };
       var measured = [
@@ -12907,7 +12919,48 @@
         thrown = String(e && e.message);
       }
       T.ok('🔴 one unmeasured epoch does not THROW out of the chart (it used to abort the whole render)', holeSvg != null && thrown === null, 'threw: ' + thrown);
-      T.ok('...the two MEASURED points are drawn and the absent one is not', holeSvg != null && cnt(pathOf(holeSvg), /L/g) === 1, JSON.stringify({ segs: holeSvg && cnt(pathOf(holeSvg), /L/g) }));
+      /* THIS LEG USED TO REQUIRE ONE `L`, which is the bridge itself: the two measured points joined
+         across the epoch between them. It now requires the opposite. */
+      T.ok(
+        '🔴 ...the path LIFTS across the absent epoch instead of ruling a line over it',
+        holeSvg != null && cnt(pathOf(holeSvg), /M/g) === 2 && cnt(pathOf(holeSvg), /L/g) === 0,
+        JSON.stringify({ subpaths: holeSvg && cnt(pathOf(holeSvg), /M/g), bridges: holeSvg && cnt(pathOf(holeSvg), /L/g) })
+      );
+      T.ok(
+        '...and both MEASURED epochs stay drawn, as dots, because a one-point subpath paints no pixel',
+        holeSvg != null && cnt(holeSvg, /<circle/g) === 2,
+        JSON.stringify({ dots: holeSvg && cnt(holeSvg, /<circle/g) })
+      );
+      /* A RUN of absences, holding a NaN and a null, between two stretches of two measured points.
+         The three counts pin the arithmetic together: a builder that never breaks gives 1 subpath
+         and 5 joined pairs, and one that opens a subpath per POINT gives 6 subpaths and 0 pairs. */
+      var twoRuns = U.lineChart(
+        [
+          { x: 0, y: 42 },
+          { x: 5, y: 43 },
+          { x: 10, y: NaN },
+          { x: 15, y: null },
+          { x: 20, y: 44 },
+          { x: 25, y: 45 }
+        ],
+        U.COLORS.teal,
+        { W: 300, H: 100 }
+      );
+      T.ok(
+        'a RUN of absent epochs splits the series into exactly two drawn stretches, each still joined',
+        cnt(pathOf(twoRuns), /M/g) === 2 && cnt(pathOf(twoRuns), /L/g) === 2 && cnt(twoRuns, /<circle/g) === 0,
+        JSON.stringify({ subpaths: cnt(pathOf(twoRuns), /M/g), joins: cnt(pathOf(twoRuns), /L/g), dots: cnt(twoRuns, /<circle/g) })
+      );
+      T.ok(
+        '...and the gradient area closes once per drawn stretch, so it fills no absent span',
+        cnt(areaOf(twoRuns), /Z/g) === 2 && cnt(areaOf(okSvg), /Z/g) === 1,
+        JSON.stringify({ gapped: cnt(areaOf(twoRuns), /Z/g), whole: cnt(areaOf(okSvg), /Z/g) })
+      );
+      T.ok(
+        'control (anti-vacuity): a fully measured series stays ONE subpath, and draws no dot',
+        cnt(pathOf(okSvg), /M/g) === 1 && cnt(okSvg, /<circle/g) === 0,
+        JSON.stringify({ subpaths: cnt(pathOf(okSvg), /M/g), dots: cnt(okSvg, /<circle/g) })
+      );
       T.ok('...and no NaN reaches the SVG it hands the page', holeSvg != null && String(holeSvg).indexOf('NaN') < 0, JSON.stringify({ nan: holeSvg && String(holeSvg).indexOf('NaN') }));
 
       var allHole = null,

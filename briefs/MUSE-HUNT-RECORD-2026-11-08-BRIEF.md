@@ -56,7 +56,7 @@ the tables is Muse's number at that HEAD. Main has moved since then, so read the
 | R-5a | `pulsedex-overview.js` Baevsky SI tile | null SI graded good | fixed on main: the tile uses `_kd(r.si, 150, 250)` |
 | R-5b | `pulsedex-overview.js` KPI grid | HF n.u. and ABS null graded bad; LF/HF and resp rate null graded warn; coverage prints the string "null" | fixed on main: `_kc`, `_kd` and `_kn` read the null first, and every named tile carries a null arm. The string concatenation is gone |
 | R-6 | `ppgdex-app.js` Poincare line | absent area printed as 0 ms² | row `2026-11-08-ppgdex-poincare-line-prints-null-and-an-absent-area-as-zero` |
-| R-7 | `ppgdex-render.js` `lineChart` | no null hardening; a null y drags the axis to 0, a NaN voids the path | unverified; Muse found no caller that passes a null |
+| R-7 | `ppgdex-render.js` `lineChart` | no null hardening; a null y drags the axis to 0, a NaN voids the path | fixed across two units. PR #5272 dropped the non-finite point, so the axis label stopped throwing. This unit breaks the path at the gap, because a dropped point left one straight line across unmeasured time. A lone measured epoch draws a dot |
 | R-8 | CPAPDex Therapy Hours tile | carries badge id `usageHours`, which resolves to the mask-on definition | unverified |
 | R-9 | `hrvdex-render.js` alerts | `_energy < 30` fires on null | row `2026-11-08-hrvdex-low-energy-alert-fires-on-a-null-energy`. The delta half is fixed on main, because `kdelta` demands `Number.isFinite` on both members |
 | R-10 | `motiondex-render.js` supine row | states track length as the population | row `2026-11-08-motiondex-supine-row-states-the-wrong-denominator` |
