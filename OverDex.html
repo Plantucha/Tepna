@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="f8918b4722fb" data-compute-hash="e6a53c8f85cc"><head>
+<html lang="en" data-manifest-hash="49309cd5512b" data-compute-hash="d61cbb8cbeb8"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/i2Z90VEmrCdpzsfYbSK+DDyZ76VbIXNgZ4aR5fWiJw=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4esQYmoU7FYRSxckVGhsPB+ddHAbdUxK5/3OtftYgPQ=' 'sha256-73XqvW3QPszVNJSGP0gS6Awhvf88TLJs80AD7soU2Zw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-DAzxT9tkOTT/oCPwMIjFND7JrVJDbGetoyYDqtIe/1c=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GYeKJg9Ht0UATjCGGSxqImq9I8l616TYUUSN2yVjvUY=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-K+h5thoekEgjAVsTOJH/LoQr+vkP1LPzjqBYtooYmg8=' 'sha256-KWDMRagpDhkrEKgurTOBXHctXtLVmvs0VbMDxL2Sen8=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-giYwCXjerkJjeQWVawZJi1PSQz95jk2fKeHBJNSpfic=' 'sha256-hZbxewOR/IJnt4wYW1xIXfi8LXLa6bhyJN5Io8hmutA=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oBZMdqHbLFQRnb4o/LvL9OJ2eQrQOb/2n50vzDHkOZo=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sWB90VzOrb6nJTXL7Cq4GwOY5VcEZdjBXeIo1Wl5NtQ=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4esQYmoU7FYRSxckVGhsPB+ddHAbdUxK5/3OtftYgPQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-DAzxT9tkOTT/oCPwMIjFND7JrVJDbGetoyYDqtIe/1c=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Guo8R/USO+GAcDRQZp2BK3lfgF5ApB6E4TQiUzoPZNI=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-K+h5thoekEgjAVsTOJH/LoQr+vkP1LPzjqBYtooYmg8=' 'sha256-KWDMRagpDhkrEKgurTOBXHctXtLVmvs0VbMDxL2Sen8=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-ZkNm5rfWprNM/ZufFLiknYzfQDyGaPr3z8KqKGzAPlg=' 'sha256-giYwCXjerkJjeQWVawZJi1PSQz95jk2fKeHBJNSpfic=' 'sha256-hXuFXPdUhifHyacszmIEv7tmFbClC6pD57dQd408yCY=' 'sha256-hZbxewOR/IJnt4wYW1xIXfi8LXLa6bhyJN5Io8hmutA=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qsgdXWviInopT75DwcuYkhj9KtiiiJY4zhNTZpThvLA=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sWB90VzOrb6nJTXL7Cq4GwOY5VcEZdjBXeIo1Wl5NtQ=' 'sha256-xVxJq6soq2jdtCFhTVXDrCDVE6k0cE/YIV/2djM7KXc=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -1230,6 +1230,13 @@
      is a fact about the PUBLISHED axis — a node can refuse over a data gap that no counter step marks
      — and a consumer must not have to know which node is which to read it. */
   var TIMING_SOURCES = ['device+host', 'host', 'device', 'device-only', 'none'];
+  /* THE TWO ARMS `clock.js` CAN PRODUCE A `ppm` WITH, closed exactly as the vocabulary above is.
+     `'end-to-end-median'` reads `(sm[n-1] - sm[0]) / span` and divides the running median's end clamp
+     out; `'single-window'` reads `sm[n-1] / span`, which runs where the width-21 median covers the
+     whole series and still under-reads by `1 - 5/(n-1)` (CLAUDE.md §7, `docs/CLAUDE-MD-RATIONALE.md`).
+     The two do not carry the same bias, so a reader who cannot tell which arm answered cannot apply
+     either statement. An unknown string is therefore an absence here, never a value passed through. */
+  var PPM_ESTIMATORS = ['end-to-end-median', 'single-window'];
 
   function _tbNum(v) {
     return typeof v === 'number' && isFinite(v) ? v : null;
@@ -1249,6 +1256,12 @@
      wrong number hides the parse bug the field exists to expose. */
   function _tbRate(v) {
     return typeof v === 'number' && isFinite(v) && v > 0 ? v : null;
+  }
+
+  // AN ESTIMATOR ARM, or `null`. Membership, never a truthy string: an arm this build does not know
+  // is an unmeasured arm, and §∅ forbids one standing in for a measured one.
+  function _tbArm(v) {
+    return typeof v === 'string' && PPM_ESTIMATORS.indexOf(v) >= 0 ? v : null;
   }
 
   function timingBlock(opts) {
@@ -1379,8 +1392,34 @@
        caller nulls the figures upstream, so this block never holds the numbers one would carry: a
        `drawnColumn` of two nulls is an empty container standing in for an absence, the shape §∅
        forbids. The figures survive where they were measured, under `recording.hostAxis.drawnColumn`,
-       and the twelve-key parity this block exists to keep gains no conditional key. */
+       and the fourteen-key parity this block exists to keep gains no conditional key. */
     var quotable = ok && drawn === false;
+
+    /* ── A RATE WITH NOTHING THAT SIZES IT (residue rows
+       `2026-11-16-the-shared-timing-block-publishes-a-rate-with-nothing-that-sizes-it` and
+       `2026-11-16-the-host-axis-estimator-name-reaches-no-consumer`) ──
+       The block published `ppm` with `anchors` and `spanMs` beside it, and §7 asks for exactly that
+       pair. The pair cannot size the rate: the spread is set by the host-jitter AMPLITUDE, which
+       neither number carries. Measured 2026-11-16 at ECGDex's own 391-anchor geometry over 60 s: the
+       per-draw spread is 31 to 33 ppm against a planted 50, which is 62 to 66 per cent of the value,
+       while `ok` read true on 400 of 400 draws and no field said the rate was unresolved.
+       THE SPINE ALREADY COMPUTES BOTH MISSING FACTS, and until now neither reached a consumer.
+       `stability.ppmUncertainty` (`clock.js:1001`) is σ_y at the recording's own span in ppm, and
+       `clock.js` states the rule beside it: quote the ppm WITH this or not at all. It tracks the
+       spread's one-over-span scaling exactly and over-states it by about 7.65, so it is a
+       CONSERVATIVE BOUND and not the estimator's standard error. `ppmEstimator` names which arm
+       produced the number, because the two arms carry different biases and the value cannot say.
+       ⚠ BOTH ARE UNCONDITIONAL KEYS, `null` where this block quotes no rate — a conditional key
+       would break the parity the key set exists to keep, and an empty container standing in for an
+       absence is the shape §∅ forbids.
+       ⚠ `ppmUncertainty` IS NULL ON AN INERT HOST COLUMN BY CONSTRUCTION: `clock.js` computes no
+       Allan curve where `independent` is false, and that axis still quotes a rate here. The clause
+       below names that absence rather than letting the reader infer a tight figure from silence. */
+    var arm = quotable ? _tbArm(ax.ppmEstimator) : null;
+    var ppmU = quotable ? _tbNum(ax.stability ? ax.stability.ppmUncertainty : null) : null;
+    var quoted = quotable && _tbNum(ax.ppm) !== null;
+    if (quoted && ppmU === null) why.push('nothing here sizes the published ppm: the spine measured no sigma-y curve on this axis, so the rate travels without its spread');
+    if (quoted && arm === null) why.push('the published ppm names no estimator arm, so a reader cannot tell which of the two documented biases applies to it');
 
     return {
       timingSource: src,
@@ -1389,6 +1428,8 @@
       spanMs: ok ? _tbNum(ax.spanMs) : null,
       ppm: quotable ? _tbNum(ax.ppm) : null,
       spanPpm: quotable ? _tbNum(ax.spanPpm) : null,
+      ppmEstimator: arm,
+      ppmUncertainty: ppmU,
       resyncs: resyncs,
       seams: seams,
       rate: rate,
@@ -1405,7 +1446,8 @@
     _scrubWith: _scrubWith,
     coverageFromSegments: coverageFromSegments,
     timingBlock: timingBlock,
-    TIMING_SOURCES: TIMING_SOURCES
+    TIMING_SOURCES: TIMING_SOURCES,
+    PPM_ESTIMATORS: PPM_ESTIMATORS
   };
   root.DexExport = DexExport;
   // app/back-compat bare globals (the apps call exportName(...) directly, like fmtDate/fmtClock)
@@ -36758,6 +36800,16 @@ __exports.GlucoDex = window.GlucoDex;
                here once, and the reason 173 committed exports of this node quote a rate with an anchor
                count and no span anywhere in the block. `spanPpm` is the same divergence ratio before the
                width-21 running median; read `ppm` WITH it, and apply neither as a rate. */
+            /* WHICH ARM MEASURED THE `ppm` ABOVE (row
+               `2026-11-16-the-host-axis-estimator-name-reaches-no-consumer`). The spine names the arm
+               on all three of its returns, and this hand-written intermediate dropped it, so
+               `dex-export.js timingBlock` read `undefined` and published a null over every PpgDex
+               export. The two arms do not carry the same bias, so the name belongs to the rate.
+               ⚠ NULLED WITH THE RATE, never beside a null one: a drawn column quotes no `ppm`, so
+               there is no measurement here to attribute to an arm. The export block at the bottom of
+               this file is a SEPARATE list and keeps its declared key set — this field travels to the
+               shared timing block, which is the consumer the row names. */
+            ppmEstimator: axisSynthetic === false ? hostAx.ppmEstimator || null : null,
             spanMs: hostAx.spanMs,
             spanPpm: axisSynthetic === false ? hostAx.spanPpm : null,
             /* THE SEGMENT MODEL'S FLATNESS, forwarded so the export's `rate` can apply this node's own
@@ -49491,6 +49543,14 @@ __exports.PpgDex = window.PpgDex;
             /* The unsmoothed twin of the `ppm` above, forwarded from the spine (`spanMs` below stays this
                node's own measurement). Same renaming trap as `stability`: listed here or dropped. */
             spanPpm: ecgHostAx.spanPpm,
+            /* WHICH ARM MEASURED THE `ppm` ABOVE (row
+               `2026-11-16-the-host-axis-estimator-name-reaches-no-consumer`). `clock.js` names the arm on
+               all three of its returns, this list dropped it, and `dex-export.js timingBlock` therefore
+               published a null arm over every ECGDex export. The two arms carry different biases — the
+               running median's end-clamp under-reads — so the name belongs to the rate. The shared block
+               nulls it wherever it quotes no rate, so a drawn column gains no attribution here.
+               The export block at `:8608` is a SEPARATE list and keeps its declared key set. */
+            ppmEstimator: ecgHostAx.ppmEstimator || null,
             maxStepMs: ecgHostAx.maxStepMs,
             spanMs: ecgAxisSpanMs,
             /* σ_y(τ) of the host−device divergence, forwarded from the spine. Like the fields above,
@@ -54645,7 +54705,7 @@ __exports.ECGDex = window.ECGDex;
       seams: _seamAnn,
       /* THE HOST-DISCIPLINED AXIS OF THE DOMINANT STREAM (U4 of the same brief). `hostAxis` is the
          raw `DexClock.hostAxis` return — `buildNodeExport` forwards it to `DexExport.timingBlock`,
-         which owns the nine-key shape and the null discipline; `clockAxis` is the published remainder
+         which owns the fourteen-key shape and the null discipline; `clockAxis` is the published remainder
          (see `_mdClockAxis`). The correction itself was already applied to `relNs` at parse time. */
       hostAxis: _mdDomAx ? _mdPubAxis(_mdDomAx.rows._hostAxis) : null,
       exportAxis: _mdExportAxis(_mdDomAx),

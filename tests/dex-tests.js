@@ -28941,14 +28941,14 @@
        from "nobody looked", which are different facts and only one of them is a measurement.
 
        The remedy is one builder (`dex-export.js timingBlock`) and this group is what keeps it one.
-       It checks the SHAPE, not the values: twelve keys, in order, on every node-export the repo
+       It checks the SHAPE, not the values: fourteen keys, in order, on every node-export the repo
        commits, with the vocabulary closed and §∅'s rule enforced — a null measurement owes a reason,
        and so does an axis that ran and answered negative (section 4b). A node that goes back to hand-rolling fails the source leg
        before any fixture moves. */
-    group('one shared timing block — twelve keys, one vocabulary, every node-export', 'dex-export · timing-parity · clock · §∅ · DEVICE-TIME-HANDLING', function (T) {
-      var KEYS = ['timingSource', 'independent', 'anchors', 'spanMs', 'ppm', 'spanPpm', 'resyncs', 'seams', 'rate', 'rateRaw', 'rateApplied', 'reason'];
+    group('one shared timing block — fourteen keys, one vocabulary, every node-export', 'dex-export · timing-parity · clock · §∅ · DEVICE-TIME-HANDLING', function (T) {
+      var KEYS = ['timingSource', 'independent', 'anchors', 'spanMs', 'ppm', 'spanPpm', 'ppmEstimator', 'ppmUncertainty', 'resyncs', 'seams', 'rate', 'rateRaw', 'rateApplied', 'reason'];
       var SOURCES = ['device+host', 'host', 'device', 'device-only', 'none'];
-      var MEASURED = ['anchors', 'spanMs', 'ppm', 'spanPpm', 'resyncs', 'seams'];
+      var MEASURED = ['anchors', 'spanMs', 'ppm', 'spanPpm', 'ppmUncertainty', 'resyncs', 'seams'];
       var src = env.sources || {};
 
       // ── 1 · the builder exists and publishes its own vocabulary ──
@@ -28968,7 +28968,7 @@
 
       // ── 2 · the shape is fixed, including the key ORDER a parity claim rests on ──
       var bare = DE.timingBlock();
-      T.ok('a no-argument call still returns all twelve keys, in order', String(Object.keys(bare)) === String(KEYS), String(Object.keys(bare)));
+      T.ok('a no-argument call still returns all fourteen keys, in order', String(Object.keys(bare)) === String(KEYS), String(Object.keys(bare)));
       T.ok('a node with no host column reads device-only, never silence', bare.timingSource === 'device-only' && bare.independent === false, JSON.stringify(bare));
       T.ok('…and says WHY every number is absent', typeof bare.reason === 'string' && bare.reason.length > 0, String(bare.reason));
 
@@ -28980,7 +28980,7 @@
       T.ok('…while an absent list stays null', bare.resyncs === null && bare.seams === null, JSON.stringify(bare));
 
       // ── 4 · the top tier is a CLAIM, so an unmeasured drawn verdict may not reach it ──
-      var ax = { ok: true, n: 40, spanMs: 2.8e4, ppm: 12.5, spanPpm: 11.9, independent: true };
+      var ax = { ok: true, n: 40, spanMs: 2.8e4, ppm: 12.5, spanPpm: 11.9, independent: true, ppmEstimator: 'end-to-end-median', stability: { ppmUncertainty: 3.25 } };
       T.ok('an unmeasured drawn verdict under-claims to host, never device+host', DE.timingBlock({ hostAxis: ax, resyncs: [] }).timingSource === 'host');
       T.ok('a measured non-drawn axis with a second clock reaches device+host', DE.timingBlock({ hostAxis: ax, drawn: false, resyncs: [] }).timingSource === 'device+host');
       var quant = { ok: true, n: 40, spanMs: 2.8e4, ppm: 0.1, spanPpm: 0.1, independent: false };
@@ -28988,7 +28988,7 @@
       /* The builder reads the PRODUCER's own provenance field when the node passes none, so a node
          that forwards nothing but the axis still gets a provenance test rather than a bare
          `independent`. clock.js publishes `deviceDrawn`; the drawn-axis ratchet is what this serves. */
-      var axDrawnFalse = { ok: true, n: 40, spanMs: 2.8e4, ppm: 12.5, spanPpm: 11.9, independent: true, deviceDrawn: false };
+      var axDrawnFalse = { ok: true, n: 40, spanMs: 2.8e4, ppm: 12.5, spanPpm: 11.9, independent: true, deviceDrawn: false, ppmEstimator: 'end-to-end-median', stability: { ppmUncertainty: 3.25 } };
       T.ok('an axis that publishes deviceDrawn:false reaches device+host with no node-supplied verdict', DE.timingBlock({ hostAxis: axDrawnFalse, resyncs: [] }).timingSource === 'device+host');
       var axDrawnTrue = { ok: true, n: 40, spanMs: 2.8e4, ppm: 12.5, spanPpm: 11.9, independent: true, deviceDrawn: true };
       T.ok('…and a drawn axis under-claims to host however independent it reads', DE.timingBlock({ hostAxis: axDrawnTrue, resyncs: [] }).timingSource === 'host');
@@ -29030,7 +29030,7 @@
       var measuredVerdict = DE.timingBlock({ hostAxis: { ok: true, n: 40, spanMs: 2.8e4, ppm: 12.5, spanPpm: 11.9, independent: false }, resyncs: [], seams: [] });
       T.ok('CONTROL · a measured non-clock verdict stays false, not null', measuredVerdict.independent === false, String(measuredVerdict.independent));
       T.ok('CONTROL · …and a node-supplied drawn:false quotes it over a drawn axis, as the source does', DE.timingBlock({ hostAxis: axDrawnTrue, drawn: false, resyncs: [], seams: [] }).ppm === 12.5);
-      T.ok('CONTROL · the twelve keys are unchanged — the guard adds no conditional key', String(Object.keys(drawnOut)) === String(KEYS), String(Object.keys(drawnOut)));
+      T.ok('CONTROL · the fourteen keys are unchanged — the guard adds no conditional key', String(Object.keys(drawnOut)) === String(KEYS), String(Object.keys(drawnOut)));
       /* A REFUSED AXIS IS A THIRD STATE, and it was already null: the guard must not borrow its
          sentence, because "the spine refused" and "the column is not a clock" have different
          remedies. */
@@ -29129,6 +29129,60 @@
       T.ok(
         '…and a node-supplied drawn:false keeps the device clause off a drawn axis, as the source does',
         !/synthesised counter/.test(DE.timingBlock({ hostAxis: axDrawnOnly, drawn: false, resyncs: [], seams: [] }).reason || '')
+      );
+
+      /* ── 4e · §∅ A PUBLISHED RATE OWES THE SPREAD THAT SIZES IT (residue rows
+         `2026-11-16-the-shared-timing-block-publishes-a-rate-with-nothing-that-sizes-it` and
+         `2026-11-16-the-host-axis-estimator-name-reaches-no-consumer`) ──────────────────
+         The block published `ppm` with `anchors` and `spanMs` beside it, and that pair cannot size a
+         rate: the spread comes from the host-jitter amplitude, not from the anchor count. The spine
+         measures both absent facts and neither reached a consumer. `clock.js:1001` writes
+         `stability.ppmUncertainty`, which is sigma-y at the recording's own span in ppm, under the
+         rule "quote the ppm WITH this or not at all". `clock.js:676` writes `ppmEstimator`, which
+         names the arm that produced the number, because the two arms carry different biases — the
+         running median's end-clamp under-reads by `1 - 5/(n-1)`. Both keys are unconditional, so the
+         parity above holds, and each absence owes a sentence rather than a silence a reader takes
+         for a tight figure. */
+      T.ok('a quoted rate carries the spine’s own spread, to the digit', measOut.ppmUncertainty === 3.25, String(measOut.ppmUncertainty));
+      T.ok('…and the arm that produced it', measOut.ppmEstimator === 'end-to-end-median', String(measOut.ppmEstimator));
+      T.ok('…and a sized rate owes no sentence', measOut.reason === null, String(measOut.reason));
+      var axUnsized = { ok: true, n: 40, spanMs: 2.8e4, ppm: 12.5, spanPpm: 11.9, independent: true, deviceDrawn: false };
+      var unsized = DE.timingBlock({ hostAxis: axUnsized, resyncs: [], seams: [] });
+      T.ok('§∅ a rate the spine never sized publishes null, never a 0', unsized.ppm === 12.5 && unsized.ppmUncertainty === null, JSON.stringify(unsized));
+      T.ok('…and the absence is named, so the silence does not read as a tight figure', /nothing here sizes the published ppm/.test(unsized.reason || ''), String(unsized.reason));
+      T.ok('…and an unnamed arm is named absent too', unsized.ppmEstimator === null && /names no estimator arm/.test(unsized.reason || ''), String(unsized.reason));
+      var badArm = DE.timingBlock({
+        hostAxis: { ok: true, n: 40, spanMs: 2.8e4, ppm: 12.5, spanPpm: 11.9, independent: true, deviceDrawn: false, ppmEstimator: 'least-squares', stability: { ppmUncertainty: 1 } },
+        resyncs: [],
+        seams: []
+      });
+      T.ok('§∅ an arm outside the closed vocabulary is an absence, never a string passed through', badArm.ppmEstimator === null, String(badArm.ppmEstimator));
+      T.ok('…and the vocabulary travels beside the block, as the timingSource one does', String(DE.PPM_ESTIMATORS) === 'end-to-end-median,single-window', String(DE.PPM_ESTIMATORS));
+      T.ok(
+        '§∅ a NaN spread is not a measurement either',
+        DE.timingBlock({
+          hostAxis: { ok: true, n: 9, spanMs: 1e4, ppm: 5, spanPpm: 5, independent: true, deviceDrawn: false, ppmEstimator: 'single-window', stability: { ppmUncertainty: NaN } },
+          resyncs: [],
+          seams: []
+        }).ppmUncertainty === null
+      );
+      T.ok(
+        'CONTROL · an inert host column keeps its arm and its spread, because clock.js measured both',
+        DE.timingBlock({
+          hostAxis: { ok: true, n: 40, spanMs: 2.8e4, ppm: 0.1, spanPpm: 0.1, independent: false, deviceDrawn: false, ppmEstimator: 'single-window', stability: { ppmUncertainty: 0.4 } },
+          resyncs: [],
+          seams: []
+        }).ppmUncertainty === 0.4
+      );
+      T.ok(
+        'CONTROL · a drawn axis quotes no rate, so it owes neither key nor the sizing sentence',
+        drawnOut.ppmUncertainty === null && drawnOut.ppmEstimator === null && !/sizes the published ppm/.test(drawnOut.reason || ''),
+        JSON.stringify(drawnOut)
+      );
+      T.ok(
+        'CONTROL · the key set stays fourteen, in order — both additions are unconditional',
+        String(Object.keys(unsized)) === String(KEYS) && String(Object.keys(drawnOut)) === String(KEYS),
+        String(Object.keys(unsized))
       );
 
       // ── 5 · a node that already owns a lattice keeps its verdict — no committed export changes meaning ──
@@ -29238,7 +29292,7 @@
           if (required) T.ok(where + ' carries recording.timing', false, 'absent — a builder stopped reaching the shared block');
           return;
         }
-        T.ok(where + ' · twelve keys, in order', String(Object.keys(tb)) === String(KEYS), String(Object.keys(tb)));
+        T.ok(where + ' · fourteen keys, in order', String(Object.keys(tb)) === String(KEYS), String(Object.keys(tb)));
         T.ok(where + ' · timingSource is in the vocabulary', SOURCES.indexOf(tb.timingSource) >= 0, String(tb.timingSource));
         var absent = MEASURED.filter(function (k) {
           return tb[k] == null;
@@ -29264,6 +29318,15 @@
             where + ' · §∅ a quoted rate sits over a device column measured to be real',
             !(ha && (ha.deviceDrawn === true || ha.ppmReason !== undefined)),
             'deviceDrawn=' + String(ha && ha.deviceDrawn) + ' ppmReason=' + String(ha && ha.ppmReason)
+          );
+          /* ── §∅ AND THE SPREAD THAT SIZES IT, OR THE SENTENCE THAT SAYS NOTHING DID (section 4e) ──
+             A committed block that quotes a `ppm` publishes the spine's `ppmUncertainty` beside it,
+             or names the absence in `reason`. A silent pair is the defect the row named, because a
+             reader takes an unqualified rate for a tight one. */
+          T.ok(
+            where + ' · §∅ a quoted rate is sized, or says that nothing sized it',
+            tb.ppmUncertainty != null || /sizes the published ppm/.test(tb.reason || ''),
+            'ppmUncertainty=' + String(tb.ppmUncertainty) + ' reason=' + String(tb.reason)
           );
         }
       }
@@ -32952,7 +33015,7 @@
       /* §🔒.6 — `startEpochMs` is the floating t0 and `t` is a date-less wall-clock string. The five
          authored blocks run in order, so the night is five runs and the export is five events. */
       /* The six keys that describe the INPUT are pinned whole. `recording.timing` is the shared block
-         every node-export carries (`dex-export.js timingBlock`), and its twelve keys, its vocabulary
+         every node-export carries (`dex-export.js timingBlock`), and its fourteen keys, its vocabulary
          and its null discipline are gated for all ten nodes at once by the export-parity group. So
          this group pins that the block is REACHED and what it says, never its sentence byte for byte. */
       var recNoTiming = {};
@@ -80399,6 +80462,8 @@
             spanMs: null,
             ppm: null,
             spanPpm: null,
+            ppmEstimator: null,
+            ppmUncertainty: null,
             resyncs: null,
             seams: 0,
             rate: 1,
@@ -80439,7 +80504,7 @@
       var el = scr.nights[0];
 
       // ── the five declarations SURVIVE, read back by value, never by key presence ──
-      T.eq('recording.timing survives whole, twelve keys', Object.keys(scr.recording.timing).length, 12);
+      T.eq('recording.timing survives whole, fourteen keys', Object.keys(scr.recording.timing).length, 14);
       T.eq('…and its timingSource reads back', scr.recording.timing.timingSource, 'device-only');
       T.eq('recording.validity survives', scr.recording.validity.n, 27599);
       T.eq('recording.clockSeamScan survives', scr.recording.clockSeamScan.n, 27599);

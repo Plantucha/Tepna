@@ -335,6 +335,13 @@
      is a fact about the PUBLISHED axis — a node can refuse over a data gap that no counter step marks
      — and a consumer must not have to know which node is which to read it. */
   var TIMING_SOURCES = ['device+host', 'host', 'device', 'device-only', 'none'];
+  /* THE TWO ARMS `clock.js` CAN PRODUCE A `ppm` WITH, closed exactly as the vocabulary above is.
+     `'end-to-end-median'` reads `(sm[n-1] - sm[0]) / span` and divides the running median's end clamp
+     out; `'single-window'` reads `sm[n-1] / span`, which runs where the width-21 median covers the
+     whole series and still under-reads by `1 - 5/(n-1)` (CLAUDE.md §7, `docs/CLAUDE-MD-RATIONALE.md`).
+     The two do not carry the same bias, so a reader who cannot tell which arm answered cannot apply
+     either statement. An unknown string is therefore an absence here, never a value passed through. */
+  var PPM_ESTIMATORS = ['end-to-end-median', 'single-window'];
 
   function _tbNum(v) {
     return typeof v === 'number' && isFinite(v) ? v : null;
@@ -354,6 +361,12 @@
      wrong number hides the parse bug the field exists to expose. */
   function _tbRate(v) {
     return typeof v === 'number' && isFinite(v) && v > 0 ? v : null;
+  }
+
+  // AN ESTIMATOR ARM, or `null`. Membership, never a truthy string: an arm this build does not know
+  // is an unmeasured arm, and §∅ forbids one standing in for a measured one.
+  function _tbArm(v) {
+    return typeof v === 'string' && PPM_ESTIMATORS.indexOf(v) >= 0 ? v : null;
   }
 
   function timingBlock(opts) {
@@ -484,8 +497,34 @@
        caller nulls the figures upstream, so this block never holds the numbers one would carry: a
        `drawnColumn` of two nulls is an empty container standing in for an absence, the shape §∅
        forbids. The figures survive where they were measured, under `recording.hostAxis.drawnColumn`,
-       and the twelve-key parity this block exists to keep gains no conditional key. */
+       and the fourteen-key parity this block exists to keep gains no conditional key. */
     var quotable = ok && drawn === false;
+
+    /* ── A RATE WITH NOTHING THAT SIZES IT (residue rows
+       `2026-11-16-the-shared-timing-block-publishes-a-rate-with-nothing-that-sizes-it` and
+       `2026-11-16-the-host-axis-estimator-name-reaches-no-consumer`) ──
+       The block published `ppm` with `anchors` and `spanMs` beside it, and §7 asks for exactly that
+       pair. The pair cannot size the rate: the spread is set by the host-jitter AMPLITUDE, which
+       neither number carries. Measured 2026-11-16 at ECGDex's own 391-anchor geometry over 60 s: the
+       per-draw spread is 31 to 33 ppm against a planted 50, which is 62 to 66 per cent of the value,
+       while `ok` read true on 400 of 400 draws and no field said the rate was unresolved.
+       THE SPINE ALREADY COMPUTES BOTH MISSING FACTS, and until now neither reached a consumer.
+       `stability.ppmUncertainty` (`clock.js:1001`) is σ_y at the recording's own span in ppm, and
+       `clock.js` states the rule beside it: quote the ppm WITH this or not at all. It tracks the
+       spread's one-over-span scaling exactly and over-states it by about 7.65, so it is a
+       CONSERVATIVE BOUND and not the estimator's standard error. `ppmEstimator` names which arm
+       produced the number, because the two arms carry different biases and the value cannot say.
+       ⚠ BOTH ARE UNCONDITIONAL KEYS, `null` where this block quotes no rate — a conditional key
+       would break the parity the key set exists to keep, and an empty container standing in for an
+       absence is the shape §∅ forbids.
+       ⚠ `ppmUncertainty` IS NULL ON AN INERT HOST COLUMN BY CONSTRUCTION: `clock.js` computes no
+       Allan curve where `independent` is false, and that axis still quotes a rate here. The clause
+       below names that absence rather than letting the reader infer a tight figure from silence. */
+    var arm = quotable ? _tbArm(ax.ppmEstimator) : null;
+    var ppmU = quotable ? _tbNum(ax.stability ? ax.stability.ppmUncertainty : null) : null;
+    var quoted = quotable && _tbNum(ax.ppm) !== null;
+    if (quoted && ppmU === null) why.push('nothing here sizes the published ppm: the spine measured no sigma-y curve on this axis, so the rate travels without its spread');
+    if (quoted && arm === null) why.push('the published ppm names no estimator arm, so a reader cannot tell which of the two documented biases applies to it');
 
     return {
       timingSource: src,
@@ -494,6 +533,8 @@
       spanMs: ok ? _tbNum(ax.spanMs) : null,
       ppm: quotable ? _tbNum(ax.ppm) : null,
       spanPpm: quotable ? _tbNum(ax.spanPpm) : null,
+      ppmEstimator: arm,
+      ppmUncertainty: ppmU,
       resyncs: resyncs,
       seams: seams,
       rate: rate,
@@ -510,7 +551,8 @@
     _scrubWith: _scrubWith,
     coverageFromSegments: coverageFromSegments,
     timingBlock: timingBlock,
-    TIMING_SOURCES: TIMING_SOURCES
+    TIMING_SOURCES: TIMING_SOURCES,
+    PPM_ESTIMATORS: PPM_ESTIMATORS
   };
   root.DexExport = DexExport;
   // app/back-compat bare globals (the apps call exportName(...) directly, like fmtDate/fmtClock)
