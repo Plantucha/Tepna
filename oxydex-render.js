@@ -867,7 +867,21 @@ function spikeTimeline(nights) {
 
     // ── HR spikes — purple/amber/red dots, sized by rise above baseline ──
     (Array.isArray(n.spikes) ? n.spikes : []).forEach(function (sp) {
+      /* §∅ — the CHART TWIN of the CSV fix (`oxydex-app.js` §∅ ESCAPE, "null - null === 0 IN JS"). An
+         imported spike is restored with `baseline`/`peak`/`mfm` explicitly null (`oxydex-dsp.js`: "null
+         stays null, never an index-derived guess"), and `sp.peak - sp.baseline` turned the pair into a
+         measured 0 bpm rise whose dot drew at the SMALLEST radius in the mildest colour — the legend's
+         "dot size = magnitude" asserting a magnitude nobody measured. `xp(sp.mfm)` was worse than
+         cosmetic: `null < tStart` is TRUE, so `null + 1440` placed the spike at 24:00, a fabricated
+         instant. No position ⇒ no dot (there is no honest x). Known position, unknown magnitude ⇒ a
+         HOLLOW ring: the event is present and claims neither size nor a colour band. */
+      if (sp.mfm == null || !isFinite(sp.mfm)) return;
       var x = xp(sp.mfm);
+      var _riseKnown = typeof sp.peak === 'number' && isFinite(sp.peak) && typeof sp.baseline === 'number' && isFinite(sp.baseline);
+      if (!_riseKnown) {
+        svg += '<circle cx="' + x + '" cy="' + y + '" r="3" fill="none" stroke="' + C.purple + '" stroke-width="1.2" opacity="0.55"/>';
+        return;
+      }
       var rise = sp.peak - sp.baseline;
       var r = Math.max(3, Math.min(8, rise / 8));
       var col = rise > 40 ? C.red : rise > 25 ? C.amber : C.purple;
@@ -2267,7 +2281,11 @@ function renderSmartSummary(n) {
     var _motPct = st ? st.motionPct : null;
     html += ssKPI('SOL', cv(sa.solMin, 15, 30, 'min'), sa.solMin == null ? 'neutral' : sa.solMin < 15 ? 'good' : sa.solMin < 30 ? 'warn' : 'bad');
     html += ssKPI('WASO', cv(sa.wasoMin, 20, 45, 'min'), sa.wasoMin == null ? 'neutral' : sa.wasoMin < 20 ? 'good' : sa.wasoMin < 45 ? 'warn' : 'bad');
-    html += ssKPI('Motion', cv(_motPct, 10, 20, '%'), _motPct != null && _motPct < 10 ? 'good' : _motPct != null && _motPct < 20 ? 'warn' : 'bad');
+    /* §∅ — `motionPct` is DELIBERATELY null when the motion column is stuck or absent (`oxydex-dsp.js`:
+       "an explicit null plus the reason"), and the two `!= null` tests only guard the 'good' and 'warn'
+       arms — the absence fell through to 'bad', so a channel that was NEVER MEASURED wore the red badge
+       beside its own em dash. An absence earns no band. */
+    html += ssKPI('Motion', cv(_motPct, 10, 20, '%'), _motPct == null ? 'neutral' : _motPct < 10 ? 'good' : _motPct < 20 ? 'warn' : 'bad');
   } else if (n.motSleep) {
     var ms = n.motSleep;
     if (ms.sleepEff != null) html += ssKPI('Sleep Eff', cv(ms.sleepEff, 80, 90, '%', true), ms.sleepEff >= 90 ? 'good' : ms.sleepEff >= 80 ? 'warn' : 'bad');
@@ -2286,10 +2304,17 @@ function renderSmartSummary(n) {
       _remImplausible ? 'bad' : n.stageProxy.remProxyMin >= 45 ? 'good' : n.stageProxy.remProxyMin >= 20 ? 'warn' : 'bad',
       _remImplausible ? 'unreliable — see note' : null
     );
+    /* §∅ — THE FIGURE ABOVE ALREADY KNEW IT COULD BE ABSENT (it tested `!= null` and passed the null
+       on) while the grade beside it read `|| 0`: an unmeasured deep-sleep estimate took the WORST band
+       ('bad', red) on the card next to its own em dash. An absence earns NO band, never the strictest
+       one — note 34a's rule (take the stricter arm unless cited otherwise) chooses a BOUND for an input
+       that was ENTERED but ambiguous; a value nobody measured has no bound at all. Same ruling as the
+       Osc Windows KPI below and as the ppgdex host KPI/HR guards. The `x != null ? x : null` ternary is
+       also gone — it is `x`, and a no-op guard is how the next reader learns nothing. */
     html += ssKPI(
       'Deep ~est',
-      cv(n.stageProxy.nremDeepMin != null ? n.stageProxy.nremDeepMin : null, null, null, 'min'),
-      (n.stageProxy.nremDeepMin || 0) >= 60 ? 'good' : (n.stageProxy.nremDeepMin || 0) >= 30 ? 'warn' : 'bad'
+      cv(n.stageProxy.nremDeepMin, null, null, 'min'),
+      n.stageProxy.nremDeepMin == null ? 'neutral' : n.stageProxy.nremDeepMin >= 60 ? 'good' : n.stageProxy.nremDeepMin >= 30 ? 'warn' : 'bad'
     );
     if (_remImplausible && n.stageProxy.plausibilityNote) {
       html += '<div class="ss-note" style="grid-column:1/-1;opacity:.85;font-size:.82em;line-height:1.35">⚠ ' + escapeHTML(n.stageProxy.plausibilityNote) + '</div>';

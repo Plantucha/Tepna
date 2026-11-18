@@ -93,6 +93,7 @@ let ROOT = join(HERE, '..');
 export const STEPS = [
   'gate:subject',
   'typecheck',
+  'verify:build-first',
   'verify:commit-shape',
   'verify:residue-ids',
   'verify:residue-claims',
@@ -135,7 +136,6 @@ export const STEPS = [
   'test:oxydex-stager',
   'test:hypno-export',
   'test:reconcile',
-  'verify:build-first',
   'build:check',
   'verify:analysis',
   'verify:docs',
