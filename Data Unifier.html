@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="b6cb284ea9f7" data-compute-hash="6932d78d46e9"><head>
+<html lang="en" data-manifest-hash="6fe9c2da5c7a" data-compute-hash="20fd00f8489f"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+Yf72wB3KQPWHAdGzaaAY9AZBWh+pxZd/QO6+1/Kk78=' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4esQYmoU7FYRSxckVGhsPB+ddHAbdUxK5/3OtftYgPQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-Ei0isbxxdmoCnDzNrUdFgL2GFI1oEPHhlC/ELLG+jkI=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-HMDOf9S64BB3i4Lb3sCiriKCwiZycmsyau04pG28hsc=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-L9RPM8YDAWQTF2q91cAM8cn/BxTip1KO3H96sNPwOQY=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+Yf72wB3KQPWHAdGzaaAY9AZBWh+pxZd/QO6+1/Kk78=' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4esQYmoU7FYRSxckVGhsPB+ddHAbdUxK5/3OtftYgPQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-Ei0isbxxdmoCnDzNrUdFgL2GFI1oEPHhlC/ELLG+jkI=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-L9RPM8YDAWQTF2q91cAM8cn/BxTip1KO3H96sNPwOQY=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QIqpSAKHRO2w9+N9SpwdP7LeihaJnB4amgRzYhzU/IY=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -30612,7 +30612,16 @@ __exports.GlucoDex = window.GlucoDex;
     const epochs = buildEpochs(nn, corr.tt, motion, perfWindow, cleanMask, agreeI, adj);
 
     // quality
-    const meanSQI = sqi.length ? r2(mean(sqi)) : 0;
+    /* §∅ — A MEAN OVER AN EMPTY BEAT POPULATION IS UNMEASURED, NEVER 0. `sqi` carries one entry per
+       detected beat, so an empty array means the detector placed NO beats: no pulse population to score.
+       The old `: 0` published the WORST value on this 0..1 scale, and `meanSQI` feeds the Ganglior
+       confidence, so every consumer read a measured worst score over nothing. The page already draws a
+       dash, because it reads the POPULATION (`sqiAbsent` in `ppgdex-app.js`, #5272) rather than the
+       number — and the export and every cross-node consumer still read the 0 the page hides. The
+       clean-beat share two lines below refuses with its own cause; the mean now answers the same way.
+       A record whose beats ALL scored zero keeps its measured 0 and its grade. */
+    const meanSQI = sqi.length ? r2(mean(sqi)) : null;
+    const meanSQIReason = sqi.length ? null : 'no beats were detected — no pulse population to score';
     const cleanBeats = sqi.filter((s) => s >= 0.5).length;
     /* §∅ — A SHARE OF NO BEATS IS UNMEASURED, NOT 0 %. `sqi` holds one entry per detected beat, so an
        empty array means the detector placed NO beats: a record with no pulse population, not a record
@@ -31089,6 +31098,7 @@ __exports.GlucoDex = window.GlucoDex;
       ...(_seAnno.reason ? { sampenReason: _seAnno.reason } : {}),
       epochs,
       meanSQI,
+      meanSQIReason,
       cleanBeatPct,
       cleanBeatPctReason,
       analyzablePct,
