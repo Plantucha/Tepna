@@ -5058,39 +5058,76 @@
     const kSigma = opts.sigma != null ? opts.sigma : 3;
     const localBins = opts.localBins != null ? opts.localBins : Math.max(1, Math.round(5 / dtSec));
     const minGapSec = opts.minGapSec != null ? opts.minGapSec : 30;
+    /* An unusable grid returns before the detector looks at anything, so the diagnostics below are
+       ABSENT here rather than null: this call reached no population at all. */
     if (!grid || !grid.length || !(dtSec > 0)) return [];
     const n = grid.length;
+    /* ∅ A CELL NOTHING MEASURED IS NOT A QUIET CELL, AND THIS DETECTOR READ IT AS ONE. `opts.covered`
+       carries one flag per grid cell, and the owner's 2026-09-17 ruling splits the two harms it
+       repairs. A gap INSIDE a candidate's local window is a DISCONTINUITY, so the candidate refuses:
+       the local-maximum test compared it against cells nobody recorded. A gap elsewhere is reduced
+       COVERAGE, so it annotates: the threshold statistics read the covered cells only.
+       Measured 2026-11-18 on a 600 s synthetic gyro stream with five planted bursts. A 1.8 s gap over
+       one burst's peak moved that onset from 300.50 s to 303.50 s, which is a 3.00 s shift of a
+       fiducial whose cross-device agreement is 12 s, and the count stayed 5 with nothing marking the
+       move. A 90 s quiet gap over 15 % of the cells depressed the all-cell threshold from 1.20364 to
+       1.10771, so it lowers the bar for every onset in the night.
+       Coverage stays OPTIONAL and LAST, so the twin in the other node and the parity gate keep their
+       contract. An uncovered CANDIDATE needs no test of its own, because a structural 0 never reaches
+       a positive threshold. A coverage array of the wrong length reads as UNKNOWN coverage, and the
+       null diagnostics below say so. */
+    const cov = opts.covered && opts.covered.length === n ? opts.covered : null;
+    let m = 0;
+    let nStat = 0;
+    for (let i = 0; i < n; i++) {
+      if (cov && !cov[i]) continue;
+      m += grid[i];
+      nStat++;
+    }
+    m = nStat ? m / nStat : 0;
     /* mean + k·SD. A MAD-based threshold was tried and REJECTED: MAD tracks the quiet baseline, which
        on a differenced (jerk) grid is almost zero, so the threshold collapses and the detector fired
        713 times in one night instead of 29. The tail this distribution carries is the SIGNAL, and a
        threshold that ignores it is not robust, it is blind. */
-    let m = 0;
-    for (let i = 0; i < n; i++) m += grid[i];
-    m /= n;
     let v = 0;
     for (let i = 0; i < n; i++) {
+      if (cov && !cov[i]) continue;
       const d = grid[i] - m;
       v += d * d;
     }
-    const sd = Math.sqrt(v / n) || 1;
+    const sd = (nStat ? Math.sqrt(v / nStat) : 0) || 1;
     const thr = m + kSigma * sd;
     const out = [];
     let last = -Infinity;
+    let nRefused = 0;
     for (let c = 0; c < n; c++) {
       if (grid[c] < thr) continue;
       let isMax = true;
+      let windowKnown = true;
       for (let k = c - localBins; k <= c + localBins; k++) {
         if (k >= 0 && k < n && grid[k] > grid[c]) {
           isMax = false;
           break;
         }
+        if (cov && k >= 0 && k < n && !cov[k]) windowKnown = false;
       }
       if (!isMax) continue;
+      /* A refusal must never SUPPRESS, so it runs before the 30 s gap test and leaves `last` alone.
+         A candidate nobody can prove is not an onset, and it must not hide the next real one. */
+      if (!windowKnown) {
+        nRefused++;
+        continue;
+      }
       const sec = c * dtSec;
       if (sec - last < minGapSec) continue;
       out.push(sec);
       last = sec;
     }
+    /* Unconditional, and `null` when nobody looked — the same rule and the same reason as
+       `_nonFiniteDropped` in this file. A reader must tell "no candidate was refused" from "this call
+       carried no coverage", and a key that appears only when non-zero cannot. */
+    /** @type {any} */ (out)._refusedUncovered = cov ? nRefused : null;
+    /** @type {any} */ (out)._coveredCells = cov ? nStat : null;
     return out;
   }
 
@@ -5125,13 +5162,21 @@
     const _mvDt = 0.25;
     const _mvN = Math.max(1, Math.ceil(durSec / _mvDt));
     const _mvGrid = new Float64Array(_mvN);
+    /* ∅ WHICH CELLS A JERK SAMPLE ACTUALLY REACHED. `_mvGrid` is zero-initialised, so a cell the
+       chest ACC never covered was indistinguishable from a cell that said "not moving", and the
+       detector's local-maximum test read it as quiet. The twin in `ppgdex-dsp.js` tracks the same
+       flag beside its own grid, for the same reason and under the parity gate. */
+    const _mvCov = new Uint8Array(_mvN);
     for (let i = 1; i < N; i++) {
       const d = Math.abs(vm[i] - vm[i - 1]);
       if (!Number.isFinite(d)) continue;
       const g = Math.floor((i / fs - off) / _mvDt);
-      if (g >= 0 && g < _mvN && d > _mvGrid[g]) _mvGrid[g] = d;
+      if (g >= 0 && g < _mvN) {
+        _mvCov[g] = 1;
+        if (d > _mvGrid[g]) _mvGrid[g] = d;
+      }
     }
-    const movementOnsets = _movementOnsets(_mvGrid, _mvDt, {});
+    const movementOnsets = _movementOnsets(_mvGrid, _mvDt, { covered: _mvCov });
 
     const rracc = _rraccEpochs(vm, fs, off);
     const hi = rracc.filter((e) => e.conf === 'high'),
