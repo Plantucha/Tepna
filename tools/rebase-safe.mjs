@@ -57,6 +57,7 @@
  *   node tools/rebase-safe.mjs                 # rebase onto origin/main, rebuild, verify
  *   node tools/rebase-safe.mjs --onto <ref>    # some other base
  *   node tools/rebase-safe.mjs --classify <p…> # print the verdict for paths (used by the self-test)
+ *   node tools/rebase-safe.mjs --build-outputs <p…> # print the paths a rebuild on main re-earns (pr-compliance)
  *   node tools/rebase-safe.mjs --resolve <p…>  # take <onto>'s bytes for a path the BUILDERS own
  *   node tools/rebase-safe.mjs --no-build      # skip the rebuild (classification + rebase only)
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
@@ -546,6 +547,22 @@ export function classify(path, gen) {
   return 'source';
 }
 
+/* A BUILD OUTPUT IS A GENERATED PATH THAT A REBUILD ON `main` CAN RE-EARN WITHOUT THE AUTHOR.
+   GENERATED-OUT-OF-PRS §5.3 stage 2 asks `tools/pr-compliance.mjs` to name these paths in a PR diff,
+   so that the walker's regeneration PR can carry them instead. Two generated kinds stay with the
+   author and are not build outputs:
+     provenance/**    — `verifiedUnder` needs the corpus, which CI does not hold (brief §5.1).
+     a regen fixture  — Gate C judges the PR's own code against its committed export, so a fixture
+                        that moves with a DSP change must move in the same PR.
+   PURE apart from `recipeForFixture`, which `generatedSet()` fills. `gen` null answers false for
+   every path, so an unreadable builder list names nothing. */
+export function isBuildOutput(path, gen) {
+  if (classify(path, gen) !== 'generated') return false;
+  const p = String(path);
+  if (p.startsWith('provenance/')) return false;
+  return !recipeForFixture(p);
+}
+
 /* 🔴 THE REMEDY THIS TOOL PRINTS HAS TO BE RUNNABLE FROM A SESSION, AND IT WAS NOT.
    `main()` stops on a held golden and says "resolve by taking <onto>'s copy, then re-run that
    recipe". Every spelling of that — `git checkout <onto> -- <paths>`, `--ours`, `git checkout HEAD~1
@@ -1006,6 +1023,7 @@ function checkUnionPaths(onto) {
    usage lines: a spec built from the help is a spec for a different program. */
 function argvSpecFor(argv) {
   if (argv[0] === '--classify') return { boolean: ['--classify'], positional: true };
+  if (argv[0] === '--build-outputs') return { boolean: ['--build-outputs'], positional: true };
   if (argv[0] === '--resolve') return { boolean: ['--resolve'], valued: ['--onto'], positional: true };
   return { boolean: ['--no-build'], valued: ['--onto'] };
 }
@@ -1039,6 +1057,10 @@ async function main() {
   }
   if (argv[0] === '--classify') {
     for (const p of argv.slice(1)) console.log(classify(p, gen) + '\t' + p);
+    return;
+  }
+  if (argv[0] === '--build-outputs') {
+    for (const p of argv.slice(1)) if (isBuildOutput(p, gen)) console.log(p);
     return;
   }
 

@@ -39,7 +39,7 @@
 // under `mkdtempSync(tmpdir())` and removes it. Nothing it writes lands under a checkout, so a wrong
 // checkout can lose no artifact here. Its reads keep their own reach.
 
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -65,7 +65,7 @@ const BUNDLE_RE = /(^|\/)[A-Z][A-Za-z]*\.html$/;
    `#` does not trigger GitHub, and does not trigger this check either. */
 /* The number of named checks `checkCompliance` can evaluate. The verdict's population is read against
    it, so a new check raises this or the verdict reads a negative `excluded` and refuses to validate. */
-export const ELIGIBLE_CHECKS = 9;
+export const ELIGIBLE_CHECKS = 10;
 
 const CLOSING_CITATION_RE = /\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?\s+(?:https?:\/\/github\.com\/[\w.-]+\/[\w.-]+\/(?:pull|issues)\/(\d+)|(?:[\w.-]+\/[\w.-]+)?#(\d+))/gi;
 
@@ -155,6 +155,12 @@ export function extractVerdicts(body = '') {
    (`pull_request.user.login`, never the body) AND on a manifest-only diff, so a person who pushes
    code onto a bot branch loses it. An absent file list is no diff, and no diff earns no exemption. */
 export const BOT_AUTHORS = new Set(['dependabot[bot]']);
+/* THE REGENERATION PR'S DECLARED PROVENANCE (GENERATED-OUT-OF-PRS §5.3, stages 2 and 3). Every fleet
+   PR opens under one shared login, so the author cannot tell the walker from a bird. The head branch
+   can: the walker's regeneration pass opens its PR on a branch with this prefix, the way its closure
+   PRs use `CLOSE_BRANCH_PREFIX`. A declaration, not a proof, like `commit-shape.mjs`'s `Revert ` and
+   `rescue:` exemptions. */
+export const REGEN_BRANCH_PREFIX = 'claude/regen-walker-';
 export const MANIFEST_RE = /^(package(-lock)?\.json|capture-host\/requirements[^/]*\.txt|capture-host\/pyproject\.toml|\.github\/workflows\/[^/]+\.ya?ml)$/;
 export function botManifestOnly({ author = null, files = null }) {
   if (!author || !BOT_AUTHORS.has(author)) return false;
@@ -162,9 +168,22 @@ export function botManifestOnly({ author = null, files = null }) {
   return files.every((f) => MANIFEST_RE.test(f));
 }
 
-export function checkCompliance({ body = '', files = null, computeHashMoved = false, ste = null, steChecked = null, prStates = null, self = null, newDocs = null, freshness = null }) {
+export function checkCompliance({
+  body = '',
+  files = null,
+  computeHashMoved = false,
+  ste = null,
+  steChecked = null,
+  prStates = null,
+  self = null,
+  newDocs = null,
+  freshness = null,
+  buildOutputs = null,
+  headRef = null
+}) {
   const failures = [];
   const checked = [];
+  const advisories = [];
 
   /* 1 · THE Rule 0 EVIDENCE LINE. ⚠️ The REGEX accepts such a line anywhere in the body (`/m`), while
      the fleet convention — invented alongside #3368 and now habit — is that it is the FIRST line. The
@@ -296,7 +315,21 @@ export function checkCompliance({ body = '', files = null, computeHashMoved = fa
     const changesetAdded = files.some((f) => f.startsWith('changes/') && f.endsWith('.md'));
     if (codeChanged && !changesetAdded) failures.push('code files changed but no changes/ changeset was added');
   }
-  return { failures, checked };
+  /* 10 · A BUILD OUTPUT IN THE DIFF — ADVISORY (GENERATED-OUT-OF-PRS §5.3 stage 2). `buildOutputs` is
+     the subset of `files` that `rebase-safe.mjs --build-outputs` names: generated paths a rebuild on
+     `main` re-earns, without `provenance/**` or a regen fixture. `null` means the builder list could
+     not be read, reported as not evaluated. The finding goes to `advisories`, never to `failures`,
+     until stage 4 flips it. The walker's regeneration PR is exempt by its declared head branch. */
+  if (buildOutputs) {
+    checked.push('build-outputs-advisory');
+    const exempt = typeof headRef === 'string' && headRef.startsWith(REGEN_BRANCH_PREFIX);
+    if (buildOutputs.length && !exempt) {
+      advisories.push(
+        `${buildOutputs.length} build output(s) in the diff, which the walker's regeneration PR will carry once stage 4 lands: ${buildOutputs.slice(0, 5).join(', ')}${buildOutputs.length > 5 ? ', …' : ''}`
+      );
+    }
+  }
+  return { failures, checked, advisories };
 }
 
 export function selftest() {
@@ -310,8 +343,19 @@ export function selftest() {
   const has = (r, frag) => r.failures.some((f) => f.includes(frag));
 
   // CONTROL — a compliant body with a compliant file list must pass, or the gate blocks everything.
-  const clean = checkCompliance({ body: good, files: ['tools/x.mjs', 'changes/2026-10-10-x.md'], ste: [], steChecked: 1, prStates: {}, newDocs: [], freshness: [] });
+  const clean = checkCompliance({ body: good, files: ['tools/x.mjs', 'changes/2026-10-10-x.md'], ste: [], steChecked: 1, prStates: {}, newDocs: [], freshness: [], buildOutputs: [] });
   ok(clean.failures.length === 0, 'CONTROL: a compliant body and changeset pass');
+  ok(clean.advisories.length === 0, 'CONTROL: a diff with no build output carries no advisory');
+
+  /* CHECK 10 · A BUILD OUTPUT IN THE DIFF IS ADVISORY, and the regeneration branch is exempt. */
+  const withBundle = { body: good, files: ['tools/x.mjs', 'changes/2026-10-10-x.md', 'OxyDex.html'], ste: [], steChecked: 1, prStates: {}, newDocs: [], freshness: [] };
+  const adv = checkCompliance({ ...withBundle, buildOutputs: ['OxyDex.html'] });
+  ok(adv.advisories.length === 1 && adv.advisories[0].includes('OxyDex.html'), 'CHECK 10: a build output in the diff is named in an advisory');
+  ok(adv.failures.length === 0, 'CHECK 10: the advisory does not fail the PR before stage 4');
+  ok(checkCompliance({ ...withBundle, buildOutputs: ['OxyDex.html'], headRef: `${REGEN_BRANCH_PREFIX}5254-abcde` }).advisories.length === 0, 'CHECK 10: the walker regeneration branch is exempt');
+  ok(checkCompliance({ ...withBundle, buildOutputs: ['OxyDex.html'], headRef: 'claude/regen-walker' }).advisories.length === 1, 'CHECK 10: a branch that only resembles the prefix is not exempt');
+  const unread = checkCompliance({ ...withBundle, buildOutputs: null });
+  ok(!unread.checked.includes('build-outputs-advisory'), 'CHECK 10: an unread builder list reports the check as not evaluated');
 
   // BOT EXEMPTION — a dependabot manifest-only diff is out of scope; anything else is not.
   ok(botManifestOnly({ author: 'dependabot[bot]', files: ['capture-host/requirements.txt'] }), 'BOT: a dependabot requirements bump is exempt');
@@ -513,13 +557,13 @@ export function selftest() {
   return { ok: fail.length === 0, ran, fail, line };
 }
 
-function verdictOf({ status, failures, checked, reason }) {
+function verdictOf({ status, failures, checked, reason, advisories = [] }) {
   const v = Verdict.make({
     gate: 'pr-compliance',
     status,
     population: { checked: checked.length, eligible: ELIGIBLE_CHECKS, excluded: ELIGIBLE_CHECKS - checked.length },
     criterion: { name: 'pr-body-and-changeset-satisfy-every-applicable-compliance-check', threshold: 0, unit: 'failed checks', direction: 'eq' },
-    result: status === 'NOT_RUN' ? null : { checksEvaluated: checked, failures },
+    result: status === 'NOT_RUN' ? null : { checksEvaluated: checked, failures, advisories },
     evidence: ['tools/pr-compliance.mjs', 'CLAUDE.md'],
     reason: reason === undefined ? (status === 'PASS' ? null : failures.join('; ')) : reason,
     producedBy: {
@@ -817,6 +861,28 @@ function main() {
     }
   }
 
+  /* CHECK 10's POPULATION: the PR's files that a rebuild on `main` re-earns, asked of the tool that
+     already holds the builder-declared set. A subprocess, not an import, because `rebase-safe.mjs`
+     imports this module. The path is relative and the child takes this process's directory, like
+     every `git` call here, so it reads the checkout the gate judges. A non-zero exit there (no
+     builder list, or a foreign checkout) reports the check as not evaluated. */
+  let buildOutputs = null;
+  if (files) {
+    try {
+      buildOutputs = files.length
+        ? execFileSync(process.execPath, ['tools/rebase-safe.mjs', '--build-outputs', ...files], {
+            encoding: 'utf-8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+            maxBuffer: 64 * 1024 * 1024
+          })
+            .split('\n')
+            .filter(Boolean)
+        : [];
+    } catch {
+      buildOutputs = null;
+    }
+  }
+
   const author = process.env.PR_AUTHOR || null;
   if (botManifestOnly({ author, files })) {
     const reason = `${author} PR touches only dependency manifests (${files.length} file(s)); the body rules do not bind a bot`;
@@ -824,12 +890,24 @@ function main() {
     else console.log(`pr-compliance: NOT_APPLICABLE — ${reason}`);
     return 0;
   }
-  const { failures, checked } = checkCompliance({ body, files, computeHashMoved, ste, steChecked, prStates, self: process.env.PR_NUMBER || null, newDocs, freshness });
+  const { failures, checked, advisories } = checkCompliance({
+    body,
+    files,
+    computeHashMoved,
+    ste,
+    steChecked,
+    prStates,
+    self: process.env.PR_NUMBER || null,
+    newDocs,
+    freshness,
+    buildOutputs,
+    headRef: process.env.PR_HEAD_REF || null
+  });
   if (diffError) failures.push(diffError);
   const status = failures.length ? 'FAIL' : 'PASS';
 
   if (asJson) {
-    process.stdout.write(`${JSON.stringify(verdictOf({ status, failures, checked }), null, 1)}\n`);
+    process.stdout.write(`${JSON.stringify(verdictOf({ status, failures, checked, advisories }), null, 1)}\n`);
   } else if (failures.length) {
     if (resolverNote) console.error(`pr-compliance: ${resolverNote}`);
     console.error('pr-compliance: FAIL');
@@ -838,6 +916,7 @@ function main() {
     if (resolverNote) console.error(`pr-compliance: ${resolverNote}`);
     console.log(`pr-compliance: ✓ PASS — ${checked.length} check(s) evaluated: ${checked.join(', ')}`);
   }
+  if (!asJson) for (const a of advisories) console.log(`  ⚠ advisory: ${a}`);
   return status === 'FAIL' ? 1 : 0;
 }
 
