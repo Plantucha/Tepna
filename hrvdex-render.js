@@ -1635,7 +1635,18 @@ function renderTable(rows) {
         TABLE_COLS.map((c) => {
           const raw = r[c.key];
           const displayed = c.fmt ? c.fmt(raw) : raw != null ? raw : '—';
-          const cls = c.color && !c.noColor && typeof raw === 'number' ? pillClass(c.color, raw) : '';
+          /* ∅ A NaN IS A `number`, SO THIS GATE LET THE TABLE PAINT EVERY ABSENCE. `typeof raw ===
+             'number'` stopped a null and let NaN through, and every `d_*` producer in hrvdex-dsp.js
+             answers NaN when its inputs were not measured. The ladder below then fell to its LAST
+             arm, because every comparison against NaN is false, and the cell wore that colour over
+             an em-dash. Measured on this source: 54 columns, 25 of them graded, and a NaN took red
+             on 20, green on 3 and yellow on 1. 23 of the 25 keys have a NaN-writing producer. The
+             KPI strip was repaired through `kgrade` (hunt-record row R-3) and the census that
+             guards it reads `renderKPIs` alone, so the table kept the same defect.
+             `Number.isFinite` is the predicate `kdelta` already uses. It also drops an Infinity,
+             which is a fabrication rather than a reading. A real 0 stays a measurement and still
+             reaches the ladder. */
+          const cls = c.color && !c.noColor && Number.isFinite(raw) ? pillClass(c.color, raw) : '';
           return `<td>${cls ? `<span class="${cls}">${displayed}</span>` : displayed}</td>`;
         }).join('') +
         '</tr>'

@@ -39510,6 +39510,81 @@
       T.eq('CONTROL · bad still resolves to red, so the mapping was not weakened', kc({ color: 'bad' }), 'red');
     });
 
+    /* ════ THE SAME ABSENCE DEFECT SURVIVED IN THE TABLE, BECAUSE THE CENSUS ABOVE READS ONE FUNCTION ══
+       Hunt-record row R-3 again. The repair above gave the 28 `renderKPIs` tile ladders an absence
+       arm through `kgrade`, and the census that guards it extracts `renderKPIs`'s body alone. The
+       full-metrics table grades from its OWN ladders in `TABLE_COLS`, and those are bare
+       comparisons by design — the absence guard for them sits upstream, at the one pill site in
+       `renderTable`.
+       That site read `typeof raw === 'number'`. A null is an `object`, so it was stopped, but a NaN
+       IS a number, so it reached `pillClass` and every comparison against it answered false. Each
+       ladder therefore fell to its LAST arm and the cell wore that colour over an em-dash.
+       Measured on main at 62f6d023f: 54 columns, 25 of them graded, and a NaN took red on 20,
+       green on 3 and yellow on 1. 23 of the 25 graded keys have a NaN-writing producer in
+       hrvdex-dsp.js, so this was reachable on a real import, not a latent branch.
+       `Number.isFinite` is the predicate `kdelta` already uses for the delta chips. The legs below
+       lift the shipped pill site and the shipped `TABLE_COLS` ladders, so they gate behaviour over
+       the whole column set rather than one column. */
+    group('HRVDex render — no table column paints a colour over an absence', 'sources', function (T) {
+      var rnd = (env.sources || {})['hrvdex-render.js'];
+      if (!rnd) {
+        T.ok('hrvdex-render.js source provided', false, 'runner passed no hrvdex-render.js');
+        return;
+      }
+      var pillSite = /\n\s*const cls = c\.color[^\n]*\n/.exec(rnd);
+      var pillFn = /\nfunction pillClass\(colorFn, val\)[\s\S]*?\n\}\n/.exec(rnd);
+      var colsStart = rnd.indexOf('const TABLE_COLS = [');
+      var colsEnd = colsStart === -1 ? -1 : rnd.indexOf('\n];', colsStart);
+      // ANTI-VACUITY · a census that finds nothing must FAIL, not pass by silence.
+      T.ok('ANTI-VACUITY · the table pill site is visible in the served source', !!pillSite, 'pill site located');
+      T.ok('ANTI-VACUITY · pillClass is visible', !!pillFn, 'pillClass located');
+      T.ok('ANTI-VACUITY · the TABLE_COLS block is visible', colsStart !== -1 && colsEnd > colsStart, 'TABLE_COLS located');
+      if (!pillSite || !pillFn || colsStart === -1 || colsEnd <= colsStart) return;
+
+      // THE PREDICATE · named, because `typeof x === 'number'` passes a NaN and reads as a guard.
+      T.ok('the pill site tests Number.isFinite, not typeof', /Number\.isFinite\(raw\)/.test(pillSite[0]), pillSite[0].trim());
+      T.eq('the typeof form is gone from the whole render source', String(rnd.indexOf("typeof raw === 'number'")), '-1');
+
+      // THE LADDERS AND THE SITE, both lifted from the shipped source, so these legs gate behaviour.
+      var cols = new Function('return ' + rnd.slice(colsStart + 'const TABLE_COLS = '.length, colsEnd) + '\n];')();
+      var expr = pillSite[0]
+        .trim()
+        .replace(/^const cls = /, '')
+        .replace(/;$/, '');
+      var mkCls = new Function('c', 'raw', pillFn[0] + ' return (' + expr + ');');
+      var graded = cols.filter(function (c) {
+        return c.color && !c.noColor;
+      });
+      T.ok('ANTI-VACUITY · the table still carries its own ladders', graded.length >= 25, 'graded column count ' + graded.length);
+
+      var painted = { nan: [], nul: [], und: [] };
+      graded.forEach(function (c) {
+        if (mkCls(c, NaN) !== '') painted.nan.push(c.key);
+        if (mkCls(c, null) !== '') painted.nul.push(c.key);
+        if (mkCls(c, undefined) !== '') painted.und.push(c.key);
+      });
+      T.eq('NO graded column paints an unmeasured (NaN) cell', String(painted.nan.length), '0', 'painted: ' + painted.nan.join(','));
+      T.eq('NO graded column paints a refused (null) cell', String(painted.nul.length), '0', 'painted: ' + painted.nul.join(','));
+      T.eq('NO graded column paints an absent (undefined) cell', String(painted.und.length), '0', 'painted: ' + painted.und.join(','));
+
+      // §∅ CONTROL · the guard must not blind the table to a real reading, and a real 0 is a reading.
+      var measured = graded.filter(function (c) {
+        return mkCls(c, 1.5) !== '' || mkCls(c, 60) !== '';
+      });
+      T.eq('CONTROL · every graded column still paints a measured value', String(measured.length), String(graded.length));
+      var otr = cols.filter(function (c) {
+        return c.key === 'd_otr';
+      })[0];
+      T.ok('CONTROL · the OTR column is still in the table', !!otr, 'd_otr present');
+      if (otr) {
+        T.eq('CONTROL · a real 0 reaches the OTR ladder and still grades', mkCls(otr, 0), 'pill pill-green');
+        T.eq('CONTROL · a real 20 still grades the OTR column red', mkCls(otr, 20), 'pill pill-red');
+        T.eq('an unmeasured OTR carries no colour at all', mkCls(otr, NaN), '');
+      }
+      // An Infinity is a fabrication rather than a reading, so it carries no verdict either.
+      T.eq('an infinite value carries no colour', mkCls(graded[0], Infinity), '');
+    });
+
     /* ════ AN ABSENT RECOVERY INDEX MUST NOT GRANT A TRAINING GREEN LIGHT ══════════════════════════
        DEEP-AUDIT-IV §3 filed this as a HYPOTHESIS: the strong-recovery branch accepted a NULL index as
        equivalent to a passing one, so it rendered
