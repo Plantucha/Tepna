@@ -557,7 +557,17 @@ function adaptEnvelopeNode(json, node, filename) {
     seriesOut.cadenceMin = cadMin;
     seriesOut.cells = (Array.isArray(ts.cells) ? ts.cells : [])
       .map(function (cl) {
-        return { tMs: cl.tMs != null ? cl.tMs : t0c != null && cl.i != null && cadMin != null ? t0c + cl.i * cadMin * 60000 : null, v: cl.v, f: cl.f != null ? cl.f : 0 };
+        /* §∅ — A CELL THAT NEVER DECLARED A FLAG IS NOT A CLEAN ONE. `cl.f != null ? cl.f : 0` stamped a
+           missing flag as 0, which is GFLAG.OK: the value a verified measured reading carries. Every
+           consumer downstream branches on that number, so the adapter decided an export that stated
+           nothing about a cell had certified it. Unknown travels as null and `glucoseMetricsInWindow`
+           decides, because an unknown flag cannot show a reading is not an artifact.
+           `isFinite(null)` is TRUE (null coerces to 0), so the type is checked before the value. */
+        return {
+          tMs: cl.tMs != null ? cl.tMs : t0c != null && cl.i != null && cadMin != null ? t0c + cl.i * cadMin * 60000 : null,
+          v: cl.v,
+          f: typeof cl.f === 'number' && isFinite(cl.f) ? cl.f : null
+        };
       })
       .filter(function (cl) {
         return cl.tMs != null && cl.v != null;
@@ -2881,8 +2891,19 @@ function glucoseMetricsInWindow(cgmRec, startMs, endMs, opts) {
      locally with the owning definition cited, so the coupling is visible to the next reader. */
   var GFLAG = { OK: 0, WARMUP: 1, GAP: 2, COMPRESSION: 3, GAP_LONG: 4 }; // ← mirrors glucodex-dsp.js FLAG
   var vals = [],
-    valsT = [];
+    valsT = [],
+    nFlagUnknown = 0;
   for (i = 0; i < win.length; i++) {
+    /* §∅ — A CELL THAT NEVER DECLARED A FLAG IS NOT A MEASURED READING. The adapter above stamped a
+       missing `f` as 0 (GFLAG.OK), so a cell from an export carrying no clean flags counted as measured
+       glucose and this exclusion could not see it. Unknown is excluded, not trusted: a flag nobody
+       stated cannot show a reading is not an artifact. The count rides out of band as `nFlagUnknown`,
+       because a window of only-undeclared cells falls through the coverage gate and would otherwise
+       read as "no glucose this night" instead of "glucose whose usability was never declared". */
+    if (win[i].f == null) {
+      nFlagUnknown++;
+      continue;
+    }
     if (win[i].f === GFLAG.COMPRESSION || win[i].f === GFLAG.GAP_LONG) continue;
     if (win[i].v == null) continue;
     vals.push(win[i].v);
@@ -2940,6 +2961,7 @@ function glucoseMetricsInWindow(cgmRec, startMs, endMs, opts) {
     nMin: +nMin.toFixed(1),
     coverage: coverage != null ? +coverage.toFixed(3) : null,
     nCells: win.length, // RAW cells in the slice, incl. artifact/long-gap. Do NOT re-derive coverage from this (§8.3) — `coverage` above counts only the cells that contributed.
+    nFlagUnknown: nFlagUnknown, // §∅ — cells in the slice whose export declared no clean flag: not measurable glucose, and not coverage.
     nocturnalMean: Math.round(m),
     nocturnalCV: +cv.toFixed(1),
     nadirValue: Math.round(nadir),
