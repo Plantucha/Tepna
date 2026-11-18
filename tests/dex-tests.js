@@ -47083,7 +47083,7 @@
       );
     });
 
-    group('CPAPDex quality — ∅ an UNASSESSED mask seal is not a perfect one, and an absent mode is not CPAP', 'cpapdex-dsp · cpapdex-fusion · absence', function (T) {
+    group('CPAPDex quality — ∅ an UNASSESSED mask seal is not a perfect one, and an absent mode is not CPAP', 'cpapdex-dsp · cpapdex-fusion · cpapdex-render · absence', function (T) {
       var D = env.CpapDsp || env.CPAPDSP;
       var F = env.CpapFusion;
       if (!D || typeof D.leakSqi !== 'function' || typeof D.parseStrSummary !== 'function' || !F || typeof F.cpapEvents !== 'function') {
@@ -47148,6 +47148,37 @@
         T.eq('the night averages the sessions it ASSESSED, not absence counted as perfect', JSON.stringify({ sqi: q.sqi, n: q.sqiSessions }), JSON.stringify({ sqi: measuredOnly, n: 1 }));
         T.ok('the plant is not vacuous — the old mean and the honest mean differ', dilutedByFabrication > measuredOnly, dilutedByFabrication + ' vs ' + measuredOnly);
         T.ok('\u2026and the basis is published, so a reader can see how many sessions it rests on', q.sqiSessions === 1 && q.sqiBasis.indexOf('ASSESSED') !== -1, JSON.stringify(q.sqiBasis));
+      }
+
+      /* ── 4 · the CLINICAL TIMELINE carries the same absence, and it owes its own plant ──
+         `cpapEventTimeline` orders the bring-to-doctor page. Its former `((a && a.tMs) || 0)` key
+         read a `t`-only event as 1970-01-01, so an unplaceable event LED the page a patient hands a
+         doctor. The reload leg in the self-ingest group exercises `cpapLoadOwnExport`, a DIFFERENT
+         function with its own comparator, so it says nothing about this one. CPAPDex carries no
+         `clock.js` (CLAUDE.md §✅), so this node cannot rebuild a date-less stamp; the unplaceable
+         event draws LAST in arrival order instead. Absence survey `cpapdex-render.js:1139`
+         (key 4ea5523335ad). */
+      var CRtl = env.CpapRender || (typeof window !== 'undefined' ? window.CpapRender : null);
+      if (!CRtl || typeof CRtl.cpapEventTimeline !== 'function') {
+        T.skip('CpapRender.cpapEventTimeline', 'cpapdex-render.js not co-loaded in this runner');
+      } else {
+        var tlEvs = [
+          { tMs: t0 + 60000, impulse: 'apnea', conf: 0.31 },
+          { impulse: 'apnea', conf: 0.11 },
+          { tMs: t0, impulse: 'apnea', conf: 0.21 }
+        ];
+        var drawn = (CRtl.cpapEventTimeline(tlEvs).match(/conf 0\.\d+/g) || []).join(' ');
+        T.eq('∅ §6 · the stampless event draws LAST on the clinical timeline, never at 1970', drawn, 'conf 0.21 conf 0.31 conf 0.11');
+        var byOldKey = tlEvs
+          .slice()
+          .sort(function (a, b) {
+            return ((a && a.tMs) || 0) - ((b && b.tMs) || 0);
+          })
+          .map(function (e) {
+            return 'conf ' + e.conf;
+          })
+          .join(' ');
+        T.ok('the plant is not vacuous — the former key led the page with that same event', byOldKey.indexOf('conf 0.11') === 0, byOldKey);
       }
     });
     group('CPAPDex ∅ — a NaN panel is not a measurement: an empty mask-on lane refuses with a named reason', 'cpapdex-dsp · absence · known-answer', function (T) {
