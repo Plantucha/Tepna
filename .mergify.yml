@@ -1,7 +1,7 @@
 # .mergify.yml — the batching merge queue (GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md §3)
 #
-# LIVE FROM THE CUTOVER: step 1 below removed `.kodiak.toml` from main (owner order 2026-11-18).
-# Until the owner installs the Mergify app, no bot merges.
+# LIVE SINCE 2026-11-18: `.kodiak.toml` is gone from main and the owner installed the Mergify app
+# on this repository and activated its queue (owner order 2026-11-18).
 # Route: the Mergify app, not an org move (owner ruling 2026-10-20, board #649).
 #
 # CUTOVER ORDER (brief §3.2). Two merge bots on one queue race each other, so the owner never runs
@@ -20,9 +20,9 @@
 #    readies a green draft (CLAUDE.md §5).
 #  - The squash message keeps the title, the number and the PR body, as Kodiak's
 #    `body = "pull_request_body"` does, so every commit on main still carries the
-#    `Fleet-Session:` trailer. `commit_message_template` is deprecated in favour of
-#    `commit_message_format`, whose schema the Mergify reference does not state; replace it when
-#    the owner's dashboard shows the declarative form.
+#    `Fleet-Session:` trailer. Mergify REJECTS a config that sets `commit_message_template`
+#    (measured 2026-11-18, check `Mergify Merge Queue`: "has been removed"), so this file uses the
+#    declarative `commit_message_format` that Mergify's own migration PR 5324 proposed.
 #  - `queue_branch_prefix` stays at Mergify's default `mergify/merge-queue/`. The walker skips that
 #    prefix (`QUEUE_BRANCH_PREFIX`) and pr-compliance exempts it for the `mergify[bot]` author only,
 #    because each member PR already passed that gate on its own head.
@@ -32,10 +32,9 @@ queue_rules:
     batch_max_wait_time: 10 minutes
     merge_method: squash
     update_method: merge
-    commit_message_template: |
-      {{ title }} (#{{ number }})
-
-      {{ body }}
+    commit_message_format:
+      title: pr-title
+      body: pr-body
     queue_conditions:
       - base=main
       - -draft
