@@ -1,6 +1,7 @@
 # .mergify.yml — the batching merge queue (GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md §3)
 #
-# INERT UNTIL THE OWNER INSTALLS THE MERGIFY APP. Kodiak (`.kodiak.toml`) merges until then.
+# LIVE FROM THE CUTOVER: step 1 below removed `.kodiak.toml` from main (owner order 2026-11-18).
+# Until the owner installs the Mergify app, no bot merges.
 # Route: the Mergify app, not an org move (owner ruling 2026-10-20, board #649).
 #
 # CUTOVER ORDER (brief §3.2). Two merge bots on one queue race each other, so the owner never runs
