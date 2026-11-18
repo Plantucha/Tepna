@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="b886436a7c8f" data-compute-hash="c394f3dc4d28"><head>
+<html lang="en" data-manifest-hash="55566d706616" data-compute-hash="81930a20d5ce"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-+wAkNNyXIf9HTnfA2GCpOABtDjYh+qLEb7NDCnFmsCA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4esQYmoU7FYRSxckVGhsPB+ddHAbdUxK5/3OtftYgPQ=' 'sha256-6SR7nR5FDNjn2uFYqF/1kbBhQ5X8R/S05VJNsNx+AJE=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-As5LipsLGCe/EzloD/6INTTJidypyywFcaLP3gMY72Q=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-Ei0isbxxdmoCnDzNrUdFgL2GFI1oEPHhlC/ELLG+jkI=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-hZbxewOR/IJnt4wYW1xIXfi8LXLa6bhyJN5Io8hmutA=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qUk2uzrdwZVZkwGhMViWO8BMzTVCslLwRixaYEdIQ3c=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4esQYmoU7FYRSxckVGhsPB+ddHAbdUxK5/3OtftYgPQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-Ei0isbxxdmoCnDzNrUdFgL2GFI1oEPHhlC/ELLG+jkI=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-L9RPM8YDAWQTF2q91cAM8cn/BxTip1KO3H96sNPwOQY=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-hZbxewOR/IJnt4wYW1xIXfi8LXLa6bhyJN5Io8hmutA=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-qUk2uzrdwZVZkwGhMViWO8BMzTVCslLwRixaYEdIQ3c=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-yyc+UpPEkwRmGDi7EusT8/rIJT6woW0l+pzzPrGOmdA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -18067,7 +18067,16 @@ __exports.OxyDex = window.OxyDex;
       r.d_vo2_base = r._hr > 0 ? 15.3 * (hrmax_tanaka / r._hr) * _altFR : NaN;
       // Method 2: HRV-adjusted — rMSSD modulation ±8% band
       const ln_rmssd_ref = 3.7;
-      const rmssd_adj = r._rmssd > 0 ? 1 + 0.08 * (Math.log(r._rmssd) - ln_rmssd_ref) : 1;
+      /* §∅ — AN ABSENT rMSSD CANNOT CARRY AN HRV MODULATION, AND 1 IS NOT "NO MODULATION" HERE.
+         This factor is 1 exactly when `ln(rmssd) === ln_rmssd_ref`, i.e. at rMSSD = e^3.7 ≈ 40.45 ms,
+         so the old `: 1` published `d_vo2_hrv` as the BASE estimate — a number byte-identical to a
+         MEASURED 40.45 ms. It graded a fitness category, entered the 7-day mean and charted under the
+         label "ml/kg/min HRV-adj", which asserts that a modulation was measured and came out neutral.
+         `_rmssd` is null on ordinary paths (`numOrNull` stores a blank Welltory cell as null, `n()`
+         stores a missing `hrv.time.rmssd` as null), so the refusal has to travel: NaN through the
+         product, which `d_vo2_cat` already reads as '—' and the roll7 filter already skips. The
+         HR-only base estimate `d_vo2_base` still ships — it never needed an rMSSD. */
+      const rmssd_adj = r._rmssd > 0 ? 1 + 0.08 * (Math.log(r._rmssd) - ln_rmssd_ref) : NaN;
       r.d_vo2_hrv = !isNaN(r.d_vo2_base) ? r.d_vo2_base * rmssd_adj : NaN;
       // 7-day rolling VO2max mean
       // v2.9 date-keyed, SPAN-BOUNDED since the row cited in `_dayWindow`
@@ -20528,7 +20537,14 @@ __exports.HRVDex = window.HRVDex;
     const rmssdRatio = rmA > 0 ? +(rmB / rmA).toFixed(2) : null;
     // pulse-transit-time variability surrogate: variance PRV adds over HRV.
     // PRV² ≈ HRV² + PTTV²  →  PTTV ≈ √(rmssd_PRV² − rmssd_HRV²).  (vascular/BP jitter)
-    const pttv = rmB > rmA ? +Math.sqrt(Math.max(0, rmB * rmB - rmA * rmA)).toFixed(1) : 0;
+    /* §∅ — THE SURROGATE HAS NO VALUE WHERE ITS OWN IDENTITY HAS NO POSITIVE ROOT. √(PRV²−HRV²)
+       resolves only when the pulse series carries the EXCESS variance the model assumes. A reference
+       that carries LESS than the primary is that premise failing, not a measurement — and the old
+       `: 0` published 0 ms, the healthiest number this tile can show (the app paints ≤15 ms green),
+       byte-identical to a genuinely rock-steady transit time. Equal series keep their exact 0: that
+       root is real and `Math.max(0, …)` already answers it. This is the same shape `rmssdRatio`
+       beside it uses (`rmA > 0 ? … : null`). */
+    const pttv = rmB >= rmA && isFinite(rmA) && isFinite(rmB) ? +Math.sqrt(Math.max(0, rmB * rmB - rmA * rmA)).toFixed(1) : null;
 
     // decide which side is the pulse (PRV) signal for framing
     const kA = primary.kind || 'auto',
@@ -35550,7 +35566,17 @@ __exports.PpgDex = window.PpgDex;
           c++;
         }
       }
-      return c ? a / c : sqi[best] || 0.5;
+      /* §∅ — NO BEAT IN THE WINDOW MEANS NO QUALITY WAS MEASURED THERE, AND 0.5 IS NOT A
+         MEASUREMENT. This line read `sqi[best] || 0.5`, which fires exactly when the nearest beat
+         scored ZERO — the all-artifact score — so the worse the nearby measurement, the BETTER the
+         score published beside the event. A CVHR event can be stamped where no beat lands within
+         ±5 s (the hole edge and the 1 Hz resample both reach past a dropout), and fusion tapers an
+         event's evidence by this number (`integrator-dsp.js` `effConf`), so a fabricated mid-scale
+         0.5 claimed half-trust on a second nothing was measured in. A measured 0 is reported as 0;
+         a record with NO beats at all refuses with null, which is the shape this function already
+         publishes on `stage_*` and `movement_onset` and which `effConf` reads as quality-neutral. */
+      if (!times.length) return null;
+      return c ? a / c : sqi && sqi[best] != null && isFinite(sqi[best]) ? sqi[best] : null;
     };
     // CVHR surge magnitude → likelihood. Amplitudes run ~6–22 bpm; map monotonically
     // into 0.45–0.95 so a strong cyclic surge scores higher than a weak one. SQI no
@@ -35576,6 +35602,9 @@ __exports.PpgDex = window.PpgDex;
        against. */
     for (const ev of cvhr.events) {
       const _posWhy = posReasonAt(ev.sec);
+      /* Read ONCE, so the published number and its absence agree by construction: `+null.toFixed(2)`
+         throws, and a second read could not see a different answer. */
+      const _evSqi = sqiAt(ev.sec);
       events.push({
         t: clock(ev.sec),
         tMs: tmsAt(ev.sec),
@@ -35583,7 +35612,7 @@ __exports.PpgDex = window.PpgDex;
         node: 'ECGDex',
         _sec: ev.sec, // internal: enables late-ACC position re-stamp (stripped on export)
         conf: surgeConf(ev.ampBpm),
-        sqi: +sqiAt(ev.sec).toFixed(2),
+        sqi: _evSqi == null ? null : +_evSqi.toFixed(2),
         meta: {
           ampBpm: ev.ampBpm,
           periodSec: ev.periodSec,
