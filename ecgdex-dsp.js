@@ -6235,6 +6235,14 @@
             /* The unsmoothed twin of the `ppm` above, forwarded from the spine (`spanMs` below stays this
                node's own measurement). Same renaming trap as `stability`: listed here or dropped. */
             spanPpm: ecgHostAx.spanPpm,
+            /* WHICH ARM MEASURED THE `ppm` ABOVE (row
+               `2026-11-16-the-host-axis-estimator-name-reaches-no-consumer`). `clock.js` names the arm on
+               all three of its returns, this list dropped it, and `dex-export.js timingBlock` therefore
+               published a null arm over every ECGDex export. The two arms carry different biases — the
+               running median's end-clamp under-reads — so the name belongs to the rate. The shared block
+               nulls it wherever it quotes no rate, so a drawn column gains no attribution here.
+               The export block at `:8608` is a SEPARATE list and keeps its declared key set. */
+            ppmEstimator: ecgHostAx.ppmEstimator || null,
             maxStepMs: ecgHostAx.maxStepMs,
             spanMs: ecgAxisSpanMs,
             /* σ_y(τ) of the host−device divergence, forwarded from the spine. Like the fields above,

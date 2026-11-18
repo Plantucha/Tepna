@@ -60,6 +60,8 @@
       "spanMs": null,
       "ppm": null,
       "spanPpm": null,
+      "ppmEstimator": null,
+      "ppmUncertainty": null,
       "resyncs": null,
       "seams": null,
       "rate": null,

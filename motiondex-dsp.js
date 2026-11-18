@@ -2097,7 +2097,7 @@
       seams: _seamAnn,
       /* THE HOST-DISCIPLINED AXIS OF THE DOMINANT STREAM (U4 of the same brief). `hostAxis` is the
          raw `DexClock.hostAxis` return — `buildNodeExport` forwards it to `DexExport.timingBlock`,
-         which owns the nine-key shape and the null discipline; `clockAxis` is the published remainder
+         which owns the fourteen-key shape and the null discipline; `clockAxis` is the published remainder
          (see `_mdClockAxis`). The correction itself was already applied to `relNs` at parse time. */
       hostAxis: _mdDomAx ? _mdPubAxis(_mdDomAx.rows._hostAxis) : null,
       exportAxis: _mdExportAxis(_mdDomAx),

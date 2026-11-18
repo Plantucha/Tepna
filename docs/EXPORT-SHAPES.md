@@ -121,7 +121,7 @@ were read back off names the spine never wrote, so both exported as permanent `n
 own trace. The other five nodes published no timing provenance at all, so a consumer could not tell
 "this input carries one clock" from "nobody looked" — different facts, and only one is a measurement.
 
-**The nine keys, always all nine, in this order.**
+**The fourteen keys, always all fourteen, in this order.**
 
 | key | type | meaning |
 |---|---|---|
@@ -131,8 +131,13 @@ own trace. The other five nodes published no timing provenance at all, so a cons
 | `spanMs` | number \| null | the span the `ppm` was measured over — §7 forbids a rate quoted without it |
 | `ppm` | number \| null | the smoothed host−device divergence rate |
 | `spanPpm` | number \| null | the same ratio BEFORE the running median, so a reader can size what the smoother did |
+| `ppmEstimator` | `'end-to-end-median' \| 'single-window' \| null` | which arm of `clock.js` produced the `ppm`; the two carry different biases |
+| `ppmUncertainty` | number \| null | σ_y at the recording's own span, in ppm — the spread that sizes the `ppm` |
 | `resyncs` | int \| null | device-clock resync steps detected |
 | `seams` | int \| null | discontinuities in the PUBLISHED axis |
+| `rate` | number \| null | the published sample rate in Hz, after any correction |
+| `rateRaw` | number \| null | the same rate before the correction |
+| `rateApplied` | `true \| false \| null` | did the `ppm` correction reach the published rate? |
 | `reason` | string \| null | why anything above is `null`; `null` only when nothing is |
 
 **`'device-only'` is not `'device'`.** `'device'` means a host column was present and carried nothing the
@@ -144,6 +149,12 @@ a capture path, has to tell those apart, and the five silent nodes were publishi
 none found. A node with no host stamp column writes `timingSource:'device-only'` and `independent:false` —
 a measured fact about its input format, not silence — and every number it could not measure stays `null`
 beside a `reason` that names the cause.
+
+**A rate owes the spread that sizes it.** `ppm` travelled beside `anchors` and `spanMs`, and that pair
+cannot size it: the spread comes from the host-jitter amplitude, not from the anchor count. `clock.js`
+measures σ_y at the recording's own span and names the estimator arm, so both travel with the rate now.
+A block that quotes a `ppm` with no `ppmUncertainty` names that absence in `reason`, because a bare rate
+reads as a tight one.
 
 **The top tier is a claim.** An UNMEASURED drawn verdict routes to `'host'`, never `'device+host'`: that
 tier says a real second clock disciplined the recording, and "we never measured whether the device column
@@ -157,7 +168,7 @@ column, the ones whose block is all absence. `dex-export.js` is inlined in all n
 CONSUMES a `hostAxis` result and never produces one, so it needs the spine no more than
 `coverageFromSegments` does.
 
-**Gate.** The suite group `one shared timing block — nine keys, one vocabulary, every node-export` pins the
+**Gate.** The suite group `one shared timing block — fourteen keys, one vocabulary, every node-export` pins the
 key set and its ORDER, the closed `timingSource` vocabulary, the ∅ rule, and a source leg asserting all
 eight node-export builders reach `DexExport.timingBlock`. A node that goes back to hand-rolling reds there
 before a single fixture moves.
