@@ -266,7 +266,14 @@ function exportCSV() {
     [95, 94, 93, 92, 91, 90, 89, 88, 85, 80].forEach(function (t) {
       var _td = n.tIdx && (n.tIdx[t] || n.tIdx['t' + t]);
       if (_td) {
-        lines.push('T' + t + ',' + (_td.pct || 0) + ',' + (_td.secs || _td.sec || 0));
+        /* §∅ — the RENDERER ALREADY REFUSES THIS ENTRY and the WRITER printed it: `oxydex-render.js`
+           draws "not measured" for a threshold whose `pct` is null, while `computeTIndex` publishes
+           `pct: null` over an EMPTY population (`measured: 0`) and this row turned it into a measured
+           0 % / 0 s — a night that spent no time below any threshold. The import path also carries
+           `secs: null` beside a real percentage, so the seconds are blanked WITH the percentage and
+           never defaulted to 0. `csvNum` blanks an absent cell and prints a real 0 unchanged. */
+        var _tMeas = _td.pct != null;
+        lines.push('T' + t + ',' + csvNum(_td.pct) + ',' + csvNum(_tMeas ? (_td.secs != null ? _td.secs : _td.sec) : null));
       }
     });
     lines = lines.concat([
