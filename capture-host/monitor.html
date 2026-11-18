@@ -3582,7 +3582,17 @@ function deviceSettingsBlock(d){
           <span class="hint">${d.ring_buzz_at?('last fired '+esc(String(d.ring_buzz_at).slice(11,23))):''}</span>
         </div>${verdict}</div>`;
     })();
-  return `${sdk}${muse}${ring}${boxes||'<span class="hint">no streams reported yet</span>'}`;
+    // ── DECODER REFUSALS. A frame the decoder refuses is still recorded raw, and its arrival row
+    // carries a BLANK sample count rather than a 0 that claimed an empty frame. This line is where the
+    // refusal becomes visible: a night the decoder refused every frame used to read as empty frames.
+    const refused = !d.frames_refused ? '' : (() => {
+      const why = Object.entries(d.refused_reasons || {})
+        .sort((a, b) => b[1] - a[1]).map(([k, n]) => `${esc(k)} ${n}`).join(' · ');
+      return `<div class="setrow" style="display:block;margin-top:.4rem"><span class="k">decoder</span>
+        <span class="mb" style="color:#ca3">refused <b>${d.frames_refused}</b> frame(s) this session${why ? ' — ' + why : ''}.
+        Each one is written raw all the same, and its arrival row carries no sample count.</span></div>`;
+    })();
+  return `${sdk}${muse}${refused}${ring}${boxes||'<span class="hint">no streams reported yet</span>'}`;
 }
 
 async function loadSettings(){

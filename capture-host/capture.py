@@ -5520,15 +5520,20 @@ async def run_muse_athena(dev: dict, root: str):
                 clock = muse_athena.TickClock()
                 replies = muse_athena.ControlReplies()
                 last_rx = [_time.monotonic()]
+                refused = [0]  # frames that did not tokenise this session, and why
+                refused_reasons: dict = {}
 
                 def on_data(_c, data, wr=wr, arr_wr=arr_wr):
                     raw = bytes(data)
                     arrival, mono = _now(), _time.monotonic()
                     last_rx[0] = mono
                     note_data(name, mono)
-                    pkt, _why = muse_athena.tokenise(raw)
+                    pkt, why = muse_athena.tokenise(raw)
                     first_ns = last_ns = None
-                    n_rec = 0
+                    # NULL, never 0, for a frame that did not tokenise: `tokenise` refuses a packet with
+                    # no records as "no-record", so a decoded packet always carries at least one, and a
+                    # written 0 claims "this frame carried no samples" about a frame never decoded.
+                    n_rec = None
                     if pkt is not None:
                         n_rec = len(pkt.records)
                         # One clock read per record, in order: TickClock unwraps by the step from the
@@ -5544,6 +5549,13 @@ async def run_muse_athena(dev: dict, root: str):
                                 BUS.push(eeg_key, [row[:MUSE_LIVE_CHANNELS] for row in eeg], MUSE_EEG_HZ, dev_ns=r_ns)
                     # A refused packet is still written: the raw frame is the record, the decode is not.
                     wr.write_muse(arrival, first_ns, muse_athena.frame_counter(raw), raw)
+                    if pkt is None:
+                        # A REFUSAL IS COUNTED AND NAMED, never left as an empty-looking frame. A night
+                        # where the decoder refused every frame used to publish N arrival rows reading
+                        # `n_samples 0` and nothing that said the frames were never decoded.
+                        refused[0] += 1
+                        refused_reasons[why] = refused_reasons.get(why, 0) + 1
+                        _set(name, frames_refused=refused[0], refused_reasons=dict(refused_reasons))
                     try:
                         arr_wr.write(arrival, name, "MUSE_FRAME", first_ns, last_ns, n_rec, None)
                     except Exception:  # telemetry must never disturb the data callback

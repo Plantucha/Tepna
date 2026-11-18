@@ -3556,16 +3556,20 @@ class PmdArrivalLogWriter:
         self._last_flush = _time.monotonic()
 
     def write(
-        self, arrival: _dt.datetime, device: str, meas, first_ns, last_ns, n_samples: int, first_sample_idx=None
+        self, arrival: _dt.datetime, device: str, meas, first_ns, last_ns, n_samples: int | None, first_sample_idx=None
     ) -> None:
         """`first_sample_idx` is OPTIONAL and LAST, so every existing caller is byte-identical: the
         Polars pass six arguments and get six columns' worth of content with a trailing blank, which is
-        the same absence the two ns columns already use for a device that cannot supply them."""
+        the same absence the two ns columns already use for a device that cannot supply them.
+
+        `n_samples` may be None — a frame that did not decode has no sample count, and it is written
+        BLANK like the two ns columns rather than as `0`, which would claim a frame carrying none (the
+        §∅ rule this file states for every other absent value)."""
 
         def _f(v):
             return "" if v is None else str(v)  # blank, never a fabricated 0
 
-        row = f"{_phone_ts(arrival)};{device};{_f(meas)};{_f(first_ns)};{_f(last_ns)};{n_samples}"
+        row = f"{_phone_ts(arrival)};{device};{_f(meas)};{_f(first_ns)};{_f(last_ns)};{_f(n_samples)}"
         # Six on a resumed six-column file (see __init__): the column is dropped rather than the file
         # being left self-contradictory. A caller that NEEDS the position must open a fresh file.
         if self._cols >= 7:
