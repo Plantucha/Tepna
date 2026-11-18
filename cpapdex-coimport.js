@@ -28,6 +28,15 @@
   var LEAD = 15,
     TRAIL = 60; // R4 — identical to cpapdex-fusion.js / the suite gate
   var MAXGAP_MS = 4 * 3600000; // tolerate ≤4 h device-start offset when no overlap
+  /* §∅ — AN AHI↔ODI VERDICT NEEDS THE TWO RECORDS TO SHARE TIME. `MAXGAP_MS` deliberately pairs a peer
+     whose clock is offset by up to 4 h, and that pairing can carry ZERO overlap: a peer that starts
+     3.5 h after this night ends, or a CPAP night whose own span was never measured (`_nightWindow`
+     then collapses to a point). Both records are real, the ratio between them is still computable, and
+     it is meaningless — it compares an AHI scored on one night against an ODI measured on another, and
+     it was published as 'concordant' / 'ahi-led' / 'odi-led' with a mechanism note attached.
+     A tenth of the night is the smallest span on which a night-level AHI and a night-level ODI
+     describe the same hours. Below it there is no verdict, and `concordanceNote` says why. */
+  var MIN_CONCORD_OVERLAP_PCT = 10;
 
   var PEERS = { oxy: [], ecg: [] }; // accumulated, normalized peer recordings
 
@@ -328,7 +337,7 @@
     var ahi = night.metrics ? night.metrics.residualAHI : null,
       concordance = null,
       concNote = null;
-    if (oxi && oxi.odi != null && ahi != null) {
+    if (oxi && oxi.odi != null && ahi != null && oxi.overlapPct != null && oxi.overlapPct >= MIN_CONCORD_OVERLAP_PCT) {
       var ratio = oxi.odi > 0 ? ahi / oxi.odi : ahi > 0 ? Infinity : 1;
       if (ratio >= 0.7 && ratio <= 1.5) {
         concordance = 'concordant';
@@ -340,6 +349,11 @@
         concordance = 'odi-led';
         concNote = 'external desats exceed scored apneas — non-apneic hypoxemia or leak-masked scoring';
       }
+    } else if (oxi && oxi.odi != null && ahi != null) {
+      /* §∅ — the two numbers are real and the comparison is not. Say which, and say how much of the
+         night the borrowed record actually covers, so a reader can tell "nothing shared" from a
+         thinning overlap that is still being reported. */
+      concNote = 'the borrowed oximetry night shares ' + (oxi.overlapPct != null ? oxi.overlapPct + ' % of' : 'no measured span with') + ' this night — too little overlap for an AHI ↔ ODI verdict';
     }
     return { oximetry: oxi, autonomic: aut, ahi: ahi, concordance: concordance, concordanceNote: concNote };
   }

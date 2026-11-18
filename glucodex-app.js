@@ -1510,10 +1510,10 @@ import './glucodex-profile.js';
       ['— Patterns —', '', '', '', 'neutral', 'event-level → Ganglior'],
       [
         'Dawn phenomenon',
-        r.dawn.present ? 'Present' : r.dawn.days && r.dawn.days.length ? 'Not flagged' : '—',
+        r.dawn.present === true ? 'Present' : r.dawn.present === false ? 'Not flagged' : '—',
         r.dawn.medianDelta != null ? '+' + window.GluDisp.val(r.dawn.medianDelta) + ' ' + window.GluDisp.label() : '—',
         '≥20 flags',
-        r.dawn.present ? 'warn' : 'ok',
+        r.dawn.present == null ? 'neutral' : r.dawn.present ? 'warn' : 'ok',
         'Nadir(03–06h)→pre-breakfast rise'
       ],
       ['Nocturnal hypos', r.nocturnalHypo.length, 'episodes', '0', r.nocturnalHypo.length ? 'bad' : 'ok', '00:00–06:00 ≥15 min <70'],
