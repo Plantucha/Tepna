@@ -36,7 +36,9 @@
  *              'summary' and otherwise writes what it is handed. The vocabulary is held
  *              against the CALL SITES by the suite's node-lane census (dex-tests.js,
  *              group 'the exportName kind vocabulary is closed over its call sites'),
- *              which parses every exportName( site in the tracked root sources. A runtime
+ *              which parses every exportName( site in the tracked root sources and runs
+ *              BOTH ways: a kind outside the set reds, and a member no call site passes
+ *              reds as dead vocabulary. A runtime
  *              throw was rejected: an export is the one moment a reader has the data in
  *              hand, so a bad kind must red in CI and never on the reader's click.
  *   ext      : format extension — json | csv | jsonl | html (the format lives in the
@@ -61,20 +63,27 @@
   'use strict';
 
   // Controlled `kind` vocabulary (brief §2.3) — collapses the per-node drift
-  // (_summary / _multi<N> / _ganglior / .node-export.json double-suffix) into five.
+  // (_summary / _multi<N> / _ganglior / .node-export.json double-suffix) into four.
   //   ganglior  : the ganglior.node-export JSON — the fusion currency
   //   summary   : human-readable metrics table (CSV/JSON)
   //   series    : per-record rows (multi-recording array / JSONL) — NO count suffix
-  //   report    : rendered HTML/PDF
   //   hypnogram : a staged sleep sequence (HypnoExport viewer CSV / JSON)
-  // `hypnogram` joined on 2026-11-16, measured over 26 exportName( call sites in 522
-  // tracked sources: ecgdex-app.js and oxydex-app.js had shipped it since HypnoExport
-  // arrived, outside a vocabulary enumerated in June 2026 and never consulted by this
-  // module. It is not foldable into `series`: ECGDex's cross-recording export at
+  // The set is exactly the PRODUCED set, and the suite census holds it there in BOTH
+  // directions: no call site may pass a kind outside it, and no member may sit here with
+  // no call site. `hypnogram` joined on 2026-11-16, measured over 26 exportName( call
+  // sites in 522 tracked sources: ecgdex-app.js and oxydex-app.js had shipped it since
+  // HypnoExport arrived, outside a vocabulary enumerated in June 2026 and never consulted
+  // by this module. It is not foldable into `series`: ECGDex's cross-recording export at
   // ecgdex-app.js:3177 passes kind 'series' with spanDays null for one recording, so a
-  // hypnogram renamed to 'series' collides on the identical filename. `report` is
-  // declared and produced by no call site; that is logged, not repaired here.
-  var EXPORT_KINDS = ['ganglior', 'summary', 'series', 'report', 'hypnogram'];
+  // hypnogram renamed to 'series' collides on the identical filename.
+  // `report` (rendered HTML/PDF, brief §2.3) LEFT on 2026-11-17: it was enumerated in
+  // June 2026 and no call site ever passed it, so the array published an export shape
+  // nobody could produce. Re-measured at a28b9aae2 over 131 root `*.js` files: 26 call
+  // sites, 29 site-values, 13 summary, 10 series, 4 ganglior, 2 hypnogram, 0 report, 0
+  // unresolvable. The two rendering paths, dex-actions.js:86 and integrator-app.js:448,
+  // call window.print() and build no filename at all. Wiring a report export brings the
+  // name back beside its call site, in one PR.
+  var EXPORT_KINDS = ['ganglior', 'summary', 'series', 'hypnogram'];
 
   function _p2(n) {
     n = '' + n;

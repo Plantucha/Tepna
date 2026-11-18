@@ -96750,7 +96750,7 @@
       // `hypnogram` joined on 2026-11-16: two call sites had shipped it since HypnoExport arrived, and
       // the array — enumerated in June 2026 — had no reader. The census group below is what now holds
       // this list against the call sites; this line pins the list itself.
-      T.eq('EXPORT_KINDS vocabulary is closed', JSON.stringify(DX.EXPORT_KINDS), JSON.stringify(['ganglior', 'summary', 'series', 'report', 'hypnogram']));
+      T.eq('EXPORT_KINDS vocabulary is closed', JSON.stringify(DX.EXPORT_KINDS), JSON.stringify(['ganglior', 'summary', 'series', 'hypnogram']));
       T.eq('hypnogram csv name', EN({ node: 'ECGDex', t0Ms: t0, kind: 'hypnogram', ext: 'csv' }), 'ECGDex_2026-06-13_2044_hypnogram.csv');
       // EXPORT-HYGIENE-FOLLOWUPS-II §1: OPTIONAL recording.contentId disambiguator — appended `_<contentId>`
       // AFTER the kind segment, BEFORE the extension (the brief's worked example). Suffix present IFF given.
@@ -96794,7 +96794,9 @@
        comment with an export statement. It was enumerated in June 2026 over four kinds; HypnoExport
        arrived later, and two call sites shipped `hypnogram` for months with every gate green. An
        enumerated vocabulary is a POPULATION CLAIM in disguise — it encodes the call sites that existed
-       the day someone typed it. This leg holds the array against the SITES, not against a reader.
+       the day someone typed it. This leg holds the array against the SITES, not against a reader, and
+       it runs BOTH ways: `report` sat in the array from June 2026 and no call site ever passed it, so
+       the array published an export shape nobody could produce. It left on 2026-11-17.
 
        A runtime throw was rejected: an export is the one moment a reader holds the data in hand, so a
        kind outside the vocabulary reds in CI and never on the reader's click.
@@ -96913,13 +96915,19 @@
       T.ok('the scan found the call sites', resolved.length >= 25, 'resolved ' + resolved.length + ' site-value(s) over ' + names.length + ' file(s)');
       T.eq('every exportName kind sits in EXPORT_KINDS', outside.join(' | '), '');
       T.eq('no kind expression is unresolvable (an unjudged site is not a pass)', unresolved.join(' | '), '');
-      /* the other direction — a declared kind nobody produces is dead vocabulary. `report` is declared
-         and produced by no call site (measured 2026-11-16 over all 26 sites); that is logged, not
-         repaired here, so the set is RATCHETED: wiring a report export lowers this pin in the same PR. */
+      /* the other direction — a declared kind nobody produces is dead vocabulary. `report` carried that
+         name from June 2026 to 2026-11-17 and left in the same PR as this pin: the set is now exactly
+         the produced set, so a member with no call site reds here and a new kind arrives beside the
+         call site that produces it. The direction must DISCRIMINATE before it judges, so a kind this
+         census cannot find is shown to come back dead. */
+      var probeDead = KINDS.concat(['nosuchkind']).filter(function (k) {
+        return resolved.indexOf(k) === -1;
+      });
+      T.eq('a declared kind no call site produces IS reported dead', probeDead.join(','), 'nosuchkind');
       var dead = KINDS.filter(function (k) {
         return resolved.indexOf(k) === -1;
       });
-      T.eq('the declared-but-unproduced set is the one measured', dead.join(','), 'report');
+      T.eq('no declared kind sits unproduced (the vocabulary IS the produced set)', dead.join(','), '');
     });
 
     /* ════ EXPORT-IDENTITY-FOLLOWUPS §2 — provenance inputs[].name PHI scrub ════

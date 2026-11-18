@@ -95,8 +95,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "b75bfceb17f9",
-        "computeHash": "36881c05aa6e"
+        "manifestHash": "14c8ae95f500",
+        "computeHash": "261003306dd9"
       },
       "evidence": {
         "envelopeRef": null,
@@ -125,8 +125,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "b75bfceb17f9",
-        "computeHash": "36881c05aa6e"
+        "manifestHash": "14c8ae95f500",
+        "computeHash": "261003306dd9"
       },
       "evidence": {
         "envelopeRef": null,
