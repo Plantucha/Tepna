@@ -546,35 +546,56 @@ export function mapShapes(dspText, fnName, arrayVar) {
     }
   }
   if (last < 0) return null;
-  const mapAt = [];
-  let mapCalls = 0;
+  /* 🔴 A `.map(` COUNT WITH NO SCOPE REFUSES EVERY BUILDER THAT MAPS INSIDE ITS OWN CALLBACK.
+     The old count read every `.map(` in the statement. So `fusePeriodicBreathing`, which holds one
+     element map over eight nested ones, had no shape source at all, and the render file read six of
+     its ten element keys unjudged. A nested map is not a second element producer. It belongs to the
+     element, one layer down.
+
+     The element producer is the ONE `.map(` at the statement's own bracket depth. The element
+     literal is the ONE `return {` whose enclosing function is that callback. A deeper map's return
+     sits in a deeper callback, and the `.filter` beside it sits in another one, so both drop out.
+     Two own-scope returns are a branch pair, and the shape is then a union this reader does not
+     build. It REFUSES, rather than reading one branch and calling the shape complete. */
+  const bd = (s) => (s.match(/[{[(]/g) || []).length - (s.match(/[}\])]/g) || []).length;
+  let rel = 0;
+  const topMaps = [];
   for (let j = decl[0]; j <= last; j++) {
-    const n = (lines[j].match(/\.\s*map\s*\(/g) || []).length;
-    if (!n) continue;
-    mapCalls += n;
-    mapAt.push(j);
+    for (const m of lines[j].matchAll(/\.\s*map\s*\(/g)) {
+      if (rel + bd(lines[j].slice(0, m.index)) === 0) topMaps.push(j);
+    }
+    rel += bd(lines[j]);
   }
-  if (mapCalls !== 1) return null;
-  for (let j = mapAt[0]; j <= last; j++) {
-    const m = /\breturn\s*\{/.exec(lines[j]);
-    if (!m) continue;
-    const open = m.index + m[0].length - 1;
-    if (!/return\s*\{\s*$/.test(lines[j])) {
-      const one = oneLineObject(lines[j], open);
-      if (!one) return null;
-      return mergeShapes([{ at: j + 1, keys: one, via: 'map' }]);
+  if (topMaps.length !== 1) return null;
+  const mapLine = topMaps[0];
+  const litAt = [];
+  for (let j = mapLine; j <= last; j++) {
+    if (!/\breturn\s*\{/.test(lines[j])) continue;
+    if (j === mapLine) {
+      litAt.push(j);
+      continue;
     }
-    let od = 0;
-    const keys = [];
-    for (let k = j; k <= last; k++) {
-      if (k > j && od === 1) {
-        const km = lines[k].match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/);
-        if (km) keys.push(km[1]);
-      }
-      od += (lines[k].match(/[{[]/g) || []).length - (lines[k].match(/[}\]]/g) || []).length;
-      if (k > j && od <= 0) return mergeShapes([{ at: j + 1, keys, via: 'map' }]);
+    const fnc = enclosingFn(lines, j);
+    if (fnc && fnc[0] === mapLine) litAt.push(j);
+  }
+  if (litAt.length !== 1) return null;
+  const lit = litAt[0];
+  const m = /\breturn\s*\{/.exec(lines[lit]);
+  const open = m.index + m[0].length - 1;
+  if (!/return\s*\{\s*$/.test(lines[lit])) {
+    const one = oneLineObject(lines[lit], open);
+    if (!one) return null;
+    return mergeShapes([{ at: lit + 1, keys: one, via: 'map' }]);
+  }
+  let od = 0;
+  const keys = [];
+  for (let k = lit; k <= last; k++) {
+    if (k > lit && od === 1) {
+      const km = lines[k].match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/);
+      if (km) keys.push(km[1]);
     }
-    return null;
+    od += (lines[k].match(/[{[]/g) || []).length - (lines[k].match(/[}\]]/g) || []).length;
+    if (k > lit && od <= 0) return mergeShapes([{ at: lit + 1, keys, via: 'map' }]);
   }
   return null;
 }
@@ -3746,7 +3767,42 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('an array the builder does not declare refuses', mapShapes(M1, 'build', 'other'), null);
   ck('a second declaration of the array name refuses', mapShapes(M1.replace('  var out = (recs || [])', '  var out = [];\n  var out = (recs || [])'), 'build', 'out'), null);
   ck('a statement with no map refuses', mapShapes('function b(r) {\n  var o = (r || []).slice();\n  return o;\n}', 'b', 'o'), null);
-  ck('a statement with TWO maps is ambiguous and refuses', mapShapes('function b(r) {\n  var o = (r || []).map(f).map(function (x) {\n    return { a: 1 };\n  });\n  return o;\n}', 'b', 'o'), null);
+  ck(
+    'a statement with TWO maps at its OWN depth is ambiguous and refuses',
+    mapShapes('function b(r) {\n  var o = (r || []).map(f).map(function (x) {\n    return { a: 1 };\n  });\n  return o;\n}', 'b', 'o'),
+    null
+  );
+  /* 🔴 A MAP INSIDE THE ELEMENT IS NOT A SECOND ELEMENT PRODUCER. This fixture maps the
+     element's own items, so the statement holds two maps and only the outer one is at the
+     statement's depth. The reader takes the outer one, and it reads the own-scope literal. */
+  const MN = [
+    'function build(recs) {',
+    '  var out = (recs || [])',
+    '    .map(function (g) {',
+    '      var tags = g.items.map(function (i) {',
+    '        return { tag: i.tag };',
+    '      });',
+    '      return {',
+    '        node: g.node,',
+    '        tags: tags',
+    '      };',
+    '    });',
+    '  return out;',
+    '}'
+  ].join('\n');
+  ck('🔴 a map inside the element reads, and the nested one is not the producer', mapShapes(MN, 'build', 'out').keys, ['node', 'tags']);
+  ck("…naming the own-scope literal, never the nested callback's", mapShapes(MN, 'build', 'out').at, 7);
+  ck('…from one site', mapShapes(MN, 'build', 'out').sites.length, 1);
+  ck(
+    '🔴 a branch pair of own-scope literals refuses, because the shape is a union this reader does not build',
+    mapShapes(
+      'function build(recs) {\n  var out = (recs || []).map(function (g) {\n    if (g.ok) {\n      return {\n        a: 1\n      };\n    }\n    return {\n      b: 2\n    };\n  });\n  return out;\n}',
+      'build',
+      'out'
+    ),
+    null
+  );
+  ck('a named callback carries no literal here, so it refuses', mapShapes('function build(recs) {\n  var out = (recs || []).map(toRow);\n  return out;\n}', 'build', 'out'), null);
   ck(
     'a literal that never closes refuses, and is not read short',
     mapShapes('function b(r) {\n  var o = (r || []).map(function (x) {\n    return {\n      a: 1\n  });\n  return o;\n}', 'b', 'o'),
