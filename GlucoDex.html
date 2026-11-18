@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="7f48fb0bfdec" data-compute-hash="f139ca2fad9b">
+<html lang="en" data-manifest-hash="a0d9a50a6573" data-compute-hash="c2277b7a1482">
 <head>
 <!--
   GlucoDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+xzpEo7j8lNVgQnIPgYoTxcQ1f8bXnk43yEwsEwTpqo=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-3svKSdRdlZI82Y/rLhtgO321jPG2dJseCANtlOvchhM=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Cv0u2I9YwZm5jvAom4gFQfIMWPy64JRPiXEm2o7elJ4=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hZbxewOR/IJnt4wYW1xIXfi8LXLa6bhyJN5Io8hmutA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-xeo/SvJn5pePZ1SM5sKHX3dRwul+yLMPUvGj5yOK8ns='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3svKSdRdlZI82Y/rLhtgO321jPG2dJseCANtlOvchhM=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Cv0u2I9YwZm5jvAom4gFQfIMWPy64JRPiXEm2o7elJ4=' 'sha256-DmRyvMG6q+qyrmPiFRynuKJz6UNa02ZpXwnLA02NwCY=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-xeo/SvJn5pePZ1SM5sKHX3dRwul+yLMPUvGj5yOK8ns='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>GlucoDex — Continuous Glucose Analyzer · v2.34.0</title>
@@ -9393,7 +9393,16 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         });
       }
     }
-    if (!deltas.length) return { present: false, days: [] };
+    /* §∅ — A RECORD WITH NO 03–06h → 06–08h WINDOW HAS NO DAWN VERDICT. `deltas` is empty when no day
+       carries a nadir in 03:00–06:00 beside at least two samples in 06:00–08:00 — a wear that starts
+       after breakfast, a night whose whole span is warm-up or long gap, a trimmed export. The old line
+       answered `present: false`, the SAME value a measured absence of a rise produces, so a record with
+       zero windows claimed the negative clinical finding, and the export carried
+       `patterns.dawnPhenomenon.present: false` where a reader sees a checked result.
+       `tierOf` below already carries the sibling fix for an unmeasured span (§∅, task 32). `present`
+       now reads null WITH its reason; `days` and `nDays` still say how many days contributed, so a
+       consumer holding only the list renders "—" instead of "not flagged". */
+    if (!deltas.length) return { present: null, medianDelta: null, days: [], nDays: 0, reason: 'no-day-with-both-windows' };
     const md = Math.round(median(deltas.map((d) => d.delta)));
     return { present: md >= 20, medianDelta: md, days: deltas, nDays: deltas.length };
   }
@@ -14636,10 +14645,10 @@ __require('glucodex-profile.js');
       ['— Patterns —', '', '', '', 'neutral', 'event-level → Ganglior'],
       [
         'Dawn phenomenon',
-        r.dawn.present ? 'Present' : r.dawn.days && r.dawn.days.length ? 'Not flagged' : '—',
+        r.dawn.present === true ? 'Present' : r.dawn.present === false ? 'Not flagged' : '—',
         r.dawn.medianDelta != null ? '+' + window.GluDisp.val(r.dawn.medianDelta) + ' ' + window.GluDisp.label() : '—',
         '≥20 flags',
-        r.dawn.present ? 'warn' : 'ok',
+        r.dawn.present == null ? 'neutral' : r.dawn.present ? 'warn' : 'ok',
         'Nadir(03–06h)→pre-breakfast rise'
       ],
       ['Nocturnal hypos', r.nocturnalHypo.length, 'episodes', '0', r.nocturnalHypo.length ? 'bad' : 'ok', '00:00–06:00 ≥15 min <70'],
