@@ -2654,9 +2654,13 @@ def night_verdict(audit: dict, *, night_dir: str, commit: str | None = None) -> 
         "unreadable": unreadable,
         "worn_but_not_recorded_fraction": frac,
         "worn_lost_min": round(worn_lost_all, 1),
-        # NULL, never 0.0, when no worn span was measured: a zero here reads as "the device was worn for
-        # no time", which is the absence this row is about.
-        "worn_span_min": round(worn_span, 1) if measured_worn else None,
+        # NO NULL ARM HERE, AND NOT BECAUSE 0.0 WOULD BE HONEST: a zero would read as "the device was
+        # worn for no time", which is the absence this row is about. The arm is absent because nothing
+        # can reach it. An empty `measured_worn` sums to `worn_span` 0, so `frac` is None and the
+        # NOT_APPLICABLE return above ships `result=None` before this dict is read. A guard here would
+        # be dead code that no test can observe, which the diff-scoped mutation gate reported as a
+        # survivor on 2026-11-18 (`x_night_verdict__mutmut_111`).
+        "worn_span_min": round(worn_span, 1),
         # The worn devices whose denominator could not be measured, so the fraction above is over a
         # smaller population than `worn_lost_min` and the reader can see which one is missing.
         "worn_span_unmeasured": span_unmeasured,
