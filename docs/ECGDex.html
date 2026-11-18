@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="2bff3bd9bc8c" data-compute-hash="a2f933f8ac5f">
+<html lang="en" data-manifest-hash="47feb40235b1" data-compute-hash="555cc9aeeb12">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ETqZPnyEOMCJ7vZgS1XxfM5eP45arYHcZc+vUSdnVMY=' 'sha256-EsYN7eo2F0HNK6CeIvcbG9Z9rz1HKPU+LM9yqf7DtqE=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-XUjSD43KV2leg5dE+hvfnBFMzn7odvk/dFCIFspJu0U=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-iqPNvfgaOLLxsrqf67NdcyYbCf6pshw6DVlOebr7HSE=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw=' 'sha256-yyc+UpPEkwRmGDi7EusT8/rIJT6woW0l+pzzPrGOmdA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+Yf72wB3KQPWHAdGzaaAY9AZBWh+pxZd/QO6+1/Kk78=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ETqZPnyEOMCJ7vZgS1XxfM5eP45arYHcZc+vUSdnVMY=' 'sha256-EsYN7eo2F0HNK6CeIvcbG9Z9rz1HKPU+LM9yqf7DtqE=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-XUjSD43KV2leg5dE+hvfnBFMzn7odvk/dFCIFspJu0U=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-iqPNvfgaOLLxsrqf67NdcyYbCf6pshw6DVlOebr7HSE=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.34.0</title>
@@ -15364,39 +15364,76 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     const kSigma = opts.sigma != null ? opts.sigma : 3;
     const localBins = opts.localBins != null ? opts.localBins : Math.max(1, Math.round(5 / dtSec));
     const minGapSec = opts.minGapSec != null ? opts.minGapSec : 30;
+    /* An unusable grid returns before the detector looks at anything, so the diagnostics below are
+       ABSENT here rather than null: this call reached no population at all. */
     if (!grid || !grid.length || !(dtSec > 0)) return [];
     const n = grid.length;
+    /* ∅ A CELL NOTHING MEASURED IS NOT A QUIET CELL, AND THIS DETECTOR READ IT AS ONE. `opts.covered`
+       carries one flag per grid cell, and the owner's 2026-09-17 ruling splits the two harms it
+       repairs. A gap INSIDE a candidate's local window is a DISCONTINUITY, so the candidate refuses:
+       the local-maximum test compared it against cells nobody recorded. A gap elsewhere is reduced
+       COVERAGE, so it annotates: the threshold statistics read the covered cells only.
+       Measured 2026-11-18 on a 600 s synthetic gyro stream with five planted bursts. A 1.8 s gap over
+       one burst's peak moved that onset from 300.50 s to 303.50 s, which is a 3.00 s shift of a
+       fiducial whose cross-device agreement is 12 s, and the count stayed 5 with nothing marking the
+       move. A 90 s quiet gap over 15 % of the cells depressed the all-cell threshold from 1.20364 to
+       1.10771, so it lowers the bar for every onset in the night.
+       Coverage stays OPTIONAL and LAST, so the twin in the other node and the parity gate keep their
+       contract. An uncovered CANDIDATE needs no test of its own, because a structural 0 never reaches
+       a positive threshold. A coverage array of the wrong length reads as UNKNOWN coverage, and the
+       null diagnostics below say so. */
+    const cov = opts.covered && opts.covered.length === n ? opts.covered : null;
+    let m = 0;
+    let nStat = 0;
+    for (let i = 0; i < n; i++) {
+      if (cov && !cov[i]) continue;
+      m += grid[i];
+      nStat++;
+    }
+    m = nStat ? m / nStat : 0;
     /* mean + k·SD. A MAD-based threshold was tried and REJECTED: MAD tracks the quiet baseline, which
        on a differenced (jerk) grid is almost zero, so the threshold collapses and the detector fired
        713 times in one night instead of 29. The tail this distribution carries is the SIGNAL, and a
        threshold that ignores it is not robust, it is blind. */
-    let m = 0;
-    for (let i = 0; i < n; i++) m += grid[i];
-    m /= n;
     let v = 0;
     for (let i = 0; i < n; i++) {
+      if (cov && !cov[i]) continue;
       const d = grid[i] - m;
       v += d * d;
     }
-    const sd = Math.sqrt(v / n) || 1;
+    const sd = (nStat ? Math.sqrt(v / nStat) : 0) || 1;
     const thr = m + kSigma * sd;
     const out = [];
     let last = -Infinity;
+    let nRefused = 0;
     for (let c = 0; c < n; c++) {
       if (grid[c] < thr) continue;
       let isMax = true;
+      let windowKnown = true;
       for (let k = c - localBins; k <= c + localBins; k++) {
         if (k >= 0 && k < n && grid[k] > grid[c]) {
           isMax = false;
           break;
         }
+        if (cov && k >= 0 && k < n && !cov[k]) windowKnown = false;
       }
       if (!isMax) continue;
+      /* A refusal must never SUPPRESS, so it runs before the 30 s gap test and leaves `last` alone.
+         A candidate nobody can prove is not an onset, and it must not hide the next real one. */
+      if (!windowKnown) {
+        nRefused++;
+        continue;
+      }
       const sec = c * dtSec;
       if (sec - last < minGapSec) continue;
       out.push(sec);
       last = sec;
     }
+    /* Unconditional, and `null` when nobody looked — the same rule and the same reason as
+       `_nonFiniteDropped` in this file. A reader must tell "no candidate was refused" from "this call
+       carried no coverage", and a key that appears only when non-zero cannot. */
+    /** @type {any} */ (out)._refusedUncovered = cov ? nRefused : null;
+    /** @type {any} */ (out)._coveredCells = cov ? nStat : null;
     return out;
   }
 
@@ -15431,13 +15468,21 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     const _mvDt = 0.25;
     const _mvN = Math.max(1, Math.ceil(durSec / _mvDt));
     const _mvGrid = new Float64Array(_mvN);
+    /* ∅ WHICH CELLS A JERK SAMPLE ACTUALLY REACHED. `_mvGrid` is zero-initialised, so a cell the
+       chest ACC never covered was indistinguishable from a cell that said "not moving", and the
+       detector's local-maximum test read it as quiet. The twin in `ppgdex-dsp.js` tracks the same
+       flag beside its own grid, for the same reason and under the parity gate. */
+    const _mvCov = new Uint8Array(_mvN);
     for (let i = 1; i < N; i++) {
       const d = Math.abs(vm[i] - vm[i - 1]);
       if (!Number.isFinite(d)) continue;
       const g = Math.floor((i / fs - off) / _mvDt);
-      if (g >= 0 && g < _mvN && d > _mvGrid[g]) _mvGrid[g] = d;
+      if (g >= 0 && g < _mvN) {
+        _mvCov[g] = 1;
+        if (d > _mvGrid[g]) _mvGrid[g] = d;
+      }
     }
-    const movementOnsets = _movementOnsets(_mvGrid, _mvDt, {});
+    const movementOnsets = _movementOnsets(_mvGrid, _mvDt, { covered: _mvCov });
 
     const rracc = _rraccEpochs(vm, fs, off);
     const hi = rracc.filter((e) => e.conf === 'high'),

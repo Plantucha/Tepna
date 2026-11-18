@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="75a122c0b35e" data-compute-hash="18277b6c8d68">
+<html lang="en" data-manifest-hash="1912d259daf3" data-compute-hash="5b049451694a">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3QOLYKBsffbmLXFalO1pSufl+HcbSk6JP025X/WpQs=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LRa7VQaZD1GO9QtTgm/NOp9niJoNbsRPsWXzCbrnE10=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-RYbEDe8n1EnsuE+iGb3nEmieX6VmsWSx+H7VD3h8uQ8=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-YKFNI17jABWarI+TzyhC2Zxm/OqdMQx0CohWrfJnWdY=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-ggYU1ihdHnt0X/nkam6OcByjHEJh1otVD4lM1EcVO8Q=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-qUk2uzrdwZVZkwGhMViWO8BMzTVCslLwRixaYEdIQ3c=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3QOLYKBsffbmLXFalO1pSufl+HcbSk6JP025X/WpQs=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LRa7VQaZD1GO9QtTgm/NOp9niJoNbsRPsWXzCbrnE10=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-RYbEDe8n1EnsuE+iGb3nEmieX6VmsWSx+H7VD3h8uQ8=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-YKFNI17jABWarI+TzyhC2Zxm/OqdMQx0CohWrfJnWdY=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-ggYU1ihdHnt0X/nkam6OcByjHEJh1otVD4lM1EcVO8Q=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wcQyN/o6gEHnfexuEoWhT5jMi00hPfZQB8Q2n7NK8EI=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.34.0</title>
@@ -13466,39 +13466,76 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     const kSigma = opts.sigma != null ? opts.sigma : 3;
     const localBins = opts.localBins != null ? opts.localBins : Math.max(1, Math.round(5 / dtSec));
     const minGapSec = opts.minGapSec != null ? opts.minGapSec : 30;
+    /* An unusable grid returns before the detector looks at anything, so the diagnostics below are
+       ABSENT here rather than null: this call reached no population at all. */
     if (!grid || !grid.length || !(dtSec > 0)) return [];
     const n = grid.length;
+    /* ∅ A CELL NOTHING MEASURED IS NOT A QUIET CELL, AND THIS DETECTOR READ IT AS ONE. `opts.covered`
+       carries one flag per grid cell, and the owner's 2026-09-17 ruling splits the two harms it
+       repairs. A gap INSIDE a candidate's local window is a DISCONTINUITY, so the candidate refuses:
+       the local-maximum test compared it against cells nobody recorded. A gap elsewhere is reduced
+       COVERAGE, so it annotates: the threshold statistics read the covered cells only.
+       Measured 2026-11-18 on a 600 s synthetic gyro stream with five planted bursts. A 1.8 s gap over
+       one burst's peak moved that onset from 300.50 s to 303.50 s, which is a 3.00 s shift of a
+       fiducial whose cross-device agreement is 12 s, and the count stayed 5 with nothing marking the
+       move. A 90 s quiet gap over 15 % of the cells depressed the all-cell threshold from 1.20364 to
+       1.10771, so it lowers the bar for every onset in the night.
+       Coverage stays OPTIONAL and LAST, so the twin in the other node and the parity gate keep their
+       contract. An uncovered CANDIDATE needs no test of its own, because a structural 0 never reaches
+       a positive threshold. A coverage array of the wrong length reads as UNKNOWN coverage, and the
+       null diagnostics below say so. */
+    const cov = opts.covered && opts.covered.length === n ? opts.covered : null;
+    let m = 0;
+    let nStat = 0;
+    for (let i = 0; i < n; i++) {
+      if (cov && !cov[i]) continue;
+      m += grid[i];
+      nStat++;
+    }
+    m = nStat ? m / nStat : 0;
     /* mean + k·SD. A MAD-based threshold was tried and REJECTED: MAD tracks the quiet baseline, which
        on a differenced (jerk) grid is almost zero, so the threshold collapses and the detector fired
        713 times in one night instead of 29. The tail this distribution carries is the SIGNAL, and a
        threshold that ignores it is not robust, it is blind. */
-    let m = 0;
-    for (let i = 0; i < n; i++) m += grid[i];
-    m /= n;
     let v = 0;
     for (let i = 0; i < n; i++) {
+      if (cov && !cov[i]) continue;
       const d = grid[i] - m;
       v += d * d;
     }
-    const sd = Math.sqrt(v / n) || 1;
+    const sd = (nStat ? Math.sqrt(v / nStat) : 0) || 1;
     const thr = m + kSigma * sd;
     const out = [];
     let last = -Infinity;
+    let nRefused = 0;
     for (let c = 0; c < n; c++) {
       if (grid[c] < thr) continue;
       let isMax = true;
+      let windowKnown = true;
       for (let k = c - localBins; k <= c + localBins; k++) {
         if (k >= 0 && k < n && grid[k] > grid[c]) {
           isMax = false;
           break;
         }
+        if (cov && k >= 0 && k < n && !cov[k]) windowKnown = false;
       }
       if (!isMax) continue;
+      /* A refusal must never SUPPRESS, so it runs before the 30 s gap test and leaves `last` alone.
+         A candidate nobody can prove is not an onset, and it must not hide the next real one. */
+      if (!windowKnown) {
+        nRefused++;
+        continue;
+      }
       const sec = c * dtSec;
       if (sec - last < minGapSec) continue;
       out.push(sec);
       last = sec;
     }
+    /* Unconditional, and `null` when nobody looked — the same rule and the same reason as
+       `_nonFiniteDropped` in this file. A reader must tell "no candidate was refused" from "this call
+       carried no coverage", and a key that appears only when non-zero cannot. */
+    /** @type {any} */ (out)._refusedUncovered = cov ? nRefused : null;
+    /** @type {any} */ (out)._coveredCells = cov ? nStat : null;
     return out;
   }
 
@@ -16142,7 +16179,12 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
        the signal is strongest. Carries which inertial streams contributed, because a cross-device fit
        that cannot say WHICH sensor found an offset cannot be audited. */
     if (motion && motion.hasData && motion.grid && motion.dt) {
-      const onsets = movementOnsets(motion.onsetGrid || motion.grid, motion.dt, {});
+      /* ∅ COVERAGE REACHES THE DETECTOR, because `onsetGrid` holds a structural 0 for every cell no
+         inertial sample reached and the local-maximum test read those as quiet. Built from the
+         published accessor rather than a new field, so `analyzeMotion`'s contract does not move. */
+      const _onsCov = new Uint8Array((motion.onsetGrid || motion.grid).length);
+      for (let _i = 0; _i < _onsCov.length; _i++) _onsCov[_i] = motion.motionCoveredAtSec(_i * motion.dt) ? 1 : 0;
+      const onsets = movementOnsets(motion.onsetGrid || motion.grid, motion.dt, { covered: _onsCov });
       const streams = [];
       if (motion.nAcc) streams.push('acc');
       if (motion.nGyro) streams.push('gyro');
