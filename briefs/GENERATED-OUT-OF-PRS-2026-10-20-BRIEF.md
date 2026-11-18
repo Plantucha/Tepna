@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** PROPOSED (triaged 2026-11-04: not built — the workflows already carry `merge_group` triggers, but root bundles still ride PR diffs and `CLAUDE.md` still records no queue) — 2026-10-20 · **Created:** 2026-10-20
+**Status:** PROPOSED (plan in §5, 2026-11-18: owner questions answered, stage 1 next, nothing built — verified 2026-11-18 at `6120ccf45`) — 2026-10-20 · **Created:** 2026-10-20
 
 # GENERATED-OUT-OF-PRS — take the generated trees out of the PR diff, then batch the queue
 
@@ -46,8 +46,8 @@ PRs carry source only. A job on `main` rebuilds the generated trees after each m
 ### 2.2 · Open questions for the owner
 
 1. **ANSWERED 2026-11-12 in §2.2.1.** Does anything read a bundle from a PR branch? Nothing downloads one. Three tools read the committed bytes on every pull request.
-2. May a bot commit to `main`? The protect-main ruleset must admit it, and only for the generated paths.
-3. The release tool builds everything anyway. Should the bundles move to release time only? `main` would then lag source between releases.
+2. **ANSWERED 2026-10-20 (board #666).** May a bot commit to `main`? The owner ruled that PRs stop carrying the generated bundles and a post-merge bot commit writes them. §5.1 states how the bot reaches `main` without a ruleset change.
+3. **ANSWERED 2026-10-20 (board #667).** Should the bundles move to release time only? No. The bot rebuilds the generated trees after every merge to `main`.
 
 ### 2.2.1 · Who reads a committed bundle on a pull request (measured 2026-11-12)
 
@@ -138,3 +138,77 @@ pull_request_rules:
 - [ ] GATE A and GATE B pass on `main` after the bot commit.
 - [ ] The queue lands a batch of two or more PRs in one CI cycle.
 - [ ] `CLAUDE.md` §2c and §5 describe the new path. The owner edits `CLAUDE.md`.
+
+## 5 · Execution plan (Kestrel, 2026-11-18)
+
+### 5.0 · The cost has doubled
+
+| measurement | value | window |
+|---|---|---|
+| first-parent commits on `main` that touch a root bundle | 123 of 400 | 2026-11-11 to 2026-11-18 |
+| the same count when this brief was written | 64 of 400 | the 400 before 2026-10-20 |
+
+The command counts a commit when its diff names one of the 12 owned bundles at the root:
+
+```sh
+git log --first-parent -400 --format=%h origin/main | while read c; do
+  git diff-tree --no-commit-id --name-only -r "$c" | grep -qE '^(OxyDex|HRVDex|PulseDex|GlucoDex|ECGDex|CPAPDex|MotionDex|PpgDex|EEGDex|Integrator|OverDex|Data Unifier)\.html$' && echo "$c"
+done | wc -l
+```
+
+### 5.1 · How the bot reaches `main`
+
+The `protect-main` ruleset (id 18794443) holds four rules: `deletion`, `non_fast_forward`,
+`required_status_checks` and `pull_request`. Its one bypass actor is a repository role in
+`pull_request` mode. So no actor can push a commit to `main` directly, and a bot is no exception.
+
+Decision (CLAUDE.md §7, board entry beside this PR): the bot opens a PR, and it does not push.
+`tools/pr-walker.mjs` already opens the RESIDUE-only closure PR from its own checkout
+(`closureCommitMessage`, `gh pr create --draft`). A regeneration pass reuses that path. It keeps one
+regeneration PR in flight, and Kodiak lands it like any other PR.
+
+Rejected: a ruleset bypass for a bot. It changes branch protection, which only the owner may do, and
+it gives a token the right to write `main` without checks. The owner can still choose it, and stage 3
+then becomes a direct commit.
+
+### 5.2 · `provenance/` stays in the PR
+
+`provenance/<App>.json` holds two kinds of field:
+
+- `manifestHash` and `computeHash`, which `build.mjs` derives from source.
+- `verifiedUnder`, which only `tools/verify-fixtures.mjs` writes, after a green run over the real corpus.
+
+CI holds no corpus, so a bot cannot write `verifiedUnder`. The author's PR keeps carrying the
+fragment, as it does today. A fragment is per app, so two PRs collide on it only when they change
+one node. The bundles, the `docs/` copies, the analysis tools and `docs/TOOLS-INDEX.md` leave the PR.
+
+### 5.3 · Stages
+
+Each stage is one PR, and each lands before the next starts.
+
+1. **CI builds before it judges.** `tests.yml`, `browser-gates.yml`, `no-network.yml` and
+   `local-steps.yml` run `node tools/build.mjs --all`, `build-docs.mjs` and `build-analysis.mjs`
+   before any step that reads a built page. Every gate then judges a fresh build. This stage
+   changes no behaviour while PRs still carry the bundles, because a fresh build equals a current
+   committed one. It is safe to land alone.
+2. **The check that a PR carries no generated path.** A new `pr-compliance.mjs` check names any
+   generated path in a PR diff. The list comes from `rebase-safe.mjs`'s own builder-declared set,
+   minus `provenance/**`. It starts advisory. The walker's regeneration PR is exempt by its
+   declared author, as `commit-shape.mjs` already exempts `Revert ` and `rescue:`.
+3. **The regeneration pass.** `pr-walker.mjs` gains a pass. After a merge it builds `origin/main`
+   in its checkout. When a generated path differs, it opens one draft PR with only those paths.
+   `commit-shape.mjs` learns the same exemption.
+4. **Flip stage 2 to blocking.** Then authors stop staging bundles, and `rebase-safe.mjs` has only
+   provenance fragments and `tests/dex-tests.js` left to resolve.
+5. **The owner edits `CLAUDE.md`** §2c, §5 and the re-bundle checklist (acceptance item 5).
+
+### 5.4 · What a session still runs locally
+
+An author still runs `build.mjs --all`, because `verify-fixtures.mjs`, the browser lane and
+`Dex-Test-Suite.html?full` read built pages. The bundles then show as modified in the author's
+worktree. The author leaves them unstaged, and `wt-done.mjs` already discards a merged worktree.
+
+### 5.5 · Open risk
+
+The served site reads `docs/` on `main`. Between a merge and its regeneration PR, the site serves the
+previous build. Kodiak's serial queue sets that lag at one CI cycle per regeneration PR.
