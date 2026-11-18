@@ -2629,13 +2629,20 @@ def night_verdict(audit: dict, *, night_dir: str, commit: str | None = None) -> 
     excluded = len(devs) - len(checked)
     pop = {"checked": len(checked), "eligible": len(devs), "excluded": excluded}
     evidence = [TOOL, os.path.join(night_dir, AUDIT_NAME), "journalctl -u tepna-capture"]
-    # `worn_span_min` from an audit that writes it; an older LOSS-AUDIT.json has only `span_min`
-    worn_span = sum(
-        v["worn_span_min"] if "worn_span_min" in v else v["span_min"]
-        for v in checked.values()
-        if v.get("worn_evidence")
-    )
-    worn_lost = sum(v["worn_lost_min"] or 0.0 for v in checked.values() if v.get("worn_evidence"))
+    # 🔴 AN ABSENT WORN SPAN IS NOT THE WHOLE-FILE SPAN (2026-11-18). This used to substitute
+    # `span_min` when `worn_span_min` was absent (an older LOSS-AUDIT.json), and the substitution moves
+    # the VERDICT the wrong way: a device worn 6 h of a 20 h night that lost 30 min reads
+    # 30/1200 = 2.5 % instead of 30/360 = 8.3 %, so the night looks more than three times better than it
+    # is. `span_min` is the file's whole extent — a different quantity — and spending it here is §∅
+    # absence-as-value at the one number the night is JUDGED on. A device with no measured worn span is
+    # left out of the fraction and NAMED in `worn_span_unmeasured`; the fraction is measured over the
+    # devices that could answer, and with none it stays null (reduced coverage annotates, never guesses).
+    measured_worn = {n: v for n, v in checked.items() if v.get("worn_evidence") and "worn_span_min" in v}
+    span_unmeasured = sorted(n for n, v in checked.items() if v.get("worn_evidence") and n not in measured_worn)
+    worn_span = sum(v["worn_span_min"] for v in measured_worn.values())
+    # The PUBLISHED loss still covers every worn device; only the RATIO is restricted to a measured span.
+    worn_lost_all = sum(v["worn_lost_min"] or 0.0 for v in checked.values() if v.get("worn_evidence"))
+    worn_lost = sum(v["worn_lost_min"] or 0.0 for v in measured_worn.values())
     frac = round(worn_lost / worn_span, 4) if worn_span > 0 else None
     # EXPECTED devices that left no primary file. Excluded from `checked` (nothing to measure) but never
     # from the verdict: a PASS over the devices that DID record says nothing about these.
@@ -2646,8 +2653,13 @@ def night_verdict(audit: dict, *, night_dir: str, commit: str | None = None) -> 
         # `population` alone cannot tell them from a device that recorded nothing at all.
         "unreadable": unreadable,
         "worn_but_not_recorded_fraction": frac,
-        "worn_lost_min": round(worn_lost, 1),
-        "worn_span_min": round(worn_span, 1),
+        "worn_lost_min": round(worn_lost_all, 1),
+        # NULL, never 0.0, when no worn span was measured: a zero here reads as "the device was worn for
+        # no time", which is the absence this row is about.
+        "worn_span_min": round(worn_span, 1) if measured_worn else None,
+        # The worn devices whose denominator could not be measured, so the fraction above is over a
+        # smaller population than `worn_lost_min` and the reader can see which one is missing.
+        "worn_span_unmeasured": span_unmeasured,
         "daemon_caused_min": round(sum(v.get("daemon_caused_min") or 0.0 for v in checked.values()), 1),
         "by_device": {
             n: {"lost_min": v["lost_min"], "fragments": v["fragments"], "top_cause": next(iter(v["by_cause"]), None)}
@@ -2743,6 +2755,16 @@ def night_verdict(audit: dict, *, night_dir: str, commit: str | None = None) -> 
             commit=commit,
         )
     if frac is None:
+        # TWO ABSENCES, TWO REASONS. "No worn evidence" is not the same as "worn, but no worn span was
+        # measured", and the second one used to be answered by reading the whole-file span instead.
+        _why = (
+            "no worn span could be measured for "
+            + ", ".join(span_unmeasured)
+            + " — the audit predates `worn_span_min`, and the whole-file span is not a substitute "
+            "for it; the criterion cannot bind on an unmeasured denominator"
+            if span_unmeasured
+            else "no device carried worn evidence this night — the criterion does not bind"
+        )
         return _verdict.make(
             gate=GATE,
             status="NOT_APPLICABLE",
@@ -2750,7 +2772,7 @@ def night_verdict(audit: dict, *, night_dir: str, commit: str | None = None) -> 
             criterion=CRITERION,
             result=None,
             evidence=evidence,
-            reason="no device carried worn evidence this night — the criterion does not bind",
+            reason=_why,
             tool=TOOL,
             commit=commit,
         )
