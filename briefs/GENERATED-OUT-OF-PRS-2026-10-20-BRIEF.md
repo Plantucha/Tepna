@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** PROPOSED (plan in §5, 2026-11-18: the browser lanes build first, and the `tests.yml` and `local-steps.yml` build-first step is in review; the advisory build-output check and the walker regeneration pass merged; the blocking flip merged as 5262 and was reverted because stage 1 was incomplete; the owner edit unbuilt — verified 2026-11-18) — 2026-10-20 · **Created:** 2026-10-20
+**Status:** PROPOSED (plan in §5, 2026-11-18: CI builds every generated tree first in the browser lanes, `tests.yml` and `local-steps.yml` (5254, 5265); the advisory build-output check and the walker regeneration pass merged; the first blocking flip (5262) was reverted because stage 1 was incomplete, and the second blocking flip is in review; the owner edit of `CLAUDE.md` unbuilt — verified 2026-11-18) — 2026-10-20 · **Created:** 2026-10-20
 
 # GENERATED-OUT-OF-PRS — take the generated trees out of the PR diff, then batch the queue
 
