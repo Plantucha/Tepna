@@ -4160,6 +4160,10 @@ function ovClass(key,val){                          // status color for scalar s
   return '';
 }
 const KIND_FOOT = { hr:'derived rate', scalar:'current', multi:'raw 3-axis', ppi:'per beat' };
+// The foot names what the card draws. The Muse EEG stream takes the `multi` kind for its electrode
+// legend, but it is 4 EEG channels, not a 3-axis motion stream. Owner-reported 2026-11-17: the EEG card read "raw 3-axis".
+const isEegKey = k => /^eeg(_|$)/.test(k || '');
+function kindFoot(s){ return isEegKey(s.key) ? 'raw EEG' : KIND_FOOT[streamKind(s)]; }
 
 // Live counters, rendered into the SIDEBAR so they persist across views. Driven by loadState (every
 // 5 s, any view) rather than ovRender (Overview only) — otherwise they froze on the other two views.
@@ -4485,7 +4489,7 @@ function ovRender(){                             // (re)build the cards to match
           <span class="st ${(st=>st.cls)(streamState(s,dev))}" id="ovst-${s.key}" title="${esc((st=>st.why)(streamState(s,dev)))}">${(st=>st.txt)(streamState(s,dev))}</span></div>
         <div class="ov-value" id="ovval-${s.key}"></div>
         <div class="ov-mini"><canvas id="ovcv-${s.key}"></canvas></div>
-        <div class="ov-foot"><span>${KIND_FOOT[streamKind(s)]}</span><span>${foot}</span></div>
+        <div class="ov-foot"><span>${kindFoot(s)}</span><span>${foot}</span></div>
         <div class="ov-tl" title="Tonight's capture — state above, signal below, same time axis">
           <canvas class="ov-tl-state" id="ovtl-${s.key}"></canvas>
           <canvas class="ov-tl-rssi" id="ovrs-${s.key}"></canvas>
