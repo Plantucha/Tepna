@@ -137,7 +137,10 @@ def test_audit_night_names_the_daemon_as_the_cause_and_the_verdict_FAILS_with_th
     assert o["status"] == "FAIL", o["reason"]
     assert "of the worn span unrecorded (bar 1.0%)" in o["reason"] and "daemon:not-worn drop" in o["reason"]
     assert o["result"]["daemon_caused_min"] == 2.0
-    assert o["result"]["worn_but_not_recorded_fraction"] == round(v["worn_lost_min"] / v["span_min"], 4)
+    # the DENOMINATOR is the worn span, never the file span. This leg read `v["span_min"]` and passed
+    # only because this plant's worn interval covers the whole file; the substitution it relied on left
+    # `night_verdict` on 2026-11-18, so the leg now names the quantity the fraction is defined over.
+    assert o["result"]["worn_but_not_recorded_fraction"] == round(v["worn_lost_min"] / v["worn_span_min"], 4)
     assert o["result"]["by_device"]["Polar H10 0284"]["top_cause"] == "daemon:not-worn drop"
     assert o["population"] == {"checked": 1, "eligible": 1, "excluded": 0}
 
@@ -2459,14 +2462,20 @@ def test_the_evidence_read_NAMES_its_encoding(tmp_path):
 
 
 def _audit(devices, journal="read"):
-    """The minimum `night_verdict` reads: per device `file`, `span_min`, `worn_evidence`, `worn_lost_min`,
-    `lost_min`, `fragments`, `by_cause`, `daemon_caused_min`."""
+    """The minimum `night_verdict` reads: per device `file`, `span_min`, `worn_span_min`, `worn_evidence`,
+    `worn_lost_min`, `lost_min`, `fragments`, `by_cause`, `daemon_caused_min`.
+
+    `worn_span_min` is the DENOMINATOR the fraction is judged on. It was missing here, and the helper
+    still produced PASS/FAIL numbers because `night_verdict` substituted `span_min` — the substitution
+    removed on 2026-11-18, so the fixture now models the key the code reads.
+    """
     out = {}
     for name, (span, lost, worn) in devices.items():
         out[name] = {
             "file": f"{name}.txt" if span is not None else None,
             "span_min": span or 0.0,
             "worn_evidence": worn,
+            "worn_span_min": span or 0.0,
             "worn_lost_min": lost,
             "lost_min": lost or 0.0,
             "fragments": 2 if lost else 1,
@@ -2560,6 +2569,9 @@ def test_the_verdict_s_PUBLISHED_PRECISION_and_PROVENANCE_are_asserted_not_assum
             "Polar H10": {
                 "file": "h10.txt",
                 "span_min": 1000.04,
+                # the DENOMINATOR, published to one decimal as `worn_span_min`; omitted here until
+                # 2026-11-18, when the `span_min` substitution this fixture relied on was removed.
+                "worn_span_min": 1000.04,
                 "worn_evidence": True,
                 "worn_lost_min": 10.06,
                 "lost_min": 10.06,
@@ -2572,6 +2584,7 @@ def test_the_verdict_s_PUBLISHED_PRECISION_and_PROVENANCE_are_asserted_not_assum
             "Wellue O2Ring-S": {
                 "file": "ring.txt",
                 "span_min": 0.0,
+                "worn_span_min": 0.0,
                 "worn_evidence": True,
                 "worn_lost_min": 0.0,
                 "lost_min": 0.0,
@@ -2621,6 +2634,7 @@ def test_the_verdict_s_PUBLISHED_PRECISION_and_PROVENANCE_are_asserted_not_assum
             "Polar H10": {
                 "file": "h10.txt",
                 "span_min": 100.0,
+                "worn_span_min": 100.0,
                 "worn_evidence": True,
                 "worn_lost_min": 5.0,
                 "lost_min": 5.0,
@@ -5416,3 +5430,83 @@ def test_a_loss_EXACTLY_at_the_bar_beside_an_unreadable_primary_is_UNKNOWN_not_a
     assert o["result"]["worn_but_not_recorded_fraction"] == loss_audit.THRESHOLD, o["result"]
     assert o["status"] == "UNKNOWN", o["status"]
     assert o["result"]["unreadable"] == ["Ring"]
+
+
+def test_an_audit_without_a_worn_span_is_not_judged_on_the_whole_file_span(tmp_path):
+    """§∅ — `span_min` is the FILE's extent, never the WORN one, so substituting it understates the one
+    number the night is judged on and sends the verdict the wrong way.
+
+    Plant: 6 h worn inside a 20 h file, 30 min lost. The worn fraction is 30/360 = 8.3 %, far above the
+    1 % bar (FAIL); the old fallback read 30/1200 = 2.5 % and called it a failure too, but a smaller loss
+    reads as PASS. Here the denominator is absent, so the honest answer is NOT_APPLICABLE naming the
+    device — not a number computed from a different quantity. Red on `origin/main`: status FAIL and a
+    fraction computed from `span_min`.
+    """
+    a = {
+        "devices": {
+            "Polar H10": {
+                "file": "Polar_H10_x_ECG.txt",
+                "span_min": 1200.0,
+                # NO `worn_span_min`: this is the older audit the row is about.
+                "worn_evidence": True,
+                "worn_lost_min": 30.0,
+                "lost_min": 30.0,
+                "fragments": 2,
+                "by_cause": {"link:disconnected": 30.0},
+                "daemon_caused_min": 0.0,
+            }
+        },
+        "journal": "read",
+        "night": "2026-11-18",
+    }
+    o = loss_audit.night_verdict(a, night_dir="/n", commit="abc1234")
+    assert o["status"] == "NOT_APPLICABLE", o["reason"]
+    assert o["result"] is None, "an unmeasured denominator publishes no figure over the population"
+    assert "Polar H10" in o["reason"] and "worn_span_min" in o["reason"], o["reason"]
+
+
+def test_the_fraction_covers_the_measured_devices_and_NAMES_the_one_it_left_out(tmp_path):
+    """The MIXED population: one worn device measured its span, the other did not.
+
+    The ratio must read the devices that could answer it — 30 min lost over a 360 min worn span, 8.3 % —
+    and `worn_lost_min` must still publish every worn device's loss, 80 min. The two numbers therefore do
+    NOT divide into each other, so `worn_span_unmeasured` names the device that is in the numerator's
+    population and not in the denominator's. Without this leg nothing pins which devices each half covers:
+    summing the unmeasured device's loss into the fraction reads 80/360 = 22.2 %, and dropping it from
+    `worn_lost_min` hides 50 min of real loss. Both stay red here.
+    """
+    a = {
+        "devices": {
+            "Polar H10": {
+                "file": "h10.txt",
+                "span_min": 1200.0,
+                "worn_span_min": 360.0,
+                "worn_evidence": True,
+                "worn_lost_min": 30.0,
+                "lost_min": 30.0,
+                "fragments": 2,
+                "by_cause": {"link:disconnected": 30.0},
+                "daemon_caused_min": 0.0,
+            },
+            "Ring": {
+                "file": "ring.txt",
+                "span_min": 900.0,
+                # NO `worn_span_min`: the older audit shape, so this device carries no denominator.
+                "worn_evidence": True,
+                "worn_lost_min": 50.0,
+                "lost_min": 50.0,
+                "fragments": 3,
+                "by_cause": {"link:disconnected": 50.0},
+                "daemon_caused_min": 0.0,
+            },
+        },
+        "journal": "read",
+        "night": "2026-11-18",
+    }
+    o = loss_audit.night_verdict(a, night_dir="/n", commit="abc1234")
+    r = o["result"]
+    assert r["worn_but_not_recorded_fraction"] == 0.0833, r
+    assert r["worn_span_min"] == 360.0, "only a measured worn span enters the denominator"
+    assert r["worn_lost_min"] == 80.0, "the published loss still covers every worn device"
+    assert r["worn_span_unmeasured"] == ["Ring"], r
+    assert o["status"] == "FAIL", o["reason"]
