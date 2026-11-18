@@ -906,7 +906,16 @@
       r.d_vo2_base = r._hr > 0 ? 15.3 * (hrmax_tanaka / r._hr) * _altFR : NaN;
       // Method 2: HRV-adjusted — rMSSD modulation ±8% band
       const ln_rmssd_ref = 3.7;
-      const rmssd_adj = r._rmssd > 0 ? 1 + 0.08 * (Math.log(r._rmssd) - ln_rmssd_ref) : 1;
+      /* §∅ — AN ABSENT rMSSD CANNOT CARRY AN HRV MODULATION, AND 1 IS NOT "NO MODULATION" HERE.
+         This factor is 1 exactly when `ln(rmssd) === ln_rmssd_ref`, i.e. at rMSSD = e^3.7 ≈ 40.45 ms,
+         so the old `: 1` published `d_vo2_hrv` as the BASE estimate — a number byte-identical to a
+         MEASURED 40.45 ms. It graded a fitness category, entered the 7-day mean and charted under the
+         label "ml/kg/min HRV-adj", which asserts that a modulation was measured and came out neutral.
+         `_rmssd` is null on ordinary paths (`numOrNull` stores a blank Welltory cell as null, `n()`
+         stores a missing `hrv.time.rmssd` as null), so the refusal has to travel: NaN through the
+         product, which `d_vo2_cat` already reads as '—' and the roll7 filter already skips. The
+         HR-only base estimate `d_vo2_base` still ships — it never needed an rMSSD. */
+      const rmssd_adj = r._rmssd > 0 ? 1 + 0.08 * (Math.log(r._rmssd) - ln_rmssd_ref) : NaN;
       r.d_vo2_hrv = !isNaN(r.d_vo2_base) ? r.d_vo2_base * rmssd_adj : NaN;
       // 7-day rolling VO2max mean
       // v2.9 date-keyed, SPAN-BOUNDED since the row cited in `_dayWindow`

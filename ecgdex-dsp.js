@@ -2807,7 +2807,17 @@
           c++;
         }
       }
-      return c ? a / c : sqi[best] || 0.5;
+      /* §∅ — NO BEAT IN THE WINDOW MEANS NO QUALITY WAS MEASURED THERE, AND 0.5 IS NOT A
+         MEASUREMENT. This line read `sqi[best] || 0.5`, which fires exactly when the nearest beat
+         scored ZERO — the all-artifact score — so the worse the nearby measurement, the BETTER the
+         score published beside the event. A CVHR event can be stamped where no beat lands within
+         ±5 s (the hole edge and the 1 Hz resample both reach past a dropout), and fusion tapers an
+         event's evidence by this number (`integrator-dsp.js` `effConf`), so a fabricated mid-scale
+         0.5 claimed half-trust on a second nothing was measured in. A measured 0 is reported as 0;
+         a record with NO beats at all refuses with null, which is the shape this function already
+         publishes on `stage_*` and `movement_onset` and which `effConf` reads as quality-neutral. */
+      if (!times.length) return null;
+      return c ? a / c : sqi && sqi[best] != null && isFinite(sqi[best]) ? sqi[best] : null;
     };
     // CVHR surge magnitude → likelihood. Amplitudes run ~6–22 bpm; map monotonically
     // into 0.45–0.95 so a strong cyclic surge scores higher than a weak one. SQI no
@@ -2833,6 +2843,9 @@
        against. */
     for (const ev of cvhr.events) {
       const _posWhy = posReasonAt(ev.sec);
+      /* Read ONCE, so the published number and its absence agree by construction: `+null.toFixed(2)`
+         throws, and a second read could not see a different answer. */
+      const _evSqi = sqiAt(ev.sec);
       events.push({
         t: clock(ev.sec),
         tMs: tmsAt(ev.sec),
@@ -2840,7 +2853,7 @@
         node: 'ECGDex',
         _sec: ev.sec, // internal: enables late-ACC position re-stamp (stripped on export)
         conf: surgeConf(ev.ampBpm),
-        sqi: +sqiAt(ev.sec).toFixed(2),
+        sqi: _evSqi == null ? null : +_evSqi.toFixed(2),
         meta: {
           ampBpm: ev.ampBpm,
           periodSec: ev.periodSec,

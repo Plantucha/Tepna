@@ -32,7 +32,7 @@
       "kernel-constants.js": "0050ad3f9dc7",
       "clock.js": "1c56de0b671c",
       "clock-seam.js": "3820c4fb6529",
-      "pulsedex-dsp.js": "2262251f3d22"
+      "pulsedex-dsp.js": "1d71a5d5285f"
     }
   },
   "yield": {
@@ -305,11 +305,18 @@
       "old": "3e683cafe54f",
       "new": "2262251f3d22",
       "reason": "unit `sortnull`: the review-reload ganglior_events sort key now calls DexClock.sortEventsByClock, so an event with no stamp sorts last instead of at 1970-01-01. The detector path does not reach loadOwnExport, and a paper-scale re-cut re-measured the SAME yield 233 tx / 239 flat in 7m44s, so the counts are measured under the new closure rather than claimed inert."
+    },
+    {
+      "date": "2026-11-18",
+      "file": "pulsedex-dsp.js",
+      "old": "2262251f3d22",
+      "new": "1d71a5d5285f",
+      "reason": "unit `shrabs` (Shrike absence audit of pulsedex-dsp.js): compareIntervalSeries now refuses the transit-time surrogate with null when the pulse series carries less rMSSD than the primary, where it published 0 ms. The detector path does not call compareIntervalSeries, and a paper-scale re-cut re-measured the SAME yield 233 tx / 239 flat, so the counts are measured under the new closure rather than claimed inert."
     }
   ],
-  "measuredAt": "2026-11-18T06:59:30.225Z",
+  "measuredAt": "2026-11-18T10:32:16.470Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "9e73775bd"
+    "commit": "43082c083"
   }
 }
