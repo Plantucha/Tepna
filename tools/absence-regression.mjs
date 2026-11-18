@@ -10,6 +10,14 @@
  *
  * Patterns (each cites its fixing PR):
  *   - `tMs: ... || 0` — stamps 1970 on timeless findings (§2a #3366)
+ *   - `x.t0Ms || 0` — an absent recording start reads as 1970-01-01 (§∅)
+ *   - `x.tMs || 0`, `x._tMs || 0`, `x.startMs || 0` — the READ position of the same stamp family,
+ *     where the key of a sort reads an unplaceable event as 1970 and puts it first (§∅, Clock §6)
+ *
+ * A CITATION IS NOT A SITE: prose that names the fabricated shape, in a comment or inside backticks,
+ * is examined and reported apart from the hits. Without that split this gate reds the PR that
+ * DOCUMENTS a fix, and five such lines already sit on main (residue
+ * 2026-11-15-absence-gates-skip-the-or-zero-spelling).
  *
  * NOTE (Item 3): The second pattern class originally documented here
  * (`|| 0` on a metric accumulator, citing #3359) was incorrect. #3359 fixed
@@ -29,11 +37,12 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
 
-function verdictOf({ status, scanned, excluded = 0, hits, base, fullTree, baseline, reason = null }) {
+function verdictOf({ status, scanned, excluded = 0, citations = 0, hits, base, fullTree, baseline, reason = null }) {
   const v = Verdict.make({
     gate: 'absence-regression',
     status,
@@ -46,7 +55,8 @@ function verdictOf({ status, scanned, excluded = 0, hits, base, fullTree, baseli
         ? null
         : {
             scanned,
-            violations: hits.map((h) => ({ pattern: h.name, line: h.line })),
+            citations,
+            violations: hits.map((h) => ({ pattern: h.name, file: h.file ?? null, line: h.line })),
             notScanned: EXCLUDED_PATHS.map((e) => ({ path: e.path, why: e.why })),
             ...(fullTree ? { mode: 'full-tree', baseline: baseline ? baseline.count : null } : {})
           },
@@ -85,8 +95,46 @@ const PATTERNS = [
     name: 't0ms-fabrication',
     regex: /t0Ms\)?\s*\|\|\s*0(?![.\w])/,
     why: 'x.t0Ms || 0 turns an absent recording start into 1970-01-01 — use ?? null and refuse downstream (§∅)'
+  },
+  {
+    /* THE READ POSITION OF THE SAME FAMILY (residue 2026-11-15-absence-gates-skip-the-or-zero-spelling).
+       The two shapes above read a WRITE (`tMs:`) and the t0Ms name. A sort key spells it the other way
+       round, and the tree carries four such lines that no gate could see: `cpapdex-fusion.js`,
+       `integrator-dsp.js`, `hrvdex-cross.js` (`_tMs`) and `glucodex-cross.js` (`startMs`). Clock
+       Contract §6 lets an export carry `t` alone, so an absent `tMs` is a stamp the consumer rebuilds
+       from `startEpochMs`, and the `|| 0` key invents 1970-01-01 instead. Every such event then sorts
+       ahead of every stamped one. The lookahead keeps `|| 0.5` out, as an ordinary default is not an
+       epoch. The name set is the names this tree uses for a wall-clock stamp, and a general `|| 0`
+       rule stays out on purpose: 487 lines spell it, and most are legal defaults, divisors or tallies. */
+    name: 'stamp-read-fabrication',
+    regex: /(?:^|[^\w$])(?:_?tMs|startMs)\s*\|\|\s*0(?![.\w])/,
+    why: 'x.tMs || 0 reads an absent stamp as 1970-01-01, so a t-only event sorts ahead of every stamped one — rebuild it from startEpochMs or refuse (§∅, Clock §6)'
   }
 ];
+
+/* ── A CITATION IS NOT A SITE ─────────────────────────────────────────────────────────────────────
+   Measured on main at 0f590304c: of the 9 lines carrying the read shape, 4 are code and 5 are prose
+   about a fix that already landed. A line-prefix test alone cannot tell them apart, because this
+   tree writes a block comment with no `*` on its body lines (`clock.js:1045`, `glucodex-dsp.js:2491`),
+   so two of the five look like code. Both of those quote the shape in BACKTICKS, which is how this
+   repo names code inside prose, so the backtick span is the discriminator that reads all five.
+   It fails CLOSED in both directions that matter: a template literal carrying `${` is a real site,
+   and an unterminated span is never a citation. The residual escape is a stamp read behind a `//`
+   that sits inside a string literal on the same line; it is skipped and stated, not counted. */
+const COMMENT_OPEN = /(?:^|\s)(?:\/\/|\/\*)/;
+
+/** Is this match prose about the shape rather than an instance of it? Pure, line-local. */
+export function isCitation(line, m) {
+  const before = line.slice(0, m.index);
+  if (/^\s*\*/.test(line)) return true;
+  if (COMMENT_OPEN.test(before)) return true;
+  const ticks = (before.match(/`/g) || []).length;
+  if (ticks % 2 === 0) return false;
+  const open = before.lastIndexOf('`');
+  const close = line.indexOf('`', m.index + m[0].length);
+  if (close < 0) return false;
+  return !line.slice(open, close + 1).includes('${');
+}
 
 /* THE PATHS THIS GATE DOES NOT SCAN, DISCLOSED (residue 2026-11-15-gates-share-an-undisclosed-file-exclusion).
    A test plants the fabricated shape on purpose, so `tests/` stays out. The gate COUNTS what it skips
@@ -140,18 +188,32 @@ export function classifyAdded(diffLines, patterns = PATTERNS) {
       run = [];
       runs.push(run);
     }
-    run.push(l.slice(1));
+    /* THE FILE TRAVELS WITH THE LINE. The `+++` header is the only place a diff names it, so a hit
+       that drops it leaves the ledger's `files` list to a second scan by hand. */
+    run.push({ t: l.slice(1), f: file });
   }
   const hits = [];
+  const cited = new Set();
   for (const p of patterns) {
     for (const r of runs) {
       for (let i = 0; i < r.length; i += 1) {
-        if (p.regex.test(r[i])) hits.push({ name: p.name, line: r[i].trim(), why: p.why });
-        else if (i + 1 < r.length && !p.regex.test(r[i + 1]) && p.regex.test(`${r[i]} ${r[i + 1].trim()}`)) hits.push({ name: p.name, line: `${r[i].trim()} ⏎ ${r[i + 1].trim()}`, why: p.why });
+        const m = p.regex.exec(r[i].t);
+        if (m) {
+          if (isCitation(r[i].t, m)) cited.add(r[i].t.trim());
+          else hits.push({ name: p.name, line: r[i].t.trim(), why: p.why, file: r[i].f });
+          continue;
+        }
+        if (i + 1 < r.length && !p.regex.test(r[i + 1].t)) {
+          const joined = `${r[i].t} ${r[i + 1].t.trim()}`;
+          const jm = p.regex.exec(joined);
+          if (!jm) continue;
+          if (isCitation(joined, jm)) cited.add(joined.trim());
+          else hits.push({ name: p.name, line: `${r[i].t.trim()} ⏎ ${r[i + 1].t.trim()}`, why: p.why, file: r[i].f });
+        }
       }
     }
   }
-  return { hits, scanned: runs.reduce((n, r) => n + r.length, 0), excluded };
+  return { hits, scanned: runs.reduce((n, r) => n + r.length, 0), excluded, citations: cited.size };
 }
 
 export function selftest() {
@@ -165,7 +227,7 @@ export function selftest() {
   // THE PLANTED VIOLATION — the exact shape #3366 fixed: a timeless finding stamped 1970.
   const planted = classifyAdded(['+      tMs: f.stamp || 0,']);
   ok(planted.hits.length === 1 && planted.hits[0].name === 'tms-fabrication', 'a planted `tMs: x || 0` is caught');
-  ok(/1970/.test(planted.hits[0].why), 'the hit carries the reason, not just the line');
+  ok(/1970/.test(planted.hits[0]?.why ?? ''), 'the hit carries the reason, not just the line');
 
   /* THE CONTROL — without it this gate could flag EVERY added line and still look right on the
      plant. Three controls, because three different things could make it fire wrongly. */
@@ -184,6 +246,38 @@ export function selftest() {
   ok(classifyAdded(['+    const t0 = t0Ms || 0;']).hits.length === 1, 'a bare `t0Ms || 0` is caught');
   ok(classifyAdded(['+    const t0 = rec.t0Ms ?? null;']).hits.length === 0, 'CONTROL: the t0Ms FIX `?? null` is not a violation');
   ok(classifyAdded(['+    const k = rec.t0Ms || 0.5;', '+    const m = rec.t0Ms || 0x10;']).hits.length === 0, 'CONTROL: `|| 0.5` and `|| 0x10` are ordinary defaults, not an epoch');
+
+  /* ── THE READ POSITION OF THE STAMP FAMILY, the four shapes this tree carries ──────────────────── */
+  const read = classifyAdded(['+      return (a.tMs || 0) - (b.tMs || 0);']);
+  ok(read.hits.length === 1 && read.hits[0].name === 'stamp-read-fabrication', 'a planted `(a.tMs || 0)` sort key is caught once');
+  ok(/1970/.test(read.hits[0]?.why ?? ''), 'the read-position hit carries the reason');
+  ok(classifyAdded(['+    const s = [...l].sort((a, b) => (a._tMs || 0) - (b._tMs || 0));']).hits.length === 1, 'the `_tMs` spelling is caught');
+  ok(classifyAdded(['+    const s = [...l].sort((a, b) => (a.startMs || 0) - (b.startMs || 0));']).hits.length === 1, 'the `startMs` spelling is caught');
+  ok(classifyAdded(['+    const t = ev.tMs || 0;']).hits.length === 1, 'a bare stamp read is caught');
+  ok(classifyAdded(['+      tMs: f.stamp || 0,']).hits.length === 1, 'CONTROL: the WRITE position still counts once, and the read shape does not double it');
+  ok(classifyAdded(['+    const t = ev.tMs ?? null;']).hits.length === 0, 'CONTROL: the read-position FIX `?? null` is not a violation');
+  ok(classifyAdded(['+    const k = rec.tMs || 0.5;']).hits.length === 0, 'CONTROL: `|| 0.5` on a stamp read is a default, not an epoch');
+  ok(classifyAdded(['+    const n = row.startMsCount || 0;']).hits.length === 0, 'CONTROL: a longer identifier that merely contains the name is not a hit');
+  ok(classifyAdded(['+    const n = row.count || 0;']).hits.length === 0, 'CONTROL: a tally keeps its zero — this gate reads stamps, not counters');
+
+  /* ── A CITATION IS NOT A SITE ──────────────────────────────────────────────────────────────────────
+     Five lines on main name this shape in prose about a fix that already landed. Without the split,
+     every one of them is a FAIL on the PR that writes it, and the gate punishes the documentation. */
+  const cit = classifyAdded(['+  /* ∅ §6 — the former `(b.tMs || 0)` key read a measurement whose stamp never parsed */']);
+  ok(cit.hits.length === 0 && cit.citations === 1, 'a comment quoting the shape is a CITATION, reported and not a hit');
+  ok(classifyAdded(['+     their sort on `(a.tMs || 0)` instead, so an event sorted to 1970-01-01 and']).hits.length === 0, 'a block-comment body line with no `*` is read by its backtick span');
+  ok(classifyAdded(['+    // `rec.t0Ms || 0` read an absent start as 1970-01-01']).hits.length === 0, 'the t0Ms family reads a citation the same way');
+  ok(classifyAdded(['+      const s = `${a.tMs || 0}`;']).hits.length === 1, 'a template literal carrying `${` is a SITE, never a citation');
+  ok(classifyAdded(['+      return (a.tMs || 0) - (b.tMs || 0); // the sort key']).hits.length === 1, 'a trailing comment after real code does not excuse it');
+  ok(classifyAdded(['+      const q = `(a.tMs || 0);']).hits.length === 1, 'an unterminated backtick span fails closed and still counts');
+  ok(classifyAdded(['+      tMs: f.stamp || 0,']).citations === 0, 'CONTROL: a plain site is never reported as a citation');
+  ok(classifyAdded(['+    const t = ev.tMs || 0;']).citations === 0, 'CONTROL: a plain read is never reported as a citation');
+
+  /* ── THE HIT NAMES ITS FILE, so the backlog ledger's file list is read from the scan ───────────── */
+  const named = classifyAdded(['+++ b/cpapdex-fusion.js', '+      return (a.tMs || 0) - (b.tMs || 0);']);
+  ok(named.hits.length === 1 && named.hits[0].file === 'cpapdex-fusion.js', 'a hit carries the file its line came from');
+  const noHdr = classifyAdded(['+      tMs: f.stamp || 0,']);
+  ok(noHdr.hits.length === 1 && noHdr.hits[0]?.file === null, 'CONTROL: a diff with no +++ header names no file, and says so with null');
 
   /* THE TWO CLASSIFIER ESCAPES, each planted in the shape the audit proved at runtime. */
   ok(classifyAdded(['+      tMs: f.stamp || 0, note: g ?? null,']).hits.length === 1, 'ESCAPE 1: a `?? null` elsewhere on the line no longer excuses the fabrication');
@@ -276,18 +370,20 @@ function main() {
 
   /* No `:!tests/` pathspec: the classifier skips EXCLUDED_PATHS itself, so it can COUNT what it skips. */
   const diff = sh(`git diff ${base}..${head} -U0 -- '*.js' '*.src.html'`);
-  const { hits, scanned, excluded } = classifyAdded(diff.split('\n'));
+  const { hits, scanned, excluded, citations } = classifyAdded(diff.split('\n'));
 
   if (fullTree) {
     const baseline = readBacklog(join(ROOT, BACKLOG_LEDGER), 'absence-regression', (f) => readFileSync(f, 'utf-8'));
     const r = ratchet(hits.length, baseline);
     if (asJson) {
-      process.stdout.write(`${JSON.stringify(verdictOf({ status: r.status, scanned, excluded, hits, base, fullTree: true, baseline, reason: r.reason }), null, 1)}\n`);
+      process.stdout.write(`${JSON.stringify(verdictOf({ status: r.status, scanned, excluded, citations, hits, base, fullTree: true, baseline, reason: r.reason }), null, 1)}\n`);
     } else {
       process.stdout.write(
-        `absence-regression --full-tree · ${scanned} line(s) scanned · ${excluded} under ${EXCLUDED_PATHS.map((e) => e.path).join(', ')} not scanned · ${hits.length} fabrication(s)\n`
+        `absence-regression --full-tree · ${scanned} line(s) scanned · ${excluded} under ${EXCLUDED_PATHS.map((e) => e.path).join(', ')} not scanned · ${citations} citation(s) of the shape · ${hits.length} fabrication(s)\n`
       );
-      for (const h of hits) process.stdout.write(`    ${h.name}: ${h.line.slice(0, 110)}\n`);
+      for (const h of hits) process.stdout.write(`    ${h.name}: ${h.file ?? '(no file named)'} — ${h.line.slice(0, 96)}\n`);
+      const byFile = [...new Set(hits.map((h) => h.file).filter(Boolean))].sort();
+      process.stdout.write(`  files: ${byFile.length} — ${byFile.join(' ')}\n`);
       process.stdout.write(`  baseline: ${baseline ? baseline.count : '(none yet)'} → ${r.status}${r.reason ? ` — ${r.reason}` : ''}\n`);
     }
     process.exit(r.status === 'FAIL' ? 1 : 0);
@@ -299,7 +395,7 @@ function main() {
      claims and only one of them is evidence. */
   const status = scanned === 0 ? 'NOT_RUN' : hits.length ? 'FAIL' : 'PASS';
   if (asJson) {
-    process.stdout.write(`${JSON.stringify(verdictOf({ status, scanned, excluded, hits, base }), null, 1)}\n`);
+    process.stdout.write(`${JSON.stringify(verdictOf({ status, scanned, excluded, citations, hits, base }), null, 1)}\n`);
   } else {
     for (const p of PATTERNS) {
       const n = hits.filter((h) => h.name === p.name).length;
@@ -317,10 +413,19 @@ function main() {
     else if (status === 'FAIL') process.stderr.write('\nabsence-regression: FAIL — new absence-fabrication patterns introduced\n');
     else
       process.stdout.write(
-        `absence-regression: ✓ PASS — ${scanned} added line(s) examined, ${excluded} under ${EXCLUDED_PATHS.map((e) => e.path).join(', ')} not scanned, no new fabrication pattern\n`
+        `absence-regression: ✓ PASS — ${scanned} added line(s) examined, ${excluded} under ${EXCLUDED_PATHS.map((e) => e.path).join(', ')} not scanned, ${citations} naming the shape in prose, no new fabrication pattern\n`
       );
   }
   process.exit(status === 'FAIL' ? 1 : 0);
 }
 
-main();
+/* THE CLI RUNS ONLY WHEN THIS FILE IS THE ENTRY POINT. The header calls `classifyAdded` a pure core
+   "so the selftest can plant a violation and a control without a repository", and until this guard an
+   `import` of it ran `main()` and exited before the importer's first line. The idiom is the one
+   `tools/argv-reads.mjs` already models, and the predicate is the house one.
+   A raw `import.meta.url === pathToFileURL(process.argv[1]).href` is WRONG through a symlink, because
+   node resolves the entry and leaves `process.argv[1]` as written, so a tool reached through a linked
+   directory reads as imported and exits 0 having done nothing. The suite group "the CLI predicate
+   survives a symlink to the tool" refuses that spelling across the whole tools tree, and `isCliEntry`
+   answers on both that form and `--preserve-symlinks-main`, which realpath alone gets wrong. */
+if (isCliEntry(import.meta.url)) main();
