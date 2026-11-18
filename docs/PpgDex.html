@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="b8d4dfa6f438" data-compute-hash="4453c8da8262">
+<html lang="en" data-manifest-hash="d9576f1d2f1a" data-compute-hash="4453c8da8262">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1PiipLgfjWN8ZIo8PovOFjPONQZ35phQTusgmgnx2gg=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3QOLYKBsffbmLXFalO1pSufl+HcbSk6JP025X/WpQs=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LRa7VQaZD1GO9QtTgm/NOp9niJoNbsRPsWXzCbrnE10=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-YKFNI17jABWarI+TzyhC2Zxm/OqdMQx0CohWrfJnWdY=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-ggYU1ihdHnt0X/nkam6OcByjHEJh1otVD4lM1EcVO8Q=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-pAyVNWi97XiMN6Gq4BZlMPSB3vvSSYgiX+7HUIck7+Y=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1PiipLgfjWN8ZIo8PovOFjPONQZ35phQTusgmgnx2gg=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3QOLYKBsffbmLXFalO1pSufl+HcbSk6JP025X/WpQs=' 'sha256-FN+9mZF/E31+1lM1aatPWdf//6LjIOCvdeIgtCSciLw=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LRa7VQaZD1GO9QtTgm/NOp9niJoNbsRPsWXzCbrnE10=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-YKFNI17jABWarI+TzyhC2Zxm/OqdMQx0CohWrfJnWdY=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-pAyVNWi97XiMN6Gq4BZlMPSB3vvSSYgiX+7HUIck7+Y=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.34.0</title>
@@ -19254,28 +19254,58 @@ window.evBadge = evBadge;
     /* `Number.isFinite`, NOT the global `isFinite`: `isFinite(null)` is TRUE (null coerces to 0), so
        the coercing form would keep the very point this filter exists to drop — measured, it kept the
        null and the axis label threw exactly as before. */
-    pts = (pts || []).filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y));
+    /* ∅ DROPPING THE ABSENT POINT KEPT THE CRASH OUT AND LEFT THE CLAIM IN. The filter above
+       removed the unmeasured epoch from the series, and the single path then ran STRAIGHT from the
+       epoch before it to the epoch after it. A reader saw one continuous trend across a stretch this
+       node refused to measure. `eegdex-render.js` states the house rule for every figure it draws:
+       a non-finite value leaves the domain AND BREAKS THE PATH, because a line ruled across absent
+       signal is a claim about that signal. So the series is cut into runs of adjacent measured
+       points, and each run draws its own subpath. The gap draws nothing.
+       A run holding ONE point draws a DOT: a lone measured epoch between two absences must stay
+       visible, and a one-point subpath paints no pixel. GlucoDex bridges a one-reading hole instead,
+       and that belongs where it sits — in the DSP, which knows the cadence and flags the cell it
+       filled. This renderer knows neither, so it never invents a segment it cannot flag. */
+    const segs = [];
+    let run = null;
+    for (const p of pts || []) {
+      if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+        if (!run) {
+          run = [];
+          segs.push(run);
+        }
+        run.push(p);
+      } else run = null;
+    }
     const W = opts.W || 680,
       H = opts.H || 150,
-      P = { l: 46, r: 14, t: 14, b: 24 },
-      n = pts.length;
-    if (!n) return '';
+      P = { l: 46, r: 14, t: 14, b: 24 };
+    if (!segs.length) return '';
     let ymn = opts.ymn != null ? opts.ymn : Infinity,
       ymx = opts.ymx != null ? opts.ymx : -Infinity,
       xmn = Infinity,
       xmx = -Infinity;
-    for (const p of pts) {
-      if (opts.ymn == null && p.y < ymn) ymn = p.y;
-      if (opts.ymx == null && p.y > ymx) ymx = p.y;
-      if (p.x < xmn) xmn = p.x;
-      if (p.x > xmx) xmx = p.x;
+    for (const s of segs) {
+      for (const p of s) {
+        if (opts.ymn == null && p.y < ymn) ymn = p.y;
+        if (opts.ymx == null && p.y > ymx) ymx = p.y;
+        if (p.x < xmn) xmn = p.x;
+        if (p.x > xmx) xmx = p.x;
+      }
     }
     if (ymx === ymn) ymx = ymn + 1;
     if (xmx === xmn) xmx = xmn + 1;
     const sx = (x) => P.l + ((x - xmn) / (xmx - xmn)) * (W - P.l - P.r);
     const sy = (y) => H - P.b - ((y - ymn) / (ymx - ymn)) * (H - P.t - P.b);
-    const line = pts.map((p, k) => (k ? 'L' : 'M') + sx(p.x).toFixed(1) + ' ' + sy(p.y).toFixed(1)).join(' ');
-    const area = `M${sx(pts[0].x).toFixed(1)} ${H - P.b} ` + pts.map((p) => 'L' + sx(p.x).toFixed(1) + ' ' + sy(p.y).toFixed(1)).join(' ') + ` L${sx(pts[n - 1].x).toFixed(1)} ${H - P.b} Z`;
+    const line = segs.map((s) => s.map((p, k) => (k ? 'L' : 'M') + sx(p.x).toFixed(1) + ' ' + sy(p.y).toFixed(1)).join(' ')).join(' ');
+    /* A one-point run has no area to fill, and its `M x base L x y L x base Z` would be a sliver. */
+    const area = segs
+      .filter((s) => s.length > 1)
+      .map((s) => `M${sx(s[0].x).toFixed(1)} ${H - P.b} ` + s.map((p) => 'L' + sx(p.x).toFixed(1) + ' ' + sy(p.y).toFixed(1)).join(' ') + ` L${sx(s[s.length - 1].x).toFixed(1)} ${H - P.b} Z`)
+      .join(' ');
+    const dots = segs
+      .filter((s) => s.length === 1)
+      .map((s) => `<circle cx="${sx(s[0].x).toFixed(1)}" cy="${sy(s[0].y).toFixed(1)}" r="1.6" fill="${color}"/>`)
+      .join('');
     const xt = [];
     const xstep = (xmx - xmn) / 5;
     for (let i = 0; i <= 5; i++) xt.push(xmn + i * xstep);
@@ -19294,7 +19324,7 @@ window.evBadge = evBadge;
     ${xt.map((x) => `<text x="${sx(x).toFixed(1)}" y="${H - 7}" fill="${C.dim}" font-size="9" text-anchor="middle" font-family="ui-monospace,monospace">${opts.xfmt ? opts.xfmt(x) : x.toFixed(0)}</text>`).join('')}
     ${marks}
     <path d="${area}" fill="url(#${gid})"/>
-    <path d="${line}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="${line}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>${dots}
   </svg>`;
   }
 
