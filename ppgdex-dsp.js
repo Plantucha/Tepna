@@ -6614,7 +6614,16 @@
     const epochs = buildEpochs(nn, corr.tt, motion, perfWindow, cleanMask, agreeI, adj);
 
     // quality
-    const meanSQI = sqi.length ? r2(mean(sqi)) : 0;
+    /* §∅ — A MEAN OVER AN EMPTY BEAT POPULATION IS UNMEASURED, NEVER 0. `sqi` carries one entry per
+       detected beat, so an empty array means the detector placed NO beats: no pulse population to score.
+       The old `: 0` published the WORST value on this 0..1 scale, and `meanSQI` feeds the Ganglior
+       confidence, so every consumer read a measured worst score over nothing. The page already draws a
+       dash, because it reads the POPULATION (`sqiAbsent` in `ppgdex-app.js`, #5272) rather than the
+       number — and the export and every cross-node consumer still read the 0 the page hides. The
+       clean-beat share two lines below refuses with its own cause; the mean now answers the same way.
+       A record whose beats ALL scored zero keeps its measured 0 and its grade. */
+    const meanSQI = sqi.length ? r2(mean(sqi)) : null;
+    const meanSQIReason = sqi.length ? null : 'no beats were detected — no pulse population to score';
     const cleanBeats = sqi.filter((s) => s >= 0.5).length;
     /* §∅ — A SHARE OF NO BEATS IS UNMEASURED, NOT 0 %. `sqi` holds one entry per detected beat, so an
        empty array means the detector placed NO beats: a record with no pulse population, not a record
@@ -7091,6 +7100,7 @@
       ...(_seAnno.reason ? { sampenReason: _seAnno.reason } : {}),
       epochs,
       meanSQI,
+      meanSQIReason,
       cleanBeatPct,
       cleanBeatPctReason,
       analyzablePct,
