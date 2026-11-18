@@ -620,9 +620,24 @@ export function buildFirstVerdict(plan) {
   if (plan.reason === 'the generated set is unreadable') return { code: 2, line: `build-first: ⏱ UNEXAMINED — ${plan.reason}` };
   return { code: 1, line: `build-first: REFUSED — the build moved ${plan.other.length} path(s) that are no build output, so the PR must carry them: ${plan.other.slice(0, 5).join(', ')}` };
 }
+/* A path dirty BEFORE the build is the author's own uncommitted work, never a finding: a local
+   `npm run check` runs over an edited tree. CI checks out a clean tree, so there this drops nothing. */
+export function dropPreDirty(porcelain, before) {
+  const pre = new Set(
+    String(before || '')
+      .split('\n')
+      .filter((l) => l.trim())
+      .map((l) => l.slice(3).split(' -> ').pop().trim())
+  );
+  return String(porcelain || '')
+    .split('\n')
+    .filter((l) => l.trim() && !pre.has(l.slice(3).split(' -> ').pop().trim()))
+    .join('\n');
+}
 function buildFirst(wt) {
   let plan = null;
   try {
+    const before = sh('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: wt });
     for (const s of REGEN_STEPS) sh(process.execPath, s, { cwd: wt, stdio: ['ignore', 'ignore', 'inherit'] });
     let generated = null;
     try {
@@ -630,7 +645,7 @@ function buildFirst(wt) {
     } catch {
       generated = null;
     }
-    plan = planRegen(sh('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: wt }), generated);
+    plan = planRegen(dropPreDirty(sh('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: wt }), before), generated);
   } catch (e) {
     console.error(`build-first: ${String(e.message || e).split('\n')[0]}`);
   }
@@ -1343,6 +1358,12 @@ function selftest() {
   eq(buildFirstVerdict({ verdict: 'refused', paths: [], other: ['provenance/OxyDex.json'], reason: 'x' }).code, 1, 'build-first: a stale provenance fragment refuses');
   eq(buildFirstVerdict({ verdict: 'refused', paths: [], other: [], reason: 'the generated set is unreadable' }).code, 2, 'build-first: an unread generated set cannot judge');
   eq(buildFirstVerdict(null).code, 2, 'build-first: a failed build cannot judge');
+  eq(
+    dropPreDirty(' M oxydex-dsp.js\n M provenance/OxyDex.json', ' M oxydex-dsp.js'),
+    ' M provenance/OxyDex.json',
+    "build-first: a path dirty before the build is the author's, and only the moved one stays"
+  );
+  eq(dropPreDirty(' M OxyDex.html', ''), ' M OxyDex.html', 'build-first CONTROL: a clean tree before the build drops nothing');
   console.log(`all ${ran} selftests passed`);
 }
 

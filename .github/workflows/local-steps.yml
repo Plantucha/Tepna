@@ -69,6 +69,8 @@ jobs:
           node-version: '20'
       - name: Install dependencies (ast-grep and the other devDependencies the steps drive)
         run: npm ci
+      - name: Build every generated tree from source, and refuse a stale provenance fragment (GENERATED-OUT-OF-PRS stage 1)
+        run: node tools/pr-walker.mjs --build-first
       # The PINNED wheel, not the runner image's binary. `capture-host-ci.yml` measured that
       # `/usr/bin/shellcheck` flags three SC2015 sites which 0.11.0 does not, so two shellchecks make a
       # green local round and a red CI round on one diff. `shellcheck-gate.mjs` resolves `$SHELLCHECK`,
