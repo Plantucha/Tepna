@@ -266,8 +266,22 @@
       // for the peak-assignment comparisons above, so beat→window assignment (and ai/ri/beats) is
       // untouched and pi is the only value that moves. (EFFICIENCY-AUDIT-FINDINGS-2026-07-12 §C1.)
       let pi = null;
-      const s0 = Math.round(w0),
-        s1 = Math.min(raw.length, Math.round(w0 + winSamp));
+      /* ∅ THE SIBLING OF THIS BLOCK ALREADY CARRIED THE RULE, AND THIS ONE DID NOT.
+         `ppgdex-dsp.js`'s `perfWindow` computes the same AC ÷ DC over a span. It bounds the span by
+         `Math.min(raw.length, bp.length)`, it guards every `bp` read with `Number.isFinite`, it counts
+         the covered samples, and it divides by that count — under its own comment, that a span with
+         nothing finite in it reports nothing. This block bounded the span by `raw.length` alone and
+         divided by the WHOLE span. So a `bp` shorter than `raw`, or one non-finite cell anywhere in
+         the window, made `m` and `ac` NaN. `r2(NaN)` is NaN, the app's `w.pi != null` filter passes a
+         NaN, and the surfaced trend then voided its path from that window on.
+         Measured on the builder at `fs = 176.26` over 180 s, where every window reads 2.83: a `bp` 30 s
+         shorter than `raw` gave NaN in window 2, and one NaN cell gave NaN in its own window.
+         THE DIVISOR IS THE SECOND HALF OF THE DEFECT. Dividing a half-covered window by the whole span
+         averages the absence into the cells the device did send, which reads the amplitude 1/√2 low.
+         A guard alone would have left that, because under full coverage the two divisors are equal. */
+      const nSpan = Math.min(raw.length, bp.length);
+      const s0 = Math.min(nSpan, Math.round(w0)),
+        s1 = Math.min(nSpan, Math.round(w0 + winSamp));
       if (s1 - s0 > fs) {
         let acc = 0,
           c = 0;
@@ -278,17 +292,27 @@
           acc += d < 0 ? -d : d;
           c++;
         }
-        const dc = c ? acc / c : 0;
-        let m = 0;
-        for (let i = s0; i < s1; i++) m += bp[i];
-        m /= s1 - s0;
-        let v = 0;
+        let acSum = 0,
+          acN = 0;
         for (let i = s0; i < s1; i++) {
-          const dd = bp[i] - m;
-          v += dd * dd;
+          if (Number.isFinite(bp[i])) {
+            acSum += bp[i];
+            acN++;
+          }
         }
-        const ac = Math.sqrt(v / (s1 - s0));
-        if (dc > 0) pi = r2((100 * ac) / dc);
+        if (c && acN >= 2) {
+          const dc = acc / c;
+          const m = acSum / acN;
+          let v = 0;
+          for (let i = s0; i < s1; i++) {
+            if (Number.isFinite(bp[i])) {
+              const dd = bp[i] - m;
+              v += dd * dd;
+            }
+          }
+          const ac = Math.sqrt(v / acN);
+          if (dc > 0) pi = r2((100 * ac) / dc);
+        }
       }
       out.push({
         tMin: r1(w0 / fs / 60),

@@ -78943,6 +78943,60 @@
       );
       // Guard the root cause directly: a window past the first must still index integrally.
       T.ok('a LATER window (w0 = 60*fs = 10575.6, fractional) still yields a PI — not just w0=0', win.length > 1 && win[1].pi != null && isFinite(win[1].pi), 'win[1].pi=' + (win[1] && win[1].pi));
+
+      /* ∅ THE SAME BLOCK PUBLISHED A NaN TWO OTHER WAYS, AND `ppgdex-dsp.js`'s `perfWindow`
+         REFUSES BOTH. That sibling bounds its span by `Math.min(raw.length, bp.length)`, it guards
+         every `bp` read with `Number.isFinite`, and it divides by the COVERED count. `perWindowMorph`
+         bounded by `raw.length` alone and divided by the whole span, so a short `bp` or one non-finite
+         cell gave `m` and `ac` NaN. The app filters `w.pi != null`, and a NaN passes that, so the
+         surfaced trend voided its path. Note that `JSON.stringify` prints a NaN as `null`, so these
+         legs classify the value and never compare its JSON. The known answer stays
+         100 × std(40·sin) ÷ 1000 = 2.83. */
+      var CITED_PI = (100 * (40 / Math.SQRT2)) / 1000;
+      var piCls = function (v) {
+        return v === null ? 'null' : Number.isFinite(v) ? String(v) : 'NaN';
+      };
+      var bpShort = bp.slice(0, n - Math.round(30 * fs));
+      var winShort = PM.perWindowMorph(bpShort, raw, { peaks: peaks, feet: feet }, fs, sqi, 60);
+      T.ok(
+        '🔴 a bp SHORTER than raw yields no NaN PI — the span bounds by BOTH arrays',
+        winShort.length > 2 &&
+          winShort.every(function (w) {
+            return Number.isFinite(w.pi);
+          }),
+        winShort
+          .map(function (w) {
+            return piCls(w.pi);
+          })
+          .join(',')
+      );
+      var bpHole = Float32Array.from(bp);
+      bpHole[Math.round(30 * fs)] = NaN;
+      var winHole = PM.perWindowMorph(bpHole, raw, { peaks: peaks, feet: feet }, fs, sqi, 60);
+      T.ok(
+        '🔴 ONE non-finite bp cell does not poison the PI of its own window',
+        winHole.length > 0 && Number.isFinite(winHole[0].pi),
+        'win[0].pi=' + (winHole[0] ? piCls(winHole[0].pi) : 'no window')
+      );
+
+      /* THE DIVISOR IS THE SECOND HALF OF THE DEFECT, AND ONLY THIS LEG CATCHES IT. A guard alone
+         leaves the whole-span divisor in place, and under full coverage the two divisors are equal,
+         so every leg above passes against it. Half of window 0 holds 36 whole cycles, so its covered
+         amplitude equals the full window's. A span divisor reads that half 1/√2 low: measured 2.0
+         against 2.83. */
+      var bpHalf = Float32Array.from(bp);
+      for (var hh = Math.round(30 * fs); hh < Math.round(60 * fs); hh++) bpHalf[hh] = NaN;
+      var winHalf = PM.perWindowMorph(bpHalf, raw, { peaks: peaks, feet: feet }, fs, sqi, 60);
+      T.ok(
+        '🔴 a HALF-covered window reports the amplitude of the cells the device DID send',
+        winHalf.length > 0 && Number.isFinite(winHalf[0].pi) && Math.abs(winHalf[0].pi - win[0].pi) <= 0.05,
+        'half=' + (winHalf[0] ? piCls(winHalf[0].pi) : 'no window') + ' full=' + piCls(win[0].pi)
+      );
+      T.ok(
+        'control (anti-vacuity): the fully covered window still matches the CITED 100 × AC ÷ DC',
+        Math.abs(win[0].pi - CITED_PI) / CITED_PI < 0.01,
+        'got ' + piCls(win[0].pi) + ' cited ' + CITED_PI.toFixed(4)
+      );
     });
 
     /* ════ #87: PpgDex whole-record perfusion index IS a PERCENTAGE — PI = 100 × AC/DC ════
