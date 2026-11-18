@@ -699,6 +699,59 @@
     }
    }
   },
+  "periodicBreathing": {
+   "builtBy": "fusePeriodicBreathing",
+   "readerFiles": [
+    {
+     "file": "integrator-render.js",
+     "aliasPath": "fusion.periodicBreathing"
+    }
+   ],
+   "enumeratedWith": "the depth-1 keys of the ONE own-scope return of fusePeriodicBreathing(), the guarded `return blocks.length ? { blocks: blocks } : null;` at integrator-dsp.js:4684. Read from SOURCE in blanked code on 2026-11-18. The builder holds four other `return {` literals and none of them is its shape: two callback-scope guarded returns at :4560 and :4570, the dissenter literal at :4617, and the block literal at :4664. Both export routes carry the key. The full return writes `periodicBreathing: periodicBreathing,` at :8142 and the slim `var _exp = {` projection writes `periodicBreathing: fusion.periodicBreathing || null,` at :8247, so depth 2 agrees with depth 1 here.",
+   "readAs": "an anchored read: `<alias>.<key>` or `<alias>[\"<key>\"]` inside the enclosing function of a binding of this subtree's whole path. The render realm holds two: renderKPIs() at :466 reads the whole path at :529 and :530, and renderFindings() at :975 binds `var pb = fusion.periodicBreathing;` at :1138. A bare token credits nothing here, and the measurement below says why.",
+   "seededFrom": "Hand-checked on 2026-11-18 against the builder and all three reader realms, from the read sites and never from a token match. `blocks` is read at integrator-render.js:529 as `fusion.periodicBreathing.blocks`, at :530 as `blocks[0]` and at :1139 and :1140 through the alias. A BARE-TOKEN test would be wrong in both directions. integrator-app.js:730 writes `periodicBreathingPct: cpapPbPct,` into a CPAP summary, which is a different key on a different object, and overdex-app.js names this subtree 0 times. integrator-render.js names `blocks` seven times, and :1099 is `fusion.hrv` — a DIFFERENT subtree under the same key name. The seed is DERIVED, so this first green proves nothing about today beyond the shape it read. What it catches from here is DRIFT: a key added to or dropped from the guarded return, a realm that stops reading `blocks`, or an export that renames the subtree.",
+   "nullWhen": "Null on two paths. fusePeriodicBreathing() returns null where fewer than two nodes carry an eligible recording, at integrator-dsp.js:4565, and again where no block survives the corroboration filter at :4681, because `blocks.length` is then 0. Both export routes ship the key on every fusion, so a consumer reads `null` and never an absent key.",
+   "surfaces": {
+    "blocks": "card"
+   },
+   "depthNote": "Depth 3 is the ELEMENT of `blocks`, and `mapShapes` reads it from the ONE `.map(` at the statement's own bracket depth, at integrator-dsp.js:4580. That statement spans :4579 to :4683 and holds eight maps, so the seven deeper ones belong to the element and never to the array. This unit widened that reader, because the old `.map(` count read all eight and refused the builder outright.",
+   "elements": {
+    "block": {
+     "servesKeys": [
+      "blocks"
+     ],
+     "builtBy": "fusePeriodicBreathing",
+     "mappedFrom": "blocks",
+     "enumeratedWith": "the `.map` return literal of the ONE `var blocks =` declaration inside fusePeriodicBreathing(), at integrator-dsp.js:4664, read by `mapShapes`. 10 keys, and a block comment at :4674 sits between two of them. The dissenter literal at :4617 belongs to the element of `dissenters`, one layer deeper, and the reader excludes it by its enclosing function. This declaration owes no shape for that deeper layer.",
+     "readAs": "an anchored ELEMENT read: a callback or an indexed loop bound on `<alias-or-whole-path>.blocks` in a declared realm, and a read of that parameter inside the call. The render realm holds one callback, `pb.blocks.forEach(function (b) {` at integrator-render.js:1140.",
+     "seededFrom": "Hand-checked on 2026-11-18 against that callback and the indexed site beside it. The callback reads `b.window` at :1143, `b.nObservers` at :1145, `b.note` at :1146 and `b.observerNodes` at :1147. renderKPIs() reads `pb0.nObservers` and `pb0.observerNodes` at :531 behind the index hop at :530, which the element walk does not cross, so those two keys earn their card from the callback alone.",
+     "surfaces": {
+      "t0Ms": "export-only",
+      "window": "card",
+      "observerNodes": "card",
+      "nObservers": "card",
+      "corroborated": "export-only",
+      "conf": "export-only",
+      "sources": "export-only",
+      "dissenters": "export-only",
+      "nDissenters": "export-only",
+      "note": "card"
+     },
+     "notes": {
+      "t0Ms": "The block's start as floating wall-clock ms, and null where no observer carried a date. No realm reads it off an element.",
+      "window": "The day label the cards print, and `date unknown` where t0Ms is null.",
+      "observerNodes": "The node names behind the count, in observer order. The KPI joins them and the finding card lists them.",
+      "nObservers": "A DISTINCT-NODE count, never a recording count. A node seen through two recordings counts once.",
+      "corroborated": "Whether two or more nodes saw the episode. Every shipped block reads true, because the builder filters on this key at integrator-dsp.js:4681.",
+      "conf": "The tier-weighted fused confidence, and null where no observer stated one. No realm reads it off an element.",
+      "sources": "The observer objects behind the count, one per node. No realm reads it off an element.",
+      "dissenters": "The scoring nodes that saw no episode. Empty where every scoring node saw it. No realm reads it off an element.",
+      "nDissenters": "How many scoring nodes dissented. No realm reads it off an element.",
+      "note": "The prose the finding card prints. It names the tier order and the dissent."
+     }
+    }
+   }
+  },
   "positional": {
    "builtBy": "labelPositionalApnea",
    "enumeratedWith": "The depth-1 keys of EVERY `return {` inside labelPositionalApnea(), unioned \u2014 2 on the no-posture guard at integrator-dsp.js:2705 and 12 on the measured path at :2753. Read from SOURCE, like every other subtree. Two gate defects hid this subtree until 2026-11-15: `nestedShapes` read RAW source, so the one-line guard return carrying a string refused the whole builder, and the evaluator dropped a shadowed alias site whole, so the `note` read in front of the shadow died with it.",
