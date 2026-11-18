@@ -32,10 +32,9 @@ queue_rules:
     batch_max_wait_time: 10 minutes
     merge_method: squash
     update_method: merge
-    commit_message_template: |
-      {{ title }} (#{{ number }})
-
-      {{ body }}
+    commit_message_format:
+      title: pr-title
+      body: pr-body
     queue_conditions:
       - base=main
       - -draft
