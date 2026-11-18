@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** IN-PROGRESS — 2026-11-17 · **Created:** 2026-11-08 · **Interlocks:** `briefs/RESIDUE.md` (the verified rows) · `AUDIT-PROMPT.md`
+**Status:** IN-PROGRESS — 2026-11-18 · **Created:** 2026-11-08 · **Interlocks:** `briefs/RESIDUE.md` (the verified rows) · `AUDIT-PROMPT.md`
 
 # MUSE-HUNT-RECORD — every Muse hunt finding, and its state on main
 
@@ -51,14 +51,14 @@ the tables is Muse's number at that HEAD. Main has moved since then, so read the
 |---|---|---|---|
 | R-1 | `ecgdex-app.js` tile and morph table | CVHR graded on AHI cut-points in two of four copies | row `2026-11-08-ecgdex-cvhr-keeps-ahi-cut-points-in-two-render-copies` |
 | R-2 | `cpapdex-render.js` `pressureCard`, `ventCard` | night cards draw session 1 metrics | row `2026-11-08-cpapdex-night-cards-draw-session-one-metrics` |
-| R-3 | HRVDex derived-metric colours | a NaN value prints a dash, but the colour ladder grades it red or green | fixed here: `kgrade` in `hrvdex-render.js` gives all 28 KPI ladders an absence arm |
-| R-4 | HRVDex Overtrain Risk | the table and the KPI strip use two contradictory ladders | unverified; Muse calls the intended ladder undecidable |
+| R-3 | HRVDex derived-metric colours | a NaN value prints a dash, but the colour ladder grades it red or green | fixed here: the population held TWO sites. `kgrade` already covered the 28 KPI ladders. This unit gives `renderTable`'s one pill site `Number.isFinite`, over 25 graded columns of 54. Measured on a NaN: 20 columns took red, 3 green, 1 yellow |
+| R-4 | HRVDex Overtrain Risk | the table and the KPI strip use two contradictory ladders | holds on main, and the population is THREE sites, not two: the KPI strip cuts at 50 and 150, the chart at 15, the table at 5 and 15. The ladder is decidable, because two sites agree and the producer caps at 500. A later unit takes 5 and 15 |
 | R-5a | `pulsedex-overview.js` Baevsky SI tile | null SI graded good | fixed on main: the tile uses `_kd(r.si, 150, 250)` |
-| R-5b | `pulsedex-overview.js` KPI grid | HF n.u. and ABS null graded bad; LF/HF and resp rate null graded warn; coverage prints the string "null" | unverified |
+| R-5b | `pulsedex-overview.js` KPI grid | HF n.u. and ABS null graded bad; LF/HF and resp rate null graded warn; coverage prints the string "null" | fixed on main: `_kc`, `_kd` and `_kn` read the null first, and every named tile carries a null arm. The string concatenation is gone |
 | R-6 | `ppgdex-app.js` Poincare line | absent area printed as 0 ms² | row `2026-11-08-ppgdex-poincare-line-prints-null-and-an-absent-area-as-zero` |
 | R-7 | `ppgdex-render.js` `lineChart` | no null hardening; a null y drags the axis to 0, a NaN voids the path | unverified; Muse found no caller that passes a null |
 | R-8 | CPAPDex Therapy Hours tile | carries badge id `usageHours`, which resolves to the mask-on definition | unverified |
-| R-9 | `hrvdex-render.js` alerts | `_energy < 30` fires on null | row `2026-11-08-hrvdex-low-energy-alert-fires-on-a-null-energy`; the delta half (a null previous row) is unverified |
+| R-9 | `hrvdex-render.js` alerts | `_energy < 30` fires on null | row `2026-11-08-hrvdex-low-energy-alert-fires-on-a-null-energy`. The delta half is fixed on main, because `kdelta` demands `Number.isFinite` on both members |
 | R-10 | `motiondex-render.js` supine row | states track length as the population | row `2026-11-08-motiondex-supine-row-states-the-wrong-denominator` |
 | R-11 | OxyDex night rows | `odi4` with null rate prints "null/h" graded green; HRV chips print raw nulls; the ODI-4 tile class is ok on a dash | unverified |
 | R-12 | `hrvdex-render.js` recovery-debt chart | absent value drawn as a green 0 bar | row `2026-11-08-hrvdex-recovery-debt-chart-draws-an-absent-value-as-a-green-zero` |
