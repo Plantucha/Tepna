@@ -11,7 +11,8 @@ A fleet of single-signal physiological analyzers — **OxyDex** (SpO₂), **HRVD
 still reads a `fascia` alias on input) and the fusion layer **"Integrator"**
 (`briefs/INTEGRATOR-BUILD-BRIEF.md`). Each app is built from `*-dsp.js` / `*-render.js` / `*-app.js`
 referenced by `Foo.src.html` and bundled to a standalone `Foo.html`. **Edit the `.js` + `.src.html`,
-never the bundled `.html`; re-bundle after changes.** 100 % local — no network, no CDNs, system font
+never the bundled `.html`; build locally after changes, and never commit a bundle** — the walker
+commits it after your merge (§5). 100 % local — no network, no CDNs, system font
 stacks only (no `@font-face`, no woff2).
 
 ## 👥 You are NOT alone in this checkout (*why → RATIONALE §👥*)
@@ -104,8 +105,8 @@ agent-coupled; detection is agent-neutral and lives in CI:
 
 ### 2c · Rebasing: use `rebase-safe`
 
-`main` moves every review cycle and the two orchestrator bundles are re-bundled by any inlined change,
-so PRs sharing no source still conflict. **Never** `git checkout origin/main -- $(git diff --name-only
+`main` moves every review cycle. An author PR carries no bundle (§5), so two PRs that share no source
+now conflict only on `provenance/**`, regenerated fixtures and `tests/dex-tests.js`. **Never** `git checkout origin/main -- $(git diff --name-only
 --diff-filter=U)` — right for a generated file, silently destructive for a source file, and the two share
 one conflict list.
 
@@ -123,6 +124,8 @@ node tools/rebase-safe.mjs --onto <ref>
   unreadable builder list fails closed.
 - **Source** (it stops): everything else. **`tests/dex-tests.js` conflicts on nearly every parallel PR** —
   restore `main`'s copy and re-run your insertion, never keep one side wholesale.
+- **A conflict on a bundle means your branch staged one.** Restore it to the ref's bytes and drop it
+  from the PR; never resolve it (check 10, §5).
 - **After ANY rebase verify your change survived:** `git show HEAD:<file> | grep -c <identifier you added>`.
 
 Hook-enforced (`guard-shared-tree.sh` denies `git checkout <ref> -- <source>`; generated paths pass).
@@ -228,6 +231,15 @@ your diff.
   an undraft is usually already served: read `gh pr view` first. **A capture-host PR the walker lands
   deploys to vigil, and it carries NO deploy hold** (owner, 2026-11-02: "Stop putting do not merge
   badge on vigil capture box"): vigil's update path defers the daemon restart while the box records.
+- **An author PR carries no build output** (`GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md`, 2026-11-18).
+  Check 10 `no-build-outputs` in `tools/pr-compliance.mjs` is BLOCKING: no bundle, no `docs/` served
+  copy, no analysis page, no `docs/TOOLS-INDEX.md`. The PR carries the source, `provenance/<App>.json`
+  and the regenerated fixtures. After each merge the walker builds `origin/main` and opens a
+  `claude/regen-walker-*` PR with only the moved build outputs; that prefix is the one exemption, and
+  `journalctl --user -u tepna-pr-walker.service | grep REGEN` names it. Every CI lane builds before it
+  judges, so a tree holding main's bundles passes. Until that PR merges, `docs/` serves the previous
+  build, about one CI cycle. `node tools/rebase-safe.mjs --build-outputs "<p>"…` names the build
+  outputs among the paths you give it; quote each path (`Data Unifier.html`).
 - Without Kodiak, `strict` status checks make an armed green BEHIND PR a **deadlock** (auto-merge never
   updates a branch): `node tools/queue-doctor.mjs --dry-run` names the green-and-stuck state and
   `node tools/land-pr.mjs <PR#>` drives one PR to merge. A merge queue is **not available** (user-owned
@@ -470,9 +482,18 @@ Ledgers are per-app `provenance/<App>.json` fragments (+ `_meta.json`, `index.js
 ### Re-bundle checklist
 
 ```sh
-node tools/build.mjs --app OxyDex     # edit the *.js / .src.html first, then rebuild
+node tools/build.mjs --all            # edit the *.js / .src.html first, then rebuild every carrier
+node tools/regen-<node>-goldens.mjs   # only for a node whose fixtures moved
 npm run check                         # ← the FULL gate. Not `build.mjs --check` alone.
+node tools/verify-fixtures.mjs        # stamps verifiedUnder over the real corpus
+git checkout -- <every build output>  # restore main's bytes; commit source + provenance + fixtures
 ```
+
+- **You still build locally, and you never commit what you built.** `verify-fixtures.mjs`, the browser
+  lane and `Dex-Test-Suite.html?full` read built pages, so build before you gate. Then restore every
+  build output to main's bytes before you commit (§5, check 10). `wt-done.mjs` refuses a worktree
+  that still holds them. An orchestrator is a carrier that `--app` never rebuilds, so a `*-dsp.js`
+  edit owes `--all`.
 
 - **Pre-flight `npm run typecheck && npm run lint` BEFORE bundling** — a reflow after `build.mjs` moves
   `manifestHash` and `computeHash` and re-runs the whole chain. Hook-enforced at commit by
@@ -486,9 +507,10 @@ npm run check                         # ← the FULL gate. Not `build.mjs --chec
 | the analysis tools | `tools/build-analysis.mjs` | `npm run verify:analysis` |
 | `docs/TOOLS-INDEX.md` (stalened by `tools/`, not by a re-bundle) | `tools/tools-index.mjs` | `npm run verify:tools-index` |
 
-  The enumeration is `package.json` (`grep -E '"(verify|build):' package.json`), not this table. A stale
-  `docs/` reds only CI's `static` job — it presents as a test failure and is not one.
-- **After `build-docs.mjs`, stage from `git status`, not from the `git add` line it prints.**
+  The enumeration is `package.json` (`grep -E '"(verify|build):' package.json`), not this table. CI
+  builds every tree before it checks, so a stale committed copy is the walker's to regenerate, not yours.
+- **Stage by explicit path, and never a path `--build-outputs` names** — not the `git add` line
+  `build-docs.mjs` prints.
 - `build.mjs` auto-writes `manifestHash` and re-stamps code-gated fixtures — never hand-edit either;
   never use `super_inline_html`. **Owned ≠ in GATE A:** `build.mjs` owns **`CLAIM ownedBundles = 12`**
   bundles — the 10 in `manifest-gate.js MANIFEST_BUNDLES` (9 apps + `Integrator.html`) plus
@@ -540,7 +562,7 @@ caption is correct when a badge sits on every series it draws.
   byte-for-byte, so one comment line in `metric-registry.js` moves it on all **15** bundles that
   carry the file (11 of the 12 owned; `Data Unifier.html` does not carry it). The compute closure is
   a denylist, so a spine module sits inside it and `computeHash` moves on all 14 as well — every
-  corpus-backed fixture then owes re-verification. Re-bundle each carrier:
+  corpus-backed fixture then owes re-verification. Rebuild each carrier locally (the walker commits it):
   `grep -lc 'data-inline-src="<file>"' *.html`. **Export-inert is the narrower claim, and it still
   owes the rebuild:** the same line in `oxydex-render.js` moves `manifestHash` and holds OxyDex's
   `computeHash` at `93f4d577efcd` (measured 2026-11-10 through `manifest-gate.js computeClosure`;
