@@ -162,10 +162,10 @@ jobs:
         run: node tests/verify-shard-union.mjs
       - name: The untimed-group ratchet (shrink-only; the timings stay a hint)
         run: node tests/verify-shard-timings.mjs
-      - name: Owned-build core tests (KAT + determinism + cross-hasher parity)
-        run: node tests/build-core-tests.mjs
       - name: Build every generated tree from source, and refuse a stale provenance fragment (GENERATED-OUT-OF-PRS stage 1)
         run: node tools/pr-walker.mjs --build-first
+      - name: Owned-build core tests (KAT + determinism + cross-hasher parity)
+        run: node tests/build-core-tests.mjs
       - name: Owned bundles ≡ build(source) (deterministic build drift guard)
         run: node tools/build.mjs --check
       - name: Absence regression — no new fabrication patterns introduced
