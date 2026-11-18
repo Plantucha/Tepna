@@ -137,7 +137,9 @@ export const KNOWN_ROOT_ZERO_BYTE = {
 };
 
 /** Declared-provenance prefixes. See the warning above: these are NOT shape exemptions. */
-export const EXEMPT_PREFIXES = ['Revert ', 'Revert"', 'rescue:'];
+/* `regen:` is the walker's regeneration PR (GENERATED-OUT-OF-PRS §5.3 stage 3). Kodiak squashes with
+   the PR title, so `pr-walker.mjs REGEN_SUBJECT` reaches main as the commit subject. */
+export const EXEMPT_PREFIXES = ['Revert ', 'Revert"', 'rescue:', 'regen:'];
 
 /**
  * Pure core. Classifies ONE commit from its subject and name-status file list.
@@ -319,6 +321,8 @@ export function selftest() {
 
   // 5 · DECLARED PROVENANCE downgrades, exactly as the first detector's does.
   ok(classifyRootAdd({ subject: 'Revert "chore: sync"', files: [A('Data', 0)] }).verdict === 'exempt', 'declared provenance is exempt');
+  ok(classifyRootAdd({ subject: 'regen: rebuild the build outputs that main left stale', files: [A('Data', 0)] }).verdict === 'exempt', 'the walker regeneration subject is declared provenance');
+  ok(classifyRootAdd({ subject: 'chore: regen: inside', files: [A('Data', 0)] }).verdict === 'FLAGGED', 'regen: exempts only as a prefix');
 
   // 6 · AN UNREADABLE BLOB IS NOT A CONVICTION (§∅). `size: null` means the size could not be measured;
   //     treating it as 0 would convict on absence.

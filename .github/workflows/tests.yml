@@ -188,6 +188,9 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           # The author GitHub sets, never the body: a dependabot manifest-only PR is out of scope.
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          # Check 10 exempts the walker's regeneration PR by its declared head branch
+          # (`REGEN_BRANCH_PREFIX`), because every fleet PR opens under one shared login.
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
           GH_TOKEN: ${{ github.token }}
         run: node tools/pr-compliance.mjs
       - name: Self-contained analysis tools ≡ bundle(source) (file://-safe drift guard)
