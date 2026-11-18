@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** PROPOSED (plan in §5, 2026-11-18: owner questions answered, stage 1 next, nothing built — verified 2026-11-18 at `6120ccf45`) — 2026-10-20 · **Created:** 2026-10-20
+**Status:** PROPOSED (plan in §5, 2026-11-18: owner questions answered, the CI build-first stage in review, the later stages unbuilt — verified 2026-11-18 at `e000a8916`) — 2026-10-20 · **Created:** 2026-10-20
 
 # GENERATED-OUT-OF-PRS — take the generated trees out of the PR diff, then batch the queue
 

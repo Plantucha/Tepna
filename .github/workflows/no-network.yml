@@ -85,6 +85,14 @@ jobs:
             npx playwright install chromium
           fi
 
+      # GENERATED-OUT-OF-PRS stage 1 (brief §5.3): the lane judges a FRESH build, never the committed
+      # bytes. Once a PR stops carrying the bundles (stage 4), its committed copies are the PREVIOUS
+      # build, and a lane that served them would test code the PR did not change. While PRs still carry
+      # the bundles this step is byte-identical to the checkout: `build:check` in tests.yml holds the
+      # committed bundles against a fresh build, so that check keeps its meaning. Measured 2026-11-18 on
+      # rig at origin/main 6120ccf45: 12 bundles in 1.72 s, 0 paths changed. Node built-ins only.
+      - name: Build the bundles from source
+        run: node tools/build.mjs --all
       - name: Serve the repo
         run: |
           python3 -m http.server 8080 --bind 127.0.0.1 &
