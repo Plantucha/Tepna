@@ -4913,7 +4913,16 @@
     // display series (downsampled, per ~minute or per cell)
     const series = [];
     const stride = Math.max(1, Math.floor(nG / 600));
-    for (let i = 0; i < nG; i += stride) series.push({ x: (i * dt) / 60, y: r2(sm[i]) });
+    /* ∅ A CELL NOTHING MEASURED IS NOT A CELL AT REST. `sm[i]` holds a structural 0 wherever the
+       3-cell window held no covered cell, and it holds the NEIGHBOURS' motion wherever that window
+       straddled a gap's edge. Either number drew the ribbon across a span the inertial stream never
+       covered, and the scale reads lower-is-better, so an inertial gap painted the calmest stretch of
+       the night. `meanMotionIndex` two lines above already refuses with `no-inertial-coverage`, so
+       this file states the rule and only the display series broke it. The series now publishes `null`
+       for an uncovered cell. `lineChart` in `ppgdex-render.js` drops a non-finite point AND BREAKS
+       THE PATH, so the gap draws nothing rather than a line ruled across absent signal.
+       Row `2026-11-18-the-ppgdex-motion-ribbon-publishes-a-zero-for-an-uncovered-cell`. */
+    for (let i = 0; i < nG; i += stride) series.push({ x: (i * dt) / 60, y: covCell[i] === 1 ? r2(sm[i]) : null });
     // ── posture (LIMB orientation) — gravity vector per axis via slow moving average.
     //    NOTE: Polar Sense is worn on the WRIST or the ANKLE (ankle is common for the
     //    arterial-stiffness proxy). The wear site is NOT auto-detected, so this is the

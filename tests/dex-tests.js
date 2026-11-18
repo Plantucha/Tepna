@@ -76440,6 +76440,33 @@
         Math.abs(mFull.motionAtSec(20.5) - 1 / 3) < 1e-6 && mFull.motionAtSec(20.75) < 1e-6,
         'got ' + mFull.motionAtSec(20.5) + ' / ' + mFull.motionAtSec(20.75)
       );
+
+      /* ∅ THE DISPLAY SERIES CARRIED THE GAP TWICE OVER. `sm[i]` is a structural 0 two cells into
+         the hole, and it is the NEIGHBOURS' motion at the hole's first two cells, so the ribbon drew
+         hard stillness over most of the hole and an unsupported value at its edge. Measured on `mGap`
+         before the fix: all 20 uncovered cells published a number and the series held 0 nulls. By the
+         window arithmetic the hole's first two cells carry the neighbours' value, and the 18 cells
+         after them carry a structural 0. A lower-is-better scale makes that the calmest stretch. The
+         series now publishes `null` there, and `lineChart` drops a non-finite point and breaks the
+         path. The biconditional leg pins the series to `motionCoveredAtSec`, so a later filter keyed
+         on the VALUE (`y > 0`) reds here instead of shipping. */
+      T.ok('the ribbon samples every grid cell on this stream', mGap.series.length === 160 && mGap.dt === 0.25, 'got ' + mGap.series.length + ' point(s) at dt ' + mGap.dt);
+      var ribbonWrong = 0,
+        ribbonNulls = 0;
+      for (var k = 0; k < mGap.series.length; k++) {
+        var kNull = mGap.series[k].y === null;
+        if (kNull) ribbonNulls++;
+        if (kNull !== (mGap.motionCoveredAtSec(k * 0.25) === false)) ribbonWrong++;
+      }
+      T.ok('a ribbon point is null exactly where its cell is uncovered', ribbonWrong === 0, 'got ' + ribbonWrong + ' point(s) disagreeing with motionCoveredAtSec');
+      T.ok('and the 5 s hole accounts for every null', ribbonNulls === 20, 'got ' + ribbonNulls + ' null(s) over 20 uncovered cell(s)');
+      T.ok('the covered cell beside the hole keeps its motion', Math.abs(mGap.series[60].y - 1) < 1e-6, 'got ' + mGap.series[60].y);
+      T.ok(
+        'control · under full coverage every ribbon point carries a number',
+        mFull.series.filter(function (p) {
+          return p.y === null;
+        }).length === 0
+      );
     });
 
     /* §∅ ABSENCE-AS-VALUE — the pinned-span rule and the DERIVED settling widening.
