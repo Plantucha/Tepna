@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** IN-PROGRESS (2026-11-18: `.mergify.yml` and its three cutover fixes ship inert, so §3.2 waits on the owner's app steps; every stage of §5 is built: every CI lane and `npm run check` build first, check 10 `no-build-outputs` is blocking, the walker opens the regeneration PR after each merge, and `CLAUDE.md` §2c, §5 and the re-bundle checklist describe the new path; acceptance items 2 and 4, the same-node pair and the batched landing, are unmeasured — verified 2026-11-18) · **Created:** 2026-10-20
+**Status:** IN-PROGRESS (2026-11-18: `.mergify.yml` and its three cutover fixes ship; the §3.2 cutover removes `.kodiak.toml` from main by owner order, and the Mergify queue starts after that merge; every stage of §5 is built: every CI lane and `npm run check` build first, check 10 `no-build-outputs` is blocking, the walker opens the regeneration PR after each merge, and `CLAUDE.md` §2c, §5 and the re-bundle checklist describe the new path; acceptance items 2 and 4, the same-node pair and the batched landing, are unmeasured — verified 2026-11-18) · **Created:** 2026-10-20
 
 # GENERATED-OUT-OF-PRS — take the generated trees out of the PR diff, then batch the queue
 
