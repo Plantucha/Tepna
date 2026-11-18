@@ -44688,6 +44688,60 @@
        `days / 2` = 0, i.e. on its FIRST cell, and shifted every reading by `drift × span / 2`
        (measured: mean 124 → 110 mg/dL over a 9-day wear drifting 3/day, reported `deDrifted: true`).
        Both defects are one null read as a zero; the group pins the null AND the reader that ate it. */
+    group('GlucoDex ∅ — no 03–06h→06–08h window means no dawn verdict, never "no dawn phenomenon"', 'glucodex-dsp · absence · dawn', function (T) {
+      var G = env.GLUDSP || (env.GlucoDex && env.GlucoDex._bare) || env.GlucoDex;
+      if (!G || typeof G.analyze !== 'function') {
+        T.skip('GLUDSP.analyze available', 'GlucoDex not co-loaded in this runner');
+        return;
+      }
+      var M = 60000;
+      /* A DAYTIME-ONLY 8 h wear from 12:00 carries NO sample in 03:00–06:00 and none in 06:00–08:00, so
+         no day can be scored. Pre-fix it published `present: false` — the same value a MEASURED absence
+         of a rise produces — and the export carried that false under `patterns.dawnPhenomenon.present`. */
+      var T0 = Date.UTC(2026, 6, 13, 12, 0, 0),
+        tMs = [],
+        v = [];
+      for (var i = 0; i < 97; i++) {
+        tMs.push(T0 + i * 5 * M);
+        v.push(110 + 6 * Math.sin(i / 7));
+      }
+      var day = G.analyze({ tMs: tMs, vMgdl: v, unit: 'mg/dL', t0Ms: T0 }, null, {});
+      T.eq('∅ · a record with no dawn window publishes present NULL, never false', day.dawn.present, null);
+      T.eq('∅ · …with the reason beside it', day.dawn.reason, 'no-day-with-both-windows');
+      T.eq('∅ · …no median to read', day.dawn.medianDelta, null);
+      T.eq('∅ · …and nDays 0 carries how many days contributed', day.dawn.nDays, 0);
+      /* CONTROLS · the fix must not silence a MEASURED verdict in either direction. */
+      var frameOf = function (valAt) {
+        var t2 = [],
+          v2 = [],
+          start = T0 - 12 * 3600000; // 00:00 on the 13th, two full days
+        for (var k = 0; k < 2 * 288; k++) {
+          var ms = start + k * 5 * M;
+          t2.push(ms);
+          v2.push(valAt(new Date(ms).getUTCHours()));
+        }
+        return { tMs: t2, vMgdl: v2, unit: 'mg/dL', t0Ms: t2[0] };
+      };
+      var rise = G.analyze(
+        frameOf(function (h) {
+          return h < 6 ? 90 : h < 8 ? 130 : 110;
+        }),
+        null,
+        {}
+      );
+      T.eq('control · a MEASURED dawn rise still reads present true', rise.dawn.present, true);
+      T.ok('control · …with the median rise measured', rise.dawn.medianDelta >= 20, rise.dawn.medianDelta + ' mg/dL');
+      var flat = G.analyze(
+        frameOf(function () {
+          return 110;
+        }),
+        null,
+        {}
+      );
+      T.eq('control · a MEASURED flat night still reads present false', flat.dawn.present, false);
+      T.ok('control · …because it has scored days to say it from', flat.dawn.days.length >= 1, flat.dawn.days.length + ' days');
+    });
+
     group('GlucoDex ∅ — an unmeasured cadence leaves the session span null, and de-drift never pivots on a zero', 'glucodex-dsp · absence · session-span', function (T) {
       var G = env.GLUDSP;
       if (!G || typeof G.analyze !== 'function') {
@@ -47799,6 +47853,41 @@
       // control · surges outside the directional window corroborate nothing
       var far = CN.autonomicCorroboration(night([0], ['23:30:00']));
       T.ok('control · a surge far outside [-15,+60] s corroborates nothing', far && far.matched === 0, far ? 'matched=' + far.matched : 'null');
+      CN.reset();
+    });
+
+    group('CPAPDex co-import ∅ — no measured overlap is no AHI↔ODI verdict', 'cpapdex-coimport · absence · concordance', function (T) {
+      var CN = env.CpapCoimport;
+      if (!CN || typeof CN.crossNode !== 'function' || typeof CN.ingest !== 'function') {
+        T.skip('CpapCoimport crossNode/ingest reachable', 'cpapdex-coimport.js not co-loaded into env');
+        return;
+      }
+      var H = 3600000,
+        T0 = Date.UTC(2026, 0, 10, 22, 0);
+      var oxy = function (startMs) {
+        return { schema: { node: 'OxyDex' }, nights: [{ t0Ms: startMs, date: '2026-01-11', stats: { durationMin: 480, meanSpo2: 94, minSpo2: 86, t90pct: 3 }, odi4: { rate: 4 } }] };
+      };
+      var night = function () {
+        return { t0Ms: T0, endMs: T0 + 8 * H, therapyHours: 8, metrics: { residualAHI: 4 }, sessions: [{ t0Ms: T0, endMs: T0 + 8 * H, events: [] }] };
+      };
+      var run = function (oxyStart) {
+        CN.reset();
+        CN.ingest(oxy(oxyStart), 'OxyDex_2026-01-11_odi.json');
+        return CN.crossNode(night());
+      };
+      /* A peer that STARTS 3.5 h AFTER this night ends is inside MAXGAP_MS, so it pairs — and the two
+         records share not one minute. Pre-fix the AHI/ODI ratio was computed anyway and published as
+         'concordant', with a note asserting the apneas track those desaturations. */
+      var apart = run(T0 + 11.5 * H);
+      T.ok('∅ · the far night still pairs (the 4 h tolerance is intentional)', !!(apart && apart.oximetry), apart ? 'oximetry present' : 'null');
+      T.eq('∅ · …at 0 % measured overlap', apart && apart.oximetry.overlapPct, 0);
+      T.eq('∅ · …and carries NO concordance verdict', apart && apart.concordance, null);
+      T.ok('∅ · …the note says why, so the absence is readable', !!(apart && /overlap/i.test(apart.concordanceNote || '')), apart && apart.concordanceNote);
+      /* CONTROL · a co-incident night at the same ratio still reads concordant (the fix must not fail
+         every transplant, only the ones with nothing shared). */
+      var same = run(T0 + 1 * H);
+      T.ok('control · an overlapping night still measures its overlap', !!(same && same.oximetry && same.oximetry.overlapPct >= 60), same && same.oximetry ? same.oximetry.overlapPct + ' %' : 'null');
+      T.eq('control · …and its verdict is unchanged (AHI 4 vs ODI 4)', same && same.concordance, 'concordant');
       CN.reset();
     });
 
@@ -90185,6 +90274,64 @@
           JSON.stringify(shortGap && { mean: shortGap.nocturnalMean, cov: shortGap.coverage })
         );
       }
+    });
+
+    group('Integrator ∅ — a CGM cell that never declared a flag is not measured glucose', 'integrator-dsp · absence · glucose-cell-flag', function (T) {
+      var IG = env.IntegratorDSP,
+        gmw = IG && IG.glucoseMetricsInWindow,
+        AD = env.adaptEnvelopeNode;
+      if (typeof gmw !== 'function' || typeof AD !== 'function') {
+        T.skip('glucoseMetricsInWindow + adaptEnvelopeNode available', 'Integrator not co-loaded in this runner');
+        return;
+      }
+      var M = 60000,
+        T0 = Date.UTC(2026, 6, 14, 0, 0, 0),
+        END = T0 + 175 * M;
+      var mk = function (n, from, val, flag) {
+        var out = [];
+        for (var i = from; i < from + n; i++) {
+          var c = { tMs: T0 + i * 5 * M, v: val };
+          if (flag !== undefined) c.f = flag;
+          out.push(c);
+        }
+        return out;
+      };
+      var adapt = function (cells) {
+        var recs = AD(
+          {
+            schema: { name: 'ganglior.node-export', version: '2.0', node: 'GlucoDex', bus: 'ganglior' },
+            recording: { startEpochMs: T0, durationMin: 175, events: 0 },
+            timeseries: { t0Ms: T0, cadenceMin: 5, cells: cells }
+          },
+          'GlucoDex',
+          'GlucoDex_flagless.json'
+        );
+        return recs && recs.length ? recs[0] : null;
+      };
+      /* (a) THE ADAPTER. A cell whose export carries no `f` used to be stamped 0 — GFLAG.OK, the value a
+         verified measured reading carries — so the §8.3 artifact exclusion below could never see it. */
+      var bare = adapt(mk(36, 0, 300));
+      var bareCells = bare && bare.series && bare.series.cells ? bare.series.cells : [];
+      T.eq('∅ · the adapter carried every cell', bareCells.length, 36);
+      if (bareCells.length) {
+        T.eq('∅ · an undeclared flag stays NULL, never 0 (= OK)', bareCells[0].f, null);
+        /* (b) A window made only of such cells publishes NOTHING. Pre-fix each one counted as measured and
+           the window returned a mean/nadir/TIR over readings whose provenance the file never stated. */
+        T.eq('∅ · a window of undeclared-flag cells yields no glucose figure', gmw(bare, T0, END, {}), null);
+      }
+      /* (c) MIXED. Half declared OK at 100, half undeclared at 300: the mean is the DECLARED 100 — not the
+           200 a zero-weighted OK would give — and coverage counts only the cells whose flag was known. */
+      var m = gmw(adapt(mk(18, 0, 100, 0).concat(mk(18, 18, 300))), T0, END, { minCoverage: 0.4 });
+      T.ok('∅ · a half-undeclared window still forms at minCoverage 0.4', !!m, m ? 'mean=' + m.nocturnalMean + ' cov=' + m.coverage : 'null');
+      if (m) {
+        T.approx('∅ · …its mean is the declared 100, not 200 diluted by undeclared 300s', m.nocturnalMean, 100, 1);
+        T.approx('∅ · …coverage counts only the cells whose flag was known (~0.5)', m.coverage, 0.5, 0.06);
+        T.eq('∅ · …and the unknown count rides out of band, as its own present key', m.nFlagUnknown, 18);
+      }
+      /* (d) CONTROL · a fully declared window is untouched. */
+      var cw = gmw(adapt(mk(36, 0, 110, 0)), T0, END, {});
+      T.ok('control · a fully declared window is unchanged', !!cw && Math.abs(cw.nocturnalMean - 110) < 1e-9, cw ? 'mean=' + cw.nocturnalMean : 'null');
+      T.eq('control · …with no unknown-flag cells', cw && cw.nFlagUnknown, 0);
     });
 
     group('Integrator evidence-grade mirror ≡ node registries', 'integrator-dsp · cohesion · cpapdex-registry · glucodex-registry', function (T) {

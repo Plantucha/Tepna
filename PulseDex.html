@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="a5ca99d6d2b3" data-compute-hash="01dc5bfd88f2"><head>
+<html lang="en" data-manifest-hash="1968b26ce39a" data-compute-hash="7fe8a4c64e7c"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6SR7nR5FDNjn2uFYqF/1kbBhQ5X8R/S05VJNsNx+AJE=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LA7FzxwxP2tLxmKV4tPt3XC4QDa4uxZkD9f3pr6DVRU=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-U5QCWFbZhYjVU7dbh2ELS49eRWFXZDAiRWAZMW8nJJ4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-Vh4NGXhRdDPT/oFgxxGvxM+Si2nd9MAgmKJidn1gZ0M=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-tvRw6b0rw6G2X5v1M0r/RSOJXWtojTH5smpMbwIB8Gs=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-Haw8BHhTH99+cqvHSxFdzq5XNoX/7IE0kI7JB3vHw80=' 'sha256-L9RPM8YDAWQTF2q91cAM8cn/BxTip1KO3H96sNPwOQY=' 'sha256-LA7FzxwxP2tLxmKV4tPt3XC4QDa4uxZkD9f3pr6DVRU=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-U5QCWFbZhYjVU7dbh2ELS49eRWFXZDAiRWAZMW8nJJ4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-Vh4NGXhRdDPT/oFgxxGvxM+Si2nd9MAgmKJidn1gZ0M=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.34.0</title>
@@ -9391,7 +9391,14 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     const rmssdRatio = rmA > 0 ? +(rmB / rmA).toFixed(2) : null;
     // pulse-transit-time variability surrogate: variance PRV adds over HRV.
     // PRV² ≈ HRV² + PTTV²  →  PTTV ≈ √(rmssd_PRV² − rmssd_HRV²).  (vascular/BP jitter)
-    const pttv = rmB > rmA ? +Math.sqrt(Math.max(0, rmB * rmB - rmA * rmA)).toFixed(1) : 0;
+    /* §∅ — THE SURROGATE HAS NO VALUE WHERE ITS OWN IDENTITY HAS NO POSITIVE ROOT. √(PRV²−HRV²)
+       resolves only when the pulse series carries the EXCESS variance the model assumes. A reference
+       that carries LESS than the primary is that premise failing, not a measurement — and the old
+       `: 0` published 0 ms, the healthiest number this tile can show (the app paints ≤15 ms green),
+       byte-identical to a genuinely rock-steady transit time. Equal series keep their exact 0: that
+       root is real and `Math.max(0, …)` already answers it. This is the same shape `rmssdRatio`
+       beside it uses (`rmA > 0 ? … : null`). */
+    const pttv = rmB >= rmA && isFinite(rmA) && isFinite(rmB) ? +Math.sqrt(Math.max(0, rmB * rmB - rmA * rmA)).toFixed(1) : null;
 
     // decide which side is the pulse (PRV) signal for framing
     const kA = primary.kind || 'auto',
@@ -15303,12 +15310,20 @@ function renderComparison() {
     _cmpTile('Correlation', ag.pearsonR == null ? '—' : ag.pearsonR, 'r', 'paired intervals', ag.pearsonR != null && ag.pearsonR >= 0.95 ? 'var(--green)' : 'var(--amber)') +
     '</div>';
 
-  const pttvCol = dc.pttvMs <= 15 ? 'var(--green)' : dc.pttvMs <= 30 ? 'var(--amber)' : 'var(--red)';
+  /* §∅ — `null <= 15` is TRUE in JavaScript, so an unresolvable surrogate would paint itself the
+     greenest colour on the card. The colour follows the absence instead of the coercion. */
+  const pttvCol = dc.pttvMs == null ? 'var(--text3)' : dc.pttvMs <= 15 ? 'var(--green)' : dc.pttvMs <= 30 ? 'var(--amber)' : 'var(--red)';
   const discTiles =
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px">' +
     _cmpTile('Δ rMSSD', (dc.dRMSSD > 0 ? '+' : '') + dc.dRMSSD, 'ms', 'PRV − HRV (matched)', 'var(--text)') +
     _cmpTile('rMSSD ratio', dc.rmssdRatio == null ? '—' : dc.rmssdRatio, '×', 'ref ÷ primary', 'var(--text)') +
-    _cmpTile('Transit-time variability', dc.pttvMs, 'ms', '√(PRV²−HRV²) · vascular tone surrogate', pttvCol) +
+    _cmpTile(
+      'Transit-time variability',
+      dc.pttvMs == null ? '—' : dc.pttvMs,
+      'ms',
+      dc.pttvMs == null ? 'not resolvable — the pulse carries no excess variance over the ECG' : '√(PRV²−HRV²) · vascular tone surrogate',
+      pttvCol
+    ) +
     '</div>';
 
   card.innerHTML =

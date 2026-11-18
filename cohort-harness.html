@@ -15063,7 +15063,14 @@ const OxyDex = window.OxyDex;
     const rmssdRatio = rmA > 0 ? +(rmB / rmA).toFixed(2) : null;
     // pulse-transit-time variability surrogate: variance PRV adds over HRV.
     // PRV² ≈ HRV² + PTTV²  →  PTTV ≈ √(rmssd_PRV² − rmssd_HRV²).  (vascular/BP jitter)
-    const pttv = rmB > rmA ? +Math.sqrt(Math.max(0, rmB * rmB - rmA * rmA)).toFixed(1) : 0;
+    /* §∅ — THE SURROGATE HAS NO VALUE WHERE ITS OWN IDENTITY HAS NO POSITIVE ROOT. √(PRV²−HRV²)
+       resolves only when the pulse series carries the EXCESS variance the model assumes. A reference
+       that carries LESS than the primary is that premise failing, not a measurement — and the old
+       `: 0` published 0 ms, the healthiest number this tile can show (the app paints ≤15 ms green),
+       byte-identical to a genuinely rock-steady transit time. Equal series keep their exact 0: that
+       root is real and `Math.max(0, …)` already answers it. This is the same shape `rmssdRatio`
+       beside it uses (`rmA > 0 ? … : null`). */
+    const pttv = rmB >= rmA && isFinite(rmA) && isFinite(rmB) ? +Math.sqrt(Math.max(0, rmB * rmB - rmA * rmA)).toFixed(1) : null;
 
     // decide which side is the pulse (PRV) signal for framing
     const kA = primary.kind || 'auto',
@@ -17217,7 +17224,16 @@ const PulseDex = window.PulseDex;
         });
       }
     }
-    if (!deltas.length) return { present: false, days: [] };
+    /* §∅ — A RECORD WITH NO 03–06h → 06–08h WINDOW HAS NO DAWN VERDICT. `deltas` is empty when no day
+       carries a nadir in 03:00–06:00 beside at least two samples in 06:00–08:00 — a wear that starts
+       after breakfast, a night whose whole span is warm-up or long gap, a trimmed export. The old line
+       answered `present: false`, the SAME value a measured absence of a rise produces, so a record with
+       zero windows claimed the negative clinical finding, and the export carried
+       `patterns.dawnPhenomenon.present: false` where a reader sees a checked result.
+       `tierOf` below already carries the sibling fix for an unmeasured span (§∅, task 32). `present`
+       now reads null WITH its reason; `days` and `nDays` still say how many days contributed, so a
+       consumer holding only the list renders "—" instead of "not flagged". */
+    if (!deltas.length) return { present: null, medianDelta: null, days: [], nDays: 0, reason: 'no-day-with-both-windows' };
     const md = Math.round(median(deltas.map((d) => d.delta)));
     return { present: md >= 20, medianDelta: md, days: deltas, nDays: deltas.length };
   }
