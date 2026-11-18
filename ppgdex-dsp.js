@@ -4939,7 +4939,10 @@
       magState.my = magRows.map((r) => r.y);
       magState.mz = magRows.map((r) => r.z);
       magState.mag = magRows.map((r) => Math.hypot(r.x, r.y, r.z));
-      magState.base = median(magState.mag.filter(isFinite)) || 0; // session |B| baseline (Gauss)
+      /* ∅ `median([])` is NaN, and `|| 0` turned that into a 0 G session baseline — a field
+         strength nothing measured. Keep the median. The two readers below refuse a baseline that
+         is not finite, so no reader has to distinguish 0 G from "never measured". */
+      magState.base = median(magState.mag.filter(isFinite)); // session |B| baseline (Gauss)
     }
     // tilt-compensated heading (deg) from a window-median mag vector + gravity vector (Gauss/mg)
     function tiltHeading(Mx, My, Mz, g) {
@@ -5024,10 +5027,16 @@
           const s = magState.ss[i];
           if (s != null && s >= s0 && s < s1) v.push(magState.mag[i]);
         }
-        if (v.length < 3) return null;
-        const sd = std(v),
-          md = median(v),
-          bg = magState.base || 1;
+        /* ∅ A NON-FINITE SAMPLE IS NOT A CLEAN FIELD. The baseline used to fall back to 1 G, so a
+           window of non-finite magnetometer samples reported a CLEAN field — the cleanest
+           reading of a field nothing examined, which is the defect the comment above names. Hold
+           the documented three-sample floor over the FINITE samples, and refuse an unexaminable
+           baseline on the same line. */
+        const vf = v.filter((x) => Number.isFinite(x));
+        if (vf.length < 3 || !Number.isFinite(magState.base)) return null;
+        const sd = std(vf),
+          md = median(vf),
+          bg = magState.base;
         return !!(sd > Math.max(0.03, 0.04 * bg) || Math.abs(md - bg) / bg > 0.25); // ~>4 µT wobble or >25% off baseline
       }
       // reference heading from the longest non-lateral (supine/prone/upright) spans → L/R datum.
@@ -5106,12 +5115,16 @@
       // correction cannot be checked: ~3.9 on the measured night, and a value at the GY_FULL/4 cap
       // means the estimator hit its guard rail and the recording is mostly movement.
       gyroBiasDps: gyroRows && gyroRows.length > 5 ? r2(gyroBias) : null,
-      nAcc: accRows ? accRows.length : 0,
-      nGyro: gyroRows ? gyroRows.length : 0,
+      /* ∅ AN ABSENT STREAM HAS NO COUNT. A gyro-only session carries no accelerometer, and `0`
+         published that as a stream the device wrote nothing for — `ppgdex-app.js` printed "0
+         samples" under an em-dash rate. `accFs` already refuses the same absence (suite group
+         `PPGDex F19`), so the rate and the count now agree. */
+      nAcc: accRows ? accRows.length : null,
+      nGyro: gyroRows ? gyroRows.length : null,
       hasMag: magState.has,
-      nMag: magRows ? magRows.length : 0,
+      nMag: magRows ? magRows.length : null,
       magFs: _magHz != null ? Math.round(_magHz) : null,
-      magBaseG: magState.has ? r2(magState.base) : null,
+      magBaseG: magState.has && Number.isFinite(magState.base) ? r2(magState.base) : null,
       refHeadingDeg: magState.has && magState.refHeading != null ? Math.round(((magState.refHeading % 360) + 360) % 360) : null
     };
   }
