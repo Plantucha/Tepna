@@ -549,12 +549,20 @@ function renderComparison() {
     _cmpTile('Correlation', ag.pearsonR == null ? '—' : ag.pearsonR, 'r', 'paired intervals', ag.pearsonR != null && ag.pearsonR >= 0.95 ? 'var(--green)' : 'var(--amber)') +
     '</div>';
 
-  const pttvCol = dc.pttvMs <= 15 ? 'var(--green)' : dc.pttvMs <= 30 ? 'var(--amber)' : 'var(--red)';
+  /* §∅ — `null <= 15` is TRUE in JavaScript, so an unresolvable surrogate would paint itself the
+     greenest colour on the card. The colour follows the absence instead of the coercion. */
+  const pttvCol = dc.pttvMs == null ? 'var(--text3)' : dc.pttvMs <= 15 ? 'var(--green)' : dc.pttvMs <= 30 ? 'var(--amber)' : 'var(--red)';
   const discTiles =
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px">' +
     _cmpTile('Δ rMSSD', (dc.dRMSSD > 0 ? '+' : '') + dc.dRMSSD, 'ms', 'PRV − HRV (matched)', 'var(--text)') +
     _cmpTile('rMSSD ratio', dc.rmssdRatio == null ? '—' : dc.rmssdRatio, '×', 'ref ÷ primary', 'var(--text)') +
-    _cmpTile('Transit-time variability', dc.pttvMs, 'ms', '√(PRV²−HRV²) · vascular tone surrogate', pttvCol) +
+    _cmpTile(
+      'Transit-time variability',
+      dc.pttvMs == null ? '—' : dc.pttvMs,
+      'ms',
+      dc.pttvMs == null ? 'not resolvable — the pulse carries no excess variance over the ECG' : '√(PRV²−HRV²) · vascular tone surrogate',
+      pttvCol
+    ) +
     '</div>';
 
   card.innerHTML =
