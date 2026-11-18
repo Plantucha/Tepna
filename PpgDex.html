@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="14c8ae95f500" data-compute-hash="261003306dd9">
+<html lang="en" data-manifest-hash="3a04bbc7fd0a" data-compute-hash="261003306dd9">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3QOLYKBsffbmLXFalO1pSufl+HcbSk6JP025X/WpQs=' 'sha256-Guo8R/USO+GAcDRQZp2BK3lfgF5ApB6E4TQiUzoPZNI=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-JILflBbFZlUauzZxNZZD8ZsMaBZQBdB5UGMY1r5VM9E=' 'sha256-LRa7VQaZD1GO9QtTgm/NOp9niJoNbsRPsWXzCbrnE10=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-YKFNI17jABWarI+TzyhC2Zxm/OqdMQx0CohWrfJnWdY=' 'sha256-a30wD1q1DhXb/hp/9CiNJnGcfilKag1nrqd5UVk34sw=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3QOLYKBsffbmLXFalO1pSufl+HcbSk6JP025X/WpQs=' 'sha256-Guo8R/USO+GAcDRQZp2BK3lfgF5ApB6E4TQiUzoPZNI=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LRa7VQaZD1GO9QtTgm/NOp9niJoNbsRPsWXzCbrnE10=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-RYbEDe8n1EnsuE+iGb3nEmieX6VmsWSx+H7VD3h8uQ8=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-YKFNI17jABWarI+TzyhC2Zxm/OqdMQx0CohWrfJnWdY=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-ggYU1ihdHnt0X/nkam6OcByjHEJh1otVD4lM1EcVO8Q=' 'sha256-jzJnte+elEp/YL/dKPBjUNceuZl7x6OYEPLRBoCkuNA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.34.0</title>
@@ -19167,6 +19167,20 @@ window.evBadge = evBadge;
   // ════════════════════════════════════════════════════════════════════════
   function lineChart(pts, color, opts) {
     opts = opts || {};
+    /* ∅ — A POINT NOBODY MEASURED IS NOT A POINT AT ZERO, AND IT MUST NOT TAKE THE CHART DOWN WITH IT.
+       `renderCharts` maps EVERY epoch (`r.epochs.map((e) => ({ x: e.tMin, y: e.hr }))`), and
+       `ppgdex-dsp.js` publishes `hr`/`rmssd` as `null` for an epoch whose clean population fell under
+       two intervals — a documented refusal, not a gap. `null < Infinity` is true, so the min/max scan
+       below landed on `null` instead of a number; `(ymx === ymn)` then set ymx = 1 while ymn stayed
+       null, and the axis label's `ymn.toFixed(0)` threw a TypeError. One unmeasured epoch aborted
+       `renderSession` HALF-WAY: the charts rendered, and morphology / motion / validation / table /
+       switcher / cross-night never did. The filter lives HERE rather than in each caller because this
+       module also feeds the epoch trends, the cross-night sparkline, the motion ribbon and the drift
+       lines, and `ecgdex-render.js` takes the same shape. */
+    /* `Number.isFinite`, NOT the global `isFinite`: `isFinite(null)` is TRUE (null coerces to 0), so
+       the coercing form would keep the very point this filter exists to drop — measured, it kept the
+       null and the axis label threw exactly as before. */
+    pts = (pts || []).filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y));
     const W = opts.W || 680,
       H = opts.H || 150,
       P = { l: 46, r: 14, t: 14, b: 24 },
@@ -19191,7 +19205,9 @@ window.evBadge = evBadge;
     const xt = [];
     const xstep = (xmx - xmn) / 5;
     for (let i = 0; i <= 5; i++) xt.push(xmn + i * xstep);
-    const med = opts.med;
+    /* The dashed median line is drawn only when a MEDIAN was measured: a NaN would print "NaN" into
+       the axis instead of being omitted (the two arms below already test `med != null`). */
+    const med = Number.isFinite(opts.med) ? opts.med : null;
     const marks = (opts.marks || []).map((m) => `<line x1="${sx(m).toFixed(1)}" y1="${P.t}" x2="${sx(m).toFixed(1)}" y2="${H - P.b}" stroke="${C.red}" stroke-width="1" opacity=".5"/>`).join('');
     const gid = 'g' + Math.random().toString(36).slice(2, 7);
     return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" style="width:100%;height:auto">
@@ -22139,8 +22155,17 @@ const { PPGUI } = __require('ppgdex-render.js');
       `<span>window <b>${fmt(s0)} – ${fmt(s1)}</b></span><span>span ${span < 60 ? span.toFixed(span < 8 ? 2 : 0) + ' s' : (span / 60).toFixed(1) + ' min'}</span><span>${(N / fs / 60).toFixed(1)} min total</span>`;
   }
 
-  const sc = (v, ok, warn) => (v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
-  const hrStat = (v) => (v < 40 ? 'bad' : v <= 90 ? 'ok' : v <= 100 ? 'warn' : 'bad');
+  /* ∅ — AN ABSENT METRIC IS UNGRADED, NOT THE WORST GRADE. Both helpers answer a band from a number
+     only, and `null >= 50` / `null < 40` are BOTH false, so the metrics table drew a red FLAG pill
+     beside a '—' value on every row whose metric had refused (`rMSSD`, `SDNN`, `Pulse rate` — the DSP
+     nulls each of the three per arm). `pctCls` below already answers `neutral` for an absent share;
+     these two follow it rather than inventing a second vocabulary. A measured value keeps its band. */
+  /* `Number.isFinite`, NOT the global `isFinite`: `isFinite(null)` is TRUE (null coerces to 0), so the
+     coercing form left `sc(null)` reading 'bad' and `hrStat(null)` reading 'bad' — the pill changed
+     colour and nothing else. This is why `pctAbsent` above spells the same idea as `v == null ||
+     !isFinite(v)`: an absence has to be named, never coerced. */
+  const sc = (v, ok, warn) => (!Number.isFinite(v) ? 'neutral' : v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
+  const hrStat = (v) => (!Number.isFinite(v) ? 'neutral' : v < 40 ? 'bad' : v <= 90 ? 'ok' : v <= 100 ? 'warn' : 'bad');
   /* §∅ — AN UNMEASURED PERCENTAGE IS A DASH AND A NEUTRAL GRADE, NEVER "0 %" AND "bad".
      `ppgdex-dsp.js` publishes `cleanBeatPct` and `analyzablePct` as `null` when the detector placed no
      beats. Every band test below reads `v >= 90 ? 'ok' : … : 'bad'`, and `null >= 90` is false, so an
@@ -22154,6 +22179,21 @@ const { PPGUI } = __require('ppgdex-render.js');
      reads `v >= ok`. A raw `v < 10 ? 'ok' : …` is worse than wrong on an absence, because
      `null < 10` is TRUE and every reader painted an unexamined gate the best possible green. */
   const pctClsDown = (v, ok, warn) => (pctAbsent(v) ? 'neutral' : v < ok ? 'ok' : v < warn ? 'warn' : 'bad');
+  /* §∅ — A MEAN OVER AN EMPTY BEAT POPULATION IS NOT A MEAN OF ZERO. `ppgdex-dsp.js` publishes
+     `meanSQI` as `sqi.length ? r2(mean(sqi)) : 0`, so a record on which the detector placed NO beats
+     reaches this layer as a MEASURED 0 — the worst value on the 0..1 scale — and the three readers
+     below drew `Mean SQI 0` graded `bad`, on the same page where `% Analyzable` beside it already
+     read `—` with "no beats detected". `sqi` carries one entry per detected beat and `analyze()`
+     publishes it, so the absence is read from the POPULATION that defines the mean, never inferred
+     from the number. A measured 0 (a record whose beats all scored zero) keeps its 0 and its grade. */
+  const sqiAbsent = (r) => !r || !r.sqi || !r.sqi.length;
+  const sqiTxt = (r) => (sqiAbsent(r) || !Number.isFinite(r.meanSQI) ? '\u2014' : r.meanSQI);
+  const sqiCls = (r, ok, warn) => (sqiAbsent(r) || !Number.isFinite(r.meanSQI) ? 'neutral' : r.meanSQI >= ok ? 'ok' : r.meanSQI >= warn ? 'warn' : 'bad');
+  /* ∅ — the session switcher interpolated `s.dispHr` and `s.rmssd` RAW, so a session carrying fewer
+     than three intervals printed the literal string "null" mid-sentence ("rMSSD null") and one with
+     no clean adjacent pair printed "null bpm". Both are this node's OWN per-arm refusals
+     (`timeDomain` leaves them null), and the em dash is the value every neighbouring reader uses. */
+  const numTxt = (v) => (Number.isFinite(v) ? v : '\u2014');
 
   /* ── OPTICAL SITE DECLARATION (PPGDEX-SITE-WIRING §2/§3) ─────────────────────────────────────
      The parser can only read the file LAYOUT, which names the DEVICE: 3 optical columns = a Verity
@@ -22334,7 +22374,7 @@ const { PPGUI } = __require('ppgdex-render.js');
         sub: r.correctionRate == null ? 'no intervals' : 'PPIs fixed',
         s: r.correctionRate == null ? 'neutral' : r.correctionRate < 5 ? 'ok' : r.correctionRate < 12 ? 'warn' : 'bad'
       },
-      { l: 'Mean SQI', v: r.meanSQI, sub: '0–1 · conf', s: r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad' },
+      { l: 'Mean SQI', v: sqiTxt(r), sub: sqiAbsent(r) ? 'no beats detected' : '0–1 · conf', s: sqiCls(r, 0.7, 0.5) },
       { l: 'DFA α1', v: r.dfa1 == null ? '—' : r.dfa1, sub: '0.9–1.2', s: r.dfa1 == null ? 'neutral' : r.dfa1 >= 0.9 && r.dfa1 <= 1.2 ? 'ok' : 'warn' }
     );
     /* PPI SELF-VALIDATION — the PpgDex analogue of ECGDex's self-RR-vs-device-RR check.
@@ -22377,7 +22417,7 @@ const { PPGUI } = __require('ppgdex-render.js');
       <div class="q-stat">${evBadge('Analyzable')}<div class="q-val ${pctCls(r.analyzablePct, 90, 75)}">${pctTxt(r.analyzablePct)}</div><div class="q-lbl">Analyzable</div><div class="q-sub">clean-beat × motion gate</div></div>
       <div class="q-stat"><div class="q-val ${pctCls(r.cleanBeatPct, 85, 65)}">${pctTxt(r.cleanBeatPct)}</div><div class="q-lbl">Clean pulses${evBadge('Clean pulses')}</div><div class="q-sub">SQI ≥ 0.5</div></div>
       <div class="q-stat"><div class="q-val ${pctClsDown(r.motionRejectedPct, 10, 30)}">${pctTxt(r.motionRejectedPct)}</div><div class="q-lbl">Motion-rejected${evBadge('Motion-rejected')}</div><div class="q-sub">${r.motionRejectedPctReason ? 'the gate did not run' : 'ACC+GYRO'}</div></div>
-      <div class="q-stat"><div class="q-val ${r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad'}">${r.meanSQI}</div><div class="q-lbl">Mean SQI${evBadge('Mean SQI')}</div><div class="q-sub">→ Ganglior conf</div></div>
+      <div class="q-stat"><div class="q-val ${sqiCls(r, 0.7, 0.5)}">${sqiTxt(r)}</div><div class="q-lbl">Mean SQI${evBadge('Mean SQI')}</div><div class="q-sub">${sqiAbsent(r) ? 'no beats detected' : '→ Ganglior conf'}</div></div>
       ${r.ledAgreementPct != null ? `<div class="q-stat"><div class="q-val ${r.ledAgreementPct >= 90 ? 'ok' : r.ledAgreementPct >= 75 ? 'warn' : 'bad'}">${r.ledAgreementPct}%</div><div class="q-lbl">3-LED agree${evBadge('LED agreement')}</div><div class="q-sub">${r.ledAgree3of3Pct != null ? r.ledAgree3of3Pct + '% all-3' : 'optical consensus'}</div></div>` : ''}
     </div>
     <div class="q-note">Per-pulse SQI = template cross-correlation against the median pulse × the <b>ACC+GYRO motion gate</b>. PPIs &gt;20% off the local median (Malik) are corrected; ${r.nCorrected} of ${r.nPulses.toLocaleString()} fixed. ${m && m.hasData ? `Motion bursts (accel-magnitude variance + gyro magnitude, resampled to the PPG base) <b>down-weight</b> pulses — wrist PPG's signature quality channel that OxyDex/ECGDex don't have. Mean motion index ${m.meanMotionIndex != null ? m.meanMotionIndex : '— (no inertial coverage)'}.` : '<b>No ACC/GYRO loaded</b> — motion gating skipped; load the companion files for the full quality channel.'} SQI feeds the <b>conf</b> of every Ganglior event.</div>
@@ -22781,7 +22821,7 @@ const { PPGUI } = __require('ppgdex-render.js');
     html += sec('Quality', [
       ['Analyzable', r.analyzablePct, '%', pctAbsent(r.analyzablePct) ? 'no beats detected' : '', pctCls(r.analyzablePct, 90, 75)],
       ['Clean beats', r.cleanBeatPct, '%', pctAbsent(r.cleanBeatPct) ? 'no beats detected' : 'SQI≥0.5', pctCls(r.cleanBeatPct, 85, 65)],
-      ['Mean SQI', r.meanSQI, '', '0–1 · conf', r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad'],
+      ['Mean SQI', sqiTxt(r), '', sqiAbsent(r) ? 'no beats detected' : '0–1 · conf', sqiCls(r, 0.7, 0.5)],
       ['Motion-rejected', r.motionRejectedPct, '%', r.motionRejectedPctReason ? 'the gate did not run' : 'ACC+GYRO', pctClsDown(r.motionRejectedPct, 10, 30)],
       [
         'Correction rate',
@@ -22819,7 +22859,7 @@ const { PPGUI } = __require('ppgdex-render.js');
           const q = pctCls(s.analyzablePct, 90, 75);
           return `<button class="sess-item ${active ? 'active' : ''}" data-key="${key}">
       <div class="si-top"><span class="si-date">${DSP.fmtDateTime(s.t0Ms)}</span><span class="si-q ${q}">${pctTxt(s.analyzablePct)}</span></div>
-      <div class="si-sub">${s.durMin} min · ${s.dispHr} bpm · rMSSD ${s.rmssd}</div></button>`;
+      <div class="si-sub">${numTxt(s.durMin)} min · ${numTxt(s.dispHr)} bpm · rMSSD ${numTxt(s.rmssd)}</div></button>`;
         })
         .join('');
     wrap.querySelectorAll('.sess-item').forEach((btn) =>
