@@ -1,0 +1,54 @@
+# .mergify.yml — the batching merge queue (GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md §3)
+#
+# INERT UNTIL THE OWNER INSTALLS THE MERGIFY APP. Kodiak (`.kodiak.toml`) merges until then.
+# Route: the Mergify app, not an org move (owner ruling 2026-10-20, board #649).
+#
+# CUTOVER ORDER (brief §3.2). Two merge bots on one queue race each other, so the owner never runs
+# both at once:
+#   1. Remove `.kodiak.toml` from main, or uninstall the Kodiak app. From that pass on the walker
+#      reads `queueBot: 'none'` and plans no fallback merge (tools/pr-walker.mjs `queueBotOf`).
+#   2. Install the Mergify app on this repository. It reads this file and starts the queue.
+#   3. Watch one batch of two or more PRs land in one CI cycle (brief §4, acceptance item 4).
+#
+# DELIBERATE choices:
+#  - `batch_size: 4` equals the WIP cap of four ready PRs (CLAUDE.md §5), so one batch holds the
+#    whole pool.
+#  - No `merge_conditions` list. `branch_protection_injection_mode` defaults to `queue`, so Mergify
+#    reads the required checks from the `protect-main` ruleset. A second list here would drift from it.
+#  - `squash` and the `do-not-merge` hold match `.kodiak.toml`. A draft is never queued; the walker
+#    readies a green draft (CLAUDE.md §5).
+#  - The squash message keeps the title, the number and the PR body, as Kodiak's
+#    `body = "pull_request_body"` does, so every commit on main still carries the
+#    `Fleet-Session:` trailer. `commit_message_template` is deprecated in favour of
+#    `commit_message_format`, whose schema the Mergify reference does not state; replace it when
+#    the owner's dashboard shows the declarative form.
+#  - `queue_branch_prefix` stays at Mergify's default `mergify/merge-queue/`. The walker skips that
+#    prefix (`QUEUE_BRANCH_PREFIX`) and pr-compliance exempts it for the `mergify[bot]` author only,
+#    because each member PR already passed that gate on its own head.
+queue_rules:
+  - name: default
+    batch_size: 4
+    batch_max_wait_time: 10 minutes
+    merge_method: squash
+    update_method: merge
+    commit_message_template: |
+      {{ title }} (#{{ number }})
+
+      {{ body }}
+    queue_conditions:
+      - base=main
+      - -draft
+      - label!=do-not-merge
+
+merge_queue:
+  mode: serial
+
+pull_request_rules:
+  - name: queue every ready PR
+    conditions:
+      - base=main
+      - -draft
+      - label!=do-not-merge
+    actions:
+      queue:
+        name: default

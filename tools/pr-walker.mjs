@@ -42,6 +42,13 @@
  * updates a held PR and the owner's merge button otherwise reads "out-of-date" after every merge to
  * main (owner, 2026-10-13: "let the walker update held PRs too"). Kodiak keeps the merge; `update` and
  * `merge` on a green PR are fallbacks for the hours Kodiak is down, gated on its idleness, never a race.
+ * THE FALLBACK BELONGS TO KODIAK ALONE (GENERATED-OUT-OF-PRS §3.2). `snapshot()` reads whether
+ * `.kodiak.toml` is on main. Only `queueBot === 'kodiak'` plans `update` or `merge` on a green PR.
+ * After the Mergify cutover removes that file, the walker would otherwise read Kodiak as quiet
+ * forever and merge one PR around every batch. An unreadable answer plans no merge.
+ * A MERGE-QUEUE BRANCH IS NOT A PR TO WALK. Mergify tests a batch on a draft PR whose head starts
+ * with `QUEUE_BRANCH_PREFIX`. Readying it, rebasing it or merging it would take the batch from the
+ * queue, so `plan()` drops it before it counts the pool.
  *
  * THE DECISION IS PURE. `classify()` and `plan()` take snapshots and return actions; `tests/dex-tests.js`
  * group `tools · pr-walker` pins them without `gh`, a network or a clock (the land-pr / queue-doctor
@@ -73,6 +80,8 @@ export const CAP = 4;
    window with its row still OPEN, so the two cannot drift. */
 export const MERGED_WINDOW = 30;
 export const KODIAK_IDLE_MIN = 20;
+/* Mergify's default `queue_branch_prefix`. `.mergify.yml` leaves the key unset, so the two agree. */
+export const QUEUE_BRANCH_PREFIX = 'mergify/merge-queue/';
 export const STALE_PENDING_MIN = 180;
 export const MAX_RERUNS_PER_SHA = 1;
 export const HOLD_LABEL = 'do-not-merge';
@@ -182,7 +191,7 @@ export function runIdOf(link) {
 }
 
 /* state: { reruns:{sha:n}, rebased:{sha:'pushed:<sha>'|'stopped'|'dirty'|…}, firstPending:{number:ms} }
-   ctx:   { nowMs, mainMovedAtMs, cap } */
+   ctx:   { nowMs, mainMovedAtMs, cap, queueBot? }  queueBot: 'kodiak' | 'none' | 'unknown'; absent reads 'kodiak' */
 /* One rebase per head SHA; a head that already stopped once is a coder's, named by the step. */
 function planRebase(r, state, actions, alerts, why) {
   const st = (state.rebased || {})[r.headSha];
@@ -196,7 +205,8 @@ export function plan(classified, state, ctx) {
   const idleMs = KODIAK_IDLE_MIN * 60000;
   const actions = [];
   const alerts = [];
-  const rows = [...classified].sort((a, b) => a.number - b.number);
+  const kodiakRuns = (ctx.queueBot ?? 'kodiak') === 'kodiak';
+  const rows = [...classified].filter((r) => !String(r.branch || '').startsWith(QUEUE_BRANCH_PREFIX)).sort((a, b) => a.number - b.number);
   let nonDraft = rows.filter((r) => !r.draft).length;
 
   for (const r of rows) {
@@ -255,6 +265,7 @@ export function plan(classified, state, ctx) {
       continue;
     }
     if (r.state === 'green' && !r.draft) {
+      if (!kodiakRuns) continue;
       const quietSince = Math.max(r.updatedAtMs || 0, ctx.mainMovedAtMs || 0);
       const quiet = now - quietSince > idleMs;
       if (!quiet) continue;
@@ -322,7 +333,21 @@ export function snapshot() {
   } catch {
     mainMovedAtMs = 0;
   }
-  return { prs, required: requiredContexts(), mainMovedAtMs, merged };
+  return { prs, required: requiredContexts(), mainMovedAtMs, merged, queueBot: queueBot() };
+}
+
+/* Which bot merges: 'kodiak' while `.kodiak.toml` is on main, 'none' on a 404, 'unknown' on any
+   other failure. Only 'kodiak' turns on the green-PR fallback, so an API error merges nothing. */
+export function queueBotOf(read) {
+  try {
+    read();
+    return 'kodiak';
+  } catch (e) {
+    return /HTTP 404/.test(String(e.stderr || e.message || '')) ? 'none' : 'unknown';
+  }
+}
+function queueBot() {
+  return queueBotOf(() => gh(['api', 'repos/{owner}/{repo}/contents/.kodiak.toml?ref=main', '--jq', '.sha']));
 }
 
 const STATE_DIR = path.join(homedir(), '.local', 'state', 'tepna', 'pr-walker');
@@ -1000,7 +1025,7 @@ export function pass(opts) {
     if (r.state === 'pending') state.firstPending[r.number] ||= now;
     else delete state.firstPending[r.number];
   }
-  const planned = plan(rows, state, { nowMs: now, mainMovedAtMs: snap.mainMovedAtMs, cap: opts.cap || CAP });
+  const planned = plan(rows, state, { nowMs: now, mainMovedAtMs: snap.mainMovedAtMs, cap: opts.cap || CAP, queueBot: snap.queueBot });
   const done = act(planned.actions, state, { ...opts, at: new Date(now).toISOString() });
   if (!opts.dryRun) saveState(state);
   const drift = fallbackDrift(snap.required);
