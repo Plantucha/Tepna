@@ -221,6 +221,11 @@ REJUDGE = "daemon:solid-night re-judge"
 # when it is a fixed mechanism regressing (`DAEMON_REGRESSION`, which fails ahead of these bars).
 COUNTED_UNEXPLAINED = (UNATTRIBUTED, LOOP_STALL, REJUDGE)
 NO_JOURNAL = "unattributed (no journal)"
+# A GAP THE RING DECLARED EMPTY IS EXPLAINED, and the band names it at the PASS. Its seconds stay in the
+# LOSS bar. Decided under CLAUDE.md §7 on 2026-11-18 (Wren), and the owner can overrule it. The ring's own
+# frames reach the box across the gap with no SpO2 value, so the box recorded all that the device sent.
+# The night of 2026-11-17 FAILed on two such gaps, 114 s, in the first three minutes of wear.
+DEVICE_NO_READING = "device:no reading"
 UNATTRIBUTED_MAX_S = 60.0  # §3.4: total < 60 s …
 UNATTRIBUTED_MAX_N = 5  # … and count < 5
 LINK_MAX_FRACTION = 0.01  # §3.4: link drops < 1 % of the worn interval
@@ -847,6 +852,13 @@ def continuity(audit: dict, audit_dev: dict, start, end, spans: dict[str, tuple]
         notes.append(
             f"counted discontinuity: {rejudged} gap(s) inside a solid-night re-judge bracket ({REJUDGE}) "
             "inside the worn interval — counted toward the unattributed bar, which they stay under",
+        )
+    empty = [s for c, s in inside if c == DEVICE_NO_READING]
+    if empty:
+        notes.append(
+            f"explained discontinuity: {len(empty)} gap(s), {sum(empty):.0f} s, with no ring reading "
+            f"({DEVICE_NO_READING}) inside the worn interval — the ring sent frames with no value, "
+            "counted toward the LOSS bar, not a band failure",
         )
     paused = [s for c, s in inside if c == DECLARED_PAUSE]
     if paused:
