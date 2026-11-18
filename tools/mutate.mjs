@@ -860,6 +860,37 @@ export function subtractEnvRed(v, envRed) {
   return { verdict: 'KILLED', killers: ks };
 }
 
+/* The refusal a file earns when its OWN clean baseline is not green, with every number in it. Pure
+   and exported so the selftest pins the message, rather than a sweep discovering it hours in.
+
+   Shaped after `capture-host/mutation_diff.py clean_run_refusal` (#3710, the same defect in the
+   Python lane): a red baseline is the covering set's failure, never the file's, and raising nothing
+   clears it. */
+export function baselineRefusal(file, calDesc, redGroups, baseMs, nMutants, status, unread) {
+  const head = unread
+    ? 'its own clean baseline could not be read (' + unread + ')'
+    : redGroups.length
+      ? 'its own clean baseline FAILED with ' + redGroups.length + ' red group(s)'
+      : 'its own clean baseline exited ' + status + ' naming no group';
+  return (
+    file +
+    ': ' +
+    head +
+    ', so nothing here was measured — ' +
+    nMutants +
+    ' mutant(s) selected, none tested. A red baseline reds in every worker too, so each red group ' +
+    'enters the environment set, and `subtractEnvRed` rewrites every mutant it alone killed to ' +
+    'INVALID, which `tested − invalid` drops: a TRUE survivor leaves the list silently while the ' +
+    'kill rate holds still, because numerator and denominator fall together. The clean ' +
+    calDesc +
+    ' run took ' +
+    (baseMs / 1000).toFixed(1) +
+    's.' +
+    (redGroups.length ? ' Red: ' + redGroups.map((g) => '`' + g + '`').join(', ') + '.' : '') +
+    " Fix or quarantine THAT group — the failure is the covering set's, not this file's — then re-run."
+  );
+}
+
 /* ── THE WORKERS *ARE* THE CALLER TREE, LIVE (2026-10-27) ──────────────────────────────────────
    A worker is `cp -al`, so its files are the ROOT's inodes rather than copies, and the pool is
    built once and memoized. Measured this day on a real worker, both write shapes:
@@ -1862,6 +1893,45 @@ async function runFile(file) {
   const estAll = mutantsFor(readFileSync(abs, 'utf8'));
   const estPriced = pricedCount(estAll, DIFF ? DIFF_LINES.get(file) || new Set() : null, LIMIT);
   const estMs = (baseMs * estPriced) / Math.max(1, JOBS);
+  /* ── AND THE CALLER TREE'S OWN BASELINE IS READ, NOT ASSUMED ──────────────────────────────────
+     The calibration above is a clean run of exactly the selection the mutants will run, and its exit
+     code went nowhere: `cal.status` appeared nowhere in this file. So the worker-baseline warning
+     further down printed "RED in the worker and green in the caller tree" over a caller baseline
+     nothing had looked at.
+
+     🔴 A RED CALLER BASELINE MOVES THE SURVIVOR SET BY ARITHMETIC. Every red group reds in the
+     workers too, because `cp -al` gives them the same inodes, so it enters ENV_RED; `subtractEnvRed`
+     then rewrites any mutant whose only killer it is to INVALID `env-red`, and `tested − invalid`
+     drops it. A TRUE survivor is exactly such a mutant, so it leaves the survivor list with no
+     warning, and the kill RATE holds still because the numerator and the denominator fall together.
+     That is the residue row 2026-10-20-the-js-gate-survivor-set-does-not-reproduce-across-runs:
+     the set moves, the rate does not.
+
+     MEASURED 2026-11-18 in a worktree cut from main, ten runs of one command
+     (`node tests/run-tests.mjs --group=ppgdex-dsp`): exit 1 in 10 of 10, 21 failing assertions, one
+     red group — `measurement · fixture code identity — committed PpgDex blocks name the SHIPPED
+     bundle` — because PRs carry source only and the bundle on main is stale between an author merge
+     and the walker's regen. That red appears and clears with the regen cadence, so two legs on one
+     box hours apart judge the same mutants against different baselines.
+
+     The Python lane refused this in #3710 (`capture-host/mutation_diff.py clean_run_refusal`). This
+     is the same refusal in the JS lane, and `diffVerdict` answers NOT_RUN with exit 0 when no file
+     was measured, so a refusal reports honestly and reds no PR. */
+  const callerRed = [...envRedFrom(String(cal.stdout || '') + String(cal.stderr || ''))].sort();
+  const calUnread = cal.error
+    ? String((cal.error && cal.error.message) || cal.error).split('\n')[0]
+    : cal.status === null || cal.status === undefined
+      ? 'the calibration was killed, or the 600 s cap closed on it'
+      : null;
+  if (calUnread || callerRed.length || cal.status !== 0)
+    return {
+      file,
+      error: baselineRefusal(file, calDesc, callerRed, baseMs, estPriced, cal.status, calUnread),
+      /* CARRIED, so the aggregate can name the refusal instead of answering PASS with `reason: null`
+         over a file it never measured. `diffVerdict` counts these and says so. */
+      baselineRefused: true,
+      baselineRed: callerRed
+    };
   if (BUDGET && estMs > BUDGET * 1000)
     return {
       file,
@@ -2766,6 +2836,7 @@ function survivorsToBlock(r) {
 export function diffVerdict(results, meta) {
   meta = meta || {};
   const ok = results.filter((r) => !r.error);
+  const baselineRefused = results.filter((r) => r.baselineRefused);
   const files = results.map((r) => r.file);
   const evidence = ['tools/mutate.mjs', ...files];
   const mk = (status, fields) => verdictObject(status, { evidence, commit: meta.commit, commitReason: meta.commitReason, at: meta.at, base: meta.base, ...fields });
@@ -2836,7 +2907,14 @@ export function diffVerdict(results, meta) {
        never asked (a `--file` selection filtered nothing); `0` means it asked and found none.
        `skipped` above counts a file that FAILED after selection and can never carry these. */
     outOfScopeFiles: Array.isArray(meta.outOfScope) ? meta.outOfScope.length : null,
-    outOfScopePaths: Array.isArray(meta.outOfScope) ? meta.outOfScope.slice().sort() : null
+    outOfScopePaths: Array.isArray(meta.outOfScope) ? meta.outOfScope.slice().sort() : null,
+    /* ∅ A FILE REFUSED FOR A RED BASELINE IS UNMEASURED, AND THE STATUS BELOW MUST NOT HIDE IT.
+       `skipped` already counts it, and it counts a budget skip and an untagged file the same way, so
+       a reader cannot tell "too expensive" from "nothing here was measured". These two fields name
+       the red-baseline refusals alone, and the PASS branch quotes them in its reason. 0 is honest:
+       the run asked every file. */
+    baselineRefusedFiles: baselineRefused.length,
+    baselineRefusedPaths: baselineRefused.map((r) => r.file).sort()
   };
   const pop = { checked: tested - unrun, eligible: tested, result };
   if (voided.length)
@@ -2900,6 +2978,30 @@ export function diffVerdict(results, meta) {
     return {
       code: 0,
       verdict: mk('NOT_APPLICABLE', { ...pop, result: null, reason: lines + ' changed line(s) in ' + ok.length + ' file(s) carry no mutable operator — nothing to gate, not a pass over nothing' })
+    };
+  /* ∅ A FILE NOBODY MEASURED IS NOT A PASS, AND `verdictObject` REFUSES A PASS THAT CARRIES A
+     CAVEAT — measured here: `Error: PASS carries reason: null`. So the caveat decides the status,
+     which is what the contract intends. UNKNOWN is the tool's own word for an unmeasured mutant one
+     branch up (`unrun`), and a wholly unmeasured FILE is strictly more than one mutant.
+
+     ORDER: this sits AFTER the survivor and refuted FAILs, not beside `unrun`. A real finding in a
+     file this run DID measure must keep its FAIL — masking it behind another file's red baseline
+     would trade one silence for another. The lane is advisory in CI (`continue-on-error` plus an
+     explicit `exit 0` in `.github/workflows/mutation.yml`), so the code below blocks no PR. */
+  if (baselineRefused.length)
+    return {
+      code: 3,
+      verdict: mk('UNKNOWN', {
+        ...pop,
+        reason:
+          baselineRefused.length +
+          " file(s) were NOT measured — each one's own clean baseline was red, so every mutant it " +
+          'alone would have decided is unmeasured, not killed: ' +
+          baselineRefused
+            .map((r) => r.file)
+            .sort()
+            .join(', ')
+      })
     };
   return { code: 0, verdict: mk('PASS', { ...pop, reason: null }) };
 }
@@ -3120,6 +3222,47 @@ function selftest() {
      costs hours and the selftest touches no repo. */
   ck('the baseline is measured in a WORKER tree, not the caller tree', /ENV_RED = envRedFrom\(runSuiteOutput\(calSel, trees\[0\]/.test(ENVSRC), true);
   ck('…and every verdict passes through the subtraction', /const v = subtractEnvRed\(vRaw, ENV_RED\)/.test(ENVSRC), true);
+
+  /* 🔴 THE CALLER TREE'S OWN BASELINE. The warning above claims a group is "green in the caller
+     tree", and until 2026-11-18 nothing read the calibration's exit code, so the claim was asserted
+     rather than measured. The red title below is REAL, copied from ten runs of
+     `node tests/run-tests.mjs --group=ppgdex-dsp` in a worktree cut from main: exit 1 in 10 of 10. */
+  console.log('\nbaselineRefusal — a file whose own clean baseline is red measures nothing');
+  const BR_RED = ['measurement · fixture code identity — committed PpgDex blocks name the SHIPPED bundle'];
+  const BR = baselineRefusal('ppgdex-dsp.js', 'group "ppgdex-dsp"', BR_RED, 61000, 26, 1, null);
+  ck('the refusal names the file it refused', BR.startsWith('ppgdex-dsp.js:'), true);
+  ck('…and the number of red groups', /FAILED with 1 red group\(s\)/.test(BR), true);
+  ck('…and the population nothing tested', /26 mutant\(s\) selected, none tested/.test(BR), true);
+  ck('…and the group by its own title', BR.includes(BR_RED[0]), true);
+  ck('…and what the clean run cost', /took 61\.0s/.test(BR), true);
+  ck('🔴 it states that a TRUE survivor leaves the list silently', /TRUE survivor leaves the list silently/.test(BR), true);
+  ck(
+    'an unread calibration earns its OWN reason, never a red one',
+    /could not be read \(the calibration was killed/.test(baselineRefusal('a.js', 'g', [], 1000, 2, null, 'the calibration was killed, or the 600 s cap closed on it')),
+    true
+  );
+  ck('…and a non-zero exit naming no group says exactly that', /exited 7 naming no group/.test(baselineRefusal('a.js', 'g', [], 1000, 2, 7, null)), true);
+  ck('control · a green baseline collects no red group at all', envRedFrom('1..1987\nTepna test suite  ✓ 1987 passing  (126 groups)\n').size, 0);
+  ck('WIRING · runFile refuses before it tests one mutant', /error: baselineRefusal\(file, calDesc/.test(ENVSRC), true);
+  ck('…and carries the refusal to the aggregate', /baselineRefused: true/.test(ENVSRC), true);
+  ck('…and the aggregate names it rather than passing silently', /baselineRefusedFiles: baselineRefused\.length/.test(ENVSRC), true);
+
+  /* AND THE AGGREGATE IS RUN, not read. The three legs above are text over this file; these put a
+     refused record through the real decision, because a count nobody reads back is how a PASS came
+     to stand over a file the run never measured. */
+  const BR_OK = { file: 'clock.js', tested: 4, invalid: 0, killed: 4, survivors: [], voided: false, touchedLines: 2 };
+  const BR_REF = { file: 'ppgdex-dsp.js', error: 'ppgdex-dsp.js: its own clean baseline FAILED with 1 red group(s)', baselineRefused: true, baselineRed: BR_RED };
+  const BRV = diffVerdict([BR_OK, BR_REF], {});
+  ck('🔴 a refused file makes the run UNKNOWN, never PASS', BRV.verdict.status, 'UNKNOWN');
+  ck('…and the reason counts the files nobody measured', /1 file\(s\) were NOT measured/.test(BRV.verdict.reason || ''), true);
+  ck('…and names them, so a reader can act on it', (BRV.verdict.reason || '').includes('ppgdex-dsp.js'), true);
+  ck('…and says unmeasured rather than killed', /unmeasured, not killed/.test(BRV.verdict.reason || ''), true);
+  ck('…and the count rides beside the prose, machine-readable', BRV.verdict.result.baselineRefusedFiles, 1);
+  ck('…and the path is named there too', BRV.verdict.result.baselineRefusedPaths.join(','), 'ppgdex-dsp.js');
+  ck('control · with nothing refused the PASS reason stays null', diffVerdict([BR_OK], {}).verdict.reason, null);
+  ck('control · …and that run counts no refusal', diffVerdict([BR_OK], {}).verdict.result.baselineRefusedFiles, 0);
+  ck('🔴 every file refused ⇒ NOT_RUN, never PASS', diffVerdict([BR_REF], {}).verdict.status, 'NOT_RUN');
+  ck('…and the calibration exit code is read at all', /cal\.status !== 0/.test(ENVSRC), true);
 
   /* 🔴 THE SWEEP'S INPUT MUST HOLD STILL, AND IF IT DOES NOT THE RUN SAYS SO. A worker is `cp -al`,
      so a root write reaches it with no worker write at all — measured 2026-10-27, both shapes. The
