@@ -292,8 +292,38 @@ export function nestedShapes(dspText, fnName, pre = prepare) {
     }
   }
   if (end < 0) return null;
+  /* 🔴 A BUILDER'S OWN SHAPE CAN SIT IN A GUARDED RETURN, AND FOUR FUSION BUILDERS PUT IT THERE.
+     `fuseHRVConsensus`, `fuseStagingConsensus`, `fuseSleepWakeReconciliation` and
+     `fusePeriodicBreathing` each close with `return blocks.length ? { blocks: blocks } : null;`, so
+     a reader that matches `return {` alone found NO own-scope shape and returned null for all four.
+     The gate then refused `builtBy` for every one of them, and `hrv`, `staging` and `sleepWake` sat
+     in `passThroughUnresolved` with no route to any declaration at all (measured 2026-11-17 against
+     origin/main at 690879921).
+
+     The form reads here under the SAME rules the rest of this reader keeps. The return must sit in
+     the builder's OWN scope, so the two guarded returns inside `fusePeriodicBreathing`'s `.map`
+     callbacks stay out. The consequent must hold no inner brace, and the alternative must start
+     with something other than a brace: a second literal there is a second shape, and this reader
+     must not pick one. A line that opens a guarded literal and does not meet those rules REFUSES,
+     because a silent skip is what hid `auditNodeKernels` from this gate.
+
+     Zero declared builder holds the form, so no shape beside it moves. All ten builders the
+     declaration names were scanned on 2026-11-17, and the census is identical either side of this
+     branch. */
+  const GUARDED_RET = /^\s*return\s+[^{};?]*\?\s*(\{[^{}]*\})\s*:\s*[^{\s][^;]*;\s*$/;
   const shapes = [];
   for (let i = start; i < end; i++) {
+    if (/^\s*return\s+[^{;]*\?[^;]*\{/.test(lines[i])) {
+      const gsc = enclosingFn(lines, i);
+      if (!gsc || gsc[0] !== start) continue;
+      if (/\bfunction\b|=>/.test(lines[i].slice(0, lines[i].indexOf('return')))) continue;
+      const gm = GUARDED_RET.exec(lines[i]);
+      if (!gm) return null;
+      const gk = oneLineShape('return ' + gm[1] + ';');
+      if (!gk) return null;
+      shapes.push({ at: i + 1, end: i + 1, keys: gk });
+      continue;
+    }
     if (!/return \{/.test(lines[i])) continue;
     /* 🔴 A NESTED CALLBACK'S RETURN IS NOT THIS FUNCTION'S SHAPE. `fuseApneaEvents:2268` is
        `.map(function (k) { return { node: k, surges: hrByNode[k] }; })`, and reading it as a shape
@@ -3209,6 +3239,25 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('…so the builder has two shapes and no refusal', nestedShapes(K1S, 'buildS').shapes.length, 2);
   ck('…and the key the guard route omits is conditional', nestedShapes(K1S, 'buildS').partial, ['rate']);
   ck('…while the SAME line read raw is what oneLineShape refuses', oneLineShape("  if (!recs.length) return { available: false, note: 'no series' };"), null);
+  /* 🔴 THE BUILDER'S SHAPE CAN SIT IN A GUARDED RETURN, AND THE FOUR FUSION BLOCK BUILDERS PUT IT
+     ONLY THERE. `fuseHRVConsensus`, `fuseStagingConsensus`, `fuseSleepWakeReconciliation` and
+     `fusePeriodicBreathing` all close with `return blocks.length ? { blocks: blocks } : null;`, so
+     this reader found no own-scope shape and the gate refused `builtBy` for all four. These legs
+     hold the form that reads and the four forms that refuse. */
+  const K1G = ['function buildG(recs) {', '  var blocks = recs.map(function (r) {', '    return { node: r.n, rate: 1 };', '  });', '  return blocks.length ? { blocks: blocks } : null;', '}'].join(
+    '\n'
+  );
+  ck('🔴 a GUARDED return is the builder shape', nestedShapes(K1G, 'buildG').union, ['blocks']);
+  ck('…one shape only, so the key is not conditional', nestedShapes(K1G, 'buildG').partial, []);
+  ck('…and the callback return beside it is still not the builder shape', nestedShapes(K1G, 'buildG').shapes.length, 1);
+  ck(
+    '…a guarded return in a CALLBACK scope credits nothing, which is what fusePeriodicBreathing needs',
+    nestedShapes('function buildH(recs) {\n  var o = recs.map(function (r) {\n    return r.ok ? { rec: r } : null;\n  });\n  return { rows: o };\n}', 'buildH').union,
+    ['rows']
+  );
+  ck('…a second literal in the alternative REFUSES, because that is a second shape', nestedShapes('function buildI(r) {\n  return r.ok ? { a: 1 } : { b: 2 };\n}', 'buildI'), null);
+  ck('…a nested literal in the consequent refuses too', nestedShapes('function buildJ(r) {\n  return r.ok ? { a: { b: 1 } } : null;\n}', 'buildJ'), null);
+  ck('…and an empty consequent refuses rather than reading no key', nestedShapes('function buildM(r) {\n  return r.ok ? {} : null;\n}', 'buildM'), null);
   ck('oneLineShape refuses a line whose braces do not balance', oneLineShape('  return { a: 1,'), null);
   ck('oneLineShape refuses an empty object', oneLineShape('  return {};'), null);
   ck('oneLineShape does not credit a nested object key', oneLineShape('  return { a: { b: 1 }, c: 2 };'), ['a', 'c']);

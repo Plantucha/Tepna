@@ -506,6 +506,30 @@
    "notes": "This subtree is the first one declared through `localVar`. Before this unit it sat in the shape-blind census with 10 other keys, where the verdict could name it and say nothing about it.",
    "depthNote": "Depth 2 only. `available` is an array of node names and carries no element object, and `note` is a string, so neither owes an element or an inner layer."
   },
+  "hrv": {
+   "builtBy": "fuseHRVConsensus",
+   "readerFiles": [
+    {
+     "file": "integrator-render.js",
+     "aliasPath": "fusion.hrv"
+    },
+    {
+     "file": "overdex-app.js",
+     "aliasPath": "fusion.hrv"
+    }
+   ],
+   "enumeratedWith": "the depth-1 keys of the ONE own-scope return of fuseHRVConsensus(), the guarded `return blocks.length ? { blocks: blocks } : null;` at integrator-dsp.js:4286. Read from SOURCE in blanked code on 2026-11-17. The builder holds two other `return {` literals and NEITHER is its shape: the `spread()` helper returns at :4095 and the block literal returns at :4258, both inside nested callbacks. One export route carries the key, the full return writing `hrv: hrv` at :8134. The slim `var _exp = {` projection at :8157 RENAMES it, writing `hrvConsensus: fusion.hrv || null` at :8239, so `hrvConsensus` stays its own depth-1 cell. The pass-through census now reads that key as SERVED by this subtree (`hrvConsensus \u2192 hrv`), where it read shape-blind before, because its value IS `fusion.hrv`: the remedy there is a pointer and never a second shape.",
+   "readAs": "an anchored read: `<alias>.<key>` or `<alias>[\"<key>\"]` inside the enclosing function of a binding of this subtree's whole path. The render realm binds `var hv = fusion.hrv;` at integrator-render.js:1097, inside renderFindings() at :975. OverDex binds `hrv = fusion.hrv,` at overdex-app.js:725, inside renderFusion() at :717. A bare token credits nothing here, and the measurement below says why.",
+   "seededFrom": "Hand-checked on 2026-11-17 against the builder and all three reader realms, from the read sites and never from a token match. `blocks` is read at integrator-render.js:1099 as `hv.blocks.forEach` and at overdex-app.js:840 and :842 as `hrv.blocks`. A BARE-TOKEN test would be wrong in both other directions. integrator-app.js names `hrv` six times and `blocks` twice, and not one of those eight is this subtree: `:543` binds a local `hrv` from `S.hrvMetrics(...)`, `:671`, `:689` and `:696` write an `hrv:` key into a synthetic fixture, and both `blocks` lines are prose the preparer deletes. integrator-render.js names `blocks` seven times, where `:529`, `:530`, `:1139` and `:1140` belong to `fusion.periodicBreathing` — a DIFFERENT subtree under the same key name — and two more are prose. The seed is DERIVED, so this first green proves nothing about today beyond the shape it read. What it catches from here is DRIFT: a key added to or dropped from the guarded return, a realm that stops reading `blocks`, or an export that renames the subtree again.",
+   "nullWhen": "Null on two paths, and both are honest absences rather than empty objects. The builder returns `null` at :4286 when no window holds two comparable sources, and runFusion binds `var hrv = anyOverlap ? fuseHRVConsensus(recs, dtMs) : null;` at :7961, so a night whose nodes never overlap never calls the builder at all. Both realms guard the holder before they read it.",
+   "surfaces": {
+    "blocks": "card"
+   },
+   "notes": {
+    "blocks": "integrator-render.js:1099 iterates the list into the HRV consensus finding cards, and overdex-app.js:840 gates the OverDex fusion panel on its length before :842 iterates the same list"
+   },
+   "depthNote": "Depth 3 is NOT declared here, and this note is where the gate's reader cannot follow. The block literal is the `return {` of the `.map` callback at integrator-dsp.js:4258, inside the `var blocks =` statement that opens at :4036, and it carries twenty keys. Neither element reader reaches it. `elementShape` needs a one-line `var <name> = {` literal and the builder holds none. `mapShapes` refuses the declaration statement because it holds nine `.map(` calls, so the reader cannot say which one builds the element, and it must not guess. So those twenty keys stay UNJUDGED rather than declared, and the element reads at integrator-render.js:1099 and overdex-app.js:842 count in `elementReadsUnjudged` instead of passing in silence."
+  },
   "hrvResource": {
    "builtBy": "fuseHrvResource",
    "enumeratedWith": "the depth-1 keys of the ONE `return {` inside fuseHrvResource(), at integrator-dsp.js:3585. Read from SOURCE in blanked code on 2026-11-15. The builder holds no second return literal: its only other exit is the bare `return null` guard at :3576, so this subtree has ONE route and owes no two-route union. Three of the 8 keys open an inner object literal, which the `inner` block below declares. Both export routes carry the key: the full return writes `hrvResource: hrvResource` at :7990 and the slim `var _exp = {` projection attaches it at :8134.",
