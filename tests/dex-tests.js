@@ -46137,6 +46137,26 @@
         'node=' + ex.recording.hostAxis.ppm + ' shared=' + ex.recording.timing.ppm
       );
       T.eq('control · …and no withheld-rate key reaches its JSON', Object.prototype.hasOwnProperty.call(JSON.parse(JSON.stringify(ex.recording.hostAxis)), 'drawnColumn'), false);
+      /* ── 7 · THE COUNTER IN COLUMN 0 IS STILL THE COUNTER ────────────────────────────────────
+         `parseSensorXYZ` reads the device counter under `if (c.ns >= 0)`, and the `>=` is
+         load-bearing: a header that names `sensor timestamp [ns]` FIRST yields `c.ns === 0`, so a
+         `> 0` boundary skips the counter and leaves `relNs` absent on every row. `relSecOf` then
+         falls back to the host stamp, and the night publishes NO duration. No suite leg placed the
+         counter at index 0, so the `>= → >` mutant survived. The phone column is deliberately
+         unparseable: a readable host stamp would restore the axis and this leg would pass on the
+         mutant. The counter alone must carry the span. */
+      var col0Text = (function () {
+        var L = ['sensor timestamp [ns];X [mg];Y [mg];Z [mg];Phone timestamp'];
+        for (var i = 0; i < 5; i++) L.push(String(NS0 + i * 1000000000) + ';257;12;964;n/a');
+        return L.join('\n');
+      })();
+      var col0 = X.parseSensorXYZ(col0Text);
+      T.ok('control: a header naming the counter FIRST still parses every row', col0.length === 5, 'rows=' + col0.length);
+      T.eq('…and column 0 is read as the counter: the span is the 4 s the counter wrote', col0[4].relNs - col0[0].relNs, 4e9);
+      T.eq('…and every row carries its own counter offset', col0[1].relNs, 1e9);
+      var col0Sum = M.compute({ acc: col0Text });
+      T.eq('the counter at index 0 therefore sets the published duration', col0Sum && col0Sum.durSec, 4);
+      T.eq('…with every row on the stream count', col0Sum && col0Sum.streams && col0Sum.streams.acc, 5);
     });
 
     group('MotionDex ACC unit — ∅ an UNDETERMINED unit is not milli-g', 'motiondex-dsp · absence', function (T) {
