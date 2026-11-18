@@ -337,8 +337,17 @@ import { PPGUI } from './ppgdex-render.js';
       `<span>window <b>${fmt(s0)} – ${fmt(s1)}</b></span><span>span ${span < 60 ? span.toFixed(span < 8 ? 2 : 0) + ' s' : (span / 60).toFixed(1) + ' min'}</span><span>${(N / fs / 60).toFixed(1)} min total</span>`;
   }
 
-  const sc = (v, ok, warn) => (v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
-  const hrStat = (v) => (v < 40 ? 'bad' : v <= 90 ? 'ok' : v <= 100 ? 'warn' : 'bad');
+  /* ∅ — AN ABSENT METRIC IS UNGRADED, NOT THE WORST GRADE. Both helpers answer a band from a number
+     only, and `null >= 50` / `null < 40` are BOTH false, so the metrics table drew a red FLAG pill
+     beside a '—' value on every row whose metric had refused (`rMSSD`, `SDNN`, `Pulse rate` — the DSP
+     nulls each of the three per arm). `pctCls` below already answers `neutral` for an absent share;
+     these two follow it rather than inventing a second vocabulary. A measured value keeps its band. */
+  /* `Number.isFinite`, NOT the global `isFinite`: `isFinite(null)` is TRUE (null coerces to 0), so the
+     coercing form left `sc(null)` reading 'bad' and `hrStat(null)` reading 'bad' — the pill changed
+     colour and nothing else. This is why `pctAbsent` above spells the same idea as `v == null ||
+     !isFinite(v)`: an absence has to be named, never coerced. */
+  const sc = (v, ok, warn) => (!Number.isFinite(v) ? 'neutral' : v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
+  const hrStat = (v) => (!Number.isFinite(v) ? 'neutral' : v < 40 ? 'bad' : v <= 90 ? 'ok' : v <= 100 ? 'warn' : 'bad');
   /* §∅ — AN UNMEASURED PERCENTAGE IS A DASH AND A NEUTRAL GRADE, NEVER "0 %" AND "bad".
      `ppgdex-dsp.js` publishes `cleanBeatPct` and `analyzablePct` as `null` when the detector placed no
      beats. Every band test below reads `v >= 90 ? 'ok' : … : 'bad'`, and `null >= 90` is false, so an
@@ -352,6 +361,21 @@ import { PPGUI } from './ppgdex-render.js';
      reads `v >= ok`. A raw `v < 10 ? 'ok' : …` is worse than wrong on an absence, because
      `null < 10` is TRUE and every reader painted an unexamined gate the best possible green. */
   const pctClsDown = (v, ok, warn) => (pctAbsent(v) ? 'neutral' : v < ok ? 'ok' : v < warn ? 'warn' : 'bad');
+  /* §∅ — A MEAN OVER AN EMPTY BEAT POPULATION IS NOT A MEAN OF ZERO. `ppgdex-dsp.js` publishes
+     `meanSQI` as `sqi.length ? r2(mean(sqi)) : 0`, so a record on which the detector placed NO beats
+     reaches this layer as a MEASURED 0 — the worst value on the 0..1 scale — and the three readers
+     below drew `Mean SQI 0` graded `bad`, on the same page where `% Analyzable` beside it already
+     read `—` with "no beats detected". `sqi` carries one entry per detected beat and `analyze()`
+     publishes it, so the absence is read from the POPULATION that defines the mean, never inferred
+     from the number. A measured 0 (a record whose beats all scored zero) keeps its 0 and its grade. */
+  const sqiAbsent = (r) => !r || !r.sqi || !r.sqi.length;
+  const sqiTxt = (r) => (sqiAbsent(r) || !Number.isFinite(r.meanSQI) ? '\u2014' : r.meanSQI);
+  const sqiCls = (r, ok, warn) => (sqiAbsent(r) || !Number.isFinite(r.meanSQI) ? 'neutral' : r.meanSQI >= ok ? 'ok' : r.meanSQI >= warn ? 'warn' : 'bad');
+  /* ∅ — the session switcher interpolated `s.dispHr` and `s.rmssd` RAW, so a session carrying fewer
+     than three intervals printed the literal string "null" mid-sentence ("rMSSD null") and one with
+     no clean adjacent pair printed "null bpm". Both are this node's OWN per-arm refusals
+     (`timeDomain` leaves them null), and the em dash is the value every neighbouring reader uses. */
+  const numTxt = (v) => (Number.isFinite(v) ? v : '\u2014');
 
   /* ── OPTICAL SITE DECLARATION (PPGDEX-SITE-WIRING §2/§3) ─────────────────────────────────────
      The parser can only read the file LAYOUT, which names the DEVICE: 3 optical columns = a Verity
@@ -532,7 +556,7 @@ import { PPGUI } from './ppgdex-render.js';
         sub: r.correctionRate == null ? 'no intervals' : 'PPIs fixed',
         s: r.correctionRate == null ? 'neutral' : r.correctionRate < 5 ? 'ok' : r.correctionRate < 12 ? 'warn' : 'bad'
       },
-      { l: 'Mean SQI', v: r.meanSQI, sub: '0–1 · conf', s: r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad' },
+      { l: 'Mean SQI', v: sqiTxt(r), sub: sqiAbsent(r) ? 'no beats detected' : '0–1 · conf', s: sqiCls(r, 0.7, 0.5) },
       { l: 'DFA α1', v: r.dfa1 == null ? '—' : r.dfa1, sub: '0.9–1.2', s: r.dfa1 == null ? 'neutral' : r.dfa1 >= 0.9 && r.dfa1 <= 1.2 ? 'ok' : 'warn' }
     );
     /* PPI SELF-VALIDATION — the PpgDex analogue of ECGDex's self-RR-vs-device-RR check.
@@ -575,7 +599,7 @@ import { PPGUI } from './ppgdex-render.js';
       <div class="q-stat">${evBadge('Analyzable')}<div class="q-val ${pctCls(r.analyzablePct, 90, 75)}">${pctTxt(r.analyzablePct)}</div><div class="q-lbl">Analyzable</div><div class="q-sub">clean-beat × motion gate</div></div>
       <div class="q-stat"><div class="q-val ${pctCls(r.cleanBeatPct, 85, 65)}">${pctTxt(r.cleanBeatPct)}</div><div class="q-lbl">Clean pulses${evBadge('Clean pulses')}</div><div class="q-sub">SQI ≥ 0.5</div></div>
       <div class="q-stat"><div class="q-val ${pctClsDown(r.motionRejectedPct, 10, 30)}">${pctTxt(r.motionRejectedPct)}</div><div class="q-lbl">Motion-rejected${evBadge('Motion-rejected')}</div><div class="q-sub">${r.motionRejectedPctReason ? 'the gate did not run' : 'ACC+GYRO'}</div></div>
-      <div class="q-stat"><div class="q-val ${r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad'}">${r.meanSQI}</div><div class="q-lbl">Mean SQI${evBadge('Mean SQI')}</div><div class="q-sub">→ Ganglior conf</div></div>
+      <div class="q-stat"><div class="q-val ${sqiCls(r, 0.7, 0.5)}">${sqiTxt(r)}</div><div class="q-lbl">Mean SQI${evBadge('Mean SQI')}</div><div class="q-sub">${sqiAbsent(r) ? 'no beats detected' : '→ Ganglior conf'}</div></div>
       ${r.ledAgreementPct != null ? `<div class="q-stat"><div class="q-val ${r.ledAgreementPct >= 90 ? 'ok' : r.ledAgreementPct >= 75 ? 'warn' : 'bad'}">${r.ledAgreementPct}%</div><div class="q-lbl">3-LED agree${evBadge('LED agreement')}</div><div class="q-sub">${r.ledAgree3of3Pct != null ? r.ledAgree3of3Pct + '% all-3' : 'optical consensus'}</div></div>` : ''}
     </div>
     <div class="q-note">Per-pulse SQI = template cross-correlation against the median pulse × the <b>ACC+GYRO motion gate</b>. PPIs &gt;20% off the local median (Malik) are corrected; ${r.nCorrected} of ${r.nPulses.toLocaleString()} fixed. ${m && m.hasData ? `Motion bursts (accel-magnitude variance + gyro magnitude, resampled to the PPG base) <b>down-weight</b> pulses — wrist PPG's signature quality channel that OxyDex/ECGDex don't have. Mean motion index ${m.meanMotionIndex != null ? m.meanMotionIndex : '— (no inertial coverage)'}.` : '<b>No ACC/GYRO loaded</b> — motion gating skipped; load the companion files for the full quality channel.'} SQI feeds the <b>conf</b> of every Ganglior event.</div>
@@ -979,7 +1003,7 @@ import { PPGUI } from './ppgdex-render.js';
     html += sec('Quality', [
       ['Analyzable', r.analyzablePct, '%', pctAbsent(r.analyzablePct) ? 'no beats detected' : '', pctCls(r.analyzablePct, 90, 75)],
       ['Clean beats', r.cleanBeatPct, '%', pctAbsent(r.cleanBeatPct) ? 'no beats detected' : 'SQI≥0.5', pctCls(r.cleanBeatPct, 85, 65)],
-      ['Mean SQI', r.meanSQI, '', '0–1 · conf', r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad'],
+      ['Mean SQI', sqiTxt(r), '', sqiAbsent(r) ? 'no beats detected' : '0–1 · conf', sqiCls(r, 0.7, 0.5)],
       ['Motion-rejected', r.motionRejectedPct, '%', r.motionRejectedPctReason ? 'the gate did not run' : 'ACC+GYRO', pctClsDown(r.motionRejectedPct, 10, 30)],
       [
         'Correction rate',
@@ -1017,7 +1041,7 @@ import { PPGUI } from './ppgdex-render.js';
           const q = pctCls(s.analyzablePct, 90, 75);
           return `<button class="sess-item ${active ? 'active' : ''}" data-key="${key}">
       <div class="si-top"><span class="si-date">${DSP.fmtDateTime(s.t0Ms)}</span><span class="si-q ${q}">${pctTxt(s.analyzablePct)}</span></div>
-      <div class="si-sub">${s.durMin} min · ${s.dispHr} bpm · rMSSD ${s.rmssd}</div></button>`;
+      <div class="si-sub">${numTxt(s.durMin)} min · ${numTxt(s.dispHr)} bpm · rMSSD ${numTxt(s.rmssd)}</div></button>`;
         })
         .join('');
     wrap.querySelectorAll('.sess-item').forEach((btn) =>
