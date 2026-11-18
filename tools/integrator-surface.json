@@ -528,7 +528,64 @@
    "notes": {
     "blocks": "integrator-render.js:1099 iterates the list into the HRV consensus finding cards, and overdex-app.js:840 gates the OverDex fusion panel on its length before :842 iterates the same list"
    },
-   "depthNote": "Depth 3 is NOT declared here, and this note is where the gate's reader cannot follow. The block literal is the `return {` of the `.map` callback at integrator-dsp.js:4258, inside the `var blocks =` statement that opens at :4036, and it carries twenty keys. Neither element reader reaches it. `elementShape` needs a one-line `var <name> = {` literal and the builder holds none. `mapShapes` refuses the declaration statement because it holds nine `.map(` calls, so the reader cannot say which one builds the element, and it must not guess. So those twenty keys stay UNJUDGED rather than declared, and the element reads at integrator-render.js:1099 and overdex-app.js:842 count in `elementReadsUnjudged` instead of passing in silence."
+   "depthNote": "Depth 3 IS declared here since 2026-11-18, and the note records what changed. The element literal is the `return {` of the `.map` callback at integrator-dsp.js:4257, inside the `var blocks =` statement that opens at :4036. The statement holds NINE `.map(` calls, and the old `mapShapes` counted all nine and refused, because it could not say which one builds the element. Exactly ONE of the nine sits at the statement’s own bracket depth, at :4040, and PR #5268 made the reader pick that one. The other `return {` of the builder is the `spread()` helper at :4095, inside its own function, and the reader excludes it by enclosure. `elementShape` still reaches nothing here, because the builder holds no one-line `var <name> = {` literal.",
+   "elements": {
+    "block": {
+     "servesKeys": [
+      "blocks"
+     ],
+     "builtBy": "fuseHRVConsensus",
+     "mappedFrom": "blocks",
+     "enumeratedWith": "the depth-1 keys of the ONE `return {` at integrator-dsp.js:4257, the literal of the `.map` callback that opens at :4040 inside the `var blocks =` statement at :4036. Read from SOURCE on 2026-11-18, and it carries TWENTY keys. The depthNote above records why the reader reaches it only since PR #5268.",
+     "readAs": "an anchored ELEMENT read: a callback bound on `<alias-or-whole-path>.blocks.<iterator>(…)` in a declared reader, and then `<param>.<key>` inside that callback’s own scope. The render realm binds `hv.blocks.forEach(function (b) {` at integrator-render.js:1099, under `var hv = fusion.hrv;` at :1097. OverDex binds `hrv.blocks.forEach(function (b) {` at overdex-app.js:842. A read inside a function that the callback CALLS sits outside that scope, and the gate credits it to nothing.",
+     "seededFrom": "the GATE measured this layer on 2026-11-18, and I did not hand-pick the card set. Every one of the twenty keys was declared `export-only` first, and the gate named the nine that an anchored element read reaches: divergencePct, nodes, note, qc, rmssd, sdnn, tch, tchHR, window. Those nine carry `card` here and the other eleven carry `export-only`. The same run moved `elementReadsUnjudged` from 2 to 0, because both unjudged reads were this layer. What this catches from here is DRIFT: a key added to or dropped from the literal, or a realm that stops reading one of the nine.",
+     "exportOnlyWhy": "`hrReconciled` is the one cell here that UNDERSTATES the key. integrator-render.js:1229 and :1230 read it and print the reconciled HR on the per-sensor error card. Both reads sit inside `tchBars(b)`, which opens at :1187, and the callback passes the whole element to it at :1117 and :1130. That is outside the callback’s own scope, so the gate credits neither read, and the cell says what the gate can see. `tchBars` reads `rmssd` the same way at :1232, and that key carries `card` only because overdex-app.js:846 reads it inside its own callback.",
+     "surfaces": {
+      "hrStats": "export-only",
+      "hrStatMixed": "export-only",
+      "nodes": "card",
+      "window": "card",
+      "hrvWindow": "export-only",
+      "units": "export-only",
+      "crossWindowExcluded": "export-only",
+      "rmssd": "card",
+      "sdnn": "card",
+      "lfhf": "export-only",
+      "divergencePct": "card",
+      "divergenceMetric": "export-only",
+      "lowQualityExcluded": "export-only",
+      "tch": "card",
+      "tchStatus": "export-only",
+      "tchHR": "card",
+      "tchHRStatus": "export-only",
+      "hrReconciled": "export-only",
+      "qc": "card",
+      "note": "card"
+     },
+     "notes": {
+      "hrStats": "the per-node HR statistics of the HR hat, null when no HR hat ran. The export carries it and no realm reads it off an element",
+      "hrStatMixed": "a machine-readable sibling of the mixed-source warning in `note`, so a consumer gates on the confound instead of parsing prose",
+      "nodes": "the source list at integrator-render.js:1105 and :1106, and the slash-joined list at overdex-app.js:861",
+      "window": "the card title at integrator-render.js:1102, and the line label at overdex-app.js:859",
+      "hrvWindow": "the window the node itself reported, or `wholeRecord`, bound at integrator-dsp.js:4042. No realm reads it off an element",
+      "units": "the literal `ms` that every RMSSD and SDNN figure in this element is in. No realm reads it off an element",
+      "crossWindowExcluded": "true when the group held a source whose window did not overlap, bound at integrator-dsp.js:4046",
+      "rmssd": "overdex-app.js:846 reads it, and :853 quotes its own `divergencePct` beside SDNN",
+      "sdnn": "overdex-app.js:847 reads it, and :853 quotes its own `divergencePct` beside RMSSD",
+      "lfhf": "the LF over HF spread of the same group. The export carries it and no realm reads it off an element",
+      "divergencePct": "the hero figure of the HRV consensus card at integrator-render.js:1104, the worst of the per-metric spreads",
+      "divergenceMetric": "names the metric that carries `divergencePct`, so a consumer does not re-derive it. No realm reads it off an element",
+      "lowQualityExcluded": "the sources an untrusted-HRV rule dropped, bound at integrator-dsp.js:4067, and null when it dropped none",
+      "tch": "gates the per-sensor error card at integrator-render.js:1111, and :1117 passes the whole element to tchBars",
+      "tchStatus": "holds `ok`, the refusal reason, or `not-attempted`. The export carries the three-cornered-hat outcome and no realm reads it off an element",
+      "tchHR": "gates the HR-hat card at integrator-render.js:1124, and :1130 passes the whole element to tchBars",
+      "tchHRStatus": "the same three-valued outcome for the HR hat. No realm reads it off an element",
+      "hrReconciled": "integrator-render.js:1229 READS it, and the cell still says export-only. See exportOnlyWhy: the read sits inside tchBars",
+      "qc": "picks the card colour at integrator-render.js:1103, and the warn class at overdex-app.js:857",
+      "note": "the card body sentence at integrator-render.js:1105, and the OverDex line at overdex-app.js:863"
+     }
+    }
+   }
   },
   "hrvResource": {
    "builtBy": "fuseHrvResource",
