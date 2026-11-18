@@ -161,6 +161,18 @@ export const BOT_AUTHORS = new Set(['dependabot[bot]']);
    PRs use `CLOSE_BRANCH_PREFIX`. A declaration, not a proof, like `commit-shape.mjs`'s `Revert ` and
    `rescue:` exemptions. */
 export const REGEN_BRANCH_PREFIX = 'claude/regen-walker-';
+/* A MERGIFY BATCH PR IS OUT OF SCOPE (GENERATED-OUT-OF-PRS §3.2). Mergify tests a batch on a draft PR
+   that it opens itself. Its body carries no `Rule 0:` line and no trailer, and its diff is the union of
+   its members, so checks 1, 2 and 10 red every batch by construction and the queue never merges. Each
+   member already passed this gate on its own head. The exemption keys on the author GitHub sets AND on
+   Mergify's default `queue_branch_prefix`, so neither a person on a `mergify/` branch nor the bot on
+   another branch earns it. Unmeasured until the owner installs the app: the author login is Mergify's
+   documented app account, not one this repo has seen. */
+export const QUEUE_BOT_AUTHORS = new Set(['mergify[bot]']);
+export const QUEUE_BRANCH_PREFIX = 'mergify/merge-queue/';
+export function queueBatch({ author = null, headRef = null }) {
+  return !!author && QUEUE_BOT_AUTHORS.has(author) && typeof headRef === 'string' && headRef.startsWith(QUEUE_BRANCH_PREFIX);
+}
 export const MANIFEST_RE = /^(package(-lock)?\.json|capture-host\/requirements[^/]*\.txt|capture-host\/pyproject\.toml|\.github\/workflows\/[^/]+\.ya?ml)$/;
 export function botManifestOnly({ author = null, files = null }) {
   if (!author || !BOT_AUTHORS.has(author)) return false;
@@ -365,6 +377,11 @@ export function selftest() {
   ok(!botManifestOnly({ author: 'dependabot[bot]', files: ['capture-host/requirements.txt', 'capture-host/capture.py'] }), 'BOT: code on a bot branch loses the exemption');
   ok(!botManifestOnly({ author: 'dependabot[bot]', files: null }), 'BOT: no diff earns no exemption');
   ok(!botManifestOnly({ author: 'dependabot[bot]', files: [] }), 'BOT: an empty diff earns no exemption');
+  // QUEUE BATCH — the app's author AND its branch prefix, never one alone.
+  ok(queueBatch({ author: 'mergify[bot]', headRef: `${QUEUE_BRANCH_PREFIX}main/abc123` }), 'QUEUE: a Mergify batch PR is exempt');
+  ok(!queueBatch({ author: 'Plantucha', headRef: `${QUEUE_BRANCH_PREFIX}main/abc123` }), 'QUEUE: a person on a queue branch is not exempt');
+  ok(!queueBatch({ author: 'mergify[bot]', headRef: 'claude/x-k9q' }), 'QUEUE: the bot on another branch is not exempt');
+  ok(!queueBatch({ author: 'mergify[bot]', headRef: null }), 'QUEUE: an unread head ref earns no exemption');
   ok(!botManifestOnly({ author: 'Plantucha', files: ['capture-host/requirements.txt'] }), 'BOT: a person bumping a manifest is still checked');
   ok(clean.checked.length === ELIGIBLE_CHECKS, 'CONTROL: every check was evaluated, so the pass is not a skip');
   /* THE POPULATION BOUND. Twice on 2026-10-12 the verdict's `eligible` stayed one below the checks that
@@ -889,6 +906,12 @@ function main() {
   if (botManifestOnly({ author, files })) {
     const reason = `${author} PR touches only dependency manifests (${files.length} file(s)); the body rules do not bind a bot`;
     if (asJson) process.stdout.write(`${JSON.stringify(verdictOf({ status: 'NOT_APPLICABLE', failures: [], checked: ['bot-manifest-scope'], reason }), null, 1)}\n`);
+    else console.log(`pr-compliance: NOT_APPLICABLE — ${reason}`);
+    return 0;
+  }
+  if (queueBatch({ author, headRef: process.env.PR_HEAD_REF || null })) {
+    const reason = `${author} batch PR on ${process.env.PR_HEAD_REF}; each member PR passed this gate on its own head`;
+    if (asJson) process.stdout.write(`${JSON.stringify(verdictOf({ status: 'NOT_APPLICABLE', failures: [], checked: ['queue-batch-scope'], reason }), null, 1)}\n`);
     else console.log(`pr-compliance: NOT_APPLICABLE — ${reason}`);
     return 0;
   }

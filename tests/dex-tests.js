@@ -65723,6 +65723,48 @@
         'ready:30'
       );
 
+      /* ── the Mergify cutover (GENERATED-OUT-OF-PRS §3.2) ────────────────────────────────────
+         After the cutover removes `.kodiak.toml`, Kodiak reads as quiet forever, so the green-PR
+         fallback would merge one PR around every batch. Only `queueBot === 'kodiak'` keeps it. */
+      var QCTX = function (bot) {
+        return CTX({ mainMovedAtMs: NOW - (IDLE + 5) * MIN, queueBot: bot });
+      };
+      T.eq("queueBot 'kodiak' keeps the merge fallback", ops(pl([quietCur], ST({}), QCTX('kodiak'))), 'merge:20');
+      T.eq('an absent queueBot reads as Kodiak, so every older caller keeps its behaviour', ops(pl([quietCur], ST({}), QCTX(undefined))), 'merge:20');
+      T.eq("queueBot 'none' (no .kodiak.toml on main) plans no merge", ops(pl([quietCur], ST({}), QCTX('none'))), '');
+      T.eq("queueBot 'none' plans no update either — the queue updates its own batch", ops(pl([quietBehind(21)], ST({}), QCTX('none'))), '');
+      T.eq("queueBot 'unknown' (an API error) plans no merge — a merge fails closed", ops(pl([quietCur], ST({}), QCTX('unknown'))), '');
+      var qb = env.pwQueueBranchPrefix;
+      T.eq("the walker's queue prefix equals pr-compliance's, so both read one batch PR the same way", qb, env.pcQueueBranchPrefix);
+      var batch = cl(P({ number: 40, branch: qb + 'main/abc123' }), REQ);
+      T.eq('a green Mergify batch draft is never readied', ops(pl([batch], ST({}), QCTX('none'))), '');
+      var batchNd = cl(P({ number: 41, isDraft: false, branch: qb + 'main/def456' }), REQ);
+      T.eq('a ready batch PR is not merged around the queue, even under Kodiak', ops(pl([batchNd], ST({}), QCTX('kodiak'))), '');
+      T.eq('a batch PR does not take a pool slot', pl([batchNd], ST({}), QCTX('kodiak')).nonDraft, 0);
+      T.eq('a branch that only resembles the prefix is walked', ops(pl([cl(P({ number: 42, branch: 'mergify/merge-queue' }), REQ)], ST({}), QCTX('none'))), 'ready:42');
+      var qbo = env.pwQueueBotOf;
+      var thrower = function (msg) {
+        return function () {
+          var e = new Error('gh failed');
+          e.stderr = msg;
+          throw e;
+        };
+      };
+      T.eq(
+        'a readable .kodiak.toml reads kodiak',
+        qbo(function () {
+          return 'abc';
+        }),
+        'kodiak'
+      );
+      T.eq('a 404 reads none', qbo(thrower('gh: Not Found (HTTP 404)')), 'none');
+      T.eq('any other failure reads unknown, never none', qbo(thrower('gh: Bad credentials (HTTP 401)')), 'unknown');
+      var qbt = env.pcQueueBatch;
+      T.ok('pr-compliance exempts a Mergify batch PR by author AND branch', qbt({ author: 'mergify[bot]', headRef: qb + 'main/abc' }));
+      T.ok('…never a person on a queue branch', !qbt({ author: 'Plantucha', headRef: qb + 'main/abc' }));
+      T.ok('…never the bot on another branch', !qbt({ author: 'mergify[bot]', headRef: 'claude/x-k9q' }));
+      T.ok('…never an unread head ref', !qbt({ author: 'mergify[bot]', headRef: null }));
+
       /* ── the landing page the board shows ───────────────────────────────────────────────── */
       var txt = page([red, quietCur], { nonDraft: 1, cap: 4, alerts: [{ number: 7, kind: 'red', why: 'test red after 1 rerun(s)' }] }, [{ op: 'merge', number: 20, result: 'ok' }], {
         at: '2026-10-13T18:00:00Z',
@@ -68980,7 +69022,7 @@
         'THIRD-PARTY.md'
       ];
       var ROOT_NAMED_OSS = ['CITATION.cff', 'LICENSE', 'NOTICE'];
-      var ROOT_NAMED_CONFIG = ['.c8rc.json', '.gitattributes', '.gitignore', '.gitleaks.toml', '.kodiak.toml', '.secrets-exclude', '.secrets.baseline', '.zenodo.json'];
+      var ROOT_NAMED_CONFIG = ['.c8rc.json', '.gitattributes', '.gitignore', '.gitleaks.toml', '.kodiak.toml', '.mergify.yml', '.secrets-exclude', '.secrets.baseline', '.zenodo.json'];
       var ROOT_RUNTIME_EXT = ['css', 'html', 'js', 'json', 'jsx', 'ts'];
       function rootClassOf(name) {
         if (ROOT_NAMED_DOCS.indexOf(name) >= 0) return 'doc';

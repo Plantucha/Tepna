@@ -104,3 +104,26 @@ These changes live on hosts, not in git. Muse took a backup beside each edited f
   Kestrel ack that closes a network escalation.
 - 2026-10-31 · Kestrel decided that Muse starts item 3a, the rig copy-time hash manifest, as a draft PR (#2510).
 - 2026-10-31 · Kestrel created this brief from audits #2441 and #2445 and from the day's board record.
+
+## 2026-11-18 · The merge path (Kestrel)
+
+The owner asked for the Mergify cutover draft. The record of the merge path today:
+
+- The walker (`tepna-pr-walker.timer`, about every 90 s) undrafts green drafts, re-runs a red
+  required check once per head, rebases a conflict, and opens the regeneration PR after each merge.
+- Build outputs stay out of author PRs (GENERATED-OUT-OF-PRS §5, check 10 of `pr-compliance.mjs`).
+- Kodiak merges. `.mergify.yml` sits on main and stays inert.
+- Shrike, the fenced Freebuff sandbox, audits and writes patches. A bird reviews each patch and lands it.
+
+Owner steps for the cutover, in this order:
+
+- [ ] Remove `.kodiak.toml` from main, or uninstall the Kodiak app.
+- [ ] Install the Mergify app on this repository.
+- [ ] Watch one batch of two or more PRs land in one CI cycle.
+
+Two more owner decisions stay open:
+
+- [ ] Decide whether `local-steps` becomes a required context. Kestrel recommends yes.
+- [ ] The root disk read 94 % and `/srv/data` 97 % on 2026-11-18. Kestrel removed 38 finished
+      worktrees (board #7467). Finch moves `stagetest` (159 GB) to `/srv/fast` (board #7466).
+
