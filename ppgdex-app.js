@@ -1174,7 +1174,7 @@ import { PPGUI } from './ppgdex-render.js';
   }
   function buildV2(r) {
     const fq = r.freq || {};
-    const m = r.morph || {};
+    const m = r.morph;
     const epochs = r.epochs.map((e) => ({
       tMin: e.tMin,
       beats: e.beats,
@@ -1347,20 +1347,28 @@ import { PPGUI } from './ppgdex-render.js';
         expectedRmssd: r.expRmssd
       },
       apnea: r.longRec ? { screen: 'CVHR (PPI-derived bradycardia-rebound)', note: 'screen not diagnosis', index: null } : null,
-      morphology: {
-        riseTimeMs: m.riseTimeMs,
-        crestTimeMs: m.crestTimeMs,
-        dicroticNotchPresent: !!m.dicroticNotchPresent,
-        augmentationIndexPct: m.augmentationIndexPct,
-        reflectionIndex: m.reflectionIndex,
-        pulseWidthMs: m.pulseWidthMs,
-        notchTimeMs: m.notchTimeMs,
-        sdppgBA: m.sdppgBA,
-        sdppgAGI: m.sdppgAGI,
-        perfusionIndexPct: m.perfusionIndexPct,
-        medianBeat: m.medianBeat ? { fs: m.medianBeat.fs, pre: m.medianBeat.pre, nUsed: m.medianBeat.nUsed, samples: Array.from(m.medianBeat.beat).map((v) => +v.toFixed(4)) } : null,
-        perWindow: m.perWindow || []
-      },
+      /* §∅ — NO MORPHOLOGY IS NOT MORPHOLOGY OF ZERO. This block read its fields off
+         `r.morph || {}`, so a record with no builder shipped `dicroticNotchPresent: false` — a
+         measured-looking "no notch" — beside an empty `perWindow` array. The block now refuses as
+         one, and `morphologyReason` carries the DSP's named cause, so a consumer can separate an
+         absent builder from a pulse that carried no notch. `apnea` above refuses the same way. */
+      morphology: m
+        ? {
+            riseTimeMs: m.riseTimeMs,
+            crestTimeMs: m.crestTimeMs,
+            dicroticNotchPresent: !!m.dicroticNotchPresent,
+            augmentationIndexPct: m.augmentationIndexPct,
+            reflectionIndex: m.reflectionIndex,
+            pulseWidthMs: m.pulseWidthMs,
+            notchTimeMs: m.notchTimeMs,
+            sdppgBA: m.sdppgBA,
+            sdppgAGI: m.sdppgAGI,
+            perfusionIndexPct: m.perfusionIndexPct,
+            medianBeat: m.medianBeat ? { fs: m.medianBeat.fs, pre: m.medianBeat.pre, nUsed: m.medianBeat.nUsed, samples: Array.from(m.medianBeat.beat).map((v) => +v.toFixed(4)) } : null,
+            perWindow: m.perWindow || []
+          }
+        : null,
+      morphologyReason: r.morphReason != null ? r.morphReason : null,
       /* PER-CHANNEL DETECTOR AGREEMENT (three-cornered hat over the 3 optical channels). Exported so
          the Integrator can weigh a node's beat timing without a reference, the way it does
          `validation.stability`. ⚠️ `scope` is part of the payload, not decoration: this is per-channel

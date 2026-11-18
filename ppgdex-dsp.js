@@ -6923,12 +6923,23 @@
     }[tier];
 
     // morphology (ppgdex-morph.js)
-    let morph = null;
+    /* §∅ — AN ABSENT MORPHOLOGY BLOCK MUST NAME ITS CAUSE. `morph` read `null` on two unrelated
+       grounds and no consumer could separate them: `ppgdex-morph.js` is not co-loaded in this realm
+       (only `PpgDex.html` and its `docs/` copy inline it, so an orchestrator realm carries no
+       builder), or `PPGMorph.analyze` threw and this catch bound the error and dropped it. The
+       builder always returns an object, so those two ARE the whole population — there is no third
+       "it returned nothing" state, and a guard for one would be an unreachable branch. The reason
+       travels beside the value, the way `cleanBeatPctReason` and `analyzablePctReason` do above, and
+       `ppgdex-app.js` carries it into the export. */
+    let morph = null,
+      morphReason = /** @type {string | null} */ ('ppgdex-morph.js is not co-loaded in this realm — no morphology builder ran');
     if (global.PPGMorph) {
       try {
         morph = global.PPGMorph.analyze(bp, raw, det, rec.fs, sqi, _ambRef);
+        morphReason = null;
       } catch (_e) {
         morph = null;
+        morphReason = 'the morphology builder threw: ' + ((_e && (_e.message || _e.name)) || 'no message');
       }
     }
 
@@ -7270,6 +7281,7 @@
       channelStability,
       markers,
       morph,
+      morphReason,
       perfusionIndex: perfWindow(),
       events,
       // clock fmt helpers exposed for render/export
