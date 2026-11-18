@@ -1641,7 +1641,14 @@
     const rmssdRatio = rmA > 0 ? +(rmB / rmA).toFixed(2) : null;
     // pulse-transit-time variability surrogate: variance PRV adds over HRV.
     // PRV² ≈ HRV² + PTTV²  →  PTTV ≈ √(rmssd_PRV² − rmssd_HRV²).  (vascular/BP jitter)
-    const pttv = rmB > rmA ? +Math.sqrt(Math.max(0, rmB * rmB - rmA * rmA)).toFixed(1) : 0;
+    /* §∅ — THE SURROGATE HAS NO VALUE WHERE ITS OWN IDENTITY HAS NO POSITIVE ROOT. √(PRV²−HRV²)
+       resolves only when the pulse series carries the EXCESS variance the model assumes. A reference
+       that carries LESS than the primary is that premise failing, not a measurement — and the old
+       `: 0` published 0 ms, the healthiest number this tile can show (the app paints ≤15 ms green),
+       byte-identical to a genuinely rock-steady transit time. Equal series keep their exact 0: that
+       root is real and `Math.max(0, …)` already answers it. This is the same shape `rmssdRatio`
+       beside it uses (`rmA > 0 ? … : null`). */
+    const pttv = rmB >= rmA && isFinite(rmA) && isFinite(rmB) ? +Math.sqrt(Math.max(0, rmB * rmB - rmA * rmA)).toFixed(1) : null;
 
     // decide which side is the pulse (PRV) signal for framing
     const kA = primary.kind || 'auto',
