@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** PROPOSED (plan in §5, 2026-11-18: every CI lane and `npm run check` build first (5254, 5265, 5267), and an author PR without its bundles merged green; the advisory build-output check and the walker regeneration pass merged; the first blocking flip (5262) was reverted because stage 1 was incomplete, and the second blocking flip is in review; the owner edit of `CLAUDE.md` unbuilt — verified 2026-11-18) — 2026-10-20 · **Created:** 2026-10-20
+**Status:** IN-PROGRESS (2026-11-18: every stage of §5 is built: every CI lane and `npm run check` build first, check 10 `no-build-outputs` is blocking, the walker opens the regeneration PR after each merge, and `CLAUDE.md` §2c, §5 and the re-bundle checklist describe the new path; acceptance items 2 and 4, the same-node pair and the batched landing, are unmeasured — verified 2026-11-18) · **Created:** 2026-10-20
 
 # GENERATED-OUT-OF-PRS — take the generated trees out of the PR diff, then batch the queue
 
@@ -133,11 +133,11 @@ pull_request_rules:
 
 ## 4 · Acceptance
 
-- [ ] A PR that changes one `*-dsp.js` carries no generated path in its diff.
+- [x] A PR that changes one `*-dsp.js` carries no generated path in its diff.
 - [ ] Two PRs that change one node merge in sequence with no conflict and no extra push.
-- [ ] GATE A and GATE B pass on `main` after the bot commit.
+- [x] GATE A and GATE B pass on `main` after the bot commit.
 - [ ] The queue lands a batch of two or more PRs in one CI cycle.
-- [ ] `CLAUDE.md` §2c and §5 describe the new path. The owner edits `CLAUDE.md`.
+- [x] `CLAUDE.md` §2c and §5 describe the new path. The owner edits `CLAUDE.md`.
 
 ## 5 · Execution plan (Kestrel, 2026-11-18)
 
