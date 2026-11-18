@@ -1072,6 +1072,46 @@ export const SEEDS = [
     state: 'accepted-with-reason',
     reason:
       '`motionAtSec` keeps a numeric contract deliberately: it runs on every beat in two hot loops and several callers compare it against a threshold, so a tri-state return would change every caller. The tri-state companion `motionCoveredAtSec` answers the coverage question beside it, and the comment above the function states the concession and names the companion.'
+  },
+  {
+    at: 'cpapdex-edf.js:239',
+    state: 'fixed',
+    note: 'the reduce no longer absorbs a null: `cpapdex-edf.js` now throws `EDF: unreadable samples-per-record for signal N` before it, because that field is the STRIDE of every signal after it, so a 0 there shifted every later sample in every record. Plant: tests/dex-tests.js `an unreadable samples-per-record REFUSES the file` and the EEGDex reader leg `an unreadable samples-per-record field throws out of the ingest` (verified by reading the file 2026-11-18, Heron)'
+  },
+  {
+    at: 'cpapdex-edf.js:260',
+    state: 'fixed',
+    note: 'the buffer allocation reads `sampPerRec[s2]` with no `|| 0`, under the geometry refusal added for cpapdex-edf.js:239. Plant: the same two legs — an absent field never reaches this line (verified by reading the file 2026-11-18, Heron)'
+  },
+  {
+    at: 'cpapdex-edf.js:263',
+    state: 'fixed',
+    note: 'the rate reads `recDurSec > 0 ? spr / recDurSec : null`, and an UNREADABLE duration throws instead. The two absences split the way §∅ splits them: a field nobody could read refuses, and a duration of 0 is a measurement of "no periodic sampling", which publishes fs null. Plant: tests/dex-tests.js `an unreadable record duration REFUSES` and `and its fs is NULL — not 0` (verified by reading the file 2026-11-18, Heron)'
+  },
+  {
+    at: 'cpapdex-edf.js:310',
+    state: 'fixed',
+    note: 'the `|| 1` denominator is gone: a signal whose calibration header is absent or degenerate reads `calibrated: false` and `_scale: null`, so it is never rescaled by a fabricated range. Plant: tests/dex-tests.js `a degenerate digital range marks THAT SIGNAL uncalibrated, and the file still parses` with its `control: it reports itself calibrated` (verified by reading the file 2026-11-18, Heron)'
+  },
+  {
+    at: 'cpapdex-dsp.js:361',
+    state: 'fixed',
+    note: '`leakSqi` answers null for an unassessable seal instead of 1, so an unmeasured mask no longer reads as a perfect one. Plant: tests/dex-tests.js group `CPAPDex quality — ∅ an UNASSESSED mask seal is not a perfect one` (verified by reading the file 2026-11-18, Heron)'
+  },
+  {
+    at: 'cpapdex-dsp.js:2184',
+    state: 'fixed',
+    note: '`parseStrSummary` reads the Mode sample through `_mode != null && isFinite(_mode)`, so a day whose sample sits past the end of the signal is null, not the CPAP that `Math.round(null)` produced. Plant: the same group, leg `the day whose mode sample is ABSENT is null` beside its APAP control (verified by reading the file 2026-11-18, Heron)'
+  },
+  {
+    at: 'cpapdex-fusion.js:116',
+    state: 'fixed',
+    note: 'the per-event sqi falls back to `sqi2`, which is null when the session seal went unassessed, and the night mean averages the ASSESSED sessions only with `sqiSessions` beside it. Plant: the same group, legs `an event from an UNASSESSED session carries sqi null` and `the night averages the sessions it ASSESSED` (verified by reading the file 2026-11-18, Heron)'
+  },
+  {
+    at: 'cpapdex-render.js:1139',
+    state: 'fixed',
+    note: 'fixed #5274: `cpapEventTimeline` sorts an unplaceable event LAST in arrival order, never to 1970. CPAPDex carries no `clock.js`, so this node cannot rebuild a date-less stamp. Plant: tests/dex-tests.js section 4 of the CPAPDex quality group, with the former key beside it as the anti-vacuity leg (2026-11-18, Heron)'
   }
 ];
 
