@@ -40344,6 +40344,26 @@
       T.eq('…no rMSSD discrepancy between a signal and itself', same && same.discrepancy.dRMSSD, 0);
       T.eq('…and no transit-time surrogate to report', same && same.discrepancy.pttvMs, 0);
 
+      /* ── §∅ AN UNRESOLVABLE ROOT IS ABSENT, NOT 0 ms ──────────────────────────────────────────
+         `√(PRV²−HRV²)` resolves only where the pulse carries the EXCESS variance. When the reference
+         carries LESS, the model's premise fails — the old else arm published 0 ms anyway, the value
+         the tile paints green at ≤15 ms, so a failed surrogate read as a perfectly steady transit
+         time. Two alternating series on one absolute axis: equal stamps, so the matcher pairs every
+         beat, and only the amplitude differs (60 ms vs 20 ms ⇒ rMSSD 60 vs 20). */
+      var alt = function (n, amp) {
+        var v = [],
+          ts = [];
+        for (var i = 0; i < n; i++) {
+          v.push(1000 + (i % 2 ? amp : 0));
+          ts.push(1e12 + i * 1000);
+        }
+        return { vals: v, tsMs: ts };
+      };
+      var less = B.compareIntervalSeries(alt(200, 60), alt(200, 20));
+      T.ok('…while a pulse carrying LESS variance than the primary REFUSES the surrogate', less && less.discrepancy.pttvMs === null, 'got ' + (less && less.discrepancy.pttvMs));
+      T.ok('…and the paired rMSSD difference is still published (a measurement, not a surrogate)', less && less.discrepancy.dRMSSD < 0, 'got ' + (less && less.discrepancy.dRMSSD));
+      T.ok('…and the same-series control keeps its exact 0 (that root is real)', same.discrepancy.pttvMs === 0, 'got ' + same.discrepancy.pttvMs);
+
       /* ── THE DRIFT CASE, which is the one that matters ──
          Adding 12 ms to every interval does not merely offset the values — it stretches the second
          signal's wall clock, so the two drift apart beat by beat. The nearest-beat matcher's
@@ -49838,6 +49858,46 @@
          d_vo2_hrv  = d_vo2_base × rmssd_adj
        At age 49, elev 0, rMSSD 41: adj = 1 + 0.08×(ln 41 − 3.7) = 1.0010875.
          HR 62 ⇒ 42.8647 × 1.0010875 = 42.9113      HR 90 ⇒ 29.5290 × 1.0010875 = 29.5611  */
+    /* ════ §∅ AN EVENT IN A GAP CARRIES NO MEASURED QUALITY — AND 0.5 IS NOT A MEASUREMENT ════
+       `sqiAt(sec)` averages the per-beat SQI over ±5 s. With NO beat in that window it fell back to
+       `sqi[best] || 0.5`: the nearest beat's score, or a mid-scale 0.5 when that score was itself 0.
+       The fallback therefore fired EXACTLY when the nearby measurement was worst, and an event
+       stamped in a dropout shipped `sqi: 0.5` — indistinguishable from a measured 0.5 — while fusion
+       tapers an event's evidence by that number (`effConf`). */
+    group('ECGDex gangliorEvents — ∅ no beat near an event means no SQI, never a 0.5 stand-in', 'ecgdex-dsp · ganglior-events · absence', function (T) {
+      var E = env.ECGDSP || env.EcgDsp;
+      var D = (E && E._bare) || E;
+      if (!D || typeof D.gangliorEvents !== 'function') {
+        T.skip('ECGDSP.gangliorEvents available', 'not co-loaded in this lane');
+        return;
+      }
+      var T0 = Date.UTC(2026, 5, 1, 22, 0, 0);
+      var cvhr = { events: [{ sec: 100, ampBpm: 12, periodSec: 30 }] };
+      var secs = [0, 1, 2, 3, 4, 200, 201, 202, 203, 204];
+      var surges = function (c, sqi, ts) {
+        return D.gangliorEvents(c, [], T0, sqi, ts, null, null).filter(function (e) {
+          return e.impulse === 'autonomic_surge';
+        });
+      };
+      // the nearest beat to 100 s is index 4 (t = 4 s) and it scored ZERO — the all-artifact score
+      var flat = secs.map(function () {
+        return 0.9;
+      });
+      flat[4] = 0;
+      var g1 = surges(cvhr, flat, secs);
+      T.eq('an event with NO beat within ±5 s still publishes one autonomic_surge', g1.length, 1);
+      T.ok("…whose sqi is the NEAREST BEAT'S measured 0, not a fabricated 0.5", g1[0] && g1[0].sqi === 0, 'got ' + (g1[0] && g1[0].sqi));
+      // control: a beat INSIDE the ±5 s window still averages, exactly as before
+      var inWin = secs.map(function () {
+        return 0.42;
+      });
+      var g2 = surges({ events: [{ sec: 2, ampBpm: 12, periodSec: 30 }] }, inWin, secs);
+      T.eq('a beat inside ±5 s still averages its measured SQI (control)', g2[0] && g2[0].sqi, 0.42);
+      // a record with NO beats at all cannot answer: null, not 0.5, and no throw on `+null.toFixed(2)`
+      var g3 = surges(cvhr, [], []);
+      T.ok('a beatless record refuses the SQI rather than throwing or inventing 0.5', g3[0] ? g3[0].sqi === null : true, 'got ' + (g3[0] && g3[0].sqi));
+    });
+
     group('HRVDex computeDerived — the VO2 window, the GT delta, the subjective gates', 'hrvdex-dsp · vo2window · subjective', function (T) {
       var M = env.HRVDex;
       var D = (M && M._bare) || M;
@@ -49892,6 +49952,22 @@
       var near = function (a, b, tol) {
         return a != null && isFinite(a) && Math.abs(a - b) <= (tol || 0.01);
       };
+
+      /* ── §∅ AN ABSENT rMSSD IS NOT A NEUTRAL MODULATION ──────────────────────────────────────
+         The HRV factor `1 + 0.08·(ln rMSSD − 3.7)` equals 1 at rMSSD = e^3.7 ≈ 40.45 ms, so a `: 1`
+         fallback published the base estimate AS the HRV-adjusted one — indistinguishable from a
+         measured 40.45 ms, and graded as such. An absent rMSSD must refuse the adjusted estimate
+         while the HR-only base estimate still ships. */
+      var absR = run([mk({ _rmssd: null })]);
+      T.ok('an absent rMSSD REFUSES d_vo2_hrv (factor 1 is the factor at 40.45 ms, not "neutral")', isNaN(absR[0].d_vo2_hrv), 'got ' + absR[0].d_vo2_hrv);
+      T.ok('…while the HR-only base estimate is still published', near(absR[0].d_vo2_base, 42.8647), 'got ' + absR[0].d_vo2_base);
+      T.eq('…and the fitness category refuses with it', absR[0].d_vo2_cat, '—');
+      var zeroR = run([mk({ _rmssd: 0 })]);
+      T.ok('rMSSD of exactly 0 refuses too (ln 0 is -inf, never a neutral factor)', isNaN(zeroR[0].d_vo2_hrv), 'got ' + zeroR[0].d_vo2_hrv);
+      var threeAbs = run([mk({ _tMs: D0, _rmssd: null }), mk({ _tMs: D0 + DAY, _rmssd: null }), mk({ _tMs: D0 + 2 * DAY, _rmssd: null })]);
+      T.ok('three absent-rMSSD days roll to NaN, not to the base estimate', isNaN(threeAbs[2].d_vo2_roll7), 'got ' + threeAbs[2].d_vo2_roll7);
+      var twinR = run([mk({ _rmssd: 40.45 })]);
+      T.ok('a MEASURED rMSSD at the neutral point still publishes (presence, not value)', isFinite(twinR[0].d_vo2_hrv) && near(twinR[0].d_vo2_hrv, 42.8647, 0.01), 'got ' + twinR[0].d_vo2_hrv);
 
       // ── the ≥3 gate, at both sides ──
       var four = run([mk({ _tMs: D0 }), mk({ _tMs: D0 + DAY }), mk({ _tMs: D0 + 2 * DAY }), mk({ _tMs: D0 + 3 * DAY })]);
@@ -50893,7 +50969,7 @@
         ['_hr', 'd_hrv_momentum d_sdnn_z d_stress_ac d_vei d_vo2_base d_vo2_delta d_vo2_hrv d_vo2_roll7'],
         ['_meanRR', 'd_csi d_cv_calc d_cvi d_hrv_momentum d_mxdmn_meanrr d_nn50 d_rsa d_sdnn_z d_stress_ac d_vo2_delta'],
         ['_sdnn', 'd_cai d_cv_calc d_dfa_proxy d_hrv_momentum d_ortho d_pns_eff d_rmssd_sdnn d_sd1_sd2 d_sdnn_z d_stress_ac d_vo2_delta'],
-        ['_rmssd', 'd_ari d_cai d_cvi d_hrv_momentum d_lnrmssd d_recovery_debt d_rmssd_cv7 d_rmssd_delta_pct d_rmssd_rolling_ln d_sdnn_z d_stress_ac d_vo2_delta'],
+        ['_rmssd', 'd_ari d_cai d_cvi d_hrv_momentum d_lnrmssd d_recovery_debt d_rmssd_cv7 d_rmssd_delta_pct d_rmssd_rolling_ln d_sdnn_z d_stress_ac d_vo2_delta d_vo2_hrv d_vo2_roll7'],
         ['_mxdmn', 'd_hrv_momentum d_sdnn_z d_si d_stress_ac d_vo2_delta'],
         ['_pnn50', 'd_hrv_momentum d_pns_eff d_sdnn_z d_stress_ac d_vo2_delta'],
         ['_amo50', 'd_hrv_momentum d_sdnn_z d_si d_stress_ac d_vo2_delta'],
@@ -50952,7 +51028,7 @@
         ['_hr', '50/1537.61769'],
         ['_meanRR', '48/643.765738'],
         ['_sdnn', '47/1543.723031'],
-        ['_rmssd', '46/1545.436879'],
+        ['_rmssd', '44/1457.289137'], // §∅ unit shrabs: an absent rMSSD now drops d_vo2_hrv and d_vo2_roll7 too
         ['_mxdmn', '53/1620.77845'],
         ['_pnn50', '53/2107.119766'],
         ['_amo50', '53/1621.439607'],
@@ -51122,7 +51198,7 @@
         ['_mode', 'd_hrv_momentum d_sdnn_z d_si d_stress_ac d_vo2_delta'],
         ['_mxdmn', 'd_hrv_momentum d_sdnn_z d_si d_stress_ac d_vo2_delta'],
         ['_meanRR', 'd_csi d_cv_calc d_cvi d_hrv_momentum d_mxdmn_meanrr d_nn50 d_rsa d_sdnn_z d_stress_ac d_vo2_delta'],
-        ['_rmssd', 'd_ari d_cai d_cvi d_hrv_momentum d_lnrmssd d_recovery_debt d_rmssd_cv7 d_rmssd_delta_pct d_rmssd_rolling_ln d_sdnn_z d_stress_ac d_vo2_delta']
+        ['_rmssd', 'd_ari d_cai d_cvi d_hrv_momentum d_lnrmssd d_recovery_debt d_rmssd_cv7 d_rmssd_delta_pct d_rmssd_rolling_ln d_sdnn_z d_stress_ac d_vo2_delta d_vo2_hrv d_vo2_roll7']
       ];
       for (var i = 0; i < FCASES.length; i++) {
         T.eq('fallback realm · absent ' + FCASES[i][0] + ' → exactly these columns fall to NaN', nf(FCASES[i][0]), FCASES[i][1]);
