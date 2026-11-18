@@ -13,6 +13,9 @@
  *   - `x.t0Ms || 0` — an absent recording start reads as 1970-01-01 (§∅)
  *   - `x.tMs || 0`, `x._tMs || 0`, `x.startMs || 0` — the READ position of the same stamp family,
  *     where the key of a sort reads an unplaceable event as 1970 and puts it first (§∅, Clock §6)
+ *   - a general `x || 0` on an ADDED line — any absent field published as a measured zero. The
+ *     general spelling is DIFF-SCOPED only, and a line declares a legal zero with
+ *     `absence-ok: <reason>` (residue 2026-11-15-absence-gates-skip-the-or-zero-spelling)
  *
  * A CITATION IS NOT A SITE: prose that names the fabricated shape, in a comment or inside backticks,
  * is examined and reported apart from the hits. Without that split this gate reds the PR that
@@ -42,7 +45,7 @@ import { isCliEntry } from './argv-guard.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
 
-function verdictOf({ status, scanned, excluded = 0, citations = 0, hits, base, fullTree, baseline, reason = null }) {
+function verdictOf({ status, scanned, excluded = 0, citations = 0, declared = 0, patternNames = [], hits, base, fullTree, baseline, reason = null }) {
   const v = Verdict.make({
     gate: 'absence-regression',
     status,
@@ -56,6 +59,8 @@ function verdictOf({ status, scanned, excluded = 0, citations = 0, hits, base, f
         : {
             scanned,
             citations,
+            declared,
+            patterns: patternNames,
             violations: hits.map((h) => ({ pattern: h.name, file: h.file ?? null, line: h.line })),
             notScanned: EXCLUDED_PATHS.map((e) => ({ path: e.path, why: e.why })),
             ...(fullTree ? { mode: 'full-tree', baseline: baseline ? baseline.count : null } : {})
@@ -109,8 +114,30 @@ const PATTERNS = [
     name: 'stamp-read-fabrication',
     regex: /(?:^|[^\w$])(?:_?tMs|startMs)\s*\|\|\s*0(?![.\w])/,
     why: 'x.tMs || 0 reads an absent stamp as 1970-01-01, so a t-only event sorts ahead of every stamped one — rebuild it from startEpochMs or refuse (§∅, Clock §6)'
+  },
+  {
+    /* THE GENERAL SPELLING (residue 2026-11-15-absence-gates-skip-the-or-zero-spelling). The three
+       shapes above read ONE field family, so `glucose || 0` or `nMag || 0` published an absent value
+       as a measured zero and no gate could see it. The row's own evidence rejected a whole-tree rule:
+       487 lines spell `|| 0` and most are tallies, divisors or display bounds. Measured through this
+       classifier over the 80 first-parent merges of main at be2a0d1bb: 1,499 added lines inside this
+       gate's population, 9 citations of the shape, and ONE code line — `ppgdex-app.js`'s
+       `(m.nMag || 0).toLocaleString()`, which renders an absent magnetometer count as 0 samples. One
+       line in 80 merges is what makes the general spelling affordable DIFF-SCOPED. `general: true`
+       therefore carries three consequences, each with its own selftest leg: the pattern stays out of
+       `--full-tree`, where it would read as 487 findings against a baseline of 38; it defers to the
+       three families, so one site is never counted twice; and a line may declare a legal zero with
+       `absence-ok: <reason>`, which the gate COUNTS so that silencing stays visible. */
+    name: 'or-zero-fabrication',
+    general: true,
+    regex: /\|\|\s*0(?![.\w])/,
+    why: 'x || 0 publishes an absent value as a measured zero — use ?? null, or declare a legal zero on the line with `absence-ok: <reason>` (§∅)'
   }
 ];
+
+/* THE RATCHET AND THE DIFF SCAN READ DIFFERENT PATTERN SETS, and the difference is the general
+   spelling. Exported so the selftest judges the split rather than trusting it. */
+export const patternsFor = (fullTree, patterns = PATTERNS) => (fullTree ? patterns.filter((p) => !p.general) : patterns);
 
 /* ── A CITATION IS NOT A SITE ─────────────────────────────────────────────────────────────────────
    Measured on main at 0f590304c: of the 9 lines carrying the read shape, 4 are code and 5 are prose
@@ -122,6 +149,11 @@ const PATTERNS = [
    and an unterminated span is never a citation. The residual escape is a stamp read behind a `//`
    that sits inside a string literal on the same line; it is skipped and stated, not counted. */
 const COMMENT_OPEN = /(?:^|\s)(?:\/\/|\/\*)/;
+
+/* A LINE DECLARES A LEGAL ZERO. `|| 0` is a tally, a divisor guard or a viewport bound often enough
+   that a general rule needs a per-line escape, and the house form is a named reason beside the code.
+   A bare `absence-ok:` declares nothing: the reason is the point, so the gate requires one. */
+export const MARKER = /absence-ok:\s*\S/;
 
 /** Is this match prose about the shape rather than an instance of it? Pure, line-local. */
 export function isCitation(line, m) {
@@ -194,13 +226,21 @@ export function classifyAdded(diffLines, patterns = PATTERNS) {
   }
   const hits = [];
   const cited = new Set();
+  const declared = new Set();
   for (const p of patterns) {
+    /* THE GENERAL PATTERN DEFERS TO THE FAMILIES. It runs last, so a line one of them already named
+       sits in `hits`, and reporting it again would count one site twice and hide which rule it broke.
+       A pair hit carries both its lines, so each part is keyed on its own. */
+    const named = p.general ? new Set(hits.flatMap((h) => h.line.split(' \u23ce ').map((t) => `${h.file}\u0000${t.trim()}`))) : null;
     for (const r of runs) {
       for (let i = 0; i < r.length; i += 1) {
         const m = p.regex.exec(r[i].t);
         if (m) {
+          const dup = p.general && named.has(`${r[i].f}\u0000${r[i].t.trim()}`);
+          const mark = p.general && MARKER.test(r[i].t);
           if (isCitation(r[i].t, m)) cited.add(r[i].t.trim());
-          else hits.push({ name: p.name, line: r[i].t.trim(), why: p.why, file: r[i].f });
+          else if (mark && !dup) declared.add(r[i].t.trim());
+          else if (!dup) hits.push({ name: p.name, line: r[i].t.trim(), why: p.why, file: r[i].f });
           continue;
         }
         if (i + 1 < r.length && !p.regex.test(r[i + 1].t)) {
@@ -208,12 +248,14 @@ export function classifyAdded(diffLines, patterns = PATTERNS) {
           const jm = p.regex.exec(joined);
           if (!jm) continue;
           if (isCitation(joined, jm)) cited.add(joined.trim());
-          else hits.push({ name: p.name, line: `${r[i].t.trim()} ⏎ ${r[i + 1].t.trim()}`, why: p.why, file: r[i].f });
+          else if (p.general && MARKER.test(joined)) declared.add(joined.trim());
+          else if (!(p.general && (named.has(`${r[i].f}\u0000${r[i].t.trim()}`) || named.has(`${r[i].f}\u0000${r[i + 1].t.trim()}`))))
+            hits.push({ name: p.name, line: `${r[i].t.trim()} ⏎ ${r[i + 1].t.trim()}`, why: p.why, file: r[i].f });
         }
       }
     }
   }
-  return { hits, scanned: runs.reduce((n, r) => n + r.length, 0), excluded, citations: cited.size };
+  return { hits, scanned: runs.reduce((n, r) => n + r.length, 0), excluded, citations: cited.size, declared: declared.size };
 }
 
 export function selftest() {
@@ -257,8 +299,12 @@ export function selftest() {
   ok(classifyAdded(['+      tMs: f.stamp || 0,']).hits.length === 1, 'CONTROL: the WRITE position still counts once, and the read shape does not double it');
   ok(classifyAdded(['+    const t = ev.tMs ?? null;']).hits.length === 0, 'CONTROL: the read-position FIX `?? null` is not a violation');
   ok(classifyAdded(['+    const k = rec.tMs || 0.5;']).hits.length === 0, 'CONTROL: `|| 0.5` on a stamp read is a default, not an epoch');
-  ok(classifyAdded(['+    const n = row.startMsCount || 0;']).hits.length === 0, 'CONTROL: a longer identifier that merely contains the name is not a hit');
-  ok(classifyAdded(['+    const n = row.count || 0;']).hits.length === 0, 'CONTROL: a tally keeps its zero — this gate reads stamps, not counters');
+  ok(classifyAdded(['+    const n = row.startMsCount || 0;'], patternsFor(true)).hits.length === 0, 'CONTROL: a longer identifier that merely contains the stamp name is no family hit');
+  /* ⚠️ FOUR CONTROLS BELOW AND ABOVE NOW NAME THE FAMILY SET. The general pattern reads a tally, a
+     longer identifier and a bare `b || 0` on purpose, so each of these four states what it always
+     stated — that the three STAMP families do not fire — and the general block below carries the
+     matching leg for the same line under the full set. */
+  ok(classifyAdded(['+    const n = row.count || 0;'], patternsFor(true)).hits.length === 0, 'CONTROL: a tally is no stamp — the three stamp families read stamps, not counters');
 
   /* ── A CITATION IS NOT A SITE ──────────────────────────────────────────────────────────────────────
      Five lines on main name this shape in prose about a fix that already landed. Without the split,
@@ -285,8 +331,11 @@ export function selftest() {
   const split = classifyAdded(['+      tMs:', '+        f.stamp || 0,']);
   ok(split.hits.length === 1 && /⏎/.test(split.hits[0].line), 'ESCAPE 2: a statement split over two added lines is caught once, and the hit shows both lines');
   ok(classifyAdded(['+      tMs: f.stamp || 0,', '+      other: 1,']).hits.length === 1, 'CONTROL: a site that matches alone is not counted again as a pair');
-  ok(classifyAdded(['+      tMs:', ' context line', '+        f.stamp || 0,']).hits.length === 0, 'CONTROL: a context line ends the run, so lines from two places are never joined');
-  ok(classifyAdded(['+      tMs: a,', '+        b || 0,']).hits.length === 0, 'CONTROL: a comma between the two lines ends the expression');
+  ok(
+    classifyAdded(['+      tMs:', ' context line', '+        f.stamp || 0,'], patternsFor(true)).hits.length === 0,
+    'CONTROL: a context line ends the run, so the families never join lines from two places'
+  );
+  ok(classifyAdded(['+      tMs: a,', '+        b || 0,'], patternsFor(true)).hits.length === 0, 'CONTROL: a comma between the two lines ends the expression the families read');
 
   /* THE DISCLOSED EXCLUSION — counted, not silently dropped. */
   const ex = classifyAdded(['+++ b/tests/dex-tests.js', '+      tMs: f.stamp || 0,', '+++ b/oxydex-dsp.js', '+      x: 1,']);
@@ -295,6 +344,36 @@ export function selftest() {
     EXCLUDED_PATHS.every((e) => typeof e.why === 'string' && e.why.length > 0),
     'every excluded path carries its reason'
   );
+
+  /* ── THE GENERAL SPELLING (residue 2026-11-15-absence-gates-skip-the-or-zero-spelling) ───────────
+     MEASURED BEFORE IT WAS WRITTEN. Over the 80 first-parent merges of main at be2a0d1bb this
+     classifier read 1,499 added lines inside the gate's population, and ONE was a code `|| 0`:
+     `ppgdex-app.js` renders an absent magnetometer count as `0 samples`. A rule that fires once in 80
+     merges is affordable on the diff; the same rule over the whole tree reads 487 lines. */
+  const gen = classifyAdded(['+++ b/ppgdex-app.js', '+      ${(m.nMag || 0).toLocaleString()} samples']);
+  ok(gen.hits.length === 1 && gen.hits[0].name === 'or-zero-fabrication', 'the live `nMag || 0` render site is caught');
+  ok(gen.hits[0]?.file === 'ppgdex-app.js', 'the general hit names its file, as the family hits do');
+  ok(classifyAdded(['+    const n = row.count || 0;']).hits.length === 1, 'an undeclared tally is a hit, because a tally and an absence spell the zero the same way');
+  ok(classifyAdded(['+    const n = row.startMsCount || 0;']).hits.length === 1, 'the longer identifier the families skip is read by the general pattern');
+  ok(classifyAdded(['+      tMs: a,', '+        b || 0,']).hits.length === 1, 'the bare `b || 0` the families skip is read by the general pattern');
+  ok(classifyAdded(['+      tMs:', ' context line', '+        f.stamp || 0,']).hits.length === 1, 'and so is the added line after a context break');
+  ok(classifyAdded(['+    const n = row.count || 0; // absence-ok: tally — an absent key counted no events']).hits.length === 0, 'CONTROL: a declared legal zero is not a hit');
+  ok(classifyAdded(['+    const n = row.count || 0; // absence-ok: tally']).declared === 1, 'and the declaration is COUNTED, so silencing this gate stays visible');
+  ok(classifyAdded(['+    const n = row.count || 0; // absence-ok:']).hits.length === 1, 'CONTROL: a declaration with no reason declares nothing');
+  ok(classifyAdded(['+      tMs: f.stamp || 0, // absence-ok: tally']).hits.length === 1, 'CONTROL: a declaration never excuses a STAMP family hit');
+  ok(classifyAdded(['+      tMs: f.stamp || 0,']).hits.length === 1, 'CONTROL: a stamp write counts ONCE — the general pattern defers to its family');
+  ok(classifyAdded(['+      return (a.tMs || 0) - (b.tMs || 0);']).hits.length === 1, 'CONTROL: a stamp read counts once under both patterns');
+  ok(classifyAdded(['+      tMs:', '+        f.stamp || 0,']).hits.length === 1, 'CONTROL: a SPLIT stamp site counts once, and not again as a general hit on its second line');
+  ok(classifyAdded(['+    const fs = rec.fs || 0.5;']).hits.length === 0, 'CONTROL: `|| 0.5` is a default, not a zero');
+  ok(classifyAdded(['+    const m = rec.n || 0x10;']).hits.length === 0, 'CONTROL: `|| 0x10` is a default, not a zero');
+  ok(classifyAdded(['+    const n = row.count ?? 0;']).hits.length === 0, 'CONTROL: `?? 0` answers to no-nullish-zero.yml, not to this gate');
+  ok(classifyAdded(['+  // `row.count || 0` was the shape that PR removed']).hits.length === 0, 'CONTROL: prose quoting the general shape is a citation');
+  ok(
+    patternsFor(true).every((p) => !p.general),
+    'the ratchet set holds no general pattern'
+  );
+  ok(patternsFor(false).some((p) => p.general) && patternsFor(true).length === PATTERNS.length - 1, 'the diff set holds it, and the two sets differ by exactly that one pattern');
+  ok(classifyAdded(['+    const n = row.count || 0;'], patternsFor(true)).hits.length === 0, 'CONTROL: the ratchet set reads the same tally and does not fire');
 
   /* ── THE SHRINK-ONLY RATCHET ──────────────────────────────────────────────────────────────────────
      Four states, and the one that matters most is the THIRD: a count that FELL must not quietly pass,
@@ -370,13 +449,18 @@ function main() {
 
   /* No `:!tests/` pathspec: the classifier skips EXCLUDED_PATHS itself, so it can COUNT what it skips. */
   const diff = sh(`git diff ${base}..${head} -U0 -- '*.js' '*.src.html'`);
-  const { hits, scanned, excluded, citations } = classifyAdded(diff.split('\n'));
+  /* THE PATTERN SET IS THE MODE. The general `|| 0` spelling reads 487 lines of this tree, so the
+     shrink-only ratchet would carry a backlog nobody can move; it runs on the DIFF alone. */
+  const patterns = patternsFor(fullTree);
+  const { hits, scanned, excluded, citations, declared } = classifyAdded(diff.split('\n'), patterns);
 
   if (fullTree) {
     const baseline = readBacklog(join(ROOT, BACKLOG_LEDGER), 'absence-regression', (f) => readFileSync(f, 'utf-8'));
     const r = ratchet(hits.length, baseline);
     if (asJson) {
-      process.stdout.write(`${JSON.stringify(verdictOf({ status: r.status, scanned, excluded, citations, hits, base, fullTree: true, baseline, reason: r.reason }), null, 1)}\n`);
+      process.stdout.write(
+        `${JSON.stringify(verdictOf({ status: r.status, scanned, excluded, citations, declared, patternNames: patterns.map((p) => p.name), hits, base, fullTree: true, baseline, reason: r.reason }), null, 1)}\n`
+      );
     } else {
       process.stdout.write(
         `absence-regression --full-tree · ${scanned} line(s) scanned · ${excluded} under ${EXCLUDED_PATHS.map((e) => e.path).join(', ')} not scanned · ${citations} citation(s) of the shape · ${hits.length} fabrication(s)\n`
@@ -385,6 +469,7 @@ function main() {
       const byFile = [...new Set(hits.map((h) => h.file).filter(Boolean))].sort();
       process.stdout.write(`  files: ${byFile.length} — ${byFile.join(' ')}\n`);
       process.stdout.write(`  baseline: ${baseline ? baseline.count : '(none yet)'} → ${r.status}${r.reason ? ` — ${r.reason}` : ''}\n`);
+      process.stdout.write(`  patterns: ${patterns.map((p) => p.name).join(' ')} — the general spelling is diff-only, so this ratchet never reads it\n`);
     }
     process.exit(r.status === 'FAIL' ? 1 : 0);
   }
@@ -395,9 +480,9 @@ function main() {
      claims and only one of them is evidence. */
   const status = scanned === 0 ? 'NOT_RUN' : hits.length ? 'FAIL' : 'PASS';
   if (asJson) {
-    process.stdout.write(`${JSON.stringify(verdictOf({ status, scanned, excluded, citations, hits, base }), null, 1)}\n`);
+    process.stdout.write(`${JSON.stringify(verdictOf({ status, scanned, excluded, citations, declared, patternNames: patterns.map((p) => p.name), hits, base }), null, 1)}\n`);
   } else {
-    for (const p of PATTERNS) {
+    for (const p of patterns) {
       const n = hits.filter((h) => h.name === p.name).length;
       if (n) {
         process.stderr.write(`✕ ${p.name}: ${n} new instance(s) — ${p.why}\n`);
@@ -415,6 +500,7 @@ function main() {
       process.stdout.write(
         `absence-regression: ✓ PASS — ${scanned} added line(s) examined, ${excluded} under ${EXCLUDED_PATHS.map((e) => e.path).join(', ')} not scanned, ${citations} naming the shape in prose, no new fabrication pattern\n`
       );
+    if (declared) process.stdout.write(`  ${declared} added line(s) declared a legal zero with absence-ok — the gate counts every declaration, so silencing it stays visible\n`);
   }
   process.exit(status === 'FAIL' ? 1 : 0);
 }
