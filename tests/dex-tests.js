@@ -9168,24 +9168,136 @@
       T.eq('with NO anchor only the absolute stamp places, the rest keep arrival order', ids(S(evs, null)), 'b,c,u1,a,u2');
 
       /* ── the census: no repaired site may regrow the 1970 key ── */
-      var srcNoComments = function (f) {
-        return ((env.sources || {})[f] || '')
-          .split('\n')
-          .filter(function (ln) {
-            var t = ln.trim();
-            return t.indexOf('//') !== 0 && t.indexOf('*') !== 0 && t.indexOf('/*') !== 0;
-          })
-          .join('\n');
+      /* A LINE-PREFIX comment filter cannot tell prose from code here. A block comment carries no
+         marker on its body lines, a `//` inside a string literal opens no comment, and this unit's
+         own repair comments QUOTE the old key. So the stripper below walks the characters and keeps
+         only code. It reads a regex literal as a literal, because `/'/` would otherwise open a
+         string and swallow the code after it. */
+      var stripToCode = function (src) {
+        var out = '';
+        var i = 0;
+        var n = src.length;
+        var prev = '';
+        var reStart = function (p) {
+          return p === '' || '(,=:[!&|?{};+-*%~^<>'.indexOf(p) >= 0;
+        };
+        while (i < n) {
+          var c = src.charAt(i);
+          var d = src.charAt(i + 1);
+          if (c === '/' && d === '*') {
+            var be = src.indexOf('*/', i + 2);
+            i = be < 0 ? n : be + 2;
+            out += ' ';
+            continue;
+          }
+          if (c === '/' && d === '/') {
+            var le = src.indexOf('\n', i);
+            i = le < 0 ? n : le;
+            out += ' ';
+            continue;
+          }
+          if (c === '/' && reStart(prev)) {
+            var j = i + 1;
+            var cls = false;
+            while (j < n) {
+              var k = src.charAt(j);
+              if (k === '\\') {
+                j += 2;
+                continue;
+              }
+              if (k === '[') cls = true;
+              else if (k === ']') cls = false;
+              else if (k === '\n') break;
+              else if (k === '/' && !cls) break;
+              j += 1;
+            }
+            i = src.charAt(j) === '/' ? j + 1 : j;
+            out += ' ';
+            prev = ')';
+            continue;
+          }
+          if (c === '"' || c === "'" || c === '`') {
+            var j2 = i + 1;
+            while (j2 < n) {
+              var m = src.charAt(j2);
+              if (m === '\\') {
+                j2 += 2;
+                continue;
+              }
+              if (m === c) break;
+              j2 += 1;
+            }
+            i = j2 + 1;
+            out += ' ';
+            prev = ')';
+            continue;
+          }
+          out += c;
+          if (c.trim()) prev = c;
+          i += 1;
+        }
+        return out;
       };
-      var SITES = ['ecgdex-app.js', 'hrvdex-app.js', 'oxydex-render.js', 'ppgdex-app.js', 'pulsedex-render.js', 'pulsedex-overview.js'];
-      SITES.forEach(function (f) {
+      var codeOf = function (f) {
+        return stripToCode((env.sources || {})[f] || '');
+      };
+      /* The key the census hunts, on ANY receiver and in both spellings: a bare `(x.tMs || 0)` and
+         the guarded `((x && x.tMs) || 0)`. The tail lookahead keeps a `|| 0.5` default and a
+         `|| 0x10` mask out. `t0Ms` stays OUT of the field list on purpose: an undated recording
+         anchored at 0 is a different family, and DSP-NITS-2026-07-03 sanctions it. */
+      var EVKEY = /\.(?:tMs|_tMs|startMs|tsMs)\s*\)?\s*\|\|\s*0(?![\w.])/g;
+      var nKeys = function (src) {
+        return (src.match(EVKEY) || []).length;
+      };
+      T.eq('ANTI-VACUITY · the census pattern matches the key it hunts, in both spellings', nKeys(stripToCode('x.sort(function (a, b) { return ((a && a.tMs) || 0) - (b.tMs || 0); });')), 2);
+      T.eq('…and it reads a `|| 0.5` default and a `|| 0x10` mask as neither', nKeys(stripToCode('var w = (r.tMs || 0.5) + (q.startMs || 0x10);')), 0);
+      T.eq('…and it leaves the `t0Ms` anchor family alone', nKeys(stripToCode('var k = (x.t0Ms || 0);')), 0);
+      T.eq(
+        'ANTI-VACUITY · the stripper drops a block comment, a line comment and a string, and keeps the code',
+        nKeys(stripToCode('/* (a.tMs || 0) */\nvar k = (b.tMs || 0); // (c.tMs || 0)\nvar s = "// (d.tMs || 0)";')),
+        1
+      );
+      T.eq('…and a quote inside a regex literal does not swallow the code after it', nKeys(stripToCode("var r = /'/.test(s) ? 1 : 2; var k = (a.tMs || 0);")), 1);
+      /* Fifteen repaired sites under THREE remedies, so each half carries its own expectation.
+         SHARED delegates to the house pair. INLINE sorts an unplaceable event last in arrival order,
+         because CPAPDex carries no `clock.js` by design (CLAUDE.md §✅) and the two cross-night
+         engines sort nights, not events. NEITHER holds one site whose elements are all pushed under
+         a `tMs != null` guard, so it needs no comparator at all and only owes the negative. */
+      var SHARED = [
+        'ecgdex-app.js',
+        'hrvdex-app.js',
+        'oxydex-render.js',
+        'ppgdex-app.js',
+        'pulsedex-render.js',
+        'pulsedex-overview.js',
+        'ecgdex-dsp.js',
+        'hrvdex-dsp.js',
+        'ppgdex-dsp.js',
+        'pulsedex-dsp.js'
+      ];
+      var INLINE = ['cpapdex-fusion.js', 'cpapdex-render.js', 'glucodex-cross.js', 'hrvdex-cross.js'];
+      var NEITHER = ['integrator-dsp.js'];
+      var censusRan = 0;
+      SHARED.concat(INLINE, NEITHER).forEach(function (f) {
         var raw = (env.sources || {})[f];
         T.ok(f + ' is wired into env.sources', typeof raw === 'string' && raw.length > 0, 'unwired ⇒ the census reads nothing');
         if (typeof raw !== 'string' || !raw.length) return;
-        var hits = (srcNoComments(f).match(/\(\s*[ab]\.(?:tMs|_tMs|startMs)\s*\|\|\s*0\s*\)/g) || []).length;
-        T.eq(f + ' carries no `(x.tMs || 0)` sort key outside prose', hits, 0);
-        T.ok(f + ' reads DexClock.sortEventsByClock', srcNoComments(f).indexOf('DexClock.sortEventsByClock') >= 0);
+        censusRan += 1;
+        T.eq(f + ' carries no `|| 0` event sort key in code', nKeys(codeOf(f)), 0);
+        if (SHARED.indexOf(f) >= 0) {
+          T.ok(f + ' delegates to DexClock.sortEventsByClock', codeOf(f).indexOf('DexClock.sortEventsByClock') >= 0);
+        } else if (INLINE.indexOf(f) >= 0) {
+          T.ok(f + ' sorts an unplaceable element LAST inline', codeOf(f).indexOf('=== null ? 1 : -1') >= 0, 'no absence-last comparator in code');
+        }
       });
+      T.eq('ANTI-VACUITY · every repaired site was read, so no expectation was skipped', censusRan, SHARED.length + INLINE.length + NEITHER.length);
+      /* The stripper's own witness on a REAL file: CPAPDex names the house pair in prose only, so the
+         code-stripped text must not hold it. A line-prefix filter reads that comment as code. */
+      T.ok(
+        'the stripper removes a prose mention of DexClock.sortEventsByClock',
+        ((env.sources || {})['cpapdex-render.js'] || '').indexOf('DexClock.sortEventsByClock') >= 0 && codeOf('cpapdex-render.js').indexOf('DexClock.sortEventsByClock') < 0,
+        'cpapdex-render.js names the pair only in a comment'
+      );
     });
 
     group('Clock §2.7 — node-local parsers reject out-of-range', 'node-local-clock', function (T) {
@@ -36860,11 +36972,15 @@
       T.ok('…and is a string, not the schema object it lives on', gen && typeof gen.generated === 'string', 'typeof ' + (gen && typeof gen.generated));
       T.eq('…and null when the schema omits it — not the schema object', neither && neither.generated, null);
 
-      /* ── the event SORT comparator (L4139) ───────────────────────────────────────────────────
-         `((a && a.tMs) || 0) - ((b && b.tMs) || 0)` mutated to `(a && a.tMs) && 0` makes the first
-         term 0 regardless of `a`, so the comparator stops depending on its left operand and the sort
-         is no longer an ordering. Only events supplied OUT of order can show it: a list already
-         ascending comes back ascending under both. */
+      /* ── the event SORT key (∅ §6) ───────────────────────────────────────────────────────────
+         This node carries no comparator of its own any more. It delegates to
+         `DexClock.sortEventsByClock`, which keys on an absolute `tMs`, else rebuilds a date-less
+         `t` on the element's own `recording.startEpochMs`, else reports the event as unplaceable.
+         The former `((a && a.tMs) || 0)` key read every unplaceable event as 1970-01-01, so an event
+         this path cannot place LED the reloaded timeline. Only events supplied OUT of order can show
+         an ordering: a list already ascending comes back ascending under any key. The shared key's
+         own legs live in the `clock · absence · census` group; these three read it THROUGH this
+         node, which is the only place a wrong ANCHOR can show. */
       var ev = L(ne({ sessions: [{ a: 1 }], ganglior_events: [{ tMs: 9 }, { tMs: 1 }, { tMs: 5 }] }));
       T.eq(
         'ganglior_events are sorted ASCENDING by tMs, from an out-of-order list',
@@ -36876,16 +36992,36 @@
         '[1,5,9]'
       );
       T.eq('…and none is dropped by the sort', ((ev && ev.events) || []).length, 3);
-      /* A null element must not throw: `(a && a.tMs) || 0` treats it as 0 and it sorts first. */
+      /* An unplaceable element sorts LAST rather than first, which states the absence instead of
+         fabricating 1970-01-01 for it, and a null element must still not throw. */
       var evNull = L(ne({ sessions: [{ a: 1 }], ganglior_events: [{ tMs: 4 }, null, { tMs: 2 }] }));
       T.eq(
-        '…a null event sorts as 0 rather than throwing',
+        '…an unplaceable event sorts LAST, never ahead of a stamped one',
         JSON.stringify(
           ((evNull && evNull.events) || []).map(function (e) {
             return e && e.tMs;
           })
         ),
-        '[null,2,4]'
+        '[2,4,null]'
+      );
+      /* THE ANCHOR IS THE ELEMENT'S OWN. A `t`-only event carries no date, so the key rebuilds it on
+         `recording.startEpochMs` and rolls past midnight. Passing `null` as the anchor would make
+         both of these unplaceable and leave them in arrival order, and that is the mutant this leg
+         kills — one no assertion above could see. */
+      var evT = L(
+        ne({
+          recording: { startEpochMs: Date.UTC(2026, 0, 2, 22, 0, 0) },
+          ganglior_events: [{ t: '01:15:00' }, { t: '23:30:00' }]
+        })
+      );
+      T.eq(
+        '…a date-less `t` is placed on the export\u2019s own anchor, rolling past midnight',
+        JSON.stringify(
+          ((evT && evT.events) || []).map(function (e) {
+            return e && e.t;
+          })
+        ),
+        '["23:30:00","01:15:00"]'
       );
     });
 
@@ -80934,11 +81070,59 @@
       // ── 1 · ROUND-TRIP self-ingest (single-night: the object itself is the carrier) ──
       var res = CF.cpapLoadOwnExport(envlp);
       T.ok('cpapLoadOwnExport(own export) → ok + reviewMode', !!(res && res.ok === true && res.reviewMode === true), res ? 'ok=' + res.ok + ' reason=' + (res.reason || '—') : 'no result');
+      /* ∅ §6 · THE ORDER, EXAMINED BEHAVIOURALLY. An event this path cannot place sorts LAST on
+         reload, never ahead of a stamped one. The former `((a && a.tMs) || 0)` key read it as
+         1970-01-01, so an unplaceable event LED the reloaded timeline. The list arrives OUT of order,
+         because a list already ascending comes back ascending under any key, and it carries no
+         date-less `t`, so this expectation holds whether or not this node can rebuild one. */
+      var ordSrc = JSON.parse(JSON.stringify(pristine));
+      ordSrc.ganglior_events = [
+        { tMs: 30, impulse: 'c', conf: 0.5 },
+        { impulse: 'u', conf: 0.5 },
+        { tMs: 10, impulse: 'a', conf: 0.5 }
+      ];
+      var ordRes = CF.cpapLoadOwnExport(ordSrc);
+      T.eq(
+        '∅ §6 · a stampless event sorts LAST on reload, never at 1970',
+        ((ordRes && ordRes.events) || [])
+          .map(function (e) {
+            return e && e.impulse;
+          })
+          .join(','),
+        'a,c,u'
+      );
       // deep-scout re-scout §SI — the review header reads res.generated (export lineage), never pinned node-lane.
       T.ok('top-level res.generated carries the export lineage timestamp on reload (review header reads it)', !!res.generated);
       T.eq('single-night carrier: 1 element (the export object itself)', res && res.ok ? res.elements.length : -1, 1);
+      /* ∅ §6 — the expectation sorts by a FINITE `tMs` and puts every other event LAST, which is what
+         the node now does. The former `((a && a.tMs) || 0)` mirror read an unplaceable event as
+         1970-01-01, so this oracle would have BLESSED that fabrication rather than caught it. The
+         anti-vacuity leg states why the mirror is a valid expectation for this fixture: every event
+         carries a finite `tMs`, so no rebuild from `recording.startEpochMs` is in play. Add a
+         `t`-only event to the fixture and that leg reds, which is the right direction — a mirror
+         that cannot rebuild a stamp must not pretend to predict one. */
+      var evKey = function (e) {
+        return e && typeof e.tMs === 'number' && isFinite(e.tMs) ? e.tMs : null;
+      };
+      /* A fixture with no events makes every order leg below compare two empty lists. Measured
+         2026-11-18: the PulseDex fixture is that case, so its round-trip and monotonic event legs had
+         never examined an event. State the absence rather than report a pass about it (§∅). */
+      if (!(pristine.ganglior_events || []).length) {
+        T.skip('the round-trip event ORDER is examinable', 'this fixture carries no ganglior_events — the order legs below compare two empty lists');
+      } else {
+        T.ok(
+          'ANTI-VACUITY · every fixture event carries a finite tMs, so this mirror predicts the real order',
+          (pristine.ganglior_events || []).every(function (e) {
+            return evKey(e) !== null;
+          }),
+          (pristine.ganglior_events || []).length + ' events, keys ' + JSON.stringify((pristine.ganglior_events || []).map(evKey))
+        );
+      }
       var emitEv = (pristine.ganglior_events || []).slice().sort(function (a, b) {
-        return ((a && a.tMs) || 0) - ((b && b.tMs) || 0);
+        var ka = evKey(a),
+          kb = evKey(b);
+        if (ka === null || kb === null) return ka === null && kb === null ? 0 : ka === null ? 1 : -1;
+        return ka - kb;
       });
       var loadEv = (res && res.events) || [];
       T.ok(
@@ -80957,8 +81141,13 @@
       );
       T.ok(
         'reloaded events are tMs-monotonic (Clock Contract)',
+        /* Monotonic over the PLACEABLE prefix, and once an unplaceable event appears every later one
+           is unplaceable too. The former `(x.tMs || 0)` form called a 1970 fabrication monotonic. */
         loadEv.every(function (e, i) {
-          return i === 0 || (loadEv[i - 1].tMs || 0) <= (e.tMs || 0);
+          if (i === 0) return true;
+          var kp = evKey(loadEv[i - 1]),
+            kc = evKey(e);
+          return kp === null ? kc === null : kc === null || kp <= kc;
         })
       );
 
@@ -81068,14 +81257,74 @@
         !!(envlp && envlp.schema && envlp.schema.name === 'ganglior.node-export' && envlp.schema.node === 'PulseDex' && envlp.recording && envlp.hrv)
       );
       if (!(envlp && envlp.schema)) return;
+      /* THE EVENT FIXTURE, and why it is one. Measured 2026-11-18: `PD.compute(NN[])` publishes no
+         `ganglior_events` at all, so every event leg in this group — round-trip, monotonic, and the
+         scrub count — compared two empty lists and reported a pass about something never examined.
+         These three carry the shape this node's own emitter writes (`pulsedex-dsp.js`:
+         `{ tMs, t, impulse, node, conf, meta }`, impulse `hrv_drop` or `stress_peak`), and they
+         arrive OUT of order so the sort has something to do. */
+      var _evT0 = (envlp.recording && envlp.recording.startEpochMs) || Date.UTC(2026, 5, 12, 23, 0, 0);
+      envlp.ganglior_events = [
+        { tMs: _evT0 + 7200000, t: '01:00:00', impulse: 'stress_peak', node: 'PulseDex', conf: 0.6, meta: { rmssd: 18 } },
+        { tMs: _evT0 + 1800000, t: '23:30:00', impulse: 'hrv_drop', node: 'PulseDex', conf: 0.55, meta: { rmssd: 12 } },
+        { tMs: _evT0 + 3600000, t: '00:00:00', impulse: 'hrv_drop', node: 'PulseDex', conf: 0.55, meta: { rmssd: 15 } }
+      ];
       var pristine = JSON.parse(JSON.stringify(envlp));
 
       // ── 1 · ROUND-TRIP (single-record: the object itself is the element) ──
       var res = PD.loadOwnExport(envlp);
       T.ok('pulseLoadOwnExport(own export) → ok + reviewMode', !!(res && res.ok === true && res.reviewMode === true), res ? 'ok=' + res.ok + ' reason=' + (res.reason || '—') : 'no result');
+      /* ∅ §6 · THE ORDER, EXAMINED BEHAVIOURALLY. An event this path cannot place sorts LAST on
+         reload, never ahead of a stamped one. The former `((a && a.tMs) || 0)` key read it as
+         1970-01-01, so an unplaceable event LED the reloaded timeline. The list arrives OUT of order,
+         because a list already ascending comes back ascending under any key, and it carries no
+         date-less `t`, so this expectation holds whether or not this node can rebuild one. */
+      var ordSrc = JSON.parse(JSON.stringify(pristine));
+      ordSrc.ganglior_events = [
+        { tMs: 30, impulse: 'c', conf: 0.5 },
+        { impulse: 'u', conf: 0.5 },
+        { tMs: 10, impulse: 'a', conf: 0.5 }
+      ];
+      var ordRes = PD.loadOwnExport(ordSrc);
+      T.eq(
+        '∅ §6 · a stampless event sorts LAST on reload, never at 1970',
+        ((ordRes && ordRes.events) || [])
+          .map(function (e) {
+            return e && e.impulse;
+          })
+          .join(','),
+        'a,c,u'
+      );
       T.eq('single-record carrier: 1 element (the export object itself)', res && res.ok ? res.elements.length : -1, 1);
+      /* ∅ §6 — the expectation sorts by a FINITE `tMs` and puts every other event LAST, which is what
+         the node now does. The former `((a && a.tMs) || 0)` mirror read an unplaceable event as
+         1970-01-01, so this oracle would have BLESSED that fabrication rather than caught it. The
+         anti-vacuity leg states why the mirror is a valid expectation for this fixture: every event
+         carries a finite `tMs`, so no rebuild from `recording.startEpochMs` is in play. Add a
+         `t`-only event to the fixture and that leg reds, which is the right direction — a mirror
+         that cannot rebuild a stamp must not pretend to predict one. */
+      var evKey = function (e) {
+        return e && typeof e.tMs === 'number' && isFinite(e.tMs) ? e.tMs : null;
+      };
+      /* A fixture with no events makes every order leg below compare two empty lists. Measured
+         2026-11-18: the PulseDex fixture is that case, so its round-trip and monotonic event legs had
+         never examined an event. State the absence rather than report a pass about it (§∅). */
+      if (!(pristine.ganglior_events || []).length) {
+        T.skip('the round-trip event ORDER is examinable', 'this fixture carries no ganglior_events — the order legs below compare two empty lists');
+      } else {
+        T.ok(
+          'ANTI-VACUITY · every fixture event carries a finite tMs, so this mirror predicts the real order',
+          (pristine.ganglior_events || []).every(function (e) {
+            return evKey(e) !== null;
+          }),
+          (pristine.ganglior_events || []).length + ' events, keys ' + JSON.stringify((pristine.ganglior_events || []).map(evKey))
+        );
+      }
       var emitEv = (pristine.ganglior_events || []).slice().sort(function (a, b) {
-        return ((a && a.tMs) || 0) - ((b && b.tMs) || 0);
+        var ka = evKey(a),
+          kb = evKey(b);
+        if (ka === null || kb === null) return ka === null && kb === null ? 0 : ka === null ? 1 : -1;
+        return ka - kb;
       });
       var loadEv = (res && res.events) || [];
       T.ok(
@@ -81094,8 +81343,13 @@
       );
       T.ok(
         'reloaded events are tMs-monotonic',
+        /* Monotonic over the PLACEABLE prefix, and once an unplaceable event appears every later one
+           is unplaceable too. The former `(x.tMs || 0)` form called a 1970 fabrication monotonic. */
         loadEv.every(function (e, i) {
-          return i === 0 || (loadEv[i - 1].tMs || 0) <= (e.tMs || 0);
+          if (i === 0) return true;
+          var kp = evKey(loadEv[i - 1]),
+            kc = evKey(e);
+          return kp === null ? kc === null : kc === null || kp <= kc;
         })
       );
 
@@ -81227,13 +81481,61 @@
       // ── 1 · ROUND-TRIP (single-record) ──
       var res = GD.loadOwnExport(envlp);
       T.ok('glucoLoadOwnExport(own export) → ok + reviewMode', !!(res && res.ok === true && res.reviewMode === true), res ? 'reason=' + (res.reason || '—') : 'no result');
+      /* ∅ §6 · THE ORDER, EXAMINED BEHAVIOURALLY. An event this path cannot place sorts LAST on
+         reload, never ahead of a stamped one. The former `((a && a.tMs) || 0)` key read it as
+         1970-01-01, so an unplaceable event LED the reloaded timeline. The list arrives OUT of order,
+         because a list already ascending comes back ascending under any key, and it carries no
+         date-less `t`, so this expectation holds whether or not this node can rebuild one. */
+      var ordSrc = JSON.parse(JSON.stringify(pristine));
+      ordSrc.ganglior_events = [
+        { tMs: 30, impulse: 'c', conf: 0.5 },
+        { impulse: 'u', conf: 0.5 },
+        { tMs: 10, impulse: 'a', conf: 0.5 }
+      ];
+      var ordRes = GD.loadOwnExport(ordSrc);
+      T.eq(
+        '∅ §6 · a stampless event sorts LAST on reload, never at 1970',
+        ((ordRes && ordRes.events) || [])
+          .map(function (e) {
+            return e && e.impulse;
+          })
+          .join(','),
+        'a,c,u'
+      );
       // deep-scout re-scout §SI — glucodex-app review reads res.recording (startEpochMs + clamp-saturation
       // honesty block) + res.generated; the node-lane gate pinned res.glucose but never these top-level
       // accessors, so dropping `recording: json.recording||null` → null blanked the review metadata + stayed green.
       T.ok('top-level res.recording + res.generated surface on reload (review reads recording.startEpochMs + clamp honesty)', !!(res.recording && res.generated));
       T.eq('single-record carrier: 1 element', res && res.ok ? res.elements.length : -1, 1);
+      /* ∅ §6 — the expectation sorts by a FINITE `tMs` and puts every other event LAST, which is what
+         the node now does. The former `((a && a.tMs) || 0)` mirror read an unplaceable event as
+         1970-01-01, so this oracle would have BLESSED that fabrication rather than caught it. The
+         anti-vacuity leg states why the mirror is a valid expectation for this fixture: every event
+         carries a finite `tMs`, so no rebuild from `recording.startEpochMs` is in play. Add a
+         `t`-only event to the fixture and that leg reds, which is the right direction — a mirror
+         that cannot rebuild a stamp must not pretend to predict one. */
+      var evKey = function (e) {
+        return e && typeof e.tMs === 'number' && isFinite(e.tMs) ? e.tMs : null;
+      };
+      /* A fixture with no events makes every order leg below compare two empty lists. Measured
+         2026-11-18: the PulseDex fixture is that case, so its round-trip and monotonic event legs had
+         never examined an event. State the absence rather than report a pass about it (§∅). */
+      if (!(pristine.ganglior_events || []).length) {
+        T.skip('the round-trip event ORDER is examinable', 'this fixture carries no ganglior_events — the order legs below compare two empty lists');
+      } else {
+        T.ok(
+          'ANTI-VACUITY · every fixture event carries a finite tMs, so this mirror predicts the real order',
+          (pristine.ganglior_events || []).every(function (e) {
+            return evKey(e) !== null;
+          }),
+          (pristine.ganglior_events || []).length + ' events, keys ' + JSON.stringify((pristine.ganglior_events || []).map(evKey))
+        );
+      }
       var emitEv = (pristine.ganglior_events || []).slice().sort(function (a, b) {
-        return ((a && a.tMs) || 0) - ((b && b.tMs) || 0);
+        var ka = evKey(a),
+          kb = evKey(b);
+        if (ka === null || kb === null) return ka === null && kb === null ? 0 : ka === null ? 1 : -1;
+        return ka - kb;
       });
       var loadEv = (res && res.events) || [];
       T.ok(
@@ -81382,6 +81684,27 @@
       // ── 1 · ROUND-TRIP (single-record) ──
       var res = ED.loadOwnExport(JSON.parse(JSON.stringify(pristine)));
       T.ok('ecgLoadOwnExport(own export) → ok + reviewMode', !!(res && res.ok === true && res.reviewMode === true), res ? 'reason=' + (res.reason || '—') : 'no result');
+      /* ∅ §6 · THE ORDER, EXAMINED BEHAVIOURALLY. An event this path cannot place sorts LAST on
+         reload, never ahead of a stamped one. The former `((a && a.tMs) || 0)` key read it as
+         1970-01-01, so an unplaceable event LED the reloaded timeline. The list arrives OUT of order,
+         because a list already ascending comes back ascending under any key, and it carries no
+         date-less `t`, so this expectation holds whether or not this node can rebuild one. */
+      var ordSrc = JSON.parse(JSON.stringify(pristine));
+      ordSrc.ganglior_events = [
+        { tMs: 30, impulse: 'c', conf: 0.5 },
+        { impulse: 'u', conf: 0.5 },
+        { tMs: 10, impulse: 'a', conf: 0.5 }
+      ];
+      var ordRes = ED.loadOwnExport(ordSrc);
+      T.eq(
+        '∅ §6 · a stampless event sorts LAST on reload, never at 1970',
+        ((ordRes && ordRes.events) || [])
+          .map(function (e) {
+            return e && e.impulse;
+          })
+          .join(','),
+        'a,c,u'
+      );
       T.eq('single-record carrier: 1 element', res && res.ok ? res.elements.length : -1, 1);
       var emitEv = pristine.ganglior_events.slice().sort(function (a, b) {
         return a.tMs - b.tMs;
@@ -81588,6 +81911,27 @@
       // ── round-trip + faithful view ──
       var res = HD.loadOwnExport(envlp);
       T.ok('hrvLoadOwnExport(own export) → ok + reviewMode', !!(res && res.ok === true && res.reviewMode === true), res ? 'reason=' + (res.reason || '—') : 'no result');
+      /* ∅ §6 · THE ORDER, EXAMINED BEHAVIOURALLY. An event this path cannot place sorts LAST on
+         reload, never ahead of a stamped one. The former `((a && a.tMs) || 0)` key read it as
+         1970-01-01, so an unplaceable event LED the reloaded timeline. The list arrives OUT of order,
+         because a list already ascending comes back ascending under any key, and it carries no
+         date-less `t`, so this expectation holds whether or not this node can rebuild one. */
+      var ordSrc = JSON.parse(JSON.stringify(pristine));
+      ordSrc.ganglior_events = [
+        { tMs: 30, impulse: 'c', conf: 0.5 },
+        { impulse: 'u', conf: 0.5 },
+        { tMs: 10, impulse: 'a', conf: 0.5 }
+      ];
+      var ordRes = HD.loadOwnExport(ordSrc);
+      T.eq(
+        '∅ §6 · a stampless event sorts LAST on reload, never at 1970',
+        ((ordRes && ordRes.events) || [])
+          .map(function (e) {
+            return e && e.impulse;
+          })
+          .join(','),
+        'a,c,u'
+      );
       // deep-scout re-scout §SI — hrvdex review reads res.recording + res.generated; node-lane gate pinned
       // only res.elements[0].*, so a dropped top-level accessor stayed green.
       T.ok('top-level res.recording + res.generated surface on reload (review view reads them, not just elements[0])', !!(res.recording && res.generated));

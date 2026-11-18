@@ -32,7 +32,7 @@
       "kernel-constants.js": "0050ad3f9dc7",
       "clock.js": "1c56de0b671c",
       "clock-seam.js": "3820c4fb6529",
-      "pulsedex-dsp.js": "3e683cafe54f"
+      "pulsedex-dsp.js": "2262251f3d22"
     }
   },
   "yield": {
@@ -298,11 +298,18 @@
       "old": "eca421bd5c5e",
       "new": "3820c4fb6529",
       "reason": "Unit seamnull (Shrike absence audit of clock-seam.js): an absent stamp or window bound was read as the epoch. +null is 0 and isFinite(null) is true, so seamScan took a null stamp as a real 1970 stamp and windowVerdict took an absent bound as 0. seamScan now counts null, undefined, boolean and empty stamps in skipped, and windowVerdict refuses an absent bound. Both callers read only continuous === false, and the six OxyDex goldens diff on hash lines alone. This run RE-CUT the cohort at paper scale on top of #5223, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped, so no synthetic patient changed arm."
+    },
+    {
+      "date": "2026-11-18",
+      "file": "pulsedex-dsp.js",
+      "old": "3e683cafe54f",
+      "new": "2262251f3d22",
+      "reason": "unit `sortnull`: the review-reload ganglior_events sort key now calls DexClock.sortEventsByClock, so an event with no stamp sorts last instead of at 1970-01-01. The detector path does not reach loadOwnExport, and a paper-scale re-cut re-measured the SAME yield 233 tx / 239 flat in 7m44s, so the counts are measured under the new closure rather than claimed inert."
     }
   ],
-  "measuredAt": "2026-11-17T20:58:05.685Z",
+  "measuredAt": "2026-11-18T06:59:30.225Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "e8e49e200"
+    "commit": "9e73775bd"
   }
 }

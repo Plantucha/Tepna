@@ -386,7 +386,17 @@
       });
     }
     // ── legacy fallback (pre-envelope shape) ──
-    const sorted = [...list].sort((a, b) => (a._tMs || 0) - (b._tMs || 0));
+    /* ∅ §6 — the former `(a._tMs || 0)` key read an undated entry as 1970-01-01, so it sorted
+       ahead of every dated one. An entry carries no date-less `t` to rebuild, so the shared event
+       key does not apply here. An undated entry sorts LAST in arrival order, the same absence the
+       envelope path's own `t0Of` answers with `null`. */
+    const _sortKey = (r) => (r && typeof r._tMs === 'number' && isFinite(r._tMs) ? r._tMs : null);
+    const sorted = [...list].sort((a, b) => {
+      const ka = _sortKey(a);
+      const kb = _sortKey(b);
+      if (ka === null || kb === null) return ka === null && kb === null ? 0 : ka === null ? 1 : -1;
+      return ka - kb;
+    });
     const out = { doc: 'measurement-to-measurement robust stats — same crossNight() engine as ECGDex/OxyDex', metrics: {} };
     for (const m of METRICS) {
       const ser = sorted.map((r, i) => ({ x: i, t: r._tMs, v: m.get(r), w: 1 }));

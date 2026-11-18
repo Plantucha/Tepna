@@ -1330,8 +1330,16 @@ import { CpapDsp } from './cpapdex-dsp.js';
   function cpapEventTimeline(events, multiNight) {
     var evs = Array.isArray(events) ? events.slice() : [];
     if (!evs.length) return '<div class="ccl-none">No scored events in this export.</div>';
+    /* ∅ §6 — the former `(a.tMs || 0)` key read a reloaded `t`-only event as 1970-01-01, so it sorted ahead of
+       every stamped one. CPAPDex carries no `clock.js` by design (CLAUDE.md §✅), so this node cannot
+       rebuild a `t`-only stamp from `recording.startEpochMs` the way `DexClock.sortEventsByClock`
+       does. An unplaceable event sorts LAST in arrival order instead, which states the absence
+       rather than fabricating a time for it. */
     evs.sort(function (a, b) {
-      return ((a && a.tMs) || 0) - ((b && b.tMs) || 0);
+      var ka = a && typeof a.tMs === 'number' && isFinite(a.tMs) ? a.tMs : null;
+      var kb = b && typeof b.tMs === 'number' && isFinite(b.tMs) ? b.tMs : null;
+      if (ka === null || kb === null) return ka === null && kb === null ? 0 : ka === null ? 1 : -1;
+      return ka - kb;
     });
     var apN = evs.filter(function (e) {
       return e.impulse === 'apnea' || e.impulse === 'hypopnea';
