@@ -135,6 +135,7 @@ export const STEPS = [
   'test:oxydex-stager',
   'test:hypno-export',
   'test:reconcile',
+  'verify:build-first',
   'build:check',
   'verify:analysis',
   'verify:docs',
