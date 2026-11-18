@@ -45882,7 +45882,12 @@
       // The magnitude-derived outputs refuse, and say WHY — not a bare false a reader must guess at.
       T.eq('an undetermined unit refuses body position, with the reason named', JSON.stringify({ h: unknown.position.hasData, r: unknown.position.reason }), '{"h":false,"r":"unit-unknown"}');
       T.eq('\u2026and actigraphy', JSON.stringify({ h: unknown.activity.hasData, r: unknown.activity.reason }), '{"h":false,"r":"unit-unknown"}');
-      T.eq('\u2026and the SQI, which is a score over magnitudes of unknown scale', JSON.stringify({ c: unknown.sqi.conf, f: unknown.sqi.flags }), '{"c":0,"f":["unit-unknown"]}');
+      /* INVERTED 2026-11-17 (Task 33). This leg pinned `conf: 0` for a unit nobody determined, and 0 is
+         a MEASURED worst case on this scale (`clamp(1 - …*5 - …, 0, 1)` bottoms out on a clipped
+         stream), so the placeholder was drawn on the same axis as a real reading — the KPI rendered
+         `Signal quality 0.00×` beside `unit-unknown`. The flag IS the reason and both readers take a
+         null arm; the control for the measured 0 lives in the in-band-defaults group below. */
+      T.eq('\u2026and the SQI, which is a score over magnitudes of unknown scale', JSON.stringify({ c: unknown.sqi.conf, f: unknown.sqi.flags }), '{"c":null,"f":["unit-unknown"]}');
 
       /* The refusal is SCOPED: a unit governs magnitudes, not the clock. Timing facts are still
          published, so an unknown unit costs the motion metrics and nothing else. */
@@ -45916,9 +45921,10 @@
         out = M.respiratoryRate(null);
         T.eq('M.respiratoryRate(null) → "false"', JSON.stringify(out.hasData), 'false');
         out = M.motionSQI('x');
-        T.eq('M.motionSQI("x") → "0"', JSON.stringify(out.conf), '0');
+        // INVERTED 2026-11-17 (Task 33): the refusal arm answers null; 0 is the MEASURED floor.
+        T.eq('M.motionSQI("x") → "null"', JSON.stringify(out.conf), 'null');
         out = M.motionSQI(null);
-        T.eq('M.motionSQI(null) → "0"', JSON.stringify(out.conf), '0');
+        T.eq('M.motionSQI(null) → "null"', JSON.stringify(out.conf), 'null');
         out = M.bodyPosition(null);
         T.eq('M.bodyPosition(null) → "false"', JSON.stringify(out.hasData), 'false');
         out = M.bodyPosition('x');
@@ -45949,12 +45955,17 @@
          behaviour under a mis-typed argument. The mutants are real and unkilled, so the calls are
          RE-ARGED here rather than adopted as written; the discrimination is on the row-count guards,
          which are independent of t0Ms/durSec. ── */
-        // Rows are {t,x,y,z} accelerometer samples — the drafts passed bare NUMBERS, so `row.x` was
+        // Rows are {tMs,x,y,z} accelerometer samples — the drafts passed bare NUMBERS, so `row.x` was
         // undefined and every downstream value was NaN. Valid rows are built here so the assertion
         // exercises the guard on a legal minimum rather than pinning a NaN cascade.
+        // `tMs`, not `t`: `relSecOf` reads `relNs` and `tMs` and nothing else, so the draft's `t` key
+        // made every row UNSTAMPED — a stream this node never receives. Since 2026-11-17 an untimed
+        // chest refuses with `duration-unknown` before the shape below is built, which would have
+        // turned this length-guard leg into a duration leg. The stream is now well formed and the
+        // discrimination is still `< 30` vs `<= 30`.
         var _rows = function (n) {
           var a = [];
-          for (var i = 0; i < n; i++) a.push({ t: i * 1000, x: 0, y: 0, z: 1 + Math.sin(i / 4) * 0.02 });
+          for (var i = 0; i < n; i++) a.push({ tMs: i * 1000, x: 0, y: 0, z: 1 + Math.sin(i / 4) * 0.02 });
           return a;
         };
         out = M.bodyPosition(_rows(10), 0, 10, 'g');
@@ -103059,7 +103070,10 @@
       T.eq('the reason is NAMED, never borrowed', eff.respRateReason, 'no-respiratory-effort');
       T.eq('no method is claimed for a rate that was not measured', eff.respRateMethod, null);
       T.eq('the per-epoch rate track goes with it — every entry was the prior', (eff.rateSeries || []).length, 0);
-      T.eq('and the coverage it would have quoted goes too', eff.rateCoverage, 0);
+      /* INVERTED 2026-11-17 (Task 33): 0 said "not one window produced a rate" over windows nothing
+         assessed. With the series discarded as the prior there is no coverage to quote at all, so the
+         value is null and the reason is the node's own token. */
+      T.eq('and the coverage it would have quoted answers null, with its reason', JSON.stringify({ c: eff.rateCoverage, r: eff.rateCoverageReason }), '{"c":null,"r":"no-respiratory-effort"}');
 
       // THE CONTROL — a planted 15 br/min night keeps every number it had.
       var real = MD.parseSensorXYZ(MD.genSyntheticACC({ sec: 900, hz: 26, brpm: 15, seed: 11 }));
@@ -103555,6 +103569,166 @@
         T.ok('the export projects the pair, never summary.sqi.conf directly', /sqi: sqiPos\.value,/.test(src) && !/sqi: summary\.sqi \? summary\.sqi\.conf : null/.test(src), 'projection');
         T.ok('the event conf reads the same pair', /conf: sqiPos\.value,/.test(src), 'event conf');
       }
+    });
+
+    /* ════ IN-BAND DEFAULTS — Task 33 · motiondex-dsp.js ═══════════════════════════════════════════
+     Three places where a value nobody measured became the number 0, each on a different surface, and
+     each already carrying this node's own discipline one layer away:
+
+       · `motionSQI`'s two refusal arms answered `conf: 0`. The computed path BOTTOMS OUT at 0 on a
+         clipped or flatlined stream, so 0 is a MEASURED worst case here — the exact confusion
+         `sqiExportPair` refuses one layer down. The summary still published it, and the KPI card drew
+         `Signal quality 0.00×` beside `no-data`.
+       · `compute()` handed `durSec: 0` to three consumers that floored it with
+         `Math.max(1, Math.ceil(durSec / epoch))`, turning an UNMEASURED duration into ONE fabricated
+         30 s epoch. Measured on a 400-row stream whose stamps never advance: `durSec: null` beside
+         `supineFrac: 1`, `immobileFrac: 1` and `hz: 400` — the row count published as a sample rate.
+       · `coverage` and `rateCoverage` published 0 over an EMPTY denominator. Measured on a chest
+         stream with 10 s of data either side of a 600 s hole: 19 windows, all uncovered,
+         `coverage: 0` beside `medianBrpm: null`.
+
+     EVERY LEG BELOW IS A RED ON ORIGIN, and every family keeps a CONTROL that must still publish its
+     number: the defect is the ABSENCE, not the digit. */
+    group('MotionDex in-band defaults — a placeholder 0 answers null, and an untimed stream refuses by name', 'motiondex-dsp · absence · in-band-defaults', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.motionSQI === 'function' && typeof MD.compute === 'function' && typeof MD.genSyntheticACC === 'function')) {
+        T.skip('MOTIONDSP.motionSQI + compute + genSyntheticACC available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      var t0T = Date.UTC(2026, 5, 10, 22, 0, 0);
+      function iso(ms) {
+        var d = new Date(ms),
+          z = function (v, w) {
+            var x = String(v);
+            while (x.length < w) x = '0' + x;
+            return x;
+          };
+        return (
+          d.getUTCFullYear() +
+          '-' +
+          z(d.getUTCMonth() + 1, 2) +
+          '-' +
+          z(d.getUTCDate(), 2) +
+          'T' +
+          z(d.getUTCHours(), 2) +
+          ':' +
+          z(d.getUTCMinutes(), 2) +
+          ':' +
+          z(d.getUTCSeconds(), 2) +
+          '.' +
+          z(d.getUTCMilliseconds(), 3)
+        );
+      }
+      /* NO device-counter column, so `relSecOf` reads the host stamps — the clock this file actually
+         carries. That is what makes the two arms below honest tests of the DURATION rather than of the
+         parser: nothing else about either stream is degenerate. */
+      function frozenText(n) {
+        var lines = ['Phone timestamp;channel;X [mg];Y [mg];Z [mg]'];
+        for (var i = 0; i < n; i++) {
+          var j = (i * 37) % 11;
+          lines.push('2026-06-10T22:00:00.000;0;' + (20 + j) + ';' + (-30 + j) + ';' + (1000 + j));
+        }
+        return lines.join('\n');
+      }
+      function gappedText() {
+        var lines = ['Phone timestamp;channel;X [mg];Y [mg];Z [mg]'];
+        for (var i = 0; i < 520; i++) {
+          var sec = (i < 260 ? i : i - 260) / 26;
+          var ms = t0T + Math.round(sec * 1000) + (i < 260 ? 0 : 600000);
+          var resp = Math.round(22 * Math.sin((2 * Math.PI * 15 * (i / 26)) / 60));
+          lines.push(iso(ms) + ';0;' + (20 + resp) + ';' + (-30 + resp) + ';' + (1000 + resp));
+        }
+        return lines.join('\n');
+      }
+
+      // ── 1 · the SQI placeholder is not a quality of zero ─────────────────────────────────────
+      var sqiNone = MD.motionSQI([], 'mg') || {};
+      T.eq('a no-data SQI publishes conf null, never 0', String(sqiNone.conf), 'null');
+      T.eq('…and keeps its own flag as the reason', JSON.stringify(sqiNone.flags), '["no-data"]');
+      var sqiNoUnit = MD.motionSQI(MD.parseSensorXYZ(MD.genSyntheticACC({ sec: 60, hz: 26, seed: 3 })), null) || {};
+      T.eq('a unit-unknown SQI publishes conf null', String(sqiNoUnit.conf), 'null');
+      T.eq('…and keeps its own flag', JSON.stringify(sqiNoUnit.flags), '["unit-unknown"]');
+      var shortSum = MD.compute({ acc: MD.genSyntheticACC({ sec: 0.2, hz: 26, seed: 5 }) }) || {};
+      T.eq('the summary a consumer actually receives carries the null too', String(shortSum.sqi && shortSum.sqi.conf), 'null');
+      // CONTROL — the computed path BOTTOMS OUT at 0 on a clipped stream: that 0 IS a measurement.
+      var clipRows = [];
+      for (var ci = 0; ci < 40; ci++) clipRows.push({ relNs: ci * 4e7, tMs: t0T + ci * 40, x: 9000, y: 9000, z: 9000 });
+      var sqiClip = MD.motionSQI(clipRows, 'mg') || {};
+      T.eq('CONTROL · a MEASURED worst case is still 0, not null', sqiClip.conf, 0);
+      T.ok('CONTROL · …and it carries the clip flag, so the two states stay tellable apart', (sqiClip.flags || []).indexOf('clip') >= 0, JSON.stringify(sqiClip.flags));
+      var expNoData = MD.buildNodeExport({ t0Ms: t0T, sqi: shortSum.sqi, sqiActivity: shortSum.sqiActivity }).motion || {};
+      T.eq('the export pair still answers null with the node own token', JSON.stringify({ s: expNoData.sqi, r: expNoData.sqiReason }), '{"s":null,"r":"no-data"}');
+
+      // ── 2 · an untimed stream refuses the epoch grid instead of inventing one ────────────────
+      var frozenRows = MD.parseSensorXYZ(frozenText(400));
+      T.ok('ANTI-VACUITY · the frozen stream parses above every row guard', frozenRows.length === 400, 'rows=' + frozenRows.length);
+      var frozenSum = MD.compute({ acc: frozenText(400) }) || {};
+      T.eq('a stream whose stamps never advance measures NO duration', String(frozenSum.durSec), 'null');
+      T.eq(
+        '…so body position refuses, by name',
+        JSON.stringify({ h: frozenSum.position && frozenSum.position.hasData, r: frozenSum.position && frozenSum.position.reason }),
+        '{"h":false,"r":"duration-unknown"}'
+      );
+      T.eq('…and actigraphy too', JSON.stringify({ h: frozenSum.activity && frozenSum.activity.hasData, r: frozenSum.activity && frozenSum.activity.reason }), '{"h":false,"r":"duration-unknown"}');
+      T.ok('no supine fraction is published off one fabricated epoch', !('supineFrac' in (frozenSum.position || {})), 'supineFrac=' + frozenSum.position.supineFrac);
+      T.ok('…no immobile fraction either', !('immobileFrac' in (frozenSum.activity || {})), 'immobileFrac=' + frozenSum.activity.immobileFrac);
+      T.ok('…and no sample rate: `hz` was the ROW COUNT (400) dressed as a rate', !('hz' in (frozenSum.activity || {})), 'hz=' + frozenSum.activity.hz);
+      T.eq('the refusal is the node own, called directly', (MD.bodyPosition(frozenRows, frozenRows[0].tMs, 0, 'mg') || {}).reason, 'duration-unknown');
+      T.eq('…and for actigraphy directly', (MD.actigraphy(frozenRows, frozenRows[0].tMs, 0, 'mg') || {}).reason, 'duration-unknown');
+      // CONTROL — the SAME bytes over a measured span keep their distribution: the duration decides.
+      var withDur = MD.bodyPosition(frozenRows, frozenRows[0].tMs, 60, 'mg') || {};
+      T.eq('CONTROL · the same rows over a passed span publish their distribution', withDur.hasData, true);
+      T.ok('CONTROL · …and it is supine, because that is the gravity in the bytes', withDur.supineFrac === 1, 'supineFrac=' + withDur.supineFrac);
+      var synthSum = MD.compute({ acc: MD.genSyntheticACC({ sec: 120, hz: 26, brpm: 15, seed: 7 }) }) || {};
+      T.eq('CONTROL · a timed synthetic night measures its duration', synthSum.durSec, 120);
+      T.ok(
+        'CONTROL · …keeps a real posture distribution',
+        synthSum.position.hasData === true && synthSum.position.coveredEpochs > 0,
+        'covered=' + (synthSum.position && synthSum.position.coveredEpochs)
+      );
+      T.ok('CONTROL · …and a measured sample rate, not a row count', synthSum.activity.hz > 20 && synthSum.activity.hz < 30, 'hz=' + (synthSum.activity && synthSum.activity.hz));
+
+      // ── 3 · zero of zero is not a coverage of zero ───────────────────────────────────────────
+      var gapRows = MD.parseSensorXYZ(gappedText());
+      var rrGap = MD.respiratoryRate(gapRows, gapRows[0].tMs, 'mg', {}) || {};
+      T.ok(
+        'ANTI-VACUITY · the gapped stream has windows and NOT ONE of them is recording',
+        rrGap.windowsTotal > 0 && rrGap.windowsUncovered === rrGap.windowsTotal,
+        'total=' + rrGap.windowsTotal + ' uncovered=' + rrGap.windowsUncovered
+      );
+      T.eq('coverage over an EMPTY denominator is null, not 0', String(rrGap.coverage), 'null');
+      T.eq('…and the reason is the node own token', rrGap.coverageReason, 'no-recorded-window');
+      var fullRows = MD.parseSensorXYZ(MD.genSyntheticACC({ sec: 300, hz: 26, brpm: 15, seed: 5 }));
+      var rrFull = MD.respiratoryRate(fullRows, fullRows[0].tMs, 'mg', {}) || {};
+      T.ok('CONTROL · a contiguous night still publishes a MEASURED coverage', typeof rrFull.coverage === 'number' && rrFull.coverage >= 0 && rrFull.coverage <= 1, 'coverage=' + rrFull.coverage);
+      T.eq('CONTROL · …and claims no absence reason', String(rrFull.coverageReason), 'null');
+      var effGap = MD.respiratoryEffort(gapRows, gapRows[0].tMs, null, 'mg') || {};
+      T.eq('a rate with no measured coverage answers null', String(effGap.rateCoverage), 'null');
+      T.ok(
+        '…and names the state in the node own vocabulary',
+        ['no-rate-series', 'no-respiratory-effort', 'no-recorded-window'].indexOf(effGap.rateCoverageReason) >= 0,
+        'reason=' + effGap.rateCoverageReason
+      );
+      var effFull = MD.respiratoryEffort(fullRows, fullRows[0].tMs, 300, 'mg') || {};
+      T.ok('CONTROL · a real chest night keeps a numeric rate coverage', typeof effFull.rateCoverage === 'number' && effFull.rateCoverage > 0, 'rateCoverage=' + effFull.rateCoverage);
+      T.eq('CONTROL · …and no coverage reason', String(effFull.rateCoverageReason), 'null');
+
+      // ── 4 · the surface: the renderer already draws the em-dash, and the source is clean ──────
+      var dsrc = (env.sources || {})['motiondex-dsp.js'] || '';
+      if (dsrc) {
+        T.ok('no refusal arm answers a placeholder conf of 0', !/conf: 0, flags: \['(no-data|unit-unknown)'\]/.test(dsrc), 'a placeholder 0 is back');
+        T.ok('the refusal token the consumers read is written by the node', /reason: 'duration-unknown'/.test(dsrc), 'no duration-unknown token');
+      } else T.skip('motiondex-dsp.js source available', 'source text not wired in this lane');
+      var rsrc = (env.sources || {})['motiondex-render.js'] || '';
+      if (rsrc) {
+        T.ok('the KPI draws an em-dash for an absent quality, not 0.00x', /kpi\('Signal quality', sqi\.conf != null \? num\(sqi\.conf, 2\)/.test(rsrc), 'no null arm on the Signal quality KPI');
+        T.ok('…and the quality card opens on the same null arm', /if \(sqi\.conf != null \|\| prov\)/.test(rsrc), 'no null arm on the quality card');
+        T.ok(
+          'a refused position/actigraphy block states the node own reason',
+          /pos\.hasData === false && pos\.reason/.test(rsrc) && /act\.hasData === false && act\.reason/.test(rsrc),
+          'no refusal arm'
+        );
+      } else T.skip('motiondex-render.js source available', 'source text not wired in this lane');
     });
 
     /* ════ MotionDex source-selection is DIFFERENTIATED — position←chest, actigraphy←wrist (MOTIONDEX-BUILD-FOLLOWUPS §4) ════
