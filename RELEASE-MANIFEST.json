@@ -1941,6 +1941,30 @@
         "MUSE-HUNT-RECORD-2026-11-08-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.35.0",
+      "date": "2026-11-18",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "47feb40235b1",
+        "OxyDex": "7ba0912fdd41",
+        "PulseDex": "1968b26ce39a",
+        "GlucoDex": "a0d9a50a6573",
+        "PpgDex": "1912d259daf3",
+        "HRVDex": "8a79275b68f5",
+        "CPAPDex": "8a2ae9873f86",
+        "Integrator": "c10692c62963",
+        "MotionDex": "37ddd730c4ba",
+        "EEGDex": "35f1a1426167"
+      },
+      "briefs": [
+        "ABSENCE-SURVEY-2026-09-22-BRIEF.md",
+        "GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md",
+        "MULTI-SENSOR-DERIVATIONS-FOLLOWUPS-2026-07-18-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }

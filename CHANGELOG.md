@@ -30,6 +30,89 @@ changesets.)
 
 ---
 
+## [2.35.0] — 2026-11-18
+
+### Added
+- Test the two absence guards at index 0. A named ID column in the first position, and a device counter in the first position, were both read correctly and both untested.
+- Build every generated tree before the test suite and the static checks judge it. The same step refuses a PR whose provenance fragment is stale. (`GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md`)
+- Declare the Integrator `hrv` element layer, twenty keys, so no element read stays unjudged.
+- Declare the Integrator `hrv` export subtree, so the surface gate judges its `blocks` key.
+- Read the element map at the statement's own bracket depth, so a builder that maps inside its own
+- Declare the Integrator `staging` and `sleepWake` export subtrees, so the surface gate judges both
+- Publish the spine's rate spread and estimator arm on every node-export timing block.
+- The PR compliance gate names each build output in a PR diff as an advisory. The list comes from `rebase-safe.mjs --build-outputs`, which leaves out provenance and regen fixtures. The walker's regeneration branch is exempt. This is stage 2 of the plan to take generated files out of pull requests. (`GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md`)
+- The PR walker builds `origin/main` in its own checkout once for each new main commit. When a build output differs from the committed bytes, the walker opens one draft PR that carries only those paths. The branch starts with `claude/regen-walker-` and the title starts with `regen:`. The walker keeps one regeneration PR in flight, and a dirty path outside the build outputs stops the pass. `commit-shape.mjs` exempts the `regen:` subject. This is stage 3 of the plan to take generated files out of pull requests. (`GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md`)
+
+### Changed
+- Run every `npm run check` step past a failure, and name every red step with its exit code in one summary. A step that declares a prerequisite in `STEP_DEPENDS` does not run when that prerequisite fails, and the summary names it. The exit code is the first failure's code. `--fail-fast` keeps the old stop at the first red.
+- - Close four HRVDex profile absence rows the code already refuses, and pin each refusal in the suite.
+- Plant the CPAPDex clinical timeline order against an event that carries no stamp. (`ABSENCE-SURVEY-2026-09-22-BRIEF.md`)
+- The two browser lanes build the bundles from source before they serve the repo, so they judge a fresh build. This is stage 1 of the plan to take generated files out of pull requests. (`GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md`)
+- Remove the `report` export kind, which no call site produces.
+- Make the pr-compliance build-output check blocking. The walker's regeneration PR now carries the bundles, so an author PR leaves them out. (`GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md`)
+
+### Fixed
+- Answer `null` for an unmeasured cross-night coverage share instead of an in-band 0.05 floor.
+- Catch a stamp read that defaults an absent `tMs` to zero, while prose about the shape stays exempt.
+- A body weight or height of 0 is no longer a measurement. The profile layer in OxyDex, ECGDex, PpgDex and the shared `dex-profile.js` gave BMI, BSA, the ideal body weight and the BMR from a 0 input. BMI read `Infinity`, and the other terms published a number.
+- Advance the fake clock in the capture-host stall tests once per loop step, never on a clock read.
+- End each chart card where its content ends in PpgDex and GlucoDex, and hold every chart grid against that rule.
+- `clock-seam.js` no longer reads an absent stamp or an absent window bound as the epoch. `+null` is 0, and `isFinite(null)` is true, so the old guards passed `null` through as a real stamp dated 1970. One OxyDex row without a stamp then gave a 56-year backward transition, and the scan reported it as a reorder with `skipped: 0`. A window with an absent bound spanned 56 years and published `coveragePct: 100`.
+- Refuse a CPAPDex number when its sample rate or record duration is absent.
+- CPAPDex's cross-night trend answers `null` for a z that it cannot compute. It no longer publishes 0σ. One weight that is no number in the prior makes the weighted mean and SD NaN. The old fallback then said that the newest night sits exactly at your baseline, beside a `baselineSd` of `null`. `zSaturated` stays false when no clamp ran. Shrike found the site in task 29, and Kestrel verified it on `origin/main`.
+- ECGDex no longer publishes a span or a duration for a beat series that spans no time. `analyze` replaced a zero span with the last beat's offset and then with 0, and it built a duration from `N * meanRR`. A stuck device counter therefore published `spanMin: 0.1`, `durSec: 5` and the tier "< 2 min". Now `spanSec`, `durSec`, `durMin` and `spanMin` are `null`.
+- GlucoDex no longer publishes a session span of 0.0 days when it measured no cadence. `detectSessions` multiplied the cell count by a null cadence, and JavaScript reads that product as 0. The session now carries `days: null`, and the session table shows a dash.
+- GlucoDex no longer files an unstated diabetes status or therapy as `'none'`. The profile substituted that word for a user who never answered. It then chose the expected GMI and the TBR goal from it, and it published the goal as the user's own target.
+- - Refuse the HRVDex full Baevsky adaptation potential when no loaded row carries a resting heart rate.
+- Report the HRVDex sympathetic coverage, and sum the 7-day stress load beside its reading count. (`ABSENCE-SURVEY-2026-09-22-BRIEF.md`)
+- Stop three HRVDex surfaces from publishing an absent delta, an uncounted correlation or a default age.
+- Refuse every derived HRVDex profile number that rests on a population default.
+- - Refuse an HRVDex observed HR maximum with no measured rate, and an absent ACSM fitness band.
+- Hold the front-page node cards against the roster, and give MotionDex the card it never had.
+- The Integrator no longer reads a CGM wear that declares no cadence as a five-minute CGM. `glucoseMetricsInWindow` now takes the cadence from the median step of the cells' own stamps. When the cells give no step, the window coverage and `timeBelow70Min` are `null`. Before the fix, a fully covered 15-minute wear read coverage 0.34 and lost its glucose pair. A 1-minute wear published five times its real time below 70.
+- Read the MotionDex device counter only from a column the header names.
+- Declare the JS mutation gate file filter in its verdict. A changed file under `tests/` or `tools/` left the population, and no field reported it.
+- Refuse an NSRR EDF signal that carries no sample rate, and never assume 1 Hz.
+- Refuse an NSRR dataset CSV whose header names no known ID column, because a key chosen by position pools distinct subjects onto one key. A caller names the column with `{ idVar }`.
+- Fuzz every null-fuzz target in the CI verdict sample and report them in one aggregate object.
+- PulseDex drops a non-finite interval with its stamp at the DSP boundary, and reports the count as `nAbsentIn`. Before this, `artifactClean` replaced an absent beat with the local median and counted it in `N`.
+- Drop an absent CGM reading at the GlucoDex analyze boundary, and report the count on `recording.nAbsentIn`.
+- Prove the P1 arm of the null-injection fuzzer on every target. The PulseDex and GlucoDex targets now carry a P1 plant. The machinery target declares why it has no all-null series. `--selftest` fails a target that brings neither.
+- The OxyDex cross-night engine publishes an unmeasurable z-score as `null`, not as 0σ. It weighs a night that carries a coverage block by recorded time over span, not by `NaN`.
+- OxyDex no longer publishes a vagal index of 0, labelled Low, for a night whose SpO₂ channel never reported. The clean-run loop compared `null > 95`, which is false, so it returned 0 minutes. `longestCleanRun` is now `null` when no SpO₂ sample exists, and `computeVagalIndex` refuses through its existing guard. `nadirDensity` is now `null` over the same night.
+- Publish the sleep stability score with the weights and the grade bands the OxyDex engine uses. Grade the score in one place.
+- Scope the PpgDex optical-site declaration per device so a second device cannot inherit it.
+- PPGDex no longer publishes 176 Hz for a sample rate that it did not measure. `parsePPG` started from 176 and used the device deltas only when more than 20 existed. A short 125 Hz file therefore published 176 Hz and a duration 41 % too short. Now one device delta sets the rate. The concentration share keeps its 20-delta floor.
+- Refuse the PpgDex motion-rejection rate when the recording carries no inertial stream, grade every reader for that absence. (`ABSENCE-SURVEY-2026-09-22-BRIEF.md`)
+- Average the PpgDex mean motion index over the covered grid cells only, and report an absent magnetometer gate as absence. (`ABSENCE-SURVEY-2026-09-22-BRIEF.md`)
+- The profile panel no longer captions an unentered elevation as "~ sea level". The value has been `null` since #2854, but the caption read it through `r.v > 1500`, and the false arm printed sea level.
+- Answer `null` for an unmeasurable cross-night z in six cross clones.
+- Refuse a PulseDex `hrv_drop` when the window-median rMSSD is 0, instead of a 1 ms stand-in.
+- Report the span the PulseDex overview history covers, in place of a nominal 14-day or 7-day window. (`ABSENCE-SURVEY-2026-09-22-BRIEF.md`)
+- Keep an absent PulseDex profile age, weight or height null at every consumer, never a population mean. (`ABSENCE-SURVEY-2026-09-22-BRIEF.md`)
+- Refuse the PulseDex Poincare ratio when the long axis falls under the precision the app prints. (`ABSENCE-SURVEY-2026-09-22-BRIEF.md`)
+- The radio-clock floor reader drops an anchor when the correction curve answers no value, and it no longer subtracts that value as 0. A floor with no window reports a `null` window count, not `-Infinity`. A step sequence with no span reports a `null` ratio, not 0.
+- Accept an extensionless file as a residue source cell, and name the command that reads a row shape.
+- Read a `Residue-fixed:` declaration line wrapped in markdown decoration, so a decorated line closes its row. The promise audit fails on a declaration line that yields no key.
+- Refuse a PulseDex Welltory reference row from another day, and name the date in the caption.
+- Name the Muse refusal tally in the astgrep allow list, so `verify:astgrep` reads it as a count.
+- Replace the deprecated Biome `recommended` field with `preset`, which keeps all 121 diagnostics.
+- Run the build-first step before the build-core tests in the `static` job and in `npm run check`. The build-core tests compared committed bundles with a fresh build. CI had not built them yet, so a PR without its bundles failed. (`GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md`)
+- Three nodes no longer publish an unmeasured value as a number. An ECGDex event with no beat within 5 s now carries a null SQI, where it carried a mid-scale 0.5. An absent HRVDex rMSSD now leaves the HRV-adjusted VO2max and its 7-day mean empty, where they repeated the base estimate. A PulseDex transit-time surrogate with no positive root is now null and reads "not resolvable", where it published 0 ms and painted the tile green. Shrike found all three in its absence audit.
+- Three absences no longer publish as verdicts (audit and patches by Shrike, reviewed and landed by Kestrel):
+- Average the covered cells in the PpgDex motion smoother, so an inertial gap no longer reports calm beside it. (`MULTI-SENSOR-DERIVATIONS-FOLLOWUPS-2026-07-18-BRIEF.md`)
+- MotionDex no longer publishes an unmeasured value as zero. A signal quality over too few rows or an unknown unit is now null, because zero is the measured worst case. An untimed stream now refuses body position, actigraphy and respiratory effort with `duration-unknown`, instead of one fabricated 30 s epoch. A coverage over no recorded window is now null with a named reason.
+- Name the Muse EEG card foot "raw EEG" on the monitor, not "raw 3-axis".
+- Stop a refused Muse frame publishing a zero sample count, which claimed the frame carried none.
+- Refuse a movement onset whose local window holds a cell no inertial sample reached. The threshold statistics now read the covered cells only.
+- OxyDex no longer writes an absent value as a measured zero. The fix covers the CSV T-index row, the spike timeline, and the Motion and Deep KPI grades.
+- PpgDex no longer grades an absent metric as the worst band. A record with no detected beats shows `Mean SQI` as a dash. The session switcher no longer prints "null". One unmeasured epoch no longer stops the page half-way through its render.
+- Return the pr-compliance build-output check to advisory. The test suite still reads the committed bundles, so the blocking check stopped every page change. (`GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md`)
+- Sort an event with no stamp last, so no node reads an absent stamp as 1970-01-01.
+- Judge a night's worn loss only over the devices that measured a worn span. The verdict now names every
+
+---
+
 ## [2.34.0] — 2026-11-17
 
 ### Added
@@ -4523,7 +4606,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.34.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.35.0...HEAD
+[2.35.0]: https://github.com/Plantucha/Tepna/compare/v2.34.0...v2.35.0
 [2.34.0]: https://github.com/Plantucha/Tepna/compare/v2.33.0...v2.34.0
 [2.33.0]: https://github.com/Plantucha/Tepna/compare/v2.32.0...v2.33.0
 [2.32.0]: https://github.com/Plantucha/Tepna/compare/v2.31.0...v2.32.0
