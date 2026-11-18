@@ -1,7 +1,7 @@
 {
   "_comment": "Per-group wall times (ms) — a HINT for the CI shard planner (tests/shard-plan.mjs). Stale/missing entries degrade shard BALANCE only, never coverage. Regenerate: node tests/run-tests.mjs --json | node tests/gen-group-timings.mjs",
-  "totalMs": 459207,
-  "groupCount": 999,
+  "totalMs": 459250,
+  "groupCount": 1000,
   "groups": {
     "XMT ground truth — the fixture extreme-mutate is validated against": 0,
     "T.eq distinguishes null from NaN and ±Infinity, at any depth": 0,
@@ -1001,6 +1001,7 @@
     "AHI refit paper item 8 — every citation of the published R² 0.27 names its definition": 131,
     "defect-bench — the split selftest reds when the hash rule changes": 131,
     "every declared registry depth sits in MetricRegistry.DEPTHS": 1,
-    "the registry engine reports a declaration it overrules": 0
+    "the registry engine reports a declaration it overrules": 0,
+    "PPGDex F20 — an absent inertial stream publishes no COUNT, and an unexaminable |B| no baseline": 43
   }
 }

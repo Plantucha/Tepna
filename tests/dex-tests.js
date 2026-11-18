@@ -77110,6 +77110,51 @@
       T.ok('no ACC → no fabricated rate', P.analyzeMotion(null, null, 1782000000000, 600).accFs == null, 'a rate was reported for a stream that does not exist');
     });
 
+    /* ∅ AN ABSENT STREAM PUBLISHES NO COUNT, AND AN UNEXAMINABLE FIELD NO BASELINE. `analyzeMotion`
+       read `accRows ? accRows.length : 0`, so a gyro-only session published `nAcc: 0` — a stream the
+       device never wrote, reported as one that wrote nothing. `magState.base` read
+       `median(…) || 0`, and `median([])` is NaN, so a magnetometer whose every sample was
+       non-finite published a 0 G session baseline and a CLEAN interference window against a 1 G
+       stand-in. The rate already refuses that absence (group `PPGDex F19` above). These legs hold
+       the count, the baseline and the window to the same floor. */
+    group('PPGDex F20 — an absent inertial stream publishes no COUNT, and an unexaminable |B| no baseline', 'ppgdex-dsp · regression', function (T) {
+      var P = env.PPGDSP;
+      if (!(P && typeof P.analyzeMotion === 'function')) {
+        T.ok('PPGDSP.analyzeMotion available', false);
+        return;
+      }
+      var T0 = 1782000000000,
+        DUR = 120,
+        FS = 52,
+        acc = [],
+        gyro = [];
+      for (var i = 0; i < FS * DUR; i++) {
+        var sec = i / FS;
+        acc.push({ x: 10, y: 10, z: 990, relNs: sec * 1e9 });
+        gyro.push({ x: 1, y: 1, z: 1, relNs: sec * 1e9 });
+      }
+      var gyroOnly = P.analyzeMotion(null, gyro, T0, DUR);
+      T.ok('a gyro-only session reports NO accelerometer count', gyroOnly.nAcc === null, 'got ' + gyroOnly.nAcc);
+      T.eq('…and the gyro count it does carry is the row count', gyroOnly.nGyro, FS * DUR);
+      var accOnly = P.analyzeMotion(acc, null, T0, DUR);
+      T.ok('an ACC-only session reports NO gyro count', accOnly.nGyro === null, 'got ' + accOnly.nGyro);
+      T.ok('…and no magnetometer count either', accOnly.nMag === null, 'got ' + accOnly.nMag);
+      T.ok('…so no |B| baseline either', accOnly.magBaseG === null, 'got ' + accOnly.magBaseG);
+      var mag = [];
+      for (var j = 0; j < 10 * DUR; j++) mag.push({ x: 0.2, y: 0.1, z: 0.4, relNs: (j / 10) * 1e9 });
+      var withMag = P.analyzeMotion(acc, null, T0, DUR, mag);
+      T.eq('CONTROL · a real magnetometer still publishes its row count', withMag.nMag, 10 * DUR);
+      T.ok('CONTROL · …and a finite |B| baseline', withMag.magBaseG > 0, 'got ' + withMag.magBaseG);
+      var bad = [];
+      for (var k = 0; k < 10 * DUR; k++) bad.push({ x: NaN, y: NaN, z: NaN, relNs: (k / 10) * 1e9 });
+      var mBad = P.analyzeMotion(acc, null, T0, DUR, bad);
+      T.ok('a magnetometer whose every sample is non-finite is still DETECTED', mBad.hasMag === true, 'hasMag ' + mBad.hasMag);
+      T.ok('…and its baseline is absent, never 0 G', mBad.magBaseG === null, 'got ' + mBad.magBaseG);
+      T.eq('…and the count stays the row count, because the rows exist', mBad.nMag, 10 * DUR);
+      var det = typeof mBad.postureDetailAtSec === 'function' ? mBad.postureDetailAtSec(0, 30) : null;
+      T.ok('…and the interference window refuses, never CLEAN against a 1 G stand-in', det != null && det.magInterf === null, 'magInterf ' + (det && det.magInterf));
+    });
+
     group('PPGDex §3a — an inertial GAP is not stillness, and an absent driver is not a confidence', 'ppgdex-dsp · regression', function (T) {
       var P = env.PPGDSP;
       if (!(P && typeof P.analyzeMotion === 'function')) {
