@@ -105,6 +105,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '20'
+      - name: Build every generated tree from source, and refuse a stale provenance fragment (GENERATED-OUT-OF-PRS stage 1)
+        run: node tools/pr-walker.mjs --build-first
       - name: GanglioR test suite — shard ${{ matrix.shard }}/6
         run: node tests/run-tests.mjs --shard=${{ matrix.shard }}/6
 
@@ -162,6 +164,8 @@ jobs:
         run: node tests/verify-shard-timings.mjs
       - name: Owned-build core tests (KAT + determinism + cross-hasher parity)
         run: node tests/build-core-tests.mjs
+      - name: Build every generated tree from source, and refuse a stale provenance fragment (GENERATED-OUT-OF-PRS stage 1)
+        run: node tools/pr-walker.mjs --build-first
       - name: Owned bundles ≡ build(source) (deterministic build drift guard)
         run: node tools/build.mjs --check
       - name: Absence regression — no new fabrication patterns introduced

@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** PROPOSED (plan in §5, 2026-11-18: the browser lanes build first, but the `tests.yml` suite and `static` jobs and `local-steps.yml` still judge the committed bundles; the advisory build-output check and the walker regeneration pass merged; the blocking flip merged as 5262 and was reverted because stage 1 was incomplete; the owner edit unbuilt — verified 2026-11-18) — 2026-10-20 · **Created:** 2026-10-20
+**Status:** PROPOSED (plan in §5, 2026-11-18: the browser lanes build first, and the `tests.yml` and `local-steps.yml` build-first step is in review; the advisory build-output check and the walker regeneration pass merged; the blocking flip merged as 5262 and was reverted because stage 1 was incomplete; the owner edit unbuilt — verified 2026-11-18) — 2026-10-20 · **Created:** 2026-10-20
 
 # GENERATED-OUT-OF-PRS — take the generated trees out of the PR diff, then batch the queue
 
