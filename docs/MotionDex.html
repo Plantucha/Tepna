@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="49e343bcaf2f" data-compute-hash="852a5e2bdbdb">
+<html lang="en" data-manifest-hash="186593287667" data-compute-hash="19522f723e2d">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WYJLs4osiVWmijP5yrKoCR6RQYJJxDzjUs9Z8uPhAY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OA3M42IE0IY9rm28gABEy9d6t7Iq7cC4XbN08qCTIFY=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-ZkNm5rfWprNM/ZufFLiknYzfQDyGaPr3z8KqKGzAPlg=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hXuFXPdUhifHyacszmIEv7tmFbClC6pD57dQd408yCY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WYJLs4osiVWmijP5yrKoCR6RQYJJxDzjUs9Z8uPhAY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OA3M42IE0IY9rm28gABEy9d6t7Iq7cC4XbN08qCTIFY=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-ZkNm5rfWprNM/ZufFLiknYzfQDyGaPr3z8KqKGzAPlg=' 'sha256-bIhKcpZRJ/ZzKulROPoeorGxddt3ajAjGiOPqmDw7ik=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.34.0</title>
@@ -4134,7 +4134,9 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
  *              'summary' and otherwise writes what it is handed. The vocabulary is held
  *              against the CALL SITES by the suite's node-lane census (dex-tests.js,
  *              group 'the exportName kind vocabulary is closed over its call sites'),
- *              which parses every exportName( site in the tracked root sources. A runtime
+ *              which parses every exportName( site in the tracked root sources and runs
+ *              BOTH ways: a kind outside the set reds, and a member no call site passes
+ *              reds as dead vocabulary. A runtime
  *              throw was rejected: an export is the one moment a reader has the data in
  *              hand, so a bad kind must red in CI and never on the reader's click.
  *   ext      : format extension — json | csv | jsonl | html (the format lives in the
@@ -4159,20 +4161,27 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
   'use strict';
 
   // Controlled `kind` vocabulary (brief §2.3) — collapses the per-node drift
-  // (_summary / _multi<N> / _ganglior / .node-export.json double-suffix) into five.
+  // (_summary / _multi<N> / _ganglior / .node-export.json double-suffix) into four.
   //   ganglior  : the ganglior.node-export JSON — the fusion currency
   //   summary   : human-readable metrics table (CSV/JSON)
   //   series    : per-record rows (multi-recording array / JSONL) — NO count suffix
-  //   report    : rendered HTML/PDF
   //   hypnogram : a staged sleep sequence (HypnoExport viewer CSV / JSON)
-  // `hypnogram` joined on 2026-11-16, measured over 26 exportName( call sites in 522
-  // tracked sources: ecgdex-app.js and oxydex-app.js had shipped it since HypnoExport
-  // arrived, outside a vocabulary enumerated in June 2026 and never consulted by this
-  // module. It is not foldable into `series`: ECGDex's cross-recording export at
+  // The set is exactly the PRODUCED set, and the suite census holds it there in BOTH
+  // directions: no call site may pass a kind outside it, and no member may sit here with
+  // no call site. `hypnogram` joined on 2026-11-16, measured over 26 exportName( call
+  // sites in 522 tracked sources: ecgdex-app.js and oxydex-app.js had shipped it since
+  // HypnoExport arrived, outside a vocabulary enumerated in June 2026 and never consulted
+  // by this module. It is not foldable into `series`: ECGDex's cross-recording export at
   // ecgdex-app.js:3177 passes kind 'series' with spanDays null for one recording, so a
-  // hypnogram renamed to 'series' collides on the identical filename. `report` is
-  // declared and produced by no call site; that is logged, not repaired here.
-  var EXPORT_KINDS = ['ganglior', 'summary', 'series', 'report', 'hypnogram'];
+  // hypnogram renamed to 'series' collides on the identical filename.
+  // `report` (rendered HTML/PDF, brief §2.3) LEFT on 2026-11-17: it was enumerated in
+  // June 2026 and no call site ever passed it, so the array published an export shape
+  // nobody could produce. Re-measured at a28b9aae2 over 131 root `*.js` files: 26 call
+  // sites, 29 site-values, 13 summary, 10 series, 4 ganglior, 2 hypnogram, 0 report, 0
+  // unresolvable. The two rendering paths, dex-actions.js:86 and integrator-app.js:448,
+  // call window.print() and build no filename at all. Wiring a report export brings the
+  // name back beside its call site, in one PR.
+  var EXPORT_KINDS = ['ganglior', 'summary', 'series', 'hypnogram'];
 
   function _p2(n) {
     n = '' + n;
