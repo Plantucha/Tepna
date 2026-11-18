@@ -26652,6 +26652,95 @@
       T.eq('two movements inside the minimum gap collapse to one', pOn(close, dt, {}).length, 1);
     });
 
+    /* ∅ A COVERAGE GAP IS NOT STILLNESS, AND THE LOCAL-MAXIMUM TEST READ IT AS STILLNESS. Both twins
+       now take `opts.covered`, one flag per grid cell, and the owner's 2026-09-17 ruling splits the
+       two harms. A gap INSIDE a candidate's ±5 s window is a discontinuity, so the candidate refuses.
+       A gap elsewhere is reduced coverage, so the threshold statistics read the covered cells only.
+       Measured 2026-11-18 through `analyzeMotion` on a 600 s synthetic gyro stream with five planted
+       bursts: a 1.8 s gap over one burst's peak moved that onset from 300.50 s to 303.50 s, a 3.00 s
+       shift of a fiducial whose cross-device agreement is 12 s, and the count stayed 5 with nothing
+       marking the move.
+       A refusal also costs a real onset whose neighbourhood a gap edge touches, which is why the count
+       rides on the returned array. A consumer must tell a still night from an unrecorded one. */
+    group('Movement onsets: a coverage gap refuses a candidate, and both nodes refuse alike', 'ecgdex-dsp · ppgdex-dsp · movement-onset-coverage', function (T) {
+      var P = env.PPGDSP,
+        E = env.ECGDSP;
+      var pOn = P && P.movementOnsets,
+        eOn = E && E.movementOnsets;
+      T.ok('both nodes export a movement-onset detector', typeof pOn === 'function' && typeof eOn === 'function');
+      if (typeof pOn !== 'function' || typeof eOn !== 'function') return;
+
+      var dt = 0.25,
+        n = 2400;
+      var grid = new Float64Array(n);
+      var planted = [200, 600, 1000, 1400, 1800]; // CELL indices, 100 s apart
+      planted.forEach(function (c) {
+        grid[c] = 5;
+      });
+
+      // 1 · NO COVERAGE — the old contract unchanged, and diagnostics that say nobody looked.
+      var bare = pOn(grid, dt, {});
+      T.eq('with no coverage the detector finds every planted movement', bare.length, planted.length);
+      T.eq('ABSENCE IS NULL · an uncounted refusal is null, never 0', String(bare._refusedUncovered), 'null');
+      T.eq('…and so is the covered-cell count', String(bare._coveredCells), 'null');
+
+      // 2 · FULL COVERAGE — identical output, and a count that examined something.
+      var all = new Uint8Array(n);
+      for (var i = 0; i < n; i++) all[i] = 1;
+      var full = pOn(grid, dt, { covered: all });
+      T.eq('full coverage changes nothing', JSON.stringify(full), JSON.stringify(bare));
+      T.eq('…and it refuses no candidate', full._refusedUncovered, 0);
+      T.eq('…over every cell', full._coveredCells, n);
+
+      /* 3 · A GAP INSIDE THE WINDOW REFUSES. The burst at cell 1000 keeps its value, and one cell 3
+         away goes unrecorded, so nothing can prove this cell is the peak of its ±5 s window. */
+      var holed = new Uint8Array(all);
+      holed[1003] = 0;
+      var ref = pOn(grid, dt, { covered: holed });
+      T.eq('a gap inside the local window refuses that candidate', ref.length, planted.length - 1);
+      T.eq('…and says so rather than returning a shorter list in silence', ref._refusedUncovered, 1);
+      T.ok('…and the refused instant is the one beside the gap', ref.indexOf(1000 * dt) === -1, ref.join(','));
+
+      /* 4 · A REFUSAL MUST NOT SUPPRESS. A refused candidate that moved the 30 s clock would hide the
+         next real onset, so plant one 15 s later and require it. */
+      var sup = new Float64Array(n);
+      sup[400] = 5; // 100 s — refused below
+      sup[460] = 5; // 115 s — inside the 30 s floor
+      var supCov = new Uint8Array(n);
+      for (var j = 0; j < n; j++) supCov[j] = 1;
+      supCov[403] = 0; // only the FIRST candidate's window is holed
+      var kept = pOn(sup, dt, { covered: supCov });
+      T.eq('a refusal does not consume the 30 s gap and hide the next onset', JSON.stringify(Array.from(kept)), JSON.stringify([460 * dt]));
+      T.eq('…and the refusal is still counted', kept._refusedUncovered, 1);
+
+      /* 5 · THE STATISTICS HALF. 360 unrecorded QUIET cells dilute the all-cell SD, so a middling cell
+         clears the diluted bar and fails the covered one. Measured: 0.6960 against 0.7558. */
+      var mid = new Float64Array(n);
+      planted.forEach(function (c) {
+        mid[c] = 5;
+      });
+      mid[1200] = 0.72;
+      var quietGap = new Uint8Array(n);
+      for (var q = 0; q < n; q++) quietGap[q] = q >= 2000 && q < 2360 ? 0 : 1;
+      T.eq('the diluted all-cell threshold admits a middling cell', pOn(mid, dt, {}).length, planted.length + 1);
+      var tight = pOn(mid, dt, { covered: quietGap });
+      T.eq('…and the covered-cell threshold rejects it', tight.length, planted.length);
+      T.eq('…without refusing anything, because no window is holed', tight._refusedUncovered, 0);
+      T.eq('…reading 2040 of the 2400 cells', tight._coveredCells, 2040);
+
+      /* 6 · PARITY WITH COVERAGE. The detector lives twice, so the option must live twice. Measured
+         2026-11-18: a one-cell hole moves neither threshold enough to change an output, so the refusal
+         vector alone cannot see a node whose statistics drift back to every cell. The quiet-gap vector
+         can, and the diagnostics carry what `JSON.stringify` of an array drops. */
+      var eRef = eOn(grid, dt, { covered: holed });
+      T.eq('PARITY — both nodes refuse the same candidate', JSON.stringify(eRef), JSON.stringify(ref));
+      T.eq('…and both count the refusal', eRef._refusedUncovered, ref._refusedUncovered);
+      T.eq('…and both leave full coverage alone', JSON.stringify(eOn(grid, dt, { covered: all })), JSON.stringify(full));
+      var eTight = eOn(mid, dt, { covered: quietGap });
+      T.eq('PARITY — both nodes reject the middling cell on covered statistics', JSON.stringify(eTight), JSON.stringify(tight));
+      T.eq('…and both read the same cell population', eTight._coveredCells, tight._coveredCells);
+    });
+
     /* PAT COUPLER — R-peak -> peripheral foot pairing, with the physiological window ENFORCED.
        The shipped coupler accepted the first foot within a 2000 ms search while only *reporting* the
        200-650 ms window as a diagnostic. 2000 ms exceeds one RR (~1200 ms at 50 bpm), so a missed
