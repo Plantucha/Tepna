@@ -7284,3 +7284,41 @@ def test_a_reported_ZERO_passes(tmp_path):
         ],
     )
     assert si.clocks(str(tmp_path), "H10")["status"] == "PASS"
+
+
+# ── §3.4 continuity: a gap the ring declared empty is explained, not a band failure ─────────────────────
+#
+# Decided under CLAUDE.md §7 on 2026-11-18 (Wren). The night of 2026-11-17 FAILed on two ring gaps,
+# 48 s and 66 s, across which the ring sent frames with no SpO2 value.
+
+
+def test_PLANT_gaps_the_ring_declared_EMPTY_PASS_and_the_BAND_NAMES_THEM(tmp_path):
+    """The 2026-11-17 shape: 114 s over the 60 s bar, every second of it declared empty by the ring."""
+    out = _cont(
+        tmp_path,
+        gaps=[
+            ("2026-09-20T23:01:00", 48.0, si.DEVICE_NO_READING),
+            ("2026-09-20T23:01:53", 66.0, si.DEVICE_NO_READING),
+        ],
+    )
+    assert si.DEVICE_NO_READING == "device:no reading"
+    assert out == {
+        "status": "PASS",
+        "reason": (
+            f"explained discontinuity: 2 gap(s), 114 s, with no ring reading ({si.DEVICE_NO_READING}) inside "
+            "the worn interval — the ring sent frames with no value, counted toward the LOSS bar, not a "
+            "band failure"
+        ),
+    }, out
+
+
+def test_PLANT_a_no_reading_gap_cannot_SOFTEN_the_unattributed_bar_beside_it(tmp_path):
+    """The annotation sits at the PASS. Unattributed seconds over the bar still FAIL the band."""
+    out = _cont(
+        tmp_path,
+        gaps=[
+            ("2026-09-20T23:01:00", 48.0, si.DEVICE_NO_READING),
+            ("2026-09-20T23:02:00", 61.0, "unattributed"),
+        ],
+    )
+    assert out == {"status": "FAIL", "reason": "1 unattributed gap(s), 61 s, inside the worn interval"}, out
