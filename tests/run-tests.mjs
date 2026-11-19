@@ -3648,6 +3648,20 @@ async function main() {
     CpapCoimport: ctx.CpapCoimport,
     ECGMorph: ctx.ECGMorph,
     PPGMorph: ctx.PPGMorph,
+    /* ∅ — one group must prove that an ABSENT optional module is reported with a named reason,
+       rather than a bare null. That group needs the realm's own binding removed and put back. The
+       realm itself stays private: this swaps ONE name from a frozen allowlist of optional
+       leaf-module globals, returns the previous value. A write of `undefined` is what an absent module reads, and
+       the guards under test are truthiness tests. A `delete` is NOT used: Node's vm global
+       proxy did not honour one, so the binding survived and the leg passed over a live builder. */
+    swapOptionalGlobal: (name, value) => {
+      if (!['PPGMorph', 'ECGMorph'].includes(name)) {
+        throw new Error('swapOptionalGlobal: ' + name + ' is not an optional leaf-module global');
+      }
+      const prev = ctx[name];
+      ctx[name] = value;
+      return prev;
+    },
     SYNTH: ctx.SYNTH,
     CohortGen: ctx.CohortGen,
     CohortFull: ctx.CohortFull,

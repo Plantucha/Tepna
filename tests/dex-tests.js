@@ -78950,6 +78950,115 @@
        surfaced per-window perfusion-index trend was plotting 2 of 18 windows on a real night, with no
        error anywhere. A NON-INTEGER fs is therefore the whole point of this test — an integer fs (the
        obvious thing to synthesise) passes even against the bug. */
+    group('PpgDex names WHY morphology is absent, rather than publishing a bare null', 'ppgdex-dsp · ppgdex-app · ppgdex-morph · absence', function (T) {
+      /* WHY THIS EXISTS. `analyze()` wrapped its ONE `PPGMorph.analyze` call in a catch that bound the
+         error and dropped it. `morph` then read `null` on two unrelated grounds — the builder is not
+         co-loaded in this realm, or the builder threw — and no consumer could separate them. The
+         builder always returns an object, so those two ARE the whole population. `ppgdex-app.js`
+         carried the same absence one layer down: it read the export's morphology fields off
+         `r.morph || {}`, so a record with no builder shipped `dicroticNotchPresent: false` and an
+         empty `perWindow` array, which reads as a measured pulse with no notch. */
+      var P = env.PPGDSP;
+      if (!P || typeof P.parsePPG !== 'function' || typeof P.analyze !== 'function') {
+        T.skip('PPGDSP.parsePPG + analyze available', 'PPGDSP not co-loaded');
+        return;
+      }
+      var p2 = function (x) {
+        return String(x).padStart(2, '0');
+      };
+      var file = function (secs) {
+        var fs = 55,
+          n = Math.round(secs * fs),
+          step = 1000 / fs;
+        var out = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
+        for (var i = 0; i < n; i++) {
+          var t = new Date(Date.UTC(2026, 6, 1, 0, 0, 0) + Math.round(i * step));
+          var ts =
+            t.getUTCFullYear() +
+            '-' +
+            p2(t.getUTCMonth() + 1) +
+            '-' +
+            p2(t.getUTCDate()) +
+            ' ' +
+            p2(t.getUTCHours()) +
+            ':' +
+            p2(t.getUTCMinutes()) +
+            ':' +
+            p2(t.getUTCSeconds()) +
+            '.' +
+            String(t.getUTCMilliseconds()).padStart(3, '0');
+          var ph = (i / fs) % 1;
+          var w = Math.exp(-Math.pow((ph - 0.15) / 0.07, 2)) + 0.35 * Math.exp(-Math.pow((ph - 0.42) / 0.1, 2)) - 0.15 * Math.exp(-Math.pow((ph - 0.75) / 0.25, 2));
+          var v = 20000 + 800 * w;
+          out.push(ts + ';' + Math.round(i * step * 1e6) + ';' + Math.round(v) + ';' + Math.round(v * 0.95 + 30) + ';' + Math.round(v * 1.03 - 25) + ';400');
+        }
+        return out.join('\n');
+      };
+      var run = function (text) {
+        try {
+          return P.analyze(P.parsePPG(text, undefined), null);
+        } catch (e) {
+          return { error: String(e && e.message) };
+        }
+      };
+
+      var text = file(300);
+      if (typeof env.swapOptionalGlobal !== 'function') {
+        T.skip('env.swapOptionalGlobal available', 'this lane exposes no realm swap — add one beside the env PPGMorph entry');
+        return;
+      }
+      /* THE REALM GLOBAL, NOT THE `env` FACADE. `env` COPIES the realm's globals, so the DSP's own
+         `global.PPGMorph` ignores a write to `env.PPGMorph`, and the three legs below passed over a
+         live builder. The swap handle moves the binding the DSP reads, and it puts the old one back. */
+      var saved = env.swapOptionalGlobal('PPGMorph', undefined);
+      T.ok('anti-vacuity: the builder IS co-loaded in this lane, so the control below is a real run', !!(saved && typeof saved.analyze === 'function'), 'PPGMorph absent from the realm');
+      var withMorph = null,
+        noMorph = null,
+        threw = null;
+      try {
+        noMorph = run(text);
+        env.swapOptionalGlobal('PPGMorph', {
+          analyze: function () {
+            throw new Error('planted builder failure');
+          }
+        });
+        threw = run(text);
+        env.swapOptionalGlobal('PPGMorph', saved);
+        withMorph = run(text);
+      } finally {
+        env.swapOptionalGlobal('PPGMorph', saved);
+      }
+
+      T.ok(
+        'control: a co-loaded builder publishes a morphology object and NO reason beside it',
+        !!(withMorph && withMorph.morph != null && withMorph.morphReason === null),
+        JSON.stringify({ morph: !!(withMorph && withMorph.morph), reason: withMorph && withMorph.morphReason, err: withMorph && withMorph.error })
+      );
+      T.eq('\ud83d\udd34 an absent builder publishes null for the whole block', noMorph && noMorph.morph, null);
+      T.eq('...and names the co-load as the cause, so the null is readable', noMorph && noMorph.morphReason, 'ppgdex-morph.js is not co-loaded in this realm — no morphology builder ran');
+      T.eq('\ud83d\udd34 a THROWING builder publishes null as well', threw && threw.morph, null);
+      T.ok(
+        '...and the throw travels in the reason, so a builder failure is not read as an absent module',
+        /^the morphology builder threw: planted builder failure$/.test(String(threw && threw.morphReason)),
+        JSON.stringify({ reason: threw && threw.morphReason })
+      );
+      T.ok(
+        'the two causes are DIFFERENT strings, which is the whole defect this group closes',
+        !!(noMorph && threw && noMorph.morphReason !== threw.morphReason),
+        JSON.stringify({ absent: noMorph && noMorph.morphReason, threw: threw && threw.morphReason })
+      );
+
+      /* THE EXPORT LAYER. `ppgdex-app.js` is not executed in this lane, so its builder is read as
+         text — the shape the neighbouring app groups already use. */
+      var app = (env.sources || {})['ppgdex-app.js'] || '';
+      T.ok('ppgdex-app.js is readable in this lane', !!app, 'not in env.sources — list it in BOTH lanes');
+      T.ok(
+        '\ud83d\udd34 the export refuses the whole morphology block when the DSP published none',
+        app.indexOf('morphology: m') >= 0 && !/const m = r\.morph \|\| \{\}/.test(app),
+        'the empty-object default survives in buildV2'
+      );
+      T.ok('...and it carries the DSP reason beside the refusal', /morphologyReason: r\.morphReason/.test(app), 'the export names no cause');
+    });
     group('PpgDex per-window PI — non-integer fs (fractional sample index)', 'ppgdex-morph · regression', function (T) {
       var PM = env.PPGMorph;
       T.ok('PPGMorph.perWindowMorph present', !!(PM && typeof PM.perWindowMorph === 'function'));
