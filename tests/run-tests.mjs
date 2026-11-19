@@ -3498,6 +3498,10 @@ async function main() {
     IntegratorRender: ctx.IntegratorRender,
     HrvRmssdClass: ctx.hrvRmssdClass,
     OxySpo2NightCV: ctx.oxySpo2NightCV,
+    /* §∅ — `spikeTimeline` is a PURE SVG builder, so the harness can drive the desaturation dot
+       layer and read the discs it draws. That layer read a field no producer ever wrote, and no
+       lane executed it (row 2026-11-18-oxydex-desaturation-dots-read-a-field-no-producer-writes). */
+    OxySpikeTimeline: ctx.spikeTimeline,
     ECGScope: ctx.ECGUI && ctx.ECGUI.ECGScope, // §RN: canvas waveform explorer (axis-tick label drive)
     // §RN last finding — the two ECGScope time-axis helpers, hoisted out of the canvas draw so the
     // node lane can pin the tick spacing and the label text without a canvas shim.
