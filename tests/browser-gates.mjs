@@ -650,21 +650,43 @@ async function gateNightSeal() {
       if (!window.NightSeal) return { error: 'NightSeal not loaded' };
       const toU8 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
       const fileOf = (s, name) => new File([toU8(s)], name);
+      /* The manifest lands in a LATER promise link than the seal verdict. `openSeal`'s `.then` pushes
+         the outcome, and only then does `ingestFiles` await `readText` over the extracted streams
+         before it assigns ITEMS and renders. `ingest` disables #runBtn synchronously and re-enables it
+         in that same `.then`, so the button is the page's own "I finished reading" signal, and it says
+         nothing about the rel paths this gate asserts. */
+      const manifestReady = async () => {
+        for (let i = 0; i < 200; i++) {
+          const b = document.getElementById('runBtn');
+          if (b && !b.disabled) return true;
+          await new Promise((res) => setTimeout(res, 50));
+        }
+        return false;
+      };
+      /* An ingest is async and un-awaited by design, and its SEAL verdict lands before its manifest.
+         Returning on the verdict alone let the next ingest start while this one was still reading, so
+         the renders interleaved and a later read saw an EARLIER file's manifest (measured 2026-11-19
+         under a planted 900 ms readAsText: the loose-file badge read back as the vector's). Wait for
+         the whole ingest, so the gate's sequential reads below hold. */
       const ingestOne = async (file, card) => {
         await O.seals.setCard(exp.boxId, exp.keyId, card);
         await O.seals.ingestFiles([file]);
-        // ingest is async and un-awaited by design; poll the page's own list
         for (let i = 0; i < 200; i++) {
           const L = O.seals.list();
-          if (L.length && L[L.length - 1].verdict) return L[L.length - 1];
+          if (L.length && L[L.length - 1].verdict) {
+            await manifestReady();
+            return L[L.length - 1];
+          }
           await new Promise((res) => setTimeout(res, 50));
         }
         return { status: 'TIMEOUT' };
       };
       const good = { cardKeyHex: exp.cardKeyHex, fingerprint: exp.boxKeyFingerprint, knownRevision: null };
-      const out = { vector: null, plants: {}, badges: {} };
+      const out = { vector: null, plants: {}, badges: {}, manifestSettled: null };
       // the vector opens, verified, three streams, badge reads sealed·verified, verdict PASS and VALID
       const v = await ingestOne(fileOf(vector, exp.seal), good);
+      const rb = document.getElementById('runBtn');
+      out.manifestSettled = rb ? !rb.disabled : null;
       out.vector = {
         status: v.status,
         kind: v.kind || null,
@@ -710,7 +732,7 @@ async function gateNightSeal() {
       out.plants['forged header'] = { status: fg.status, kind: fg.kind || null, expect: 'signature', verdictValid: fg.verdict && fg.verdict.valid };
       // legacy: a loose file that came from no seal carries the honest default badge
       await O.seals.ingestFiles([new File(['Time,Oxygen Level,Pulse Rate,Motion\n2026-09-20T22:00:00,97,60,0\n'], 'loose.csv')]);
-      await new Promise((res) => setTimeout(res, 300));
+      out.badges.legacySettled = await manifestReady();
       out.badges.legacy = (document.querySelector('#manifest .seal') || {}).textContent || null;
       return out;
     },
@@ -728,6 +750,7 @@ async function gateNightSeal() {
     FAILS.push('night-seal: vector streams ' + JSON.stringify(v.streams) + ', want 3 opened / 3 verified / 0 tampered');
   if (!/^sealed · box TESTBOX0 · closed \d\d:\d\d · verified$/.test(v.badge || '')) FAILS.push('night-seal: vector badge reads ' + JSON.stringify(v.badge));
   if (!v.verdictValid) FAILS.push("night-seal: the vector's tepna.verdict/1 does not validate under verdict.js");
+  if (r.manifestSettled !== true) FAILS.push('night-seal: the page did not finish reading the unsealed streams within 10 s, so the manifest below was never populated');
   if (!v.items.some((it) => /^TESTBOX0-2026-09-20\//.test(it.rel))) FAILS.push('night-seal: the unsealed streams did not enter the manifest under <boxId>-<night>/');
   // the EIGHT plants — an equality on the count, each by name
   const names = Object.keys(r.plants);
@@ -748,6 +771,7 @@ async function gateNightSeal() {
   }
   if (r.plants['unknown signing key'] && !/unknown key/.test(r.plants['unknown signing key'].badge || ''))
     FAILS.push('night-seal: the unknown-key badge must say so, got ' + JSON.stringify(r.plants['unknown signing key'].badge));
+  if (r.badges.legacySettled !== true) FAILS.push('night-seal: the page did not finish reading the loose file within 10 s, so the badge below was never rendered');
   if (r.badges.legacy !== 'unsealed folder — provenance unknown') FAILS.push('night-seal: a loose file must carry "unsealed folder — provenance unknown", got ' + JSON.stringify(r.badges.legacy));
   await page.close();
 }
