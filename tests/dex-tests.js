@@ -24421,6 +24421,131 @@
       T.ok('CONTROL · …and carries NO cvhrReason key — a reason appears exactly when the index is null', !('cvhrReason' in full), 'cvhrReason=' + JSON.stringify(full.cvhrReason));
     });
 
+    /* CVHR-HOLE-EDGE-EXCLUSION — §∅, both detectors, one shared battery. The decision at second `s`
+       reads `hr[s - 37 … s + 72]`: the envelope gate averages |res| over ±12 of a residual that is
+       already a ±25 moving average, and the rebound search reads `res[s + 47]`, which the same
+       residual carries out to `s + 72`. So a hole `[h0, h1]` contaminates every `s` in
+       `[h0 - 72, h1 + 37]`, and the exclusion window is the MIRROR of the support window.
+       ⚠️ WRITING IT THE OTHER WAY ROUND IS A REAL ERROR AND A PLANTED BATTERY CANNOT CATCH IT —
+       `tools/cvhr-edge-widen.mjs` had the reach reversed first, and every planted hole sits
+       mid-record, where a swapped window still covers the event. These legs pin the orientation BY
+       VALUE at both edges: 72 before and 73 before, 37 after and 38 after.
+       The series is built here rather than through `analyze` so one planted hole moves ONE second
+       and the arithmetic stays readable. `covered[s]` reads `spansGap[j + 1]` where `j + 1` is the
+       first beat at or after `s`, so marking index `m` uncovers the single integer second in
+       `(tt[m - 1], tt[m]]` — `holeIdx` returns that `m` and the legs assert the second it bought. */
+    group('PpgDex + ECGDex CVHR — the hole-edge exclusion is the MIRROR of the decision window', 'ppgdex-dsp · ecgdex-dsp · known-answer · absence · CVHR-HOLE-EDGE-EXCLUSION', function (T) {
+      var P = env.PPGDSP,
+        E = env.ECGDSP || env.EcgDsp;
+      if (!P || typeof P.cvhrFromNN !== 'function' || !E || typeof E.detectCVHR !== 'function') {
+        T.skip('PPGDSP.cvhrFromNN + ECGDSP.detectCVHR available', 'one of the two detectors is not co-loaded in this runner');
+        return;
+      }
+      // A 40 s HR oscillation at 60 bpm: inside the apnea band, so every detector leg below fires.
+      var series = function (sec) {
+        var nn = [],
+          tt = [],
+          t = 0;
+        while (t < sec) {
+          var rr = 60000 / (60 * (1 + 0.18 * Math.sin((2 * Math.PI * t) / 40)));
+          t += rr / 1000;
+          nn.push(rr);
+          tt.push(t);
+        }
+        return { nn: nn, tt: tt };
+      };
+      var activeOf = function (tt) {
+        var a = 0;
+        for (var k = 1; k < tt.length; k++) {
+          var d = tt[k] - tt[k - 1];
+          if (d > 0 && d <= 10) a += d;
+        }
+        return a;
+      };
+      var holeIdx = function (tt, h) {
+        for (var m = 1; m < tt.length; m++) if (tt[m] >= h && tt[m - 1] < h) return m;
+        return -1;
+      };
+      var gapAt = function (n, m) {
+        var g = [];
+        for (var i = 0; i < n; i++) g.push(i === m ? 1 : 0);
+        return g;
+      };
+      var DETS = [
+        [
+          'PpgDex cvhrFromNN',
+          function (nn, tt, a, g) {
+            return P.cvhrFromNN(nn, tt, a, g);
+          }
+        ],
+        [
+          'ECGDex detectCVHR',
+          function (nn, tt, a, g) {
+            return E.detectCVHR(nn, tt, a, g);
+          }
+        ]
+      ];
+      var S = series(900),
+        ACT = activeOf(S.tt);
+
+      for (var di = 0; di < DETS.length; di++) {
+        var name = DETS[di][0],
+          det = DETS[di][1];
+
+        // ── 1 · NO HOLE ADDS NOTHING — the widen is inert on a fully covered record ──────────────
+        var base = det(S.nn, S.tt, ACT, null);
+        var zeros = det(S.nn, S.tt, ACT, gapAt(S.nn.length, -1));
+        T.ok(name + ' · a fully covered 900 s record publishes an index', base.index > 0, 'index=' + base.index);
+        T.eq(name + ' · …excludes nothing', base.excludedSec, 0);
+        T.eq(name + ' · …and its denominator is the active span', Math.round(base.denomSec), Math.round(ACT));
+        T.eq(name + ' · an all-zero mask is the same answer as no mask at all', zeros.index, base.index);
+        T.eq(name + ' · …event for event', zeros.events.length, base.events.length);
+        T.eq(name + ' · …and carries no refusal reason', base.reason, null);
+
+        // ── 2 · THE ORIENTATION, BY VALUE AT BOTH EDGES ──────────────────────────────────────────
+        var secs = [];
+        for (var i = 0; i < base.events.length; i++) secs.push(base.events[i].sec);
+        var E0 = secs[Math.floor(secs.length / 2)];
+        T.ok(name + ' · the battery has a mid-record event to aim at', E0 > 200 && E0 < 700, 'E0=' + E0);
+        var oneHole = function (h) {
+          var m = holeIdx(S.tt, h);
+          var r = det(S.nn, S.tt, ACT, gapAt(S.nn.length, m));
+          var kept = false;
+          for (var k = 0; k < r.events.length; k++) if (r.events[k].sec === E0) kept = true;
+          return { kept: kept, r: r, m: m };
+        };
+        var fwdIn = oneHole(E0 + 72),
+          fwdOut = oneHole(E0 + 73),
+          backIn = oneHole(E0 - 37),
+          backOut = oneHole(E0 - 38);
+        T.eq(name + ' · an event 72 s BEFORE a hole is dropped', fwdIn.kept, false);
+        T.eq(name + ' · …and one 73 s before it is kept', fwdOut.kept, true);
+        T.eq(name + ' · an event 37 s AFTER a hole is dropped', backIn.kept, false);
+        T.eq(name + ' · …and one 38 s after it is kept', backOut.kept, true);
+        T.eq(name + ' · the hole on the event second itself is still excluded', oneHole(E0).kept, false);
+
+        // ── 3 · THE DENOMINATOR LOSES THE MIRROR, NOT THE WHOLE RECORD ───────────────────────────
+        /* 72 + 37 + the hole's own second = 110 contaminated seconds, and `excludedSec` subtracts the
+           hole itself because `activeSec` never counted it: 110 - 1 = 109. */
+        T.eq(name + ' · one 1 s hole excludes 109 further seconds', fwdIn.r.excludedSec, 109);
+        T.eq(name + ' · …and the denominator falls by exactly that', Math.round(fwdIn.r.denomSec), Math.round(ACT) - 109);
+        T.ok(name + ' · …while the record still publishes an index', fwdIn.r.index > 0, 'index=' + fwdIn.r.index);
+
+        // ── 4 · A REFUSAL, NEVER A LOW NUMBER, WHEN THE EXCLUSION SWALLOWS THE SPAN ──────────────
+        /* 200 s with one hole leaves 90 s decidable, which is 45 % of the span — under the half the
+           index needs. The INDEX refuses with a named reason; the events it did find stay, because an
+           empty list would state that no CVHR cycle occurred. */
+        var Sh = series(200),
+          ACTh = activeOf(Sh.tt);
+        var clean = det(Sh.nn, Sh.tt, ACTh, null);
+        var swallowed = det(Sh.nn, Sh.tt, ACTh, gapAt(Sh.nn.length, holeIdx(Sh.tt, 100)));
+        T.ok(name + ' · CONTROL · the 200 s record publishes an index while it is clean', clean.index > 0, 'index=' + clean.index);
+        T.eq(name + ' · …and one hole refuses it', swallowed.index, null);
+        T.eq(name + ' · …with the exclusion named, never a borrowed reason', swallowed.reason, 'cvhr-exclusion-covers-most-of-span');
+        T.ok(name + ' · …and the events it did find survive the refusal', swallowed.events.length > 0, 'events=' + swallowed.events.length);
+      }
+    });
+
     /* DEEP-AUDIT-VI F10 — two unguarded siblings of the span refusals ECGDex received in #1800/#2030.
        `beatConfidence` is handed time-derived pseudo-indices (round(footSec·fs)) and `cvhrFromNN`
        sizes six arrays from floor(tt[N-1]); neither bounded the SPAN. One mid-file sensor-clock rebase
@@ -24794,10 +24919,15 @@
       T.ok('control · the planted oscillation IS detected, so nothing below is vacuous', ctl.events.length > 50 && ctl.index > 0, 'events ' + ctl.events.length + ' index ' + ctl.index);
       T.ok(
         'DEFECT direction · without the mask an event is stamped on a second the hole SPANS',
-        unmasked.events.length === masked.events.length + 1,
+        unmasked.events.length > masked.events.length && masked.events.length > 50,
         'unmasked ' + unmasked.events.length + ' masked ' + masked.events.length
       );
-      T.ok('…and the mask removes exactly that one, nothing else', masked.events.length === unmasked.events.length - 1 && masked.events.length > 50, 'masked ' + masked.events.length);
+      /* The per-second mask alone removed exactly one event here. The MIRROR window of
+         `briefs/CVHR-HOLE-EDGE-EXCLUSION-2026-10-19-BRIEF.md` now excludes every second whose own
+         decision window reaches the hole, so the removal is 5 events over 109 excluded seconds.
+         Both numbers are pinned, because a mirror that drops to the hole's own second is the
+         defect this brief repaired. */
+      T.eq('…and the removal is the hole plus its MIRROR window — 5 events over 109 excluded seconds', unmasked.events.length - masked.events.length + '/' + masked.excludedSec, '5/109');
       T.eq('the 3-argument call is unchanged — the mask was added LAST (§🧪 back-compat)', unmasked.events.length, P.cvhrFromNN(H.nn, H.tt, H.activeSec).events.length);
       T.ok(
         'coveredSec is published, and the hole is NOT in it',
@@ -24822,17 +24952,19 @@
         T.eq('CROSS-NODE · the two nodes count the same events with the mask', masked.events.length, E.detectCVHR(H.nn, H.tt, H.activeSec, H.spansGap).events.length);
         T.eq('CROSS-NODE · …and without it', unmasked.events.length, E.detectCVHR(H.nn, H.tt, H.activeSec).events.length);
       } else T.skip('ECGDSP.detectCVHR co-loaded for the cross-node leg', 'ECGDSP not in this runner');
-      /* LIMIT, MEASURED AND NAMED: the per-second mask covers the seconds the hole spans, and the
+      /* THE LIMIT THIS BRIEF REPAIRED: the per-second mask covers the seconds the hole spans, and the
          band-pass support (a 47 s and a 9 s moving average) plus the dip-to-rebound search (up to
-         48 s) reach ACROSS the boundary, so the edge still manufactures events on covered seconds —
-         in both nodes. The ±2 s limit both files state is about the exported HR series, not this. */
+         48 s) reach ACROSS the boundary, so the edge used to manufacture events on covered seconds —
+         in both nodes. The mirror window now excludes any second whose own decision window reaches a
+         hole, so the holed record counts no MORE events than its control. The ±2 s limit both files
+         state is about the exported HR series, not this. */
       var EDGE = plant(900, -20, true),
         EDGE_CTL = plant(900, -20, false);
       var edge = P.cvhrFromNN(EDGE.nn, EDGE.tt, EDGE.activeSec, EDGE.spansGap),
         edgeCtl = P.cvhrFromNN(EDGE_CTL.nn, EDGE_CTL.tt, EDGE_CTL.activeSec);
       T.ok(
-        'LIMIT · a hole EDGE still adds events the mask cannot reach — unrepaired, in both nodes',
-        edge.events.length > edgeCtl.events.length,
+        'REPAIRED · a hole EDGE adds no event the mask cannot reach — the mirror window covers it, in both nodes',
+        edge.events.length <= edgeCtl.events.length,
         'with hole ' + edge.events.length + ' control ' + edgeCtl.events.length
       );
       var srcP = env.sources && env.sources['ppgdex-dsp.js'];
@@ -24842,7 +24974,7 @@
           /covered\[s\]\s*=\s*spansGap\s*&&\s*spansGap\[Math\.min\(j \+ 1, N - 1\)\]/.test(srcP),
           'the covered-mask indexing is not the ECGDex one'
         );
-        T.ok('…and the event loop skips an uncovered second', /if \(!covered\[s\]\) continue;/.test(srcP));
+        T.ok('…and the event loop skips every second whose DECISION window reaches a hole', /if \(contam\[s\]\) continue;/.test(srcP));
       } else T.skip('ppgdex-dsp.js source in env.sources', 'not available in this runner');
     });
 
@@ -38240,10 +38372,19 @@
         var spanB = rB.tt && rB.tt[rB.tt.length - 1];
         T.ok('analyze · the synthetic night carries a CVHR index', rB.cvhr && rB.cvhr.index > 0, 'index ' + (rB.cvhr && rB.cvhr.index));
         T.ok('analyze · the folded 1.5 h gap grew the wall span by ≥ 1.4 h (the fold is real)', spanG > spanB + 1.4 * HOUR, 'span base ' + spanB + ' gap ' + spanG);
+        /* The tolerance is 2 %, not 1 %, and the reason is NAMED: the fold leaves one hole edge, and
+           the mirror window of `briefs/CVHR-HOLE-EDGE-EXCLUSION-2026-10-19-BRIEF.md` excludes the
+           110 s around it. The leg below pins that difference to the mirror, so a tolerance this one
+           widened cannot absorb a return of the span quotient, which would cost 5400 s. */
         T.ok(
-          'analyze · the gap night’s denominator is its ACTIVE seconds — the SAME seconds as the base (±1 %), not the grown span',
-          rG.cvhr && Math.abs(rG.cvhr.denomSec - rB.cvhr.denomSec) < 0.01 * rB.cvhr.denomSec && rG.cvhr.denomSec < spanG - HOUR,
+          'analyze · the gap night’s denominator is its ACTIVE seconds — the SAME seconds as the base (±2 %), not the grown span',
+          rG.cvhr && Math.abs(rG.cvhr.denomSec - rB.cvhr.denomSec) < 0.02 * rB.cvhr.denomSec && rG.cvhr.denomSec < spanG - HOUR,
           'denom base ' + rB.cvhr.denomSec + ' gap ' + (rG.cvhr && rG.cvhr.denomSec) + ' span ' + spanG
+        );
+        T.ok(
+          'analyze · …and the whole difference IS the fold edge’s MIRROR window — about 110 s, never the 5400 s the fold added',
+          rG.cvhr && Math.abs(rG.cvhr.denomSec - rB.cvhr.denomSec) <= 112 && Math.abs(rG.cvhr.denomSec - rB.cvhr.denomSec) > 100,
+          'difference ' + (rG.cvhr && +(rB.cvhr.denomSec - rG.cvhr.denomSec).toFixed(2)) + ' s'
         );
         T.ok(
           'analyze · the index therefore moves by < 5 % across the fold (it fell by a third before F3)',
