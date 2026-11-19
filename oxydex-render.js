@@ -845,25 +845,38 @@ function spikeTimeline(nights) {
     svg += '<line x1="' + PL + '" y1="' + y + '" x2="' + (W - PR) + '" y2="' + y + '" stroke="' + C.grid + '" stroke-width="1"/>';
     svg += '<text x="' + (PL - 5) + '" y="' + (y + 4) + '" text-anchor="end" fill="' + C.text + '" font-size="12" font-family="\'IBM Plex Mono\',monospace">' + escHTML(shortDate(n.date)) + '</text>';
 
-    // ── Desaturation events — transparent blue dots, sized by severity ──
-    // n.spo2Adv.events: [{depth(%), duration(s), startIdx, ...}]
-    // startIdx is the seconds-from-start index into the rows array; convert
-    // to mfm using n.stats.startTs (epoch ms of first row).
-    if (n.spo2Adv && Array.isArray(n.spo2Adv.events) && n.stats && n.stats.startTs) {
-      var _startTs = n.stats.startTs;
-      n.spo2Adv.events.forEach(function (ev) {
-        if (ev.startIdx == null) return;
-        var evMs = _startTs + ev.startIdx * 1000;
-        var d = new Date(evMs);
-        var evMfm = d.getUTCHours() * 60 + d.getUTCMinutes() + d.getUTCSeconds() / 60;
-        var x = xp(evMfm);
-        // Severity: depth × duration (similar to SBII), capped for visual sanity.
-        // Typical event: depth 4–10%, duration 10–60s → severity 40–600.
-        var sev = (ev.depth || 0) * (ev.duration || 0);
-        var r = Math.max(2.5, Math.min(9, Math.sqrt(sev) / 2.5));
-        svg += '<circle cx="' + x.toFixed(1) + '" cy="' + y + '" r="' + r.toFixed(1) + '" fill="' + C.blue + '" opacity="0.35"/>';
-      });
-    }
+    /* ── Desaturation events — transparent blue dots, sized by severity ──
+       §∅ — THE TWIN OF THE HR-SPIKE FIX BELOW, over a field no producer ever wrote. This layer read
+       `n.spo2Adv.events`, and `computeSpO2Advanced` returns
+       `{ wtdsi, spo2IQR, condMeanBelow94, condPctBelow94, condPctN, nadirBins }`: it maps its nadir
+       events into the bins and then drops them. So no night ever drew a desaturation dot, while the
+       chart title and the legend below kept advertising "blue = desat events".
+       The instant was fabricated too. `startTs + startIdx * 1000` assumes one row per second, and
+       `oxydex-dsp.js` had already refused that arithmetic beside these very events: parseCSV carries
+       absences, so a row INDEX is not a second offset, and DEEP-AUDIT-2026-07-11 §8 measured the worst
+       desat of one lossy night landing 422 s / 849 s from its true time through this exact formula.
+       The events the night DOES carry are `n.desat.events` — artifact-gated survivors, each stamped by
+       `_stampEvent` with `startTMs` from its OWN parsed row, exported as `desatProfile.events` and
+       restored on self-ingest. Read the same way as the per-night nadir plot below (`n.desat.events`).
+       No stamp ⇒ no honest x ⇒ no dot, as for a spike with no `mfm`. An event whose depth or duration
+       is absent draws a HOLLOW ring: present, claiming no magnitude. `(ev.depth || 0)` claimed one —
+       a null depth became severity 0 and drew the SMALLEST disc, the mildest desat on the chart. */
+    var _desatEv = (n.desat && n.desat.events) || [];
+    (Array.isArray(_desatEv) ? _desatEv : []).forEach(function (ev) {
+      if (ev.startTMs == null || !isFinite(ev.startTMs)) return;
+      var _d = new Date(ev.startTMs);
+      var evMfm = _d.getUTCHours() * 60 + _d.getUTCMinutes() + _d.getUTCSeconds() / 60;
+      var x = xp(evMfm);
+      // Severity: depth × duration (similar to SBII), capped for visual sanity.
+      // Typical event: depth 4–10%, duration 10–60s → severity 40–600.
+      var _sevKnown = typeof ev.depth === 'number' && isFinite(ev.depth) && typeof ev.duration === 'number' && isFinite(ev.duration);
+      if (!_sevKnown) {
+        svg += '<circle cx="' + x.toFixed(1) + '" cy="' + y + '" r="3" fill="none" stroke="' + C.blue + '" stroke-width="1.2" opacity="0.6"/>';
+        return;
+      }
+      var r = Math.max(2.5, Math.min(9, Math.sqrt(ev.depth * ev.duration) / 2.5));
+      svg += '<circle cx="' + x.toFixed(1) + '" cy="' + y + '" r="' + r.toFixed(1) + '" fill="' + C.blue + '" opacity="0.35"/>';
+    });
 
     // ── HR spikes — purple/amber/red dots, sized by rise above baseline ──
     (Array.isArray(n.spikes) ? n.spikes : []).forEach(function (sp) {
@@ -4288,6 +4301,7 @@ Object.assign(window, {
   toggleDetail,
   jumpToNight,
   metric,
+  spikeTimeline, // §∅ render-harness: the desaturation dot layer
   oxySpo2NightCV // §RN render-harness: testable SpO₂ night-CV
 });
 // FOLLOWUPS-II item 3: inject render's UI hook into the DSP (it no longer reaches it as a bare global).
