@@ -65871,6 +65871,24 @@
       T.eq("queueBot 'none' (no .kodiak.toml on main) plans no merge", ops(pl([quietCur], ST({}), QCTX('none'))), '');
       T.eq("queueBot 'none' plans no update either — the queue updates its own batch", ops(pl([quietBehind(21)], ST({}), QCTX('none'))), '');
       T.eq("queueBot 'unknown' (an API error) plans no merge — a merge fails closed", ops(pl([quietCur], ST({}), QCTX('unknown'))), '');
+      var deq = cl(P({ number: 50, isDraft: false, queueTitle: 'Dequeued — checks failed' }), REQ);
+      T.eq("queueBot 'none' requeues a green PR that Mergify dequeued", ops(pl([deq], ST({}), QCTX('none'))), 'requeue:50');
+      var abo = cl(P({ number: 51, isDraft: false, queueTitle: 'Checks aborted — The merge conditions cannot be satisfied due to failing checks' }), REQ);
+      T.eq("a 'Checks aborted' title is a dequeue too", ops(pl([abo], ST({}), QCTX('none'))), 'requeue:51');
+      var rq = {};
+      rq[SHA] = 1;
+      T.eq('one requeue per head: a second dequeue of the same head plans nothing', ops(pl([deq], ST({ requeued: rq }), QCTX('none'))), '');
+      T.eq('a second dequeue of the same head is an alert', kinds(pl([deq], ST({ requeued: rq }), QCTX('none'))), 'dequeued:50');
+      var inq = cl(P({ number: 52, isDraft: false, queueTitle: 'Running merge queue checks' }), REQ);
+      T.eq('a PR the queue still holds is not requeued', ops(pl([inq], ST({}), QCTX('none'))), '');
+      T.eq("queueBot 'unknown' requeues nothing — an API error fails closed", ops(pl([deq], ST({}), QCTX('unknown'))), '');
+      T.eq(
+        'a red dequeued PR gets a rerun, never a requeue',
+        ops(
+          pl([cl(P({ number: 53, isDraft: false, queueTitle: 'Dequeued — checks failed', checks: [{ name: 'test', bucket: 'fail', link: 'https://x/actions/runs/9' }] }), REQ)], ST({}), QCTX('none'))
+        ).indexOf('requeue'),
+        -1
+      );
       var qb = env.pwQueueBranchPrefix;
       T.eq("the walker's queue prefix equals pr-compliance's, so both read one batch PR the same way", qb, env.pcQueueBranchPrefix);
       var batch = cl(P({ number: 40, branch: qb + 'main/abc123' }), REQ);
