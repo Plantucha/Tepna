@@ -1161,10 +1161,11 @@ REQUIRED_CONTEXTS = frozenset(
         "stale-file",
         "mutation (diff-scoped)",
         "secret-scan",
+        "local-steps",
     }
 )
 # ⚠️ A DATED READING, never live truth: `gh api repos/{owner}/{repo}/rulesets/18794443`, read
-# 2026-11-06. No test can reach the ruleset — CI has no token for it and the box has no network in a
+# 2026-11-19 (`local-steps` joined 2026-11-18; first read 2026-11-06). No test can reach the ruleset — CI has no token for it and the box has no network in a
 # gate — so this constant carries its read date and the residue ledger carries its staleness.
 # It read nine contexts on 2026-10-20; `secret-scan` and `test (py3.14)` joined since.
 CI_JOB = {

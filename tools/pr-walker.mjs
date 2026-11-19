@@ -91,10 +91,11 @@ export const HOLD_LABEL = 'do-not-merge';
    names in the degraded path, so the one thing the old comment promised (naming a context that never
    arrived) was the one thing it could not do. Two mechanisms keep it honest now: the degraded path
    UNIONS this list with the reported checks, and `fallbackDrift` names the difference on every pass
-   where the ruleset DOES read. */
+   where the ruleset DOES read. `local-steps` joined protection on 2026-11-18 (owner order). */
 export const FALLBACK_REQUIRED = [
   'biome',
   'browser-gates',
+  'local-steps',
   'mutation (diff-scoped)',
   'no-network',
   'secret-scan',
@@ -191,7 +192,9 @@ export function runIdOf(link) {
 }
 
 /* state: { reruns:{sha:n}, rebased:{sha:'pushed:<sha>'|'stopped'|'dirty'|…}, firstPending:{number:ms} }
-   ctx:   { nowMs, mainMovedAtMs, cap, queueBot? }  queueBot: 'kodiak' | 'none' | 'unknown'; absent reads 'kodiak' */
+   ctx:   { nowMs, mainMovedAtMs, cap, queueBot?, strict? }  queueBot: 'kodiak' | 'none' | 'unknown'; absent reads 'kodiak'
+          strict: the ruleset's `strict_required_status_checks_policy`; only `false` turns it off, so an
+          absent or unreadable value keeps the old behaviour */
 /* One rebase per head SHA; a head that already stopped once is a coder's, named by the step. */
 function planRebase(r, state, actions, alerts, why) {
   const st = (state.rebased || {})[r.headSha];
@@ -219,7 +222,11 @@ export function plan(classified, state, ctx) {
       /* A held DRAFT is not updated: no merge button is live on a draft, so keeping it current buys the
          owner nothing, and each update re-ran the full CI (#4783 took 35 merges of main in one day). It
          is updated on the first pass after it leaves draft. */
-      if (r.behind && !r.draft && !actions.some((a) => a.op === 'update')) actions.push({ op: 'update', number: r.number, why: 'held, behind main — updated so the owner can merge' });
+      /* The update exists only because a strict ruleset blocks a BEHIND merge. The Mergify cutover
+         turned strict off (owner, 2026-11-18), so a held PR BEHIND main is mergeable as it stands, and
+         an update would only re-run the full CI. Only an explicit `strict: false` skips it. */
+      if (r.behind && !r.draft && ctx.strict !== false && !actions.some((a) => a.op === 'update'))
+        actions.push({ op: 'update', number: r.number, why: 'held, behind main — updated so the owner can merge' });
       else if (r.dirty) planRebase(r, state, actions, alerts, 'held, conflicts with main — rebase-safe once so the owner can merge');
       continue;
     }
@@ -282,14 +289,27 @@ export function plan(classified, state, ctx) {
 const sh = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], ...opts });
 const gh = (args, opts) => sh('gh', args, opts);
 
+function requiredRule() {
+  const repo = gh(['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner']).trim();
+  const rules = JSON.parse(gh(['api', `repos/${repo}/rules/branches/main`]));
+  return rules.find((x) => x.type === 'required_status_checks');
+}
+
 export function requiredContexts() {
   try {
-    const repo = gh(['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner']).trim();
-    const rules = JSON.parse(gh(['api', `repos/${repo}/rules/branches/main`]));
-    const r = rules.find((x) => x.type === 'required_status_checks');
-    return (r?.parameters?.required_status_checks || []).map((c) => c.context);
+    return (requiredRule()?.parameters?.required_status_checks || []).map((c) => c.context);
   } catch {
     return [];
+  }
+}
+
+/* true or false from the ruleset; null when unreadable, which plan() reads as strict. */
+export function strictPolicy() {
+  try {
+    const v = requiredRule()?.parameters?.strict_required_status_checks_policy;
+    return typeof v === 'boolean' ? v : null;
+  } catch {
+    return null;
   }
 }
 
@@ -333,7 +353,7 @@ export function snapshot() {
   } catch {
     mainMovedAtMs = 0;
   }
-  return { prs, required: requiredContexts(), mainMovedAtMs, merged, queueBot: queueBot() };
+  return { prs, required: requiredContexts(), mainMovedAtMs, merged, queueBot: queueBot(), strict: strictPolicy() };
 }
 
 /* Which bot merges: 'kodiak' while `.kodiak.toml` is on main, 'none' on a 404, 'unknown' on any
@@ -1025,7 +1045,7 @@ export function pass(opts) {
     if (r.state === 'pending') state.firstPending[r.number] ||= now;
     else delete state.firstPending[r.number];
   }
-  const planned = plan(rows, state, { nowMs: now, mainMovedAtMs: snap.mainMovedAtMs, cap: opts.cap || CAP, queueBot: snap.queueBot });
+  const planned = plan(rows, state, { nowMs: now, mainMovedAtMs: snap.mainMovedAtMs, cap: opts.cap || CAP, queueBot: snap.queueBot, strict: snap.strict });
   const done = act(planned.actions, state, { ...opts, at: new Date(now).toISOString() });
   if (!opts.dryRun) saveState(state);
   const drift = fallbackDrift(snap.required);

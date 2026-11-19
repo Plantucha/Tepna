@@ -74,8 +74,9 @@ A row's state cell reads `fixed #3505`, and that is also GitHub's closing-refere
 prose around it: `the cell reads the #3505 closure`, never `fixed #3505` on a prose line. The table
 cell itself keeps the bare form the gate demands, and a body closing its OWN number is exempt.
 
-The mechanism is the squash, not the link. `.kodiak.toml` sets `body = "pull_request_body"`, so the
-body becomes the commit message on main, and GitHub acts on a closing keyword there. Backticks do
+The mechanism is the squash, not the link. `.mergify.yml` sets `commit_message_format` body
+`pr-body` (Kodiak set `body = "pull_request_body"` before 2026-11-18), so the body becomes the commit
+message on main, and GitHub acts on a closing keyword there. Backticks do
 not protect the phrase, because the squash message is plain text.
 
 Measured 2026-10-12: #3480's body said `fixed #3476` inside backticks. #3480 merged at 16:18:16Z and

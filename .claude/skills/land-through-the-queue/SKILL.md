@@ -1,18 +1,21 @@
 ---
 name: land-through-the-queue
-description: Use when a finished PR has to reach main — the draft handoff to the walker, Kodiak's serial queue, what BEHIND actually means, the WIP cap, and removing the worktree afterwards. Use when a PR is green and waiting, and before touching a queued run.
+description: Use when a finished PR has to reach main — the draft handoff to the walker, the Mergify queue, what BEHIND actually means, the WIP cap, and removing the worktree afterwards. Use when a PR is green and waiting, and before touching a queued run.
 ---
 
 # Land a PR through the queue
 
-`CLAUDE.md` §👥.5 and `.kodiak.toml`.
+`CLAUDE.md` §👥.5 and `.mergify.yml`. Mergify replaced Kodiak on 2026-11-18
+(`changes/2026-11-18-kodiak-cutover.md`); `CLAUDE.md` §5 still names Kodiak until the owner edits it.
 
-- **Open it as a draft.** The walker undrafts when the non-draft open count reaches zero.
-  `require_automerge_label = false`, so every non-draft PR is *already* in Kodiak's serial queue —
-  arming auto-merge adds nothing, and a `do-not-merge` label or Draft is the only hold.
-- **BEHIND while the front PR is mid-CI is serialising, not stalling.** Only when a green PR sits
-  BEHIND for >15 min: `git merge --no-edit origin/main` locally and **one** push — not
-  `gh pr update-branch` followed by a second push.
+- **Open it as a draft.** The walker undrafts a green draft while fewer than 4 PRs are out of draft.
+  `merge_protections_settings.auto_merge_conditions` queues every non-draft PR without a
+  `do-not-merge` label, so arming auto-merge adds nothing. A `do-not-merge` label or Draft is the only hold.
+- **Mergify tests a batch of up to 4 PRs on a `mergify/merge-queue/` draft PR**, then squashes each.
+  The walker skips those branches. Never push to one or close one.
+- **BEHIND is not a block.** The `protect-main` ruleset is no longer strict (2026-11-18), so a PR
+  that is BEHIND main can merge, and Mergify tests it on top of main itself. Do not update a BEHIND PR
+  only to make it current. Merge `origin/main` only to resolve a conflict, and push **once**.
 - **WIP cap: ≤4 open non-draft PRs repo-wide.** A finished unit waits for a slot.
 - **Never supersede a queued `tests` run under ~3 h.** And a body edit alone does not re-run
   `pr-compliance` (it reads the trigger payload) — push an empty commit after fixing a body.
@@ -32,4 +35,4 @@ A PR that is DIRTY gets **zero** workflow runs while other PRs keep landing (#34
 conflict is not a slow queue: resolve it with `node tools/rebase-safe.mjs`, then verify the change
 survived (`git show HEAD:<file> | grep -c <identifier>`).
 
-Memory: `kodiak-owns-the-drain`, `arm-automerge-at-creation`.
+Memory: `kodiak-owns-the-drain` (historical), `arm-automerge-at-creation`.
