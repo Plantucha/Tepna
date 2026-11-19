@@ -64,10 +64,11 @@
  * map, so a 67 MiB file costs its chunk and nothing else. Nothing holds a sample.
  * ════════════════════════════════════════════════════════════════════════════════════════════════ */
 
-import { execSync } from 'node:child_process';
-import { createReadStream, readdirSync, statSync } from 'node:fs';
+import { execFileSync, execSync } from 'node:child_process';
+import { createReadStream, mkdtempSync, readdirSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, relative } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { corpusSearch } from './regen-goldens-core.mjs';
 
@@ -655,11 +656,46 @@ function selftest() {
 
   ok(COMMENT_WINDOW_HZ[1] > COMMENT_WINDOW_HZ[0] && Math.abs(ppm(COMMENT_WINDOW_HZ[1], COMMENT_WINDOW_HZ[0]) - 77) < 1, 'the window the shipped comment quotes is 77 ppm wide');
 
+  /* THE EXIT CODE IS PART OF THE VERDICT. An empty corpus root publishes NOT_RUN, and the code beside
+     it must not read as a pass. The rest of the mapping is pinned so a later edit cannot widen the
+     refusal to a FAIL this tool reports rather than refuses. */
+  ok(exitCodeFor('NOT_RUN') === 2, 'a run that examined nothing exits 2, so a caller reading the exit code alone cannot read a pass');
+  ok(
+    exitCodeFor('PASS') === 0 && exitCodeFor('FAIL') === 0 && exitCodeFor('NOT_APPLICABLE') === 0 && exitCodeFor('UNDERPOWERED') === 0,
+    'and the four statuses this tool reports still exit 0, unchanged'
+  );
+  ok(exitCodeFor('UNKNOWN') === 1, 'an unrecognised status still exits 1');
+  /* A PIN ON THE MAPPING PINS NOTHING ABOUT THE WIRING, so this leg runs the real CLI against a
+     readable root holding no ECG export and reads the process's own code. Reverting the branch alone,
+     with the function left in place, reds HERE and nowhere else. The root is empty, so the walk costs
+     one readdir. */
+  {
+    const emptyRoot = mkdtempSync(join(tmpdir(), 'h10rate-empty-'));
+    let code = 0;
+    try {
+      execFileSync(process.execPath, [fileURLToPath(import.meta.url), '--uploads', emptyRoot], { stdio: 'ignore' });
+    } catch (e) {
+      code = e.status == null ? -1 : e.status;
+    }
+    ok(code === 2, 'wiring · the real CLI over a root holding no ECG export exits 2');
+  }
+
   console.log(fail ? `\n✕ ${fail} of ${n} failed` : `\n✓ all ${n} selftests passed`);
   return fail ? 1 : 0;
 }
 
 /* ═══════════════════════════════════════════ MAIN ══════════════════════════════════════════════ */
+/* THE EXIT CODE MUST SAY THE SAME THING AS THE OBJECT. `NOT_RUN` means this run examined nothing, and
+   both paths that publish it returned 0 — so a caller reading `$?` alone read a pass about a population
+   of zero (CLAUDE.md §4c: a run that could not look exits 2, where 1 means it looked). An EMPTY corpus
+   root reaches the `!take.length` branch below; an UNREADABLE one already refuses on the snapshot. The
+   rest of the mapping is the one this file already shipped, unchanged, so a `FAIL` still reports rather
+   than refuses. PURE, so the mapping is assertable without a corpus. */
+export function exitCodeFor(status) {
+  if (status === 'NOT_RUN') return 2;
+  return status === 'PASS' || status === 'NOT_APPLICABLE' || status === 'UNDERPOWERED' || status === 'FAIL' ? 0 : 1;
+}
+
 async function main() {
   if (has('--selftest')) return selftest();
   /* What the adoption gate reads: a real run needs a corpus the gate does not have, so the sample
@@ -737,7 +773,8 @@ async function main() {
       producedBy: PRODUCED_BY
     });
     console.log(JSON.stringify(v, null, 2));
-    return 0;
+    /* 2, not 0 — the object above says NOT_RUN, so the exit code must too. */
+    return exitCodeFor('NOT_RUN');
   }
 
   const rows = [],
@@ -981,7 +1018,7 @@ async function main() {
   });
   if (!JSON_OUT) console.error(JSON.stringify({ sessions: uniq, nightPairs, excluded }, null, 1));
   console.log(JSON.stringify(v, null, 2));
-  return status === 'PASS' || status === 'NOT_APPLICABLE' || status === 'UNDERPOWERED' || status === 'FAIL' ? 0 : 1;
+  return exitCodeFor(status);
 }
 
 /* Importing this file must not read a corpus: a tool with no main-module guard consumes the
