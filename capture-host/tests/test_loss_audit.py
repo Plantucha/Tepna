@@ -5510,3 +5510,164 @@ def test_the_fraction_covers_the_measured_devices_and_NAMES_the_one_it_left_out(
     assert r["worn_lost_min"] == 80.0, "the published loss still covers every worn device"
     assert r["worn_span_unmeasured"] == ["Ring"], r
     assert o["status"] == "FAIL", o["reason"]
+
+
+# ── a ring gap the ring's own frames declare empty: `device:no reading` ─────────────────────────────────
+#
+# MEASURED on the capture box, night 2026-11-17: two ring gaps, 48 s and 66 s, in the first three minutes
+# of wear. The ring sent one frame a second across each with `spo2` blank, and the link stayed up. The
+# judge read both as `unattributed` and FAILed the night on 114 s the device itself declared empty.
+
+
+def _noread_night(tmp_path, *, value_at=None, hole=None, gap_at=100, gap_s=40):
+    """A ring night: SpO2 rows each second except `[gap_at, gap_at + gap_s)`, and a frame each second.
+
+    Frames inside the gap carry a blank `spo2`, except at second `value_at`. `hole` is a `(sec, n)` pair
+    that cuts `n` frames out from second `sec`, as an event-loop stall does."""
+    d = tmp_path / "captures" / "2026-11-17"
+    d.mkdir(parents=True)
+    start = dt.datetime(2026, 11, 17, 22, 50, 0)
+    with open(d / "Wellue_O2Ring-S_S8AW2100_20261117225000_SPO2.csv", "w") as fh:
+        fh.write("Time,Oxygen Level,Pulse Rate,Motion\n")
+        for sec in range(300):
+            if not gap_at <= sec < gap_at + gap_s:
+                fh.write((start + dt.timedelta(seconds=sec)).strftime("%H:%M:%S %d/%m/%Y") + ",97,58,0\n")
+    with open(d / "Wellue_O2Ring-S_S8AW2100_20261117225000_OXYFRAME.txt", "w") as fh:
+        fh.write(_OXY_HDR)
+        for sec in range(300):
+            if hole and hole[0] <= sec < hole[0] + hole[1]:
+                continue
+            empty = gap_at <= sec < gap_at + gap_s and sec != value_at
+            cells = ";;" if empty else "97;58"
+            t = (start + dt.timedelta(milliseconds=1000 * sec + 900)).isoformat(timespec="milliseconds")
+            fh.write(f"{t};{0 if empty else sec};25.5;0;{cells};1;80;0;0;126;1;0;0;0;2\n")
+    return str(d)
+
+
+def _noread_gap(tmp_path, journal=lambda *a: [], **kw):
+    dev = loss_audit.audit_night(_noread_night(tmp_path, **kw), RING_DEV, journal=journal)["devices"]["Ring"]
+    assert len(dev["gaps"]) == 1, dev["gaps"]
+    return dev, dev["gaps"][0]
+
+
+def test_PLANT_a_ring_gap_its_own_frames_declare_empty_is_DEVICE_NO_READING_and_still_LOSS(tmp_path):
+    """The 2026-11-17 shape: frames arrive each second across the gap, every one with no value."""
+    dev, g = _noread_gap(tmp_path)
+    assert g["cause"] == loss_audit.DEVICE_NO_READING == "device:no reading", g
+    assert g["no_reading_frames"] == 40, g
+    # the SpO2 values across the gap do not exist anywhere: the seconds stay in loss (§∅)
+    assert dev["by_cause"] == {"device:no reading": 0.7}, dev["by_cause"]
+    assert dev["lost_min"] == 0.7, dev
+
+
+def test_PLANT_one_frame_WITH_a_value_inside_the_gap_keeps_it_UNATTRIBUTED(tmp_path):
+    """A value in the window means the ring held a reading there, and the box did not record it."""
+    _dev, g = _noread_gap(tmp_path, value_at=120)
+    assert g["cause"] == "unattributed", g
+    assert "no_reading_frames" not in g, g
+
+
+def test_PLANT_a_frame_HOLE_inside_the_gap_keeps_it_UNATTRIBUTED(tmp_path):
+    """Three frames absent mid-gap is a delivery hole, and the frames cannot speak for it."""
+    _dev, g = _noread_gap(tmp_path, hole=(118, 3))
+    assert g["cause"] == "unattributed", g
+
+
+def test_PLANT_a_journal_cause_OUTRANKS_the_frames(tmp_path):
+    """The frames say what the ring reported, not why the box acted. A journal line keeps its cause."""
+    at = dt.datetime(2026, 11, 17, 22, 51, 39)  # the last SpO2 row before the gap
+
+    def journal(*_a):
+        return [(at + dt.timedelta(seconds=1), "link:timeout / not found")]
+
+    _dev, g = _noread_gap(tmp_path, journal=journal)
+    assert g["cause"] == "link:timeout / not found", g
+    assert "no_reading_frames" not in g, g
+
+
+def _fr(*pairs):
+    t0 = dt.datetime(2026, 11, 17, 22, 0, 0)
+    return [(t0 + dt.timedelta(seconds=s), v) for s, v in pairs]
+
+
+T_NR = dt.datetime(2026, 11, 17, 22, 0, 0)
+
+
+def test_no_reading_frames_skips_the_frame_of_the_last_row_and_counts_from_one_second_on():
+    """`t0` is the last SpO2 row, stamped to the second, and its frame at +0.9 s carries that row's value.
+    The window starts at +1 s, so that frame never speaks for the gap."""
+    frames = _fr((0.9, 97), (1.9, None), (2.9, None), (3.9, None), (4.9, 97))
+    assert loss_audit.no_reading_frames(frames, T_NR, 4.0) == 3
+    # the first row after the gap holds a value: it sits at the window end and stays out of it
+    assert loss_audit.no_reading_frames(frames, T_NR, 4.9) == 3
+    assert loss_audit.no_reading_frames(frames, T_NR, 5.0) is None
+
+
+def test_no_reading_frames_refuses_an_empty_window_and_a_late_or_early_edge():
+    assert loss_audit.no_reading_frames([], T_NR, 10.0) is None
+    # a frame that reads 0 carries a value: 0 is a number, and only a blank cell is absence (§∅)
+    assert loss_audit.no_reading_frames(_fr((1.5, None), (2.5, 0), (3.5, None)), T_NR, 4.0) is None
+    assert loss_audit.no_reading_frames(_fr((0.5, 97), (11.0, 97)), T_NR, 10.0) is None
+    # the first frame 2.5 s after the window start: the frames cannot speak for that edge
+    assert loss_audit.no_reading_frames(_fr((3.5, None), (4.5, None), (5.5, None)), T_NR, 6.0) is None
+    # the last frame 2.5 s before the window end
+    assert loss_audit.no_reading_frames(_fr((1.5, None), (2.5, None), (3.5, None)), T_NR, 6.0) is None
+
+
+def test_no_reading_frames_takes_a_step_of_exactly_the_bound_and_refuses_one_above_it():
+    ok = _fr((1.0, None), (3.0, None), (5.0, None), (7.0, None))
+    assert loss_audit.RING_FRAME_STEP_MAX_S == 2.0
+    assert loss_audit.no_reading_frames(ok, T_NR, 9.0) == 4
+    over = _fr((1.0, None), (3.0, None), (5.01, None), (7.0, None))
+    assert loss_audit.no_reading_frames(over, T_NR, 9.0) is None
+
+
+def test_oxyframe_readings_reads_spo2_by_name_and_a_blank_cell_is_None_never_0(tmp_path):
+    p = tmp_path / "x_OXYFRAME.txt"
+    p.write_text(
+        "2026-11-17T22:00:00.900;0;25.5;0;;;1;80;0;0;126;1;0;0;0;2\n"  # before the header: skipped
+        + _OXY_HDR
+        + "2026-11-17T22:00:01.900;0;25.5;0;;;0;80;0;0;126;1;0;0;0;2\n"
+        + "2026-11-17T22:00:02.900;1;9.0;0;0;58;1;80;0;0;126;1;0;0;0;2\n"
+        + "torn line\n"
+    )
+    rows = loss_audit.oxyframe_readings(str(p))
+    assert rows == [
+        (dt.datetime(2026, 11, 17, 22, 0, 1, 900000), None),
+        (dt.datetime(2026, 11, 17, 22, 0, 2, 900000), 0),
+    ], rows
+
+
+def test_oxyframe_readings_reads_past_a_torn_line_and_a_non_utf8_byte(tmp_path):
+    # A torn line in the MIDDLE must not end the read, and one bad byte must not raise.
+    p = tmp_path / "x_OXYFRAME.txt"
+    p.write_bytes(
+        _OXY_HDR.encode()
+        + b"2026-11-17T22:00:01.900;0;25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n"
+        + b"torn \xff line\n"
+        + b"2026-11-17T22:00:02.900;0;25.5;0;96;58;1;80;0;0;126;1;0;0;0;\xfe\n"
+    )
+    rows = loss_audit.oxyframe_readings(str(p))
+    assert rows == [
+        (dt.datetime(2026, 11, 17, 22, 0, 1, 900000), 97),
+        (dt.datetime(2026, 11, 17, 22, 0, 2, 900000), 96),
+    ], rows
+
+
+def test_ring_readings_joins_every_frame_file_sorted_and_skips_an_unreadable_one(tmp_path, monkeypatch):
+    d = _noread_night(tmp_path)
+    second = os.path.join(d, "Wellue_O2Ring-S_S8AW2100_20261117224000_OXYFRAME.txt")
+    with open(second, "w") as fh:
+        fh.write(_OXY_HDR + "2026-11-17T22:49:00.000;5;9.0;0;95;60;1;80;0;0;126;1;0;0;0;2\n")
+    rows = loss_audit.ring_readings(d)
+    assert len(rows) == 301 and rows == sorted(rows), len(rows)
+    assert rows[0] == (dt.datetime(2026, 11, 17, 22, 49, 0), 95)
+    real = loss_audit.oxyframe_readings
+
+    def flaky(path):
+        if path == second:
+            raise OSError("unreadable")
+        return real(path)
+
+    monkeypatch.setattr(loss_audit, "oxyframe_readings", flaky)
+    assert len(loss_audit.ring_readings(d)) == 300
