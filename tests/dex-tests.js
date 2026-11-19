@@ -89053,6 +89053,72 @@
       }
     });
 
+    /* ════ The OxyDex desaturation dot layer — a field no producer writes (§∅) ════
+       `spikeTimeline` is a pure SVG builder, so the harness drives it directly. Its desaturation
+       layer read `n.spo2Adv.events`, and `computeSpO2Advanced` publishes
+       `{ wtdsi, spo2IQR, condMeanBelow94, condPctBelow94, condPctN, nadirBins }` — it maps its nadir
+       events into the bins and drops them. So every night drew ZERO blue dots, while the chart title
+       and the legend beside it advertised "blue = desat events". The layer also placed an event at
+       `stats.startTs + startIdx * 1000`, the hard-coded 1 Hz formula DEEP-AUDIT-2026-07-11 §8 removed
+       from the two other consumers after it put the worst desat of a lossy night 422 s / 849 s off.
+       Node-lane only, like the §RN harness group above. */
+    group('OxyDex spike timeline — the desaturation dots read the STAMPED events (§∅)', 'oxydex-render · render-harness · absence · clock', function (T) {
+      if (typeof env.OxySpikeTimeline !== 'function') {
+        T.skip('render-harness spikeTimeline wired (env.OxySpikeTimeline)', 'Node-lane only (run-tests.mjs executes *-render.js headless); the browser lane runs render in iframe rigs so it SKIPs');
+        return;
+      }
+      /* xp(): the axis runs 20:00 → 32:00 across cW 930 from PL 54, so 02:00 lands dead centre at
+         54 + 0.5 * 930 = 519.0. The night's own `stats.startTs` is 22:00, which is where the OLD
+         index formula placed `startIdx: 0` — the left edge, x = 54.0. The two differ by four hours. */
+      var AT_0200 = Date.UTC(2026, 5, 21, 2, 0, 0),
+        AT_2200 = Date.UTC(2026, 5, 20, 22, 0, 0);
+      function night(extra) {
+        var n = { date: '2026-06-21', spikes: [], stats: { startTs: AT_2200 } };
+        Object.keys(extra).forEach(function (k) {
+          n[k] = extra[k];
+        });
+        return n;
+      }
+      function count(svg, re) {
+        return (String(svg).match(re) || []).length;
+      }
+      var FILLED = /<circle[^>]*fill="#58A6FF"/g,
+        HOLLOW = /<circle[^>]*fill="none"[^>]*stroke="#58A6FF"/g;
+      function dots(extra) {
+        var svg = env.OxySpikeTimeline([night(extra)]);
+        return { svg: svg, filled: count(svg, FILLED), hollow: count(svg, HOLLOW) };
+      }
+      // ── A stamped, measured event draws ONE filled disc, at the x its own stamp maps to.
+      var one = dots({ desat: { events: [{ startTMs: AT_0200, depth: 8, duration: 50, nadir: 88 }] } });
+      T.eq('one stamped desaturation draws one filled blue disc', one.filled, 1);
+      T.ok('the disc sits at the x of its own startTMs — 519.0, mid-axis', /<circle cx="519\.0"[^>]*fill="#58A6FF"/.test(one.svg), one.svg.slice(-240));
+      // sqrt(8 * 50) / 2.5 = 20 / 2.5 = 8.0, inside the [2.5, 9] clamp
+      T.ok('the radius is sqrt(depth * duration) / 2.5 = 8.0', /<circle cx="519\.0" cy="[0-9.]+" r="8\.0"/.test(one.svg), one.svg.slice(-240));
+      /* ── THE MUTANT LEG. The shipped layer read `spo2Adv.events`, so THIS night was the only one it
+            could draw and every real night drew nothing. A revert reds this leg and the three above. */
+      var legacy = dots({ spo2Adv: { events: [{ startIdx: 0, depth: 8, duration: 50 }] } });
+      T.eq('a night carrying only spo2Adv.events draws NO dot — no producer writes that field', legacy.filled + legacy.hollow, 0);
+      // ── The stamp decides the x, never the index. `startIdx: 0` would read 22:00, the left edge.
+      var both = dots({ desat: { events: [{ startTMs: AT_0200, startIdx: 0, depth: 8, duration: 50 }] } });
+      T.ok(
+        'the stamp decides x, never startIdx — no disc at the 22:00 left edge',
+        !/<circle cx="54\.0"[^>]*fill="#58A6FF"/.test(both.svg) && /<circle cx="519\.0"/.test(both.svg),
+        both.svg.slice(-240)
+      );
+      // ── §∅ — an absent stamp has no honest x. `null + 1440` would place the dot at 24:00.
+      var noStamp = dots({ desat: { events: [{ startTMs: null, depth: 8, duration: 50 }] } });
+      T.eq('an event with no startTMs draws no dot at all', noStamp.filled + noStamp.hollow, 0);
+      // ── §∅ — a null depth is not severity 0. `(ev.depth || 0)` drew it as the MILDEST desat shown.
+      var noDepth = dots({ desat: { events: [{ startTMs: AT_0200, depth: null, duration: 50 }] } });
+      T.eq('an event with no depth draws a hollow ring', noDepth.hollow, 1);
+      T.eq('and no filled disc — it claims no magnitude', noDepth.filled, 0);
+      var noDur = dots({ desat: { events: [{ startTMs: AT_0200, depth: 8, duration: null }] } });
+      T.eq('an absent duration reads the same — one hollow ring, no disc', noDur.hollow * 10 + noDur.filled, 10);
+      // ── A legacy import carries no desat object. That is no dots, not a throw.
+      var none = dots({});
+      T.eq('a night with no desat object draws no dot and does not throw', none.filled + none.hollow, 0);
+    });
+
     /* ════ ECGScope canvas axis — minute-tick label (§RN wave 3, the last render finding) ════
        ecgdex-render's ECGScope is pure canvas; its wide-view time axis labels minutes as (t/60).toFixed(0)+
        'm'. No gate executed the canvas draw, so a `t/60 → t/30` slip (every minute label 2×) shipped green.
