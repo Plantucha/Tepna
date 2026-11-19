@@ -98096,6 +98096,26 @@
       var sumOk = Q.Quantity(5, 'kg').add(Q.Quantity(3, 'kg'));
       T.ok('5 + 3 → 8 (measured values still add)', sumOk.value === 8 && sumOk.unit === 'kg', 'value=' + JSON.stringify(sumOk.value));
 
+      /* ── §∅: the two ABSENCE guards at the conversion boundary. Row
+         `2026-11-19-quantity-tometric-absence-guard-has-no-assertion`: nothing exercised either one.
+         The three earlier `Q.toMetric` calls all pass a finite number, and the `null` leg above uses
+         `'kg'`, which the switch returns unchanged — so swapping `||` for `&&` in the guard left this
+         whole group green. `isFinite(null)` is TRUE, so the swapped guard reads false for a `null`,
+         and the switch then multiplies or divides it: `null * 0.45359237` is 0, a fabricated measured
+         weight at the one boundary §📏 permits a conversion.
+         So every leg below needs a unit the switch TRANSFORMS, and the mutant's output differs per
+         arm: a `null` falls out as 0, a `NaN` falls out as NaN. Never read either through
+         `JSON.stringify`, which renders both as `null`. ── */
+      var nanOrNull = function (v) {
+        return v === null ? 'null' : typeof v === 'number' && isNaN(v) ? 'NaN' : String(v);
+      };
+      T.ok('toMetric refuses a null at a MULTIPLYING unit (lb → 0 kg would be a fabricated weight)', Q.toMetric(null, 'lb') === null, 'got ' + nanOrNull(Q.toMetric(null, 'lb')));
+      T.ok('toMetric refuses a null at a DIVIDING unit (cm → 0 m)', Q.toMetric(null, 'cm') === null, 'got ' + nanOrNull(Q.toMetric(null, 'cm')));
+      T.ok('toMetric refuses a NaN, so the isFinite arm carries its own leg', Q.toMetric(NaN, 'F') === null, 'got ' + nanOrNull(Q.toMetric(NaN, 'F')));
+      T.ok('a null Quantity in POUNDS stores null, not 0 kg', Q.Quantity(null, 'lb').value === null, 'got ' + nanOrNull(Q.Quantity(null, 'lb').value));
+      T.ok('toDisplay refuses a null, so an absent weight never renders as 0 lb', Q.Quantity(null, 'kg').as('lb') === null, 'got ' + nanOrNull(Q.Quantity(null, 'kg').as('lb')));
+      T.ok('toDisplay refuses a NaN at a transforming unit', Q.toDisplay(NaN, 'cm') === null, 'got ' + nanOrNull(Q.toDisplay(NaN, 'cm')));
+
       // ── asSecondsRR: seconds pass through, ms band is converted + tagged ──
       var s = Q.asSecondsRR(0.8),
         ms = Q.asSecondsRR(800),
