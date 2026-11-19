@@ -199,12 +199,20 @@ export function decide(meds, pop) {
   };
 }
 
-/* ── The corpus. $DEX_UPLOADS → the canonical corpus root → this checkout (docs/CORPUS-LOCATIONS.md).
-   A worktree holds no recordings, so a search that finds nothing REFUSES and names where it looked. */
+/* ── The corpus. $DEX_UPLOADS ALONE, else the canonical corpus root then this checkout
+   (docs/CORPUS-LOCATIONS.md). A worktree holds no recordings, so a search that finds nothing REFUSES
+   and names where it looked.
+
+   AN EXPLICIT OVERRIDE IS EXCLUSIVE, exactly as `resolveCorpus` reads it
+   (`tools/regen-goldens-core.mjs`). This function used to push the override and then APPEND both
+   canonical roots, while `findNight` below returns the first root that HITS rather than the first
+   that exists. So an empty override never emptied the corpus: a probe that believed it had isolated
+   this tool still read the live recordings, and every empty-root control over this tool was unsound
+   (row `2026-11-19-the-empty-corpus-control-cannot-isolate-the-lomb-profile`). Of the 24 tools that
+   name `DEX_UPLOADS`, this was the only one that appended a live root after it. */
 export function corpusRoots() {
-  const r = [];
-  if (process.env.DEX_UPLOADS) r.push(process.env.DEX_UPLOADS);
-  r.push('/srv/data/tepna-corpus/uploads', path.join(REPO, 'uploads'));
+  if (process.env.DEX_UPLOADS) return [path.resolve(process.env.DEX_UPLOADS)];
+  const r = ['/srv/data/tepna-corpus/uploads', path.join(REPO, 'uploads')];
   return r.filter((p, i) => r.indexOf(p) === i);
 }
 
@@ -579,6 +587,25 @@ function selftest() {
   ok('an unexamined run is NOT_RUN and never a 0 % share', nothing.status === 'NOT_RUN' && nothing.reason === 'the corpus holds no night', nothing.status);
 
   ok('a basename no corpus can hold is not found', findNight('lomb-share-no-such-night.txt') === null, 'found');
+
+  /* THE OVERRIDE IS THE CONTROL, SO THE CONTROL OWES ASSERTIONS. `tools/` exists, holds no night and
+     stays readable, so it is an override that can never hit. Leg one pins the root LIST and reds on
+     every machine when the override stops being exclusive. Leg two pins the CONTROL property, and it
+     bites only where a live corpus root exists, because a machine without one reads null either way.
+     Leg three pins the fallback, so the fix cannot buy exclusivity by dropping a documented root. */
+  const envHeld = process.env.DEX_UPLOADS;
+  try {
+    process.env.DEX_UPLOADS = path.join(REPO, 'tools');
+    const only = corpusRoots();
+    ok('an explicit DEX_UPLOADS override is exclusive, so no live root survives it', only.length === 1 && only[0] === path.resolve(path.join(REPO, 'tools')), JSON.stringify(only));
+    ok('an override that can never hit isolates this tool', findNight(NODES.ecg.night) === null, 'found');
+    delete process.env.DEX_UPLOADS;
+    const fall = corpusRoots();
+    ok('without an override both documented roots stay, in order', fall.length === 2 && fall[0] === '/srv/data/tepna-corpus/uploads' && fall[1] === path.join(REPO, 'uploads'), JSON.stringify(fall));
+  } finally {
+    if (envHeld === undefined) delete process.env.DEX_UPLOADS;
+    else process.env.DEX_UPLOADS = envHeld;
+  }
   ok(
     'every node names a committed-corpus night and a global',
     Object.values(NODES).every((x) => x.night && x.global && x.files.includes(x.dsp)),
