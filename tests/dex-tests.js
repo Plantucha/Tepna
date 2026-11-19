@@ -65787,6 +65787,11 @@
       var ph = pl([heldBehind], ST({}), CTX({ mainMovedAtMs: NOW }));
       T.eq('a held PR BEHIND main is updated AT ONCE, with main having just moved (no Kodiak-quiet gate)', ops(ph), 'update:3');
       T.eq('…and the update is the only thing a hold permits', ph.actions.length, 1);
+      /* The Mergify cutover turned the ruleset's strict policy off (owner, 2026-11-18). A BEHIND PR is
+         then mergeable as it stands, so the held update would only re-run the full CI. */
+      T.eq('strict off: a held PR BEHIND main gets no update', pl([heldBehind], ST({}), CTX({ strict: false })).actions.length, 0);
+      T.eq('strict on: the held update stays', ops(pl([heldBehind], ST({}), CTX({ strict: true }))), 'update:3');
+      T.eq('strict unreadable (null) reads as on, so an API error keeps the old behaviour', ops(pl([heldBehind], ST({}), CTX({ strict: null }))), 'update:3');
       /* A held DRAFT behind main is NOT updated: no merge button is live on a draft, and each update
          re-ran the full CI — #4783 (held draft) took 35 merges of main on 2026-11-10. */
       T.eq('a held DRAFT behind main gets no update', pl([cl(P({ number: 3, isDraft: true, labels: [env.pwHoldLabel], mergeState: 'BEHIND' }), REQ)], ST({}), CTX({})).actions.length, 0);
