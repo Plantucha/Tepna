@@ -563,6 +563,21 @@ export function isBuildOutput(path, gen) {
   return !recipeForFixture(p);
 }
 
+/* TWO CLASSES, TWO ANSWERS. A rebuild moves bundles, `docs/` copies and analysis HTMLs, which are
+   build outputs that `tools/pr-compliance.mjs` check 10 `no-build-outputs` refuses as a BLOCKING
+   context in a PR diff. It also moves `provenance/` and fixture paths, which a PR must carry. The
+   old advice printed one `git add` over every dirty path, so it told the author to commit a blocking
+   context. Row `2026-11-18-rebase-safe-advises-staging-the-build-outputs-check-10-refuses`; patch
+   drafted by Shrike. PURE: `isBuildOutput` decides each path, and the CLI prints the result. A list
+   of build outputs alone yields no `git add` line, never an empty one. */
+export function rebuildAdvice(dirty, gen) {
+  const outputs = [];
+  const carry = [];
+  for (const p of Array.isArray(dirty) ? dirty : []) (isBuildOutput(p, gen) ? outputs : carry).push(p);
+  const addLine = carry.length ? 'git add ' + carry.map((p) => (/[ ]/.test(p) ? '"' + p + '"' : p)).join(' ') + ' && git commit --amend --no-edit' : null;
+  return { outputs, carry, addLine };
+}
+
 /* 🔴 THE REMEDY THIS TOOL PRINTS HAS TO BE RUNNABLE FROM A SESSION, AND IT WAS NOT.
    `main()` stops on a held golden and says "resolve by taking <onto>'s copy, then re-run that
    recipe". Every spelling of that — `git checkout <onto> -- <paths>`, `--ours`, `git checkout HEAD~1
@@ -1234,9 +1249,15 @@ async function main() {
        See parsePorcelain's header: trimming it corrupts the first path. */
     const dirty = parsePorcelain(gitRaw('status', '--porcelain'));
     if (dirty.length) {
-      console.log(paint('▸ the rebuild moved ' + dirty.length + ' artifact(s) — AMEND them into your commit:', C.yel));
+      const advice = rebuildAdvice(dirty, gen);
+      console.log(paint('▸ the rebuild moved ' + dirty.length + ' artifact(s) — review each one:', C.yel));
       dirty.forEach((p) => console.log('    ' + p));
-      console.log('\n  git add ' + dirty.map((p) => (/[ ]/.test(p) ? '"' + p + '"' : p)).join(' ') + ' && git commit --amend --no-edit');
+      if (advice.addLine) console.log('\n  ' + advice.addLine);
+      if (advice.outputs.length) {
+        console.log(paint('\n  NOT staged — check 10 `no-build-outputs` refuses these in a PR diff:', C.yel));
+        advice.outputs.forEach((p) => console.log('    ' + p));
+        console.log('  A rebuild on main re-earns them; a PR that carries them is blocked.');
+      }
     } else {
       console.log(paint('  no artifact moved — nothing to amend', C.grn));
     }
