@@ -161,6 +161,12 @@ export const BOT_AUTHORS = new Set(['dependabot[bot]']);
    PRs use `CLOSE_BRANCH_PREFIX`. A declaration, not a proof, like `commit-shape.mjs`'s `Revert ` and
    `rescue:` exemptions. */
 export const REGEN_BRANCH_PREFIX = 'claude/regen-walker-';
+/* THE RELEASE PR'S DECLARED PROVENANCE. `tools/release-land.mjs` cuts `claude/release-<semver>-<suffix>`
+   and runs `build.mjs --all` and `build-docs.mjs`, because the tag must point at bundles that carry the
+   new version. So its diff holds every build output by construction, and check 10 red v2.35.0 (PR 5295,
+   78 outputs). A release is one PR at a time, so it cannot cause the conflict that check 10 prevents.
+   The exemption keys on the full semver shape, and it is a declaration, like `REGEN_BRANCH_PREFIX`. */
+export const RELEASE_BRANCH_RE = /^claude\/release-\d+\.\d+\.\d+-[a-z0-9]+$/;
 /* A MERGIFY BATCH PR IS OUT OF SCOPE (GENERATED-OUT-OF-PRS §3.2). Mergify tests a batch on a draft PR
    that it opens itself. Its body carries no `Rule 0:` line and no trailer, and its diff is the union of
    its members, so checks 1, 2 and 10 red every batch by construction and the queue never merges. Each
@@ -332,10 +338,10 @@ export function checkCompliance({
      paths a rebuild on `main` re-earns, without `provenance/**` or a regen fixture. CI builds before
      it judges (stage 1), and the walker's regeneration PR carries these paths after the merge
      (stage 3), so an author PR no longer carries them. `null` means the builder list could not be
-     read, reported as not evaluated. The walker's regeneration PR is exempt by its declared head branch. */
+     read, reported as not evaluated. The walker's regeneration PR and a release PR are exempt by their declared head branch. */
   if (buildOutputs) {
     checked.push('no-build-outputs');
-    const exempt = typeof headRef === 'string' && headRef.startsWith(REGEN_BRANCH_PREFIX);
+    const exempt = typeof headRef === 'string' && (headRef.startsWith(REGEN_BRANCH_PREFIX) || RELEASE_BRANCH_RE.test(headRef));
     if (buildOutputs.length && !exempt) {
       failures.push(
         `${buildOutputs.length} build output(s) in the diff: ${buildOutputs.slice(0, 5).join(', ')}${buildOutputs.length > 5 ? ', …' : ''}. The walker's regeneration PR carries them after the merge. Restore main's copy with \`git checkout origin/main -- <path>\` and commit; keep provenance/ and the regen fixtures`
@@ -368,6 +374,8 @@ export function selftest() {
   ok(checkCompliance({ ...withBundle, buildOutputs: [] }).failures.length === 0, 'CHECK 10 CONTROL: a source-only diff passes');
   ok(checkCompliance({ ...withBundle, buildOutputs: ['OxyDex.html'], headRef: `${REGEN_BRANCH_PREFIX}5254-abcde` }).failures.length === 0, 'CHECK 10: the walker regeneration branch is exempt');
   ok(checkCompliance({ ...withBundle, buildOutputs: ['OxyDex.html'], headRef: 'claude/regen-walker' }).failures.length === 1, 'CHECK 10: a branch that only resembles the prefix is not exempt');
+  ok(checkCompliance({ ...withBundle, buildOutputs: ['OxyDex.html'], headRef: 'claude/release-2.35.0-tmu' }).failures.length === 0, 'CHECK 10: a release branch is exempt');
+  ok(checkCompliance({ ...withBundle, buildOutputs: ['OxyDex.html'], headRef: 'claude/release-notes-k9r' }).failures.length === 1, 'CHECK 10: a branch named release without a semver is not exempt');
   const unread = checkCompliance({ ...withBundle, buildOutputs: null });
   ok(!unread.checked.includes('no-build-outputs'), 'CHECK 10: an unread builder list reports the check as not evaluated');
 
