@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="7ba0912fdd41" data-compute-hash="8a67edbe30fe">
+<html lang="en" data-manifest-hash="f3c8979c43a9" data-compute-hash="8a67edbe30fe">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1GXN++OkM02KioWXqr41sn7DFt/p7OeiRsHDpnTpfhg=' 'sha256-4esQYmoU7FYRSxckVGhsPB+ddHAbdUxK5/3OtftYgPQ=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AJI3024kFPXR8vHy8m8EF0R1krYY18zhOaNj9BrPCdA=' 'sha256-ATGkTBNHH88hb93xCcS+YJy6Zx6VRWHVYdxEqrFfGTM=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-KQqXd85cFowIuQlMMqEqlCnIVNpGwOmv5HuoyaFwpv8=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-dsssYIYS8Tml6Xipmyr/3Yx/JuzB9S1yqIQJoQfO43w=' 'sha256-jcYwIYHWEOkRho/6EL++KYsUTDIxL+gNUno4PTReee0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1GXN++OkM02KioWXqr41sn7DFt/p7OeiRsHDpnTpfhg=' 'sha256-4esQYmoU7FYRSxckVGhsPB+ddHAbdUxK5/3OtftYgPQ=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AJI3024kFPXR8vHy8m8EF0R1krYY18zhOaNj9BrPCdA=' 'sha256-ATGkTBNHH88hb93xCcS+YJy6Zx6VRWHVYdxEqrFfGTM=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-dsssYIYS8Tml6Xipmyr/3Yx/JuzB9S1yqIQJoQfO43w=' 'sha256-jcYwIYHWEOkRho/6EL++KYsUTDIxL+gNUno4PTReee0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-kSWZO1BAQD4LSgV4fXWui6PrzwX+1GsCJuv4lVI/5Dw=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.35.0</title>
@@ -26455,25 +26455,38 @@ function spikeTimeline(nights) {
     svg += '<line x1="' + PL + '" y1="' + y + '" x2="' + (W - PR) + '" y2="' + y + '" stroke="' + C.grid + '" stroke-width="1"/>';
     svg += '<text x="' + (PL - 5) + '" y="' + (y + 4) + '" text-anchor="end" fill="' + C.text + '" font-size="12" font-family="\'IBM Plex Mono\',monospace">' + escHTML(shortDate(n.date)) + '</text>';
 
-    // ── Desaturation events — transparent blue dots, sized by severity ──
-    // n.spo2Adv.events: [{depth(%), duration(s), startIdx, ...}]
-    // startIdx is the seconds-from-start index into the rows array; convert
-    // to mfm using n.stats.startTs (epoch ms of first row).
-    if (n.spo2Adv && Array.isArray(n.spo2Adv.events) && n.stats && n.stats.startTs) {
-      var _startTs = n.stats.startTs;
-      n.spo2Adv.events.forEach(function (ev) {
-        if (ev.startIdx == null) return;
-        var evMs = _startTs + ev.startIdx * 1000;
-        var d = new Date(evMs);
-        var evMfm = d.getUTCHours() * 60 + d.getUTCMinutes() + d.getUTCSeconds() / 60;
-        var x = xp(evMfm);
-        // Severity: depth × duration (similar to SBII), capped for visual sanity.
-        // Typical event: depth 4–10%, duration 10–60s → severity 40–600.
-        var sev = (ev.depth || 0) * (ev.duration || 0);
-        var r = Math.max(2.5, Math.min(9, Math.sqrt(sev) / 2.5));
-        svg += '<circle cx="' + x.toFixed(1) + '" cy="' + y + '" r="' + r.toFixed(1) + '" fill="' + C.blue + '" opacity="0.35"/>';
-      });
-    }
+    /* ── Desaturation events — transparent blue dots, sized by severity ──
+       §∅ — THE TWIN OF THE HR-SPIKE FIX BELOW, over a field no producer ever wrote. This layer read
+       `n.spo2Adv.events`, and `computeSpO2Advanced` returns
+       `{ wtdsi, spo2IQR, condMeanBelow94, condPctBelow94, condPctN, nadirBins }`: it maps its nadir
+       events into the bins and then drops them. So no night ever drew a desaturation dot, while the
+       chart title and the legend below kept advertising "blue = desat events".
+       The instant was fabricated too. `startTs + startIdx * 1000` assumes one row per second, and
+       `oxydex-dsp.js` had already refused that arithmetic beside these very events: parseCSV carries
+       absences, so a row INDEX is not a second offset, and DEEP-AUDIT-2026-07-11 §8 measured the worst
+       desat of one lossy night landing 422 s / 849 s from its true time through this exact formula.
+       The events the night DOES carry are `n.desat.events` — artifact-gated survivors, each stamped by
+       `_stampEvent` with `startTMs` from its OWN parsed row, exported as `desatProfile.events` and
+       restored on self-ingest. Read the same way as the per-night nadir plot below (`n.desat.events`).
+       No stamp ⇒ no honest x ⇒ no dot, as for a spike with no `mfm`. An event whose depth or duration
+       is absent draws a HOLLOW ring: present, claiming no magnitude. `(ev.depth || 0)` claimed one —
+       a null depth became severity 0 and drew the SMALLEST disc, the mildest desat on the chart. */
+    var _desatEv = (n.desat && n.desat.events) || [];
+    (Array.isArray(_desatEv) ? _desatEv : []).forEach(function (ev) {
+      if (ev.startTMs == null || !isFinite(ev.startTMs)) return;
+      var _d = new Date(ev.startTMs);
+      var evMfm = _d.getUTCHours() * 60 + _d.getUTCMinutes() + _d.getUTCSeconds() / 60;
+      var x = xp(evMfm);
+      // Severity: depth × duration (similar to SBII), capped for visual sanity.
+      // Typical event: depth 4–10%, duration 10–60s → severity 40–600.
+      var _sevKnown = typeof ev.depth === 'number' && isFinite(ev.depth) && typeof ev.duration === 'number' && isFinite(ev.duration);
+      if (!_sevKnown) {
+        svg += '<circle cx="' + x.toFixed(1) + '" cy="' + y + '" r="3" fill="none" stroke="' + C.blue + '" stroke-width="1.2" opacity="0.6"/>';
+        return;
+      }
+      var r = Math.max(2.5, Math.min(9, Math.sqrt(ev.depth * ev.duration) / 2.5));
+      svg += '<circle cx="' + x.toFixed(1) + '" cy="' + y + '" r="' + r.toFixed(1) + '" fill="' + C.blue + '" opacity="0.35"/>';
+    });
 
     // ── HR spikes — purple/amber/red dots, sized by rise above baseline ──
     (Array.isArray(n.spikes) ? n.spikes : []).forEach(function (sp) {
@@ -29898,6 +29911,7 @@ Object.assign(window, {
   toggleDetail,
   jumpToNight,
   metric,
+  spikeTimeline, // §∅ render-harness: the desaturation dot layer
   oxySpo2NightCV // §RN render-harness: testable SpO₂ night-CV
 });
 // FOLLOWUPS-II item 3: inject render's UI hook into the DSP (it no longer reaches it as a bare global).
