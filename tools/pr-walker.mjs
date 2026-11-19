@@ -46,6 +46,11 @@
  * `.kodiak.toml` is on main. Only `queueBot === 'kodiak'` plans `update` or `merge` on a green PR.
  * After the Mergify cutover removes that file, the walker would otherwise read Kodiak as quiet
  * forever and merge one PR around every batch. An unreadable answer plans no merge.
+ * A PR THAT MERGIFY DEQUEUED IS REQUEUED ONCE PER HEAD. Mergify keeps a PR out of its queue after a
+ * batch failure, even when the PR's own checks turn green later (measured 2026-11-19 on 5325 and
+ * 5337). Under `queueBot === 'none'`, a green non-draft PR whose `Mergify Merge Queue` check run reads
+ * `Dequeued` or `Checks aborted` gets one `@mergifyio queue` comment per head SHA. A second dequeue
+ * of the same head is an alert, because a coder owns a head that fails the batch twice.
  * A MERGE-QUEUE BRANCH IS NOT A PR TO WALK. Mergify tests a batch on a draft PR whose head starts
  * with `QUEUE_BRANCH_PREFIX`. Readying it, rebasing it or merging it would take the batch from the
  * queue, so `plan()` drops it before it counts the pool.
@@ -122,7 +127,8 @@ export function classify(pr, required, fallback = FALLBACK_REQUIRED) {
     dirty: pr.mergeState === 'DIRTY',
     failed: [],
     cancelled: [],
-    runIds: []
+    runIds: [],
+    queueTitle: pr.queueTitle ?? null
   };
   if ((pr.labels || []).includes(HOLD_LABEL)) return { ...base, state: 'held', why: `${HOLD_LABEL} label` };
   if (pr.readable === false) return { ...base, state: 'unknown', why: 'checks unreadable (API error) — not an empty list' };
@@ -196,6 +202,11 @@ export function runIdOf(link) {
           strict: the ruleset's `strict_required_status_checks_policy`; only `false` turns it off, so an
           absent or unreadable value keeps the old behaviour */
 /* One rebase per head SHA; a head that already stopped once is a coder's, named by the step. */
+/* The title of the `Mergify Merge Queue` check run says that Mergify threw the PR out of the queue. */
+export function mergifyDequeued(title) {
+  return /^(Dequeued|Checks aborted)\b/.test(String(title || ''));
+}
+
 function planRebase(r, state, actions, alerts, why) {
   const st = (state.rebased || {})[r.headSha];
   if (!st) actions.push({ op: 'rebase', number: r.number, headSha: r.headSha, branch: r.branch, why });
@@ -272,7 +283,14 @@ export function plan(classified, state, ctx) {
       continue;
     }
     if (r.state === 'green' && !r.draft) {
-      if (!kodiakRuns) continue;
+      if (!kodiakRuns) {
+        if (ctx.queueBot === 'none' && mergifyDequeued(r.queueTitle)) {
+          const n = (state.requeued || {})[r.headSha] || 0;
+          if (n < 1) actions.push({ op: 'requeue', number: r.number, headSha: r.headSha, why: `green, Mergify reads "${r.queueTitle}"` });
+          else alerts.push({ number: r.number, kind: 'dequeued', why: `Mergify dequeued head ${String(r.headSha).slice(0, 9)} again after a requeue — a coder owns it` });
+        }
+        continue;
+      }
       const quietSince = Math.max(r.updatedAtMs || 0, ctx.mainMovedAtMs || 0);
       const quiet = now - quietSince > idleMs;
       if (!quiet) continue;
@@ -339,7 +357,8 @@ export function snapshot() {
       branch: p.headRefName,
       updatedAtMs: Date.parse(p.updatedAt),
       checks,
-      readable
+      readable,
+      queueTitle: p.isDraft ? null : mergifyQueueTitle(p.headRefOid)
     };
   });
   let mainMovedAtMs = 0;
@@ -366,6 +385,14 @@ export function queueBotOf(read) {
     return /HTTP 404/.test(String(e.stderr || e.message || '')) ? 'none' : 'unknown';
   }
 }
+/* The output title of the head's `Mergify Merge Queue` check run, or null when none reads. */
+function mergifyQueueTitle(sha) {
+  try {
+    return gh(['api', `repos/{owner}/{repo}/commits/${sha}/check-runs?check_name=Mergify%20Merge%20Queue`, '--jq', '.check_runs[0].output.title // ""']).trim() || null;
+  } catch {
+    return null;
+  }
+}
 function queueBot() {
   return queueBotOf(() => gh(['api', 'repos/{owner}/{repo}/contents/.kodiak.toml?ref=main', '--jq', '.sha']));
 }
@@ -378,7 +405,7 @@ function loadState() {
   try {
     return JSON.parse(readFileSync(STATE_FILE, 'utf8'));
   } catch {
-    return { reruns: {}, rebased: {}, firstPending: {} };
+    return { reruns: {}, rebased: {}, firstPending: {}, requeued: {} };
   }
 }
 function saveState(s) {
@@ -783,7 +810,12 @@ export function act(actions, state, opts) {
         result = rebaseBranch(a, opts.worktree);
         state.rebased[a.headSha] = result;
       } else if (a.op === 'update') run(['pr', 'update-branch', String(a.number)]);
-      else if (a.op === 'merge') run(['pr', 'merge', String(a.number), '--squash', '--match-head-commit', a.headSha]);
+      else if (a.op === 'requeue') {
+        /* The attempt counts before the call, as in `rerun`. */
+        state.requeued ||= {};
+        state.requeued[a.headSha] = (state.requeued[a.headSha] || 0) + 1;
+        run(['pr', 'comment', String(a.number), '--body', '@mergifyio queue']);
+      } else if (a.op === 'merge') run(['pr', 'merge', String(a.number), '--squash', '--match-head-commit', a.headSha]);
     } catch (e) {
       result = `failed: ${String(e.stderr || e.message || e)
         .split('\n')[0]
@@ -812,7 +844,8 @@ const SIGN_VERB = {
   'rerun-all': 're-ran every job in the cancelled required run(s)',
   rebase: 'rebased this branch onto main with `tools/rebase-safe.mjs` and pushed it',
   update: 'updated this branch from main',
-  merge: 'squash-merged this PR'
+  merge: 'squash-merged this PR',
+  requeue: 'asked Mergify to queue this PR again'
 };
 export function signature(a, at) {
   const ok = a.result === 'ok' || /^pushed:/.test(a.result || '');
@@ -1039,6 +1072,7 @@ export function pass(opts) {
   state.reruns ||= {};
   state.rebased ||= {};
   state.firstPending ||= {};
+  state.requeued ||= {};
   const rows = snap.prs.map((p) => classify(p, snap.required));
   const now = Date.now();
   for (const r of rows) {
