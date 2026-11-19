@@ -16,7 +16,7 @@
 #    whole pool.
 #  - No `merge_conditions` list. `branch_protection_injection_mode` defaults to `queue`, so Mergify
 #    reads the required checks from the `protect-main` ruleset. A second list here would drift from it.
-#  - `squash` and the `do-not-merge` hold match `.kodiak.toml`. A draft is never queued; the walker
+#  - `squash` and the `do-not-merge` hold match Kodiak's old config. A draft is never queued; the walker
 #    readies a green draft (CLAUDE.md §5).
 #  - The squash message keeps the title, the number and the PR body, as Kodiak's
 #    `body = "pull_request_body"` does, so every commit on main still carries the
@@ -43,12 +43,9 @@ queue_rules:
 merge_queue:
   mode: serial
 
-pull_request_rules:
-  - name: queue every ready PR
-    conditions:
-      - base=main
-      - -draft
-      - label!=do-not-merge
-    actions:
-      queue:
-        name: default
+# Mergify starts the queue on its own only through `auto_merge_conditions`. Measured 2026-11-18 on
+# PR 5319: under a `pull_request_rules` queue action, Mergify reported "Merge queue is ready" and
+# waited for a `@mergifyio queue` command. With `true`, every PR that matches `queue_conditions`
+# above enters the queue. Ref: docs.mergify.com/merge-protections/auto-merge.
+merge_protections_settings:
+  auto_merge_conditions: true
