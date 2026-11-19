@@ -31,6 +31,7 @@ import {
   unrestoredFrom as rebaseUnrestoredFrom,
   heldGoldens as rebaseHeldGoldens,
   resolvePlan as rebaseResolvePlan,
+  rebuildAdvice as rebaseRebuildAdvice,
   driveRebaseStops as rebaseDriveStops,
   trackedOracle as rebaseTrackedOracle
 } from '../tools/rebase-safe.mjs';
@@ -3722,6 +3723,7 @@ async function main() {
     /* The remedy's DECISION half, pure and driven by value: which named paths the builders may
        restore, and what each refusal says. The CLI writes bytes; this decides. */
     rebaseResolvePlan: rebaseResolvePlan,
+    rebaseRebuildAdvice: rebaseRebuildAdvice,
     rebaseDriveStops: rebaseDriveStops,
     rebaseTrackedOracle: rebaseTrackedOracle,
     /* The gate's own verdict extractor, single-sourced: `rebase-safe` reads a PR body with the same
