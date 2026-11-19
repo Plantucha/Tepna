@@ -171,9 +171,38 @@ export function isCitation(line, m) {
 /* THE PATHS THIS GATE DOES NOT SCAN, DISCLOSED (residue 2026-11-15-gates-share-an-undisclosed-file-exclusion).
    A test plants the fabricated shape on purpose, so `tests/` stays out. The gate COUNTS what it skips
    and the verdict carries that count as `population.excluded`, because a pathspec nobody reads is an
-   exclusion in the dark. */
-export const EXCLUDED_PATHS = [{ path: 'tests/', why: 'the suite plants the fabricated shape on purpose, as a fixture' }];
-const isExcluded = (file) => EXCLUDED_PATHS.some((e) => file.startsWith(e.path));
+   exclusion in the dark.
+
+   TWO TREES USED TO ENTER NEITHER COUNT (residue 2026-11-19-the-absence-gate-diff-omits-mjs-and-python).
+   The diff pathspec read `'*.js'` and `'*.src.html'` alone, so 389 `.mjs` files and every `.py` file
+   were neither scanned nor excluded, and no reader of a PASS could see that. The pathspec now names
+   both, and each tree gets the answer its language earns.
+   `.mjs` IS SCANNED: it is the same language with the same shapes, and the widening found 6 sites in
+   `tools/`, each recorded in the backlog ledger.
+   `.py` IS EXCLUDED, WITH ITS REASON: `isCitation` below reads JavaScript comment syntax, so it
+   cannot tell a `#` comment or a docstring from code, and both Python matches in this tree sit in
+   prose. A Python pattern set is its own unit.
+   THIS FILE IS EXCLUDED TOO: the selftest plants the shape 13 times and every pattern quotes it in
+   its own `why`, so a scan of the gate reported 27 fabrications inside the gate that forbids them. */
+export const EXCLUDED_PATHS = [
+  { path: 'tests/', why: 'the suite plants the fabricated shape on purpose, as a fixture' },
+  { path: 'tools/absence-regression.mjs', why: 'this gate plants the shape in its own selftest and quotes it in every pattern message' },
+  {
+    path: '*.py',
+    match: 'suffix',
+    why: 'the classifier reads JavaScript comment syntax, so it cannot tell a Python comment or docstring from code — a Python pattern set is its own unit'
+  }
+];
+/* THE PATHSPEC IS A NAMED CONSTANT so the selftest can read it. The omission this list repairs was a
+   literal inside one `git diff` call, and nothing asserted its contents, so the two absent trees cost
+   nothing to lose and nothing to notice. A dropped entry here now reds a leg
+   (residue 2026-11-19-the-absence-gate-diff-omits-mjs-and-python). */
+export const DIFF_PATHSPEC = ["'*.js'", "'*.src.html'", "'*.mjs'", "'*.py'"];
+
+/* A `match: 'suffix'` entry keys on the EXTENSION, because `.py` files sit under `capture-host/`,
+   `experiments/` and `tools/`, so no one prefix reaches them. Its `path` stays the human label that
+   every print site and the verdict's `notScanned` already read. */
+const isExcluded = (file) => EXCLUDED_PATHS.some((e) => (e.match === 'suffix' ? file.endsWith(e.path.slice(1)) : file.startsWith(e.path)));
 
 /**
  * PURE CORE — classify the ADDED lines of a diff. No git, no clock, no fs, so the selftest can plant
@@ -345,6 +374,27 @@ export function selftest() {
     'every excluded path carries its reason'
   );
 
+  /* ── THE TWO TREES THE PATHSPEC OMITTED (residue 2026-11-19-the-absence-gate-diff-omits-mjs-and-python).
+     An exclusion list cannot declare a tree the diff never carries, so each leg below plants a line
+     the old pathspec never produced. Every planted line WOULD hit if the classifier scanned it, so an
+     exclusion leg reads the exclusion and not an absent pattern. ── */
+  ok(DIFF_PATHSPEC.includes("'*.mjs'"), 'the diff pathspec names `*.mjs`, so the 389-file tools tree reaches the classifier');
+  ok(DIFF_PATHSPEC.includes("'*.py'"), 'the diff pathspec names `*.py`, so the Python tree can be COUNTED as excluded');
+  ok(
+    EXCLUDED_PATHS.some((e) => e.match === 'suffix' && e.path === '*.py'),
+    'the Python tree is declared, not silently absent, because the pathspec alone would make it a FAIL in a language this classifier cannot read'
+  );
+  const mjs = classifyAdded(['+++ b/tools/pr-walker.mjs', '+      updatedAtMs: pr.updatedAtMs || 0,']);
+  ok(mjs.hits.length === 1 && mjs.excluded === 0, 'an added line in a `.mjs` tool is SCANNED, not excluded');
+  const py = classifyAdded(['+++ b/capture-host/stream.py', '+    stamp = rec.t0Ms || 0']);
+  ok(py.hits.length === 0 && py.excluded === 1, 'an added `.py` line is counted as EXCLUDED with its reason, not dropped');
+  const selfPlant = classifyAdded(['+++ b/tools/absence-regression.mjs', '+      tMs: f.stamp || 0,']);
+  ok(selfPlant.hits.length === 0 && selfPlant.excluded === 1, "a plant in the gate's own file is counted as EXCLUDED, not reported as a fabrication");
+  const notPy = classifyAdded(['+++ b/tools/copy.js', '+      tMs: f.stamp || 0,']);
+  ok(notPy.hits.length === 1 && notPy.excluded === 0, 'CONTROL: the suffix rule reads the extension, so `copy.js` stays scanned');
+  const sibling = classifyAdded(['+++ b/tools/pr-walker.mjs', '+      tMs: f.stamp || 0,']);
+  ok(sibling.hits.length === 1, 'CONTROL: the gate excludes its OWN file by exact path, so another tool in the same directory is scanned');
+
   /* ── THE GENERAL SPELLING (residue 2026-11-15-absence-gates-skip-the-or-zero-spelling) ───────────
      MEASURED BEFORE IT WAS WRITTEN. Over the 80 first-parent merges of main at be2a0d1bb this
      classifier read 1,499 added lines inside the gate's population, and ONE was a code `|| 0`:
@@ -447,8 +497,11 @@ function main() {
   const base = fullTree ? EMPTY_TREE : baseIdx >= 0 ? process.argv[baseIdx + 1] : 'HEAD';
   const head = 'HEAD';
 
-  /* No `:!tests/` pathspec: the classifier skips EXCLUDED_PATHS itself, so it can COUNT what it skips. */
-  const diff = sh(`git diff ${base}..${head} -U0 -- '*.js' '*.src.html'`);
+  /* No `:!tests/` pathspec: the classifier skips EXCLUDED_PATHS itself, so it can COUNT what it skips.
+     The pathspec names `'*.mjs'` and `'*.py'` so that both trees reach that classifier at all. An
+     exclusion list cannot declare a tree the diff never carries, and for `.mjs` there was nothing to
+     declare: it belongs in the scan (residue 2026-11-19-the-absence-gate-diff-omits-mjs-and-python). */
+  const diff = sh(`git diff ${base}..${head} -U0 -- ${DIFF_PATHSPEC.join(' ')}`);
   /* THE PATTERN SET IS THE MODE. The general `|| 0` spelling reads 487 lines of this tree, so the
      shrink-only ratchet would carry a backlog nobody can move; it runs on the DIFF alone. */
   const patterns = patternsFor(fullTree);
