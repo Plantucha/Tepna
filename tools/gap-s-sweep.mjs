@@ -413,8 +413,12 @@ function selftest() {
   /* NULL CONTROL — the instrument must SEE the cut. A flat curve on the real corpus is only a finding if a
      planted gap moves the number: a synthetic ECG night with one 20 s gap is analysed in patched realms at
      10 s and 30 s — at 10 the gap is an absence (excluded from the CVHR denominator), at 30 it is inside
-     the cut and counted — so the active seconds must differ by ~20 s, and NOT differ between 3 and 10
-     (the gap is an absence under both). Without this, a renamed constant or a dead code path would sweep
+     the cut and counted — so the active seconds must differ by ~130 s, and NOT differ between 3 and 10
+     (the gap is an absence under both). The 130 s is the gap's own 20 s PLUS the 110 s mirror window
+     `briefs/CVHR-HOLE-EDGE-EXCLUSION-2026-10-19-BRIEF.md` added: the detector now excludes every second
+     whose own decision window reaches the hole, so a hole costs its length plus that window. The bound
+     stays narrow for the same reason the old one did — a 5400 s span quotient must still red it.
+     Without this, a renamed constant or a dead code path would sweep
      nothing and report "GAP_S does not matter" as a result (§4b). */
   {
     const r10 = realm(ECG_FILES, 'ecgdex-dsp.js', ECG_DECL, 'GAP_S', 10);
@@ -428,7 +432,11 @@ function selftest() {
     const d10 = mk(r10).cvhr.denomSec;
     const d30 = mk(r30).cvhr.denomSec;
     const d3 = mk(r3).cvhr.denomSec;
-    ok('NULL CONTROL · a planted 20 s gap is counted at GAP_S 30 and excluded at 10: denominator differs by ~20 s', d30 - d10 > 15 && d30 - d10 < 25, JSON.stringify({ d10, d30 }));
+    ok(
+      'NULL CONTROL · a planted 20 s gap is counted at GAP_S 30 and excluded at 10: denominator differs by ~130 s (20 s gap + 110 s mirror window)',
+      d30 - d10 > 120 && d30 - d10 < 140,
+      JSON.stringify({ d10, d30, diff: +(d30 - d10).toFixed(2) })
+    );
     ok('NULL CONTROL · …and is an absence under both 3 and 10 (no difference)', Math.abs(d10 - d3) < 1, JSON.stringify({ d3, d10 }));
   }
   {
