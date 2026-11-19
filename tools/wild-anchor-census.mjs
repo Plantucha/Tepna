@@ -47,6 +47,7 @@
 //   node tools/wild-anchor-census.mjs --verdict-sample
 //   node tools/wild-anchor-census.mjs --selftest
 import { closeSync, mkdtempSync, openSync, readdirSync, readSync, statSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { StringDecoder } from 'node:string_decoder';
 import { createRequire } from 'node:module';
@@ -485,6 +486,24 @@ function selftest() {
   const popNone = censusPopulation([], 1);
   eq('population · nothing measurable is NOT_RUN, never PASS', [popNone.status, popNone.checked], ['NOT_RUN', 0]);
   eq('…and NOT_RUN carries no result, because the criterion bound on nothing', censusVerdict([], ['/r'], 1, 'abc1234').result, null);
+  eq(
+    '…and the exit code says what the object says — NOT_RUN refuses with 2, never 0',
+    [censusExitCode('NOT_RUN'), censusExitCode('FAIL'), censusExitCode('PASS'), censusExitCode('UNDERPOWERED')],
+    [2, 1, 0, 0]
+  );
+  /* A PIN ON THE MAPPING PINS NOTHING ABOUT THE WIRING, so this leg runs the real CLI over a readable
+     root holding no stream and reads the process's own code. Reverting the exit line alone, with the
+     function left in place, reds HERE and nowhere else. The root is empty, so the walk is sub-second. */
+  {
+    const emptyRoot = mkdtempSync(join(tmpdir(), 'wildanch-empty-'));
+    let code = 0;
+    try {
+      execFileSync(process.execPath, [fileURLToPath(import.meta.url), '--root', emptyRoot, '--json'], { stdio: 'ignore' });
+    } catch (e) {
+      code = e.status == null ? -1 : e.status;
+    }
+    eq('wiring · the real CLI over a root holding no stream exits 2', code, 2);
+  }
   const popMixed = censusPopulation(
     [row({ ...cleanM }), { night: '2026-08-15', group: 'captures', device: 'H10', stream: 'HR', measured: false, reason: '0 anchor(s), under the spine floor of 3' }],
     1
@@ -541,6 +560,18 @@ function opt(n, dflt = null) {
   return i > 0 && i + 1 < process.argv.length ? process.argv[i + 1] : dflt;
 }
 
+/* THE EXIT CODE MUST SAY THE SAME THING AS THE OBJECT. `NOT_RUN` means the census examined nothing,
+   and the line that stood here mapped it to 0 beside a published `NOT_RUN` — so a caller reading `$?`
+   alone read a pass about a population of zero (CLAUDE.md §4c: a run that could not look exits 2, where
+   1 means it looked and the criterion failed). An EMPTY corpus root reaches this line, because an
+   ABSENT one refuses earlier on the search. `tools/oxy-hr-bias.mjs` already carries this rule in its
+   own ledger note. PURE, so the mapping is assertable without a corpus. */
+export function censusExitCode(status) {
+  if (status === 'FAIL') return 1;
+  if (status === 'NOT_RUN') return 2;
+  return 0;
+}
+
 if (isCliEntry(import.meta.url)) {
   refuseUnknownArgvOrExit({
     boolean: ['--json', '--selftest', '--verdict-sample'],
@@ -571,5 +602,5 @@ if (isCliEntry(import.meta.url)) {
   const v = censusVerdict(res.rows, roots, res.bound, commit);
   if (opt('--out')) writeFileSync(opt('--out'), `${JSON.stringify({ verdict: v, rows: res.rows }, null, 1)}\n`);
   printVerdict(v, { json: flag('--json') });
-  process.exit(pop.status === 'FAIL' ? 1 : 0);
+  process.exit(censusExitCode(pop.status));
 }
