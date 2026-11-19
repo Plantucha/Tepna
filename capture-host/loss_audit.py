@@ -1105,6 +1105,77 @@ def witness_judges(witness, t0: _dt.datetime, g: float) -> tuple[str, float | No
     return ("undelivered" if advance >= g - RING_WITNESS_TOL_S else "silence", advance)
 
 
+#: A ring gap that the ring's own 0x04 frames cover, every frame with no SpO2 value. The link delivered
+#: those frames, so the box did not lose them: the ring reported that it held no reading.
+#: MEASURED on the capture box, night 2026-11-17: two ring gaps of 48 s and 66 s at 22:53:40 and
+#: 22:54:33, both inside the first three minutes of wear. Across each gap the ring sent one frame a
+#: second with `spo2` blank and `duration_s` back to 0, the first two with `contact` 0. The link stayed
+#: up and the ring's PPG, ACC and frame streams ran on. The judge read both gaps as `unattributed` and
+#: the night FAILed on 114 s that the device itself declared empty.
+DEVICE_NO_READING = "device:no reading"
+#: The ring sends one frame a second. A frame step above this is a delivery hole, and then the frames
+#: cannot say what the ring reported across it.
+RING_FRAME_STEP_MAX_S = 2.0
+_OXYFRAME_SPO2 = "spo2"
+
+
+def oxyframe_readings(path: str) -> list[tuple[_dt.datetime, int | None]]:
+    """`[(host stamp, spo2)]` for one 0x04 frame file, by header name. A blank cell is None, never 0 (§∅).
+
+    A row before any header line is skipped, for the reason `oxyframe_samples` gives."""
+    out: list[tuple[_dt.datetime, int | None]] = []
+    cols: list[str] | None = None
+    with open(path, "rb") as fh:
+        for raw in fh:
+            line = raw.decode("utf-8", "replace")
+            if line.startswith("Phone timestamp"):
+                cols = [c.strip() for c in line.split(";")]
+                continue
+            if cols is None:
+                continue
+            stamp = _ni.parse_host_stamp(line)
+            if stamp is None:
+                continue
+            out.append((stamp, _cell_int(cols, line.split(";"), _OXYFRAME_SPO2)))
+    return out
+
+
+def ring_readings(night_dir: str) -> list[tuple[_dt.datetime, int | None]]:
+    """`[(host stamp, spo2)]` across every 0x04 frame file of the recording, sorted by host stamp."""
+    out: list[tuple[_dt.datetime, int | None]] = []
+    for path in _recording_glob(night_dir, _RING_OXYFRAME):
+        try:
+            out.extend(oxyframe_readings(path))
+        except OSError:
+            continue  # one unreadable frame file is not the absence of a witness
+    out.sort()
+    return out
+
+
+def no_reading_frames(frames, t0: _dt.datetime, g: float) -> int | None:
+    """The count of ring frames that cover the gap `[t0, t0 + g)` with no SpO2 value, or None.
+
+    The gap's `t0` is the last SpO2 row before it, stamped to the second, and its frame carries the
+    value that row holds. So the frames that speak for the gap start one second after `t0` and stop
+    before the first row after it. They answer only when ALL of these hold:
+      · at least one frame sits in that window;
+      · no frame in it carries a value, because one value means the ring held a reading there;
+      · the first frame is within `RING_FRAME_STEP_MAX_S` of the window start, the last one within it
+        of the window end, and no step between two frames is longer. A longer step is a delivery hole,
+        and the frames cannot speak for it.
+    """
+    lo = t0 + _dt.timedelta(seconds=1)
+    hi = t0 + _dt.timedelta(seconds=g)
+    ts = [f[0] for f in frames]
+    inner = frames[bisect.bisect_left(ts, lo) : bisect.bisect_left(ts, hi)]
+    if not inner or any(v is not None for _t, v in inner):
+        return None
+    edges = [lo] + [t for t, _v in inner] + [hi]
+    if max((b - a).total_seconds() for a, b in itertools.pairwise(edges)) > RING_FRAME_STEP_MAX_S:
+        return None
+    return len(inner)
+
+
 def _iso(t) -> "str | None":
     """A datetime as ISO-8601, or None — never a fabricated stamp for a file that carried none (§∅).
 
@@ -2485,6 +2556,17 @@ def audit_night(
         if ev is None:
             out["journal"] = "unavailable — every gap is unattributed"
         detail = attribute_gaps_detail(gaps, ev, js)
+        # THE RING'S OWN FRAMES OUTRANK `unattributed`, and nothing else. A gap with a journal line keeps
+        # that line's cause, and a night with no journal keeps `unattributed (no journal)`, because the
+        # frames say what the ring reported and not why the box did anything. The seconds stay in loss:
+        # the SpO2 values across the gap do not exist anywhere (§∅). Only the cause changes.
+        if pat == _RING_SPO2:
+            readings = ring_readings(night_dir)
+            for r in detail:
+                n = no_reading_frames(readings, r["at"], r["s"]) if r["cause"] == "unattributed" else None
+                if n is not None:
+                    r["cause"] = DEVICE_NO_READING
+                    r["no_reading_frames"] = n
         per_gap = [(r["at"], r["s"], r["cause"]) for r in detail]
         # ONE LIST STILL. `by_cause` covers every published gap, so `gaps` and `by_cause` cannot disagree
         # — the invariant `test_the_published_gaps_are_exactly_what_by_cause_sums` defends. What changes is
@@ -2563,6 +2645,8 @@ def audit_night(
                     "cause_dir": r["cause_dir"],
                     "backward_cause": r["backward_cause"],
                     "in_gap_cause": r["in_gap_cause"],
+                    # present only on a gap the ring's own frames declared empty
+                    **({"no_reading_frames": r["no_reading_frames"]} if "no_reading_frames" in r else {}),
                     **({"boundary": True} if w.get("boundary") else {"file": w["file"]}),
                     # present only where a second witness was consulted: the ring's streams
                     **(
