@@ -5638,6 +5638,22 @@ def test_oxyframe_readings_reads_spo2_by_name_and_a_blank_cell_is_None_never_0(t
     ], rows
 
 
+def test_oxyframe_readings_reads_past_a_torn_line_and_a_non_utf8_byte(tmp_path):
+    # A torn line in the MIDDLE must not end the read, and one bad byte must not raise.
+    p = tmp_path / "x_OXYFRAME.txt"
+    p.write_bytes(
+        _OXY_HDR.encode()
+        + b"2026-11-17T22:00:01.900;0;25.5;0;97;58;1;80;0;0;126;1;0;0;0;2\n"
+        + b"torn \xff line\n"
+        + b"2026-11-17T22:00:02.900;0;25.5;0;96;58;1;80;0;0;126;1;0;0;0;\xfe\n"
+    )
+    rows = loss_audit.oxyframe_readings(str(p))
+    assert rows == [
+        (dt.datetime(2026, 11, 17, 22, 0, 1, 900000), 97),
+        (dt.datetime(2026, 11, 17, 22, 0, 2, 900000), 96),
+    ], rows
+
+
 def test_ring_readings_joins_every_frame_file_sorted_and_skips_an_unreadable_one(tmp_path, monkeypatch):
     d = _noread_night(tmp_path)
     second = os.path.join(d, "Wellue_O2Ring-S_S8AW2100_20261117224000_OXYFRAME.txt")
