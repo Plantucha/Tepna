@@ -2426,6 +2426,38 @@
     }
     let coveredSec = 0;
     for (let s = 0; s < M; s++) coveredSec += covered[s];
+    /* ── §∅ · THE EXCLUSION IS THE MIRROR OF THE DECISION WINDOW ─────────────────────────────────
+       `briefs/CVHR-HOLE-EDGE-EXCLUSION-2026-10-19-BRIEF.md`. Testing `covered[s]` alone excluded a
+       hole's OWN seconds, and the decision at `s` reads far outside `s`:
+
+         `sm[s]`  mean of `hr[s-2 … s+2]`                                 ±2
+         `lo`     `ma(sm, 23)` reads `sm[s-23 … s+23]`                     ±25
+         `hiCut`  `ma(sm, 4)`                                              ±6
+         `env[s]` mean of `|res[s-12 … s+12]|`                             ±37
+         rebound  reads `res[u]`, u = s+8 … s+47, and `res[s+47]` reaches  s+72
+
+       So the decision at `s` rests on `hr[s - 37 … s + 72]`, and a hole `[h0, h1]` contaminates
+       every `s` with `s >= h0 - 72 && s <= h1 + 37`. ⚠️ THE WIDEN REACHES 72 s BEFORE A HOLE AND
+       37 s AFTER IT, which is the MIRROR of the support window. Writing it the other way round is a
+       real error: `tools/cvhr-edge-widen.mjs` had it that way first, and its planted battery could
+       not catch it, because every planted hole sits mid-record.
+       Measured by that tool over 42 phase-matched planted cases and both nodes: the shipped rule
+       still let a hole ADD 2 events, the residual's support and the envelope's support each left 1,
+       and only the whole decision window read 0. The cost over 350 real streams is 0.008 events per
+       hole, against a ceiling of 2 that the detector's structure states in advance. */
+    const CVHR_SUPPORT_BACK_S = 37; // the envelope gate's backward reach over the residual
+    const CVHR_SUPPORT_FWD_S = 72; // the rebound search, through the residual's own support
+    /* Prefix sums over the holes keep the window test O(1) per second instead of O(109). */
+    const holeAt = new Int32Array(M + 1);
+    for (let s = 0; s < M; s++) holeAt[s + 1] = holeAt[s] + (covered[s] ? 0 : 1);
+    const contam = new Uint8Array(M);
+    for (let s = 0; s < M; s++) {
+      const a = Math.max(0, s - CVHR_SUPPORT_BACK_S);
+      const b = Math.min(M, s + CVHR_SUPPORT_FWD_S + 1);
+      contam[s] = holeAt[b] - holeAt[a] > 0 ? 1 : 0;
+    }
+    let contamSec = 0;
+    for (let s = 0; s < M; s++) contamSec += contam[s];
     // smooth (5 s) for the display series
     const sm = new Float64Array(M);
     for (let s = 0; s < M; s++) {
@@ -2490,7 +2522,7 @@
     const events = [];
     let lastT = -100;
     for (let s = 8; s < M - 8; s++) {
-      if (!covered[s]) continue; // §∅ — a dropout's held HR is not a measurement to detect a surge in
+      if (contam[s]) continue; // §∅ — the DECISION window touches a dropout, so no surge was measured here
       if (env[s] < ENV_ON) continue; // not a sustained oscillation → skip (rejects sporadic LF)
       if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {
         let pk = -Infinity,
@@ -2519,9 +2551,25 @@
        uses. `activeSec` is what analyze() measured (nnRes.activeSec); absent or 0 it falls back to
        the span, which is exact for a gap-free series (activeSec ≡ tEnd − tt[0] there). `denomSec`
        is returned so a consumer can see the basis rather than infer it. */
-    const denomSec = activeSec > 0 ? activeSec : tEnd;
+    /* §∅ — THE DENOMINATOR LOSES THE SAME SECONDS. `index` counts events per hour of OBSERVED
+       recording, and a second whose decision the mask excludes is not a second this metric
+       observed. Dropping the events while keeping the whole denominator biases the index DOWN, and
+       hardest on the records where the exclusion is widest. `activeSec` is beat-covered time, and
+       the seconds this widen adds to the holes are beat-covered seconds beside them, so the two are
+       one population and the subtraction is sound. */
+    const excludedSec = Math.max(0, contamSec - (M - coveredSec));
+    const baseSec = activeSec > 0 ? activeSec : tEnd;
+    const denomSec = Math.max(0, baseSec - excludedSec);
+    /* A RECORD THE EXCLUSION SWALLOWS OWES A NAMED REFUSAL, NOT A LOW NUMBER. Measured over 350
+       real streams: 194 lose nothing and the median loses 0 %, while 35 lose at least half their
+       events and 27 lose all of them, each carrying one or two events over spans of 500 s to
+       3500 s. A record that short does not survive the widen, so an index over what is left would
+       read as a physiological rate. The EVENTS stay: each one was decided on seconds the mask kept,
+       and an empty list would state that no CVHR cycle occurred. */
+    const CVHR_MIN_DECIDABLE_FRAC = 0.5;
+    const swallowed = !(baseSec > 0) || denomSec / baseSec < CVHR_MIN_DECIDABLE_FRAC;
     const hours = denomSec / 3600;
-    const index = hours > 0 ? +(events.length / hours).toFixed(1) : 0;
+    const index = swallowed ? null : hours > 0 ? +(events.length / hours).toFixed(1) : 0;
     /* §∅ — the EXPORTED series carries the absence. A held stretch is indistinguishable from a
        measured steady HR once it is a number in an array, and the CVHR card draws it with
        `UI.lineChart`, so the chart is where the fabrication reached a reader. `null` there, and
@@ -2531,7 +2579,21 @@
        the boundary contamination is bounded and named instead. */
     const hrOut = new Array(M);
     for (let s = 0; s < M; s++) hrOut[s] = covered[s] ? sm[s] : null;
-    return { events, index, hrSeries: hrOut, resSeries: Array.from(res), M, denomSec, coveredSec };
+    /* `reason` is a REQUIRED key, never a conditional spread. Measured 2026-11-19 with the gate's
+       own tsc pin: an OPTIONAL property on this return blocks TypeScript's subtype reduction, so
+       every refusal return above becomes a live union member and `.denomSec` stops existing. The
+       export publishes the key only when it is non-null, so a `null` here moves no fixture. */
+    return {
+      events,
+      index,
+      hrSeries: hrOut,
+      resSeries: Array.from(res),
+      M,
+      denomSec,
+      coveredSec,
+      excludedSec,
+      reason: swallowed ? 'cvhr-exclusion-covers-most-of-span' : null
+    };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -3509,7 +3571,7 @@
 
     // CVHR apnea screen is invalid under exercise → withhold the index/events. The HR series
     // is kept (heart rate IS valid for a walk); only the apnea interpretation is suppressed.
-    const cvhr = ambulatory ? { index: null, events: [], hrSeries: cvhrRaw.hrSeries, resSeries: cvhrRaw.resSeries, M: cvhrRaw.M, suppressed: true } : cvhrRaw;
+    const cvhr = ambulatory ? { index: null, events: [], hrSeries: cvhrRaw.hrSeries, resSeries: cvhrRaw.resSeries, M: cvhrRaw.M, suppressed: true, reason: null } : cvhrRaw;
     const hrvStab = longRec && !ambulatory ? hrvStability(epochs) : null; // Li/Kiyono 2026 (nocturnal-only)
     const surgeEsc = longRec && !ambulatory ? surgeEscalation(cvhrRaw.events, durSec) : null;
 
@@ -3848,7 +3910,17 @@
       totSleep: +totSleep.toFixed(0),
       // `denomSec` rides along (F3): this reshape is an ALLOWLIST, so a field detectCVHR returns and
       // the export reads is dead unless it is named here — the analyze-level assertion is what shows it.
-      cvhr: { index: cvhr.index, events: cvhr.events, hrSeries: cvhr.hrSeries, resSeries: cvhr.resSeries, denomSec: cvhr.denomSec },
+      /* `reason` rides along too. A refusal the allowlist drops reaches the reader as a bare `null`,
+         and the mirror-window exclusion can refuse the index on a short record. PpgDex has published
+         `cvhrReason` since its own parity work; this side had no channel at all. */
+      cvhr: {
+        index: cvhr.index,
+        events: cvhr.events,
+        hrSeries: cvhr.hrSeries,
+        resSeries: cvhr.resSeries,
+        denomSec: cvhr.denomSec,
+        ...(cvhr.reason ? { reason: cvhr.reason } : {})
+      },
       hrvStab,
       surgeEsc,
       crc,
@@ -9132,6 +9204,13 @@
          computed — a refusal (N<60, implausible span) carries no basis, and the no-null-key
          discipline keeps the common export byte-stable on the refusal path. */
       if (out.apnea && out.apnea.cvhrIndex != null && r.cvhr && r.cvhr.denomSec > 0) out.apnea.cvhrHours = +(r.cvhr.denomSec / 3600).toFixed(2);
+      /* §∅ — A NULL INDEX TRAVELS WITH ITS REASON, and this block MIRRORS `buildV2` in
+         `ecgdex-app.js` field-for-field (SHARED-SHAPE mandate), so the two sites move together.
+         The mirror-window exclusion refuses the index when a dropout swallows most of the
+         record's decision windows, and a bare `null` beside a `method` string reads as "no CVHR
+         cycle occurred". The ambulatory branch carries its own `suppressedReason`, so this
+         attaches only to the computed branch. */
+      if (out.apnea && !r.ambulatory && out.apnea.cvhrIndex == null && r.cvhr && r.cvhr.reason) out.apnea.cvhrReason = r.cvhr.reason;
       out.hrvStability = r.hrvStab
         ? {
             sigma_lnRMSSD_slope: r.hrvStab.sigma_lnRMSSD_slope,
