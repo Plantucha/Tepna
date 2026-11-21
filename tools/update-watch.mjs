@@ -205,11 +205,30 @@ async function readInstalled(src) {
   return { version: m ? m.digest : null };
 }
 
+/* A row value is a version string, a digest or null. Coerce before measuring the length: a value of
+   another shape used to throw here, and one unreadable row must never cost the whole table. */
+const short = (v) => {
+  if (v == null) return '—';
+  const s = String(v);
+  return s.length > 20 ? `${s.slice(0, 12)}…` : s;
+};
+
+/** `npm view <pkg> version --json` prints a bare string when one version matches and an ARRAY when
+ * several do (measured 2026-11-21: `@anthropic-ai/claude-code` printed `["2.1.330"]`). Take the
+ * newest member that reads as a version, or null when none does — never the printed value itself,
+ * because every consumer below reads a version string, and an array reaching them is a crash. */
+export function pickNpmVersion(printed) {
+  const versions = (Array.isArray(printed) ? printed : [printed]).map((v) => normVersion(v)).filter((v) => v !== null);
+  if (!versions.length) return null;
+  return versions.reduce((best, v) => (compareVersions(best, v) === -1 ? v : best));
+}
+
 async function readLatest(src) {
   const l = src.latest;
   if (l.npm) {
     const time = JSON.parse(run('npm', ['view', l.npm, 'time', '--json'], 60000));
-    const version = JSON.parse(run('npm', ['view', l.npm, 'version', '--json'], 60000));
+    const version = pickNpmVersion(JSON.parse(run('npm', ['view', l.npm, 'version', '--json'], 60000)));
+    if (version === null) return { version: null };
     return { version, publishedMs: Date.parse(time[version]) || null, prerelease: /-/.test(version), notes: `https://www.npmjs.com/package/${l.npm}` };
   }
   if (l.github) {
@@ -276,6 +295,13 @@ function selftest() {
   ok(compareVersions('0.5.0-rc.100', '0.5.0-rc.101') === -1, 'a pre-release number compares as a number');
   ok(compareVersions('0.40.15-rc2', '0.40.15') === -1, 'a pre-release sorts below its release');
   ok(compareVersions('sha256:abc', '1.0.0') === null, 'a digest is not a version');
+  ok(pickNpmVersion('2.1.330') === '2.1.330', 'npm printing one version reads that version');
+  ok(pickNpmVersion(['2.1.330']) === '2.1.330', 'npm printing a one-member array reads the member');
+  ok(pickNpmVersion(['2.1.9', '2.1.10']) === '2.1.10', 'npm printing several versions reads the newest, by number');
+  ok(pickNpmVersion([]) === null, 'npm printing nothing reads null, never a default');
+  ok(pickNpmVersion(['latest']) === null, 'a member that is not a version reads null');
+  ok(pickNpmVersion(null) === null, 'an absent version reads null');
+  ok(typeof short(['2.1.330']) === 'string' && typeof short(null) === 'string', 'the table renders any row shape without throwing');
   ok(readiness({ ...base, installed: 'aaaa', latest: 'bbbb', publishedMs: null, firstSeenMs: now - 4 * DAY }).ready, 'two different digests still read as an update');
   const p = promptText({ name: 'x', installed: '1', latest: '2', why: '3 d old', published: 'd', notes: 'u', quiet: 'q', steps: ['s'], owner: 'sudo' });
   ok(p.includes('needs the owner') && p.includes('Do not run them'), 'an owner step tells the session not to run it');
@@ -345,7 +371,6 @@ for (const src of SOURCES) {
   rows.push(row);
 }
 
-const short = (v) => (v && v.length > 20 ? `${v.slice(0, 12)}…` : (v ?? '—'));
 if (!flag('--json')) {
   for (const r of rows)
     console.log(
