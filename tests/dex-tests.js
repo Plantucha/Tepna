@@ -1619,6 +1619,72 @@
       }
     });
 
+    /* ∅ N1-35 — a MEASURED ZERO rMSSD, which the group above never reaches. The seam group passes
+       `cRm = null`, and the old `cRm == null ? null : …` guard already caught that, so no leg here
+       exercised the path that TRANSFORMS the value. A perfectly regular RR series is a real 0 rMSSD,
+       and `Math.log(0)` is −Infinity. `JSON.stringify` renders −Infinity as `null`, so the export
+       looked like clean absence while the live object handed the renderer −Infinity (#3346, the same
+       defect in `ecgdex-dsp.js`). Every assertion below reads the value RAW through `String()`.
+       Each arm of the producer guard falls out differently under a mutant: drop `typeof` and a
+       numeric string returns a real logarithm, drop `isFinite` and `Infinity` returns `Infinity`,
+       drop `> 0` and a measured 0 returns −Infinity. So the arms are pinned one at a time. */
+    group('∅ lnRMSSD over a measured ZERO — the producer refuses, and the export keeps rmssd 0', 'pulsedex-dsp · absence', function (T) {
+      var P = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!P || typeof P.lnR !== 'function' || typeof P.pdComputeResult !== 'function') {
+        T.skip('PulseDex._bare.lnR and pdComputeResult exposed', 'PulseDex not co-loaded in this runner');
+      } else {
+        var lnR = P.lnR;
+        var sv = function (v) {
+          return v === null ? 'null' : String(v);
+        };
+        T.eq('the `> 0` arm — a measured 0 and a negative rMSSD both refuse', [sv(lnR(0)), sv(lnR(-1))].join(','), 'null,null');
+        T.eq('the `isFinite` arm — Infinity and NaN refuse, never pass through as themselves', [sv(lnR(Infinity)), sv(lnR(-Infinity)), sv(lnR(NaN))].join(','), 'null,null,null');
+        T.eq(
+          'the `typeof` arm — absence and a numeric STRING refuse, so no caller can fabricate a logarithm from text',
+          [sv(lnR(null)), sv(lnR(undefined)), sv(lnR('40'))].join(','),
+          'null,null,null'
+        );
+        T.eq('…while a real rMSSD still returns its logarithm — the guard refuses, it does not disable', sv(lnR(40)), String(Math.log(40)));
+
+        /* END TO END over the shipped function. 600 identical 1000 ms intervals give a rMSSD of
+           exactly 0 that the device really measured, so §∅ keeps it: `!= 0` is never the fix. */
+        var flat = [];
+        for (var i = 0; i < 600; i++) flat.push(1000);
+        var r0 = P.pdComputeResult({ intervals: flat });
+        T.ok('a constant RR record computes at all', !!r0, 'pdComputeResult returned null over 600 intervals');
+        if (r0) {
+          T.eq('a measured 0 rMSSD is PUBLISHED as 0 — the zero is the measurement, not absence', sv(r0.rmssd), '0');
+          T.eq('…and its logarithm refuses, raw, never −Infinity dressed as null by the serializer', sv(r0.lnrmssd), 'null');
+          var bad = [];
+          for (var k in r0) {
+            if (typeof r0[k] === 'number' && !isFinite(r0[k])) bad.push(k + '=' + String(r0[k]));
+          }
+          T.eq('no top-level export field is non-finite — the scan that caught this one on main', bad.join(','), '');
+        }
+
+        /* THE POPULATION IS TWO FILES. `pulsedex-app.js` carried the identical unguarded line, so a
+           fix in the DSP alone leaves the app road publishing −Infinity. The scan reads the stripped
+           source, and it names the OLD shape: a `.toFixed` chained straight onto the `lnR` call. */
+        var roads = ['pulsedex-dsp.js', 'pulsedex-app.js'];
+        var unguarded = [];
+        for (var ri = 0; ri < roads.length; ri++) {
+          var txt = ((env.sources || {})[roads[ri]] || '')
+            .split('\n')
+            .filter(function (ln) {
+              var t = ln.trim();
+              return t.indexOf('//') !== 0 && t.indexOf('*') !== 0 && t.indexOf('/*') !== 0;
+            })
+            .join('\n');
+          if (!txt) {
+            unguarded.push(roads[ri] + ':unwired');
+          } else if (/lnR\([^)]*\)\s*\.toFixed/.test(txt)) {
+            unguarded.push(roads[ri] + ':rounds-the-call-directly');
+          }
+        }
+        T.eq('both roads read the refusal BEFORE the rounding — `null.toFixed` throws', unguarded.join(','), '');
+      }
+    });
+
     /* RADIO-CLOCK-SIDECAR-2026-09-07 §4, the consumer. The bands are the brief's,
        pre-stated before anyone measured the corpus (§🧾): under 2 ms the controller
        anchors ARE the second clock and a node may publish `timingSource:'radio'`;

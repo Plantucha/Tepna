@@ -32,7 +32,7 @@
       "kernel-constants.js": "0050ad3f9dc7",
       "clock.js": "1c56de0b671c",
       "clock-seam.js": "3820c4fb6529",
-      "pulsedex-dsp.js": "1d71a5d5285f"
+      "pulsedex-dsp.js": "336e73354d8c"
     }
   },
   "yield": {
@@ -312,11 +312,18 @@
       "old": "2262251f3d22",
       "new": "1d71a5d5285f",
       "reason": "unit `shrabs` (Shrike absence audit of pulsedex-dsp.js): compareIntervalSeries now refuses the transit-time surrogate with null when the pulse series carries less rMSSD than the primary, where it published 0 ms. The detector path does not call compareIntervalSeries, and a paper-scale re-cut re-measured the SAME yield 233 tx / 239 flat, so the counts are measured under the new closure rather than claimed inert."
+    },
+    {
+      "date": "2026-11-21",
+      "file": "pulsedex-dsp.js",
+      "old": "1d71a5d5285f",
+      "new": "336e73354d8c",
+      "reason": "unit `lnzero`: the ln-rMSSD producer `lnR` now refuses a non-positive, non-numeric or absent rMSSD with null, where it returned Math.log(0) = -Infinity and JSON.stringify rendered that as null. The second road in pulsedex-app.js carries the same two lines. The detector drops a patient on a non-finite value in the rMSSD series, so this closure could in principle move the yield; a paper-scale re-cut re-measured the SAME yield 233 tx / 239 flat with 667 / 661 skipped, so the counts are measured under the new closure rather than claimed inert."
     }
   ],
-  "measuredAt": "2026-11-18T10:32:16.470Z",
+  "measuredAt": "2026-11-21T22:55:36.742Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "43082c083"
+    "commit": "31894ca60"
   }
 }
