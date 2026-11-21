@@ -221,10 +221,11 @@ network.
 
 | tool | version or pin | licence | use | where it runs |
 |---|---|---|---|---|
-| **xerj** | v1.0.0-rc.93 | Apache-2.0 (read from its own repository; the binary prints none) | the hybrid index behind `tools/doc-search.mjs` | dev box, loopback only |
-| the **local model runtime** (`ollama`) | 0.34.4 | MIT (read from its own repository) | serves the two models below | dev box, loopback only |
+| **xerj** | v1.0.0-rc.104 (licence read 2026-11-21) | Apache-2.0 (read from its own repository; the binary prints none) | the hybrid index behind `tools/doc-search.mjs` | dev box, loopback only |
+| the **local model runtime** (`ollama`) | 0.40.17 (licence read 2026-11-21) | MIT (read from its own repository) | serves the three models below | dev box, loopback only |
 | **bge-m3** | the runtime's own tag | MIT (read from the model's own licence) | embeds a query and each document chunk for the search above | dev box, loopback only |
 | **qwen3-coder:30b** | the runtime's own tag | Apache-2.0 (read from the model's own licence) | the local review baseline that `tools/dsp-review-qwen.mjs` measures | dev box, loopback only |
+| **qwen3.8:27b** | the runtime's own tag | Apache-2.0 (read from the model's own licence) | the local baseline behind `tools/qwen-mypy-fix.mjs`, which proposes type patches a human reads | dev box, loopback only |
 
 ### Copyleft, and why it reaches nothing
 
