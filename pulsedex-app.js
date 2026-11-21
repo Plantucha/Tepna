@@ -874,7 +874,10 @@ function calculate() {
      `pulsedex-dsp.js`: 20001 beats alternating by 1 ms answer `sd2v` `0.00` and published the ratio
      0.71, and 8001 beats alternating by 0.5 ms published 0.35, which the overview grades "good". */
   const PX_SD2_MIN_MS = 0.005;
-  const lnrm = cRm == null ? null : +lnR(cRm).toFixed(3);
+  /* `lnR` refuses a non-positive or absent rMSSD (pulsedex-dsp.js), so read the refusal before the
+     rounding: `null.toFixed` throws. The DSP road carries the same two lines. */
+  const _lnRm = lnR(cRm);
+  const lnrm = _lnRm == null ? null : +_lnRm.toFixed(3);
   const lfhfv = winSpec ? winSpec.lfhf : ls.lfhf;
   /* ∅ N1-35: `nu` answers null over a zero denominator, and `.toFixed` on null throws, so the
      denominator is read ONCE here and the pair refuses together. `hf + lf === 0` says neither band
