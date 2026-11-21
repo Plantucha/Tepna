@@ -3670,11 +3670,36 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
                 # probe runs at all, so an afternoon folder reaches this clause. That was row
                 # `2026-11-15-nightqc-prev-probe-window-reaches-noon-only`, and `prev_probe_window` holds
                 # the measurement.
+                # ⚠️ A FOLDER TOO THIN TO STATE ITS OWN OFFSET BORROWS ITS NEIGHBOUR'S VOTERS. Measured
+                # 2026-11-21 (board #7648): the Muse link dropped at 02:13 and its new file set opened at
+                # 02:15 under the 11-21 date, while the ring, H10 and Sense kept writing into 11-20. QC
+                # judged 11-21, where one file cast one vote under the floor of 2, so the offset refused
+                # and this test could not run. Pooling refused with it, and QC reported 11 streams
+                # missing while every one of them recorded next door. The offset is a property of the
+                # BOX, so the neighbour's files are fair voters, and a DST night is the two-bucket case
+                # the vote already settles by majority. The joint vote is ADOPTED only when it pools: a
+                # folder judged alone keeps its own refusal, because the neighbour then says nothing
+                # about the night judged here. A caller's offset and a recorded one still win: both carry
+                # a number by construction, so only the vote's own refusal reaches this branch.
+                _vote = _off
+                if _off["offset_sec"] is None:
+                    _prev_name = os.path.basename(_prev_day_dir(night_dir).rstrip("/"))
+                    # `recover_writer_offset` opens each file under `night_dir`, so a neighbour file
+                    # names its own folder relative to this one. The name also tells an outlier apart.
+                    _vote = recover_writer_offset(
+                        night_dir,
+                        [dict(f, file=os.path.join(os.pardir, _prev_name, f["file"])) for f in prev_data] + data,
+                    )
                 _prev_last = max(f["mtime"] for f in prev_data)
-                _pool = _off["offset_sec"] is not None and (
-                    (_no_night_here and _prev_last > midnight + _off["offset_sec"])
-                    or (earliest + _off["offset_sec"]) - _prev_last < _SESSION_GAP_SEC
+                _pool = _vote["offset_sec"] is not None and (
+                    (_no_night_here and _prev_last > midnight + _vote["offset_sec"])
+                    or (earliest + _vote["offset_sec"]) - _prev_last < _SESSION_GAP_SEC
                 )
+                if _pool and _vote is not _off:
+                    # `voted_with` names the folder whose files joined the vote, so a reader can audit it.
+                    _off = dict(_vote, voted_with=_prev_name)
+                    _daemon = daemon_starts(night_dir, scanned, offset_sec=_off["offset_sec"])
+                    _session_basis = "gap-only" if _daemon["starts"] is None else "daemon-starts"
     else:
         # NO CAPTURE FILES HERE AT ALL. The old gate was `if data:`, so this branch could not run — and
         # it is precisely the 2026-07-28 shape: the midnight sidecar rollover creates tomorrow's folder,
