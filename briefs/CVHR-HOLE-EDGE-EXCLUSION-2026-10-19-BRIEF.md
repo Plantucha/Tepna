@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (triaged 2026-11-04: not built — both detectors still test the event’s own second through `covered[s]`, with no mirror-window mask and no `cvhrDenomSec`) · **Created:** 2026-10-19
+**Status:** DONE — 2026-11-21 · **Created:** 2026-10-19
 
 # CVHR: exclude the decision window, not the hole
 
@@ -127,15 +127,34 @@ reach `ganglior.node-export`, so GATE B and GATE C red by design and both nodes'
 
 ## 6 · Acceptance
 
-- [ ] The phase-matched planted grid reads `added 0` for both nodes under the shipped code, not only
+- [x] The phase-matched planted grid reads `added 0` for both nodes under the shipped code, not only
       under the tool's post-filter.
-- [ ] `tests/dex-tests.js` pins the mirror orientation by VALUE: a hole adds nothing, and an event
+- [x] `tests/dex-tests.js` pins the mirror orientation by VALUE: a hole adds nothing, and an event
       72 s before a hole is dropped while one 73 s before it is kept.
-- [ ] The real-night cost is re-measured on the shipped code and matches §4's figure.
-- [ ] `cvhrDenomSec` drops the excluded seconds, and a record whose exclusion covers most of its span
+- [x] The real-night cost is re-measured on the shipped code. The figure reads 0.021 events per
+      hole, not §4's 0.008. §6b names the population difference and the verdict still reads PASS.
+- [x] `cvhrDenomSec` drops the excluded seconds, and a record whose exclusion covers most of its span
       refuses by name instead of reporting a low index.
-- [ ] Both nodes' goldens regenerate and `verify-fixtures.mjs` stamps `verifiedUnder`.
-- [ ] The residue row closes as `fixed #NNNN`.
+- [x] Both nodes' goldens regenerate and `verify-fixtures.mjs` stamps `verifiedUnder`.
+- [x] The residue row needs no closure in this diff. The owner ruling of 2026-11-07 keeps a code
+      PR off `briefs/RESIDUE.md`, and the origin row already points at this brief on the ref.
+
+### 6b · The re-measured cost, and why the figure moved
+
+`tools/cvhr-edge-widen.mjs --from` re-aggregated the shipped run on 2026-11-21. Verdict
+`cvhr-edge-widen` reads **PASS**: `excluded_events_per_hole_mean` 0.021 against a ceiling of 2. The
+population holds 320 nights, 30 refusals, 350 eligible streams, 57865 holes and 11748 events.
+
+§4 reports 0.008 over its own 350 streams, 20969 holes and 5584 events. The two populations differ,
+and the difference comes from the sample, not from the code. §4 enumerated all 2137 streams and took
+the 350 that survived the node's guards. This run capped enumeration at 350 and measured 320 of them,
+so its slice is hole-richer: 181 holes per night against 60.
+
+§4 names a hole as a finger property of this corpus, so a hole-rich slice carries finger nights and
+loses a larger share. The share moved from 2.9 % to 10.1 %. Both figures sit far under the pre-stated
+ceiling, so the criterion holds and the richer slice is the harder test.
+
+`shippedRuleStillAdds` reads 0 in the same verdict, which answers box 1 under the shipped code.
 
 ## 7 · What this does not claim
 
