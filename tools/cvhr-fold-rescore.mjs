@@ -47,7 +47,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ECG_FILES, PPG_FILES, hostWindowMs, realm } from './gap-s-sweep.mjs';
 import { ivIntersect, ivSpan, mergeIv } from './trio-anchor.mjs';
-import { isCliEntry } from './argv-guard.mjs';
+import { checkArgv, isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { coverageIdentity, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 /* ── THE VALIDITY SIDECAR RIDES WITH THE STREAM ─────────────────────────────────────────────────────
@@ -263,6 +263,30 @@ export function selfTest() {
     console.log((cond ? '  ✓ ' : '  ✗ ') + name + (detail ? '  — ' + detail : ''));
   };
 
+  /* ── THE ACCEPTED SET IS WHAT THIS FILE READS, AND THE GUARD MUST STILL BE CALLED ──────────────
+     A spec that drops a working flag refuses a documented run, which is the same defect one layer
+     along. The last leg reads this file, because a spec nothing calls refuses nothing. */
+  const ARGV_SRC = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+  for (const c of [[], ['--selftest'], ['--control-only'], ['--resume'], ['--verdict-sample'], ['--tree', '/t', '--control', '/t/c.json', '--out', '/t/o.json', '--limit', '3']])
+    ok('the spec accepts `' + (c.join(' ') || '(no flag)') + '`', checkArgv(c, ARGV_SPEC).ok, checkArgv(c, ARGV_SPEC).reason || '');
+  ok('a mistyped flag REFUSES', !checkArgv(['--resumee'], ARGV_SPEC).ok, 'it used to restart the rescore at the first night');
+  ok('…and the refusal names the flag the caller meant', /--resume/.test(checkArgv(['--resumee'], ARGV_SPEC).reason || ''), 'absent');
+  ok('a valued flag with no value REFUSES', !checkArgv(['--limit'], ARGV_SPEC).ok, 'a bare --limit must not read as its default');
+  /* THE LEG BELOW PINS THE CALL SITE AND NOT THE CALL'S NAME. Measured here: a first version asked
+     whether this file CONTAINS the string `refuseUnknownArgvOrExit(argv, ARGV_SPEC`, and it passed
+     over a mutant that deleted the call — because the asking line carries that string itself. An
+     escaped pattern cannot match its own source, so the shape is what it reads. */
+  ok(
+    'the CLI entry still CALLS the refusal, before the selftest and control reads',
+    /isCliEntry\(import\.meta\.url\)\) refuseUnknownArgvOrExit\(/.test(ARGV_SRC),
+    'a spec nothing calls refuses nothing'
+  );
+  ok(
+    'the --control-only read sits behind the CLI guard',
+    /'--control-only'\) && isCliEntry\(import\.meta\.url\)\)/.test(ARGV_SRC),
+    'an importer whose argv holds --control-only would run the control phase and exit'
+  );
+
   /* THE MEASURE, not the span — the distinction the control caught. Two 1 h ECG sessions 2 h apart
      measure 2 h, and an outer span would call them 3 h. */
   const wE = mergeIv([
@@ -458,6 +482,16 @@ export function scoreFragment(realms, kind, path) {
   }
 }
 
+/* ── THE ACCEPTED TOKENS, READ FROM THE CODE AND NOT FROM THE HEADER ─────────────────────────────
+   `argv.includes` and `arg` both answer "absent" for a token nobody declares, so a mistyped
+   `--resume` used to start the rescore at the first night again, and nothing said so.
+   The refusal sits inside the CLI guard at the foot of this file. `process.argv` belongs to whoever
+   runs the process, so a module-scope refusal would judge an importer's tokens. */
+const ARGV_SPEC = {
+  valued: ['--control', '--limit', '--out', '--tree'],
+  boolean: ['--control-only', '--resume', '--selftest', '--verdict-sample']
+};
+
 /* ── the run ──────────────────────────────────────────────────────────────────────────────────── */
 function main(argv) {
   if (argv.includes('--verdict-sample')) {
@@ -648,8 +682,9 @@ function main(argv) {
   return 0;
 }
 
+if (isCliEntry(import.meta.url)) refuseUnknownArgvOrExit(process.argv.slice(2), ARGV_SPEC, { tool: 'tools/cvhr-fold-rescore.mjs' });
 if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) process.exit(selfTest());
-if (process.argv.includes('--control-only')) {
+if (process.argv.includes('--control-only') && isCliEntry(import.meta.url)) {
   const tree = process.env.DEX_UPLOADS ? join(process.env.DEX_UPLOADS, 'vigil-archive', 'captures') : TREE_DEFAULT;
   const committed = JSON.parse(readFileSync(CONTROL_DEFAULT, 'utf8')).overlapTest.mergedSessionsView.rows;
   const ctl = controlPhase(tree, committed);
