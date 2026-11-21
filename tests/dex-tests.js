@@ -4434,6 +4434,265 @@
       T.ok('a 150 s cycle does NOT fire — the ceiling rejects beyond it', over.periodic === false);
     });
 
+    /* ══════════════════════════════════════════════════════════════════════════════════════════════
+       ROUND-2 SURVIVOR KILL LEGS — task 36, 2026-11-19. Every expected value is derived by hand from the
+       input this group builds; none is read back from the code under test. The nine mutants from
+       `2026-11-19-MUTATION-oxydex-dsp-round2.md` are re-applied one at a time against these legs, and
+       `patches/2026-11-19-oxydex-dsp-round2-kill-legs.md` records the leg that reds for each.
+       Isolate with `--group=round2-kill-legs`.
+       ══════════════════════════════════════════════════════════════════════════════════════════════ */
+    group('round-2 survivors · PB outputs, the three parse sniffers, the edge floor and the soft-HR second', 'oxydex-dsp · round2-kill-legs', function (T) {
+      var cand = [env.OxyDex && env.OxyDex._bare, env.OxyDex, env.OxyDSP, env.OXYDSP];
+      var OD = null,
+        ci;
+      for (ci = 0; ci < cand.length; ci++)
+        if (cand[ci] && typeof cand[ci].computePBmetrics === 'function') {
+          OD = cand[ci];
+          break;
+        }
+      if (!OD) {
+        T.skip('OxyDex.computePBmetrics reachable', 'the bare helper surface is not in env');
+        return;
+      }
+
+      /* ── 1 · PERIODIC BREATHING. 3600 samples at 1 Hz; every 300 s window carries a 100 s dip to 84 %
+         inside 200 s at 96 %. The crossing walk starts at i = 1 with `lastDir = 0`, so each window
+         records three crossings — index 1 (+1 into 96), 100 (−1 into 84), 200 (+1 back) — and 12 windows
+         give 36 crossings. Intervals cycle 99, 100, 101 s; the 34 sliding cycle intervals (sums of
+         adjacent pairs) are 199 ×12, 201 ×11, 200 ×11 ⇒ mean 6799/34 = 199.9706 s ⇒ toFixed(1) = 200.0;
+         variance 22.9706/34 = 0.6756 ⇒ SD 0.8219 ⇒ 0.8. Amplitude is 96 − 84 = 12 in every window.
+         Load = episodes × amplitude × (cycle / 60) / hours = 4 × 12 × (200/60) / 1 = 160. Thirds split
+         12 early / 12 late ⇒ 0.50. */
+      var PB_N = 3600,
+        PB_HI = 96,
+        PB_LO = 84;
+      function pbSeries(firstThirdOnly) {
+        var x = [],
+          a;
+        for (a = 0; a < PB_N; a++) {
+          var ph = a % 300;
+          x.push(ph >= 100 && ph <= 199 && !(firstThirdOnly && a >= 1200) ? PB_LO : PB_HI);
+        }
+        return x;
+      }
+      function pbRows(x) {
+        return x.map(function (v, i) {
+          return { spo2: v, hr: 60, motion: 0, tMs: i * 1000 };
+        });
+      }
+      var pbA = OD.computePBmetrics(pbRows(pbSeries(false)), { episodeCount: 4 });
+      T.eq('PB · cycle length is the hand-derived 200.0 s (mean of 199×12, 201×11, 200×11)', pbA.pbCycleLen, 200);
+      T.eq('PB · cycle-length SD is 0.82 s ⇒ 0.8 — the √2 mutant reads 1.2', pbA.pbCycleLenSD, 0.8);
+      T.eq('PB · amplitude is the planted 96 − 84 = 12 %SpO2', pbA.pbAmplitude, 12);
+      T.eq('PB · load = 4 × 12 × (200/60) / 1 h = 160', pbA.pbLoad, 160);
+      T.eq('PB · an even thirds split reads 12/24 = 0.50', pbA.pbFirstThirdRatio, 0.5);
+      var pbB = OD.computePBmetrics(pbRows(pbSeries(true)), { episodeCount: 4 });
+      T.eq('PB · every episode in the first third reads 1.00 — the inverted mutant reads 0.00', pbB.pbFirstThirdRatio, 1);
+      T.eq('PB · …the count the ratio is built from', pbB.pbEarlyCount, 12);
+      T.eq('PB · …and nothing in the last third', pbB.pbLateCount, 0);
+
+      /* ── 2 · SLEEP-ONSET LATENCY. 1260 samples: HR alternates 0/100 (mean 50, SD 50) for the first
+         600, then holds 50. A window straddling sample 600 carries k alternating samples and 60 − k at
+         50, so its mean is 50 for every k and its variance is k × 100²/60 — SD 6.45 even at k = 1, so
+         no straddling window is "stable". The first stable window starts at 600 ⇒ 600 / 60 = 10.0 min;
+         the /30 mutant reads 20.0. */
+      if (typeof OD.computeSleepArch !== 'function') T.skip('computeSleepArch reachable', 'not on this surface');
+      else {
+        var saRows = [],
+          s;
+        for (s = 0; s < 1260; s++) saRows.push({ hr: s < 600 ? (s % 2 ? 100 : 0) : 50, spo2: 96, motion: 0 });
+        var arch = OD.computeSleepArch(saRows);
+        if (!arch) T.ok('sleep arch · a 1260-sample night yields an architecture object', false);
+        else {
+          T.eq('sleep onset · sample 600 at 1 Hz reads 10.0 min — the /30 mutant reads 20.0', arch.solMin, 10);
+          T.eq('sleep onset · WASO is 0 min over the 660 stable samples', arch.wasoMin, 0);
+        }
+      }
+
+      /* ── 3 · THE 60-ROW EDGE FLOOR, both halves. Head: 150 frozen placeholder rows (84/100) entered
+         by a 12 % lock-on step ⇒ head = 150, but n − head = 50 < 60, so the floor caps it at 140 and
+         leaves 60 rows. The double-floor mutant sets head = 200 − 120 = 80 and keeps 120. Tail: 150
+         frozen rows after a 12 % step down ⇒ tail = 150, floored to 140, 60 rows left; the
+         `n − head` mutant sets tail = 200 and splices the night to 0 rows. */
+      if (typeof OD.trimSensorWarmup !== 'function') T.skip('trimSensorWarmup reachable', 'not on this surface');
+      else {
+        var headRows = [],
+          h;
+        for (h = 0; h < 200; h++) headRows.push(h < 150 ? { spo2: 84, hr: 100 } : { spo2: 96, hr: 100 - (h - 150) });
+        var headRes = OD.trimSensorWarmup(headRows);
+        T.eq('warm-up head · 150 frozen rows are capped by the 60-row floor at head = 140', headRes.head, 140);
+        T.eq('warm-up head · …leaving 60 rows — the double-floor mutant keeps 120', headRows.length, 60);
+        var tailRows = [],
+          q;
+        for (q = 0; q < 200; q++) tailRows.push(q < 50 ? { spo2: 96, hr: 60 + (q % 3) } : { spo2: 84, hr: 100 });
+        var tailRes = OD.trimSensorWarmup(tailRows);
+        T.eq('warm-up tail · 150 frozen rows are capped by the floor at tail = 140', tailRes.tail, 140);
+        T.eq('warm-up tail · …leaving 60 rows — the n − head mutant splices the night to 0', tailRows.length, 60);
+      }
+
+      /* ── 4 · THE SOFT HR SECOND. One 17 bpm rise (soft, below the hard 20) at minute 10, second 30.
+         minsec = 10 + 30/60 = 10.5, which is neither ≤ 2 nor ≥ 58, so nothing is cleaned; the ×60
+         mutant reads 10 + 1800 = 1810 ⇒ clock-aligned and overwrites the rise. */
+      if (typeof OD.cleanArtifactHR !== 'function') T.skip('cleanArtifactHR reachable', 'not on this surface');
+      else {
+        var hrRows = [],
+          m;
+        for (m = 0; m < 60; m++) hrRows.push({ hr: m === 30 ? 77 : 60, spo2: 96, t: new Date(Date.UTC(2026, 5, 12, 22, 10, m)) });
+        var cleaned = OD.cleanArtifactHR(hrRows);
+        T.eq('soft HR · minute 10 s 30 is not clock-aligned ⇒ 0 cleaned; the ×60 mutant cleans', cleaned, 0);
+        T.eq('soft HR · …and the 17 bpm rise is untouched', hrRows[30].hr, 77);
+      }
+
+      /* ── 5 · THE THREE PARSE SNIFFERS. Header on line 6 of 9 (the sniff is 8 lines); a headerless file
+         whose timestamp sits on the 4th line (the scan is 5 rows); a headerless 3-field row whose time
+         is field 1, not field 0 (the sniff accepts ≥ 3 fields). Each mutant moves one bound and the
+         corresponding leg stops detecting the layout, so the default column map drops every row. */
+      var parse = OD.parseCSV || (env.OxyDex && env.OxyDex.parseCSV);
+      if (typeof parse !== 'function') T.skip('parseCSV reachable', 'not on this surface');
+      else {
+        var junk = ['Device: ring', 'Firmware: 1.2.3', 'Report', 'Patient: none', 'Unit: percent'];
+        var hdrText = junk.concat(['Time,Pulse Rate,Oxygen Level,Motion', '23:00:16 12/06/2026,58,97,0', '23:00:17 12/06/2026,59,96,0', '23:00:18 12/06/2026,60,95,0']).join('\n');
+        var hdrRows = parse(hdrText);
+        T.eq('parse sniff · a header on line 6 is still found ⇒ 3 rows', hdrRows.length, 3);
+        T.eq("parse sniff · …and SpO₂ comes from the header's third field, 97", hdrRows.length ? hdrRows[0].spo2 : null, 97);
+        var dataText = ['a,b,c', 'd,e,f', 'g,h,i', 'zz,23:00:16 12/06/2026,97,58', 'zz,23:00:17 12/06/2026,96,59', 'zz,23:00:18 12/06/2026,95,60'].join('\n');
+        var dataRows = parse(dataText);
+        T.eq('parse sniff · a timestamp on the 4th line is inside the 5-row scan ⇒ 3 rows', dataRows.length, 3);
+        T.eq('parse sniff · …mapped to the detected columns, SpO₂ 97', dataRows.length ? dataRows[0].spo2 : null, 97);
+        var colText = ['junk,23:00:16 12/06/2026,97', 'junk,23:00:17 12/06/2026,96', 'junk,23:00:18 12/06/2026,95'].join('\n');
+        var colRows = parse(colText);
+        T.eq('parse sniff · a 3-field headerless row is accepted ⇒ 3 rows', colRows.length, 3);
+        T.eq('parse sniff · …with SpO₂ from the detected third field', colRows.length ? colRows[0].spo2 : null, 97);
+      }
+    });
+
+    /* ══════════════════════════════════════════════════════════════════════════════════════════════
+       ROUND-2 SURVIVOR KILL LEGS, four nodes — task 37, 2026-11-19. Expected values are derived by hand
+       from each constructed input. Reports: `patches/2026-11-19-<node>-round2-kill-legs.md`.
+       ══════════════════════════════════════════════════════════════════════════════════════════════ */
+    group('round-2 survivors · HRVDex pearsonCorr length guard and smooth zero-window identity', 'hrvdex-dsp · round2-kill-legs', function (T) {
+      var H = env.HRVDex && env.HRVDex._bare;
+      if (!H || typeof H.pearsonCorr !== 'function') {
+        T.skip('HRVDex._bare.pearsonCorr reachable', 'the bare helper surface is not in env');
+        return;
+      }
+      /* `Math.min(x.length, y.length)` — the pair is read over the SHORTER series. The Math.max mutant
+         reads `undefined` past the short one, so `num` is NaN and the correlation refuses a pair the
+         original measures: [1,2,3] against [1,2] is `1` over n = 2. */
+      T.eq('pearsonCorr · unequal lengths read the shorter pair (n = 2) and answer 1', H.pearsonCorr([1, 2, 3], [1, 2]), 1);
+      /* `smooth(arr, 1)` is a trailing 2-sample mean. [5,9] ⇒ [5, 7]; the `k === 1` mutant returns the
+         input unchanged and reads 9. */
+      T.eq('smooth · k = 1 is a two-sample trailing mean, (5 + 9) / 2 = 7', H.smooth([5, 9], 1)[1], 7);
+      /* `smooth(arr, 0)` is the identity, and identity means the null survives (§∅). The mutant
+         re-derives every element and turns the absent reading into NaN. */
+      var s0 = H.smooth([5, null, 9], 0);
+      T.ok('smooth · k = 0 returns the input with the null intact, never NaN', s0.length === 3 && s0[1] === null, 'got ' + JSON.stringify(s0));
+    });
+
+    group('round-2 survivors · Integrator desat depth, arousal rise and the REM divisor', 'integrator-dsp · round2-kill-legs', function (T) {
+      var I = env.IntegratorDSP;
+      if (!I || typeof I.normalizeFile !== 'function') {
+        T.skip('IntegratorDSP.normalizeFile reachable', 'not co-loaded in this runner');
+        return;
+      }
+      /* One night, one 6 % desat (nadirIdx 100), one 20 bpm arousal (idx 200), a plausible 20 % REM
+         proxy. stats.n 3600 over 60 min ⇒ dt = 1000 ms, so both indices land on a measured step. */
+      var t0 = Date.UTC(2026, 5, 12, 22, 0, 0);
+      var night = {
+        node: 'OxyDex',
+        t0Ms: t0,
+        stats: { n: 3600, durationMin: 60 },
+        desatProfile: { events: [{ nadirIdx: 100, depth: 6, nadir: 88, duration: 20, recovery: 10 }] },
+        hr_spikes: { events: [{ idx: 200, peak: 100, baseline: 80 }] },
+        newMetrics: { stageProxy: { plausible: true, remProxyPct: 20, nremDeepPct: 10 } }
+      };
+      var rec = I.normalizeFile(night, 'oxydex_round2_night.json').recs[0];
+      if (!rec) {
+        T.ok('Integrator · the one-night export adapts to a record', false);
+        return;
+      }
+      function confOf(impulse) {
+        for (var i = 0; i < rec.events.length; i++) if (rec.events[i].impulse === impulse) return rec.events[i].conf;
+        return null;
+      }
+      /* conf = 0.45 + min(depth,12)/24 = 0.45 + 6/24 = 0.70; the /12 mutant lifts it to the 0.95 clamp. */
+      T.eq('desat depth · a 6 % desat reads conf 0.70 (0.45 + 6/24)', confOf('desat_event'), 0.7);
+      /* conf = 0.4 + min(rise,40)/80 = 0.4 + 20/80 = 0.65; the /40 mutant lifts it to the 0.90 clamp. */
+      T.eq('arousal rise · a 20 bpm rise reads conf 0.65 (0.4 + 20/80)', confOf('autonomic_arousal'), 0.65);
+      /* remFraction = remProxyPct / 100 = 0.2 beside deepFraction 0.1; the /50 mutant reads 0.4. */
+      T.eq('REM · a 20 % proxy publishes remFraction 0.2', rec.summary.remFraction, 0.2);
+      T.eq('REM · …beside the unchanged deepFraction 0.1, from the sibling /100', rec.summary.deepFraction, 0.1);
+    });
+
+    group('round-2 survivors · MotionDex epoch count, scan budget, zero-rate fallback and the window floor', 'motiondex-dsp · round2-kill-legs', function (T) {
+      var M = env.MOTIONDSP || env.MotionDex;
+      if (!M || typeof M.actigraphy !== 'function' || typeof M.bodyPosition !== 'function') {
+        T.skip('MOTIONDSP.actigraphy + bodyPosition reachable', 'not co-loaded in this runner');
+        return;
+      }
+      var t0 = Date.UTC(2026, 5, 12, 22, 0, 0),
+        i;
+      /* EPOCH COUNT — 65 s at 30 s epochs is ceil(65/30) = 3, and all three hold samples. The floor
+         mutant publishes 2 epochs and loses the final 5 s from every per-epoch aggregate. */
+      var posRows = [];
+      for (i = 0; i < 65; i++) posRows.push({ tMs: t0 + i * 1000, x: 0, y: 0, z: 1000 });
+      var bp = M.bodyPosition(posRows, t0, 65, 'mg');
+      T.eq('epoch count · 65 s at 30 s epochs is 3 epochs', bp.track.length, 3);
+      T.eq('epoch count · …and all three are covered', bp.coveredEpochs, 3);
+      /* SCAN BUDGET — 2000 rows at 1 s then 2000 at 5 s. The median over all 3999 deltas is 5 s ⇒
+         0.2 Hz; the 2000-row mutant sees only the 1999 one-second deltas and reads 1 Hz. */
+      var actRows = [];
+      for (i = 0; i < 2000; i++) actRows.push({ tMs: t0 + i * 1000, x: 1000, y: 0, z: 0 });
+      for (i = 2000; i < 4000; i++) actRows.push({ tMs: t0 + 1999000 + (i - 1999) * 5000, x: 1000, y: 0, z: 0 });
+      var act = M.actigraphy(actRows, t0, 11999, 'mg');
+      T.ok('scan budget · the rate is the median of all 3999 deltas (0.2 Hz), not the head 1999 (1 Hz)', Math.abs(act.hz - 0.2) < 1e-9, 'hz ' + act.hz);
+      /* ZERO RATE — 30 rows that never advance: no usable delta, so the fallback is rows/durSec =
+         30/30 = 1 Hz. The `hz < 0` mutant skips the fallback and publishes NaN. */
+      var flatRows = [];
+      for (i = 0; i < 30; i++) flatRows.push({ tMs: t0, x: 1000, y: 0, z: 0 });
+      var zero = M.actigraphy(flatRows, t0, 30, 'mg');
+      T.eq('zero rate · no usable delta falls back to rows/durSec = 1 Hz, never NaN', zero.hz, 1);
+      /* WINDOW FLOOR — 1 Hz keeps w = max(3, round(1)) = 3. With x alternating 1000/2000 mg, base is
+         the 3-sample trailing mean: base[0] = 3/2, base[1..28] = 4/3 or 5/3, base[29] = arr[29] = 2.
+         Σ|mag − base| = 0.5 + 28 × 2/3 = 19.1667. The max(1, …) mutant uses w = 1, where base = mag
+         and the total is 0. */
+      var smoothRows = [];
+      for (i = 0; i < 30; i++) smoothRows.push({ tMs: t0 + i * 1000, x: i % 2 ? 2000 : 1000, y: 0, z: 0 });
+      var sm = M.actigraphy(smoothRows, t0, 30, 'mg');
+      T.ok('window floor · 1 Hz keeps the 3-sample window: Σ dynamic-g = 0.5 + 28 × 2/3 = 19.1667', Math.abs(sm.totalCounts - 19.1667) < 1e-4, 'total ' + sm.totalCounts);
+    });
+
+    group('round-2 survivors · PpgDex pin-rail scan budget and the offset-slope scale', 'ppgdex-dsp · round2-kill-legs', function (T) {
+      var P = env.PPGDSP || env.PpgDex;
+      if (!P || typeof P.pinnedSpans !== 'function') {
+        T.skip('PPGDSP.pinnedSpans reachable', 'not co-loaded in this runner');
+        return;
+      }
+      /* Eight distinct occupied values: 0 ×10, 1–4 ×1, 5 ×500, 6 ×2, 7 ×1. Gaps are all 1, so the
+         inward scan reaches value 5 at slot 5 and takes it as the rail (500 against a neighbour of 0).
+         The half-budget mutant stops after slot 3 and picks the 10-sample edge, 0. */
+      var railVals = [],
+        k;
+      for (k = 0; k < 10; k++) railVals.push(0);
+      for (k = 1; k <= 4; k++) railVals.push(k);
+      for (k = 0; k < 500; k++) railVals.push(5);
+      railVals.push(6, 6, 7);
+      var ps = P.pinnedSpans(railVals);
+      T.eq('pin rail · the rail is the 500-sample value at slot 5, not the 10-sample edge at slot 0', ps.railLo, 5);
+      T.eq('pin rail · …with the observed floor still 0', ps.lo, 0);
+      /* offset = host − dev grows 1000 ms per 1 000 000 ms ⇒ 1000 ppm. span 3000 s, 4 anchors,
+         jitter 1000 ms, rms 1118 < 3 × jitter ⇒ rated. The ×1e3 mutant publishes 1. */
+      if (typeof P.ppgOffsetSegments !== 'function') T.skip('ppgOffsetSegments reachable', 'not on the namespace');
+      else {
+        var anchors = [0, 1, 2, 3].map(function (n) {
+          return { devMs: n * 1000000, hostMs: n * 1000000 + n * 1000 };
+        });
+        var seg = P.ppgOffsetSegments(anchors, 1e9).segments[0];
+        T.eq('offset slope · a 1000 ppm drift publishes 1000 ppm', seg.ppm, 1000);
+        T.eq('offset slope · …and is rated measured', seg.rate, 'measured');
+      }
+    });
+
     group('PpgDex ingests the O2Ring raw dual-wavelength layout — and still refuses a 2-column file', 'ppgdex-dsp · ppg2w · layout · O2RING-RAW-DUAL-WAVELENGTH', function (T) {
       var P = env.PPGDSP || env.PpgDSP;
       if (!P || typeof P.parsePPG !== 'function') {
