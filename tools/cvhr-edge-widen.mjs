@@ -69,7 +69,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GAP_S, HOLES_S, PERIOD_S, STEPS_BPM, activeSecOf, plant, realms, spansGapOf } from './cvhr-gap-edge.mjs';
 import { corpusSearch } from './regen-goldens-core.mjs';
-import { isCliEntry } from './argv-guard.mjs';
+import { checkArgv, isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -79,6 +79,18 @@ const has = (f) => argv.includes(f);
 const arg = (f, d) => {
   const i = argv.indexOf(f);
   return i >= 0 && argv[i + 1] ? argv[i + 1] : d;
+};
+/* ── THE ACCEPTED TOKENS, READ FROM THE CODE AND NOT FROM THE HEADER ─────────────────────────────
+   `has` and `arg` both answer "absent" for a token nobody declares, so a mistyped flag used to reach
+   the real sweep. `--planted_only` for `--planted-only` ran phase 2 over the corpus: hours of work
+   for a caller who asked for seconds.
+   The header above documents 7 of these 9. This file also reads `--from` and `--verdict-sample`,
+   which no usage line names, so a spec built from the header would refuse two working flags.
+   The refusal sits inside the CLI guard at the foot of this file. `process.argv` belongs to whoever
+   runs the process, so a module-scope refusal would judge an importer's tokens. */
+const ARGV_SPEC = {
+  valued: ['--from', '--limit', '--out', '--tree'],
+  boolean: ['--json', '--planted-only', '--rebuilt-mask', '--selftest', '--verdict-sample']
 };
 const JSON_OUT = has('--json');
 const REBUILT_MASK = has('--rebuilt-mask');
@@ -422,6 +434,25 @@ function selftest() {
     if (!c) fail++;
     console.log(`${c ? 'ok  ' : 'FAIL'}  ${m}`);
   };
+
+  /* ── THE ACCEPTED SET IS WHAT THIS FILE READS ──────────────────────────────────────────────────
+     A spec that drops a working flag refuses a documented run, which is the same defect one layer
+     along. So every usage line in the header runs through the spec here, and so do the two flags no
+     usage line names. */
+  for (const c of [[], ['--json'], ['--planted-only'], ['--rebuilt-mask'], ['--selftest'], ['--verdict-sample'], ['--from', 'abc1234'], ['--tree', '/t', '--limit', '5', '--out', '/t/o.json']])
+    ok(checkArgv(c, ARGV_SPEC).ok, `the spec accepts \`${c.join(' ') || '(no flag)'}\``);
+  ok(!checkArgv(['--planted_only'], ARGV_SPEC).ok, 'a mistyped flag REFUSES, where it used to run the whole corpus pass');
+  ok(/--planted-only/.test(checkArgv(['--planted_only'], ARGV_SPEC).reason || ''), '…and the refusal names the flag the caller meant');
+  ok(!checkArgv(['--limit'], ARGV_SPEC).ok, 'a valued flag with no value REFUSES, so a bare --limit never reads as its default');
+  ok(!checkArgv(['/t/o.json'], ARGV_SPEC).ok, 'CONTROL: this tool takes no positional, so a bare path refuses');
+  /* THE LEG BELOW PINS THE CALL SITE AND NOT THE CALL'S NAME. Measured here: a first version asked
+     whether this file CONTAINS the string `refuseUnknownArgvOrExit(argv, ARGV_SPEC`, and it passed
+     over a mutant that deleted the call — because the asking line carries that string itself. An
+     escaped pattern cannot match its own source, so the shape is what it reads. */
+  ok(
+    /if \(isMain\) \{\s+refuseUnknownArgvOrExit\(/.test(readFileSync(fileURLToPath(import.meta.url), 'utf8')),
+    'the CLI entry still CALLS the refusal, first in its block — a spec nothing calls refuses nothing'
+  );
   const ev = (secs) => secs.map((sec) => ({ sec }));
   const cur = CANDIDATES[0],
     full = CANDIDATES[3];
@@ -701,7 +732,8 @@ async function main() {
    `survivors` ran the whole real-night pass. */
 const isMain = isCliEntry(import.meta.url);
 
-if (isMain)
+if (isMain) {
+  refuseUnknownArgvOrExit(argv, ARGV_SPEC, { tool: 'tools/cvhr-edge-widen.mjs' });
   main().then(
     (c) => process.exit(c),
     (e) => {
@@ -709,3 +741,4 @@ if (isMain)
       process.exit(1);
     }
   );
+}
