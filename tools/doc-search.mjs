@@ -81,12 +81,16 @@
  * all and ended at the caller's own 40 s and 60 s timeouts. Every embed now carries
  * `embedTimeoutMs`, and a breach degrades into the same token lane under a NAMED reason, so the
  * banner no longer reads "unreachable" over an endpoint that answered its TCP handshake. The bound
- * is a floor of 90 s plus 20 s for every input past the first: the floor clears the 60 s a
- * single-text CPU embed measured on 2026-11-04 by half as much again, and the per-input term clears
- * that day's 3.8 s single-text GPU embed five times over. `DEX_EMBED_TIMEOUT_MS` and
- * `DEX_EMBED_TIMEOUT_PER_INPUT_MS` move both, so a reader who wants the token lane at once sets
- * `DEX_EMBED_TIMEOUT_MS=1`. A deadline cannot tell dead from slow (CLAUDE.md §4c): this bounds the
- * WAIT and diagnoses no backend.
+ * is a floor of 90 s plus 20 s for every input past the first, CAPPED at the HTTP client's own
+ * 300 s header bound less a 5 s margin: the floor clears the 60 s a single-text CPU embed measured
+ * on 2026-11-04 by half as much again, the per-input term clears that day's 3.8 s single-text GPU
+ * embed five times over, and the cap keeps the tool from promising a wait the client refuses to
+ * make (measured 2026-11-22: 300.8 s to `UND_ERR_HEADERS_TIMEOUT`). `DEX_EMBED_TIMEOUT_MS` and
+ * `DEX_EMBED_TIMEOUT_PER_INPUT_MS` move both terms, `DEX_NET_CLIENT_TIMEOUT_MS` moves the cap,
+ * and a reader who wants the token lane at once sets `DEX_EMBED_TIMEOUT_MS=1` AND
+ * `DEX_EMBED_TIMEOUT_PER_INPUT_MS=0`, because the floor alone leaves a 303-chunk file asking
+ * 6,040,001 ms and waiting the cap. A deadline cannot
+ * tell dead from slow (CLAUDE.md §4c): this bounds the WAIT and diagnoses no backend.
  *
  *   node tools/doc-search.mjs "has anyone measured the equivalent mutant ceiling?"
  *   node tools/doc-search.mjs --no-map "…"      # without the repo-map lines (see below)
@@ -137,6 +141,7 @@ import { resolveStatePath, sharedStatePath, stateDirs } from './mutation-map.mjs
 import { fileURLToPath } from 'node:url';
 import { stripCode } from './strip-markup.mjs';
 import { isCliEntry, isEntryUrl } from './argv-guard.mjs';
+import { capToClient, netFailureReason } from './net-bound.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 /* §1: shared-first through the git common dir — one index serves every worktree. */
@@ -699,27 +704,50 @@ export function embedRequest(model, inputs, cpu = embedOnCpu()) {
    PRE-STATED, and never derived from the run it judges. `n` is the input count of ONE request, so a
    large file's chunk batch earns its time instead of racing a single query's bound. Both terms cite
    the measurements in this file's own header. */
-export function embedTimeoutMs(n, env = process.env) {
+/* 🔴 THE HTTP CLIENT HOLDS A BOUND OF ITS OWN, AND IT IS LOWER THAN THIS ONE.
+   Node's `fetch` abandons a request whose headers do not arrive within 300 s. Measured 2026-11-22
+   against the live endpoint: one batch of 2 inputs, no signal of our own, threw at 300.8 s with
+   `cause.code = UND_ERR_HEADERS_TIMEOUT`. The arithmetic below crosses 300 s at n = 12, and the
+   real batches are far larger: this tool embeds one request per FILE, so `oxydex-dsp.js` at 303
+   chunks claimed 6,130,000 ms, about 102 minutes, over a client that was never going to wait past
+   five. Every such request died at the client's bound, under the client's own opaque text, and the
+   stated bound examined nothing.
+   THE CAP ITSELF LIVES IN `net-bound.mjs` with its measurement, because the same limit binds every
+   `fetch` in `tools/` and a second copy of a bound is a bound that drifts. `DEX_NET_CLIENT_TIMEOUT_MS`
+   moves it, and a declared 0 keeps the stated bound whole. */
+
+export function embedStatedMs(n, env = process.env) {
   const floor = Number(env.DEX_EMBED_TIMEOUT_MS ?? 90_000);
   const perInput = Number(env.DEX_EMBED_TIMEOUT_PER_INPUT_MS ?? 20_000);
   const extra = Math.max(0, (Number.isFinite(n) ? n : 1) - 1);
   return floor + perInput * extra;
 }
 
+/* The bound this tool can KEEP: the stated one, capped to what the client allows. */
+export function embedTimeoutMs(n, env = process.env) {
+  return capToClient(embedStatedMs(n, env), env);
+}
+
+/* Names the limiter, and only when the CLIENT is the one that bound the wait. Two ways to read
+   less than the stated bound, and only one of them is the client's doing: a caller that passes its
+   own `timeoutMs` chose that wait, and a note blaming the client there would name the wrong
+   limiter \u2014 the borrowed reason this file already forbids. So the note fires when the cap binds AND
+   the wait IS the cap. An empty string otherwise, so the caller's message stays one sentence. */
+export function embedBoundNote(n, timeoutMs, env = process.env) {
+  const stated = embedStatedMs(n, env);
+  const capped = embedTimeoutMs(n, env);
+  if (!(capped < stated) || timeoutMs !== capped) return '';
+  return ` (the HTTP client waits no longer, and ${n} input(s) asked for ${stated} ms \u2014 split the batch)`;
+}
+
 /* NAMES what happened, so the token lane never borrows "unreachable" for a stall (CLAUDE.md §∅: a
-   named reason, never one taken from a neighbouring failure). */
+   named reason, never one taken from a neighbouring failure). THE TEXTS COME FROM `net-bound.mjs`,
+   which holds the same rule for every `fetch` in `tools/`: a refusal, a stall, a reset and the cause
+   code of anything else. Only the no-message wording is this tool's own, because a reader of THIS
+   banner is looking for the embedder. */
 export function embedFailureReason(err, endpoint = OLLAMA) {
-  const name = err?.name || '';
-  /* The message ALONE when the throw carries one, because `String(new Error(''))` reads `Error` and
-     a banner naming the class of the failure names nothing a reader can act on. A thrown string has
-     no `message`, so it falls through to its own text. */
-  const msg = typeof err?.message === 'string' ? err.message : String(err ?? '');
-  if (msg.includes('did not answer within')) return msg;
-  if (name === 'TimeoutError' || name === 'AbortError') return `${endpoint} did not answer in time`;
-  const code = err?.cause?.code || '';
-  if (code === 'ECONNREFUSED' || msg.includes('ECONNREFUSED')) return `${endpoint} refused the connection`;
-  if (code === 'ENOTFOUND' || msg.includes('ENOTFOUND')) return `${endpoint} does not resolve`;
-  return msg || 'the embedder failed with no message';
+  const reason = netFailureReason(err, endpoint);
+  return reason === 'the request failed with no message' ? 'the embedder failed with no message' : reason;
 }
 
 async function embed(inputs, { timeoutMs = embedTimeoutMs(inputs.length), fetchImpl = fetch } = {}) {
@@ -730,7 +758,8 @@ async function embed(inputs, { timeoutMs = embedTimeoutMs(inputs.length), fetchI
      the signal frees the socket a stalled backend holds, and the `finally` clears the timer so it
      never holds the process open. The reason travels ON the signal, so one text states the bound. */
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(new Error(`the embedder at ${OLLAMA} did not answer within ${timeoutMs} ms`)), timeoutMs);
+  const note = embedBoundNote(inputs.length, timeoutMs);
+  const timer = setTimeout(() => ac.abort(new Error(`the embedder at ${OLLAMA} did not answer within ${timeoutMs} ms${note}`)), timeoutMs);
   try {
     const res = await fetchImpl(`${OLLAMA}/api/embed`, {
       method: 'POST',
@@ -1432,6 +1461,34 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
     ok('a failure with no message at all still names itself', embedFailureReason(new Error('')) === 'the embedder failed with no message');
     ok('…and never names the CLASS of the failure instead', embedFailureReason(new Error('')) !== 'Error');
     ok('a thrown string keeps its own text', embedFailureReason('boom') === 'boom');
+    /* 🔴 THE CAP, AND THE CAUSE THAT NAMES IT. Measured 2026-11-22: a 2-input batch with no
+       signal of our own threw at 300.8 s with `cause.code = UND_ERR_HEADERS_TIMEOUT`, so the
+       client's bound is lower than this tool's for every n at or above 12. */
+    ok('the stated bound still reads as the measurements state it', embedStatedMs(12, env) === 310_000);
+    ok('…and n = 11 is the last count the client can still honour', embedStatedMs(11, env) === 290_000 && embedTimeoutMs(11, env) === 290_000);
+    ok('a bound past the client\u2019s own is capped below it, so OUR abort lands first', embedTimeoutMs(12, env) === 295_000);
+    ok('…and a real file-sized batch is capped too, never promised 102 minutes', embedTimeoutMs(303, env) === 295_000 && embedStatedMs(303, env) === 6_130_000);
+    ok('a reader who runs a client with another bound declares it', embedTimeoutMs(303, { DEX_NET_CLIENT_TIMEOUT_MS: '900000' }) === 895_000);
+    ok('…and a declared 0 keeps the stated bound whole', embedTimeoutMs(303, { DEX_NET_CLIENT_TIMEOUT_MS: '0' }) === 6_130_000);
+    /* 🔴 THE TIGHTENING HATCH REACHES THE TOKEN LANE FOR ONE INPUT AND NO BATCH. This file's
+       header offered `DEX_EMBED_TIMEOUT_MS=1` as the way to the token lane at once. It moves the
+       FLOOR alone, so at 303 inputs the per-input term still asks 6,040,001 ms and the reader waits
+       the cap. Both terms reach it; the header now says so. */
+    ok('the floor hatch alone leaves a batch waiting the cap', embedTimeoutMs(303, { DEX_EMBED_TIMEOUT_MS: '1' }) === 295_000);
+    ok('…and both terms together reach the token lane at once', embedTimeoutMs(303, { DEX_EMBED_TIMEOUT_MS: '1', DEX_EMBED_TIMEOUT_PER_INPUT_MS: '0' }) === 1);
+    ok('the cap names itself when it binds', embedBoundNote(303, embedTimeoutMs(303, env), env).includes('asked for 6130000 ms'));
+    ok('…and says nothing when the stated bound holds', embedBoundNote(3, embedTimeoutMs(3, env), env) === '');
+    ok('…and never blames the client for a bound its caller chose', embedBoundNote(303, 20, env) === '');
+    /* The cause code is the whole finding: the wrapper text is one word for every failure. */
+    const headersTimeout = Object.assign(new TypeError('fetch failed'), { cause: { code: 'UND_ERR_HEADERS_TIMEOUT', message: 'Headers Timeout Error' } });
+    ok('a client header timeout no longer reads as the opaque wrapper text', embedFailureReason(headersTimeout, 'http://h') === 'http://h fetch failed (UND_ERR_HEADERS_TIMEOUT)');
+    ok('…so the reason names a cause the reader can act on', embedFailureReason(headersTimeout, 'http://h') !== 'fetch failed');
+    ok(
+      'a cause with a message and no code travels on its message',
+      embedFailureReason(Object.assign(new TypeError('fetch failed'), { cause: { message: 'socket hang up' } }), 'http://h') === 'http://h fetch failed (socket hang up)'
+    );
+    ok('a cause that repeats the wrapper text adds no parenthesis', embedFailureReason(Object.assign(new TypeError('fetch failed'), { cause: { message: 'fetch failed' } })) === 'fetch failed');
+    ok('a failure with no cause at all keeps its own message', embedFailureReason(new TypeError('fetch failed')) === 'fetch failed');
     ok('the banner names the stall it degraded on', laneBanner(null, 'http://h did not answer within 20 ms', 'q').includes('TOKEN-FALLBACK (http://h did not answer within 20 ms)'));
     ok('…and keeps the old wording when no reason reached it', laneBanner(null, null, 'q').includes('TOKEN-FALLBACK (embedder unreachable)'));
     ok('…and says nothing about a lane the embedder answered', laneBanner([1], null, 'q').includes('semantic') && !laneBanner([1], null, 'q').includes('FALLBACK'));
