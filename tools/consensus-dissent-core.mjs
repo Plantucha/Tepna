@@ -194,7 +194,11 @@ export function refpickTally(stamps) {
       continue;
     }
     t.streams++;
-    t.byRule[s.rule] = (t.byRule[s.rule] || 0) + 1;
+    /* A rule's counter starts at zero the first time that rule appears, which is a real count and
+       never a measured value standing in for an absent one. `dissentTally` guards its fixed key set
+       the same way, and an `|| 0` here would read as the §∅ fabrication `absence-regression` hunts. */
+    if (!Object.hasOwn(t.byRule, s.rule)) t.byRule[s.rule] = 0;
+    t.byRule[s.rule]++;
     if (s.idx == null) {
       t.unscored++;
       continue;
