@@ -16725,8 +16725,12 @@
         var hits = [];
         t.split('\n').forEach(function (line, i) {
           if (!/^if\s*\(/.test(line) || !/process\.argv/.test(line)) return;
+          /* Token membership, never a pattern built from a name. Every alias is an identifier,
+             so the maximal identifier runs on the line answer the question exactly, and no
+             scanner has to trust that this code escaped a metacharacter it never receives. */
+          var ids = line.match(/[A-Za-z_$][\w$]*/g) || [];
           var guarded = names.some(function (a) {
-            return new RegExp('\\b' + a.replace(/\$/g, '\\$') + '\\b').test(line);
+            return ids.indexOf(a) >= 0;
           });
           if (!guarded) hits.push(i + 1);
         });
