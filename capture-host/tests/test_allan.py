@@ -870,6 +870,31 @@ def test_a_too_short_series_still_refuses_before_reaching_the_new_fields():
     assert "phase_noise" not in s and "tdev" not in s
 
 
+def test_an_axis_with_no_extent_names_its_refusal_instead_of_borrowing_too_few_taus():
+    """§∅, row `2026-11-22-a-zero-extent-host-axis-refuses-as-too-few-taus`. `adev` refuses on
+    `not tau0 or tau0 <= 0` as well as on a short series, so both causes landed in one branch and both
+    reported `too-few-taus`. A frozen host-stamp column computes tau0 as exactly 0.0 over any number of
+    packets, so the record described a 400-sample series as short. Shrike read the line first, board
+    #7850."""
+    long_series = [float(i % 7) for i in range(400)]
+
+    # A FLAT AXIS OVER A LONG SERIES. The series is not short, so the reason must not say it is.
+    flat = allan.stability(long_series, 0.0, 300.0, sample_times=[0.0] * 400)
+    assert flat["ok"] is False
+    assert flat["reason"] == "zero-extent-axis"
+    assert flat["taus"] == 0
+
+    # CONTROL: the same series on a real tau0 answers, which proves the length never caused the refusal.
+    answered = allan.stability(long_series, TAU0, 300.0)
+    assert answered["ok"] is True
+
+    # An UNMEASURED interval is absence, not a measured zero. The two carry different remedies, so the
+    # reasons differ: more packets against `no-tau0`, the host clock against `zero-extent-axis`.
+    assert allan.stability(long_series, None)["reason"] == "no-tau0"
+    # A negative is no sample interval either, so it reads as no extent rather than as a short run.
+    assert allan.stability(long_series, -TAU0)["reason"] == "zero-extent-axis"
+
+
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 # GROSLAMBERT COVARIANCE — measuring the instrument noise instead of inheriting it.
 #

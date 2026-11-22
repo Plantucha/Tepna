@@ -874,7 +874,23 @@ def stability(phase, tau0, tdev_tau=None, sample_times=None, gap_k=4.0):
     # compacted one it always was and `pooled` says so.
     pts, seg = adev_pooled(phase, tau0, sample_times, gap_k)
     if len(pts) < 3:
-        return {"ok": False, "reason": "too-few-taus", "taus": len(pts), **seg}
+        # NAME THE CAUSE, NEVER BORROW ONE (§∅; row
+        # `2026-11-22-a-zero-extent-host-axis-refuses-as-too-few-taus`; Shrike read the line first,
+        # board #7850). `adev` refuses on `n < 3 or not tau0 or tau0 <= 0`, so an absent or zero
+        # sample interval lands in THIS branch whatever the series length. A frozen host-stamp column
+        # computes exactly 0.0 from 400 packets, and the record then told its reader the series was
+        # short. The two causes are different facts with different remedies: a short series wants more
+        # packets, a flat axis wants the host clock looked at. A non-positive tau0 is no sample
+        # interval either, so it reads as no extent rather than as a short run. A NaN tau0 never
+        # arrives here: `adev` converts tau to an integer term count and raises ValueError first,
+        # measured 2026-11-22, so this branch sees only None, a number at or below 0, or a short run.
+        if tau0 is None:
+            why = "no-tau0"
+        elif not tau0 > 0:
+            why = "zero-extent-axis"
+        else:
+            why = "too-few-taus"
+        return {"ok": False, "reason": why, "taus": len(pts), **seg}
     sl = slope(pts)
     se = slope_se(pts)
     best = min(pts, key=lambda p: p["adev"])

@@ -1450,14 +1450,20 @@ def test_tau0_is_the_mean_packet_interval_in_seconds_exactly():
     assert nightqc._tau0_of([(0.0, 0.0), (2000.0, 0.0)]) == 2.0
 
 
-def test_tau0_refuses_below_two_packets_and_returns_zero_not_one():
-    """A 0.0 makes `allan.adev` refuse (`tau0 <= 0`); a 1.0 would silently claim a one-second interval
-    and produce a whole curve on an axis that was never measured."""
+def test_tau0_is_none_below_two_packets_rather_than_zero_or_one():
+    """§∅: one packet measures NO interval, so the absence travels as None. A 0.0 made
+    `allan.stability` refuse with `too-few-taus`, which told its reader the series was short when the
+    axis simply had no extent; a 1.0 would claim a one-second interval nobody measured. Row
+    `2026-11-22-a-zero-extent-host-axis-refuses-as-too-few-taus`."""
+    import allan
     import nightqc
 
-    assert nightqc._tau0_of([]) == 0.0
-    assert nightqc._tau0_of([(1.0, 0.0)]) == 0.0
+    assert nightqc._tau0_of([]) is None
+    assert nightqc._tau0_of([(1.0, 0.0)]) is None
     assert nightqc._tau0_of([(0.0, 0.0), (1000.0, 0.0)]) == 1.0, "two packets IS enough"
+    # The absence reaches the consumer as its own named refusal rather than as a borrowed one.
+    one_packet = allan.stability([float(i % 7) for i in range(400)], nightqc._tau0_of([(1.0, 0.0)]))
+    assert one_packet["ok"] is False and one_packet["reason"] == "no-tau0"
 
 
 def test_an_unconfigured_or_unmeasurable_rate_is_unjudged_not_failed(tmp_path):
