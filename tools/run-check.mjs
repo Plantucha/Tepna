@@ -408,6 +408,19 @@ export function renderScopeNote({ steps = STEPS, subject, scoped, ranges }) {
   return out.join('\n');
 }
 
+/* THE READ SITS IN A FUNCTION BODY ON PURPOSE. A module-scope `readFileSync` below a flag's exit is
+   what `tools/flag-exit-scan.mjs` counts as a risk — an importer, or a `--selftest` run, reaches a
+   side effect the flag was supposed to preempt. The first draft of this note read package.json in
+   the CLI block itself and joined that census (step 15, the ratchet, threshold 0 NEW tools). */
+function readScripts(root) {
+  try {
+    return JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).scripts || {};
+  } catch {
+    /* The note is a reporter: an unreadable package.json names no scoped step, and reds nothing. */
+    return {};
+  }
+}
+
 /* IMPURE, and only the CLI block calls it: it asks git about the range the scoped steps diff. A base
    that does not resolve — no `origin/main` in a fresh or shallow clone — is reported as UNKNOWN
    scope, never as silence. A step reporting about what it never read is the whole defect here. */
@@ -812,10 +825,7 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
     /diffScopedSteps\(scripts, steps\)/.test(SELF_TEXT) && /scopeNote = renderScopeNote\(/.test(SELF_TEXT) && /^\s+scopeNote$/m.test(SELF_TEXT),
     'the wiring is what makes the pure functions reach a reader'
   );
-  ok(
-    'diff-scope ANTI-VACUITY · the real STEPS still hold a --base step, so this is not a note about nothing',
-    diffScopedSteps(JSON.parse(readFileSync(join(HERE, '..', 'package.json'), 'utf8')).scripts, STEPS).length > 0
-  );
+  ok('diff-scope ANTI-VACUITY · the real STEPS still hold a --base step, so this is not a note about nothing', diffScopedSteps(readScripts(join(HERE, '..')), STEPS).length > 0);
 
   console.log(fail ? `\n✗ ${fail} failed, ${pass} passed` : `\n✓ all ${pass} selftests passed`);
   process.exit(fail ? 1 : 0);
@@ -857,7 +867,7 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
      already reads UNKNOWN by provenance (§3d), and nothing here moves a status or an exit code. */
   let scopeNote = '';
   try {
-    const scripts = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).scripts || {};
+    const scripts = readScripts(ROOT);
     const scoped = diffScopedSteps(scripts, steps);
     if (scoped.length) {
       const g = (args, raw) => {
