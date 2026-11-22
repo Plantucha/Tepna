@@ -38,6 +38,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeVerdict, printVerdict } from './verdict-emit.mjs';
 import { boundedFetch } from './net-bound.mjs';
+import { isCliEntry } from './argv-guard.mjs';
 
 const argv = process.argv.slice(2);
 const flag = (n) => argv.includes(n);
@@ -452,107 +453,118 @@ function selftest() {
 
 const CRITERION = { name: 'updates_ready', threshold: 0, unit: 'updates', direction: 'lte' };
 
-if (flag('--selftest')) selftest();
-if (flag('--verdict-sample')) {
-  printVerdict(
-    makeVerdict({
-      gate: 'update-watch',
-      status: 'NOT_RUN',
-      population: { checked: 0, eligible: 0, excluded: 0 },
-      criterion: CRITERION,
-      result: null,
-      evidence: [TOOL],
-      reason: 'a sample: no source was read',
-      tool: TOOL,
-      commit: null,
-      commitReason: 'a --verdict-sample reads no tree'
-    })
-  );
-  process.exit(0);
-}
-
-const nowMs = Date.now();
-const SP = statePath();
-const state = existsSync(SP) ? JSON.parse(readFileSync(SP, 'utf8')) : { firstSeen: {}, notified: {} };
-const rows = [];
-for (const src of SOURCES) {
-  const row = { name: src.name, quiet: src.quiet, steps: src.steps, owner: src.owner };
-  try {
-    const [i, l] = await Promise.all([readInstalled(src), readLatest(src)]);
-    row.installed = i.version;
-    row.latest = l.version;
-    row.notes = l.notes ?? null;
-    row.published = l.publishedMs ? new Date(l.publishedMs).toISOString().slice(0, 10) : null;
-    const key = `${src.name}@${l.version}`;
-    if (l.version && l.version !== i.version && !state.firstSeen[key]) state.firstSeen[key] = nowMs;
-    Object.assign(
-      row,
-      readiness({
-        installed: i.version,
-        latest: l.version,
-        publishedMs: l.publishedMs,
-        firstSeenMs: state.firstSeen[key] ?? null,
-        prerelease: l.prerelease,
-        allowPre: !!src.allowPre,
-        soakDays: src.soakDays,
-        nowMs
+/* ENTRY GUARD (2026-11-22, residue `2026-11-21-update-watch-runs-its-whole-main-on-import`).
+   Every statement below used to sit at module scope, so an import of any export ran the whole
+   tool: it read npm, GitHub and the ollama registry, rewrote the state file at `statePath()` and
+   printed the table and the verdict before the importer's first line. 253 sibling tools under
+   `tools/` already call the house predicate, and the flag reads move INSIDE the guard with the
+   work, because a module-scope flag read answers the IMPORTER's argv (residue
+   `2026-10-21-a-module-scope-selftest-reads-the-importers-flags`). */
+async function main() {
+  if (flag('--selftest')) selftest();
+  if (flag('--verdict-sample')) {
+    printVerdict(
+      makeVerdict({
+        gate: 'update-watch',
+        status: 'NOT_RUN',
+        population: { checked: 0, eligible: 0, excluded: 0 },
+        criterion: CRITERION,
+        result: null,
+        evidence: [TOOL],
+        reason: 'a sample: no source was read',
+        tool: TOOL,
+        commit: null,
+        commitReason: 'a --verdict-sample reads no tree'
       })
     );
-  } catch (e) {
-    row.ready = false;
-    row.why = 'unread';
-    row.error = String(e.message || e)
-      .split('\n')[0]
-      .slice(0, 160);
+    process.exit(0);
   }
-  rows.push(row);
+
+  const nowMs = Date.now();
+  const SP = statePath();
+  const state = existsSync(SP) ? JSON.parse(readFileSync(SP, 'utf8')) : { firstSeen: {}, notified: {} };
+  const rows = [];
+  for (const src of SOURCES) {
+    const row = { name: src.name, quiet: src.quiet, steps: src.steps, owner: src.owner };
+    try {
+      const [i, l] = await Promise.all([readInstalled(src), readLatest(src)]);
+      row.installed = i.version;
+      row.latest = l.version;
+      row.notes = l.notes ?? null;
+      row.published = l.publishedMs ? new Date(l.publishedMs).toISOString().slice(0, 10) : null;
+      const key = `${src.name}@${l.version}`;
+      if (l.version && l.version !== i.version && !state.firstSeen[key]) state.firstSeen[key] = nowMs;
+      Object.assign(
+        row,
+        readiness({
+          installed: i.version,
+          latest: l.version,
+          publishedMs: l.publishedMs,
+          firstSeenMs: state.firstSeen[key] ?? null,
+          prerelease: l.prerelease,
+          allowPre: !!src.allowPre,
+          soakDays: src.soakDays,
+          nowMs
+        })
+      );
+    } catch (e) {
+      row.ready = false;
+      row.why = 'unread';
+      row.error = String(e.message || e)
+        .split('\n')[0]
+        .slice(0, 160);
+    }
+    rows.push(row);
+  }
+
+  if (!flag('--json')) {
+    for (const r of rows)
+      console.log(
+        `  ${r.ready ? 'READY' : '     '}  ${r.name.padEnd(24)} ${short(r.installed).padEnd(16)} → ${short(r.latest).padEnd(16)} ${r.why}${r.owner ? ' · owner' : ''}${r.error ? ` · ${r.error}` : ''}`
+      );
+  }
+
+  const installedByName = Object.fromEntries(rows.map((r) => [r.name, r.installed ?? null]));
+  const DOC = join(dirname(fileURLToPath(import.meta.url)), '..', 'THIRD-PARTY.md');
+  const drift = docDrift(existsSync(DOC) ? parseLocalToolRows(readFileSync(DOC, 'utf8')) : null, installedByName);
+  if (!flag('--json')) for (const f of drift) console.log(`  DRIFT  ${f.label.padEnd(24)} ${short(f.recorded).padEnd(16)} ← doc · box ${short(f.installed)} · ${f.kind}`);
+
+  let posted = 0;
+  if (flag('--notify')) {
+    const board = process.env.AGENT_BOARD || join(homedir(), '.local/bin/agent-board');
+    for (const r of rows.filter((x) => x.ready)) {
+      const key = `${r.name}@${r.latest}`;
+      if (state.notified[key]) continue;
+      run(board, ['--as', 'update-watch', 'post', '6', '--kind', 'question', '--to', 'kestrel', '--no-lint', promptText(r)], 30000);
+      state.notified[key] = nowMs;
+      posted++;
+    }
+    for (const f of drift) {
+      const key = `doc-drift:${f.label}@${f.installed ?? f.kind}`;
+      if (state.notified[key]) continue;
+      run(board, ['--as', 'update-watch', 'post', '6', '--kind', 'finding', '--to', 'kestrel', '--no-lint', driftText(f)], 30000);
+      state.notified[key] = nowMs;
+      posted++;
+    }
+  }
+  mkdirSync(dirname(SP), { recursive: true });
+  writeFileSync(SP, `${JSON.stringify(state, null, 1)}\n`);
+
+  const unread = rows.filter((r) => r.why === 'unread').length;
+  const ready = rows.filter((r) => r.ready);
+  const checked = rows.length - unread;
+  const v = makeVerdict({
+    gate: 'update-watch',
+    status: checked === 0 ? 'UNKNOWN' : ready.length ? 'FAIL' : 'PASS',
+    population: { checked, eligible: rows.length, excluded: unread },
+    criterion: CRITERION,
+    result: { ready: ready.map((r) => `${r.name}@${short(r.latest)}`), posted, docDrift: drift.map((f) => `${f.label}:${f.kind}`) },
+    evidence: [TOOL],
+    reason: checked === 0 ? 'no source could be read' : ready.length ? `${ready.length} update(s) ready` : null,
+    tool: TOOL
+  });
+  if (flag('--json')) console.log(JSON.stringify({ verdict: v, rows }, null, 1));
+  else printVerdict(v);
 }
 
-if (!flag('--json')) {
-  for (const r of rows)
-    console.log(
-      `  ${r.ready ? 'READY' : '     '}  ${r.name.padEnd(24)} ${short(r.installed).padEnd(16)} → ${short(r.latest).padEnd(16)} ${r.why}${r.owner ? ' · owner' : ''}${r.error ? ` · ${r.error}` : ''}`
-    );
-}
-
-const installedByName = Object.fromEntries(rows.map((r) => [r.name, r.installed ?? null]));
-const DOC = join(dirname(fileURLToPath(import.meta.url)), '..', 'THIRD-PARTY.md');
-const drift = docDrift(existsSync(DOC) ? parseLocalToolRows(readFileSync(DOC, 'utf8')) : null, installedByName);
-if (!flag('--json')) for (const f of drift) console.log(`  DRIFT  ${f.label.padEnd(24)} ${short(f.recorded).padEnd(16)} ← doc · box ${short(f.installed)} · ${f.kind}`);
-
-let posted = 0;
-if (flag('--notify')) {
-  const board = process.env.AGENT_BOARD || join(homedir(), '.local/bin/agent-board');
-  for (const r of rows.filter((x) => x.ready)) {
-    const key = `${r.name}@${r.latest}`;
-    if (state.notified[key]) continue;
-    run(board, ['--as', 'update-watch', 'post', '6', '--kind', 'question', '--to', 'kestrel', '--no-lint', promptText(r)], 30000);
-    state.notified[key] = nowMs;
-    posted++;
-  }
-  for (const f of drift) {
-    const key = `doc-drift:${f.label}@${f.installed ?? f.kind}`;
-    if (state.notified[key]) continue;
-    run(board, ['--as', 'update-watch', 'post', '6', '--kind', 'finding', '--to', 'kestrel', '--no-lint', driftText(f)], 30000);
-    state.notified[key] = nowMs;
-    posted++;
-  }
-}
-mkdirSync(dirname(SP), { recursive: true });
-writeFileSync(SP, `${JSON.stringify(state, null, 1)}\n`);
-
-const unread = rows.filter((r) => r.why === 'unread').length;
-const ready = rows.filter((r) => r.ready);
-const checked = rows.length - unread;
-const v = makeVerdict({
-  gate: 'update-watch',
-  status: checked === 0 ? 'UNKNOWN' : ready.length ? 'FAIL' : 'PASS',
-  population: { checked, eligible: rows.length, excluded: unread },
-  criterion: CRITERION,
-  result: { ready: ready.map((r) => `${r.name}@${short(r.latest)}`), posted, docDrift: drift.map((f) => `${f.label}:${f.kind}`) },
-  evidence: [TOOL],
-  reason: checked === 0 ? 'no source could be read' : ready.length ? `${ready.length} update(s) ready` : null,
-  tool: TOOL
-});
-if (flag('--json')) console.log(JSON.stringify({ verdict: v, rows }, null, 1));
-else printVerdict(v);
+if (isCliEntry(import.meta.url)) await main();
