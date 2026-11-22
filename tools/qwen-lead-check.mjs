@@ -90,7 +90,8 @@ export function checkLeads(leads, src) {
   const dropped = {};
   for (const lead of leads) {
     const why = checkLead(lead, src);
-    if (why) dropped[why] = (dropped[why] || 0) + 1;
+    if (why)
+      dropped[why] = (dropped[why] || 0) + 1; // absence-ok: a count of dropped leads; a reason not yet seen counts from 0
     else kept.push(lead);
   }
   return { kept, dropped };
@@ -157,8 +158,8 @@ function selftest() {
     pass ? ok++ : fail++;
     console.log(`  ${pass ? '✓' : '✕'} ${name}${pass ? '' : ` got ${JSON.stringify(got)} want ${JSON.stringify(want)}`}`);
   };
-  const OLD = ['a', 'b', 'const hr = row.hr ?? 0;', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'const spo2 = r.s || 0;'].join('\n');
-  const CUR = OLD.replace('const spo2 = r.s || 0;', 'const spo2 = r.s ?? null;');
+  const OLD = ['a', 'b', 'const hr = row.hr ?? 0;', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'const spo2 = r.s || 0;'].join('\n'); // absence-ok: selftest fixture text, the lens bait
+  const CUR = OLD.replace('const spo2 = r.s || 0;', 'const spo2 = r.s ?? null;'); // absence-ok: selftest fixture text, the lens bait
   const files = { 'aaaaaaa:x-dsp.js': OLD, 'bbbbbbb:x-dsp.js': CUR };
   const src = { mainRef: 'bbbbbbb', residue: '| k | 2026 | x | y-dsp.js:3 named |', fileAt: (r, f) => files[`${r}:${f}`] ?? null };
   const base = { lens: 'absence', ref: 'aaaaaaa', file: 'x-dsp.js', claim: 'c', check: 'k' };
@@ -166,7 +167,7 @@ function selftest() {
   ck('a line off by 2 still matches (slack 3)', checkLead({ ...base, line: 5, quote: 'const hr = row.hr ?? 0;' }, src), null);
   ck('a fabricated line number drops', checkLead({ ...base, line: 10, quote: 'const hr = row.hr ?? 0;' }, src), 'quote-mismatch');
   ck('a quote absent from the file drops', checkLead({ ...base, line: 3, quote: 'invented();' }, src), 'quote-mismatch');
-  ck('a lead on code fixed since drops as stale', checkLead({ ...base, line: 13, quote: 'const spo2 = r.s || 0;' }, src), 'stale');
+  ck('a lead on code fixed since drops as stale', checkLead({ ...base, line: 13, quote: 'const spo2 = r.s || 0;' }, src), 'stale'); // absence-ok: selftest fixture text, the lens bait
   ck('an unknown ref drops', checkLead({ ...base, ref: 'ccccccc', line: 3, quote: 'const hr = row.hr ?? 0;' }, src), 'ref-or-file');
   ck('an unknown lens is malformed', checkLead({ ...base, lens: 'vibes', line: 3, quote: 'x' }, src), 'malformed');
   const src2 = { ...src, residue: '| k | x-dsp.js:3 logged |' };
@@ -174,7 +175,7 @@ function selftest() {
   const leads = [
     { ...base, line: 3, quote: 'const hr = row.hr ?? 0;' },
     { ...base, line: 10, quote: 'const hr = row.hr ?? 0;' },
-    { ...base, line: 13, quote: 'const spo2 = r.s || 0;' }
+    { ...base, line: 13, quote: 'const spo2 = r.s || 0;' } // absence-ok: selftest fixture text, the lens bait
   ];
   const r = checkLeads(leads, src);
   ck('checkLeads keeps 1 and counts drops by reason', [r.kept.length, r.dropped], [1, { 'quote-mismatch': 1, stale: 1 }]);
