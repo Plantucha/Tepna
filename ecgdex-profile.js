@@ -246,7 +246,7 @@
     const tanaka = Math.round(208 - 0.7 * p.age);
     // resting HR: overnight = nocturnal floor (p5 of epoch HR) + 8 (awake est); short = measured
     let hrFloor = null,
-      autoRHR = Math.round(r.hr);
+      autoRHR = Number.isFinite(r.hr) ? Math.round(r.hr) : null;
     if (r.longRec && r.epochs && r.epochs.length >= 3) {
       const hrs = r.epochs.map((e) => e.hr).sort((a, b) => a - b);
       hrFloor = Math.round(hrs[Math.floor(hrs.length * 0.05)]);
@@ -256,9 +256,21 @@
     const hrmaxValid = p.hrmax > 0 && p.hrmax >= 140 && p.hrmax > rhrEff + 45;
     const hrmaxEff = hrmaxValid ? Math.round(p.hrmax) : tanaka;
     const altF = altVO2Factor(p.elev);
-    const lnrm = Math.log(Math.max(1, r.dispRm));
-    const vo2b = +(vo2Base(rhrEff, hrmaxEff) * altF).toFixed(1);
-    const vo2a = +vo2Adj(vo2b, lnrm).toFixed(1);
+    /* ∅ AN ABSENT rMSSD CANNOT CARRY AN HRV MODULATION, AND THE FLOOR HID THAT.
+       `Math.max(1, null)` is 1, so `lnrm` read exactly 0 and `vo2Adj` applied its whole minus
+       8 per cent arm to a night that measured no rMSSD: against a 50.0 base the card published
+       46.0 under a badge. `Math.max(1, undefined)` is NaN instead, and NaN passes every
+       `!= null` test downstream. The floor itself is sound for every FINITE input, because
+       `vo2Adj` clamps `d * 0.1` at minus 0.08 and ln of any value at or below 1 clamps there
+       anyway. So absence is the only input it mishandles, and absence is the only thing guarded
+       here. The same statement also read an absent HR as a resting HR of 0 through
+       `Math.round(null)`, which `rhrEff` then divided into, so `vo2Base` answered Infinity.
+       Two roads already carry these refusals: `pulsedex-app.js` (pinned in the suite) and
+       `ppgdex-profile.js`. This was the third road, and the only unguarded one. */
+    const rmOk = Number.isFinite(r.dispRm);
+    const lnrm = rmOk ? Math.log(Math.max(1, r.dispRm)) : null;
+    const vo2b = rhrEff > 0 ? +(vo2Base(rhrEff, hrmaxEff) * altF).toFixed(1) : null;
+    const vo2a = lnrm == null || vo2b == null ? null : +vo2Adj(vo2b, lnrm).toFixed(1);
     // ANS age removed (WP-A) — no longer computed; export keeps ansAge:null for back-compat.
     // apneaRisk + estAHI RETIRED 2026-07-31 (see the note above apneaRisk). The AMBULATORY veto
     // they carried is not lost — it lives where the underlying index is computed, and `cvhrIndex`
