@@ -61213,6 +61213,111 @@
        WHITELIST: that is how `hrStat` shipped inert from ECGDex while every golden read `undefined`.
        So the group runs the export through `adaptEnvelopeNode` and reads `series.hrvEpochs`, and it
        keeps a CONTROL that deletes the block and asserts 0 epochs — the state this row describes. */
+    /* ∅/CONVENTION — THE PulseDex HR STATISTIC, PINNED, BECAUSE A REMOVAL CARRIES NO ASSERTION.
+       `pulsedex-dsp.js` computed a night median HR (`_dispHr`) and a night median mean RR
+       (`dispMeanRR` → `_cMeanRR`) that nothing read, so both were dropped rather than wired. The
+       reason is a published convention: this node's `hr` and `meanRR` are whole-record figures, and
+       `hrv.time.windowNote` says so in words, while ECGDex and PpgDex publish the epoch median in
+       the same export slot. Wiring the median would move a published number against its own note.
+       These legs pin the choice so a later session reads the note before it reaches for a median.
+       The input steps from 900 ms to 500 ms at 70 % of the record, which makes the two statistics
+       disagree by 10.2 bpm — a flat record would satisfy every leg below by accident. */
+    group('∅ PulseDex HR · the published rate is the whole-record rate of the mean, and the note says so', 'pulsedex-dsp · node-export · convention · known-answer · absence', function (T) {
+      var P = env.PULSEDSP || env.PulseDex;
+      var pick = function (k) {
+        return P && (P[k] || (P._bare && P._bare[k]));
+      };
+      var pdComputeResult = pick('pdComputeResult'),
+        pdBuildNodeExport = pick('pdBuildNodeExport');
+      /* FAIL CLOSED — a skip here hides the wiring this group exists to assert. */
+      if (!(typeof pdComputeResult === 'function' && typeof pdBuildNodeExport === 'function')) {
+        T.eq('the PulseDex DSP exposes its compute and its export builder', 'absent', 'present');
+        return;
+      }
+      var T0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+      /* 7200 beats is ~1.8 h, over the 90 min the classifier needs before PulseDex windows anything.
+         The ±10 ms alternation gives each window a real rMSSD, so no leg leans on a degenerate 0. */
+      var vals = [],
+        tsMs = [],
+        at = T0,
+        K = Math.floor(7200 * 0.7);
+      for (var i = 0; i < 7200; i++) {
+        var v = (i < K ? 900 : 500) + (i % 2 ? 10 : -10);
+        vals.push(v);
+        tsMs.push(at);
+        at += v;
+      }
+      /* THE HELPER REFUSES RATHER THAN THROWS. A mutant that drops `meanRR` from the window push
+         fed `undefined.toFixed` and the whole group threw, which names no leg. */
+      var med = function (a) {
+        var s = a
+          .filter(function (v) {
+            return typeof v === 'number' && isFinite(v);
+          })
+          .sort(function (x, y) {
+            return x - y;
+          });
+        if (!s.length) return null;
+        var n = s.length;
+        return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+      };
+      var medf = function (a) {
+        var m = med(a);
+        return m == null ? null : +m.toFixed(1);
+      };
+      var r = pdComputeResult({ vals: vals, tsMs: tsMs, t0Ms: T0 });
+      var wins = r.windows || [];
+      T.ok('PRECONDITION · the record is long enough that PulseDex walks windows at all', r.longRec === true && wins.length >= 10, JSON.stringify({ longRec: r.longRec, wins: wins.length }));
+      var medHr = medf(
+        wins.map(function (w) {
+          return w.hr;
+        })
+      );
+      var medRr = medf(
+        wins.map(function (w) {
+          return w.meanRR;
+        })
+      );
+      T.ok(
+        'PRECONDITION · the two statistics disagree here, so the legs below examine something',
+        medHr != null && Math.abs(r.hr - medHr) > 5,
+        JSON.stringify({ published: r.hr, windowMedian: medHr })
+      );
+      T.approx('the record publishes the rate of the mean interval', r.hr, +(60000 / r.meanRR).toFixed(1), 0.05, 'the formula, read back from the published mean');
+      T.approx('…which is 76.9 bpm on this record', r.hr, 76.9, 0.05, JSON.stringify({ windowMedian: medHr }));
+      T.ok('…and it is NOT the 66.7 bpm window median', medHr != null && Math.abs(r.hr - medHr) > 5, JSON.stringify([r.hr, medHr]));
+      T.approx('the record publishes the whole-record mean interval, never the median of the window means', r.meanRR, 780.1, 0.05, JSON.stringify({ windowMedian: medRr }));
+      var ex = pdBuildNodeExport(r);
+      var t = (ex.hrv && ex.hrv.time) || {};
+      T.eq('the export carries the same two figures across the boundary', JSON.stringify([t.hr, t.meanRR]), JSON.stringify([r.hr, r.meanRR]));
+      T.ok(
+        '…and `windowNote` names the whole-record convention for both keys',
+        typeof t.windowNote === 'string' && /hr\/meanRR are WHOLE-RECORD/.test(t.windowNote),
+        JSON.stringify((t.windowNote || '').slice(0, 60))
+      );
+      /* THE DERIVATION PATH STAYS PUBLISHED. The removal above costs a consumer nothing only while
+         every window and every exported epoch still carries its own rate and its own mean. */
+      var badW = wins.filter(function (w) {
+        return !(w && isFinite(w.hr) && isFinite(w.meanRR));
+      });
+      T.eq('every window still publishes its own finite rate and mean interval', badW.length, 0, JSON.stringify(badW.slice(0, 2)));
+      var eps = (ex.timeseries && ex.timeseries.epochs) || [];
+      var badE = eps.filter(function (e) {
+        return !(e && isFinite(e.hr) && isFinite(e.meanRR) && e.hrStat === 'rate-of-mean');
+      });
+      T.ok('…and so does every exported epoch, with its statistic named', eps.length >= 10 && badE.length === 0, JSON.stringify({ n: eps.length, bad: badE.slice(0, 2) }));
+      var medEp = medf(
+        eps.map(function (e) {
+          return e.hr;
+        })
+      );
+      T.ok(
+        'so a consumer derives the night median from published data alone',
+        medEp != null && medHr != null && Math.abs(medEp - medHr) <= 0.2,
+        JSON.stringify({ fromEpochs: medEp, fromWindows: medHr })
+      );
+    });
+
     group('the PulseDex export carries a per-epoch series, and the Integrator fuses it', 'pulsedex-dsp · integrator-dsp · node-export · fusion · §∅', function (T) {
       var P = env.PULSEDSP || env.PulseDex;
       var pick = function (k) {

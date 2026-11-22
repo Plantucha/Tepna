@@ -32,7 +32,7 @@
       "kernel-constants.js": "0050ad3f9dc7",
       "clock.js": "1c56de0b671c",
       "clock-seam.js": "3820c4fb6529",
-      "pulsedex-dsp.js": "336e73354d8c"
+      "pulsedex-dsp.js": "7be9ae41b8db"
     }
   },
   "yield": {
@@ -319,11 +319,18 @@
       "old": "1d71a5d5285f",
       "new": "336e73354d8c",
       "reason": "unit `lnzero`: the ln-rMSSD producer `lnR` now refuses a non-positive, non-numeric or absent rMSSD with null, where it returned Math.log(0) = -Infinity and JSON.stringify rendered that as null. The second road in pulsedex-app.js carries the same two lines. The detector drops a patient on a non-finite value in the rMSSD series, so this closure could in principle move the yield; a paper-scale re-cut re-measured the SAME yield 233 tx / 239 flat with 667 / 661 skipped, so the counts are measured under the new closure rather than claimed inert."
+    },
+    {
+      "date": "2026-11-22",
+      "file": "pulsedex-dsp.js",
+      "old": "336e73354d8c",
+      "new": "7be9ae41b8db",
+      "reason": "unit `pdhr`: the node dropped three window-median statistics no road read — `_dispHr`, `dispMeanRR` and the `_cMeanRR` built from it — and a comment at the site now records the whole-record HR convention the export already publishes. The removal deletes no reachable arithmetic, so the detector reads the same rMSSD series; a paper-scale re-cut measured the SAME yield 233 tx / 239 flat with 667 / 661 skipped, so the counts are measured under the new closure rather than claimed inert."
     }
   ],
-  "measuredAt": "2026-11-21T22:55:36.742Z",
+  "measuredAt": "2026-11-22T01:52:41.853Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "31894ca60"
+    "commit": "4bca441de"
   }
 }
