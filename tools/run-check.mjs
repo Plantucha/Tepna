@@ -73,6 +73,20 @@
  * green step is UNKNOWN BY PROVENANCE and the run-level object reads **UNKNOWN** until the steps adopt —
  * that is the point (§3d: a runner can never read greener than its least-adopted child); a red step is
  * FAIL. The EXIT CODE STAYS: the shell and CI keep reading process.exit until the consumer switches.
+ *
+ * DIFF-SCOPED STEPS — THE SUMMARY NAMES THEM NOW. Nine of the steps below pass `--base origin/main`,
+ * so they diff two COMMITTED trees and read `origin/main..HEAD`. An uncommitted change is not in
+ * HEAD, so a run over a dirty tree examines none of the new lines and still ends `all 72 steps
+ * passed`. Measured 2026-10-18 (#3646): 38 steps green over the finished tree, twice, and the first
+ * commit then redded `verify:xss-sink` on two `innerHTML` sinks that unit had introduced. Step 1
+ * `gate:subject` already names the dirty tree, 71 steps earlier, so the run HELD the answer and the
+ * summary dropped it — §4b one level up, like the abort this file exists for. `renderScopeNote`
+ * repeats the subject under the verdict and names each scoped step whose range held no added lines.
+ * THE SCOPED SET IS READ FROM package.json BY THE `--base` FLAG, never listed here: a second copy of
+ * an ordered list is the drift bug the STEPS warning above records. It is a REPORTER, not a gate —
+ * no status, no exit code, and silence when those steps did read your work, because a reporter that
+ * fires on every run is switched off within a day (`gate-subject.mjs` records that reasoning for its
+ * own fail-open). Residue `2026-11-22-nine-check-steps-read-a-range-a-dirty-tree-has-not-written`.
  */
 import { spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -80,6 +94,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { aggregateChildren, makeVerdict } from './verdict-emit.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { describeSubject, formatSubject } from './gate-subject.mjs';
 import { declaresSelftest } from './selftest-all.mjs';
 import { WriteRootRefusal, judgeRoot, verdictRefusalReason } from './write-root.mjs';
 
@@ -314,6 +329,94 @@ export function renderSummary(steps, failures, blocked) {
   return lines.join('\n');
 }
 
+/* ── WHAT THE DIFF-SCOPED STEPS ACTUALLY READ ──────────────────────────────────────────────────────
+   Nine of the steps above do not scan the tree: they diff a COMMITTED RANGE (`--base origin/main`),
+   so they read `origin/main..HEAD` and never the file you edited a minute ago. Step 1 `gate:subject`
+   already names the dirty tree, 71 lines of output earlier, and then the last line of a green run
+   says `all 72 steps passed` — which is true of the tree for 63 of them and true of nothing at all
+   for the other nine. Measured 2026-10-18 (#3646): 38 steps green over an uncommitted tree, and the
+   commit then redded `verify:xss-sink` on two `innerHTML` sinks that unit had just written.
+
+   So the summary repeats the subject and names the scoped steps whose range held no added lines.
+   Residue `2026-11-22-nine-check-steps-read-a-range-a-dirty-tree-has-not-written`. */
+
+/** Which steps diff a committed range, read from each step's OWN npm script text. */
+export function diffScopedSteps(scripts, steps = STEPS) {
+  const out = [];
+  for (const name of steps) {
+    /* `--base <ref>` and `--base=<ref>`. `--baseline` is a DIFFERENT flag (`pseudo:check` passes a
+       mutation baseline file, not a git ref), and the character class is what keeps it out. */
+    const m = /--base[= ]([^\s"']+)/.exec(String((scripts || {})[name] || ''));
+    if (m) out.push({ name, base: m[1] });
+  }
+  return out;
+}
+
+/** `git diff --numstat` → `{ added, paths }`. Pure, so the binary row can be planted. */
+export function parseNumstat(text) {
+  let added = 0;
+  const paths = [];
+  for (const row of String(text || '').split('\n')) {
+    if (!row.trim()) continue;
+    const cols = row.split('\t');
+    /* A BINARY file is `-\t-\t<path>`. The dash is not a zero: it means "not counted in lines",
+       and the path was still examined — so it counts as seen and adds nothing. */
+    const n = Number.parseInt(cols[0], 10);
+    if (Number.isFinite(n)) added += n;
+    const p = cols[cols.length - 1];
+    if (p) paths.push(p);
+  }
+  return { added, paths };
+}
+
+/* Pure. `subject` is gate-subject's own reader; `scoped` is diffScopedSteps; `ranges` is one
+   `{ base, resolved, added, paths }` per distinct base.
+
+   IT STAYS SILENT WHEN THE SCOPED STEPS DID READ YOUR WORK — a reporter that fires on every run is
+   switched off within a day, which is the reasoning `gate-subject.mjs` records for its own fail-open.
+   A dirty path the range already holds is therefore not named: those steps diffed an older version
+   of that path, and step 1 has already said the tree is dirty. Untracked paths are named only when
+   the note fires for another reason, because a checkout nearly always carries some. */
+export function renderScopeNote({ steps = STEPS, subject, scoped, ranges }) {
+  if (!subject || !scoped || !scoped.length) return '';
+  const byBase = new Map((ranges || []).map((r) => [r.base, r]));
+  const out = [];
+  for (const base of [...new Set(scoped.map((s) => s.base))]) {
+    const names = scoped.filter((s) => s.base === base).map((s) => s.name);
+    const r = byBase.get(base) || { resolved: false, added: 0, paths: [] };
+    const held = new Set(r.paths || []);
+    const unseen = subject.clean ? [] : (subject.tracked || []).filter((p) => !held.has(p));
+    if (r.resolved && r.added > 0 && !unseen.length) continue;
+    out.push(`⚠ ${names.length} of ${steps.length} step(s) read the COMMITTED RANGE ${base}..HEAD, never this tree:`);
+    for (const l of formatSubject(subject)) out.push('  ' + l);
+    if (!r.resolved) {
+      out.push(`    ${base} does NOT resolve here, so what these steps examined is UNKNOWN, not green`);
+    } else if (r.added === 0) {
+      out.push(`    the range holds 0 added line(s) over ${(r.paths || []).length} path(s) — these steps read none of your new lines`);
+    }
+    if (unseen.length) {
+      out.push(`    ${unseen.length} uncommitted tracked path(s) absent from the range, so no step below read them:`);
+      for (const p of unseen.slice(0, 12)) out.push(`      ${p}`);
+      if (unseen.length > 12) out.push(`      … and ${unseen.length - 12} more`);
+    }
+    if (subject.untrackedCount) {
+      out.push(`    … plus ${subject.untrackedCount} untracked path(s), which no committed range can hold`);
+    }
+    out.push(`    scoped steps: ${names.join(' · ')}`);
+    out.push(`  Commit, then re-run them: ${names.map((n) => `npm run ${n}`).join(' ; ')}`);
+  }
+  return out.join('\n');
+}
+
+/* IMPURE, and only the CLI block calls it: it asks git about the range the scoped steps diff. A base
+   that does not resolve — no `origin/main` in a fresh or shallow clone — is reported as UNKNOWN
+   scope, never as silence. A step reporting about what it never read is the whole defect here. */
+function scopeFactsAt(base) {
+  const r = spawnSync('git', ['-C', ROOT, 'diff', '--numstat', `${base}..HEAD`], { encoding: 'utf8' });
+  if (r.status !== 0) return { base, resolved: false, added: 0, paths: [] };
+  return { base, resolved: true, ...parseNumstat(String(r.stdout || '')) };
+}
+
 export function runAll(opts) {
   const o = opts || {};
   const steps = o.steps || STEPS;
@@ -341,19 +444,46 @@ export function runAll(opts) {
     if (o.failFast) {
       const text = renderAbort(steps, i, code);
       log(text);
-      return { ok: false, failedIdx: i, ...planAfterFailure(steps, i), failures: [{ name: steps[i], idx: i, code }], blocked, codes, text, code };
+      if (o.scopeNote) log(o.scopeNote);
+      return {
+        ok: false,
+        failedIdx: i,
+        ...planAfterFailure(steps, i),
+        failures: [{ name: steps[i], idx: i, code }],
+        blocked,
+        codes,
+        text,
+        scopeNote: o.scopeNote || '',
+        code
+      };
     }
     failures.push({ name: steps[i], idx: i, code });
     bad.add(steps[i]);
   }
   if (!failures.length) {
     log(`\n✓ check — all ${steps.length} steps passed`);
-    return { ok: true, failedIdx: -1, failed: null, ran, notRun: [], failures, blocked, codes, text: '', code: 0 };
+    /* THE GREEN LINE IS THE ONE THAT OVERSTATES. 9 of the 72 steps diffed a committed range, so a
+       dirty tree makes that sentence true of 63 of them and true of nothing for the other nine. */
+    if (o.scopeNote) log(o.scopeNote);
+    return { ok: true, failedIdx: -1, failed: null, ran, notRun: [], failures, blocked, codes, text: '', scopeNote: o.scopeNote || '', code: 0 };
   }
   const text = renderSummary(steps, failures, blocked);
   log(text);
+  if (o.scopeNote) log(o.scopeNote);
   const first = failures[0];
-  return { ok: false, failedIdx: first.idx, failed: first.name, ran, notRun: Object.keys(blocked), failures, blocked, codes, text, code: first.code };
+  return {
+    ok: false,
+    failedIdx: first.idx,
+    failed: first.name,
+    ran,
+    notRun: Object.keys(blocked),
+    failures,
+    blocked,
+    codes,
+    text,
+    scopeNote: o.scopeNote || '',
+    code: first.code
+  };
 }
 
 /* ── the §3d object ───────────────────────────────────────────────────────────────────────────────
@@ -617,6 +747,76 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   ok('CONTROL · the children still take that root as their cwd, so the resolution reaches them', /spawnSync\('npm', \['run', step\], \{ cwd: ROOT/.test(SELF_TEXT));
   ok('CONTROL · the default root is still DERIVED, never read from the cwd', /^let ROOT = join\(HERE, '\.\.'\);$/m.test(SELF_TEXT));
 
+  /* ── the diff-scoped steps (residue 2026-11-22-nine-check-steps-read-a-range-a-dirty-tree-has-not-written) ── */
+  const SCRIPTS = {
+    'gate:subject': 'node tools/gate-subject.mjs',
+    typecheck: 'tsc -p tsconfig.json --noEmit',
+    'verify:xss-sink': 'node tools/xss-sink-scan.mjs --check --base origin/main',
+    'verify:residue-ids': 'node tools/residue-ids.mjs --check --base=origin/main',
+    'pseudo:check': 'node tools/pseudo-gate.mjs --baseline audits/pseudo.json'
+  };
+  const SKEYS = Object.keys(SCRIPTS);
+  const SC = diffScopedSteps(SCRIPTS, SKEYS);
+  ok(
+    'diff-scope · a step is scoped by its OWN script text, both spellings of --base, never a list here',
+    SC.length === 2 && SC.every((x) => x.base === 'origin/main') && SC.map((x) => x.name).join(',') === 'verify:xss-sink,verify:residue-ids',
+    JSON.stringify(SC)
+  );
+  ok('diff-scope CONTROL · `--baseline` is not `--base`, and a tree scan is not scoped at all', !SC.some((x) => /pseudo|typecheck|subject/.test(x.name)));
+  const NS = parseNumstat('3\t1\ta.js\n-\t-\tb.png\n');
+  ok('diff-scope · numstat adds the added column and keeps a BINARY row as a path it examined', NS.added === 3 && NS.paths.join(',') === 'a.js,b.png', JSON.stringify(NS));
+  const DIRTY = describeSubject({ head: 'abc1234', branch: 'claude/x', porcelain: ' M tools/run-check.mjs\n?? scratch/' });
+  const EMPTY_RANGE = [{ base: 'origin/main', resolved: true, added: 0, paths: [] }];
+  const note = renderScopeNote({ steps: SKEYS, subject: DIRTY, scoped: SC, ranges: EMPTY_RANGE });
+  ok(
+    'diff-scope PLANT · a dirty tree over an empty range repeats the subject and names every scoped step',
+    /HEAD abc1234 \(claude\/x\)/.test(note) && /0 added line/.test(note) && /tools\/run-check\.mjs/.test(note) && /verify:xss-sink · verify:residue-ids/.test(note),
+    note
+  );
+  ok('diff-scope PLANT · …and says what to do: commit, then re-run those steps by name', /Commit, then re-run them: npm run verify:xss-sink ; npm run verify:residue-ids/.test(note), note);
+  ok('diff-scope PLANT · …and names the untracked count, which no committed range can hold', /1 untracked path/.test(note), note);
+  const seen = renderScopeNote({ steps: SKEYS, subject: DIRTY, scoped: SC, ranges: [{ base: 'origin/main', resolved: true, added: 9, paths: ['tools/run-check.mjs'] }] });
+  ok('diff-scope CONTROL · a dirty path the range already holds raises NOTHING (a reporter that always fires gets switched off)', seen === '', seen);
+  const cleanNote = renderScopeNote({
+    steps: SKEYS,
+    subject: describeSubject({ head: 'a', branch: 'b', porcelain: '' }),
+    scoped: SC,
+    ranges: [{ base: 'origin/main', resolved: true, added: 9, paths: ['x.js'] }]
+  });
+  ok('diff-scope CONTROL · a clean tree over a range with added lines prints no note', cleanNote === '', cleanNote);
+  const cleanEmpty = renderScopeNote({ steps: SKEYS, subject: describeSubject({ head: 'a', branch: 'b', porcelain: '' }), scoped: SC, ranges: EMPTY_RANGE });
+  ok('diff-scope PLANT · a CLEAN tree whose range holds nothing is still an examined-nothing run', /0 added line/.test(cleanEmpty) && /verify:xss-sink/.test(cleanEmpty), cleanEmpty);
+  const unres = renderScopeNote({ steps: SKEYS, subject: DIRTY, scoped: SC, ranges: [{ base: 'origin/main', resolved: false, added: 0, paths: [] }] });
+  ok('diff-scope · a base that does not resolve is UNKNOWN scope, never silence', /does NOT resolve here/.test(unres) && /UNKNOWN, not green/.test(unres), unres);
+  ok(
+    'diff-scope EDGE · no scoped step and no subject each give an empty note, not a crash',
+    renderScopeNote({ steps: SKEYS, subject: DIRTY, scoped: [], ranges: EMPTY_RANGE }) === '' && renderScopeNote({ steps: SKEYS, scoped: SC, ranges: EMPTY_RANGE }) === ''
+  );
+  const sink = [];
+  const noted = runAll({ steps: ['a'], exec: () => ({ code: 0 }), log: (...m) => sink.push(m.join(' ')), scopeNote: 'SCOPE-NOTE-PLANT' });
+  ok(
+    'diff-scope PLANT · a GREEN run logs the note AFTER its green line, and carries it in the result',
+    noted.ok === true && noted.scopeNote === 'SCOPE-NOTE-PLANT' && sink.indexOf('SCOPE-NOTE-PLANT') === sink.length - 1 && /steps passed/.test(sink[sink.length - 2]),
+    JSON.stringify(sink)
+  );
+  const sinkRed = [];
+  const notedRed = runAll({ steps: ['a', 'b'], exec: (st) => ({ code: st === 'a' ? 3 : 0 }), log: (...m) => sinkRed.push(m.join(' ')), scopeNote: 'SCOPE-NOTE-PLANT' });
+  ok(
+    'diff-scope PLANT · a RED run logs it too — the scope is not a property of the verdict',
+    notedRed.ok === false && sinkRed.indexOf('SCOPE-NOTE-PLANT') === sinkRed.length - 1,
+    JSON.stringify(sinkRed)
+  );
+  ok('diff-scope CONTROL · no note means no extra line (the plant above is what makes that readable)', !runAll({ steps: ['a'], exec: () => ({ code: 0 }), log: () => {} }).scopeNote);
+  ok(
+    'diff-scope ANTI-VACUITY · the CLI derives the scoped steps from package.json and hands the note to runAll',
+    /diffScopedSteps\(scripts, steps\)/.test(SELF_TEXT) && /scopeNote = renderScopeNote\(/.test(SELF_TEXT) && /^\s+scopeNote$/m.test(SELF_TEXT),
+    'the wiring is what makes the pure functions reach a reader'
+  );
+  ok(
+    'diff-scope ANTI-VACUITY · the real STEPS still hold a --base step, so this is not a note about nothing',
+    diffScopedSteps(JSON.parse(readFileSync(join(HERE, '..', 'package.json'), 'utf8')).scripts, STEPS).length > 0
+  );
+
   console.log(fail ? `\n✗ ${fail} failed, ${pass} passed` : `\n✓ all ${pass} selftests passed`);
   process.exit(fail ? 1 : 0);
 }
@@ -653,11 +853,37 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
     if (json) console.log(JSON.stringify(refusalVerdict(reason)));
     process.exit(2);
   }
+  /* The scope note is a REPORTER beside the verdict, not a judgement of it: the run-level object
+     already reads UNKNOWN by provenance (§3d), and nothing here moves a status or an exit code. */
+  let scopeNote = '';
+  try {
+    const scripts = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).scripts || {};
+    const scoped = diffScopedSteps(scripts, steps);
+    if (scoped.length) {
+      const g = (args, raw) => {
+        const out = spawnSync('git', ['-C', ROOT, ...args], { encoding: 'utf8' });
+        if (out.status !== 0) return '';
+        return raw ? String(out.stdout).replace(/\n$/, '') : String(out.stdout).trim();
+      };
+      const subject = describeSubject({
+        head: g(['rev-parse', '--short', 'HEAD']) || '(unknown)',
+        branch: g(['rev-parse', '--abbrev-ref', 'HEAD']),
+        /* NEVER trim porcelain: it is columnar and a leading space is DATA (gate-subject.mjs). */
+        porcelain: g(['status', '--porcelain'], true)
+      });
+      const bases = [...new Set(scoped.map((x) => x.base))];
+      scopeNote = renderScopeNote({ steps, subject, scoped, ranges: bases.map((b) => scopeFactsAt(b)) });
+    }
+  } catch {
+    /* An unreadable package.json or an absent git is the GATE's problem, not the note's. */
+    scopeNote = '';
+  }
   const r = runAll({
     steps,
     failFast: process.argv.includes('--fail-fast'),
     exec: (step) => defaultExec(step, { toStderr: json }),
-    log: json ? (...a) => console.error(...a) : console.log
+    log: json ? (...a) => console.error(...a) : console.log,
+    scopeNote
   });
   if (json) console.log(JSON.stringify(runVerdict(r, { steps, declaredExcluded, excludedBy: selected ? stepsArg : null })));
   /* THE EXIT CODE STAYS — the shell and CI read it until the consumer reads the object (§3d). */
