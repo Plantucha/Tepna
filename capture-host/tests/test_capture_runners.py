@@ -2193,13 +2193,10 @@ def test_run_polar_start_rejected_removes_the_file(tmp_path, monkeypatch):
 
 
 def test_run_polar_infers_charging_from_a_rising_battery(tmp_path, monkeypatch):
-    """A battery reading HIGHER than the last stored value infers charging=True (683-684)."""
+    """A battery read HIGHER than the previous read of the same link infers charging=True."""
     _polar_common(monkeypatch)
-    capture.STATUS["devices"]["H10"] = {"battery": 50}  # seed a lower prior reading
-    c = FlexPolarClient(data_frames=[_ecg_frame()], batt_level=80, start_status=0x00)
-    _inject_connect(monkeypatch, c)
-    _stop_after(monkeypatch, 1)
-    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    capture.STATUS["devices"]["H10"] = {"battery": 50}
+    _link_session(tmp_path, monkeypatch, [50, 80])
     assert capture.STATUS["devices"]["H10"]["charging"] is True
     assert capture.STATUS["devices"]["H10"]["battery"] == 80
 
@@ -6378,6 +6375,13 @@ def _next_session(monkeypatch, client, rounds=1):
     _stop_after(monkeypatch, rounds)
 
 
+def _link_session(tmp_path, monkeypatch, levels):
+    """One link whose battery reads return `levels` in order. The hold loop reads every 120 s."""
+    _next_session(monkeypatch, SteppingBattClient(levels), rounds=120 * (len(levels) - 1) + 1)
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    return capture.STATUS["devices"]["H10"]
+
+
 class _BatteryPolarClient(FakePolarClient):
     """A Polar reporting a fixed battery percentage."""
 
@@ -6392,8 +6396,8 @@ class _BatteryPolarClient(FakePolarClient):
 
 
 def _battery_session(tmp_path, monkeypatch, level):
-    """One connect cycle at `level` %. STATUS persists between calls, which is exactly how the real
-    inference works: the previous session's reading is the `prev` the next one compares against."""
+    """One connect cycle at `level` %. STATUS persists between calls, but the rising rule compares only
+    reads of one link (2026-11-21). So a level step across two calls never reads as a charge."""
     _next_session(monkeypatch, _BatteryPolarClient(level, start_status=0x00))
     _run(capture.run_polar(_pdev(), str(tmp_path)))
     return capture.STATUS["devices"]["H10"]
@@ -6417,8 +6421,7 @@ def test_a_rising_battery_is_read_as_charging(tmp_path, monkeypatch):
     the whole way. These cells do not self-charge, so a RISE is unambiguous."""
     _polar_common(monkeypatch)
     capture.STATUS["devices"].pop("H10", None)
-    _battery_session(tmp_path, monkeypatch, 35)
-    st = _battery_session(tmp_path, monkeypatch, 61)
+    st = _link_session(tmp_path, monkeypatch, [35, 61])
     assert st["battery"] == 61 and st["charging"] is True
 
 
@@ -6428,9 +6431,10 @@ def test_a_falling_battery_is_read_as_back_on_the_body(tmp_path, monkeypatch):
     device as evidence the radio works — so a stuck flag can suppress a real adapter wedge."""
     _polar_common(monkeypatch)
     capture.STATUS["devices"].pop("H10", None)
-    _battery_session(tmp_path, monkeypatch, 40)
-    assert _battery_session(tmp_path, monkeypatch, 70)["charging"] is True
-    st = _battery_session(tmp_path, monkeypatch, 61)
+    capture.devcaps.reset()
+    st = _link_session(tmp_path, monkeypatch, [40, 70, 61])
+    # the rise at 70 recorded the capability, so the fall at 61 is the arm that cleared `charging`
+    assert capture.devcaps.source(_pdev()["address"], "can_charge") == "battery-rose"
     assert st["battery"] == 61 and st["charging"] is False
 
 
@@ -6445,9 +6449,8 @@ def test_only_a_STRICT_rise_infers_charging(tmp_path, monkeypatch):
     evidence is a number that did not move."""
     _polar_common(monkeypatch)
     capture.STATUS["devices"].pop("H10", None)
-    _battery_session(tmp_path, monkeypatch, 50)
-    assert _battery_session(tmp_path, monkeypatch, 61)["charging"] is True, "a rise infers charging"
-    assert _battery_session(tmp_path, monkeypatch, 61)["charging"] is not True, (
+    assert _link_session(tmp_path, monkeypatch, [50, 61])["charging"] is True, "a rise infers charging"
+    assert _link_session(tmp_path, monkeypatch, [61, 61])["charging"] is not True, (
         "an UNCHANGED level is not a rise — equality infers nothing"
     )
 
@@ -10462,12 +10465,12 @@ def test_the_capability_is_recorded_where_charging_is_MEASURED_and_gates_the_fla
     _run(capture.run_polar(_pdev(), str(tmp_path)))
     assert capture.STATUS["devices"]["H10"].get("charging") is not True
     assert capture.devcaps.get(addr, "can_charge") is None
-    # (b) a rise records the capability with its source
+    # (b) a rise inside one link records the capability with its source
     capture._STOP = asyncio.Event()
     capture.STATUS["devices"]["H10"] = {"battery": 50}
-    c = FlexPolarClient(data_frames=[_ecg_frame()], batt_level=80, start_status=0x00)
+    c = SteppingBattClient([50, 80])
     _inject_connect(monkeypatch, c)
-    _stop_after(monkeypatch, 1)
+    _stop_after(monkeypatch, 121)
     _run(capture.run_polar(_pdev(), str(tmp_path)))
     assert (
         capture.devcaps.get(addr, "can_charge") is True and capture.devcaps.source(addr, "can_charge") == "battery-rose"
@@ -10957,3 +10960,54 @@ def test_alert_poller_clears_the_hold_note_when_samples_flow_again(monkeypatch, 
         capture._LAST_DATA.pop("Dev", None)
     held = [r for r in caplog.records if "holds its link" in r.getMessage()]
     assert len(held) == 2, "the latch cleared on the recording poll, so the second hold logs its own line"
+
+
+# ── a battery rise counts only inside one link ───────────────────────────────────────────────────────
+#
+# MEASURED on the capture box, night 2026-11-21: the H10 read 50 % at the end of one link and 60 % at the
+# first read of the next. The coin cell recovered at rest. The rising rule read the step as a charge, and
+# the daemon dropped the worn strap for 103 s under "not worn, on charger".
+
+
+class SteppingBattClient(FlexPolarClient):
+    """A Polar whose battery reads return `levels` in order, and the last one after that."""
+
+    def __init__(self, levels, **kw):
+        super().__init__(data_frames=[_ecg_frame()], batt_level=levels[0], start_status=0x00, **kw)
+        self._levels = list(levels)
+
+    async def read_gatt_char(self, uuid):
+        if uuid == capture.BATTERY_UUID:
+            lvl = self._levels.pop(0) if len(self._levels) > 1 else self._levels[0]
+            return bytes([lvl])
+        return await super().read_gatt_char(uuid)
+
+
+def test_PLANT_a_battery_STEP_ACROSS_TWO_LINKS_is_not_a_charge(tmp_path, monkeypatch):
+    """The 2026-11-21 shape: the previous link left 50 %, and this link reads 60 % from its first read on."""
+    _polar_common(monkeypatch)
+    addr = _pdev()["address"]
+    capture.devcaps.reset()
+    capture.STATUS["devices"]["H10"] = {"battery": 50}
+    _inject_connect(monkeypatch, SteppingBattClient([60]))
+    _stop_after(monkeypatch, 121)
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    h10 = capture.STATUS["devices"]["H10"]
+    assert h10["battery"] == 60, h10
+    assert h10.get("charging") is not True and h10.get("charging_why") != "rising", h10
+    assert capture.devcaps.get(addr, "can_charge") is None
+    capture._STOP.clear()
+
+
+def test_PLANT_a_battery_RISE_INSIDE_ONE_LINK_is_still_a_measured_charge(tmp_path, monkeypatch):
+    _polar_common(monkeypatch)
+    addr = _pdev()["address"]
+    capture.devcaps.reset()
+    capture.STATUS["devices"]["H10"] = {"battery": 90}
+    _inject_connect(monkeypatch, SteppingBattClient([40, 41]))
+    _stop_after(monkeypatch, 121)
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    h10 = capture.STATUS["devices"]["H10"]
+    assert (h10["battery"], h10["charging"], h10["charging_why"]) == (41, True, "rising"), h10
+    assert capture.devcaps.source(addr, "can_charge") == "battery-rose"
+    capture._STOP.clear()

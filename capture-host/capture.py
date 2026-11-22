@@ -4662,6 +4662,10 @@ async def run_polar(dev: dict, root: str):
 
                 # Battery level via the standard Battery Service (0x2A19). Polar H10 + Verity both expose
                 # it; read once now and refresh every ~2 min. Silent no-op if a firmware lacks the char.
+                # The last level THIS link read. The rising rule compares against it only, never against
+                # the level a previous link left in STATUS: see the 2026-11-21 note in `_read_batt`.
+                _link_batt: list[int | None] = [None]
+
                 async def _read_batt():
                     try:
                         # THE 2026-07-25 FREEZE. This read sits between the last successful PMD
@@ -4683,8 +4687,18 @@ async def run_polar(dev: dict, root: str):
                             # a device put on charge mid-session reported charging=False forever while
                             # its battery visibly climbed — measured 2026-07-19, Verity 35 -> 61 %.
                             # A battery that RISES is unambiguous: these cells do not self-charge.
+                            # A RISE COUNTS ONLY INSIDE ONE LINK. MEASURED on the capture box, night
+                            # 2026-11-21: the H10 read 50 % at 23:17 on 11-20 and 60 % at the first read
+                            # of the next link at 19:41. The H10 runs on a coin cell and has no charger;
+                            # a coin cell recovers voltage at rest. The rule read the step across the
+                            # two links as a charge, `worn_verdict` let it outrank the heartbeat, and
+                            # the daemon dropped a worn strap for 103 s. A device that goes on a dock
+                            # between links answers its next PMD START with `in_charger`, so the
+                            # cross-link step adds nothing that measurement does not already give.
                             prev = STATUS["devices"].get(name, {}).get("battery")
-                            if isinstance(prev, int) and lvl > prev:
+                            link_prev = _link_batt[0]
+                            _link_batt[0] = lvl
+                            if isinstance(link_prev, int) and lvl > link_prev:
                                 _set(name, charging=True, charging_why="rising")  # a cell that ROSE: measured
                                 devcaps.record(addr, "can_charge", True, source="battery-rose")
                             elif isinstance(prev, int) and lvl < prev:
