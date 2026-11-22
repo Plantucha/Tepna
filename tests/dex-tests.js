@@ -37501,40 +37501,32 @@
       planted.oxy['oxydex-dsp.js'] = 'planted00000';
       var pm = YieldPin.movedFiles(pin.detector, planted);
       T.ok('PLANT · a changed oxydex-dsp.js is reported, and by name', pm.length === 1 && pm[0].indexOf('oxy/oxydex-dsp.js') === 0 && pm[0].indexOf('planted00000') > 0, JSON.stringify(pm));
-    });
 
-    /* ── THE NOTE CHAIN IS A GATE, NOT ONLY A READ ───────────────────────────────────────────────
-       (residue `2026-11-22-eight-closure-moves-in-the-yield-pin-chain-carry-no-note`)
+      /* ── THE NOTE CHAIN IS A GATE, NOT ONLY A READ ───────────────────────────────────────────────
+         (residue `2026-11-22-eight-closure-moves-in-the-yield-pin-chain-carry-no-note`)
 
-       The closure assertion above reds when the live tree leaves the pin, so it forces a RE-CUT.
-       Nothing forced the NOTE. A session could re-cut, overwrite the pin, skip the `history[]` line,
-       and every assertion above stayed green with the reason gone. That is how the record lost 7
-       reasons — 5 moves in `oxydex-dsp.js` and 2 in `pulsedex-dsp.js`, dated between 2026-10-28 and
-       2026-11-12. A guessed reason is worse than an absent one, so those 7 stay lost and this group
-       only stops the 8th.
+         The closure assertion above reds when the live tree leaves the pin, so it forces a RE-CUT.
+         Nothing forced the NOTE. A session could re-cut, overwrite the pin, skip the `history[]` line,
+         and every assertion above stayed green with the reason gone. That is how the record lost 7
+         reasons — 5 moves in `oxydex-dsp.js` and 2 in `pulsedex-dsp.js`, dated between 2026-10-28 and
+         2026-11-12. A guessed reason is worse than an absent one, so those 7 stay lost and these legs
+         only stop the 8th.
 
-       THIS GROUP JUDGES THE RECORD, NEVER THE TREE. It reads `chainGaps(pin.detector, pin.history,
-       pin.detector)`, so a dirty working tree cannot move it: the tree is the closure assertion's
-       question, and `--chain` prints that view for a reader. A head gap HERE means the PIN holds a
-       digest no note closes at, which is the re-cut that skipped its note and nothing else.
+         THESE LEGS JUDGE THE RECORD, NEVER THE TREE. They read `chainGaps(pin.detector, pin.history,
+         pin.detector)`, so a dirty working tree cannot move it: the tree is the closure assertion's
+         question, and `--chain` prints that view for a reader. A head gap HERE means the PIN holds a
+         digest no note closes at, which is the re-cut that skipped its note and nothing else.
 
-       THE KEY IS THE DIGEST PAIR AND NEVER THE CLASS. A note landing above a head gap reclassifies
-       that same pair as internal: the new note closes the head, and the pair it stepped over reopens
-       as `closes → reopens`. A class-keyed baseline would red on that benign reclassification, and a
-       TOTAL would hide a new gap behind a closed one. So the baseline names the pair, the failure
-       text names the class, and PLANT 2 below proves the key survives the reclassification.
-       `KNOWN_CHAIN_GAPS` may only SHRINK: a PR that explains a gap deletes its line, and a PR that
-       adds one is the defect this group exists for. */
-    group('treatment-response · pin chain — a re-cut that skipped its note reds', 'treatment-response · pin · chain · absence · regression', function (T) {
-      var pin = env.treatmentYieldPin;
-      var YP = env.YieldPin;
-      if (!pin || !pin.detector || !YP || typeof YP.chainGaps !== 'function') {
-        T.skip(
-          'the pin and the chain reader are both available',
-          'Node-lane only — run-tests.mjs reads analysis/treatment-response-yield-pin.json and imports tools/treatment-response-yield-pin.mjs; the browser suite loads neither'
-        );
-        return;
-      }
+         THE KEY IS THE DIGEST PAIR AND NEVER THE CLASS. A note landing above a head gap reclassifies
+         that same pair as internal: the new note closes the head, and the pair it stepped over reopens
+         as `closes → reopens`. A class-keyed baseline would red on that benign reclassification, and a
+         TOTAL would hide a new gap behind a closed one. So the baseline names the pair, the failure
+         text names the class, and PLANT 2 below proves the key survives the reclassification.
+         `KNOWN_CHAIN_GAPS` may only SHRINK: a PR that explains a gap deletes its line, and a PR that
+         adds one is the defect these legs exist for. */
+      /* The host group above already refused without `pin` and `YieldPin`, so these legs need
+         no second guard: one skip in a lane that loads neither file is the honest count. */
+      var YP = YieldPin;
       /* The 8 gaps `origin/main` carries at `6b3347a52`, as `node
          tools/treatment-response-yield-pin.mjs --chain` prints them. MAY ONLY SHRINK. */
       var KNOWN_CHAIN_GAPS = [

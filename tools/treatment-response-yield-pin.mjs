@@ -49,7 +49,7 @@
  *
  * This tool WRITES the pin. It decides nothing and emits no verdict: the gates are
  * `treatment-response · pinned yield` (the closure the yield was measured under) and
- * `treatment-response · pin chain` (the pin holds no digest its own notes cannot explain), both in
+ * the chain legs inside it (the pin holds no digest its own notes cannot explain), both in
  * `tests/dex-tests.js`, which is where the decision belongs.
  *
  *   node tools/analysis-rerun.mjs --only treatment-response-analysis.html --paper-scale --out <rerun.json>
@@ -704,7 +704,7 @@ function main(argv) {
      closure files, and prints the same gaps. It runs no generator, boots no page and writes no
      file. The exit code follows the consumer: this mode is the READER's view of the live tree, so
      a GAP is the finding rather than a failure, and only a pin it cannot read answers 2. The GATE
-     over the same arithmetic is `treatment-response · pin chain` in `tests/dex-tests.js` (residue
+     over the same arithmetic sits in `treatment-response · pinned yield` in `tests/dex-tests.js` (residue
      `2026-11-22-eight-closure-moves-in-the-yield-pin-chain-carry-no-note`). It judges the PIN
      against its own notes, never the tree, and it reds on a digest pair its baseline does not
      name — so a re-cut that skips its note no longer lands quietly. */
