@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="f46a1549b2a6" data-compute-hash="653e359b4943"><head>
+<html lang="en" data-manifest-hash="3ff159e123d4" data-compute-hash="976976a5d6d3"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LA7FzxwxP2tLxmKV4tPt3XC4QDa4uxZkD9f3pr6DVRU=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QHl/r2ieCJbGGVfbxulwAXOQua3cK/0SwgK8qcdfdu0=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-U5QCWFbZhYjVU7dbh2ELS49eRWFXZDAiRWAZMW8nJJ4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-Vh4NGXhRdDPT/oFgxxGvxM+Si2nd9MAgmKJidn1gZ0M=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-sLUTJDzEc9G7Vge7wREiQ5A78abSs/pIZ0U9vGxS5dg=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LA7FzxwxP2tLxmKV4tPt3XC4QDa4uxZkD9f3pr6DVRU=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-U5QCWFbZhYjVU7dbh2ELS49eRWFXZDAiRWAZMW8nJJ4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-Vh4NGXhRdDPT/oFgxxGvxM+Si2nd9MAgmKJidn1gZ0M=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-lcwniptgITPs+FLPgVCGUNs9+szpkudWXzvniEIjTUA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-sLUTJDzEc9G7Vge7wREiQ5A78abSs/pIZ0U9vGxS5dg=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.35.0</title>
@@ -9680,9 +9680,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     let win = null,
       dispRm = rm,
       dispSd = sdnn,
-      _dispHr = hr,
       dispPn = pn,
-      dispMeanRR = meanRR,
       repSeg = a,
       winSpec = null;
     /* THE TRIPWIRE RUNS ON THE STAMPS THE FRAME CARRIES, every input path included. A bare interval
@@ -9693,14 +9691,10 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
       if (win.wins.length >= 3) {
         const rmA = win.wins.map((w) => w.rmssd),
           sdA = win.wins.map((w) => w.sdnn),
-          hrA = win.wins.map((w) => w.hr),
-          pnA = win.wins.map((w) => w.pnn),
-          rrA = win.wins.map((w) => w.meanRR);
+          pnA = win.wins.map((w) => w.pnn);
         dispRm = +medianOf(rmA).toFixed(2);
         dispSd = +medianOf(sdA).toFixed(2);
-        _dispHr = +medianOf(hrA).toFixed(1);
         dispPn = +medianOf(pnA).toFixed(1);
-        dispMeanRR = +medianOf(rrA).toFixed(1);
         let bi = 0,
           bd = Infinity;
         for (let i = 0; i < rmA.length; i++) {
@@ -9749,7 +9743,19 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     const sp = winSpec ? { tp: winSpec.tp, hf: winSpec.hf, lf: winSpec.lf, vlf: winSpec.vlf } : { tp: ls.tp, hf: ls.hf, lf: ls.lf, vlf: ls.vlf };
     const ans = ansBalance(sp.hf, sp.lf);
 
-    const _cMeanRR = longRec ? dispMeanRR : meanRR;
+    /* ∅ CONVENTION — THIS NODE PUBLISHES THE WHOLE-RECORD RATE, AND THE EXPORT SAYS SO.
+       Three window-median statistics sat here with no reader: `_dispHr`, `dispMeanRR`, and the
+       `_cMeanRR` the composite road built from `dispMeanRR`. The node computed the night median HR
+       and the night median mean RR, then dropped both. The `disp*` family that survives feeds the
+       composite estimators alone (`cRm`/`cSd`/`cPn`), and no estimator takes a rate or an interval.
+       The record and the export publish `hr = 60000 / mean(RR)` and `meanRR = mean(RR)` over the
+       whole record, and `hrv.time.windowNote` names that convention in words.
+       ECGDex and PpgDex publish the epoch median in the same export slot, so the three nodes differ.
+       PulseDex declares its choice, and the per-window `hr` and `meanRR` still travel in `windows[]`
+       and in `timeseries.epochs[]`. A consumer who wants the night median computes it from published
+       data. I removed the dead statistics rather than wiring them: wiring `hr` moves a published
+       number against its own note, and wiring `meanRR` disagrees with both siblings. A test group
+       pins the convention, so a later session reads this note first. */
     const cSd = longRec ? dispSd : sdnn,
       cRm = longRec ? dispRm : rm,
       cPn = longRec ? dispPn : pn;

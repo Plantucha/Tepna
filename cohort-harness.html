@@ -15352,9 +15352,7 @@ const OxyDex = window.OxyDex;
     let win = null,
       dispRm = rm,
       dispSd = sdnn,
-      _dispHr = hr,
       dispPn = pn,
-      dispMeanRR = meanRR,
       repSeg = a,
       winSpec = null;
     /* THE TRIPWIRE RUNS ON THE STAMPS THE FRAME CARRIES, every input path included. A bare interval
@@ -15365,14 +15363,10 @@ const OxyDex = window.OxyDex;
       if (win.wins.length >= 3) {
         const rmA = win.wins.map((w) => w.rmssd),
           sdA = win.wins.map((w) => w.sdnn),
-          hrA = win.wins.map((w) => w.hr),
-          pnA = win.wins.map((w) => w.pnn),
-          rrA = win.wins.map((w) => w.meanRR);
+          pnA = win.wins.map((w) => w.pnn);
         dispRm = +medianOf(rmA).toFixed(2);
         dispSd = +medianOf(sdA).toFixed(2);
-        _dispHr = +medianOf(hrA).toFixed(1);
         dispPn = +medianOf(pnA).toFixed(1);
-        dispMeanRR = +medianOf(rrA).toFixed(1);
         let bi = 0,
           bd = Infinity;
         for (let i = 0; i < rmA.length; i++) {
@@ -15421,7 +15415,19 @@ const OxyDex = window.OxyDex;
     const sp = winSpec ? { tp: winSpec.tp, hf: winSpec.hf, lf: winSpec.lf, vlf: winSpec.vlf } : { tp: ls.tp, hf: ls.hf, lf: ls.lf, vlf: ls.vlf };
     const ans = ansBalance(sp.hf, sp.lf);
 
-    const _cMeanRR = longRec ? dispMeanRR : meanRR;
+    /* ∅ CONVENTION — THIS NODE PUBLISHES THE WHOLE-RECORD RATE, AND THE EXPORT SAYS SO.
+       Three window-median statistics sat here with no reader: `_dispHr`, `dispMeanRR`, and the
+       `_cMeanRR` the composite road built from `dispMeanRR`. The node computed the night median HR
+       and the night median mean RR, then dropped both. The `disp*` family that survives feeds the
+       composite estimators alone (`cRm`/`cSd`/`cPn`), and no estimator takes a rate or an interval.
+       The record and the export publish `hr = 60000 / mean(RR)` and `meanRR = mean(RR)` over the
+       whole record, and `hrv.time.windowNote` names that convention in words.
+       ECGDex and PpgDex publish the epoch median in the same export slot, so the three nodes differ.
+       PulseDex declares its choice, and the per-window `hr` and `meanRR` still travel in `windows[]`
+       and in `timeseries.epochs[]`. A consumer who wants the night median computes it from published
+       data. I removed the dead statistics rather than wiring them: wiring `hr` moves a published
+       number against its own note, and wiring `meanRR` disagrees with both siblings. A test group
+       pins the convention, so a later session reads this note first. */
     const cSd = longRec ? dispSd : sdnn,
       cRm = longRec ? dispRm : rm,
       cPn = longRec ? dispPn : pn;
