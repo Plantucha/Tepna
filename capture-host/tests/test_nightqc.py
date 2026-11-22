@@ -7768,3 +7768,16 @@ def test_a_CALLER_offset_still_wins_over_the_joint_vote(tmp_path):
     s = nightqc.summarize(d21, _QV_DEVS, writer_offset=nightqc.declared_offset(_QV_OFF))
     assert s["searched_dirs"] == ["2026-11-21", "2026-11-20"], s["searched_dirs"]
     assert "voted_with" not in s["writer_offset"], s["writer_offset"]
+
+
+def test_PLANT_a_POOLED_vote_moves_the_daemon_start_onto_the_voted_offset(tmp_path):
+    """A start stamp is floating civil time. After the joint vote pools, the summary raises it by the voted
+    offset, so it shares one timeline with the file spans it is tested against."""
+    d21 = _qv_nights(tmp_path, "20261120231732", 6.5)
+    with open(os.path.join(d21, writers.STARTS_NAME), "w") as fh:
+        fh.write("Phone timestamp;pid;git;dirty;adapter\n")
+        fh.write("2026-11-21T03:00:00.000;400443;2cd12712;no;00:00:00:00:00:01\n")
+    s = nightqc.summarize(d21, _QV_DEVS)
+    assert s["writer_offset"]["voted_with"] == "2026-11-20", s["writer_offset"]
+    assert s["daemon"]["stamps"] == [nightqc.floating_stamp_s("20261121030000") + _QV_OFF], s["daemon"]
+    assert s["daemon"]["inside_capture"] == 1 and s["session_basis"] == "daemon-starts", s

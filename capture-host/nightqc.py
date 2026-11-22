@@ -3683,7 +3683,8 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
                 # a number by construction, so only the vote's own refusal reaches this branch.
                 _vote = _off
                 if _off["offset_sec"] is None:
-                    _prev_name = os.path.basename(_prev_day_dir(night_dir).rstrip("/"))
+                    # `_prev_day_dir` strips a trailing slash itself, so the basename needs no strip here.
+                    _prev_name = os.path.basename(_prev_day_dir(night_dir))
                     # `recover_writer_offset` opens each file under `night_dir`, so a neighbour file
                     # names its own folder relative to this one. The name also tells an outlier apart.
                     _vote = recover_writer_offset(
@@ -3698,8 +3699,9 @@ def summarize(night_dir: str, devices: list[dict], wear: dict | None = None, wri
                 if _pool and _vote is not _off:
                     # `voted_with` names the folder whose files joined the vote, so a reader can audit it.
                     _off = dict(_vote, voted_with=_prev_name)
+                    # The voted offset moves the start stamps onto the file timeline. `_session_basis`
+                    # stays as it is, because the sidecar either exists or not, whatever the offset.
                     _daemon = daemon_starts(night_dir, scanned, offset_sec=_off["offset_sec"])
-                    _session_basis = "gap-only" if _daemon["starts"] is None else "daemon-starts"
     else:
         # NO CAPTURE FILES HERE AT ALL. The old gate was `if data:`, so this branch could not run — and
         # it is precisely the 2026-07-28 shape: the midnight sidecar rollover creates tomorrow's folder,
