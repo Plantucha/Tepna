@@ -52,6 +52,7 @@
  *
  *   node tools/analysis-rerun.mjs --only treatment-response-analysis.html --paper-scale --out <rerun.json>
  *   node tools/treatment-response-yield-pin.mjs --rerun <rerun.json> [--out analysis/treatment-response-yield-pin.json]
+ *   node tools/treatment-response-yield-pin.mjs --chain [--pin <pin.json>]   # read the chain, write nothing
  *   node tools/treatment-response-yield-pin.mjs --selftest
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
@@ -268,13 +269,22 @@ export function chainGaps(detector, history, prevDetector) {
 
 /* The lines the session reads. Pure, so a selftest can assert the gap reaches the text rather than
    asserting that a `console.log` was reached. A clean chain prints nothing. */
-export function formatChain(gaps, out, today) {
+export function formatChain(gaps, out, today, opts) {
+  /* `read` is the chain READ, which hashes the live tree against the pin on disk and writes
+     nothing. The gap arithmetic is identical; only the sentence changes, because a read moved
+     no digest. A re-cut says what IT moved, and a read says what the tree holds that the pin
+     does not. The parameter is last and optional, so every earlier caller keeps its text. */
+  const read = !!(opts && opts.read);
   const L = [];
   const skeleton = (file, old, now) => '    ' + JSON.stringify({ date: today, file, old, new: now, reason: '<why it moved, and whether the counts changed>' }) + ',';
   if (gaps.moves === null) {
-    L.push('  ⓘ no earlier pin stood at ' + out + ', so this run cannot name the move it just made.');
+    L.push(read ? '  ⓘ the pin at ' + out + ' carries no detector, so this read cannot name what moved.' : '  ⓘ no earlier pin stood at ' + out + ', so this run cannot name the move it just made.');
   } else if (gaps.moves.length) {
-    L.push('  ⚠ this run moved ' + gaps.moves.length + ' closure digest(s). Append one note per line to `history[]` in ' + out + ':');
+    L.push(
+      read
+        ? '  ⚠ the live tree holds ' + gaps.moves.length + ' closure digest(s) that ' + out + ' does not, so the next re-cut owes one note per line:'
+        : '  ⚠ this run moved ' + gaps.moves.length + ' closure digest(s). Append one note per line to `history[]` in ' + out + ':'
+    );
     for (const g of gaps.moves) L.push(skeleton(g.file, g.old, g.new));
   }
   if (gaps.head.length) {
@@ -488,6 +498,66 @@ function selftest() {
   rmSync(tmpIn, { force: true });
   rmSync(tmpOut, { force: true });
 
+  /* ── THE CHAIN READ · the gaps must reach a session WITHOUT the 8-minute re-cut ─────────────
+     Residue `2026-11-21-the-cohort-yield-pin-names-closure-moves-with-no-history-note`. The report
+     was reachable only beside a run that OVERWRITES the pin, so these legs drive `main` over a pin
+     file they write themselves. The leg is the printed text plus the pin's bytes, because a read
+     that rewrites the record would destroy the thing it reports on. The live digests come from the
+     real tree, so a note is built to close AT one of them for the clean case. */
+  const tmpPin = join(tmpdir(), 'tepna-pin-chain.json');
+  const cap = (fn) => {
+    const lines = [];
+    const orig = console.log;
+    console.log = (...x) => lines.push(x.join(' '));
+    try {
+      return { rc: fn(), lines };
+    } finally {
+      console.log = orig;
+    }
+  };
+  const liveNow = realmDigests(readFileSync(join(ROOT, 'cohort-worker.js'), 'utf8'), ['oxy', 'pulse'], (f) => (existsSync(join(ROOT, f)) ? sha12(readFileSync(join(ROOT, f), 'utf8')) : null));
+  const liveOxy = (liveNow.oxy && liveNow.oxy['oxydex-dsp.js']) || null;
+  ok('chain read: the live closure digest of oxydex-dsp.js reads as a digest, so these legs rest on a real tree', typeof liveOxy === 'string' && liveOxy.length === 12, String(liveOxy));
+  const pinWith = (note) => JSON.stringify({ detector: liveNow, history: note ? [note] : [] });
+  writeFileSync(tmpPin, pinWith({ date: '2026-11-01', file: 'oxydex-dsp.js', old: 'aaaaaaaaaaaa', new: 'cccccccccccc', reason: 'r' }));
+  const before = sha12(readFileSync(tmpPin, 'utf8'));
+  const chGap = cap(() => main(['--chain', '--pin', tmpPin]));
+  ok('chain read: the CLI names the head gap over a pin on disk and exits 0', chGap.rc === 0 && chGap.lines.some((l) => l.includes('last note cccccccccccc')), JSON.stringify(chGap.lines.slice(0, 4)));
+  ok(
+    'chain read: …and it reports the note count it actually read',
+    chGap.lines.some((l) => l.includes('record     1 note(s), pinned detector present')),
+    JSON.stringify(chGap.lines[1])
+  );
+  ok('chain read: …and it writes NOTHING, so the record it reports on survives the read', sha12(readFileSync(tmpPin, 'utf8')) === before, before);
+  /* The moves branch must be EXERCISED, or the wording control is vacuous: with the pin's own
+     detector equal to the live tree, `moves` is empty and that branch never runs. So this pin holds
+     a bogus digest, which is the real case — a pin cut before the code moved. */
+  writeFileSync(tmpPin, JSON.stringify({ detector: { oxy: { ...liveNow.oxy, 'oxydex-dsp.js': 'bbbbbbbbbbbb' }, pulse: liveNow.pulse }, history: [] }));
+  const chMoved = cap(() => main(['--chain', '--pin', tmpPin]));
+  ok(
+    'chain read: a pin cut before the code moved reports the live tree holding a digest the pin does not',
+    chMoved.rc === 0 && chMoved.lines.some((l) => l.includes('the live tree holds 1 closure digest(s)')),
+    JSON.stringify(chMoved.lines.slice(0, 3))
+  );
+  ok('chain read CONTROL: …and the read never borrows the re-cut wording, because it moved no digest', !chMoved.lines.some((l) => l.includes('this run moved')), 'no re-cut wording');
+  writeFileSync(tmpPin, pinWith({ date: '2026-11-01', file: 'oxydex-dsp.js', old: 'aaaaaaaaaaaa', new: liveOxy, reason: 'r' }));
+  const chClean = cap(() => main(['--chain', '--pin', tmpPin]));
+  ok(
+    'chain read: a note closing AT the live digest clears every warning, and the uncovered files stay a note rather than a warning',
+    chClean.rc === 0 && !chClean.lines.some((l) => l.includes('⚠')) && chClean.lines.some((l) => l.includes('ⓘ') && l.includes('never covered')),
+    JSON.stringify(chClean.lines)
+  );
+  writeFileSync(tmpPin, JSON.stringify({ history: [{ date: '2026-11-01', file: 'oxydex-dsp.js', old: 'aaaaaaaaaaaa', new: 'cccccccccccc', reason: 'r' }] }));
+  const chNoDet = cap(() => main(['--chain', '--pin', tmpPin]));
+  ok(
+    'chain read ∅: a pin carrying no detector reports that it cannot name what moved, rather than borrowing the live digests',
+    chNoDet.rc === 0 && chNoDet.lines.some((l) => l.includes('carries no detector')) && chNoDet.lines.some((l) => l.includes('NO pinned detector')),
+    JSON.stringify(chNoDet.lines.slice(0, 3))
+  );
+  rmSync(tmpPin, { force: true });
+  const chAbsent = cap(() => main(['--chain', '--pin', tmpPin]));
+  ok('chain read: an absent pin answers 2 and prints no report, because it examined nothing', chAbsent.rc === 2 && chAbsent.lines.length === 0, JSON.stringify(chAbsent));
+
   /* The pin carries the decomposition, not just the two counts. */
   const P = buildPin({
     nIntervention: 233,
@@ -624,9 +694,35 @@ function main(argv) {
     const i = argv.indexOf(k);
     return i >= 0 && argv[i + 1] != null ? argv[i + 1] : d;
   };
+  /* ── THE CHAIN READ (residue `2026-11-21-the-cohort-yield-pin-names-closure-moves-with-no-history-note`)
+     The gap report used to reach a session only beside a re-cut. A re-cut costs an 8-minute
+     paper-scale `analysis-rerun.mjs` pass, and it OVERWRITES the pin. So the one record of why a
+     closure digest moved could not be read without spending the run that rewrites it, and the row
+     above carries no count for that reason. This mode reads the pin on disk, hashes the live
+     closure files, and prints the same gaps. It runs no generator, boots no page and writes no
+     file. The exit code follows the consumer: nothing in `npm run check` reads this tool, so a GAP
+     is the finding rather than a failure, and only a pin it cannot read answers 2. */
+  if (argv.includes('--chain')) {
+    const pinPath = arg('--pin', PIN);
+    if (!existsSync(pinPath)) {
+      console.error('no such pin: ' + pinPath);
+      console.error('  the chain read needs the record on disk, because it derives nothing and invents nothing');
+      return 2;
+    }
+    const history = historyOnDisk(pinPath, (f) => readFileSync(f, 'utf8'));
+    const pinned = detectorOnDisk(pinPath, (f) => readFileSync(f, 'utf8'));
+    const workerSrc = readFileSync(join(ROOT, 'cohort-worker.js'), 'utf8');
+    const live = realmDigests(workerSrc, ['oxy', 'pulse'], (f) => (existsSync(join(ROOT, f)) ? sha12(readFileSync(join(ROOT, f), 'utf8')) : null));
+    console.log('read ' + pinPath);
+    console.log('  record     ' + history.length + ' note(s), ' + (pinned ? 'pinned detector present' : 'NO pinned detector'));
+    const lines = formatChain(chainGaps(live, history, pinned), pinPath, new Date().toISOString().slice(0, 10), { read: true });
+    for (const line of lines) console.log(line);
+    if (!lines.length) console.log('  the chain is clean: every closure digest the pin holds carries a note that closes at it');
+    return 0;
+  }
   const rerunPath = arg('--rerun', null);
   if (!rerunPath) {
-    console.error('usage: node tools/treatment-response-yield-pin.mjs --rerun <analysis-rerun-results.json> [--out <pin.json>] | --selftest');
+    console.error('usage: node tools/treatment-response-yield-pin.mjs --rerun <analysis-rerun-results.json> [--out <pin.json>] | --chain [--pin <pin.json>] | --selftest');
     return 2;
   }
   if (!existsSync(rerunPath)) {

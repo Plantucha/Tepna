@@ -3790,6 +3790,38 @@
     }
     let coveredSec = 0;
     for (let s = 0; s < M; s++) coveredSec += covered[s];
+    /* ── §∅ · THE EXCLUSION IS THE MIRROR OF THE DECISION WINDOW ─────────────────────────────────
+       `briefs/CVHR-HOLE-EDGE-EXCLUSION-2026-10-19-BRIEF.md`. Testing `covered[s]` alone excluded a
+       hole's OWN seconds, and the decision at `s` reads far outside `s`:
+
+         `sm[s]`  mean of `hr[s-2 … s+2]`                                 ±2
+         `lo`     `ma(sm, 23)` reads `sm[s-23 … s+23]`                     ±25
+         `hiCut`  `ma(sm, 4)`                                              ±6
+         `env[s]` mean of `|res[s-12 … s+12]|`                             ±37
+         rebound  reads `res[u]`, u = s+8 … s+47, and `res[s+47]` reaches  s+72
+
+       So the decision at `s` rests on `hr[s - 37 … s + 72]`, and a hole `[h0, h1]` contaminates
+       every `s` with `s >= h0 - 72 && s <= h1 + 37`. ⚠️ THE WIDEN REACHES 72 s BEFORE A HOLE AND
+       37 s AFTER IT, which is the MIRROR of the support window. Writing it the other way round is a
+       real error: `tools/cvhr-edge-widen.mjs` had it that way first, and its planted battery could
+       not catch it, because every planted hole sits mid-record.
+       Measured by that tool over 42 phase-matched planted cases and both nodes: the shipped rule
+       still let a hole ADD 2 events, the residual's support and the envelope's support each left 1,
+       and only the whole decision window read 0. The cost over 350 real streams is 0.008 events per
+       hole, against a ceiling of 2 that the detector's structure states in advance. */
+    const CVHR_SUPPORT_BACK_S = 37; // the envelope gate's backward reach over the residual
+    const CVHR_SUPPORT_FWD_S = 72; // the rebound search, through the residual's own support
+    /* Prefix sums over the holes keep the window test O(1) per second instead of O(109). */
+    const holeAt = new Int32Array(M + 1);
+    for (let s = 0; s < M; s++) holeAt[s + 1] = holeAt[s] + (covered[s] ? 0 : 1);
+    const contam = new Uint8Array(M);
+    for (let s = 0; s < M; s++) {
+      const a = Math.max(0, s - CVHR_SUPPORT_BACK_S);
+      const b = Math.min(M, s + CVHR_SUPPORT_FWD_S + 1);
+      contam[s] = holeAt[b] - holeAt[a] > 0 ? 1 : 0;
+    }
+    let contamSec = 0;
+    for (let s = 0; s < M; s++) contamSec += contam[s];
     const sm = new Float64Array(M); // 5 s smoothing
     for (let s = 0; s < M; s++) {
       let a = 0,
@@ -3841,7 +3873,7 @@
     const events = [];
     let lastT = -100;
     for (let s = 8; s < M - 8; s++) {
-      if (!covered[s]) continue; // §∅ — a dropout's held HR is not a measurement to detect a surge in
+      if (contam[s]) continue; // §∅ — the DECISION window touches a dropout, so no surge was measured here
       if (env[s] < ENV_ON) continue;
       if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {
         let pk = -Infinity,
@@ -3867,10 +3899,30 @@
        larger error of the two. Events can only arise in covered seconds: the 1 Hz resample above
        holds the last beat's HR flat across a hole, so `res` decays to 0 there and the ENV_ON gate
        stays shut. `denomSec` is returned so a consumer can see the basis instead of inferring it. */
-    const denomSec = activeSec > 0 ? activeSec : tEnd;
+    /* §∅ — THE DENOMINATOR LOSES THE SAME SECONDS. `index` counts events per hour of OBSERVED
+       recording, and a second whose decision the mask excludes is not a second this metric
+       observed. Dropping the events while keeping the whole denominator biases the index DOWN, and
+       hardest on the records where the exclusion is widest. `activeSec` is beat-covered time, and
+       the seconds this widen adds to the holes are beat-covered seconds beside them, so the two are
+       one population and the subtraction is sound. */
+    const excludedSec = Math.max(0, contamSec - (M - coveredSec));
+    const baseSec = activeSec > 0 ? activeSec : tEnd;
+    const denomSec = Math.max(0, baseSec - excludedSec);
+    /* A RECORD THE EXCLUSION SWALLOWS OWES A NAMED REFUSAL, NOT A LOW NUMBER. Measured over 350
+       real streams: 194 lose nothing and the median loses 0 %, while 35 lose at least half their
+       events and 27 lose all of them, each carrying one or two events over spans of 500 s to
+       3500 s. A record that short does not survive the widen, so an index over what is left would
+       read as a physiological rate. The EVENTS stay: each one was decided on seconds the mask kept,
+       and an empty list would state that no CVHR cycle occurred. */
+    const CVHR_MIN_DECIDABLE_FRAC = 0.5;
+    const swallowed = !(baseSec > 0) || denomSec / baseSec < CVHR_MIN_DECIDABLE_FRAC;
     const hours = denomSec / 3600;
-    const index = hours > 0 ? +(events.length / hours).toFixed(1) : 0;
-    return { events, index, denomSec, coveredSec };
+    const index = swallowed ? null : hours > 0 ? +(events.length / hours).toFixed(1) : 0;
+    /* `reason` is a REQUIRED key, never a conditional spread. Measured 2026-11-19 with the gate's
+       own tsc pin: an OPTIONAL property on this return blocks TypeScript's subtype reduction, so
+       every refusal return above becomes a live union member and `.denomSec` stops existing. The
+       export publishes the key only when it is non-null, so a `null` here moves no fixture. */
+    return { events, index, denomSec, coveredSec, excludedSec, reason: swallowed ? 'cvhr-exclusion-covers-most-of-span' : null };
   }
   // `omit` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) marks intervals that are NOT
   // MEASUREMENTS AT ALL — currently only those straddling a time discontinuity (O2RING-PPG-GAP §2).
@@ -7000,7 +7052,15 @@
     const events = buildEvents({ epochs, nn, tt: corr.tt, t0Ms: rec.t0Ms, motion, det, sqi, peakSec, morph });
 
     P(92, 'Finalising…');
-    const dispHr = longRec && epochs.length ? median(epochs.map((e) => e.hr)) : td.hr;
+    /* PPGDEX-HR-WINDOW (residue 2026-11-22-ppgdex-publishes-an-epoch-median-hr-in-a-wholerecord-block):
+       ONE predicate feeds the value AND its window name, so the two can never disagree. `dispHr` is the
+       DISPLAY rate — the 5-min epoch median on a record over 90 min, the whole-record rate below that.
+       ECGDex spells the same pair as hrv.time.hr plus hrv.time.wholeRecordHR, and this node publishes
+       `hrWindow` beside them because its own hrv.time block carries a `window: 'wholeRecord'` label that
+       the rate does not obey. The vocabulary is the repo's: 'epochMedian5min' and 'wholeRecord'. */
+    const hrIsEpochMedian = longRec && epochs.length > 0;
+    const dispHr = hrIsEpochMedian ? median(epochs.map((e) => e.hr)) : td.hr;
+    const dispHrWindow = hrIsEpochMedian ? 'epochMedian5min' : 'wholeRecord';
 
     return {
       source: rec.source || 'file',
@@ -7048,6 +7108,7 @@
       nBeats: det.peaks.length,
       hr: td.hr,
       dispHr,
+      dispHrWindow,
       dispRm: td.rmssd,
       dispSd: td.sdnn,
       dispPn: td.pnn50,
@@ -7072,7 +7133,7 @@
       spansGapRuns: _spansGapRuns,
       // The index's BASIS travels with it (F3 port) — present only when one was computed, so a
       // refusal path stays byte-stable and no committed fixture moves for an inert key.
-      ...(_cvhr.denomSec > 0 ? { cvhrDenomSec: _cvhr.denomSec } : {}),
+      ...(_cvhr.denomSec != null && _cvhr.denomSec > 0 ? { cvhrDenomSec: _cvhr.denomSec } : {}),
       // F10 — present ONLY when the span refusal fired, so a refused null is told apart from a
       // too-short one; absent otherwise (no committed fixture moves for an inert key).
       ...(_cvhr.reason ? { cvhrReason: _cvhr.reason } : {}),
@@ -7669,7 +7730,7 @@
   //  row; OxyDex first, ECGDex second — `ecgBuildMeasurementBlocks` is the recipe this mirrors). Two
   //  headline metrics, one block each, keyed by the PPG registry id (`hr` = Pulse HR · `rmssd`), values =
   //  the WHOLE-RECORD numbers `r.hr` / `r.rmssd` — `timeDomain(nn, cleanMask, spansOmit, adj)` over the
-  //  entire Malik-corrected NN train, the numbers the rich export already publishes as hrv.time.{hr,rmssd}
+  //  entire Malik-corrected NN train, the numbers the rich export publishes as hrv.time.{wholeRecordHR,rmssd}
   //  and the Integrator reads as its consensus axis. The block adds LINEAGE, never a second computation.
   //
   //  ⚠️ THE RULE THIS ROW EXISTS FOR (§12 PpgDex row; §∅ owner ruling 2026-09-17): a `clock-seam` refusal
@@ -8463,13 +8524,19 @@
           sdnnIndex: nz(r.sdnnIndex),
           sdnnRobust: nz(r.sdnnRobust),
           sd2Robust: nz(r.sd2Robust),
+          /* Additive, so no existing key moves. `wholeRecordHR` is the rate this block's `window`
+             label describes, under ECGDex's own name; `hrWindow` names the window that governs `hr`
+             itself. §∅ — an absent window reads null, never a borrowed label. */
+          wholeRecordHR: nz(r.hr),
+          hrWindow: r.dispHrWindow == null ? null : r.dispHrWindow,
           window: 'wholeRecord',
           units: 'ms',
           lowConfidence: !!r.hrvLowConfidence,
           lowConfidenceReason: r.hrvLowConfidenceReason || null,
           // \u00a72 \u2014 additive: absent on every clean night, so no existing export moves.
           ...(r.hrvShapeViolation ? { shapeViolation: true } : {}),
-          windowNote: 'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.',
+          windowNote:
+            'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD. hr is the DISPLAY rate instead: the 5-min epoch median on a record over 90 min, the whole-record rate below that. hrWindow names which one this export carries, and wholeRecordHR is the cross-node HR axis.',
           sdnnNote:
             'whole-record sdnn runs high on optical — SDANN/baseline-wander inflation the chest ECG does not carry. sdnnIndex (mean of per-5-min SDNN) and sdnnRobust (quality-gated MEDIAN of per-5-min SDNN) both remove it, sdnnRobust the most; use sdnnRobust for cross-node SDNN comparison. Bias magnitudes are deliberately not quoted here: the earlier figures came from a single paired night and did not reproduce on the multi-night corpus.'
         },

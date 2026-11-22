@@ -77,7 +77,7 @@ def _capture_src():
 
 
 def test_every_BUS_register_call_in_capture_py_passes_device():
-    """An eleventh site added without `device=` would publish an ownerless key that both consumers render
+    """A twelfth site added without `device=` would publish an ownerless key that both consumers render
     as UNMATCHED. Counted as an equality against the whole set, not a floor, so a site that quietly
     loses the argument is caught too."""
     src = _capture_src()
@@ -90,7 +90,7 @@ def test_every_BUS_register_call_in_capture_py_passes_device():
                 break
             i += 1
         calls.append(src[m.start() : i + 1])
-    assert len(calls) == 10, [c[:50] for c in calls]
+    assert len(calls) == 11, [c[:50] for c in calls]
     missing = [c[:70] for c in calls if "device=" not in c]
     assert missing == [], missing
 

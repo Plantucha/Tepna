@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="8ae2490c0056" data-compute-hash="348146a14a41"><head>
+<html lang="en" data-manifest-hash="3eb38c630b2a" data-compute-hash="cc81c9095056"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+Yf72wB3KQPWHAdGzaaAY9AZBWh+pxZd/QO6+1/Kk78=' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4esQYmoU7FYRSxckVGhsPB+ddHAbdUxK5/3OtftYgPQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-Ei0isbxxdmoCnDzNrUdFgL2GFI1oEPHhlC/ELLG+jkI=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-L9RPM8YDAWQTF2q91cAM8cn/BxTip1KO3H96sNPwOQY=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-dADCu/bsem1iwwVMqM2i6LAZuZ0aTpxuprNuwYsmJ8U=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-0YNdyakf6viyQBgzQsH8rDl/hg+JV5oCn3GFN2FoCF8=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-4esQYmoU7FYRSxckVGhsPB+ddHAbdUxK5/3OtftYgPQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-Ei0isbxxdmoCnDzNrUdFgL2GFI1oEPHhlC/ELLG+jkI=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lcwniptgITPs+FLPgVCGUNs9+szpkudWXzvniEIjTUA=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p2h7UJm+HPPYLwhmy/VoOPeGFX1jIchMkM3rfM2dzbQ=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -19059,7 +19059,19 @@ __exports.HRVDex = window.HRVDex;
     for (let i = 1; i < a.length; i++) d.push(a[i] - a[i - 1]);
     return std(d);
   };
-  const lnR = (r) => Math.log(r);
+  /* ∅ N1-35, AT THE ONE SINK THAT STILL CROSSED THE LINE. `Math.log(0)` is −Infinity, `Math.log(null)`
+     is −Infinity too, and `JSON.stringify` renders −Infinity as `null` — so an unguarded sink ships a
+     JSON export that LOOKS like clean absence while the live object hands the renderer −Infinity. A
+     perfectly regular RR series is a REAL 0 rMSSD, so `!= 0` is never the fix (CLAUDE.md §∅); `> 0`
+     covers absence and a measured 0 alike. `lnR` is a published surface (`PulseDex._bare`), so the
+     guard sits here at the producer, beside `lfHf` and `nu`. HRVDex (`r._rmssd > 0 ? … : NaN`) and
+     ECGDex (`_lnSrc <= 0 ? null`) already guard their own, and PulseDex was the 1-of-3 outlier.
+     Measured 2026-11-21 through `pdComputeResult` over 600 constant 1000 ms intervals: `rmssd` read 0,
+     `lnrmssd` read −Infinity, and `JSON.stringify` printed `null` over it.
+     The null owes no new reason key. `rmssd: 0` sits beside it whenever the value was measured, and
+     `hrvReason` names the cause whenever the variability metrics refused, so every null `lnrmssd` is
+     already explained by a field this node publishes. */
+  const lnR = (r) => (typeof r === 'number' && isFinite(r) && r > 0 ? Math.log(r) : null);
   /* ∅ N1-35: a quotient with no denominator is not 0, it is no quotient — the line `lfhf` and
      `ansBalance` already draw. `nu` reports a band in normalized units, and `hf + lf === 0` says NO
      power was measured in either band, never 0 nu of it. Both are a published surface
@@ -20814,9 +20826,7 @@ __exports.HRVDex = window.HRVDex;
     let win = null,
       dispRm = rm,
       dispSd = sdnn,
-      _dispHr = hr,
       dispPn = pn,
-      dispMeanRR = meanRR,
       repSeg = a,
       winSpec = null;
     /* THE TRIPWIRE RUNS ON THE STAMPS THE FRAME CARRIES, every input path included. A bare interval
@@ -20827,14 +20837,10 @@ __exports.HRVDex = window.HRVDex;
       if (win.wins.length >= 3) {
         const rmA = win.wins.map((w) => w.rmssd),
           sdA = win.wins.map((w) => w.sdnn),
-          hrA = win.wins.map((w) => w.hr),
-          pnA = win.wins.map((w) => w.pnn),
-          rrA = win.wins.map((w) => w.meanRR);
+          pnA = win.wins.map((w) => w.pnn);
         dispRm = +medianOf(rmA).toFixed(2);
         dispSd = +medianOf(sdA).toFixed(2);
-        _dispHr = +medianOf(hrA).toFixed(1);
         dispPn = +medianOf(pnA).toFixed(1);
-        dispMeanRR = +medianOf(rrA).toFixed(1);
         let bi = 0,
           bd = Infinity;
         for (let i = 0; i < rmA.length; i++) {
@@ -20883,7 +20889,19 @@ __exports.HRVDex = window.HRVDex;
     const sp = winSpec ? { tp: winSpec.tp, hf: winSpec.hf, lf: winSpec.lf, vlf: winSpec.vlf } : { tp: ls.tp, hf: ls.hf, lf: ls.lf, vlf: ls.vlf };
     const ans = ansBalance(sp.hf, sp.lf);
 
-    const _cMeanRR = longRec ? dispMeanRR : meanRR;
+    /* ∅ CONVENTION — THIS NODE PUBLISHES THE WHOLE-RECORD RATE, AND THE EXPORT SAYS SO.
+       Three window-median statistics sat here with no reader: `_dispHr`, `dispMeanRR`, and the
+       `_cMeanRR` the composite road built from `dispMeanRR`. The node computed the night median HR
+       and the night median mean RR, then dropped both. The `disp*` family that survives feeds the
+       composite estimators alone (`cRm`/`cSd`/`cPn`), and no estimator takes a rate or an interval.
+       The record and the export publish `hr = 60000 / mean(RR)` and `meanRR = mean(RR)` over the
+       whole record, and `hrv.time.windowNote` names that convention in words.
+       ECGDex and PpgDex publish the epoch median in the same export slot, so the three nodes differ.
+       PulseDex declares its choice, and the per-window `hr` and `meanRR` still travel in `windows[]`
+       and in `timeseries.epochs[]`. A consumer who wants the night median computes it from published
+       data. I removed the dead statistics rather than wiring them: wiring `hr` moves a published
+       number against its own note, and wiring `meanRR` disagrees with both siblings. A test group
+       pins the convention, so a later session reads this note first. */
     const cSd = longRec ? dispSd : sdnn,
       cRm = longRec ? dispRm : rm,
       cPn = longRec ? dispPn : pn;
@@ -20907,7 +20925,10 @@ __exports.HRVDex = window.HRVDex;
        stand over the seam either. */
     const sd1v = _pdRefuses ? null : +sd1(sdsdv).toFixed(2),
       sd2v = _pdRefuses ? null : +sd2(sdnn, sdsdv).toFixed(2);
-    const lnrm = cRm == null ? null : +lnR(cRm).toFixed(3);
+    /* `lnR` refuses a non-positive or absent rMSSD, so the rounding must read the refusal first:
+       `null.toFixed` throws. The app road carries the same two lines. */
+    const _lnRm = lnR(cRm);
+    const lnrm = _lnRm == null ? null : +_lnRm.toFixed(3);
     const lfhfv = winSpec ? winSpec.lfhf : ls.lfhf;
 
     // EXPORT-IDENTITY §2.1 / -FOLLOWUPS §1: deterministic, identity-free recording handle.
@@ -27788,6 +27809,38 @@ __exports.GlucoDex = window.GlucoDex;
     }
     let coveredSec = 0;
     for (let s = 0; s < M; s++) coveredSec += covered[s];
+    /* ── §∅ · THE EXCLUSION IS THE MIRROR OF THE DECISION WINDOW ─────────────────────────────────
+       `briefs/CVHR-HOLE-EDGE-EXCLUSION-2026-10-19-BRIEF.md`. Testing `covered[s]` alone excluded a
+       hole's OWN seconds, and the decision at `s` reads far outside `s`:
+
+         `sm[s]`  mean of `hr[s-2 … s+2]`                                 ±2
+         `lo`     `ma(sm, 23)` reads `sm[s-23 … s+23]`                     ±25
+         `hiCut`  `ma(sm, 4)`                                              ±6
+         `env[s]` mean of `|res[s-12 … s+12]|`                             ±37
+         rebound  reads `res[u]`, u = s+8 … s+47, and `res[s+47]` reaches  s+72
+
+       So the decision at `s` rests on `hr[s - 37 … s + 72]`, and a hole `[h0, h1]` contaminates
+       every `s` with `s >= h0 - 72 && s <= h1 + 37`. ⚠️ THE WIDEN REACHES 72 s BEFORE A HOLE AND
+       37 s AFTER IT, which is the MIRROR of the support window. Writing it the other way round is a
+       real error: `tools/cvhr-edge-widen.mjs` had it that way first, and its planted battery could
+       not catch it, because every planted hole sits mid-record.
+       Measured by that tool over 42 phase-matched planted cases and both nodes: the shipped rule
+       still let a hole ADD 2 events, the residual's support and the envelope's support each left 1,
+       and only the whole decision window read 0. The cost over 350 real streams is 0.008 events per
+       hole, against a ceiling of 2 that the detector's structure states in advance. */
+    const CVHR_SUPPORT_BACK_S = 37; // the envelope gate's backward reach over the residual
+    const CVHR_SUPPORT_FWD_S = 72; // the rebound search, through the residual's own support
+    /* Prefix sums over the holes keep the window test O(1) per second instead of O(109). */
+    const holeAt = new Int32Array(M + 1);
+    for (let s = 0; s < M; s++) holeAt[s + 1] = holeAt[s] + (covered[s] ? 0 : 1);
+    const contam = new Uint8Array(M);
+    for (let s = 0; s < M; s++) {
+      const a = Math.max(0, s - CVHR_SUPPORT_BACK_S);
+      const b = Math.min(M, s + CVHR_SUPPORT_FWD_S + 1);
+      contam[s] = holeAt[b] - holeAt[a] > 0 ? 1 : 0;
+    }
+    let contamSec = 0;
+    for (let s = 0; s < M; s++) contamSec += contam[s];
     const sm = new Float64Array(M); // 5 s smoothing
     for (let s = 0; s < M; s++) {
       let a = 0,
@@ -27839,7 +27892,7 @@ __exports.GlucoDex = window.GlucoDex;
     const events = [];
     let lastT = -100;
     for (let s = 8; s < M - 8; s++) {
-      if (!covered[s]) continue; // §∅ — a dropout's held HR is not a measurement to detect a surge in
+      if (contam[s]) continue; // §∅ — the DECISION window touches a dropout, so no surge was measured here
       if (env[s] < ENV_ON) continue;
       if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {
         let pk = -Infinity,
@@ -27865,10 +27918,30 @@ __exports.GlucoDex = window.GlucoDex;
        larger error of the two. Events can only arise in covered seconds: the 1 Hz resample above
        holds the last beat's HR flat across a hole, so `res` decays to 0 there and the ENV_ON gate
        stays shut. `denomSec` is returned so a consumer can see the basis instead of inferring it. */
-    const denomSec = activeSec > 0 ? activeSec : tEnd;
+    /* §∅ — THE DENOMINATOR LOSES THE SAME SECONDS. `index` counts events per hour of OBSERVED
+       recording, and a second whose decision the mask excludes is not a second this metric
+       observed. Dropping the events while keeping the whole denominator biases the index DOWN, and
+       hardest on the records where the exclusion is widest. `activeSec` is beat-covered time, and
+       the seconds this widen adds to the holes are beat-covered seconds beside them, so the two are
+       one population and the subtraction is sound. */
+    const excludedSec = Math.max(0, contamSec - (M - coveredSec));
+    const baseSec = activeSec > 0 ? activeSec : tEnd;
+    const denomSec = Math.max(0, baseSec - excludedSec);
+    /* A RECORD THE EXCLUSION SWALLOWS OWES A NAMED REFUSAL, NOT A LOW NUMBER. Measured over 350
+       real streams: 194 lose nothing and the median loses 0 %, while 35 lose at least half their
+       events and 27 lose all of them, each carrying one or two events over spans of 500 s to
+       3500 s. A record that short does not survive the widen, so an index over what is left would
+       read as a physiological rate. The EVENTS stay: each one was decided on seconds the mask kept,
+       and an empty list would state that no CVHR cycle occurred. */
+    const CVHR_MIN_DECIDABLE_FRAC = 0.5;
+    const swallowed = !(baseSec > 0) || denomSec / baseSec < CVHR_MIN_DECIDABLE_FRAC;
     const hours = denomSec / 3600;
-    const index = hours > 0 ? +(events.length / hours).toFixed(1) : 0;
-    return { events, index, denomSec, coveredSec };
+    const index = swallowed ? null : hours > 0 ? +(events.length / hours).toFixed(1) : 0;
+    /* `reason` is a REQUIRED key, never a conditional spread. Measured 2026-11-19 with the gate's
+       own tsc pin: an OPTIONAL property on this return blocks TypeScript's subtype reduction, so
+       every refusal return above becomes a live union member and `.denomSec` stops existing. The
+       export publishes the key only when it is non-null, so a `null` here moves no fixture. */
+    return { events, index, denomSec, coveredSec, excludedSec, reason: swallowed ? 'cvhr-exclusion-covers-most-of-span' : null };
   }
   // `omit` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) marks intervals that are NOT
   // MEASUREMENTS AT ALL — currently only those straddling a time discontinuity (O2RING-PPG-GAP §2).
@@ -30998,7 +31071,15 @@ __exports.GlucoDex = window.GlucoDex;
     const events = buildEvents({ epochs, nn, tt: corr.tt, t0Ms: rec.t0Ms, motion, det, sqi, peakSec, morph });
 
     P(92, 'Finalising…');
-    const dispHr = longRec && epochs.length ? median(epochs.map((e) => e.hr)) : td.hr;
+    /* PPGDEX-HR-WINDOW (residue 2026-11-22-ppgdex-publishes-an-epoch-median-hr-in-a-wholerecord-block):
+       ONE predicate feeds the value AND its window name, so the two can never disagree. `dispHr` is the
+       DISPLAY rate — the 5-min epoch median on a record over 90 min, the whole-record rate below that.
+       ECGDex spells the same pair as hrv.time.hr plus hrv.time.wholeRecordHR, and this node publishes
+       `hrWindow` beside them because its own hrv.time block carries a `window: 'wholeRecord'` label that
+       the rate does not obey. The vocabulary is the repo's: 'epochMedian5min' and 'wholeRecord'. */
+    const hrIsEpochMedian = longRec && epochs.length > 0;
+    const dispHr = hrIsEpochMedian ? median(epochs.map((e) => e.hr)) : td.hr;
+    const dispHrWindow = hrIsEpochMedian ? 'epochMedian5min' : 'wholeRecord';
 
     return {
       source: rec.source || 'file',
@@ -31046,6 +31127,7 @@ __exports.GlucoDex = window.GlucoDex;
       nBeats: det.peaks.length,
       hr: td.hr,
       dispHr,
+      dispHrWindow,
       dispRm: td.rmssd,
       dispSd: td.sdnn,
       dispPn: td.pnn50,
@@ -31070,7 +31152,7 @@ __exports.GlucoDex = window.GlucoDex;
       spansGapRuns: _spansGapRuns,
       // The index's BASIS travels with it (F3 port) — present only when one was computed, so a
       // refusal path stays byte-stable and no committed fixture moves for an inert key.
-      ...(_cvhr.denomSec > 0 ? { cvhrDenomSec: _cvhr.denomSec } : {}),
+      ...(_cvhr.denomSec != null && _cvhr.denomSec > 0 ? { cvhrDenomSec: _cvhr.denomSec } : {}),
       // F10 — present ONLY when the span refusal fired, so a refused null is told apart from a
       // too-short one; absent otherwise (no committed fixture moves for an inert key).
       ...(_cvhr.reason ? { cvhrReason: _cvhr.reason } : {}),
@@ -31667,7 +31749,7 @@ __exports.GlucoDex = window.GlucoDex;
   //  row; OxyDex first, ECGDex second — `ecgBuildMeasurementBlocks` is the recipe this mirrors). Two
   //  headline metrics, one block each, keyed by the PPG registry id (`hr` = Pulse HR · `rmssd`), values =
   //  the WHOLE-RECORD numbers `r.hr` / `r.rmssd` — `timeDomain(nn, cleanMask, spansOmit, adj)` over the
-  //  entire Malik-corrected NN train, the numbers the rich export already publishes as hrv.time.{hr,rmssd}
+  //  entire Malik-corrected NN train, the numbers the rich export publishes as hrv.time.{wholeRecordHR,rmssd}
   //  and the Integrator reads as its consensus axis. The block adds LINEAGE, never a second computation.
   //
   //  ⚠️ THE RULE THIS ROW EXISTS FOR (§12 PpgDex row; §∅ owner ruling 2026-09-17): a `clock-seam` refusal
@@ -32461,13 +32543,19 @@ __exports.GlucoDex = window.GlucoDex;
           sdnnIndex: nz(r.sdnnIndex),
           sdnnRobust: nz(r.sdnnRobust),
           sd2Robust: nz(r.sd2Robust),
+          /* Additive, so no existing key moves. `wholeRecordHR` is the rate this block's `window`
+             label describes, under ECGDex's own name; `hrWindow` names the window that governs `hr`
+             itself. §∅ — an absent window reads null, never a borrowed label. */
+          wholeRecordHR: nz(r.hr),
+          hrWindow: r.dispHrWindow == null ? null : r.dispHrWindow,
           window: 'wholeRecord',
           units: 'ms',
           lowConfidence: !!r.hrvLowConfidence,
           lowConfidenceReason: r.hrvLowConfidenceReason || null,
           // \u00a72 \u2014 additive: absent on every clean night, so no existing export moves.
           ...(r.hrvShapeViolation ? { shapeViolation: true } : {}),
-          windowNote: 'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.',
+          windowNote:
+            'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD. hr is the DISPLAY rate instead: the 5-min epoch median on a record over 90 min, the whole-record rate below that. hrWindow names which one this export carries, and wholeRecordHR is the cross-node HR axis.',
           sdnnNote:
             'whole-record sdnn runs high on optical — SDANN/baseline-wander inflation the chest ECG does not carry. sdnnIndex (mean of per-5-min SDNN) and sdnnRobust (quality-gated MEDIAN of per-5-min SDNN) both remove it, sdnnRobust the most; use sdnnRobust for cross-node SDNN comparison. Bias magnitudes are deliberately not quoted here: the earlier figures came from a single paired night and did not reproduce on the multi-night corpus.'
         },
@@ -35280,6 +35368,38 @@ __exports.PpgDex = window.PpgDex;
     }
     let coveredSec = 0;
     for (let s = 0; s < M; s++) coveredSec += covered[s];
+    /* ── §∅ · THE EXCLUSION IS THE MIRROR OF THE DECISION WINDOW ─────────────────────────────────
+       `briefs/CVHR-HOLE-EDGE-EXCLUSION-2026-10-19-BRIEF.md`. Testing `covered[s]` alone excluded a
+       hole's OWN seconds, and the decision at `s` reads far outside `s`:
+
+         `sm[s]`  mean of `hr[s-2 … s+2]`                                 ±2
+         `lo`     `ma(sm, 23)` reads `sm[s-23 … s+23]`                     ±25
+         `hiCut`  `ma(sm, 4)`                                              ±6
+         `env[s]` mean of `|res[s-12 … s+12]|`                             ±37
+         rebound  reads `res[u]`, u = s+8 … s+47, and `res[s+47]` reaches  s+72
+
+       So the decision at `s` rests on `hr[s - 37 … s + 72]`, and a hole `[h0, h1]` contaminates
+       every `s` with `s >= h0 - 72 && s <= h1 + 37`. ⚠️ THE WIDEN REACHES 72 s BEFORE A HOLE AND
+       37 s AFTER IT, which is the MIRROR of the support window. Writing it the other way round is a
+       real error: `tools/cvhr-edge-widen.mjs` had it that way first, and its planted battery could
+       not catch it, because every planted hole sits mid-record.
+       Measured by that tool over 42 phase-matched planted cases and both nodes: the shipped rule
+       still let a hole ADD 2 events, the residual's support and the envelope's support each left 1,
+       and only the whole decision window read 0. The cost over 350 real streams is 0.008 events per
+       hole, against a ceiling of 2 that the detector's structure states in advance. */
+    const CVHR_SUPPORT_BACK_S = 37; // the envelope gate's backward reach over the residual
+    const CVHR_SUPPORT_FWD_S = 72; // the rebound search, through the residual's own support
+    /* Prefix sums over the holes keep the window test O(1) per second instead of O(109). */
+    const holeAt = new Int32Array(M + 1);
+    for (let s = 0; s < M; s++) holeAt[s + 1] = holeAt[s] + (covered[s] ? 0 : 1);
+    const contam = new Uint8Array(M);
+    for (let s = 0; s < M; s++) {
+      const a = Math.max(0, s - CVHR_SUPPORT_BACK_S);
+      const b = Math.min(M, s + CVHR_SUPPORT_FWD_S + 1);
+      contam[s] = holeAt[b] - holeAt[a] > 0 ? 1 : 0;
+    }
+    let contamSec = 0;
+    for (let s = 0; s < M; s++) contamSec += contam[s];
     // smooth (5 s) for the display series
     const sm = new Float64Array(M);
     for (let s = 0; s < M; s++) {
@@ -35344,7 +35464,7 @@ __exports.PpgDex = window.PpgDex;
     const events = [];
     let lastT = -100;
     for (let s = 8; s < M - 8; s++) {
-      if (!covered[s]) continue; // §∅ — a dropout's held HR is not a measurement to detect a surge in
+      if (contam[s]) continue; // §∅ — the DECISION window touches a dropout, so no surge was measured here
       if (env[s] < ENV_ON) continue; // not a sustained oscillation → skip (rejects sporadic LF)
       if (res[s] < res[s - 1] && res[s] <= res[s + 1] && res[s] < -2.4) {
         let pk = -Infinity,
@@ -35373,9 +35493,25 @@ __exports.PpgDex = window.PpgDex;
        uses. `activeSec` is what analyze() measured (nnRes.activeSec); absent or 0 it falls back to
        the span, which is exact for a gap-free series (activeSec ≡ tEnd − tt[0] there). `denomSec`
        is returned so a consumer can see the basis rather than infer it. */
-    const denomSec = activeSec > 0 ? activeSec : tEnd;
+    /* §∅ — THE DENOMINATOR LOSES THE SAME SECONDS. `index` counts events per hour of OBSERVED
+       recording, and a second whose decision the mask excludes is not a second this metric
+       observed. Dropping the events while keeping the whole denominator biases the index DOWN, and
+       hardest on the records where the exclusion is widest. `activeSec` is beat-covered time, and
+       the seconds this widen adds to the holes are beat-covered seconds beside them, so the two are
+       one population and the subtraction is sound. */
+    const excludedSec = Math.max(0, contamSec - (M - coveredSec));
+    const baseSec = activeSec > 0 ? activeSec : tEnd;
+    const denomSec = Math.max(0, baseSec - excludedSec);
+    /* A RECORD THE EXCLUSION SWALLOWS OWES A NAMED REFUSAL, NOT A LOW NUMBER. Measured over 350
+       real streams: 194 lose nothing and the median loses 0 %, while 35 lose at least half their
+       events and 27 lose all of them, each carrying one or two events over spans of 500 s to
+       3500 s. A record that short does not survive the widen, so an index over what is left would
+       read as a physiological rate. The EVENTS stay: each one was decided on seconds the mask kept,
+       and an empty list would state that no CVHR cycle occurred. */
+    const CVHR_MIN_DECIDABLE_FRAC = 0.5;
+    const swallowed = !(baseSec > 0) || denomSec / baseSec < CVHR_MIN_DECIDABLE_FRAC;
     const hours = denomSec / 3600;
-    const index = hours > 0 ? +(events.length / hours).toFixed(1) : 0;
+    const index = swallowed ? null : hours > 0 ? +(events.length / hours).toFixed(1) : 0;
     /* §∅ — the EXPORTED series carries the absence. A held stretch is indistinguishable from a
        measured steady HR once it is a number in an array, and the CVHR card draws it with
        `UI.lineChart`, so the chart is where the fabrication reached a reader. `null` there, and
@@ -35385,7 +35521,21 @@ __exports.PpgDex = window.PpgDex;
        the boundary contamination is bounded and named instead. */
     const hrOut = new Array(M);
     for (let s = 0; s < M; s++) hrOut[s] = covered[s] ? sm[s] : null;
-    return { events, index, hrSeries: hrOut, resSeries: Array.from(res), M, denomSec, coveredSec };
+    /* `reason` is a REQUIRED key, never a conditional spread. Measured 2026-11-19 with the gate's
+       own tsc pin: an OPTIONAL property on this return blocks TypeScript's subtype reduction, so
+       every refusal return above becomes a live union member and `.denomSec` stops existing. The
+       export publishes the key only when it is non-null, so a `null` here moves no fixture. */
+    return {
+      events,
+      index,
+      hrSeries: hrOut,
+      resSeries: Array.from(res),
+      M,
+      denomSec,
+      coveredSec,
+      excludedSec,
+      reason: swallowed ? 'cvhr-exclusion-covers-most-of-span' : null
+    };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -36363,7 +36513,7 @@ __exports.PpgDex = window.PpgDex;
 
     // CVHR apnea screen is invalid under exercise → withhold the index/events. The HR series
     // is kept (heart rate IS valid for a walk); only the apnea interpretation is suppressed.
-    const cvhr = ambulatory ? { index: null, events: [], hrSeries: cvhrRaw.hrSeries, resSeries: cvhrRaw.resSeries, M: cvhrRaw.M, suppressed: true } : cvhrRaw;
+    const cvhr = ambulatory ? { index: null, events: [], hrSeries: cvhrRaw.hrSeries, resSeries: cvhrRaw.resSeries, M: cvhrRaw.M, suppressed: true, reason: null } : cvhrRaw;
     const hrvStab = longRec && !ambulatory ? hrvStability(epochs) : null; // Li/Kiyono 2026 (nocturnal-only)
     const surgeEsc = longRec && !ambulatory ? surgeEscalation(cvhrRaw.events, durSec) : null;
 
@@ -36702,7 +36852,17 @@ __exports.PpgDex = window.PpgDex;
       totSleep: +totSleep.toFixed(0),
       // `denomSec` rides along (F3): this reshape is an ALLOWLIST, so a field detectCVHR returns and
       // the export reads is dead unless it is named here — the analyze-level assertion is what shows it.
-      cvhr: { index: cvhr.index, events: cvhr.events, hrSeries: cvhr.hrSeries, resSeries: cvhr.resSeries, denomSec: cvhr.denomSec },
+      /* `reason` rides along too. A refusal the allowlist drops reaches the reader as a bare `null`,
+         and the mirror-window exclusion can refuse the index on a short record. PpgDex has published
+         `cvhrReason` since its own parity work; this side had no channel at all. */
+      cvhr: {
+        index: cvhr.index,
+        events: cvhr.events,
+        hrSeries: cvhr.hrSeries,
+        resSeries: cvhr.resSeries,
+        denomSec: cvhr.denomSec,
+        ...(cvhr.reason ? { reason: cvhr.reason } : {})
+      },
       hrvStab,
       surgeEsc,
       crc,
@@ -41986,6 +42146,13 @@ __exports.PpgDex = window.PpgDex;
          computed — a refusal (N<60, implausible span) carries no basis, and the no-null-key
          discipline keeps the common export byte-stable on the refusal path. */
       if (out.apnea && out.apnea.cvhrIndex != null && r.cvhr && r.cvhr.denomSec > 0) out.apnea.cvhrHours = +(r.cvhr.denomSec / 3600).toFixed(2);
+      /* §∅ — A NULL INDEX TRAVELS WITH ITS REASON, and this block MIRRORS `buildV2` in
+         `ecgdex-app.js` field-for-field (SHARED-SHAPE mandate), so the two sites move together.
+         The mirror-window exclusion refuses the index when a dropout swallows most of the
+         record's decision windows, and a bare `null` beside a `method` string reads as "no CVHR
+         cycle occurred". The ambulatory branch carries its own `suppressedReason`, so this
+         attaches only to the computed branch. */
+      if (out.apnea && !r.ambulatory && out.apnea.cvhrIndex == null && r.cvhr && r.cvhr.reason) out.apnea.cvhrReason = r.cvhr.reason;
       out.hrvStability = r.hrvStab
         ? {
             sigma_lnRMSSD_slope: r.hrvStab.sigma_lnRMSSD_slope,

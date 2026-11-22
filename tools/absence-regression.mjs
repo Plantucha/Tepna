@@ -84,11 +84,46 @@ function verdictOf({ status, scanned, excluded = 0, citations = 0, declared = 0,
   return v;
 }
 
+/* ── A NESTED DEFAULT IS NOT THE FIELD'S DEFAULT (residue 2026-11-21-the-tms-fabrication-regex-has-no-left-boundary) ──
+   The write-position shape below is the one pattern with a GAP between the field and the `|| 0`, so a
+   zero that defaults a TERM inside the value matched the field. Measured over 40 full-tree findings:
+   `tools/probe-batteries/hrvdex-dsp.mjs` spells `_tMs: T0 + (dayOffset || 0) * DAY`, where `T0` keeps
+   the epoch and the zero defaults a synthetic day index.
+   THE ROW ASKED FOR A LEFT BOUNDARY ON THE FIELD NAME, AND I MEASURED THAT INSTEAD. A boundary drops
+   `updatedAtMs: pr.updatedAtMs || 0` in `tools/pr-walker.mjs`, which stamps epoch zero on an
+   unparseable PR date (its own row), and `hostMs:` names a wall-clock stamp as well. So the
+   discriminator is the PAREN DEPTH of the `||`, never the spelling of the name.
+   A WRAPPING PAREN IS NOT A NESTED GROUP: `tMs: (a.stamp || 0)` fabricates, so a `(` that opens the
+   value counts for nothing, while a `(` that opens after content hides a term.
+   Line-local and approximate by construction: a parenthesis inside a string literal counts, which can
+   drop a finding. The general spelling still reads such a line on a diff, and no line in this tree
+   carries that shape. */
+export function orZeroAtTopLevel(text, m) {
+  const s = m[0];
+  const colon = s.indexOf(':');
+  let i = colon + 1;
+  while (i < s.length && /\s/.test(s[i])) i += 1;
+  /* The wrappers around the whole value, skipped and never counted. */
+  while (i < s.length && s[i] === '(') {
+    i += 1;
+    while (i < s.length && /\s/.test(s[i])) i += 1;
+  }
+  let depth = 0;
+  for (; i < s.length; i += 1) {
+    if (s[i] === '(') depth += 1;
+    else if (s[i] === ')') depth -= 1;
+    else if (s[i] === '|' && s[i + 1] === '|' && depth <= 0 && /^\|\|\s*0/.test(s.slice(i))) return true;
+  }
+  return false;
+}
+
 const PATTERNS = [
   {
     name: 'tms-fabrication',
     // tMs: <expr> || 0  — the fix is tMs: <expr> ?? null, which this shape cannot match
     regex: /tMs:\s*[^,;]*\|\|\s*0/,
+    /* The gap above reaches past a nested default, so this pattern alone carries a guard. */
+    guard: orZeroAtTopLevel,
     why: 'tMs: x || 0 stamps 1970 on timeless findings — use ?? null (§2a #3366)'
   },
   {
@@ -222,6 +257,15 @@ const isExcluded = (file) => EXCLUDED_PATHS.some((e) => (e.match === 'suffix' ? 
  * @param {string[]} diffLines  raw `git diff -U0` lines
  * @returns {{hits: Array<{name: string, line: string, why: string}>, scanned: number, excluded: number}}
  */
+/* A PATTERN MAY REFUSE ITS OWN MATCH. One regex cannot read paren depth, so the write-position shape
+   carries `guard`, and every read of that pattern goes through here. A pattern with no guard behaves
+   exactly as before. */
+const matchOf = (p, text) => {
+  const m = p.regex.exec(text);
+  if (!m) return null;
+  return p.guard && !p.guard(text, m) ? null : m;
+};
+
 export function classifyAdded(diffLines, patterns = PATTERNS) {
   const runs = [];
   let run = null;
@@ -263,7 +307,7 @@ export function classifyAdded(diffLines, patterns = PATTERNS) {
     const named = p.general ? new Set(hits.flatMap((h) => h.line.split(' \u23ce ').map((t) => `${h.file}\u0000${t.trim()}`))) : null;
     for (const r of runs) {
       for (let i = 0; i < r.length; i += 1) {
-        const m = p.regex.exec(r[i].t);
+        const m = matchOf(p, r[i].t);
         if (m) {
           const dup = p.general && named.has(`${r[i].f}\u0000${r[i].t.trim()}`);
           const mark = p.general && MARKER.test(r[i].t);
@@ -272,9 +316,9 @@ export function classifyAdded(diffLines, patterns = PATTERNS) {
           else if (!dup) hits.push({ name: p.name, line: r[i].t.trim(), why: p.why, file: r[i].f });
           continue;
         }
-        if (i + 1 < r.length && !p.regex.test(r[i + 1].t)) {
+        if (i + 1 < r.length && !matchOf(p, r[i + 1].t)) {
           const joined = `${r[i].t} ${r[i + 1].t.trim()}`;
-          const jm = p.regex.exec(joined);
+          const jm = matchOf(p, joined);
           if (!jm) continue;
           if (isCitation(joined, jm)) cited.add(joined.trim());
           else if (p.general && MARKER.test(joined)) declared.add(joined.trim());
@@ -308,6 +352,36 @@ export function selftest() {
   ok(classifyAdded([]).hits.length === 0 && classifyAdded([]).scanned === 0, 'CONTROL: an empty diff yields no hit and reports scanning nothing');
   /* A `+++` header can itself contain a path that matches; it is not code. */
   ok(classifyAdded(['+++ b/tMs: x || 0']).scanned === 0, 'CONTROL: the +++ file header is not scanned as code');
+
+  /* ── A NESTED DEFAULT IS NOT THE FIELD'S DEFAULT (residue 2026-11-21-the-tms-fabrication-regex-has-no-left-boundary)
+     The write-position shape reaches past a nested `|| 0`, so two of its three full-tree matches
+     defaulted a TERM and fabricated no epoch. Each leg below carries a shape this tree spells today,
+     and the keep-legs size the guard against a mutant that refuses every match. ── */
+  const tmsPat = patternsFor(false).find((x) => x.name === 'tms-fabrication');
+  ok(
+    patternsFor(false)
+      .filter((x) => x.guard)
+      .map((x) => x.name)
+      .join(',') === 'tms-fabrication',
+    'ONE pattern carries a guard, because only the write-position shape has a gap between the field and the zero'
+  );
+  ok(
+    classifyAdded(['+    _tMs: T0 + (dayOffset || 0) * DAY,'], patternsFor(true)).hits.length === 0,
+    'the live `_tMs: T0 + (dayOffset || 0)` probe-battery line defaults a day index, so no stamp family fires'
+  );
+  ok(
+    classifyAdded(['+      a.push({ devMs: dev, hostMs: dev + (dev * (ppm || 0)) / 1e6 });'], patternsFor(true)).hits.length === 0,
+    'a `hostMs:` value whose nested zero defaults a ppm figure is no stamp fabrication'
+  );
+  const nested = classifyAdded(['+    _tMs: T0 + (dayOffset || 0) * DAY,']);
+  ok(nested.hits.length === 1 && nested.hits[0].name === 'or-zero-fabrication', 'the general spelling still reads the nested default on a diff, so the guard hides nothing');
+  const walker = classifyAdded(['+      updatedAtMs: pr.updatedAtMs || 0,'], patternsFor(true));
+  ok(walker.hits.length === 1 && walker.hits[0].name === 'tms-fabrication', 'a PREFIXED stamp field with a top-level zero still fails — a left boundary on the name would have lost this one');
+  ok(classifyAdded(['+      tMs: (f.stamp || 0),'], patternsFor(true)).hits.length === 1, 'a paren that WRAPS the whole value is no nested group, so the fabrication still fails');
+  ok(classifyAdded(['+      tMs: Number(raw) || 0,'], patternsFor(true)).hits.length === 1, 'a balanced call before the zero leaves the zero at the top level, so it still fails');
+  ok(classifyAdded(['+      tMs:', '+        f.stamp || 0,'], patternsFor(true)).hits.length === 1, 'CONTROL: the guard reads the JOINED pair, so the split-line escape stays closed');
+  ok(orZeroAtTopLevel('x', tmsPat.regex.exec('tMs: f.stamp || 0,')) === true, 'the guard reads a top-level zero directly');
+  ok(orZeroAtTopLevel('x', tmsPat.regex.exec('_tMs: T0 + (dayOffset || 0) * DAY,')) === false, 'and it refuses a zero one group deep');
 
   /* THE t0Ms FAMILY — the live CPAP shape, plus the sort-comparator shape that holds most of the backlog. */
   ok(
@@ -435,6 +509,26 @@ export function selftest() {
   ok(/lower the baseline/.test(ratchet(4, { count: 5 }).reason || ''), '…and says what to do about it');
   ok(ratchet(0, { count: 0 }).status === 'PASS', 'a cleared backlog passes at zero');
 
+  /* ── THE THREE CLAIMS A GREEN CAN CARRY ──────────────────────────────────────────────
+     Every leg here passes on the old single `NOT_RUN`, so each is sized against the mutant that
+     collapses two statuses back into one. The REFUSAL leg bites hardest: it is the only case where
+     exit 0 was a lie. */
+  const CR = (o) => classifyRun({ captureWhy: null, rangeFiles: 0, scanned: 0, hitCount: 0, base: 'B', head: 'H', ...o });
+  ok(CR({ scanned: 9, hitCount: 2 }).status === 'FAIL', 'a hit is FAIL whatever the range held');
+  ok(CR({ scanned: 9 }).status === 'PASS', '9 scanned lines and no hit is a PASS — the only green that is evidence');
+  ok(CR({ rangeFiles: 4 }).status === 'NOT_APPLICABLE', 'a change touching 4 files and no scannable line is NOT_APPLICABLE, not NOT_RUN');
+  ok(/4 file\(s\)/.test(CR({ rangeFiles: 4 }).reason || ''), '…and the reason names the population it examined');
+  ok(CR({}).status === 'NOT_RUN', 'an empty range examined nothing, so it stays NOT_RUN');
+  ok(/no file/.test(CR({}).reason || ''), '…and says the population was empty by construction, not that a rule held');
+  ok(CR({ captureWhy: 'git refused' }).status === 'NOT_RUN' && CR({ captureWhy: 'git refused' }).couldNotLook === true, 'a refused capture is NOT_RUN and reports that it could not look');
+  ok(CR({ rangeFiles: 9 }).couldNotLook === false && CR({}).couldNotLook === false, 'CONTROL: neither a non-binding change nor an empty range claims it could not look');
+  ok(CR({ captureWhy: 'git refused', rangeFiles: 7, scanned: 3, hitCount: 5 }).status === 'NOT_RUN', 'the refusal outranks every count, because a refused capture reports 0 of everything');
+  ok(exitFor('FAIL', false) === 1, 'FAIL exits 1 — it looked and a rule failed');
+  ok(exitFor('NOT_RUN', true) === 2, 'a gate that could not look exits 2, never 0');
+  ok(exitFor('NOT_RUN', false) === 0, 'an empty range is not a refusal, so it keeps 0 and a clean tree still passes `npm run check`');
+  ok(exitFor('NOT_APPLICABLE', false) === 0 && exitFor('PASS', false) === 0, 'CONTROL: the two legitimate greens exit 0');
+  ok(exitFor('FAIL', true) === 1, 'CONTROL: FAIL outranks the refusal code, so a real violation is never reported as unexaminable');
+
   const line = fail.length ? `absence-regression selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };
 }
@@ -450,10 +544,14 @@ export const BACKLOG_LEDGER = 'audits/FULL-TREE-BACKLOG.json';
    suite as RED this morning. A refused capture is not a clean scan. */
 function sh(cmd) {
   try {
-    return execSync(cmd, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 256 * 1024 * 1024 }).trim();
+    return { ok: true, out: execSync(cmd, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 256 * 1024 * 1024 }).trim(), why: null };
   } catch (e) {
-    if (e.status === 1) return ''; // no matches
-    throw e;
+    /* ∅ A REFUSED CAPTURE IS NOT AN EMPTY DIFF. `git diff` without `--exit-code` exits 0 whenever it
+       produced a diff, so a non-zero status here is a refusal: an unreachable base, a broken index, an
+       ENOBUFS capture. The old branch mapped status 1 to an empty string, which then read as NOT_RUN
+       with the reason `0 added lines`, and the gate exited 0 over a scan it never made. */
+    const code = e.status == null ? (e.code ? String(e.code) : 'no code') : String(e.status);
+    return { ok: false, out: '', why: `the capture was refused — \`${cmd.slice(0, 72)}\` exited ${code}, so no line was examined` };
   }
 }
 
@@ -474,6 +572,41 @@ export function ratchet(count, baseline) {
   if (count < baseline.count)
     return { status: 'SHORTFALL', reason: `backlog FELL to ${count} from ${baseline.count} — lower the baseline in ${BACKLOG_LEDGER}; a ratchet that is not tightened stops being one` };
   return { status: 'PASS', reason: null };
+}
+
+/**
+ * PURE CORE — the status a diff-mode run earns, and whether the gate could look at all.
+ *
+ * Three populations used to collapse into one `NOT_RUN` that exited 0, so no consumer could tell an
+ * empty question from an examined change. §🧾 splits them: `NOT_RUN` examined nothing, and
+ * `NOT_APPLICABLE` examined and the rule does not bind. A docs-only diff is the second, and it is the
+ * case the check lane meets on nearly every PR.
+ *
+ * @param {{captureWhy: string|null, rangeFiles: number, scanned: number, hitCount: number, base: string, head: string}} o
+ * @returns {{status: string, reason: string|null, couldNotLook: boolean}}
+ */
+export function classifyRun({ captureWhy, rangeFiles, scanned, hitCount, base, head }) {
+  /* The refusal outranks every count, because a refused capture reports 0 of everything. */
+  if (captureWhy) return { status: 'NOT_RUN', reason: captureWhy, couldNotLook: true };
+  if (hitCount) return { status: 'FAIL', reason: `${hitCount} added line(s) fabricate an absent value`, couldNotLook: false };
+  if (scanned) return { status: 'PASS', reason: null, couldNotLook: false };
+  if (rangeFiles) return { status: 'NOT_APPLICABLE', reason: `the range ${base}..${head} changed ${rangeFiles} file(s) and the rule reads no added line in them`, couldNotLook: false };
+  return { status: 'NOT_RUN', reason: `the range ${base}..${head} changed no file, so the population is empty by construction`, couldNotLook: false };
+}
+
+/**
+ * PURE — the exit code a status earns. The exit code is the ONLY consumer that acts: `run-check.mjs`
+ * reads every step by its code, because its `childVerdict` hook is supplied by no real run. So a
+ * status the code cannot carry reaches nobody. §4c: 2 says the gate could not look, 1 that it looked
+ * and a rule failed. An empty diff range is not a refusal, so it keeps 0.
+ *
+ * @param {string} status
+ * @param {boolean} couldNotLook
+ * @returns {number}
+ */
+export function exitFor(status, couldNotLook) {
+  if (status === 'FAIL') return 1;
+  return couldNotLook ? 2 : 0;
 }
 
 function main() {
@@ -501,7 +634,12 @@ function main() {
      The pathspec names `'*.mjs'` and `'*.py'` so that both trees reach that classifier at all. An
      exclusion list cannot declare a tree the diff never carries, and for `.mjs` there was nothing to
      declare: it belongs in the scan (residue 2026-11-19-the-absence-gate-diff-omits-mjs-and-python). */
-  const diff = sh(`git diff ${base}..${head} -U0 -- ${DIFF_PATHSPEC.join(' ')}`);
+  const cap = sh(`git diff ${base}..${head} -U0 -- ${DIFF_PATHSPEC.join(' ')}`);
+  const diff = cap.out;
+  /* THE RANGE, WITH NO PATHSPEC. It separates a change that touches no code from the absence of any
+     change, and those two earn different statuses. One `git diff --name-only` is the whole cost. */
+  const rangeCap = cap.ok ? sh(`git diff --name-only ${base}..${head}`) : { ok: false, out: '', why: cap.why };
+  const rangeFiles = rangeCap.out ? rangeCap.out.split('\n').filter(Boolean).length : 0;
   /* THE PATTERN SET IS THE MODE. The general `|| 0` spelling reads 487 lines of this tree, so the
      shrink-only ratchet would carry a backlog nobody can move; it runs on the DIFF alone. */
   const patterns = patternsFor(fullTree);
@@ -509,7 +647,10 @@ function main() {
 
   if (fullTree) {
     const baseline = readBacklog(join(ROOT, BACKLOG_LEDGER), 'absence-regression', (f) => readFileSync(f, 'utf-8'));
-    const r = ratchet(hits.length, baseline);
+    /* A refused capture counts zero fabrications, which the ratchet reads as a FALL and prints as a
+       SHORTFALL asking for the baseline to be LOWERED. It must never reach the ratchet. */
+    const r = cap.ok ? ratchet(hits.length, baseline) : { status: 'NOT_RUN', reason: cap.why };
+    const couldNotLook = !cap.ok || r.status === 'NOT_RUN';
     if (asJson) {
       process.stdout.write(
         `${JSON.stringify(verdictOf({ status: r.status, scanned, excluded, citations, declared, patternNames: patterns.map((p) => p.name), hits, base, fullTree: true, baseline, reason: r.reason }), null, 1)}\n`
@@ -524,16 +665,17 @@ function main() {
       process.stdout.write(`  baseline: ${baseline ? baseline.count : '(none yet)'} → ${r.status}${r.reason ? ` — ${r.reason}` : ''}\n`);
       process.stdout.write(`  patterns: ${patterns.map((p) => p.name).join(' ')} — the general spelling is diff-only, so this ratchet never reads it\n`);
     }
-    process.exit(r.status === 'FAIL' ? 1 : 0);
+    process.exit(exitFor(r.status, couldNotLook));
   }
 
-  /* NOT_RUN vs PASS. `--base HEAD` (the pre-push default) diffs nothing, so a green there is a pass
-     over an EMPTY population — the examined-nothing shape. It is reported as NOT_RUN rather than
-     PASS, because "no added line broke the rule" and "there were no added lines" are different
-     claims and only one of them is evidence. */
-  const status = scanned === 0 ? 'NOT_RUN' : hits.length ? 'FAIL' : 'PASS';
+  /* THREE CLAIMS, NOT ONE. "No added line broke the rule", "this change holds no line the rule reads"
+     and "there was no change" are different claims, and only the first is evidence. `--base HEAD` (the
+     pre-push default) is the third. `classifyRun` keeps them apart and names the one that left the
+     gate unable to look. */
+  const cls = classifyRun({ captureWhy: cap.ok ? null : cap.why, rangeFiles, scanned, hitCount: hits.length, base, head });
+  const status = cls.status;
   if (asJson) {
-    process.stdout.write(`${JSON.stringify(verdictOf({ status, scanned, excluded, citations, declared, patternNames: patterns.map((p) => p.name), hits, base }), null, 1)}\n`);
+    process.stdout.write(`${JSON.stringify(verdictOf({ status, scanned, excluded, citations, declared, patternNames: patterns.map((p) => p.name), hits, base, reason: cls.reason }), null, 1)}\n`);
   } else {
     for (const p of patterns) {
       const n = hits.filter((h) => h.name === p.name).length;
@@ -544,9 +686,9 @@ function main() {
         process.stdout.write(`✓ ${p.name}\n`);
       }
     }
-    if (status === 'NOT_RUN')
+    if (status === 'NOT_RUN' || status === 'NOT_APPLICABLE')
       process.stdout.write(
-        `absence-regression: NOT_RUN — 0 added lines in ${base}..${head} outside ${EXCLUDED_PATHS.map((e) => e.path).join(', ')} (${excluded} there, not scanned), so nothing was examined\n`
+        `absence-regression: ${status} — ${cls.reason}; 0 added lines in ${base}..${head} outside ${EXCLUDED_PATHS.map((e) => e.path).join(', ')} (${excluded} there, not scanned)\n`
       );
     else if (status === 'FAIL') process.stderr.write('\nabsence-regression: FAIL — new absence-fabrication patterns introduced\n');
     else
@@ -555,7 +697,7 @@ function main() {
       );
     if (declared) process.stdout.write(`  ${declared} added line(s) declared a legal zero with absence-ok — the gate counts every declaration, so silencing it stays visible\n`);
   }
-  process.exit(status === 'FAIL' ? 1 : 0);
+  process.exit(exitFor(status, cls.couldNotLook));
 }
 
 /* THE CLI RUNS ONLY WHEN THIS FILE IS THE ENTRY POINT. The header calls `classifyAdded` a pure core

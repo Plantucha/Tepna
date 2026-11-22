@@ -255,6 +255,92 @@ export function makeRerecord({ repo, node, bundle, fixturesDir, corpusDir, Manif
   };
 }
 
+/* ∅ AN EXIT CODE THAT NEVER LEARNED THE ABSENCE (row
+   `2026-11-19-a-regen-check-over-an-all-absent-corpus-exits-zero`). `--check` raised 1 for a moved or a
+   minted fixture and 0 for everything else, so a run that reached NO fixture at all — every input
+   absent, the ordinary state of a worktree and of CI — exited 0 and a caller read a pass over a
+   population of zero. Measured 2026-11-21 at `beaca43d4`: `DEX_UPLOADS` at an empty directory printed
+   `6 NOT REACHED (input absent)` and exited 0, byte-identical in exit terms to a clean run.
+
+   CLAUDE.md §4c sets the vocabulary this returns: **exit 1 means it LOOKED and something is wrong with
+   the fixtures; exit 2 means it COULD NOT LOOK.** 1 outranks 2, because a drift it did find is the
+   actionable thing and the summary still names the hole beside it.
+
+   THREE PATHS NEVER REACH A COMPARISON, and the old counter conflated two of them. `absent` is a
+   gitignored recording. `threw` is this code crashing while it built the fixture, which §3.3 split from
+   the exemption in prose and never in a count — a thrown build still read as a skip and exited 0.
+   `skipped` is the declared exemption: no committed fixture and no mint spec. A run whose whole
+   population sits in those three examined nothing, whatever the reason, so `examined === 0` refuses too.
+
+   Pure over counts on purpose, so `tools/regen-goldens.mjs --selftest` proves every branch with no
+   corpus, no fixture and no build. `check: false` returns 0: a regeneration WRITES, and its contract is
+   not this row's subject. Say so here rather than leave the reader to infer it. */
+/* The combined `--all` run reads each child's summary line out of its stdout, and it must read every
+   TRAILING CLAUSE ON ITS OWN. One positional optional group makes the clause ORDER load-bearing: a
+   `, N build threw` clause inserted ahead of `NOT REACHED` stopped the group matching and zeroed
+   `absent` for every node — silencing the hole in the tool whose whole purpose is to surface it.
+   Returns null when the node printed no summary, which is never folded into a zero. */
+export function parseRegenSummary(out) {
+  const text = String(out == null ? '' : out);
+  const m = /^(?:regen|check): (\d+) fixture\(s\) moved, (\d+) minted, (\d+) skipped/m.exec(text);
+  if (!m) return null;
+  const clause = (label) => {
+    const hit = new RegExp(`^(?:regen|check): .*?, (\\d+) ${label}`, 'm').exec(text);
+    return hit ? +hit[1] : 0;
+  };
+  return {
+    moved: +m[1],
+    minted: +m[2],
+    skipped: +m[3],
+    absent: clause('NOT REACHED'),
+    threw: clause('build threw')
+  };
+}
+
+export function regenExitCode({ check, moved, minted, unchanged, absent, threw, skipped }) {
+  /* A COUNT THAT IS NOT A NUMBER WAS NOT MEASURED, and §∅ forbids reading that as a zero — a zero here
+     is the difference between "nothing drifted" and "nobody counted". An ABSENT field is zero, because
+     a caller that passes no `threw` key ran a loop that cannot throw; a field that arrived holding
+     `null` or a string is a broken producer, and this mapping refuses rather than reporting a clean
+     set over it. `isFinite(null)` is TRUE, so the test is on the type first. */
+  const bad = [];
+  const _n = (v, k) => {
+    if (v === undefined) return 0;
+    if (typeof v === 'number' && isFinite(v)) return v;
+    bad.push(k);
+    return 0;
+  };
+  const mv = _n(moved, 'moved'),
+    mn = _n(minted, 'minted'),
+    un = _n(unchanged, 'unchanged'),
+    ab = _n(absent, 'absent'),
+    th = _n(threw, 'threw'),
+    sk = _n(skipped, 'skipped');
+  if (bad.length)
+    return {
+      code: 2,
+      note: `\u23f1 UNEXAMINED — the count(s) ${bad.join(', ')} did not arrive as numbers, so this run ` + 'cannot report any fixture current'
+    };
+  if (!check) return { code: 0, note: null };
+  const examined = un + mv + mn;
+  if (mv || mn) return { code: 1, note: null };
+  const unreached = ab + th + sk;
+  if (examined === 0 || ab || th) {
+    const why = [];
+    if (ab) why.push(`${ab} input absent`);
+    if (th) why.push(`${th} build threw`);
+    if (sk) why.push(`${sk} no committed fixture`);
+    return {
+      code: 2,
+      note:
+        `\u23f1 UNEXAMINED — ${unreached} of ${examined + unreached} fixture(s) never reached a comparison` +
+        (why.length ? ` (${why.join(', ')})` : '') +
+        `; this run examined ${examined} and cannot report the set current`
+    };
+  }
+  return { code: 0, note: null };
+}
+
 /* The regenerate/check loop shared by every node. `fixtures`: [{ name, real?, build:()=>export|null,
    newRecord? }]. Absent committed file + no newRecord ⇒ skip; + newRecord ⇒ mint. build()→null ⇒ input
    absent (gitignored recording). Preserves the exact read→build→diff→merge→write→rerecord flow. */
@@ -278,7 +364,13 @@ export async function runRegen({ fixtures, fixturesDir, corpusDir, check, rereco
     /* §3.3 — an ABSENT INPUT IS A HOLE, a missing committed fixture is a known exemption, and one
        `skipped` count conflated them. That conflation is what let a run which regenerated only the
        synthetic fixtures read as a normal, complete pass. Counted and reported apart. */
-    absent = 0;
+    absent = 0,
+    /* A BUILD THAT THREW IS NOT AN EXEMPTION. It rode `skipped` too, so this code crashing on a
+       fixture read as a declared skip and exited 0. `regenExitCode` refuses on it. */
+    threw = 0,
+    /* The examined population: a fixture this run actually compared and found current. Without it a
+       run whose every item was exempt could not be told from a clean one. */
+    unchanged = 0;
   /* ── PROGRESS. Regenerating a golden re-runs the real modules over a real corpus, so this loop is
      minutes of silence per node and the operator cannot tell a slow fixture from a wedged one.
 
@@ -308,7 +400,7 @@ export async function runRegen({ fixtures, fixturesDir, corpusDir, check, rereco
       fresh = F.build();
     } catch (e) {
       console.log(`  ✗ ${F.name} — build threw: ${e.message}`);
-      skipped++;
+      threw++;
       continue;
     }
     if (!fresh) {
@@ -340,6 +432,7 @@ export async function runRegen({ fixtures, fixturesDir, corpusDir, check, rereco
     diff(fresh, old, '', d);
     if (!d.length) {
       console.log(`  = ${F.name} — content unchanged`);
+      unchanged++;
       // An UNCHANGED OUTPUT DOES NOT MEAN AN UNCHANGED RECORD. The ledger triple is
       // {manifestHash, inputHashes, outputHash}, so a fixture whose INPUT moved while its output
       // stayed byte-identical still owes a re-record — and this branch used to `continue` straight
@@ -358,7 +451,11 @@ export async function runRegen({ fixtures, fixturesDir, corpusDir, check, rereco
     if (!check) await rerecord(F.name, F);
   }
   console.log(
-    `\n${check ? 'check' : 'regen'}: ${moved} fixture(s) moved, ${minted} minted, ${skipped} skipped` + (absent ? `, ${absent} NOT REACHED (input absent — this run did not cover them)` : '')
+    `\n${check ? 'check' : 'regen'}: ${moved} fixture(s) moved, ${minted} minted, ${skipped} skipped` +
+      (threw ? `, ${threw} build threw` : '') +
+      (absent ? `, ${absent} NOT REACHED (input absent — this run did not cover them)` : '')
   );
-  if (check && (moved || minted)) process.exitCode = 1;
+  const verdict = regenExitCode({ check, moved, minted, unchanged, absent, threw, skipped });
+  if (verdict.note) console.log(verdict.note);
+  if (verdict.code) process.exitCode = verdict.code;
 }

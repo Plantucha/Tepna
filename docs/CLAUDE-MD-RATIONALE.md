@@ -1577,3 +1577,203 @@ Round-trip (first/last shown == raw file exactly) · bin==CSV identical `t0Ms`/`
 viewer-timezone independence (re-render under a changed `TZ` → identical clock) · overnight 22:00→06:00
 = ~8 h monotonic (no 24 h jump) · zoned `+02:00` == local for same instant → same `tMs` · DMY `13/05`
 and MDY `05/13` both → May 13 · stamp-less row → null (never today) · metric parity on clean files.
+
+## Moved from CLAUDE.md 2026-11-22 (token diet, owner order)
+
+Kestrel cut these passages from `CLAUDE.md` to keep the always-loaded file to rules. The rule each one
+backs still stands in `CLAUDE.md` under the section named. Text verbatim.
+
+### §👥.1
+
+A worktree does not share the primary checkout's `node_modules`. Without the symlink,
+`npx --no-install biome` falls back to npx's cache — which may hold an unrelated package
+squatting the name (measured: `biome@0.3.3`, "a simple way to manage environment variables").
+It runs, changes nothing, and exits 0. Symlink the primary `node_modules` into every worktree.
+
+### §👥.1
+
+**Check for filename collisions before creating a new tool.** Two sessions naming a new
+artifact after the same defect derive the same name (§🐦.2d's branch-name finding applied
+to FILES). A new file has no lease: it conflicts at merge if both sides are committed,
+and is overwritten silently if a session writes without looking. Before writing
+`tools/<name>.mjs`, run `node tools/name-lease.mjs tools/<name>.mjs`, which names every holder
+over three rails: `origin/main`, every local and remote-tracking ref, and every worktree on
+disk. It stays blind to a clone on another machine, and to a name claimed after it answered.
+`changes/` (dated keys) and the residue ledger (gate) have collision protection; `tools/` does not.
+
+### §👥.2d
+
+ (Kodiak's base merge on your own PR is the benign
+case: `kodiakhq[bot]` at the head, your commit contained — merge it in and push.)
+
+### §👥.4
+
+⚠️ A sentinel dies WITH its writer: `kill -9` on
+   the subshell (§4c's watchdog) leaves 0 sentinel lines and a bare `until grep` polls forever (measured
+   2026-09-22: 2 h 08 min). Guard it
+
+### §👥.4
+
+   Keep BOTH forms: the PID guard needs a `$PID` only the launching shell has, the sentinel is all a
+   later or different-shell waiter can read but cannot see a producer SIGKILLed before it wrote — and a
+   deadline cannot tell dead from slow.
+
+### §👥.4c
+
+**The exception: a step that SPAWNS A CHILD under a fixed cap.** Measured 2026-10-27,
+`verdict-adoption`'s 120 s child cap closed on `xerj-load.mjs` at load 44 (108.7 s, against 25.5 s
+idle) and step 38 of 41 red mid-run, leaving steps 39 to 41 unrun. A gate that cannot read a child
+says so: that one prints `⏱ UNEXAMINED <producer>` and exits **2 — it could not look** — where exit
+1 means it looked and an adoption failed. Read the step's own message before attributing a red to
+your diff.
+
+### §👥.5
+
+- **Kodiak merges** (`.kodiak.toml`, `require_automerge_label = false`): every non-draft PR without a
+  `do-not-merge` label sits in its serial queue — it updates the front PR when BEHIND, waits for CI,
+  merges, repeats. A PR sitting BEHIND while the front is mid-CI is serialising, not stalling. To HOLD:
+  `do-not-merge` — a draft holds only until it is green (next bullet). Arming `--auto` adds nothing.
+
+### §👥.5
+
+ (owner, 2026-11-01: "you constantly asking about it")
+
+### §👥.5
+
+merges when Kodiak sits idle.
+
+### §👥.5
+
+ (owner, 2026-11-02: "Stop putting do not merge
+  badge on vigil capture box"): vigil's
+
+### §👥.5
+
+- Without Kodiak, `strict` status checks make an armed green BEHIND PR a **deadlock** (auto-merge never
+  updates a branch): `node tools/queue-doctor.mjs --dry-run` names the green-and-stuck state and
+  `node tools/land-pr.mjs <PR#>` drives one PR to merge. A merge queue is **not available** (user-owned
+  repo).
+
+### §👥.5
+
+ The walker rebased #4458 23 times in
+  36 h, because one bird held four PRs that all conflicted on the same ledger merge.
+
+### §📌
+
+ (owner, 2026-11-07, reversing the 2026-10-12
+  ruling that let a PR carry its own row). In one day, 28 of 68 merges touched the ledger, and each
+  one put every open PR with a row into conflict. The walker rebased one PR 21 times. A fix
+
+### §📌
+
+ Every
+  landing PR appends to the ledger, so a checkout is behind it most of the time and the scan still
+  returns a well-formed table with no line saying the file is old — **four sessions in two days
+  claimed a row `origin/main` already showed closed.** Two reads
+
+### §📌
+
+ **The criterion is the
+  FILE, not `behindCommits`** — the root is behind on commits that never touch the ledger, so only a
+  row-state disagreement means anything. §👥.2's caveat holds: a terminal, the web UI, a second agent
+  and an un-pulled tree inherit no hook.
+
+### §∅
+
+ The O2Ring's `_PPG.txt` shipped
+thousands of in-band zeros through every green gate because the rule was never written for raw bytes.
+
+### §🎙️
+
+ Someone typed the earlier 20, and four of its nights fold two devices.
+
+### §🎫
+
+ **Export-inert is the narrower claim, and it still
+  owes the rebuild:** the same line in `oxydex-render.js` moves `manifestHash` and holds OxyDex's
+  `computeHash` at `93f4d577efcd` (measured 2026-11-10 through `manifest-gate.js computeClosure`;
+  the earlier rule here read "an inert shared-module addition does not require re-bundling").
+
+## Moved from CLAUDE.md 2026-11-22, second cut (owner "yes" to a deeper cut)
+
+The text below left CLAUDE.md verbatim. CLAUDE.md keeps a one-line rule and points here.
+
+### §🔒.7 hostAxis — the full contract
+
+### 7. The host-disciplined axis — `DexClock.hostAxis` governs the RATE
+Every capture-host / Polar-Sensor-Logger row carries two clocks (`Phone timestamp` = host,
+`sensor timestamp [ns]` = device). **A node never hand-rolls a rate correction**: call `hostAxis`,
+consume `correctionAt()`.
+- An anchor is `{ devMs, hostMs }` from the SAME row; non-finite members dropped, sorted by `devMs`;
+  divergence relative to the first anchor.
+- **≥3 anchors** (refuse below); **running median width 21, never a fit**
+  (CLAIM axisMedianWidth = 21 FROM clock.js#CK_AXIS_WIN; host stamps carry BLE jitter; the O2Ring's
+  divergence is the LINK stalling, non-linear); **linear between anchors, FLAT outside them**;
+  **read `ppmEstimator` before you read `ppm`.** The end-clamp pulls each end inward by 5 anchors'
+  drift. `'end-to-end-median'` divides that clamp out and carries no such bias; `'single-window'`
+  (n ≤ 21, or a degenerate span) still under-reads by `1 − 5/(n−1)`, and
+  `correctionAt(firstAnchor)` carries the bias under both.
+- **`CK_AXIS_MAX_PPM = 50000` is a refusal bound, not a clamp.** A refusal returns `{ ok:false, reason,
+  n }` with no `correctionAt`; the node keeps the device axis and says so. **A refusal guards the RATE,
+  not the AXIS** — a stepped device counter still spans the step in `relSec`; step detection and
+  re-anchoring live on the axis (`_clockResyncs`, MotionDex/ECGDex), and a node without it owes a tripwire.
+- No span gate here (it interpolates); a consumer reading **`.ppm`** quotes a rate and needs a baseline
+  (`ecgdex-dsp.js` gates `fs` correction at 2400 s). **`ppm` and `maxStepMs` are diagnostics** — never
+  quote `ppm` without anchor count and span; for "does this drift / how long to average" use the Allan
+  curve (`capture-host/allan.py`, `ALLAN-DEVIATION-2026-08-12-BRIEF`), never an SD or a two-half fit.
+- **First ask whether there IS a second clock — read `independent` (`spreadMs > 2 ms`), never a ~0
+  ppm.** A phone capture's host column is the device time rounded: no second clock. A stream whose
+  inter-sample deltas are ≥67 % one value was DRAWN (`quality.timingSource`; `CK_AXIS_DRAWN_SHARE` in
+  `clock.js`) and is never a clock.
+- **One device clock per axis:** a resync is a change of clock. Build the axis from anchors at or after
+  the LAST resync; earlier rows get the first post-seam anchor's flat correction; count the dropped
+  (`hostAxis.anchorsDroppedPreResync`) and surface `clockResyncs[].hostOffsetMs` (ECGDex does; any node
+  that detects steps and calls `hostAxis` owes the same split).
+- This places every device on ONE timebase; the host's own correctness is the host's business.
+
+### §🔏 gates — hash recipes and record shapes
+
+Ledgers are per-app `provenance/<App>.json` fragments (+ `_meta.json`, `index.json`), reassembled by
+`provenance-ledger.js` into the `{ bundles }` / `{ fixtures }` views named `BUILD-MANIFEST.json` /
+`FIXTURE-PROVENANCE.json` below. **`verify-provenance.html`** is pure-static and content-addressed
+(hashes files, boots nothing); read `window.__provenanceOK` / `__gateA_ok` / `__gateB_ok`, never the body.
+
+- **GATE A — code identity.** Each bundle's **`manifestHash`** must equal `BUILD-MANIFEST.json`: per
+  `data-inline-src` block `logicalName \0 sha256(text)`, sorted, SHA-256[0:12] — deterministic, moving
+  only on a code change (`manifest-gate.js manifestHashFromText`; `tests/verify-manifest.mjs`). A legacy
+  gzip+UUID bundle hashes to `null`. `buildHash` has retired: the build still stamps it, nothing reads it.
+- **GATE B — known answers.** Each fixture in `FIXTURE-PROVENANCE.json` is `hash(input) + manifestHash →
+  hash(output)`; reproducible only while all three still match (`manifest-gate.js gateBEvaluate`).
+  Records are `{ bundle, manifestHash, inputHashes, outputHash }` or `{ bundle, historical:true,
+  outputHash }` (byte-pinned, not code-gated). The keys ARE the audited set.
+- **GATE C — equivalence** in `Dex-Test-Suite.html`: `env.equiv.*` runs `compute({committed input}) ≡
+  committed export` (volatile-stripped) per node; when a leg reds, regenerate **all** that node's fixtures.
+
+### §🔏 regen-goldens — the per-node list
+
+- **Regenerate a moved fixture OUTPUT by re-running the app on its committed inputs**, never by
+  editing a hash: `tools/regen-<node>-goldens.mjs` — nine of them (`cpap` 5 fixtures · `ecgdex` 4 ·
+  `glucodex` 3 · `hrvdex` 3 · `integrator` 3 · `motiondex` 1 · `oxydex` 3 · `ppgdex` 6 · `pulsedex` 3) on
+  `regen-goldens.mjs` + `regen-goldens-core.mjs`. Check for your node's tool before costing a regen.
+
+### §📌 residue rules — the full wording
+
+- **Residue → `briefs/RESIDUE.md`, one row per verified defect, never a new `-FOLLOWUPS-` brief**
+  (owner, 2026-09-02): `| <key> | logged | source | defect | evidence | state |`, key
+  `YYYY-MM-DD-short-slug` (never a counter), source = a brief (which gets `**Residue:** <key>` on its
+  status line), a repo path, or `#NNNN` — the real origin, never the nearest brief. You append a row
+  and close it (`fixed #NNNN` or `→ \`<NAME>-BRIEF.md\``), and you never edit one. Only the session
+  picking a row up creates a `-FOLLOWUPS-` brief. **A fix for a row that is already on main declares
+  it on a `Residue-fixed: <key>` line in the PR body.** After the merge, the walker opens the
+  RESIDUE-only PR that writes `fixed #<your PR>`, so no session spends a unit on that cell.
+- 🔴 **A code PR does not touch `briefs/RESIDUE.md`** (owner, 2026-11-07). A fix that ships
+  needs no row, because its changeset records it. Log a finding you do not fix in a RESIDUE-only PR,
+  and close a row through `Residue-fixed:`. Only one RESIDUE-only PR is in flight across the fleet.
+- 🔴 **PICK A ROW UP FROM THE REF, NEVER FROM YOUR WORKING COPY** (*why → RATIONALE §📌*). A checkout is
+  behind the ledger most of the time, and a stale copy still reads as a well-formed table. Two reads are right whatever your checkout is
+  at: `node tools/residue-ids.mjs --open`, which names every row your copy gets wrong, and
+  `git show origin/main:briefs/RESIDUE.md`. A worktree cut from the ref is current by construction.
+  Hook-enforced by `guard-stale-ledger.sh`, which denies a read whose row states disagree with the
+  ref and names the first disagreement; hatch `CLAUDE_ALLOW_STALE_LEDGER=1`. The criterion is the FILE, not
+  `behindCommits`; §👥.2's hook caveat holds.

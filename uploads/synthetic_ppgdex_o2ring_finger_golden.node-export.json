@@ -95,8 +95,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "78f6b23e5494",
-        "computeHash": "efc88a15391c"
+        "manifestHash": "adbeb6388d9f",
+        "computeHash": "cef18a3e456d"
       },
       "evidence": {
         "envelopeRef": null,
@@ -125,8 +125,8 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "78f6b23e5494",
-        "computeHash": "efc88a15391c"
+        "manifestHash": "adbeb6388d9f",
+        "computeHash": "cef18a3e456d"
       },
       "evidence": {
         "envelopeRef": null,
@@ -190,11 +190,13 @@
       "sdnnIndex": 13.4,
       "sdnnRobust": 13.4,
       "sd2Robust": 16.7,
+      "wholeRecordHR": 48,
+      "hrWindow": "wholeRecord",
       "window": "wholeRecord",
       "units": "ms",
       "lowConfidence": false,
       "lowConfidenceReason": null,
-      "windowNote": "sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node’s wholeRecord SDNN/RMSSD.",
+      "windowNote": "sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node’s wholeRecord SDNN/RMSSD. hr is the DISPLAY rate instead: the 5-min epoch median on a record over 90 min, the whole-record rate below that. hrWindow names which one this export carries, and wholeRecordHR is the cross-node HR axis.",
       "sdnnNote": "whole-record sdnn runs high on optical — SDANN/baseline-wander inflation the chest ECG does not carry. sdnnIndex (mean of per-5-min SDNN) and sdnnRobust (quality-gated MEDIAN of per-5-min SDNN) both remove it, sdnnRobust the most; use sdnnRobust for cross-node SDNN comparison. Bias magnitudes are deliberately not quoted here: the earlier figures came from a single paired night and did not reproduce on the multi-night corpus."
     },
     "frequency": {

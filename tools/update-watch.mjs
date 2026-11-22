@@ -35,6 +35,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { makeVerdict, printVerdict } from './verdict-emit.mjs';
 import { boundedFetch } from './net-bound.mjs';
 
@@ -81,6 +82,100 @@ export function compareVersions(a, b) {
     if (!da && xa[i] !== xb[i]) return xa[i] < xb[i] ? -1 : 1;
   }
   return 0;
+}
+
+/* ── the licence table's local-tool rows ──────────────────────────────────────────────────── */
+
+/** The heading of the `THIRD-PARTY.md` table that records the local search stack. */
+export const LOCAL_TABLE_HEADING = '### Local search and local models';
+
+/** Each local-tool row of that table against the source that reads its installed side. A row whose
+ * cell pins no version — a model, which the runtime tags — cannot rot, so it sits here for COVERAGE
+ * alone: a row this list does not name, and a name no source reads, are each a finding of their own. */
+export const DOC_ROWS = [
+  { label: 'xerj', source: 'xerj' },
+  { label: 'the local model runtime (ollama)', source: 'ollama' },
+  { label: 'bge-m3', source: 'model bge-m3:latest' },
+  { label: 'qwen3-coder:30b', source: 'model qwen3-coder:30b' },
+  { label: 'qwen3.8:27b', source: 'model qwen3.8:27b' }
+];
+
+/** Emphasis and code ticks off a table cell, so a label reads as its plain text. */
+const plainCell = (c) =>
+  String(c ?? '')
+    .replace(/\*\*/g, '')
+    .replace(/`/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/** The leading version token of a version cell, or null when the cell pins no version. */
+export function recordedVersion(cell) {
+  const head = plainCell(cell).split(' (')[0].trim();
+  return /^v?\d+\.\d+\.\d+/.test(head) ? normVersion(head) : null;
+}
+
+/** The local-tool rows of `THIRD-PARTY.md`, as `{ label, recorded, cell }`. Pure.
+ * An absent heading answers null rather than an empty set: the table moved, and a read of the wrong
+ * table reports nothing true about this one. */
+export function parseLocalToolRows(md) {
+  const at = String(md ?? '').indexOf(LOCAL_TABLE_HEADING);
+  if (at === -1) return null;
+  const rest = String(md).slice(at + LOCAL_TABLE_HEADING.length);
+  const stop = rest.indexOf('\n#');
+  const rows = [];
+  for (const line of (stop === -1 ? rest : rest.slice(0, stop)).split('\n')) {
+    if (!line.startsWith('|')) continue;
+    const cells = line.split('|').slice(1, -1);
+    if (cells.length < 2) continue;
+    const label = plainCell(cells[0]);
+    if (label === 'tool' || /^-+$/.test(label)) continue;
+    rows.push({ label, recorded: recordedVersion(cells[1]), cell: plainCell(cells[1]) });
+  }
+  return rows;
+}
+
+/** Findings over that table: a pinned version the box no longer runs, a tracked tool with no row, and
+ * a row no source reads. An unread install is never a finding, because an absence is not a drift. */
+export function docDrift(docRows, installedByName) {
+  if (docRows === null) return [{ label: LOCAL_TABLE_HEADING, kind: 'table absent', recorded: null, installed: null }];
+  const findings = [];
+  for (const m of DOC_ROWS) {
+    const row = docRows.find((r) => r.label === m.label);
+    const installed = installedByName[m.source] ?? null;
+    if (!row) {
+      findings.push({ label: m.label, kind: 'no row', recorded: null, installed });
+      continue;
+    }
+    if (row.recorded === null || installed === null) continue;
+    const order = compareVersions(row.recorded, installed);
+    if (order !== null && order !== 0) findings.push({ label: m.label, kind: 'drift', recorded: row.recorded, installed });
+  }
+  for (const r of docRows) if (!DOC_ROWS.some((m) => m.label === r.label)) findings.push({ label: r.label, kind: 'untracked row', recorded: r.recorded, installed: null });
+  return findings;
+}
+
+/** The board prompt for one drift finding. The licence is read at a version, so a restamp reads it. */
+export function driftText(f) {
+  const head = `The licence table and the box disagree about **${f.label}** (${f.kind}).`;
+  const body =
+    f.kind === 'drift'
+      ? `\`THIRD-PARTY.md\` records ${f.recorded} and the box runs ${f.installed}.`
+      : f.kind === 'no row'
+        ? 'This tool reads its installed side, and the table names it nowhere.'
+        : 'The table names it, and no source here reads its installed side.';
+  return [
+    `UPDATE-WATCH · licence table drift: ${f.label}`,
+    '',
+    head,
+    body,
+    '',
+    'A session takes this as one small unit:',
+    `1. Read the licence at the version the box runs, and confirm it is the one the row states.`,
+    '2. Restamp the row with that version and the date it was read.',
+    `3. Add or drop the mapping in \`DOC_ROWS\` when the row itself is the finding.`,
+    '',
+    'Fleet-Session: update-watch'
+  ].join('\n');
 }
 
 /** The readiness rule above. `publishedMs` null → soak from `firstSeenMs`; both null → not ready. */
@@ -205,11 +300,30 @@ async function readInstalled(src) {
   return { version: m ? m.digest : null };
 }
 
+/* A row value is a version string, a digest or null. Coerce before measuring the length: a value of
+   another shape used to throw here, and one unreadable row must never cost the whole table. */
+const short = (v) => {
+  if (v == null) return '—';
+  const s = String(v);
+  return s.length > 20 ? `${s.slice(0, 12)}…` : s;
+};
+
+/** `npm view <pkg> version --json` prints a bare string when one version matches and an ARRAY when
+ * several do (measured 2026-11-21: `@anthropic-ai/claude-code` printed `["2.1.330"]`). Take the
+ * newest member that reads as a version, or null when none does — never the printed value itself,
+ * because every consumer below reads a version string, and an array reaching them is a crash. */
+export function pickNpmVersion(printed) {
+  const versions = (Array.isArray(printed) ? printed : [printed]).map((v) => normVersion(v)).filter((v) => v !== null);
+  if (!versions.length) return null;
+  return versions.reduce((best, v) => (compareVersions(best, v) === -1 ? v : best));
+}
+
 async function readLatest(src) {
   const l = src.latest;
   if (l.npm) {
     const time = JSON.parse(run('npm', ['view', l.npm, 'time', '--json'], 60000));
-    const version = JSON.parse(run('npm', ['view', l.npm, 'version', '--json'], 60000));
+    const version = pickNpmVersion(JSON.parse(run('npm', ['view', l.npm, 'version', '--json'], 60000)));
+    if (version === null) return { version: null };
     return { version, publishedMs: Date.parse(time[version]) || null, prerelease: /-/.test(version), notes: `https://www.npmjs.com/package/${l.npm}` };
   }
   if (l.github) {
@@ -276,11 +390,60 @@ function selftest() {
   ok(compareVersions('0.5.0-rc.100', '0.5.0-rc.101') === -1, 'a pre-release number compares as a number');
   ok(compareVersions('0.40.15-rc2', '0.40.15') === -1, 'a pre-release sorts below its release');
   ok(compareVersions('sha256:abc', '1.0.0') === null, 'a digest is not a version');
+  ok(pickNpmVersion('2.1.330') === '2.1.330', 'npm printing one version reads that version');
+  ok(pickNpmVersion(['2.1.330']) === '2.1.330', 'npm printing a one-member array reads the member');
+  ok(pickNpmVersion(['2.1.9', '2.1.10']) === '2.1.10', 'npm printing several versions reads the newest, by number');
+  ok(pickNpmVersion([]) === null, 'npm printing nothing reads null, never a default');
+  ok(pickNpmVersion(['latest']) === null, 'a member that is not a version reads null');
+  ok(pickNpmVersion(null) === null, 'an absent version reads null');
+  ok(typeof short(['2.1.330']) === 'string' && typeof short(null) === 'string', 'the table renders any row shape without throwing');
   ok(readiness({ ...base, installed: 'aaaa', latest: 'bbbb', publishedMs: null, firstSeenMs: now - 4 * DAY }).ready, 'two different digests still read as an update');
   const p = promptText({ name: 'x', installed: '1', latest: '2', why: '3 d old', published: 'd', notes: 'u', quiet: 'q', steps: ['s'], owner: 'sudo' });
   ok(p.includes('needs the owner') && p.includes('Do not run them'), 'an owner step tells the session not to run it');
   ok(/^4\. Post the result/m.test(p), 'the steps number on from the two fixed checks');
   ok(SOURCES.find((s) => s.name === 'model bge-m3:latest').owner, 'an embedding-model change always goes to the owner');
+
+  /* the licence table's local-tool rows */
+  const TBL = [
+    `${LOCAL_TABLE_HEADING}`,
+    '',
+    '| tool | version or pin | licence |',
+    '|---|---|---|',
+    '| **xerj** | v1.0.0-rc.104 (licence read 2026-11-21) | Apache-2.0 |',
+    "| **bge-m3** | the runtime's own tag | MIT |",
+    '',
+    '### the next section'
+  ].join('\n');
+  const parsed = parseLocalToolRows(TBL);
+  ok(parsed.length === 2, 'the parser reads every row of the table and no header');
+  ok(parsed[0].label === 'xerj' && parsed[0].recorded === '1.0.0-rc.104', 'a version cell reads its leading version, without the read date');
+  ok(parsed[1].recorded === null, 'a cell that pins no version reads null, never a guessed version');
+  ok(parseLocalToolRows('# a file with no such table') === null, 'an absent heading answers null, never an empty set');
+  ok(docDrift(null, {})[0].kind === 'table absent', 'an absent table is itself one finding');
+  ok(docDrift(parsed, { xerj: '1.0.0-rc.104' }).filter((f) => f.kind === 'drift').length === 0, 'a row that names the installed version does not drift');
+  ok(docDrift(parsed, { xerj: '1.0.0-rc.105' }).filter((f) => f.kind === 'drift').length === 1, 'a row behind the box drifts');
+  ok(docDrift(parsed, { xerj: null }).filter((f) => f.kind === 'drift').length === 0, 'an unread install is never a drift — an absence is not a number');
+  ok(docDrift(parsed, { 'model bge-m3:latest': '790764642607' }).filter((f) => f.kind === 'drift').length === 0, 'a model digest never drifts against a row that pins no version');
+  ok(docDrift(parsed, {}).filter((f) => f.kind === 'no row').length === 3, 'a tracked tool the table names nowhere is a finding');
+  ok(
+    docDrift([{ label: 'something else', recorded: null, cell: 'x' }, ...parsed], {}).some((f) => f.kind === 'untracked row'),
+    'a row no source reads is a finding'
+  );
+  ok(driftText({ label: 'xerj', kind: 'drift', recorded: '1.0.0-rc.93', installed: '1.0.0-rc.104' }).includes('1.0.0-rc.93'), 'a drift prompt states the version the row records');
+  /* COVERAGE over the REAL table, which is what keeps a new row from escaping the detector. */
+  const realPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'THIRD-PARTY.md');
+  if (existsSync(realPath)) {
+    const real = parseLocalToolRows(readFileSync(realPath, 'utf8'));
+    ok(real !== null && real.length > 0, 'the real table parses, so the heading above still names it');
+    ok(
+      real.every((r) => DOC_ROWS.some((m) => m.label === r.label)),
+      'every row of the real table is named in DOC_ROWS'
+    );
+    ok(
+      DOC_ROWS.every((m) => SOURCES.some((src) => src.name === m.source)),
+      'every DOC_ROWS mapping names a source this tool reads'
+    );
+  }
   console.log(fails ? `\n${fails} of ${n} selftest(s) FAILED` : `\nall ${n} selftests passed`);
   process.exit(fails ? 1 : 0);
 }
@@ -345,13 +508,17 @@ for (const src of SOURCES) {
   rows.push(row);
 }
 
-const short = (v) => (v && v.length > 20 ? `${v.slice(0, 12)}…` : (v ?? '—'));
 if (!flag('--json')) {
   for (const r of rows)
     console.log(
       `  ${r.ready ? 'READY' : '     '}  ${r.name.padEnd(24)} ${short(r.installed).padEnd(16)} → ${short(r.latest).padEnd(16)} ${r.why}${r.owner ? ' · owner' : ''}${r.error ? ` · ${r.error}` : ''}`
     );
 }
+
+const installedByName = Object.fromEntries(rows.map((r) => [r.name, r.installed ?? null]));
+const DOC = join(dirname(fileURLToPath(import.meta.url)), '..', 'THIRD-PARTY.md');
+const drift = docDrift(existsSync(DOC) ? parseLocalToolRows(readFileSync(DOC, 'utf8')) : null, installedByName);
+if (!flag('--json')) for (const f of drift) console.log(`  DRIFT  ${f.label.padEnd(24)} ${short(f.recorded).padEnd(16)} ← doc · box ${short(f.installed)} · ${f.kind}`);
 
 let posted = 0;
 if (flag('--notify')) {
@@ -360,6 +527,13 @@ if (flag('--notify')) {
     const key = `${r.name}@${r.latest}`;
     if (state.notified[key]) continue;
     run(board, ['--as', 'update-watch', 'post', '6', '--kind', 'question', '--to', 'kestrel', '--no-lint', promptText(r)], 30000);
+    state.notified[key] = nowMs;
+    posted++;
+  }
+  for (const f of drift) {
+    const key = `doc-drift:${f.label}@${f.installed ?? f.kind}`;
+    if (state.notified[key]) continue;
+    run(board, ['--as', 'update-watch', 'post', '6', '--kind', 'finding', '--to', 'kestrel', '--no-lint', driftText(f)], 30000);
     state.notified[key] = nowMs;
     posted++;
   }
@@ -375,7 +549,7 @@ const v = makeVerdict({
   status: checked === 0 ? 'UNKNOWN' : ready.length ? 'FAIL' : 'PASS',
   population: { checked, eligible: rows.length, excluded: unread },
   criterion: CRITERION,
-  result: { ready: ready.map((r) => `${r.name}@${short(r.latest)}`), posted },
+  result: { ready: ready.map((r) => `${r.name}@${short(r.latest)}`), posted, docDrift: drift.map((f) => `${f.label}:${f.kind}`) },
   evidence: [TOOL],
   reason: checked === 0 ? 'no source could be read' : ready.length ? `${ready.length} update(s) ready` : null,
   tool: TOOL

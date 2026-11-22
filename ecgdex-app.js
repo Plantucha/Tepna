@@ -3172,6 +3172,11 @@ self.onmessage = async (e) => {
        field-for-field (SHARED-SHAPE mandate): `cvhrIndex` is events per hour of OBSERVED recording
        (nnRes.activeSec), not of wall span. Attached only when the index was computed. */
     if (out.apnea && out.apnea.cvhrIndex != null && r.cvhr && r.cvhr.denomSec > 0) out.apnea.cvhrHours = +(r.cvhr.denomSec / 3600).toFixed(2);
+    /* §∅ — A NULL INDEX TRAVELS WITH ITS REASON. The mirror-window exclusion refuses the index when a
+       dropout swallows most of the record's decision windows, and a bare `null` beside a `method`
+       string reads as "no CVHR cycle occurred". The ambulatory branch carries its own
+       `suppressed` flag, so this attaches only to the computed branch. */
+    if (out.apnea && !r.ambulatory && out.apnea.cvhrIndex == null && r.cvhr && r.cvhr.reason) out.apnea.cvhrReason = r.cvhr.reason;
     return out;
   }
   function exportJSON() {

@@ -55,12 +55,18 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
-import { isCliEntry } from './argv-guard.mjs';
+import { checkArgv, isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
+/* ── THE ACCEPTED TOKENS, READ FROM THE CODE AND NOT FROM THE HEADER ─────────────────────────────
+   `has` answers "absent" for a token nobody declares, so a mistyped flag used to run the whole
+   planted battery and print a verdict the caller never asked for.
+   `cvhr-edge-widen.mjs` imports this file, so the refusal sits inside the `isMain` guard at the
+   foot. A module-scope refusal would judge that importer's tokens and exit 2 on a clean run. */
+const ARGV_SPEC = { valued: [], boolean: ['--json', '--selftest'] };
 const JSON_OUT = has('--json');
 
 /* ═══════════════════════════ THE PRE-STATED BATTERY, IN ONE PLACE ══════════════════════════════ */
@@ -196,6 +202,21 @@ function selftest() {
     if (!c) fail++;
     console.log(`${c ? 'ok  ' : 'FAIL'}  ${m}`);
   };
+
+  /* ── THE ACCEPTED SET IS WHAT THIS FILE READS ──────────────────────────────────────────────────
+     A spec that drops a working flag refuses a documented run, which is the same defect one layer
+     along. Both usage lines in the header run through the spec here. */
+  for (const c of [[], ['--json'], ['--selftest']]) ok(checkArgv(c, ARGV_SPEC).ok, `the spec accepts \`${c.join(' ') || '(no flag)'}\``);
+  ok(!checkArgv(['--jsonn'], ARGV_SPEC).ok, 'a mistyped flag REFUSES, where it used to run the whole planted battery');
+  ok(!checkArgv(['/t/o.json'], ARGV_SPEC).ok, 'CONTROL: this tool takes no positional, so a bare path refuses');
+  /* THE LEG BELOW PINS THE CALL SITE AND NOT THE CALL'S NAME. Measured here: a first version asked
+     whether this file CONTAINS the string `refuseUnknownArgvOrExit(argv, ARGV_SPEC`, and it passed
+     over a mutant that deleted the call — because the asking line carries that string itself. An
+     escaped pattern cannot match its own source, so the shape is what it reads. */
+  ok(
+    /if \(isMain\) \{\s+refuseUnknownArgvOrExit\(/.test(readFileSync(fileURLToPath(import.meta.url), 'utf8')),
+    'the CLI entry still CALLS the refusal, first in its block — a spec nothing calls refuses nothing'
+  );
   const ctl = plant({ holeSec: 0, insert: false });
   const hol = plant({ holeSec: 300 });
   ok(hol.nn.length === ctl.nn.length + 1, 'a hole adds exactly ONE interval to the control, so every other interval is shared');
@@ -305,4 +326,7 @@ async function main() {
   return 0;
 }
 
-if (isMain) process.exit(await main());
+if (isMain) {
+  refuseUnknownArgvOrExit(argv, ARGV_SPEC, { tool: 'tools/cvhr-gap-edge.mjs' });
+  process.exit(await main());
+}

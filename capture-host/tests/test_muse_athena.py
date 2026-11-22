@@ -150,6 +150,20 @@ def test_synthetic_optics_round_trip():
     assert M.optics(pkt.records[0]) == vals
 
 
+def test_synthetic_optics4_round_trip_is_three_samples_of_four_channels_sample_major():
+    s = [(1, 2, 3, 4), (0xFFFFF, 0, 7, 8), (9, 10, 11, (1 << 20) - 2)]
+    pkt, _ = M.tokenise(_pkt(1, _rec(M.TAG_34, 0, 1, _pack([v for t in s for v in t], 20))))
+    assert M.optics4(pkt.records[0]) == s
+    assert (M.OPTICS4_CHANNELS, M.OPTICS4_SAMPLES, M.OPTICS4_HZ) == (4, 3, 64.0)
+    assert len(M.OPTICS4_LABELS) == 4 and "ambient" not in M.OPTICS4_LABELS
+
+
+def test_optics4_refuses_another_tag_and_a_wrong_size():
+    assert M.optics4(M.Record(M.TAG_EEG, 0, 0, bytes(30))) is None
+    assert M.optics4(M.Record(M.TAG_34, 0, 0, bytes(29))) is None
+    assert M.optics4(M.Record(M.TAG_34, 0, 0, bytes(31))) is None
+
+
 def test_synthetic_motion_round_trip_is_signed_and_sample_major():
     s = [(1, -1, 32767, -32768, 100, -100), (2, -2, 0, 0, 200, -200), (3, -3, 5, -5, 300, -300)]
     pkt, _ = M.tokenise(_pkt(1, _rec(M.TAG_MOTION, 0, 1, _pack([v for t in s for v in t], 16))))
