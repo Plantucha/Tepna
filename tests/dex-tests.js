@@ -37354,7 +37354,8 @@
               moved.join(' · ') +
               '. SELECTION is unchanged, so this is the DETECTOR half — the committed counts were measured under different code and no longer describe this tree. ' +
               'Re-cut (`node tools/analysis-rerun.mjs --only treatment-response-analysis.html --paper-scale --out <rerun.json>`, ~1005 s measured 2026-09-28) and re-stamp ' +
-              '(`node tools/treatment-response-yield-pin.mjs --rerun <rerun.json>`). If the edit is provably inert, re-stamp on the SAME counts and say so in the PR — never edit a digest by hand.'
+              '(`node tools/treatment-response-yield-pin.mjs --rerun <rerun.json>`). If the edit is provably inert, re-stamp on the SAME counts and say so in the PR — never edit a digest by hand. ' +
+              'Read the note chain first (`node tools/treatment-response-yield-pin.mjs --chain`, well under a second): it names the moved files and says whether the record explains the earlier moves.'
           : Object.keys(pin.detector.oxy).length + Object.keys(pin.detector.pulse).length + ' realm source digests match the pin'
       );
       /* ANTI-VACUITY for the closure half: the comparison must be over a non-empty, realm-derived set,
