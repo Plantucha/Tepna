@@ -150,11 +150,15 @@ export function runTool(name, args) {
 function distilledClaudeMd() {
   try {
     const s = readFileSync(join(ROOT, 'CLAUDE.md'), 'utf8');
+    // Case-insensitive, and an absent marker is REPORTED: the old exact-case `ALWAYS` marker stopped
+    // matching when CLAUDE.md wrote `always`, and the clause dropped out of the prompt with no sign
+    // (briefs/LOCAL-QWEN-SWEEPS-2026-11-22-BRIEF.md §4).
+    const low = s.toLowerCase();
     const grab = (marker, n) => {
-      const i = s.indexOf(marker);
-      return i < 0 ? '' : s.slice(i, i + n) + '\n…\n';
+      const i = low.indexOf(marker.toLowerCase());
+      return i < 0 ? `(CLAUDE.md section "${marker}" not found)\n` : s.slice(i, i + n) + '\n…\n';
     };
-    return (grab('## 🔒 THE CLOCK CONTRACT', 1500) + grab('### 5. Display — ALWAYS `getUTC*`', 300) + grab('## 📏 Units', 400) + grab('## 🎫 Evidence badges', 400)).slice(0, 3000);
+    return (grab('## 🔒 THE CLOCK CONTRACT', 1500) + grab('### 5. Display — always `getUTC*`', 300) + grab('## 📏 Units', 400) + grab('## 🎫 Evidence badges', 400)).slice(0, 3000);
   } catch {
     return '(CLAUDE.md unavailable — apply the Clock Contract and honest-null rules from memory)';
   }

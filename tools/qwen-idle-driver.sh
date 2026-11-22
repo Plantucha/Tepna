@@ -98,4 +98,10 @@ else
   # it does not say WHICH tree was searched, so a feed sitting in root reads as an absent feed.
   echo "   mypy lane: no $MYPY_FEED — capture-host/check.sh has not run in that checkout; skipping (absent is not clean)" >> "$LOG"
 fi
+# 6 · compute feeder (owner 2026-11-22: "2 days of compute always ready"). Tops the Shrike queue up to
+# 48 h of tasks (queue FILES only — Freebuff counts a scripted prompt as a policy strike), then asks
+# qwen the lens questions for 20 min. ABSOLUTE path, like stage 5. The tool refuses to load the model
+# when the card lacks VRAM for it, and stops when the router's 1-input embed slows past 2 s.
+timeout 1500 node "$HOME/Tepna/tools/compute-feeder.mjs" run --budget-min 20 >> "$LOG" 2>&1 \
+  || echo "   compute feeder exited $? (a timeout reads 124)" >> "$LOG"
 echo "── $(date '+%F %T') driver end" >> "$LOG"
