@@ -52,8 +52,13 @@ fi
 #     Time one 1-input embed straight to each backend, but only while the router has nothing in flight there: a bulk
 #     index batch holds the runner for minutes, and a probe behind it is not a hang. Two strikes in a row restart that
 #     user unit (owner 2026-11-15: Kestrel restarts a wedged rig Ollama user unit without asking) and post the result.
+#     At most one restart per backend per 30 min (Finch review #7879).
 # (b) THE EMBED BOXES named in the router status. A dead box costs nothing visible (the router falls back to the GPU),
 #     so post DOWN after BOX_STRIKES failed checks in a row (8 × 2 min ≈ 16 min) and RECOVERED on the first good one.
+#     Every box failing in one run posts at once: then each interactive query waits on the GPU again.
+# (c) SAME VECTORS, once an hour: the index is embedded on ROCm and queries come from the boxes. Three texts on each box
+#     and on an idle GPU backend must give the same dimension and cosine >= 0.999. A different build, quantisation or
+#     context length would lower search quality with no error (Finch review #7879). Measured 2026-11-22: 1.00000 × 3.
 post() {
   echo "$now $1" >> "$LOG"
   [ -n "${WATCH_DRY:-}" ] && { echo "DRY: $1"; return; }
@@ -68,7 +73,11 @@ if [ "$mode" = router ] && st=$(curl -s -m 8 http://127.0.0.1:11434/router/statu
     c=$(curl -s -m 20 -o /dev/null -w '%{http_code}' -d '{"model":"bge-m3","input":["watch"],"keep_alive":"30m"}' "http://127.0.0.1:$port/api/embed" 2>/dev/null)
     if [ "$c" = 200 ]; then echo 0 > "$f"; continue; fi
     n=$((n + 1)); echo "$now $be direct embed http ${c:-none}, strike $n" >> "$LOG"
-    if [ $n -ge 2 ]; then
+    last=0; [ -f "$S/watch-$be.restarted" ] && read -r last < "$S/watch-$be.restarted"
+    if [ $n -ge 2 ] && [ $(( $(date +%s) - last )) -lt 1800 ]; then
+      echo "$now $be: restart held, the last one was under 30 min ago" >> "$LOG"
+    elif [ $n -ge 2 ]; then
+      date +%s > "$S/watch-$be.restarted"
       if [ -n "${WATCH_DRY:-}" ]; then r=dry; else systemctl --user restart ollama-"$be".service; sleep 5
         r=$(curl -s -m 30 -o /dev/null -w '%{http_code} %{time_total}s' -d '{"model":"bge-m3","input":["watch"]}' "http://127.0.0.1:$port/api/embed" 2>/dev/null); fi
       post "RESTARTED: ollama-$be.service, because 2 direct 1-input embeds on :$port got no answer in 20 s while the router had nothing in flight there. After the restart the embed answered: ${r:-none}. @finch"
@@ -76,10 +85,11 @@ if [ "$mode" = router ] && st=$(curl -s -m 8 http://127.0.0.1:11434/router/statu
     fi
     echo $n > "$f"
   done
-  BOX_STRIKES=${BOX_STRIKES:-8}
+  BOX_STRIKES=${BOX_STRIKES:-8}; nbox=0; nfail=0
   for b in $(echo "$st" | python3 -c "import json,sys; [print(k + '=' + v['addr']) for k, v in json.load(sys.stdin).get('boxes', {}).items()]" 2>/dev/null); do
     name=${b%%=*}; hp=${b#*=}; f=$S/watch-box-$name.state; bs=good; n=0; [ -f "$f" ] && read -r bs n < "$f"
     c=$(curl -s -m 5 -o /dev/null -w '%{http_code}' -d '{"model":"bge-m3","input":["watch"]}' "http://$hp/api/embed" 2>/dev/null)
+    nbox=$((nbox + 1)); [ "$c" = 200 ] || nfail=$((nfail + 1))
     if [ "$c" = 200 ]; then
       [ "$bs" = bad ] && post "RECOVERED: embed box $name answers bge-m3 again. @finch"
       echo "good 0" > "$f"
@@ -92,5 +102,42 @@ if [ "$mode" = router ] && st=$(curl -s -m 8 http://127.0.0.1:11434/router/statu
       echo "$bs $n" > "$f"
     fi
   done
+  f=$S/watch-allboxes.state; ab=good; [ -f "$f" ] && read -r ab < "$f"
+  if [ $nbox -gt 0 ] && [ $nfail -eq $nbox ]; then
+    [ "$ab" = bad ] || post "DOWN: every embed box ($nbox) failed this check. Each interactive embed now waits on the GPU. @finch"
+    echo bad > "$f"
+  elif [ $nbox -gt 0 ]; then
+    [ "$ab" = bad ] && post "RECOVERED: at least one embed box answers again ($((nbox - nfail)) of $nbox). @finch"
+    echo good > "$f"
+  fi
+  pf=$S/watch-parity.last; pl=0; [ -f "$pf" ] && read -r pl _ < "$pf"
+  if [ $nbox -gt 0 ] && [ $(( $(date +%s) - pl )) -ge 3600 ]; then
+    res=$(echo "$st" | python3 -c '
+import json, math, sys, urllib.request
+st = json.load(sys.stdin); T = ["how does the walker undraft a green PR", "floating wall-clock ms", "absence is null"]
+def emb(hp):
+    q = urllib.request.Request(f"http://{hp}/api/embed", data=json.dumps({"model": "bge-m3", "input": T}).encode())
+    return json.load(urllib.request.urlopen(q, timeout=30))["embeddings"]
+r = None
+for be, hp in (("rocm", "127.0.0.1:11436"), ("vulkan", "127.0.0.1:11435")):
+    if st["inflight"].get(be, 0): continue
+    try: r = emb(hp); break
+    except Exception: pass
+if r is None: print("skip"); sys.exit()
+bad = []
+for name, v in st.get("boxes", {}).items():
+    if v["sick"]: continue
+    try: e = emb(v["addr"])
+    except Exception: continue
+    cs = [sum(a * b for a, b in zip(x, y)) / math.sqrt(sum(a * a for a in x) * sum(b * b for b in y)) for x, y in zip(r, e)]
+    if len(e[0]) != len(r[0]) or min(cs) < 0.999: bad.append(f"{name} dim {len(e[0])} vs {len(r[0])}, min cosine {min(cs):.5f}")
+print("bad " + "; ".join(bad) if bad else "ok")
+' 2>/dev/null)
+    case "$res" in
+      ok) echo "$(date +%s) ok" > "$pf" ;;
+      bad*) [ "$(cut -d' ' -f2 "$pf" 2>/dev/null)" = bad ] || post "MISMATCH: embed box vectors differ from the GPU index backend: ${res#bad }. Search quality drops with no error. Check the ollama version and the bge-m3 build on the box. @finch"
+            echo "$(date +%s) bad" > "$pf" ;;
+    esac
+  fi
 fi
 exit 0

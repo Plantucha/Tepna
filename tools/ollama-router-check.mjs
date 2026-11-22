@@ -23,7 +23,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isCliEntry } from './argv-guard.mjs';
+import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FILES = ['ollama-router.py', 'ollama-router-watch.sh'];
@@ -60,9 +60,10 @@ function selftest() {
 }
 
 if (isCliEntry(import.meta.url)) {
-  const arg = process.argv[2];
-  if (arg === '--selftest') process.exit(selftest());
-  if (arg === '--drift') {
+  const argv = process.argv.slice(2);
+  refuseUnknownArgvOrExit(argv, { boolean: ['--selftest', '--drift'] }, { tool: 'tools/ollama-router-check.mjs' });
+  if (argv.includes('--selftest')) process.exit(selftest());
+  if (argv.includes('--drift')) {
     let bad = 0;
     for (const f of FILES) {
       const d = driftOf(f);

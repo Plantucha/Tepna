@@ -44,8 +44,11 @@ EMBED_TIMEOUT = float(os.environ.get('ROUTER_EMBED_TIMEOUT', '12'))   # 2026-11-
 EMBED_BULK = os.environ.get('ROUTER_EMBED_BULK', 'rocm')
 BULK_TIMEOUT = float(os.environ.get('ROUTER_BULK_TIMEOUT', '900'))
 # 2026-11-22 (owner order, Kestrel): EMBED BOXES. Two LXC containers on moxie and scale serve bge-m3 on the CPU (~55-70 ms
-# a query from the rig). An INTERACTIVE embed of a BOX_MODELS model goes to them first, in turn, BOX_TIMEOUT s each, then to
-# the local backends as before. Bulk embeds stay on EMBED_BULK. A box that times out is sick for SICK_FOR s and goes last.
+# a query from the rig). An INTERACTIVE embed of a BOX_MODELS model goes to the healthy boxes first, in turn, BOX_TIMEOUT s
+# each, then to the local backends as before. Bulk embeds stay on EMBED_BULK. A box that times out, answers 404 or 5xx is
+# sick for SICK_FOR s and is skipped until then (Finch review #7879: a sick box kept last still cost BOX_TIMEOUT each query).
+# A box answer is read WHOLE before the client gets a byte, so a box that stalls mid-body still fails over (an embed is small).
+# The boxes keep the model loaded (OLLAMA_KEEP_ALIVE=-1 on the box), so a cold load does not eat BOX_TIMEOUT.
 ENV_FILE = os.path.expanduser(os.environ.get('ROUTER_ENV_FILE', '~/.config/tepna/ollama-router.env'))
 if os.path.exists(ENV_FILE):   # KEY=VALUE lines; the process environment wins over the file
     for _line in open(ENV_FILE):
@@ -55,7 +58,7 @@ EMBED_BOXES = {}
 for _item in os.environ.get('ROUTER_EMBED_BOXES', '').split(','):
     if '=' in _item:
         _n, _hp = _item.split('=', 1); _h, _, _pt = _hp.rpartition(':'); EMBED_BOXES[_n.strip()] = (_h, int(_pt))
-BOX_MODELS = set(os.environ.get('ROUTER_BOX_MODELS', 'bge-m3:latest').split(','))
+BOX_MODELS = {m.strip() for m in os.environ.get('ROUTER_BOX_MODELS', 'bge-m3:latest').split(',') if m.strip()}
 BOX_TIMEOUT = float(os.environ.get('ROUTER_BOX_TIMEOUT', '3'))
 rr = [0]   # round-robin counter over EMBED_BOXES
 SICK_FOR = 300; sick = {}   # backend -> time of its last embed timeout; for SICK_FOR seconds embeds try the other backend first
@@ -71,12 +74,12 @@ def log(msg):
 def addr(be): return EMBED_BOXES[be] if be in EMBED_BOXES else ('127.0.0.1', BACKENDS[be])
 
 def box_order(now):
-    """The embed boxes for one interactive query: next in turn first, sick boxes last."""
+    """The HEALTHY embed boxes for one interactive query, next in turn first. A sick box is left out until SICK_FOR passes."""
     names = list(EMBED_BOXES)
     if not names: return []
     with lock: k = rr[0] % len(names); rr[0] += 1
     names = names[k:] + names[:k]
-    return [b for b in names if now - sick.get(b, 0) >= SICK_FOR] + [b for b in names if now - sick.get(b, 0) < SICK_FOR]
+    return [b for b in names if b not in sick or now - sick[b] >= SICK_FOR]
 
 def call(be, method, path, body=None, timeout=10):
     c = http.client.HTTPConnection('127.0.0.1', BACKENDS[be], timeout=timeout)
@@ -192,29 +195,46 @@ class H(http.server.BaseHTTPRequestHandler):
         try: self.forward(be, body, model, bulk=is_embed(model, self.path) and embed_lane(req)[1])
         finally:
             with lock: inflight[be] -= 1
+    def box_lane(self, body, model):
+        """Serve one interactive embed from a healthy box. True when a box answered 200; False sends it to the GPU."""
+        hdr = {k: v for k, v in self.headers.items() if k.lower() not in ('host', 'content-length', 'connection')}
+        tried = []
+        for b in box_order(time.time()):
+            tried.append(b)
+            try:
+                c = http.client.HTTPConnection(*addr(b), timeout=BOX_TIMEOUT)
+                c.request(self.command, self.path, body=body, headers=hdr); r = c.getresponse(); data = r.read(); c.close()
+            except Exception as e:
+                sick[b] = time.time(); log(f'{self.path} {model}: no whole answer from box {b} in {BOX_TIMEOUT:g} s ({type(e).__name__}); sick {SICK_FOR} s'); continue
+            if r.status != 200:
+                if r.status == 404 or r.status >= 500: sick[b] = time.time()   # model absent or box broken; a 400 is the request's fault
+                log(f'{self.path} {model}: box {b} answered http {r.status}; trying the next'); continue
+            self.send_response(200)
+            for k, v in r.getheaders():
+                if k.lower() not in ('content-length', 'transfer-encoding', 'connection'): self.send_header(k, v)
+            self.send_header('Content-Length', str(len(data))); self.end_headers(); self.wfile.write(data); self.wfile.flush()
+            return True
+        if tried: log(f'{self.path} {model}: boxes {",".join(tried)} gave no answer; the local backends serve it')
+        return False
     def forward(self, be, body, model=None, bulk=False):
         # 2026-11-14 (board #6315): an EMBED that gets no answer from its backend in EMBED_TIMEOUT s is retried ONCE on the
         # other backend, before any byte went to the client. A hung ROCm runner then costs one timeout, not the fleet's search.
         emb = bool(model) and is_embed(model, self.path)
         tries = [be] + ([b for b in BACKENDS if b != be] if emb and not bulk else [])
         if emb and not bulk and time.time() - sick.get(be, 0) < SICK_FOR: tries.reverse()
-        if emb and not bulk and norm(model) in BOX_MODELS: tries = box_order(time.time()) + tries
+        if emb and not bulk and norm(model) in BOX_MODELS and self.box_lane(body, model): return
         r = None; err = None
         hdr = {k: v for k, v in self.headers.items() if k.lower() not in ('host', 'content-length', 'connection')}
         for b in tries:
             try:
-                c = http.client.HTTPConnection(*addr(b), timeout=BOX_TIMEOUT if b in EMBED_BOXES else BULK_TIMEOUT if bulk else EMBED_TIMEOUT if emb else 1800)
+                c = http.client.HTTPConnection('127.0.0.1', BACKENDS[b], timeout=BULK_TIMEOUT if bulk else EMBED_TIMEOUT if emb else 1800)
                 c.request(self.command, self.path, body=body, headers=hdr); r = c.getresponse()
-                if b in EMBED_BOXES and r.status != 200:
-                    st = r.status; r.read(); c.close(); r = None
-                    if st >= 500: sick[b] = time.time()   # a 4xx is the request's fault, not the box's
-                    log(f'{self.path} {model}: box {b} answered http {st}; trying the next one'); continue
-                if b != be and b not in EMBED_BOXES: log(f'{self.path} {model}: embed served by {b} ({be} is marked sick or gave no answer in {EMBED_TIMEOUT:g} s)')
+                if b != be: log(f'{self.path} {model}: embed served by {b} ({be} is marked sick or gave no answer in {EMBED_TIMEOUT:g} s)')
                 break
             except Exception as e:
                 err = e; r = None
                 if emb and not bulk: sick[b] = time.time()
-                if emb: log(f'{self.path} {model}: no answer from {b} in {BOX_TIMEOUT if b in EMBED_BOXES else BULK_TIMEOUT if bulk else EMBED_TIMEOUT:g} s ({type(e).__name__}{", bulk" if bulk else ""})')
+                if emb: log(f'{self.path} {model}: no answer from {b} in {BULK_TIMEOUT if bulk else EMBED_TIMEOUT:g} s ({type(e).__name__}{", bulk" if bulk else ""})')
         if r is None:
             return self.send_json(502, {'error': f'router: backend {be} unreachable: {err}'})
         self.send_response(r.status)
@@ -253,7 +273,8 @@ if __name__ == '__main__':
         EMBED_BOXES.clear(); EMBED_BOXES.update({'a': ('192.0.2.1', 1), 'b': ('192.0.2.2', 2)})   # TEST-NET-1, never routed
         o1, o2 = box_order(0), box_order(0)
         assert o1[0] != o2[0] and sorted(o1) == ['a', 'b']                                          # boxes alternate
-        sick[o1[0]] = time.time(); assert box_order(time.time())[-1] == o1[0]; sick.clear()       # sick box goes last
+        sick[o1[0]] = time.time(); assert box_order(time.time()) == [o2[0]]; sick.clear()         # a sick box is skipped
+        sick['a'] = time.time() - SICK_FOR - 1; assert 'a' in box_order(time.time()); sick.clear()  # ...until SICK_FOR passes
         assert addr('a') == ('192.0.2.1', 1) and addr('rocm') == ('127.0.0.1', BACKENDS['rocm'])
         print('ollama-router selftest ok'); sys.exit(0)
     log(f'start: listen {LISTEN}, backends {BACKENDS}, default {DEFAULT}')
