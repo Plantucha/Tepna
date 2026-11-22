@@ -1577,3 +1577,120 @@ Round-trip (first/last shown == raw file exactly) · bin==CSV identical `t0Ms`/`
 viewer-timezone independence (re-render under a changed `TZ` → identical clock) · overnight 22:00→06:00
 = ~8 h monotonic (no 24 h jump) · zoned `+02:00` == local for same instant → same `tMs` · DMY `13/05`
 and MDY `05/13` both → May 13 · stamp-less row → null (never today) · metric parity on clean files.
+
+## Moved from CLAUDE.md 2026-11-22 (token diet, owner order)
+
+Kestrel cut these passages from `CLAUDE.md` to keep the always-loaded file to rules. The rule each one
+backs still stands in `CLAUDE.md` under the section named. Text verbatim.
+
+### §👥.1
+
+A worktree does not share the primary checkout's `node_modules`. Without the symlink,
+`npx --no-install biome` falls back to npx's cache — which may hold an unrelated package
+squatting the name (measured: `biome@0.3.3`, "a simple way to manage environment variables").
+It runs, changes nothing, and exits 0. Symlink the primary `node_modules` into every worktree.
+
+### §👥.1
+
+**Check for filename collisions before creating a new tool.** Two sessions naming a new
+artifact after the same defect derive the same name (§🐦.2d's branch-name finding applied
+to FILES). A new file has no lease: it conflicts at merge if both sides are committed,
+and is overwritten silently if a session writes without looking. Before writing
+`tools/<name>.mjs`, run `node tools/name-lease.mjs tools/<name>.mjs`, which names every holder
+over three rails: `origin/main`, every local and remote-tracking ref, and every worktree on
+disk. It stays blind to a clone on another machine, and to a name claimed after it answered.
+`changes/` (dated keys) and the residue ledger (gate) have collision protection; `tools/` does not.
+
+### §👥.2d
+
+ (Kodiak's base merge on your own PR is the benign
+case: `kodiakhq[bot]` at the head, your commit contained — merge it in and push.)
+
+### §👥.4
+
+⚠️ A sentinel dies WITH its writer: `kill -9` on
+   the subshell (§4c's watchdog) leaves 0 sentinel lines and a bare `until grep` polls forever (measured
+   2026-09-22: 2 h 08 min). Guard it
+
+### §👥.4
+
+   Keep BOTH forms: the PID guard needs a `$PID` only the launching shell has, the sentinel is all a
+   later or different-shell waiter can read but cannot see a producer SIGKILLed before it wrote — and a
+   deadline cannot tell dead from slow.
+
+### §👥.4c
+
+**The exception: a step that SPAWNS A CHILD under a fixed cap.** Measured 2026-10-27,
+`verdict-adoption`'s 120 s child cap closed on `xerj-load.mjs` at load 44 (108.7 s, against 25.5 s
+idle) and step 38 of 41 red mid-run, leaving steps 39 to 41 unrun. A gate that cannot read a child
+says so: that one prints `⏱ UNEXAMINED <producer>` and exits **2 — it could not look** — where exit
+1 means it looked and an adoption failed. Read the step's own message before attributing a red to
+your diff.
+
+### §👥.5
+
+- **Kodiak merges** (`.kodiak.toml`, `require_automerge_label = false`): every non-draft PR without a
+  `do-not-merge` label sits in its serial queue — it updates the front PR when BEHIND, waits for CI,
+  merges, repeats. A PR sitting BEHIND while the front is mid-CI is serialising, not stalling. To HOLD:
+  `do-not-merge` — a draft holds only until it is green (next bullet). Arming `--auto` adds nothing.
+
+### §👥.5
+
+ (owner, 2026-11-01: "you constantly asking about it")
+
+### §👥.5
+
+merges when Kodiak sits idle.
+
+### §👥.5
+
+ (owner, 2026-11-02: "Stop putting do not merge
+  badge on vigil capture box"): vigil's
+
+### §👥.5
+
+- Without Kodiak, `strict` status checks make an armed green BEHIND PR a **deadlock** (auto-merge never
+  updates a branch): `node tools/queue-doctor.mjs --dry-run` names the green-and-stuck state and
+  `node tools/land-pr.mjs <PR#>` drives one PR to merge. A merge queue is **not available** (user-owned
+  repo).
+
+### §👥.5
+
+ The walker rebased #4458 23 times in
+  36 h, because one bird held four PRs that all conflicted on the same ledger merge.
+
+### §📌
+
+ (owner, 2026-11-07, reversing the 2026-10-12
+  ruling that let a PR carry its own row). In one day, 28 of 68 merges touched the ledger, and each
+  one put every open PR with a row into conflict. The walker rebased one PR 21 times. A fix
+
+### §📌
+
+ Every
+  landing PR appends to the ledger, so a checkout is behind it most of the time and the scan still
+  returns a well-formed table with no line saying the file is old — **four sessions in two days
+  claimed a row `origin/main` already showed closed.** Two reads
+
+### §📌
+
+ **The criterion is the
+  FILE, not `behindCommits`** — the root is behind on commits that never touch the ledger, so only a
+  row-state disagreement means anything. §👥.2's caveat holds: a terminal, the web UI, a second agent
+  and an un-pulled tree inherit no hook.
+
+### §∅
+
+ The O2Ring's `_PPG.txt` shipped
+thousands of in-band zeros through every green gate because the rule was never written for raw bytes.
+
+### §🎙️
+
+ Someone typed the earlier 20, and four of its nights fold two devices.
+
+### §🎫
+
+ **Export-inert is the narrower claim, and it still
+  owes the rebuild:** the same line in `oxydex-render.js` moves `manifestHash` and holds OxyDex's
+  `computeHash` at `93f4d577efcd` (measured 2026-11-10 through `manifest-gate.js computeClosure`;
+  the earlier rule here read "an inert shared-module addition does not require re-bundling").
