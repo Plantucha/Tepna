@@ -154,7 +154,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
    re-embedding; it is never written again. */
 const CACHE = resolveStatePath(ROOT, 'doc-search-index.jsonl');
 const LEGACY_CACHE = resolveStatePath(ROOT, 'doc-search-index.json');
-const OLLAMA = process.env.DEX_OLLAMA || 'http://localhost:11434';
+const OLLAMA = process.env.DEX_OLLAMA || 'http://127.0.0.1:11434';
 const EMBED_MODEL = process.env.DEX_EMBED || 'bge-m3';
 /* The in-repo corpus, directory by directory (non-recursive, on purpose — a glob would pull in
    uploads/ goldens and docs/*.html served copies). Measured 2026-09-24 before this list grew: the
