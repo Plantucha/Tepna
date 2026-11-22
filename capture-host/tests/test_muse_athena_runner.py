@@ -49,6 +49,10 @@ def _eeg(counter, tick):
     return _pkt(counter, _rec(M.TAG_EEG, 0, tick, 28), _rec(M.TAG_EEG, 1, tick + 78125, 28))
 
 
+def _optics4(counter, tick):
+    return _pkt(counter, _rec(M.TAG_34, 0, tick, 30))
+
+
 def _battery(counter, pct256):
     return _pkt(counter, bytes([M.TAG_BATTERY, 0, 1, 0, 0]) + pct256.to_bytes(2, "little") + bytes(18))
 
@@ -361,3 +365,80 @@ def test_a_session_feeds_the_live_eeg_card_four_electrodes_at_256_hz(tmp_path, m
     assert hz == 256.0 and len(rows) == 2 and all(len(r) == 4 for r in rows)
     # Each record carries its own device time: 78 125 ticks apart is 7.8125 ms.
     assert pushed[1][1]["dev_ns"] - pushed[0][1]["dev_ns"] == 7_812_500
+
+
+def _live_session(monkeypatch, frames):
+    """Run one session that delivers `frames` on the data channel, and return the bus calls."""
+    c = FakeMuse()
+    _inject(monkeypatch, c)
+    n_start = len(M.start_sequence("p1045"))
+    reg, pushed = [], []
+    monkeypatch.setattr(capture.BUS, "register", lambda *a, **k: reg.append((a, k)))
+    monkeypatch.setattr(capture.BUS, "push", lambda *a, **k: pushed.append((a, k)))
+
+    def on_sleep(n, _secs):
+        if n == n_start:
+            for f in frames:
+                c.cbs[M.DATA_CHAR](M.DATA_CHAR, bytearray(f))
+        if n == n_start + 1:
+            capture._STOP.set()
+
+    _sleeps(monkeypatch, on_sleep)
+    return reg, pushed
+
+
+def test_PLANT_the_first_optics_record_opens_a_ppg_card_four_channels_at_64_hz(tmp_path, monkeypatch):
+    """The monitor's pulse family reads a `ppg_` key: the card draws the channels and derives a rate."""
+    reg, pushed = _live_session(monkeypatch, [_optics4(1, 1000), _optics4(2, 469750), _eeg(3, 5000)])
+    asyncio.run(capture.run_muse_athena(_dev(), str(tmp_path)))
+
+    ppg_reg = [r for r in reg if r[0][0] == "ppg_TEST0001"]
+    assert ppg_reg == [
+        (
+            ("ppg_TEST0001", "PPG (Muse)", "raw", 64.0, 4, ("optic 1", "optic 2", "optic 3", "optic 4")),
+            {"device": "Muse"},
+        )
+    ], reg  # registered once, at the first 0x34 record
+    ppg = [(a, k) for a, k in pushed if a[0] == "ppg_TEST0001"]
+    assert len(ppg) == 2, pushed  # one push per 0x34 record
+    rows, hz = ppg[0][0][1], ppg[0][0][2]
+    assert hz == 64.0 and len(rows) == 3 and all(len(r) == 4 for r in rows)
+    # Each record carries its own device time: 468 750 ticks apart is 46.875 ms, three samples at 64 Hz.
+    assert ppg[1][1]["dev_ns"] - ppg[0][1]["dev_ns"] == 46_875_000
+
+
+def test_PLANT_a_session_with_no_optics_record_opens_no_ppg_card(tmp_path, monkeypatch):
+    reg, pushed = _live_session(monkeypatch, [_eeg(1, 1000)])
+    asyncio.run(capture.run_muse_athena(_dev(), str(tmp_path)))
+    assert [r[0][0] for r in reg] == ["eeg_TEST0001"], reg
+    assert {a[0] for a, _ in pushed} == {"eeg_TEST0001"}, pushed
+
+
+def test_PLANT_a_reconnect_registers_the_ppg_card_again(tmp_path, monkeypatch):
+    """The flag lives per session, so the card comes back after a link loss."""
+    c = FakeMuse()
+    _inject(monkeypatch, c)
+    reg = []
+    monkeypatch.setattr(capture.BUS, "register", lambda *a, **k: reg.append(a[0]))
+    monkeypatch.setattr(capture.BUS, "push", lambda *a, **k: None)
+    sent, retries = [False], [0]
+
+    async def fake_retry(name, delay, why, attempt):
+        c.connected, sent[0] = True, False
+        retries[0] += 1
+        if retries[0] == 2:  # two sessions, each lost: bounded, so a wrong flag fails and never hangs
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture, "_retry_sleep", fake_retry)
+
+    def on_sleep(n, secs):
+        if M.DATA_CHAR in c.cbs and not sent[0]:
+            c.cbs[M.DATA_CHAR](M.DATA_CHAR, bytearray(_optics4(1, 1000)))
+            c.cbs[M.DATA_CHAR](M.DATA_CHAR, bytearray(_optics4(2, 469750)))
+            sent[0] = True
+        elif sent[0]:
+            c.connected = False
+
+    _sleeps(monkeypatch, on_sleep)
+    asyncio.run(capture.run_muse_athena(_dev(), str(tmp_path)))
+    assert reg.count("ppg_TEST0001") == 2, reg

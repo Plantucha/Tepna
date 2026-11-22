@@ -79,7 +79,9 @@ to `<base>_RAWRUNS.txt` (`_RunSidecar`, rule `counter-gap`; a repeat is `counter
   channel (§6.2–6.3), presets (§6.7). Measured, not yet in the code.
 - [ ] 2b. Put §6 into `muse_athena.py` with tests: tags 0x11 / 0x34 / 0x35 (verify their layouts first), EEG as 2 × 8,
   battery, the control codec. Second-capture replication of §2. Unit `musenative` did the code part, with the three
-  tags stored raw at their measured sizes. The replication is open.
+  tags stored raw at their measured sizes. The replication is open. Unit `musepulse` (2026-11-22) decoded 0x34 as
+  3 samples × 4 optical channels at 64 Hz (`muse_athena.optics4`), measured on the worn test of 2026-11-15, and feeds
+  the live PPG card. 0x11 and 0x35 stay raw.
 - [x] 3. GATT layout and start sequence, read from the BSD-3 library and credited; measured against the headband.
 - [x] 4. Writer: raw notifications immutable (host stamp + packet counter per row); parsed streams beside them; a runs
   sidecar where a counter jump is a gap, never a zero (§∅); host stamp and device tick on every row (§🔒.7).
