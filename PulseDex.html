@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="1968b26ce39a" data-compute-hash="7fe8a4c64e7c"><head>
+<html lang="en" data-manifest-hash="f46a1549b2a6" data-compute-hash="653e359b4943"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-Haw8BHhTH99+cqvHSxFdzq5XNoX/7IE0kI7JB3vHw80=' 'sha256-L9RPM8YDAWQTF2q91cAM8cn/BxTip1KO3H96sNPwOQY=' 'sha256-LA7FzxwxP2tLxmKV4tPt3XC4QDa4uxZkD9f3pr6DVRU=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-U5QCWFbZhYjVU7dbh2ELS49eRWFXZDAiRWAZMW8nJJ4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-Vh4NGXhRdDPT/oFgxxGvxM+Si2nd9MAgmKJidn1gZ0M=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LA7FzxwxP2tLxmKV4tPt3XC4QDa4uxZkD9f3pr6DVRU=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QHl/r2ieCJbGGVfbxulwAXOQua3cK/0SwgK8qcdfdu0=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-U5QCWFbZhYjVU7dbh2ELS49eRWFXZDAiRWAZMW8nJJ4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-Vh4NGXhRdDPT/oFgxxGvxM+Si2nd9MAgmKJidn1gZ0M=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-sLUTJDzEc9G7Vge7wREiQ5A78abSs/pIZ0U9vGxS5dg=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.35.0</title>
@@ -7913,7 +7913,19 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     for (let i = 1; i < a.length; i++) d.push(a[i] - a[i - 1]);
     return std(d);
   };
-  const lnR = (r) => Math.log(r);
+  /* ∅ N1-35, AT THE ONE SINK THAT STILL CROSSED THE LINE. `Math.log(0)` is −Infinity, `Math.log(null)`
+     is −Infinity too, and `JSON.stringify` renders −Infinity as `null` — so an unguarded sink ships a
+     JSON export that LOOKS like clean absence while the live object hands the renderer −Infinity. A
+     perfectly regular RR series is a REAL 0 rMSSD, so `!= 0` is never the fix (CLAUDE.md §∅); `> 0`
+     covers absence and a measured 0 alike. `lnR` is a published surface (`PulseDex._bare`), so the
+     guard sits here at the producer, beside `lfHf` and `nu`. HRVDex (`r._rmssd > 0 ? … : NaN`) and
+     ECGDex (`_lnSrc <= 0 ? null`) already guard their own, and PulseDex was the 1-of-3 outlier.
+     Measured 2026-11-21 through `pdComputeResult` over 600 constant 1000 ms intervals: `rmssd` read 0,
+     `lnrmssd` read −Infinity, and `JSON.stringify` printed `null` over it.
+     The null owes no new reason key. `rmssd: 0` sits beside it whenever the value was measured, and
+     `hrvReason` names the cause whenever the variability metrics refused, so every null `lnrmssd` is
+     already explained by a field this node publishes. */
+  const lnR = (r) => (typeof r === 'number' && isFinite(r) && r > 0 ? Math.log(r) : null);
   /* ∅ N1-35: a quotient with no denominator is not 0, it is no quotient — the line `lfhf` and
      `ansBalance` already draw. `nu` reports a band in normalized units, and `hf + lf === 0` says NO
      power was measured in either band, never 0 nu of it. Both are a published surface
@@ -9761,7 +9773,10 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
        stand over the seam either. */
     const sd1v = _pdRefuses ? null : +sd1(sdsdv).toFixed(2),
       sd2v = _pdRefuses ? null : +sd2(sdnn, sdsdv).toFixed(2);
-    const lnrm = cRm == null ? null : +lnR(cRm).toFixed(3);
+    /* `lnR` refuses a non-positive or absent rMSSD, so the rounding must read the refusal first:
+       `null.toFixed` throws. The app road carries the same two lines. */
+    const _lnRm = lnR(cRm);
+    const lnrm = _lnRm == null ? null : +_lnRm.toFixed(3);
     const lfhfv = winSpec ? winSpec.lfhf : ls.lfhf;
 
     // EXPORT-IDENTITY §2.1 / -FOLLOWUPS §1: deterministic, identity-free recording handle.
@@ -15635,7 +15650,10 @@ function calculate() {
      `pulsedex-dsp.js`: 20001 beats alternating by 1 ms answer `sd2v` `0.00` and published the ratio
      0.71, and 8001 beats alternating by 0.5 ms published 0.35, which the overview grades "good". */
   const PX_SD2_MIN_MS = 0.005;
-  const lnrm = cRm == null ? null : +lnR(cRm).toFixed(3);
+  /* `lnR` refuses a non-positive or absent rMSSD (pulsedex-dsp.js), so read the refusal before the
+     rounding: `null.toFixed` throws. The DSP road carries the same two lines. */
+  const _lnRm = lnR(cRm);
+  const lnrm = _lnRm == null ? null : +_lnRm.toFixed(3);
   const lfhfv = winSpec ? winSpec.lfhf : ls.lfhf;
   /* ∅ N1-35: `nu` answers null over a zero denominator, and `.toFixed` on null throws, so the
      denominator is read ONCE here and the pair refuses together. `hf + lf === 0` says neither band
