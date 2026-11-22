@@ -16674,6 +16674,127 @@
       T.ok('the adopter population is non-empty', ADOPTERS.length >= 20, 'ADOPTERS=' + ADOPTERS.length + ' — 28 measured 2026-10-20; the guard scan matched almost nothing');
       T.eq('every adopter calls the guard behind IS_CLI — none at module scope', UNGUARDED.join(', '), '');
     });
+    /* ════ A TOP-LEVEL ARGV BRANCH FIRES INSIDE WHOEVER IMPORTS THE FILE ══════════════════════════
+       Row 2026-11-21-the-module-scope-argv-tripwire-judges-only-the-guards-adopters. The group above
+       derives its population from the files that already call `refuseUnknownArgvOrExit`, so a tool that
+       reads a flag at column 0 and never calls the guard sits outside it. `process.argv` belongs to
+       whoever is RUNNING, so a `--verdict-sample` test at module scope fires inside any importer whose
+       argv carries the token. Measured 2026-11-22: four of the pinned tools, imported from a script run
+       with that token, each printed a `tepna.verdict/1` object into the importer's own stdout.
+       THIS PIN NAMES NO TOOL, AND THAT IS THE POINT. `verdict-adoption.mjs` asks which tests name a
+       producer, over a raw `git grep` of `tests/` that strips no comments. A tree-wide scanner whose
+       baseline lists paths therefore READS as a test about each one, and it moved a `decides` producer
+       from `ungated` to `names-only` — two red check steps for a tool this group never exercises.
+       So the baseline is a digest over `basename:count`, and the failure message prints the measured
+       list at runtime. Measured population: 25 branches over 18 files, one file exempt.
+       THE EXEMPTION IS A RULE, NOT A NAME. One tool spawns itself as a Worker and passes its own argv,
+       so its module-scope read IS the Worker entry. A rule expires by itself; a name does not, and a
+       name would drag that tool into the adoption gate too.
+       The baseline pins COUNTS, never line numbers. A line number would red on any unrelated insert,
+       and the scan reads comment-stripped text whose numbering differs from the raw file. */
+    group('no tool reads an unguarded argv flag at module scope', 'tools · argv-guard · source-scan', function (T) {
+      var TT = env.toolTexts;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the top-level argv scan examined nothing');
+        else T.skip('the top-level argv branch scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var stripC = function (t) {
+        return t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
+      };
+      /* The guard is reached through a local alias in six spellings, bound three ways: a const, a let
+         reassigned later, and an arrow IIFE. The backward window turns `=>` into `->`, because the
+         arrow's `=` kills the `[^=]*$` tail and the alias then reads as unbound. */
+      var guardAliases = function (src) {
+        var names = ['isCliEntry'];
+        var re = /isCliEntry/g;
+        var m = re.exec(src);
+        while (m) {
+          var back = src.slice(Math.max(0, m.index - 240), m.index).replace(/=>/g, '->');
+          var a = /(?:const|let|var)?\s*([A-Za-z_$][\w$]*)\s*=\s*[^=]*$/.exec(back);
+          if (a && names.indexOf(a[1]) < 0) names.push(a[1]);
+          m = re.exec(src);
+        }
+        return names;
+      };
+      /* Column 0 IS module scope: a branch inside any function is indented by this tree's formatter. */
+      var unguardedArgvBranches = function (src) {
+        var t = stripC(src);
+        var names = guardAliases(t);
+        var hits = [];
+        t.split('\n').forEach(function (line, i) {
+          if (!/^if\s*\(/.test(line) || !/process\.argv/.test(line)) return;
+          var guarded = names.some(function (a) {
+            return new RegExp('\\b' + a.replace(/\$/g, '\\$') + '\\b').test(line);
+          });
+          if (!guarded) hits.push(i + 1);
+        });
+        return hits;
+      };
+      var selfWorker = function (src) {
+        var t = stripC(src);
+        return /new Worker\(\s*fileURLToPath\(\s*import\.meta\.url\s*\)/.test(t) && /argv:\s*\[/.test(t);
+      };
+      var fnv = function (s) {
+        var h = 0x811c9dc5;
+        for (var i = 0; i < s.length; i++) {
+          h ^= s.charCodeAt(i);
+          h = (h + (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24)) >>> 0;
+        }
+        return ('0000000' + h.toString(16)).slice(-8);
+      };
+      var PLANTS = [
+        ['a const alias behind the guard', 'const IS_CLI = isCliEntry(import.meta.url);\nif (IS_CLI && process.argv.includes("--x")) { run(); }\n', 0],
+        ['a let alias assigned later', 'let IS_MAIN = false;\nIS_MAIN = isCliEntry(import.meta.url);\nif (IS_MAIN && process.argv.includes("--x")) { run(); }\n', 0],
+        [
+          'an alias bound through an arrow IIFE',
+          'const IS_MAIN = (() => { try { return isCliEntry(import.meta.url); } catch { return false; } })();\nif (IS_MAIN && process.argv.includes("--x")) { run(); }\n',
+          0
+        ],
+        ['a differently named alias', 'const DIRECT = isCliEntry(import.meta.url);\nif (DIRECT && process.argv.includes("--x")) { run(); }\n', 0],
+        ['an alias the branch does not use', 'const IS_CLI = isCliEntry(import.meta.url);\nif (process.argv.includes("--x")) { run(); }\n', 1],
+        ['a commented-out branch', '// if (process.argv.includes("--x")) { run(); }\n', 0],
+        ['a branch inside a function', 'function main() {\n  if (process.argv.includes("--x")) { run(); }\n}\n', 0],
+        ['two bare branches in one file', 'if (process.argv.includes("--a")) { a(); }\nif (process.argv.includes("--b")) { b(); }\n', 2],
+        ['a self-Worker spawn', 'const w = new Worker(fileURLToPath(import.meta.url), { argv: ["--worker-child"] });\n', 0]
+      ];
+      PLANTS.forEach(function (p) {
+        T.eq('the scanner reads ' + p[0], unguardedArgvBranches(p[1]).length, p[2]);
+      });
+      T.ok('the self-Worker rule reads the spawn it exempts', selfWorker(PLANTS[8][1]), 'the rule no longer matches its own plant');
+      T.ok('the self-Worker rule refuses an ordinary tool', !selfWorker(PLANTS[7][1]), 'the rule matches a file that spawns nothing');
+      var PINNED_DIGEST = '4e4d3020';
+      var PINNED_TOTAL = 25;
+      var counts = {};
+      var total = 0;
+      var workers = 0;
+      Object.keys(TT)
+        .sort()
+        .forEach(function (k) {
+          if (selfWorker(TT[k])) {
+            workers += 1;
+            return;
+          }
+          var n = unguardedArgvBranches(TT[k]).length;
+          if (n > 0) {
+            counts[k] = n;
+            total += n;
+          }
+        });
+      var canon = Object.keys(counts)
+        .map(function (k) {
+          return k.replace(/^.*\//, '') + ':' + counts[k];
+        })
+        .sort()
+        .join('\n');
+      var digest = fnv(canon);
+      T.ok('the tools tree was actually read', Object.keys(TT).length >= 100, 'only ' + Object.keys(TT).length + ' tools/*.mjs visible');
+      T.eq('exactly one tool spawns itself as a Worker with its own argv', workers, 1);
+      T.ok('the scanner still finds the pinned population', total > 0, 'measured 0 unguarded branches against a pinned total of ' + PINNED_TOTAL + ' — the scan matched nothing');
+      T.ok('the pinned total does not grow', total <= PINNED_TOTAL, 'total ' + total + ' over pinned ' + PINNED_TOTAL + ' — measured ' + JSON.stringify(counts));
+      T.eq('the pinned population is unchanged', digest, PINNED_DIGEST, 'measured ' + JSON.stringify(counts) + ' — the new digest is ' + digest);
+    });
     /* ════ A GUARD'S HATCH MUST NOT DISARM THE GUARD'S OWN SELF-TEST ═══════════════════════════════
        Row 2026-10-21-the-guard-hatch-disarms-the-guards-own-selftest. Every hatch in this tree is
        documented in COMMAND POSITION, and that is also the position which EXPORTS it to every child
