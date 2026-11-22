@@ -311,7 +311,12 @@ export function plan(classified, state, ctx) {
         alerts.push({ number: r.number, kind: 'stamp-unreadable', why: 'the updatedAt stamp did not parse, so no quiet window can be measured — a coder owns it' });
         continue;
       }
-      const quietSince = Math.max(r.updatedAtMs, ctx.mainMovedAtMs || 0);
+      /* §∅ — AN ABSENT MAIN-MOVE ADDS NO CONSTRAINT, and it must not read as a measured zero.
+         The producer sends a finite ms, or 0 for a window that holds no merge. A caller that omits
+         the field says "I did not look", which is the same absence. Either reading starts the quiet
+         window at the PR's own update, so the ternary states the absence instead of fabricating 1970. */
+      const mainMoved = Number.isFinite(ctx.mainMovedAtMs) ? ctx.mainMovedAtMs : null;
+      const quietSince = mainMoved === null ? r.updatedAtMs : Math.max(r.updatedAtMs, mainMoved);
       const quiet = now - quietSince > idleMs;
       if (!quiet) continue;
       const mins = Math.round((now - quietSince) / 60000);
@@ -1256,6 +1261,9 @@ function selftest() {
   eq(quietPlan(QNOW - 60000).actions.length, 0, 'control: a fresh stamp waits');
   eq(quietPlan(Number.NaN).actions.length, 0, 'an unreadable stamp plans NO action, where epoch zero merged');
   eq(quietPlan(Number.NaN).alerts[0].kind, 'stamp-unreadable', 'it names the refusal instead');
+  const quietNoMain = plan([classify(mk({ number: 10, isDraft: false, updatedAtMs: QNOW - (KODIAK_IDLE_MIN + 10) * 60000 }), req)], { reruns: {}, rebased: {} }, { nowMs: QNOW, cap: 4 });
+  eq(quietNoMain.actions.length, 1, 'an absent main-move still plans one action');
+  eq(quietNoMain.actions[0]?.op, 'merge', 'an absent main-move leaves the quiet window on the PR stamp');
   eq(fallbackDrift(['test', 'biome'], ['test']).missing.join(','), 'biome', 'drift names the lag');
   eq(fallbackDrift([], ['test']).readable, false, 'an unreadable ruleset judges no mirror');
   eq(classify(mk({ readable: false }), req).state, 'unknown', 'unreadable');
