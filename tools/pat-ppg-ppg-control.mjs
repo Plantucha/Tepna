@@ -49,7 +49,7 @@
  */
 import { readdirSync, readFileSync, statSync, existsSync, writeFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
-import { dissentStampOf, dissentTallyLine, refpickOf, signsOf } from './consensus-dissent-core.mjs';
+import { dissentStampOf, dissentTallyLine, refpickOf, refpickTallyLine, signsOf } from './consensus-dissent-core.mjs';
 import { loadDsps, getDsps, median, quantile, BIN_MIN } from './pat-matchrate-strict.mjs';
 import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 import { isCliEntry } from './argv-guard.mjs';
@@ -130,7 +130,8 @@ function fiducialTimes(text, runsText) {
   );
   /* The reference pick, NAMED at the site so the census reads a declaration rather than a loop
      shape, and a tie stops hiding: `consensus-dissent-core.mjs#refpickOf`. Same pick. */
-  const refIdx = refpickOf(per, 'peak-argmax').idx;
+  const refpick = refpickOf(per, 'peak-argmax');
+  const refIdx = refpick.idx;
   /* @polarity-decision applies
      The control’s Verity pulse train now rides the device-wide majority. */
   const cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
@@ -148,7 +149,7 @@ function fiducialTimes(text, runsText) {
   const t = Array.from(cons.feet, at)
     .filter(isFinite)
     .sort((a, b) => a - b);
-  return { t0Ms: rec.t0Ms, durSec: rec.durSec, times: t, site: rec.site, polarity, polaritySigns };
+  return { t0Ms: rec.t0Ms, durSec: rec.durSec, times: t, site: rec.site, polarity, polaritySigns, refpick };
 }
 
 /* Nearest counterpart within +-WIN_MS, signed. Symmetric because neither device is known to lead. */
@@ -340,6 +341,7 @@ function main() {
     const populationRule = ruleLine(population);
     if (populationRule) console.log(populationRule);
     console.log(dissentTallyLine(polStamps));
+    console.log(refpickTallyLine(pickStamps));
     /* THE OTHER HALF OF THE POPULATION. The verdict is about MOVEMENT; it says nothing about the
        offered nights this run never scored, and a COUNT names nothing to chase. Both causes land
        here: the `--only` cap and the nights holding no ring/ankle pair. */
@@ -362,6 +364,7 @@ function main() {
   /* Every PPG stream this run READ, finger and ankle alike — the tally's population is the streams
      scored, never the nights. */
   const polStamps = [];
+  const pickStamps = [];
   const OUT = arg('--json-out', '/tmp/ppg-ppg-control.json');
   for (const n of nights) {
     const dir = join(DIR, n);
@@ -388,6 +391,8 @@ function main() {
       .filter(Boolean);
     for (const r of F) polStamps.push(r.polarity);
     for (const r of W) polStamps.push(r.polarity);
+    for (const r of F) pickStamps.push(r.refpick);
+    for (const r of W) pickStamps.push(r.refpick);
     let best = null,
       nPairs = 0;
     for (const a of F)

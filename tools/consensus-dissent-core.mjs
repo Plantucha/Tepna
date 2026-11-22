@@ -156,3 +156,66 @@ export function refpickOf(perChannel, rule) {
   }
   return { rule, idx, score, ties, channels };
 }
+
+/* ── the reference pick, PRINTED ──────────────────────────────────────────────────────────────────
+
+   🔴 A FIGURE THAT NAMES NO PICK RULE LETS A READER ASSUME THE SHIPPED ONE.
+   `CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md` §3 asks each PAT leg to carry the rule behind
+   its feet beside the polarity stamp it already carries. Nine ported legs pick the channel with the
+   most detected peaks, the shipped node picks on pulse-band SNR, and the two rules name a different
+   reference on 37 of 54 Verity nights. Neither published table stated its rule, so a reader
+   comparing two of them saw one number against another and no way to tell the rules apart.
+   `refpickOf` already returns every field such a line needs, and every leg threw all of them away
+   but `idx`. These two printers are option B of that brief: they repair no comparison, and they stop
+   a reader assuming one. Convergence onto the shipped rule stays the brief's other half.
+
+   ∅ THREE READS, THREE WORDS, NO BORROWING. A stamp the run never built reads `not read`. A stamp
+   whose `idx` is `null` reads as a channel set that carried no readable score. A real pick reads its
+   channel, and a tie says so, because a tie picks by file order rather than by evidence. */
+
+/* One stream's own line, for a leg that reads a single stream per run — the shape
+   `dissentStampLine` prints the polarity in. */
+export function refpickStampLine(stamp) {
+  if (!stamp || !stamp.rule) return '  reference pick: not read';
+  if (stamp.idx == null) {
+    return `  reference pick: none under ${stamp.rule} — no channel of ${stamp.channels} carried a readable score`;
+  }
+  const tied = stamp.ties > 0 ? `, arbitrary among ${stamp.ties + 1} equals` : '';
+  return `  reference pick: channel ${stamp.idx} of ${stamp.channels} under ${stamp.rule} (score ${stamp.score}${tied})`;
+}
+
+/* The pooled tally over the streams a run SCORED. A stream the run never read has no stamp, so it
+   counts as `unread` and never pads a rule it was never picked under (§∅). */
+export function refpickTally(stamps) {
+  const t = { streams: 0, picked: 0, tied: 0, unscored: 0, unread: 0, byRule: {} };
+  for (const s of stamps || []) {
+    if (!s || !s.rule) {
+      t.unread++;
+      continue;
+    }
+    t.streams++;
+    /* A rule's counter starts at zero the first time that rule appears, which is a real count and
+       never a measured value standing in for an absent one. `dissentTally` guards its fixed key set
+       the same way, and an `|| 0` here would read as the §∅ fabrication `absence-regression` hunts. */
+    if (!Object.hasOwn(t.byRule, s.rule)) t.byRule[s.rule] = 0;
+    t.byRule[s.rule]++;
+    if (s.idx == null) {
+      t.unscored++;
+      continue;
+    }
+    t.picked++;
+    if (s.ties > 0) t.tied++;
+  }
+  return t;
+}
+
+/* One line, printed beside `dissentTallyLine`. It names every class including the empty ones: a
+   measured zero for ties is a fact, and an absent class reads as "nobody looked". */
+export function refpickTallyLine(stamps) {
+  const t = refpickTally(stamps);
+  const rules = Object.keys(t.byRule).sort();
+  const named = rules.length ? rules.map((r) => `${t.byRule[r]} on ${r}`).join(' · ') : 'no rule read';
+  const parts = [`reference pick: ${t.picked} of ${t.streams} stamped stream(s) picked`, `rule(s) ${named}`, `${t.tied} arbitrary among equals`, `${t.unscored} with no readable score`];
+  if (t.unread) parts.push(`${t.unread} not read`);
+  return '  ' + parts.join(' · ');
+}

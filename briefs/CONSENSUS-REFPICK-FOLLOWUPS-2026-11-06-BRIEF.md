@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** PROPOSED — 2026-11-06 · **Created:** 2026-11-06 · **Interlocks:** `PPGDEX-ALGORITHM-DEEP-DIVE.md` §6.3 (the shipped consensus) · `PARTIAL-ADOPTION-DETECTION-2026-09-20-BRIEF.md` (count a freeze, never assume it)
+**Status:** IN-PROGRESS — 2026-11-22 · **Created:** 2026-11-06 · **Interlocks:** `PPGDEX-ALGORITHM-DEEP-DIVE.md` §6.3 (the shipped consensus) · `PARTIAL-ADOPTION-DETECTION-2026-09-20-BRIEF.md` (count a freeze, never assume it)
 
 # CONSENSUS-REFPICK-FOLLOWUPS — the reference pick is named everywhere; it is still not the same rule
 
@@ -59,7 +59,7 @@ Osprey decided this under CLAUDE.md §7 and the owner may overrule it.
 
 ## 3 · Acceptance
 
-- [ ] Each PAT leg's output carries the rule behind its feet, beside the polarity stamp it already carries.
+- [x] Each PAT leg's output carries the rule behind its feet, beside the polarity stamp it already carries.
 - [ ] Each cited leg reads the shipped rule, one leg per PR. Every PR body names the numbers that moved.
 - [ ] `refpickOf` grows a second rule only with a parity leg against the code it replaces.
 - [ ] A doc that cites a PAT figure states the pick rule behind it.
