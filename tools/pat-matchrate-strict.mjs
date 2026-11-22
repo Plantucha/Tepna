@@ -381,7 +381,8 @@ function ppgFootTimes(text, runsText, opts) {
   const polarity = dissentStampOf(polaritySigns, flipped);
   /* The reference pick, NAMED at the site so the census reads a declaration rather than a loop
      shape, and a tie stops hiding: `consensus-dissent-core.mjs#refpickOf`. Same pick. */
-  const refIdx = refpickOf(per, 'peak-argmax').idx;
+  const refpick = refpickOf(per, 'peak-argmax');
+  const refIdx = refpick.idx;
   let cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
   /* §∅ A FOOT EVERY CHANNEL WAS PINNED THROUGH IS NOT A BEAT — #4069, ported 2026-11-01.
      `rec.spans` is per optical channel and `parsePPG` publishes it with or without a sidecar, so the
@@ -494,6 +495,7 @@ function ppgFootTimes(text, runsText, opts) {
     polarityFlipped: flipped,
     polarity,
     polaritySigns,
+    refpick,
     halfTimes: half,
     nHalfUnusable: nUnusable,
     cfdTimes: cfd,
