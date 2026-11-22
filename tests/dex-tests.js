@@ -44709,6 +44709,13 @@
         T.ok('…hrv.time.sdnn is a number, not null', typeof ht.sdnn === 'number', 'sdnn=' + ht.sdnn);
         T.ok('…hrv.time.rmssd is a number, not null', typeof ht.rmssd === 'number', 'rmssd=' + ht.rmssd);
         T.ok('…and it names its window, so a consumer knows what scale it is', !!ht.window, 'window=' + ht.window);
+        /* residue `2026-11-22-ppgdex-publishes-an-epoch-median-hr-in-a-wholerecord-block` — the block's
+           `window` key describes sdnn and rmssd. `hr` carries the DISPLAY rate, whose own window moves
+           at `durMin >= 90`, so it is named separately. The committed clip is 40 s, so this leg reads
+           the short arm through the REAL pipeline, which the hand-built legs below cannot reach. */
+        T.eq('…and hrWindow names the window hr itself was measured over — a 40 s clip, so wholeRecord', ht.hrWindow, 'wholeRecord');
+        T.eq('…so hr IS the whole-record rate here, equal to wholeRecordHR', ht.hr, ht.wholeRecordHR);
+        T.ok('…and wholeRecordHR is a number, so the cross-node HR axis is populated', typeof ht.wholeRecordHR === 'number', 'wholeRecordHR=' + ht.wholeRecordHR);
       }
       T.ok('the golden carries hrv.frequency', !!(rich.hrv && rich.hrv.frequency));
       T.ok('the golden carries hrv.confidence', !!(rich.hrv && rich.hrv.confidence));
@@ -75602,6 +75609,67 @@
       if (psrc) {
         T.ok('buildEvents sorts its event list before returning', /ev\.sort\(\s*\(a,\s*b\)\s*=>\s*\(a\.tMs\s*==\s*null/.test(psrc));
         T.ok('ppgBuildNodeExport sorts at the export boundary', /events\.sort\(function\s*\(a,\s*b\)\s*\{[\s\S]{0,120}a\.tMs\s*==\s*null/.test(psrc));
+      } else {
+        T.ok('ppgdex-dsp.js source available (env.sources)', false, 'add it to both runners');
+      }
+    });
+
+    /* ════ PpgDex hr WINDOW — the published rate names the window it was measured over ════════════
+     (residue `2026-11-22-ppgdex-publishes-an-epoch-median-hr-in-a-wholerecord-block`, logged in #5389)
+     `hrv.time.hr` carried `nz(r.dispHr)`, and `dispHr` changes definition at `durMin >= 90`: the 5-min
+     epoch median above that line, the whole-record rate below it. The block around it reads
+     `window: 'wholeRecord'`, which describes `sdnn` and `rmssd` and never described `hr`. HRVDex reads
+     the field as `_hr` and could not tell which population it received.
+
+     The fix follows ECGDex, which publishes the same pair as `hr` plus `wholeRecordHR`. This node adds
+     `hrWindow` as well, because its own block carries a `window` label the rate does not obey. ONE
+     predicate feeds the value and the label, so the two cannot disagree.
+
+     These legs drive the SHARED builder on a hand-built `r`. A 90-minute optical waveform is a
+     multi-megabyte synthetic this suite will not carry, so the long arm is reachable only here; the
+     committed-golden group above reads the short arm through the real pipeline. ════ */
+    group('PpgDex hr window — the DISPLAY rate names its own window', 'ppgdex-dsp · export · absence', function (T) {
+      var P = env.PpgDex || env.PPGDSP;
+      var build = P && (P.buildNodeExport || P._build);
+      if (typeof build !== 'function') {
+        T.ok('PpgDex.buildNodeExport available', false, 'not loaded');
+        return;
+      }
+      var base = function (over) {
+        var r = { t0Ms: U(2026, 5, 21, 23, 10, 0), nn: [820, 835, 810, 845, 800], events: [], hr: 61.25, dispHr: 58.5, dispHrWindow: 'epochMedian5min', sdnn: 51, rmssd: 42, pnn50: 9, meanRR: 980 };
+        if (over) {
+          Object.keys(over).forEach(function (k) {
+            r[k] = over[k];
+          });
+        }
+        return r;
+      };
+      var longT = build(base(), { rich: true }).hrv.time;
+      T.eq('a long record publishes the epoch-median rate as hr', longT.hr, 58.5);
+      T.eq('…and the whole-record rate beside it, under the name ECGDex uses', longT.wholeRecordHR, 61.25);
+      T.eq('…and hrWindow names the window hr was measured over', longT.hrWindow, 'epochMedian5min');
+      T.ok('…so hr and wholeRecordHR are two populations, not one number twice', longT.hr !== longT.wholeRecordHR, longT.hr + ' vs ' + longT.wholeRecordHR);
+
+      var shortT = build(base({ dispHr: 61.25, dispHrWindow: 'wholeRecord' }), { rich: true }).hrv.time;
+      T.eq('a short record publishes hrWindow wholeRecord', shortT.hrWindow, 'wholeRecord');
+      T.eq('…and hr then equals wholeRecordHR, because one measurement answers both', shortT.hr, shortT.wholeRecordHR);
+
+      /* §∅ — an absent window reads null. A borrowed 'wholeRecord' is the fabricated default this row
+         exists for, and the block's own `window` key already carries that exact string. */
+      var absT = build(base({ dispHrWindow: undefined }), { rich: true }).hrv.time;
+      T.eq('an absent dispHrWindow exports null, never a borrowed label', absT.hrWindow, null);
+      T.ok('…and the key stays PRESENT, so a consumer separates absence from an old emitter', 'hrWindow' in absT, Object.keys(absT).join(','));
+      T.eq('CONTROL · the block keeps its own window key, which describes sdnn and rmssd', absT.window, 'wholeRecord');
+
+      var nullT = build(base({ hr: null }), { rich: true }).hrv.time;
+      T.eq('an absent whole-record rate exports null, not 0', nullT.wholeRecordHR, null);
+
+      var src = (env.sources || {})['ppgdex-dsp.js'];
+      if (src) {
+        T.ok('ONE predicate feeds the rate and its label', /const hrIsEpochMedian = longRec && epochs\.length > 0;/.test(src));
+        T.ok('…the rate reads that predicate', /const dispHr = hrIsEpochMedian \? median\(/.test(src));
+        T.ok('…and the label reads it too, its true arm naming the epoch median', /const dispHrWindow = hrIsEpochMedian \? 'epochMedian5min' : 'wholeRecord';/.test(src));
+        T.ok('the measurement-block comment no longer calls hrv.time.hr whole-record', src.indexOf('publishes as hrv.time.{hr,rmssd}') < 0);
       } else {
         T.ok('ppgdex-dsp.js source available (env.sources)', false, 'add it to both runners');
       }
