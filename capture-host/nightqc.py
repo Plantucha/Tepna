@@ -2154,12 +2154,17 @@ def transport_share(pairs_a, pairs_b, bin_s=_TRANSPORT_BIN_S):
     }
 
 
-def _tau0_of(pairs) -> float:
+def _tau0_of(pairs) -> float | None:
     """Mean packet interval in SECONDS — ADEV's sample interval. Measured from the HOST stamps, which
     are the axis this phase series is indexed on; taking it from the device would let a stalled counter
-    shrink its own tau0 and silently rescale the whole curve."""
+    shrink its own tau0 and silently rescale the whole curve.
+
+    FEWER THAN TWO PACKETS MEASURE NO INTERVAL, so this returns None rather than 0.0 (§∅; row
+    `2026-11-22-a-zero-extent-host-axis-refuses-as-too-few-taus`). `allan.stability` reads that
+    absence and refuses with `no-tau0`; a real 0.0, which a frozen host column computes over any
+    number of packets, refuses with `zero-extent-axis` instead."""
     if len(pairs) < 2:
-        return 0.0
+        return None
     return ((pairs[-1][0] - pairs[0][0]) / 1000.0) / (len(pairs) - 1)
 
 
