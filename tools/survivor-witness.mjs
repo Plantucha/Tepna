@@ -67,7 +67,7 @@ export function statePaths(root, stateDir = null) {
   return { read: dirs, writeDir: dirs[0], ledger: resolveStatePath(root, 'witness-progress.jsonl') };
 }
 
-const OLLAMA = process.env.DEX_OLLAMA || 'http://localhost:11434';
+const OLLAMA = process.env.DEX_OLLAMA || 'http://127.0.0.1:11434';
 const MODEL = process.env.DEX_MODEL || 'qwen3.8:27b';
 
 /* Balanced scan, not a regex: `if (a(b), c)` has a paren a regex cannot pair, and a wrong extraction

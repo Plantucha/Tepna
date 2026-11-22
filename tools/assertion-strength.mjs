@@ -78,7 +78,7 @@ import { isCliEntry } from './argv-guard.mjs';
 import { boundedFetch } from './net-bound.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const OLLAMA = process.env.DEX_OLLAMA || 'http://localhost:11434';
+const OLLAMA = process.env.DEX_OLLAMA || 'http://127.0.0.1:11434';
 const MODEL = process.env.DEX_MODEL || 'qwen3.8:27b';
 
 /* An assertion worth asking about: a T.ok comparing something to a numeric literal, that is NOT
