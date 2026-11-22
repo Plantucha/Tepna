@@ -3682,10 +3682,6 @@ async function main() {
     })(),
     DriftReport: ctx.DriftReport,
     TchCorpus: ctx.TchCorpus,
-    docs: readDocs(),
-    docsLedger: readDocsLedger(),
-    biomeCoverage: readBiomeCoverage(),
-    citations: readCitations(),
     /* The rebase classifier decides GENERATED-vs-SOURCE for every conflicted path, and being wrong
        toward GENERATED reverts someone's work silently. It shipped with a `--classify` entry point
        documented as "used by the self-test" and no self-test — no group, nothing in `npm run check`,
@@ -4009,7 +4005,6 @@ async function main() {
         return null;
       }
     })(),
-    toolSources: readToolSources(),
     /* RUN A TOOL AND READ ITS EXIT CODE — residue 2026-09-28-five-tools-consume-an-unknown-flag-as-an-input-path
        and 2026-10-11-help-flag-made-a-directory. A source scan cannot tell a refusal from a stack
        trace: both "name the token", and the difference IS the exit code and whether anything was
@@ -4080,17 +4075,19 @@ async function main() {
     argvSurvey,
     corpusReads,
     importerFlagProbe,
-    sources: readSources(),
     // Must come AFTER `sources:` — readSources() is what fills TOOL_TEXTS.
     get toolTexts() {
+      void env.sources; // LAZY ENV: readSources() is what fills TOOL_TEXTS, and nothing else forces it
       return TOOL_TEXTS;
     },
     // Must come AFTER `sources:` too — readSources() is what fills HARNESS_TEXTS.
     get harnessTexts() {
+      void env.sources; // LAZY ENV: readSources() is what fills HARNESS_TEXTS, and nothing else forces it
       return HARNESS_TEXTS;
     },
     // Must come AFTER `sources:` too — readSources() is what fills HOOK_TEXTS.
     get hookTexts() {
+      void env.sources; // LAZY ENV: readSources() is what fills HOOK_TEXTS, and nothing else forces it
       return HOOK_TEXTS;
     },
     jsLex,
@@ -4174,41 +4171,27 @@ async function main() {
     })(),
     // §1.4 — the scope FLOOR: every .js the owned bundles inline. The lint asserts its scanned set
     // covers this, so the coverage can never silently shrink back to a hand-maintained list again.
-    shippedInlined: Array.from(SHIPPED_INLINED).sort(),
-    trackedFiles: readTrackedFiles(),
+    /* LAZY ENV: readSources() is what fills SHIPPED_INLINED (it walks every bundle's
+       data-inline-src), so an eager read here returns an EMPTY floor — a scope floor that every
+       scanned set covers trivially. A getter that forces `env.sources` first keeps it a floor. */
+    get shippedInlined() {
+      void env.sources;
+      return Array.from(SHIPPED_INLINED).sort();
+    },
     // FIXTURE-VERIFICATION-GATE §1 — computeHash is async (crypto.subtle) and the assertion harness is
     // synchronous, so the discrimination probe is computed HERE and asserted there. ManifestGate itself
     // is passed for the (sync) closure-membership self-tests.
     ManifestGate,
     computeHashProbe: await readComputeHashProbe(),
     bundleCodeIdentity: await readBundleCodeIdentity(), // roadmap §3 — shipped bundles' {manifestHash, computeHash}
-    inlineParseCensus: readInlineParseCensus(), // every builder-inlined block must PARSE (2026-09-28)
     detectorRealmDigests: readDetectorRealmDigests(['oxy', 'pulse']), // treatment-response yield pin — the detector closure, derived from cohort-worker.js SCRIPTS
     treatmentYieldPin: readJsonOrNull(join(ROOT, 'analysis', 'treatment-response-yield-pin.json')),
-    trioNights: readTrioNights(), // row 2026-10-25 — the produced trio population, committed + live
-    trioEra: readTrioEra(), // row 2026-10-12 — which trio exports carry a recorded code era, committed + live
     YieldPin, // the pin's own selection replay + closure comparator, executed by the suite rather than re-implemented
     elementBlocks, // strip-markup's index scan — the group drives it over every end-tag spelling
     stripTags, // the same file's text extractor — a group reading rendered markup back never writes its own tag pattern
-    fixtures: readFixtures(),
-    equiv: readEquiv(),
-    odiPilot: readOdiPilot(),
-    hosts: readHosts(),
-    srcHtml: readSrcHtml(),
-    nodeSurfaces: readNodeSurfaces(),
-    nonBundleCsp: readNonBundleCsp(),
-    nonBundleCspAudit: readNonBundleCspAudit(),
-    captureFilenameScan: readCaptureFilenameScan(),
-    drawnFlagScan: readDrawnFlagScan(),
-    exportKindScan: readExportKindScan(),
-    validitySidecarScan: readValiditySidecarScan(),
     ProvenanceLedger, // the pure `missingFragments` / `fragmentFileFor` self-tests (browser lane: the global)
     ledgerBrowserProbe: await readLedgerBrowserProbe(), // does loadBrowser REPORT an absent fragment by name?
-    codegenManifests: readCodegenManifests(),
     codegenCheck,
-    docsMdTwins: readDocsMdTwins(),
-    claudeMdClaims: readClaudeMdClaims(),
-    tableProvenance: readTableProvenance(),
     publishedCorpus: await readPublishedCorpus(),
     /* Does this repo-relative path exist in the tree? Used by the TABLE-PROVENANCE gate to red on a
        dead producer or an unresolvable committed input, rather than skipping — a stamp naming a tool
@@ -4236,15 +4219,66 @@ async function main() {
         return null;
       }
     })(),
-    analysisTools: readAnalysisTools(),
-    bundleCsp: readBundleCsp(),
-    manifests: readManifests(),
-    releaseLedger: readReleaseLedger(),
-    discoverability: readDiscoverability(),
-    preflight: readPreflight(),
     groupFilter: GROUP_FILTER || null,
     listOnly: LIST_ONLY
   };
+
+  /* LAZY ENV (2026-11-22) — a worker that runs ONE group used to pay for EVERY static scan.
+     Measured on rig-x870 with `--group-index=0`: the eager fields below cost 736 MB of the run's
+     1 147 MB peak, and `tableProvenance` alone cost 397 MB in 498 ms. Each one feeds a handful of
+     static-scan groups, so a DSP group never reads it. These are memoised getters: the first read
+     pays, later reads are free, and a group that never names the field pays nothing.
+     ⚠️ A SPREAD EVALUATES A GETTER. `{ ...env }` would force all of them and undo this, so the two
+     inventory calls below use `Object.create(env, …)`, which keeps the getters on the prototype and
+     invokes them only on access. Never reintroduce a spread of `env`. */
+  for (const [__k, __read] of [
+    ['docs', readDocs],
+    ['docsLedger', readDocsLedger],
+    ['biomeCoverage', readBiomeCoverage],
+    ['citations', readCitations],
+    ['toolSources', readToolSources],
+    ['sources', readSources],
+    ['trackedFiles', readTrackedFiles],
+    ['inlineParseCensus', readInlineParseCensus], // every builder-inlined block must PARSE (2026-09-28)
+    ['trioNights', readTrioNights], // row 2026-10-25 — the produced trio population, committed + live
+    ['trioEra', readTrioEra], // row 2026-10-12 — which trio exports carry a recorded code era, committed + live
+    ['fixtures', readFixtures],
+    ['equiv', readEquiv],
+    ['odiPilot', readOdiPilot],
+    ['hosts', readHosts],
+    ['srcHtml', readSrcHtml],
+    ['nodeSurfaces', readNodeSurfaces],
+    ['nonBundleCsp', readNonBundleCsp],
+    ['nonBundleCspAudit', readNonBundleCspAudit],
+    ['captureFilenameScan', readCaptureFilenameScan],
+    ['drawnFlagScan', readDrawnFlagScan],
+    ['exportKindScan', readExportKindScan],
+    ['validitySidecarScan', readValiditySidecarScan],
+    ['codegenManifests', readCodegenManifests],
+    ['docsMdTwins', readDocsMdTwins],
+    ['claudeMdClaims', readClaudeMdClaims],
+    ['tableProvenance', readTableProvenance],
+    ['analysisTools', readAnalysisTools],
+    ['bundleCsp', readBundleCsp],
+    ['manifests', readManifests],
+    ['releaseLedger', readReleaseLedger],
+    ['discoverability', readDiscoverability],
+    ['preflight', readPreflight]
+  ]) {
+    let __v,
+      __done = false;
+    Object.defineProperty(env, __k, {
+      enumerable: true,
+      configurable: true,
+      get() {
+        if (!__done) {
+          __v = __read();
+          __done = true;
+        }
+        return __v;
+      }
+    });
+  }
   // Exact index selection. Set before the SHARD block so the two never both apply.
   if (GROUP_INDICES) env.shardIndices = GROUP_INDICES;
 
@@ -4270,7 +4304,7 @@ async function main() {
      late-declaration tripwire further down. The shard path already pays for this pass. */
   let INVENTORY = null;
   if (SHARD) {
-    INVENTORY = runDexTests({ ...env, listOnly: true }).groups.map((g) => ({ index: g.index, title: g.title }));
+    INVENTORY = runDexTests(Object.create(env, { listOnly: { value: true, enumerable: true } })).groups.map((g) => ({ index: g.index, title: g.title }));
     const inv = INVENTORY;
     const { bins, weights, unknown } = planShards(inv, readTimings(), SHARD.total);
     const errs = partitionViolations(inv, bins);
@@ -4302,7 +4336,8 @@ async function main() {
      inventory holds. The comparison is free, it is pure (tests/shard-plan.mjs), and it runs in every
      shard on every push. Two runs compare nothing: a forked run, whose children each judge their own
      pass, and `--list`, which IS the inventory. */
-  const INV_FOR_LATE = forked || LIST_ONLY ? null : INVENTORY || runDexTests({ ...env, listOnly: true }).groups.map((g) => ({ index: g.index, title: g.title }));
+  const INV_FOR_LATE =
+    forked || LIST_ONLY ? null : INVENTORY || runDexTests(Object.create(env, { listOnly: { value: true, enumerable: true } })).groups.map((g) => ({ index: g.index, title: g.title }));
   const lateViolations = INV_FOR_LATE
     ? lateDeclarations(
         INV_FOR_LATE,
