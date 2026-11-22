@@ -870,6 +870,31 @@ def test_a_too_short_series_still_refuses_before_reaching_the_new_fields():
     assert "phase_noise" not in s and "tdev" not in s
 
 
+def test_an_axis_with_no_extent_names_its_refusal_instead_of_borrowing_too_few_taus():
+    """§∅, row `2026-11-22-a-zero-extent-host-axis-refuses-as-too-few-taus`. `adev` refuses on
+    `not tau0 or tau0 <= 0` as well as on a short series, so both causes landed in one branch and both
+    reported `too-few-taus`. A frozen host-stamp column computes tau0 as exactly 0.0 over any number of
+    packets, so the record described a 400-sample series as short. Shrike read the line first, board
+    #7850."""
+    long_series = [float(i % 7) for i in range(400)]
+
+    # A FLAT AXIS OVER A LONG SERIES. The series is not short, so the reason must not say it is.
+    flat = allan.stability(long_series, 0.0, 300.0, sample_times=[0.0] * 400)
+    assert flat["ok"] is False
+    assert flat["reason"] == "zero-extent-axis"
+    assert flat["taus"] == 0
+
+    # CONTROL: the same series on a real tau0 answers, which proves the length never caused the refusal.
+    answered = allan.stability(long_series, TAU0, 300.0)
+    assert answered["ok"] is True
+
+    # An UNMEASURED interval is absence, not a measured zero. The two carry different remedies, so the
+    # reasons differ: more packets against `no-tau0`, the host clock against `zero-extent-axis`.
+    assert allan.stability(long_series, None)["reason"] == "no-tau0"
+    # A negative is no sample interval either, so it reads as no extent rather than as a short run.
+    assert allan.stability(long_series, -TAU0)["reason"] == "zero-extent-axis"
+
+
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 # GROSLAMBERT COVARIANCE — measuring the instrument noise instead of inheriting it.
 #
@@ -1445,3 +1470,65 @@ def test_adev_pooled_passes_the_CALLERS_k_through_and_never_its_own_default():
     assert meta_cut["segments"] == 2 and meta_cut["pooled"] is True
     _pts_kept, meta_kept = allan.adev_pooled(x, 1.0, ts, 20.0)
     assert meta_kept == {"segments": 1, "dropped_intervals": 0, "pooled": False}, "the caller's k was ignored"
+
+
+# ── THE DIFF-SCOPED MUTATION GATE'S UNIT IS THE FUNCTION ──────────────────────────────────────────
+# The refusal-reason change above edits two lines of `stability`, which puts the WHOLE function in the
+# mutation gate's scope. The four legs below kill the inherited survivors that scope exposed: the
+# `gap_k` default, the three-tau floor, the `pts[-1]` index and the 4-place tau rounding. Two further
+# survivors on the `identify(phase, tau0, pts)` call carry no distinguishing input and are recorded in
+# `tools/mutate-equivalence.json` with the probe that measured them.
+
+
+def test_the_stability_gap_default_is_four_so_a_four_and_a_half_times_interval_still_splits():
+    """`stability` owns its own `gap_k=4.0` default, and that number is what a caller who passes no k
+    gets (ALLAN-STABILITY-GAPS §2.2). A larger default pools across a hole this curve must cut, so the
+    series below carries one interval at 4.5x the cadence: two runs at 4.0, one run at 5.0."""
+    rng = random.Random(13)
+    x = [0.0]
+    for _ in range(999):
+        x.append(x[-1] + rng.gauss(0, 1e-3))
+    ts = [i if i < 500 else i + 3.5 for i in range(1000)]  # one 4.5 s interval in a 1 s cadence
+    assert allan.segments_by_gap(ts, 4.0) == [(0, 500), (500, 1000)]
+    assert allan.segments_by_gap(ts, 5.0) == [(0, 1000)], "the interval must straddle the default"
+    got = allan.stability(x, 1.0, sample_times=ts)
+    assert got["ok"] is True, got.get("reason")
+    assert got["segments"] == 2, "the default k pooled a hole it must cut"
+    assert got["dropped_intervals"] == 1 and got["pooled"] is True
+
+
+def test_three_taus_answer_and_two_refuse_so_the_floor_sits_exactly_at_three():
+    """The refusal reads `len(pts) < 3`, and both neighbouring thresholds answer a boundary series
+    differently. A white-PM run of 32 samples publishes exactly three taus, so `<= 3` and `< 4` would
+    refuse a curve this module answers today."""
+    rng = random.Random(7)
+    got = allan.stability([rng.gauss(0, 1) for _ in range(32)], TAU0)
+    assert got["ok"] is True, got.get("reason")
+    assert [p["tau"] for p in got["curve"]] == [1.0, 2.0, 4.0]
+    short = allan.stability([rng.gauss(0, 1) for _ in range(31)], TAU0)
+    assert short["ok"] is False and short["taus"] == 2
+    assert short["reason"] == "too-few-taus", "a short series is a short series, not a flat axis"
+
+
+def test_at_longest_reads_the_last_curve_point_and_neither_neighbour_of_it():
+    """`at_longest` names the ADEV at the LONGEST tau, so the index must be `pts[-1]`. A white-PM run
+    of 20000 samples publishes 12 taus whose ADEV falls across three decades, which separates the last
+    point from both `pts[+1]` and `pts[-2]` by far more than any estimator spread."""
+    got = allan.stability(_white_pm(), TAU0)
+    curve = got["curve"]
+    assert len(curve) == 12, "the 12-tau curve is what separates the three indices"
+    assert got["at_longest"] == curve[-1]["adev"]
+    assert got["at_longest"] != curve[1]["adev"], "`pts[+1]` reads the second point"
+    assert got["at_longest"] != curve[-2]["adev"], "`pts[-2]` reads the penultimate point"
+
+
+def test_the_published_curve_rounds_tau_to_four_places_and_not_to_five_or_to_an_integer():
+    """Each published tau rounds to 4 places. A tau0 of 1/3 makes the digit count visible: 4 places
+    give 0.3333, 5 places give 0.33333, and a bare `round` gives 0 — which would publish a tau axis
+    starting at zero seconds."""
+    got = allan.stability(_white_pm(), 1.0 / 3.0)
+    tau_first = got["curve"][0]["tau"]
+    assert tau_first == 0.3333
+    assert tau_first != round(1.0 / 3.0, 5), "5 places publish a digit the contract does not"
+    assert tau_first != round(1.0 / 3.0), "a bare round publishes a zero-second tau"
+    assert got["tau_min"] == pytest.approx(1.0 / 3.0), "the unrounded tau stays on the record"
