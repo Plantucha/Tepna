@@ -228,6 +228,26 @@ const JOB_BYTES = 1024 * 1024 * 1024; // ~1.04 GB measured, rounded down to 1 Gi
    that was already committed elsewhere. 60 % is deliberately not tuned to a benchmark — it is the
    share that leaves the rest of the machine usable. */
 const JOB_MEM_SHARE = 0.6;
+/* THE FLEET'S PER-CONSUMER RULE IS THE THIRD DIMENSION, AND IT BINDS BEFORE THE OTHER TWO.
+   The two terms above size a pool to the MACHINE. Neither can see the rule that actually governs a
+   shared box: no single consumer holds more than 8 GB (owner standing rule 2026-09-15), because the
+   Claude Code harness watchdog reaps background tasks on BOX pressure and a greedy pool therefore
+   kills OTHER sessions' gates rather than its own.
+   The memory term does not express that rule. It reads `MemAvailable`, which is a statement about the
+   box at one instant, so on a quiet box it never binds and the pool is the core figure. Measured
+   2026-11-22 against the 2026-11-21 nightly run: `tepna-nightly-triage.service` started at 09:30:40
+   EST on the 24-core box, chose `jobs = 16` (recorded in each of the four `*.sweep.json` files it
+   finished — motiondex-dsp, pulsedex-dsp, cpapdex-dsp, glucodex-dsp), reached a cgroup
+   `MemoryPeak` of 18 166 657 024 B (16.92 GiB, above the unit's own `MemoryHigh` of 16 GiB) and ended
+   `Result=oom-kill`, `ExecMainStatus=9` at 11:02:47 EST — 1 h 32 min in, with 9 of the 13 files unrun.
+   ⚠️ A CGROUP CAP IS NOT THE REMEDY, so this is not one. The unit already carries
+   `MemoryMax=20G`/`MemorySwapMax=0`, the peak stayed 3 GiB under it, and §4c records the measurement
+   that settles the direction: a cap on the gate does not protect it, because the watchdog reads the
+   box — cap the CONSUMER. This constant is that cap, expressed where the consumer decides its size.
+   It is the RULE divided by the measured per-job figure, not a tuned number: the ceiling moves only
+   when the owner moves the rule or a re-measurement moves `JOB_BYTES`. An explicit `--jobs N` still
+   wins, because this sizes the DEFAULT only — a caller who has measured its own box may say so. */
+const FLEET_JOB_MEM_BUDGET = 8 * 1024 * 1024 * 1024;
 /* `availBytes` is OPTIONAL and the one-argument form is unchanged by construction: unknown memory
    (a non-Linux host, an unreadable /proc) returns exactly what it returned before, so this can only
    LOWER a job count on a machine that told us it is short, never raise one or change a platform that
@@ -236,13 +256,17 @@ export function defaultJobs(cores, availBytes) {
   if (!(cores > 0)) return 1; // cpus() can report an empty list in constrained containers
   if (cores <= 2) return 1; // serial: no worktrees, no extra disk, no oversubscription
   const byCores = Math.max(2, Math.round((cores * 2) / 3));
-  if (!(availBytes > 0)) return byCores; // memory unknown → the historical behaviour, unchanged
+  /* The ceiling applies on EVERY path, including the one where memory is unknown. That path is the CI
+     runner and the laptop — the two machines the block above calls fatal for 16 workers — so an
+     unreadable `/proc/meminfo` is the last place to lift the cap. */
+  const byRule = Math.max(1, Math.floor(FLEET_JOB_MEM_BUDGET / JOB_BYTES));
+  if (!(availBytes > 0)) return Math.min(byCores, byRule); // memory unknown → cores, under the rule
   const byMem = Math.floor((availBytes * JOB_MEM_SHARE) / JOB_BYTES);
   /* Too little memory to run even two workers takes the SERIAL path, for the same reason a 1-2 core
      box does: a split that cannot fit buys nothing and costs a worktree apiece. Symmetric with the
      low-core rule directly above rather than a second, differently-shaped floor. */
   if (byMem < 2) return 1;
-  return Math.min(byCores, byMem);
+  return Math.min(byCores, byMem, byRule);
 }
 /* MemAvailable, not MemFree — free memory excludes reclaimable page cache and would read a healthy
    box as empty. This is the same signal `tepna-nightly-triage.sh`'s own pressure guard reads, so the
@@ -3100,20 +3124,35 @@ function selftest() {
   ok('2 cores → serial (no worktrees)', defaultJobs(2) === 1, 'got ' + defaultJobs(2));
   ok('an empty cpus() list → serial, not a crash', defaultJobs(0) === 1 && defaultJobs(undefined) === 1);
   ok('3 cores → 2 workers (parallel begins)', defaultJobs(3) === 2, 'got ' + defaultJobs(3));
-  ok('24 cores → 16, the measured optimum on this box', defaultJobs(24) === 16, 'got ' + defaultJobs(24));
+  ok('24 cores → 8: the fleet rule binds before the core optimum of 16', defaultJobs(24) === 8, 'got ' + defaultJobs(24));
   /* MEMORY DIMENSION (2026-09-14). The one-argument form must be BYTE-IDENTICAL to what it was, or
      this change silently re-sizes every platform that cannot report memory — so that is asserted
      first, against the same cases pinned above, rather than assumed from "the parameter is
-     optional". */
-  ok('unknown memory → the core-derived figure, unchanged', defaultJobs(24) === 16 && defaultJobs(24, null) === 16 && defaultJobs(24, undefined) === 16 && defaultJobs(24, 0) === 16);
-  /* A machine with plenty of memory is still CORE-bound: 64 GB available would allow 37 workers at
-     ~1 GiB and 60 %, and the answer must stay 16. The memory rule is a CEILING, never a licence. */
-  ok('memory never RAISES the pool above the core figure', defaultJobs(24, 64 * 1024 ** 3) === 16, 'got ' + defaultJobs(24, 64 * 1024 ** 3));
+     optional". The figure itself moved to 8 on 2026-11-22 with the fleet ceiling; the invariant this
+     leg defends is that all four spellings of "I could not look" still read ALIKE. */
+  ok(
+    'unknown memory → the core figure under the rule, and every unknown reads alike',
+    defaultJobs(24) === 8 && defaultJobs(24, null) === 8 && defaultJobs(24, undefined) === 8 && defaultJobs(24, 0) === 8
+  );
+  /* A machine with plenty of memory is CORE-bound before it is memory-bound: 64 GB available would
+     allow 37 workers at ~1 GiB and 60 %, and the memory term must not lift the pool to 37. The term
+     is a CEILING, never a licence — and since 2026-11-22 the fleet rule is a second ceiling under it,
+     so the answer is 8 rather than the core figure of 16. The leg below pins that. */
+  ok('memory never RAISES the pool above the core figure', defaultJobs(24, 64 * 1024 ** 3) <= 16, 'got ' + defaultJobs(24, 64 * 1024 ** 3));
+  /* The 2026-11-21 kill in one leg: an empty box asks for 16 and the rule answers 8. Without the
+     ceiling this reads 16, which is the pool that ended `Result=oom-kill`. */
+  ok('an EMPTY box does not lift the ceiling (the 2026-11-21 nightly shape)', defaultJobs(24, 64 * 1024 ** 3) === 8, 'got ' + defaultJobs(24, 64 * 1024 ** 3));
+  ok('the ceiling is the standing rule divided by the measured per-job figure, not a literal', FLEET_JOB_MEM_BUDGET / JOB_BYTES === 8 && defaultJobs(999) === 8);
+  ok('a pool already under the ceiling is untouched', defaultJobs(3) === 2 && defaultJobs(12) === 8 && defaultJobs(6) === 4);
   /* …and when memory is the binding constraint it WINS. 8 GB × 0.6 / 1 GiB = 4. This is the CI-runner
-     and laptop case the core-derived form could not see at all. */
+     and laptop case the core-derived form could not see at all. It is also the leg that stops the
+     2026-11-22 fleet ceiling from MASKING this dimension: 4 is below the ceiling of 8, so a cap that
+     had swallowed the memory term would read 8 here and red. */
   ok('memory LOWERS the pool when it is the binding constraint', defaultJobs(24, 8 * 1024 ** 3) === 4, 'got ' + defaultJobs(24, 8 * 1024 ** 3));
   /* The incident's own numbers, as a regression: 23 GB available on the 24-core box gave 16 workers
-     and a 16.57 GB peak. The same inputs must now give fewer. */
+     and a 16.57 GB peak. The same inputs must now give fewer. ⚠️ Since the fleet ceiling landed, two
+     terms can satisfy this leg, so it no longer isolates the memory one — the leg above it does that,
+     at 8 GB where the ceiling does not bind. */
   ok('the 2026-09-13 shape now sizes DOWN (23 GB avail, 24 cores)', defaultJobs(24, 23 * 1024 ** 3) < 16, 'got ' + defaultJobs(24, 23 * 1024 ** 3));
   /* Too little memory for two workers takes the SERIAL path, symmetric with the 1-2 core rule — not
      a floor of 2 that would hand a starved box two full worktrees it cannot feed. */
