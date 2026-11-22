@@ -84,11 +84,46 @@ function verdictOf({ status, scanned, excluded = 0, citations = 0, declared = 0,
   return v;
 }
 
+/* ── A NESTED DEFAULT IS NOT THE FIELD'S DEFAULT (residue 2026-11-21-the-tms-fabrication-regex-has-no-left-boundary) ──
+   The write-position shape below is the one pattern with a GAP between the field and the `|| 0`, so a
+   zero that defaults a TERM inside the value matched the field. Measured over 40 full-tree findings:
+   `tools/probe-batteries/hrvdex-dsp.mjs` spells `_tMs: T0 + (dayOffset || 0) * DAY`, where `T0` keeps
+   the epoch and the zero defaults a synthetic day index.
+   THE ROW ASKED FOR A LEFT BOUNDARY ON THE FIELD NAME, AND I MEASURED THAT INSTEAD. A boundary drops
+   `updatedAtMs: pr.updatedAtMs || 0` in `tools/pr-walker.mjs`, which stamps epoch zero on an
+   unparseable PR date (its own row), and `hostMs:` names a wall-clock stamp as well. So the
+   discriminator is the PAREN DEPTH of the `||`, never the spelling of the name.
+   A WRAPPING PAREN IS NOT A NESTED GROUP: `tMs: (a.stamp || 0)` fabricates, so a `(` that opens the
+   value counts for nothing, while a `(` that opens after content hides a term.
+   Line-local and approximate by construction: a parenthesis inside a string literal counts, which can
+   drop a finding. The general spelling still reads such a line on a diff, and no line in this tree
+   carries that shape. */
+export function orZeroAtTopLevel(text, m) {
+  const s = m[0];
+  const colon = s.indexOf(':');
+  let i = colon + 1;
+  while (i < s.length && /\s/.test(s[i])) i += 1;
+  /* The wrappers around the whole value, skipped and never counted. */
+  while (i < s.length && s[i] === '(') {
+    i += 1;
+    while (i < s.length && /\s/.test(s[i])) i += 1;
+  }
+  let depth = 0;
+  for (; i < s.length; i += 1) {
+    if (s[i] === '(') depth += 1;
+    else if (s[i] === ')') depth -= 1;
+    else if (s[i] === '|' && s[i + 1] === '|' && depth <= 0 && /^\|\|\s*0/.test(s.slice(i))) return true;
+  }
+  return false;
+}
+
 const PATTERNS = [
   {
     name: 'tms-fabrication',
     // tMs: <expr> || 0  — the fix is tMs: <expr> ?? null, which this shape cannot match
     regex: /tMs:\s*[^,;]*\|\|\s*0/,
+    /* The gap above reaches past a nested default, so this pattern alone carries a guard. */
+    guard: orZeroAtTopLevel,
     why: 'tMs: x || 0 stamps 1970 on timeless findings — use ?? null (§2a #3366)'
   },
   {
@@ -222,6 +257,15 @@ const isExcluded = (file) => EXCLUDED_PATHS.some((e) => (e.match === 'suffix' ? 
  * @param {string[]} diffLines  raw `git diff -U0` lines
  * @returns {{hits: Array<{name: string, line: string, why: string}>, scanned: number, excluded: number}}
  */
+/* A PATTERN MAY REFUSE ITS OWN MATCH. One regex cannot read paren depth, so the write-position shape
+   carries `guard`, and every read of that pattern goes through here. A pattern with no guard behaves
+   exactly as before. */
+const matchOf = (p, text) => {
+  const m = p.regex.exec(text);
+  if (!m) return null;
+  return p.guard && !p.guard(text, m) ? null : m;
+};
+
 export function classifyAdded(diffLines, patterns = PATTERNS) {
   const runs = [];
   let run = null;
@@ -263,7 +307,7 @@ export function classifyAdded(diffLines, patterns = PATTERNS) {
     const named = p.general ? new Set(hits.flatMap((h) => h.line.split(' \u23ce ').map((t) => `${h.file}\u0000${t.trim()}`))) : null;
     for (const r of runs) {
       for (let i = 0; i < r.length; i += 1) {
-        const m = p.regex.exec(r[i].t);
+        const m = matchOf(p, r[i].t);
         if (m) {
           const dup = p.general && named.has(`${r[i].f}\u0000${r[i].t.trim()}`);
           const mark = p.general && MARKER.test(r[i].t);
@@ -272,9 +316,9 @@ export function classifyAdded(diffLines, patterns = PATTERNS) {
           else if (!dup) hits.push({ name: p.name, line: r[i].t.trim(), why: p.why, file: r[i].f });
           continue;
         }
-        if (i + 1 < r.length && !p.regex.test(r[i + 1].t)) {
+        if (i + 1 < r.length && !matchOf(p, r[i + 1].t)) {
           const joined = `${r[i].t} ${r[i + 1].t.trim()}`;
-          const jm = p.regex.exec(joined);
+          const jm = matchOf(p, joined);
           if (!jm) continue;
           if (isCitation(joined, jm)) cited.add(joined.trim());
           else if (p.general && MARKER.test(joined)) declared.add(joined.trim());
@@ -308,6 +352,36 @@ export function selftest() {
   ok(classifyAdded([]).hits.length === 0 && classifyAdded([]).scanned === 0, 'CONTROL: an empty diff yields no hit and reports scanning nothing');
   /* A `+++` header can itself contain a path that matches; it is not code. */
   ok(classifyAdded(['+++ b/tMs: x || 0']).scanned === 0, 'CONTROL: the +++ file header is not scanned as code');
+
+  /* ── A NESTED DEFAULT IS NOT THE FIELD'S DEFAULT (residue 2026-11-21-the-tms-fabrication-regex-has-no-left-boundary)
+     The write-position shape reaches past a nested `|| 0`, so two of its three full-tree matches
+     defaulted a TERM and fabricated no epoch. Each leg below carries a shape this tree spells today,
+     and the keep-legs size the guard against a mutant that refuses every match. ── */
+  const tmsPat = patternsFor(false).find((x) => x.name === 'tms-fabrication');
+  ok(
+    patternsFor(false)
+      .filter((x) => x.guard)
+      .map((x) => x.name)
+      .join(',') === 'tms-fabrication',
+    'ONE pattern carries a guard, because only the write-position shape has a gap between the field and the zero'
+  );
+  ok(
+    classifyAdded(['+    _tMs: T0 + (dayOffset || 0) * DAY,'], patternsFor(true)).hits.length === 0,
+    'the live `_tMs: T0 + (dayOffset || 0)` probe-battery line defaults a day index, so no stamp family fires'
+  );
+  ok(
+    classifyAdded(['+      a.push({ devMs: dev, hostMs: dev + (dev * (ppm || 0)) / 1e6 });'], patternsFor(true)).hits.length === 0,
+    'a `hostMs:` value whose nested zero defaults a ppm figure is no stamp fabrication'
+  );
+  const nested = classifyAdded(['+    _tMs: T0 + (dayOffset || 0) * DAY,']);
+  ok(nested.hits.length === 1 && nested.hits[0].name === 'or-zero-fabrication', 'the general spelling still reads the nested default on a diff, so the guard hides nothing');
+  const walker = classifyAdded(['+      updatedAtMs: pr.updatedAtMs || 0,'], patternsFor(true));
+  ok(walker.hits.length === 1 && walker.hits[0].name === 'tms-fabrication', 'a PREFIXED stamp field with a top-level zero still fails — a left boundary on the name would have lost this one');
+  ok(classifyAdded(['+      tMs: (f.stamp || 0),'], patternsFor(true)).hits.length === 1, 'a paren that WRAPS the whole value is no nested group, so the fabrication still fails');
+  ok(classifyAdded(['+      tMs: Number(raw) || 0,'], patternsFor(true)).hits.length === 1, 'a balanced call before the zero leaves the zero at the top level, so it still fails');
+  ok(classifyAdded(['+      tMs:', '+        f.stamp || 0,'], patternsFor(true)).hits.length === 1, 'CONTROL: the guard reads the JOINED pair, so the split-line escape stays closed');
+  ok(orZeroAtTopLevel('x', tmsPat.regex.exec('tMs: f.stamp || 0,')) === true, 'the guard reads a top-level zero directly');
+  ok(orZeroAtTopLevel('x', tmsPat.regex.exec('_tMs: T0 + (dayOffset || 0) * DAY,')) === false, 'and it refuses a zero one group deep');
 
   /* THE t0Ms FAMILY — the live CPAP shape, plus the sort-comparator shape that holds most of the backlog. */
   ok(
