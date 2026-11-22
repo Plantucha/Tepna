@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** IN-PROGRESS — 2026-11-18 · **Created:** 2026-11-08 · **Interlocks:** `briefs/RESIDUE.md` (the verified rows) · `AUDIT-PROMPT.md`
+**Status:** IN-PROGRESS — 2026-11-22 · **Created:** 2026-11-08 · **Interlocks:** `briefs/RESIDUE.md` (the verified rows) · `AUDIT-PROMPT.md`
 
 # MUSE-HUNT-RECORD — every Muse hunt finding, and its state on main
 
@@ -117,10 +117,10 @@ M-1, and re-read B-F1, B-F7 and A-4.
 | C-F2 | CPAP `buildLongitudinal` | compliancePct 0 over zero measured nights | unverified |
 | C-F3 | CPAP `buildSessionFromEdf` | maxLeak 0 from zero mask-on samples | unverified |
 | C-F4 | CPAP `computeMetrics`, `nightMetrics` | NaN where siblings use null | unverified |
-| C-F5 | PulseDex `pdComputeResult` | artifact count discarded under `artifactClean` | unverified |
-| C-F6 | PulseDex `lombScargle` | respRate 0 over zero power | unverified |
-| C-F7 | PulseDex `_bare` helpers | fabricate on zero denominators | unverified; the in-file caller gates |
-| C-F8 | HRVDex rolling windows | row-count windows with no span bound | unverified |
+| C-F5 | PulseDex `pdComputeResult` | artifact count discarded under `artifactClean` | fixed on main: `pdComputeResult` publishes `artifactPct` and `nArtifact` from one `cleanR`, and the export coalesces both to null |
+| C-F6 | PulseDex `lombScargle` | respRate 0 over zero power | fixed on main: `respRate` carries null unless `peakP > 0`, `respRateReason` names the absence, and both window roads null their median the same way |
+| C-F7 | PulseDex `_bare` helpers | fabricate on zero denominators | row `2026-11-15-pulsedex-bare-estimators-fabricate-on-nulls`, which reads `fixed #5116` |
+| C-F8 | HRVDex rolling windows | row-count windows with no span bound | row `2026-11-15-hrvdex-seven-day-window-has-no-span-bound`, which reads `fixed #5132`, and `_dayWindow` bounds the window by calendar day |
 | C-F9 | MotionDex `bodyPosition` | a zero distribution over zero covered epochs | unverified |
 | C-F10 | EEGDex `analyze` | every epoch stamped conf 0.5 | unverified |
 | C-F11 | Integrator | a fixed conf 0.6; a correlation from one pair | unverified (source-only) |
