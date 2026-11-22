@@ -5522,6 +5522,11 @@ async def run_muse_athena(dev: dict, root: str):
                 last_rx = [_time.monotonic()]
                 refused = [0]  # frames that did not tokenise this session, and why
                 refused_reasons: dict = {}
+                # THE PULSE CARD APPEARS WITH THE FIRST 0x34 RECORD, not at connect: a preset with no
+                # 0x34 optics must not show an empty PPG card. The `ppg_` key puts it in the monitor's
+                # pulse family, so the card draws the 4 channels and derives a live heart rate.
+                ppg_key = _live_key("ppg", _dev_tag(dev))
+                ppg_live = [False]
 
                 def on_data(_c, data, wr=wr, arr_wr=arr_wr):
                     raw = bytes(data)
@@ -5547,6 +5552,20 @@ async def run_muse_athena(dev: dict, root: str):
                             eeg = muse_athena.eeg_samples(r)
                             if eeg is not None:
                                 BUS.push(eeg_key, [row[:MUSE_LIVE_CHANNELS] for row in eeg], MUSE_EEG_HZ, dev_ns=r_ns)
+                            opt = muse_athena.optics4(r)
+                            if opt is not None:
+                                if not ppg_live[0]:
+                                    BUS.register(
+                                        ppg_key,
+                                        f"PPG ({name})",
+                                        "raw",
+                                        muse_athena.OPTICS4_HZ,
+                                        muse_athena.OPTICS4_CHANNELS,
+                                        muse_athena.OPTICS4_LABELS,
+                                        device=name,
+                                    )
+                                    ppg_live[0] = True
+                                BUS.push(ppg_key, opt, muse_athena.OPTICS4_HZ, dev_ns=r_ns)
                     # A refused packet is still written: the raw frame is the record, the decode is not.
                     wr.write_muse(arrival, first_ns, muse_athena.frame_counter(raw), raw)
                     if pkt is None:

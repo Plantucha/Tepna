@@ -12,8 +12,9 @@
 # record index, the 24-bit device tick field, and the bit packing of the optics and motion records.
 # Measured on the worn probe of 2026-11-14 (brief §6): the GATT table, the control channel and its
 # start sequence, the battery in record 0x88, the EEG record as 2 samples x 8 channels, and the sizes
-# of three more tags (0x11, 0x34, 0x35). Those three have layouts INFERRED from their sizes only, so
-# this module tokenises them and returns their bytes raw. It never guesses a layout.
+# of three more tags (0x11, 0x34, 0x35). 0x11 and 0x35 have layouts INFERRED from their sizes only, so
+# this module tokenises them and returns their bytes raw. It never guesses a layout. The 0x34 layout
+# was measured on the worn test of 2026-11-15: see `optics4`.
 #
 # ABSENCE (CLAUDE.md §∅): a packet that does not tokenise is refused with a named reason and yields
 # no sample; a jump in a counter is reported as a count of lost packets or records. Nothing is filled.
@@ -41,7 +42,7 @@ TAG_53 = 0x53  # meaning unresolved
 TAG_88 = 0x88  # battery in its first two data bytes (brief §6.4); the other 18 bytes unresolved
 TAG_BATTERY = TAG_88
 TAG_11 = 0x11  # layout INFERRED from the size only (brief §6.7): kept raw
-TAG_34 = 0x34  # layout INFERRED from the size only: kept raw
+TAG_34 = 0x34  # 4 optical channels, 3 samples a record at 64 Hz: see `optics4`
 TAG_35 = 0x35  # layout INFERRED from the size only: kept raw
 
 # Whole record size per tag, head included. Solved from the capture: with the first five sizes all
@@ -74,6 +75,19 @@ EEG_SAMPLES = 2
 EEG_ELECTRODES = ("left-ear", "left-forehead", "right-forehead", "right-ear")
 OPTICS_CHANNELS = 16  # 20-bit, LSB-first, one sample per record
 OPTICS_WIDTH = 20
+# THE 0x34 RECORD: 3 samples x 4 optical channels, 20-bit LSB-first, sample after sample.
+# MEASURED on the worn test of 2026-11-15 (632 s, preset p1045, 13 537 records):
+#   · the most common device-tick step from record to record is 46.875 ms (12 892 of 13 536 steps),
+#     which is 3/64 s, so a record holds 3 samples at 64 Hz;
+#   · read sample-major, each of the 4 channels shows the same pulse period over the last 180 s
+#     (autocorrelation peak 0.87-0.93 at 1.03 s, 58 bpm, 2 s detrend); read channel-major, none does;
+#   · PPGDex on these channels found 594 beats, HR 58, RMSSD 40.8.
+# All 4 channels pulse, so none is an ambient channel. Which LED or photodiode each one is stays
+# unmeasured, so they keep a wire number and no name.
+OPTICS4_CHANNELS = 4
+OPTICS4_SAMPLES = 3
+OPTICS4_HZ = 64.0
+OPTICS4_LABELS = ("optic 1", "optic 2", "optic 3", "optic 4")
 MOTION_CHANNELS = 6  # int16 little-endian, sample-major
 MOTION_SAMPLES = 3
 
@@ -165,6 +179,17 @@ def optics(rec: Record) -> list[int] | None:
     if rec.tag != TAG_OPTICS or len(rec.data) != RECORD_SIZE[TAG_OPTICS] - RECORD_HEAD:
         return None
     return unpack_lsb(rec.data, OPTICS_WIDTH)[:OPTICS_CHANNELS]
+
+
+def optics4(rec: Record) -> list[tuple[int, ...]] | None:
+    """The 3 samples of 4 raw 20-bit optical values in one 0x34 record, sample after sample.
+
+    The record tick is read as the LAST sample, as for the other records. Raw counts: the scale is
+    not measured."""
+    if rec.tag != TAG_34 or len(rec.data) != RECORD_SIZE[TAG_34] - RECORD_HEAD:
+        return None
+    v = unpack_lsb(rec.data, OPTICS_WIDTH)
+    return [tuple(v[s * OPTICS4_CHANNELS : (s + 1) * OPTICS4_CHANNELS]) for s in range(OPTICS4_SAMPLES)]
 
 
 def motion(rec: Record) -> list[tuple[int, ...]] | None:
