@@ -47,8 +47,10 @@
  * nobody ran is what this row is about — and the suite's failure text says which file moved, so an
  * inert edit is cheap to dispose of.
  *
- * This tool WRITES the pin. It decides nothing and emits no verdict: the gate is
- * `treatment-response · pinned yield` in `tests/dex-tests.js`, which is where the decision belongs.
+ * This tool WRITES the pin. It decides nothing and emits no verdict: the gates are
+ * `treatment-response · pinned yield` (the closure the yield was measured under) and
+ * the chain legs inside it (the pin holds no digest its own notes cannot explain), both in
+ * `tests/dex-tests.js`, which is where the decision belongs.
  *
  *   node tools/analysis-rerun.mjs --only treatment-response-analysis.html --paper-scale --out <rerun.json>
  *   node tools/treatment-response-yield-pin.mjs --rerun <rerun.json> [--out analysis/treatment-response-yield-pin.json]
@@ -700,8 +702,12 @@ function main(argv) {
      closure digest moved could not be read without spending the run that rewrites it, and the row
      above carries no count for that reason. This mode reads the pin on disk, hashes the live
      closure files, and prints the same gaps. It runs no generator, boots no page and writes no
-     file. The exit code follows the consumer: nothing in `npm run check` reads this tool, so a GAP
-     is the finding rather than a failure, and only a pin it cannot read answers 2. */
+     file. The exit code follows the consumer: this mode is the READER's view of the live tree, so
+     a GAP is the finding rather than a failure, and only a pin it cannot read answers 2. The GATE
+     over the same arithmetic sits in `treatment-response · pinned yield` in `tests/dex-tests.js` (residue
+     `2026-11-22-eight-closure-moves-in-the-yield-pin-chain-carry-no-note`). It judges the PIN
+     against its own notes, never the tree, and it reds on a digest pair its baseline does not
+     name — so a re-cut that skips its note no longer lands quietly. */
   if (argv.includes('--chain')) {
     const pinPath = arg('--pin', PIN);
     if (!existsSync(pinPath)) {
