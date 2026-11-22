@@ -1694,3 +1694,86 @@ thousands of in-band zeros through every green gate because the rule was never w
   owes the rebuild:** the same line in `oxydex-render.js` moves `manifestHash` and holds OxyDex's
   `computeHash` at `93f4d577efcd` (measured 2026-11-10 through `manifest-gate.js computeClosure`;
   the earlier rule here read "an inert shared-module addition does not require re-bundling").
+
+## Moved from CLAUDE.md 2026-11-22, second cut (owner "yes" to a deeper cut)
+
+The text below left CLAUDE.md verbatim. CLAUDE.md keeps a one-line rule and points here.
+
+### §🔒.7 hostAxis — the full contract
+
+### 7. The host-disciplined axis — `DexClock.hostAxis` governs the RATE
+Every capture-host / Polar-Sensor-Logger row carries two clocks (`Phone timestamp` = host,
+`sensor timestamp [ns]` = device). **A node never hand-rolls a rate correction**: call `hostAxis`,
+consume `correctionAt()`.
+- An anchor is `{ devMs, hostMs }` from the SAME row; non-finite members dropped, sorted by `devMs`;
+  divergence relative to the first anchor.
+- **≥3 anchors** (refuse below); **running median width 21, never a fit**
+  (CLAIM axisMedianWidth = 21 FROM clock.js#CK_AXIS_WIN; host stamps carry BLE jitter; the O2Ring's
+  divergence is the LINK stalling, non-linear); **linear between anchors, FLAT outside them**;
+  **read `ppmEstimator` before you read `ppm`.** The end-clamp pulls each end inward by 5 anchors'
+  drift. `'end-to-end-median'` divides that clamp out and carries no such bias; `'single-window'`
+  (n ≤ 21, or a degenerate span) still under-reads by `1 − 5/(n−1)`, and
+  `correctionAt(firstAnchor)` carries the bias under both.
+- **`CK_AXIS_MAX_PPM = 50000` is a refusal bound, not a clamp.** A refusal returns `{ ok:false, reason,
+  n }` with no `correctionAt`; the node keeps the device axis and says so. **A refusal guards the RATE,
+  not the AXIS** — a stepped device counter still spans the step in `relSec`; step detection and
+  re-anchoring live on the axis (`_clockResyncs`, MotionDex/ECGDex), and a node without it owes a tripwire.
+- No span gate here (it interpolates); a consumer reading **`.ppm`** quotes a rate and needs a baseline
+  (`ecgdex-dsp.js` gates `fs` correction at 2400 s). **`ppm` and `maxStepMs` are diagnostics** — never
+  quote `ppm` without anchor count and span; for "does this drift / how long to average" use the Allan
+  curve (`capture-host/allan.py`, `ALLAN-DEVIATION-2026-08-12-BRIEF`), never an SD or a two-half fit.
+- **First ask whether there IS a second clock — read `independent` (`spreadMs > 2 ms`), never a ~0
+  ppm.** A phone capture's host column is the device time rounded: no second clock. A stream whose
+  inter-sample deltas are ≥67 % one value was DRAWN (`quality.timingSource`; `CK_AXIS_DRAWN_SHARE` in
+  `clock.js`) and is never a clock.
+- **One device clock per axis:** a resync is a change of clock. Build the axis from anchors at or after
+  the LAST resync; earlier rows get the first post-seam anchor's flat correction; count the dropped
+  (`hostAxis.anchorsDroppedPreResync`) and surface `clockResyncs[].hostOffsetMs` (ECGDex does; any node
+  that detects steps and calls `hostAxis` owes the same split).
+- This places every device on ONE timebase; the host's own correctness is the host's business.
+
+### §🔏 gates — hash recipes and record shapes
+
+Ledgers are per-app `provenance/<App>.json` fragments (+ `_meta.json`, `index.json`), reassembled by
+`provenance-ledger.js` into the `{ bundles }` / `{ fixtures }` views named `BUILD-MANIFEST.json` /
+`FIXTURE-PROVENANCE.json` below. **`verify-provenance.html`** is pure-static and content-addressed
+(hashes files, boots nothing); read `window.__provenanceOK` / `__gateA_ok` / `__gateB_ok`, never the body.
+
+- **GATE A — code identity.** Each bundle's **`manifestHash`** must equal `BUILD-MANIFEST.json`: per
+  `data-inline-src` block `logicalName \0 sha256(text)`, sorted, SHA-256[0:12] — deterministic, moving
+  only on a code change (`manifest-gate.js manifestHashFromText`; `tests/verify-manifest.mjs`). A legacy
+  gzip+UUID bundle hashes to `null`. `buildHash` has retired: the build still stamps it, nothing reads it.
+- **GATE B — known answers.** Each fixture in `FIXTURE-PROVENANCE.json` is `hash(input) + manifestHash →
+  hash(output)`; reproducible only while all three still match (`manifest-gate.js gateBEvaluate`).
+  Records are `{ bundle, manifestHash, inputHashes, outputHash }` or `{ bundle, historical:true,
+  outputHash }` (byte-pinned, not code-gated). The keys ARE the audited set.
+- **GATE C — equivalence** in `Dex-Test-Suite.html`: `env.equiv.*` runs `compute({committed input}) ≡
+  committed export` (volatile-stripped) per node; when a leg reds, regenerate **all** that node's fixtures.
+
+### §🔏 regen-goldens — the per-node list
+
+- **Regenerate a moved fixture OUTPUT by re-running the app on its committed inputs**, never by
+  editing a hash: `tools/regen-<node>-goldens.mjs` — nine of them (`cpap` 5 fixtures · `ecgdex` 4 ·
+  `glucodex` 3 · `hrvdex` 3 · `integrator` 3 · `motiondex` 1 · `oxydex` 3 · `ppgdex` 6 · `pulsedex` 3) on
+  `regen-goldens.mjs` + `regen-goldens-core.mjs`. Check for your node's tool before costing a regen.
+
+### §📌 residue rules — the full wording
+
+- **Residue → `briefs/RESIDUE.md`, one row per verified defect, never a new `-FOLLOWUPS-` brief**
+  (owner, 2026-09-02): `| <key> | logged | source | defect | evidence | state |`, key
+  `YYYY-MM-DD-short-slug` (never a counter), source = a brief (which gets `**Residue:** <key>` on its
+  status line), a repo path, or `#NNNN` — the real origin, never the nearest brief. You append a row
+  and close it (`fixed #NNNN` or `→ \`<NAME>-BRIEF.md\``), and you never edit one. Only the session
+  picking a row up creates a `-FOLLOWUPS-` brief. **A fix for a row that is already on main declares
+  it on a `Residue-fixed: <key>` line in the PR body.** After the merge, the walker opens the
+  RESIDUE-only PR that writes `fixed #<your PR>`, so no session spends a unit on that cell.
+- 🔴 **A code PR does not touch `briefs/RESIDUE.md`** (owner, 2026-11-07). A fix that ships
+  needs no row, because its changeset records it. Log a finding you do not fix in a RESIDUE-only PR,
+  and close a row through `Residue-fixed:`. Only one RESIDUE-only PR is in flight across the fleet.
+- 🔴 **PICK A ROW UP FROM THE REF, NEVER FROM YOUR WORKING COPY** (*why → RATIONALE §📌*). A checkout is
+  behind the ledger most of the time, and a stale copy still reads as a well-formed table. Two reads are right whatever your checkout is
+  at: `node tools/residue-ids.mjs --open`, which names every row your copy gets wrong, and
+  `git show origin/main:briefs/RESIDUE.md`. A worktree cut from the ref is current by construction.
+  Hook-enforced by `guard-stale-ledger.sh`, which denies a read whose row states disagree with the
+  ref and names the first disagreement; hatch `CLAUDE_ALLOW_STALE_LEDGER=1`. The criterion is the FILE, not
+  `behindCommits`; §👥.2's hook caveat holds.
