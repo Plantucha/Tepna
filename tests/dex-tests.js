@@ -92237,6 +92237,86 @@
      severity bands, and — in the browser lane (parseNsrrXml needs DOMParser) — profusion-XML event
      classification + AHI = (apnea+hypopnea)/TST. Same bug-class the O2Ring .dat / ResMed-EDF adapter
      gates already guard. Expected values observed from the real module + closed-form derivation. */
+    /* ∅ THE THIRD ROAD OF ONE FORMULA. `vo2Adj` scales a VO₂ base by ln(rMSSD) against a 3.4
+       reference. Two roads refuse an absent input and one did not: `pulsedex-app.js` guards it
+       (pinned earlier in this file) and `ppgdex-profile.js` guards it, while `ecgdex-profile.js`
+       read the rMSSD through `Math.log(Math.max(1, r.dispRm))`. `Math.max(1, null)` is 1, so an
+       unmeasured night took the whole minus 8 per cent arm and published a number under a badge.
+       `Math.max(1, undefined)` is NaN, which passes every `!= null` test downstream. The same
+       statement also read an absent HR as 0 through `Math.round(null)`, so `vo2Base` divided by
+       zero and answered Infinity. Each arm gets its own leg, because they fail differently: the
+       null arm fell out as a measured-looking 46.1, the undefined arm as NaN, and the HR arm as
+       Infinity. A MEASURED zero keeps its clamped answer, which is why the floor itself stays. */
+    group('ECGDex profile · an absent rMSSD or an absent HR carries no VO₂ estimate', 'ecgdex-profile · absence · vo2 · known-answer', function (T) {
+      var P = env.DexProfile;
+      var ready = !!(env.ECGProfile && P && typeof P._setStore === 'function' && typeof P.setManual === 'function');
+      T.ok('ECGProfile + the DexProfile store are wired into env (both lanes)', ready, 'ECGProfile or DexProfile._setStore missing');
+      if (!ready) return;
+      var mk = function () {
+        var m = {};
+        return {
+          getItem: function (k) {
+            return k in m ? m[k] : null;
+          },
+          setItem: function (k, v) {
+            m[k] = String(v);
+          },
+          removeItem: function (k) {
+            delete m[k];
+          }
+        };
+      };
+      var fresh = function () {
+        P._setStore(mk());
+        P.setManual('age', 40);
+        P.setManual('sex', 'M');
+        P.setManual('elevation', 0);
+        P.setManual('cpap', 'no');
+      };
+      var nonFinite = function (o) {
+        var bad = [];
+        for (var k in o) if (typeof o[k] === 'number' && !isFinite(o[k])) bad.push(k);
+        return bad.join(',');
+      };
+
+      // ── CONTROL · every input measured (age 40 M, short strip, sea level) ──────────────
+      fresh();
+      var ok = env.ECGProfile.personalize({ hr: 55, longRec: false, dispRm: 40, ambulatory: false });
+      T.approx('CONTROL · a measured rMSSD still publishes the adjusted VO₂', ok.vo2adj, 51.5, 0.05);
+      T.eq('CONTROL · no non-finite number reaches the measured record', nonFinite(ok), '');
+
+      // ── ARM 1 · a null rMSSD ──────────────────────────────────────────────────────────
+      fresh();
+      var n1 = env.ECGProfile.personalize({ hr: 55, longRec: false, dispRm: null, ambulatory: false });
+      T.eq('a null rMSSD refuses the adjusted VO₂, rather than taking the floored minus 8 per cent', n1.vo2adj, null);
+      T.approx('…while the UNADJUSTED base stays measured, so only the modulation goes', n1.vo2base, 50.1, 0.05);
+
+      // ── ARM 2 · an undefined rMSSD (the NaN road) ─────────────────────────────────────
+      fresh();
+      var n2 = env.ECGProfile.personalize({ hr: 55, longRec: false, ambulatory: false });
+      T.eq('an undefined rMSSD refuses too, rather than publishing NaN', n2.vo2adj, null);
+      T.eq('…and no non-finite number reaches that record either', nonFinite(n2), '');
+
+      // ── ARM 3 · a MEASURED zero keeps the clamp the floor stood in for ────────────────
+      fresh();
+      var z = env.ECGProfile.personalize({ hr: 55, longRec: false, dispRm: 0, ambulatory: false });
+      T.approx('a MEASURED zero rMSSD keeps the clamped minus 8 per cent, because the floor equals that clamp', z.vo2adj, 46.1, 0.1);
+
+      // ── ARM 4 · an absent HR on a short strip ────────────────────────────────────────
+      fresh();
+      var h = env.ECGProfile.personalize({ hr: null, longRec: false, dispRm: 40, ambulatory: false });
+      T.eq('an absent HR publishes no resting HR, rather than 0 bpm', h.autoRHR, null);
+      T.eq('…so the VO₂ base refuses, rather than answering Infinity', h.vo2base, null);
+      T.eq('…and the adjusted VO₂ refuses with it', h.vo2adj, null);
+      T.eq('…and no non-finite number reaches the record', nonFinite(h), '');
+
+      // ── ARM 5 · CONTROL · the overnight road derives its own resting HR ───────────────
+      fresh();
+      var o = env.ECGProfile.personalize({ hr: null, longRec: true, epochs: [{ hr: 52 }, { hr: 54 }, { hr: 50 }, { hr: 58 }, { hr: 60 }], dispRm: 20, ambulatory: false });
+      T.eq('CONTROL · the overnight road reads the resting HR from the nocturnal floor', o.autoRHR, 58);
+      T.ok('…so an absent mean HR does not disable the overnight VO₂', o.vo2base != null && o.vo2adj != null, String(o.vo2base) + '/' + String(o.vo2adj));
+    });
+
     /* ════ ResMed EDF session-set grouping — ±60 s window known-answer (deep-scout §AD) ════
        resmed-edf.groupSessionSets is a PURE name-list function (no filesystem): it clusters SD-card streams
        within ±60 s of a set's anchor, opening a new set when a TYPE repeats. The ±60 s window is INCLUSIVE
