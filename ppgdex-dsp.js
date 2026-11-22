@@ -7052,7 +7052,15 @@
     const events = buildEvents({ epochs, nn, tt: corr.tt, t0Ms: rec.t0Ms, motion, det, sqi, peakSec, morph });
 
     P(92, 'Finalising…');
-    const dispHr = longRec && epochs.length ? median(epochs.map((e) => e.hr)) : td.hr;
+    /* PPGDEX-HR-WINDOW (residue 2026-11-22-ppgdex-publishes-an-epoch-median-hr-in-a-wholerecord-block):
+       ONE predicate feeds the value AND its window name, so the two can never disagree. `dispHr` is the
+       DISPLAY rate — the 5-min epoch median on a record over 90 min, the whole-record rate below that.
+       ECGDex spells the same pair as hrv.time.hr plus hrv.time.wholeRecordHR, and this node publishes
+       `hrWindow` beside them because its own hrv.time block carries a `window: 'wholeRecord'` label that
+       the rate does not obey. The vocabulary is the repo's: 'epochMedian5min' and 'wholeRecord'. */
+    const hrIsEpochMedian = longRec && epochs.length > 0;
+    const dispHr = hrIsEpochMedian ? median(epochs.map((e) => e.hr)) : td.hr;
+    const dispHrWindow = hrIsEpochMedian ? 'epochMedian5min' : 'wholeRecord';
 
     return {
       source: rec.source || 'file',
@@ -7100,6 +7108,7 @@
       nBeats: det.peaks.length,
       hr: td.hr,
       dispHr,
+      dispHrWindow,
       dispRm: td.rmssd,
       dispSd: td.sdnn,
       dispPn: td.pnn50,
@@ -7721,7 +7730,7 @@
   //  row; OxyDex first, ECGDex second — `ecgBuildMeasurementBlocks` is the recipe this mirrors). Two
   //  headline metrics, one block each, keyed by the PPG registry id (`hr` = Pulse HR · `rmssd`), values =
   //  the WHOLE-RECORD numbers `r.hr` / `r.rmssd` — `timeDomain(nn, cleanMask, spansOmit, adj)` over the
-  //  entire Malik-corrected NN train, the numbers the rich export already publishes as hrv.time.{hr,rmssd}
+  //  entire Malik-corrected NN train, the numbers the rich export publishes as hrv.time.{wholeRecordHR,rmssd}
   //  and the Integrator reads as its consensus axis. The block adds LINEAGE, never a second computation.
   //
   //  ⚠️ THE RULE THIS ROW EXISTS FOR (§12 PpgDex row; §∅ owner ruling 2026-09-17): a `clock-seam` refusal
@@ -8515,13 +8524,19 @@
           sdnnIndex: nz(r.sdnnIndex),
           sdnnRobust: nz(r.sdnnRobust),
           sd2Robust: nz(r.sd2Robust),
+          /* Additive, so no existing key moves. `wholeRecordHR` is the rate this block's `window`
+             label describes, under ECGDex's own name; `hrWindow` names the window that governs `hr`
+             itself. §∅ — an absent window reads null, never a borrowed label. */
+          wholeRecordHR: nz(r.hr),
+          hrWindow: r.dispHrWindow == null ? null : r.dispHrWindow,
           window: 'wholeRecord',
           units: 'ms',
           lowConfidence: !!r.hrvLowConfidence,
           lowConfidenceReason: r.hrvLowConfidenceReason || null,
           // \u00a72 \u2014 additive: absent on every clean night, so no existing export moves.
           ...(r.hrvShapeViolation ? { shapeViolation: true } : {}),
-          windowNote: 'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.',
+          windowNote:
+            'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD. hr is the DISPLAY rate instead: the 5-min epoch median on a record over 90 min, the whole-record rate below that. hrWindow names which one this export carries, and wholeRecordHR is the cross-node HR axis.',
           sdnnNote:
             'whole-record sdnn runs high on optical — SDANN/baseline-wander inflation the chest ECG does not carry. sdnnIndex (mean of per-5-min SDNN) and sdnnRobust (quality-gated MEDIAN of per-5-min SDNN) both remove it, sdnnRobust the most; use sdnnRobust for cross-node SDNN comparison. Bias magnitudes are deliberately not quoted here: the earlier figures came from a single paired night and did not reproduce on the multi-night corpus.'
         },
