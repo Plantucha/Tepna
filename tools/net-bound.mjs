@@ -36,9 +36,15 @@
  *     Zotero page). `update-watch` already treats 20 s as normal for one such lookup and 60 s for the
  *     slowest, so 30 s sits inside the band that file's own code states.
  *
+ * EVERY ONE OF THOSE NUMBERS IS THEN CAPPED TO WHAT THE HTTP CLIENT ALLOWS — 295 s, being its own
+ * measured 300 s header bound less a 5 s margin. So the `model` class asks 600 s and keeps 295 s,
+ * because a bound past the client's cannot fire and the caller reads the client's opaque text
+ * instead of ours. The constant below carries the measurement.
+ *
  * A caller that needs a different number passes `ms`, and it states its reason at the call site. The
  * environment overrides both: `DEX_NET_TIMEOUT_MS` for every class at once, `DEX_NET_MODEL_TIMEOUT_MS`
- * and `DEX_NET_API_TIMEOUT_MS` per class.
+ * and `DEX_NET_API_TIMEOUT_MS` per class. `DEX_NET_CLIENT_TIMEOUT_MS` moves the cap, and a declared 0
+ * removes it.
  *
  * 🔴 NEVER `AbortSignal.timeout()`. THAT HELPER'S TIMER IS UNREF'D, so it cannot fire in a realm whose
  * only pending work is the request — which is exactly a selftest against an injected fetch. Measured
@@ -62,6 +68,27 @@ import { isCliEntry } from './argv-guard.mjs';
    criterion and belongs in that paragraph too. */
 export const NET_CLASS_MS = { model: 600_000, api: 30_000 };
 
+/* 🔴 THE HTTP CLIENT HOLDS A BOUND OF ITS OWN, AND THE `model` CLASS SITS TWICE PAST IT.
+   Node's `fetch` abandons a request whose headers do not arrive within 300 s and throws
+   `TypeError: fetch failed` with `cause.code = UND_ERR_HEADERS_TIMEOUT`. Measured 2026-11-22: one
+   2-input embed sent with no signal of our own threw at 300.8 s with exactly that cause. So a
+   600 s bound cannot fire. The client cuts the socket at 300 s, the abort below never runs, and
+   the caller reads the client's opaque wrapper text instead of the reason this module exists to
+   give it. Measured the same day on the 15-minute index lane: 31 of 31 ticks logged
+   `EMBEDDER DOWN (fetch failed), token fallback`, and not one named a cause.
+   The client ships no way to move that bound from here 🠒 `undici` is not importable in this tree 🠒
+   so the only honest answer is to stop promising more than it allows. Every class bound is capped
+   just below it, so OUR abort lands first and names itself.
+   ONE MEASURED LIMIT ON THE CLAIM: a local server that accepts a request and never READS it did
+   not start that timer at all (no throw in 12 minutes, 2026-11-22). The bound applies to a server
+   that took the request and then went quiet, which is the stall this module is for. A reader whose
+   client holds another bound declares it in `DEX_NET_CLIENT_TIMEOUT_MS`, and a declared 0 keeps
+   every class bound whole. */
+export const CLIENT_HEADERS_TIMEOUT_MS = 300_000;
+/* Our abort must land FIRST, or the reason is the client's and names nothing we chose. */
+export const CLIENT_BOUND_MARGIN_MS = 5_000;
+const CLIENT_ENV = 'DEX_NET_CLIENT_TIMEOUT_MS';
+
 const CLASS_ENV = { model: 'DEX_NET_MODEL_TIMEOUT_MS', api: 'DEX_NET_API_TIMEOUT_MS' };
 const GLOBAL_ENV = 'DEX_NET_TIMEOUT_MS';
 
@@ -75,13 +102,51 @@ function posMs(v) {
 }
 
 /**
- * The bound for one call, in ms. Precedence, highest first: `DEX_NET_TIMEOUT_MS` (every class at
- * once), the class env var, the caller's own `ms`, the class default. An unknown class is `api`,
- * because the tighter of the two bounds is the safer default for a wait nobody classified.
+ * The client's own bound, or `null` when a reader declares there is none. A declared 0 means NONE
+ * here, which is why this reader cannot be `posMs`: that helper refuses a 0 so an unusable env var
+ * cannot become a 0 ms bound, and here a 0 carries a meaning of its own.
  */
-export function netTimeoutMs({ cls = 'api', ms = null, env = process.env } = {}) {
+export function clientBoundMs(env = process.env) {
+  const raw = env[CLIENT_ENV];
+  if (raw == null || raw === '') return CLIENT_HEADERS_TIMEOUT_MS;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return CLIENT_HEADERS_TIMEOUT_MS;
+  return n === 0 ? null : n;
+}
+
+/** A bound the client can keep: the one asked for, or the client's own less the margin. */
+export function capToClient(ms, env = process.env) {
+  const client = clientBoundMs(env);
+  if (client == null) return ms;
+  return Math.min(ms, Math.max(1, client - CLIENT_BOUND_MARGIN_MS));
+}
+
+/**
+ * The bound asked for by one call, in ms, BEFORE the client's own limit applies. Precedence,
+ * highest first: `DEX_NET_TIMEOUT_MS` (every class at once), the class env var, the caller's own
+ * `ms`, the class default. An unknown class is `api`, because the tighter of the two bounds is the
+ * safer default for a wait nobody classified.
+ */
+export function netStatedMs({ cls = 'api', ms = null, env = process.env } = {}) {
   const known = Object.hasOwn(NET_CLASS_MS, cls) ? cls : 'api';
   return posMs(env[GLOBAL_ENV]) ?? posMs(env[CLASS_ENV[known]]) ?? posMs(ms) ?? NET_CLASS_MS[known];
+}
+
+/** The bound this module can KEEP: the stated one, capped to what the client allows. */
+export function netTimeoutMs({ cls = 'api', ms = null, env = process.env } = {}) {
+  return capToClient(netStatedMs({ cls, ms, env }), env);
+}
+
+/**
+ * Names the limiter, and only when the CLIENT is the one that bound the wait. A caller that passes
+ * a smaller `ms` chose that wait itself, and a note blaming the client there names the wrong
+ * limiter \u2014 the borrowed reason this module forbids.
+ */
+export function netBoundNote({ cls = 'api', ms = null, env = process.env } = {}) {
+  const stated = netStatedMs({ cls, ms, env });
+  const kept = capToClient(stated, env);
+  if (!(kept < stated)) return '';
+  return ` (the HTTP client waits no longer, and this call asked for ${stated} ms)`;
 }
 
 /**
@@ -100,6 +165,16 @@ export function netFailureReason(err, endpoint = 'the endpoint') {
   if (code === 'ECONNREFUSED' || msg.includes('ECONNREFUSED')) return `${endpoint} refused the connection`;
   if (code === 'ENOTFOUND' || msg.includes('ENOTFOUND')) return `${endpoint} does not resolve`;
   if (code === 'ECONNRESET' || msg.includes('ECONNRESET')) return `${endpoint} closed the connection`;
+  /* 🔴 THE WRAPPER TEXT OF A FETCH FAILURE NAMES NOTHING, AND ITS CAUSE NAMES EVERYTHING.
+     `fetch` reports every failure the branches above do not cover as one opaque `fetch failed` and
+     parks the real reason on `err.cause`. Measured 2026-11-22: the index lane's own banner read
+     `fetch failed` for 31 of 31 ticks over 9 h 17 min, while the cause said
+     `UND_ERR_HEADERS_TIMEOUT` \u2014 a bound, not an unreachable host, and the chase went to the
+     backends before it came here. Falling through to `msg` names the CLASS of the failure, which
+     this function's own banner rule already forbids one line below. So the code travels, and the
+     cause message travels when there is no code. */
+  const detail = code || (typeof err?.cause?.message === 'string' ? err.cause.message : '');
+  if (detail && detail !== msg) return `${endpoint} ${msg || 'failed'} (${detail})`;
   return msg || 'the request failed with no message';
 }
 
@@ -109,9 +184,10 @@ export function netFailureReason(err, endpoint = 'the endpoint') {
  */
 export async function boundedFetch(url, init = {}, { cls = 'api', ms = null, label = null, env = process.env, fetchImpl = fetch } = {}) {
   const timeoutMs = netTimeoutMs({ cls, ms, env });
+  const note = netBoundNote({ cls, ms, env });
   const who = label || String(url).split('?')[0];
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(new Error(`${who} did not answer within ${timeoutMs} ms (bound class ${cls})`)), timeoutMs);
+  const timer = setTimeout(() => ac.abort(new Error(`${who} did not answer within ${timeoutMs} ms (bound class ${cls})${note}`)), timeoutMs);
   try {
     return await fetchImpl(url, { ...init, signal: ac.signal });
   } catch (e) {
@@ -146,7 +222,23 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   };
 
   /* ── the bound ─────────────────────────────────────────────────────────────────────────────── */
-  ok(netTimeoutMs({ cls: 'model', env: {} }) === 600_000, 'the model class defaults to 600 s');
+  /* 🔴 THE CLASS BOUND AND THE BOUND THAT IS KEPT ARE TWO NUMBERS. The model class asks 600 s;
+     the client allows 300 s, so 295 s is what any abort here can use. A leg asserting 600 s on the
+     KEPT bound asserted a number no request ever ran under. */
+  ok(netStatedMs({ cls: 'model', env: {} }) === 600_000, 'the model class still ASKS for 600 s');
+  ok(netTimeoutMs({ cls: 'model', env: {} }) === 295_000, '…and keeps 295 s, because the client cuts at 300 s');
+  ok(netBoundNote({ cls: 'model', env: {} }).includes('asked for 600000 ms'), '…and the breach text names the client as the limiter');
+  ok(netBoundNote({ cls: 'api', env: {} }) === '', 'an api call is inside the client bound, so nothing is named');
+  ok(netBoundNote({ cls: 'model', ms: 20, env: {} }) === '', 'a caller that chose its own bound is never told the client did it');
+  ok(capToClient(1_000_000, {}) === 295_000, 'a bound past the client comes back capped');
+  ok(capToClient(1_000, {}) === 1_000, '…and one inside it comes back whole');
+  ok(clientBoundMs({}) === 300_000, 'the client bound is pre-stated at the measured 300 s');
+  ok(clientBoundMs({ DEX_NET_CLIENT_TIMEOUT_MS: '60000' }) === 60_000, '…a reader can declare another client');
+  ok(clientBoundMs({ DEX_NET_CLIENT_TIMEOUT_MS: '0' }) === null, '…and a declared 0 means no client bound at all');
+  ok(netTimeoutMs({ cls: 'model', env: { DEX_NET_CLIENT_TIMEOUT_MS: '0' } }) === 600_000, '…which keeps the class bound whole');
+  ok(clientBoundMs({ DEX_NET_CLIENT_TIMEOUT_MS: 'abc' }) === 300_000, 'an unparseable declaration falls back to the measured bound');
+  ok(clientBoundMs({ DEX_NET_CLIENT_TIMEOUT_MS: '-5' }) === 300_000, '…and so does a negative one');
+  ok(capToClient(1, {}) === 1, 'a bound of 1 ms survives the cap, so the tightening hatches still work');
   ok(netTimeoutMs({ cls: 'api', env: {} }) === 30_000, 'the api class defaults to 30 s');
   ok(netTimeoutMs({ env: {} }) === 30_000, 'an unstated class is api, the tighter of the two');
   ok(netTimeoutMs({ cls: 'nonesuch', env: {} }) === 30_000, '…and so is an unknown class name');
@@ -240,6 +332,20 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   /* 🔴 `String(new Error(''))` is `'Error'` — the CLASS, not a reason. */
   ok(netFailureReason(new Error(''), 'h') === 'the request failed with no message', 'a failure with no message says that, and never names the CLASS instead');
   ok(netFailureReason('socket hang up', 'h') === 'socket hang up', 'a thrown string keeps its own text');
+  /* 🔴 THE CAUSE, which is the whole finding: the wrapper text is one word for every failure. */
+  const headersTimeout = Object.assign(new TypeError('fetch failed'), { cause: { code: 'UND_ERR_HEADERS_TIMEOUT', message: 'Headers Timeout Error' } });
+  ok(netFailureReason(headersTimeout, 'h') === 'h fetch failed (UND_ERR_HEADERS_TIMEOUT)', 'a client header timeout names its cause, never the wrapper text alone');
+  ok(netFailureReason(headersTimeout, 'h') !== 'fetch failed', '…so the reason names something a reader can act on');
+  ok(
+    netFailureReason(Object.assign(new TypeError('fetch failed'), { cause: { message: 'socket hang up' } }), 'h') === 'h fetch failed (socket hang up)',
+    'a cause with a message and no code travels on its message'
+  );
+  ok(
+    netFailureReason(Object.assign(new TypeError('fetch failed'), { cause: { code: 'UND_ERR_SOCKET' } }), 'h') === 'h fetch failed (UND_ERR_SOCKET)',
+    'an unfamiliar cause code travels rather than being swallowed'
+  );
+  ok(netFailureReason(Object.assign(new TypeError('fetch failed'), { cause: { message: 'fetch failed' } }), 'h') === 'fetch failed', 'a cause that repeats the wrapper text adds no empty parenthesis');
+  ok(netFailureReason(new TypeError('fetch failed'), 'h') === 'fetch failed', 'a failure with no cause at all keeps its own message');
 
   console.log(fail ? `\n✗ ${fail} failed, ${pass} passed` : `\n✓ all ${pass} selftests passed`);
   process.exit(fail ? 1 : 0);
