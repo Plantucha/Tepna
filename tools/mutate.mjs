@@ -214,7 +214,21 @@ const WANT_VERDICT = has('--verdict');
    is an UPPER BOUND on what those 16 workers needed, and the per-job figure below inherits that: it
    sizes a POOL conservatively (the direction that only ever shrinks it) and must never be quoted as a
    per-process number or used to set a `MemoryMax` — §4c's cap goes on the consumer, sized from VmHWM.
-   The honest per-process figure is still unmeasured here and the residue row stays open for it.
+   ⚠️ THE PER-PROCESS FIGURE IS NOW MEASURED, AND IT READS HIGHER THAN THIS CONSTANT. Measured
+   2026-11-22 on this box with `/usr/bin/time -v`: one worker (`node tests/run-tests.mjs
+   --group=oxydex-dsp`, 115 groups, 97 s) peaks at **1 494 392 kB** of its own RSS. So three
+   instruments now disagree in known directions — 7.88 GB by snapshot, 16.57 GB by cgroup peak, and
+   22.9 GB as a non-coincident sum of 16 per-process peaks — and none of the three pins the pool's
+   SIMULTANEOUS footprint. This constant therefore stays at 1 GiB: it sizes a pool from the cgroup
+   figure, and the paragraph above forbids reading a per-process number into it.
+   AND MOST OF A WORKER'S PEAK IS FIXED COST, PAID BEFORE ANY TEST RUNS. The same runner peaks at
+   1 148 144 kB under `--list`, which runs no group at all, and at 1 147 528 kB for one group. So the
+   marginal cost of 115 groups is about 347 MB against about 1.05 GB of load. Parsing
+   `tests/dex-tests.js` is not where the load goes: a probe that reads and parses its 7 398 183 bytes
+   peaks at 91 544 kB. A heap cap does not reach it either — `--max-old-space-size=512` lowers the
+   peak to 1 003 800 kB, and 256 aborts with exit 134. The cost is realm construction, which loads
+   every node's DSP before any group runs, so a worker that tests ONE node pays for all of them.
+   Lazy realm construction is how the ceiling below stops costing throughput, and it is its own unit.
    ⚠️ And do NOT reach for a `ps` snapshot as the alternative: the same 16 workers totalled 7.88 GB
    (mean 504 MB, median 499, p90 749, max 1038) — less than half the cgroup peak, because workers spike
    at different moments and an instantaneous sum never sees the overlap. Both instruments are wrong in
