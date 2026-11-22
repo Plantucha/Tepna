@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-11-22 · **Owner:** "yes" to a design, 2026-11-22 (token diet) · **Reopens, narrowly:** `QWEN-ENGINEERING-PROGRAM-2026-08-27-BRIEF.md` (shelved 2026-09-20)
+**Status:** IN-PROGRESS — 2026-11-22 · **Created:** 2026-11-22 · **Owner:** "yes" to a design, 2026-11-22 (token diet) · **Reopens, narrowly:** `QWEN-ENGINEERING-PROGRAM-2026-08-27-BRIEF.md` (shelved 2026-09-20)
 
 # Local qwen first-pass sweeps — design and the check on its output
 
@@ -100,8 +100,15 @@ the same files. If the qwen path is not cheaper after two batches, the lens reti
 
 - One sweep at a time. It yields when the mutation pipeline holds the model (the idle driver's
   `api/ps` probe).
-- A bird starts a sweep by hand, on demand. No timer: the owner shelved the idle-time piece on
-  2026-09-20, and this brief does not reverse that.
+- ~~A bird starts a sweep by hand, on demand. No timer.~~ **Reversed by the owner, 2026-11-22:** "build
+  some program feeding qwen and shrike. Preferably automatically, especially when fleet run out of
+  tokens, there will be 2 days of compute always ready". `tools/compute-feeder.mjs` runs as stage 6 of
+  `tools/qwen-idle-driver.sh` under the enabled `qwen-idle.timer`. Finch's `gpu-run.sh` pauses that
+  timer for a GPU job and resumes it after, and the feeder also refuses to load the model when the card
+  lacks the VRAM for it. It stops when the router's 1-input embed takes more than 2 s.
+- The same tool keeps two Shrike pools (owner, 2026-11-22). `queue/` holds 6 h that Shrike works while
+  the birds are awake. `reserve/` holds 48 h that Shrike does not read. `run` moves reserve tasks into
+  the queue when no bird posts on the board for 3 h. The tool writes files only and never prompts Shrike.
 - The 8 GB fleet RAM rule applies to the driver process. The model runs on the GPU.
 
 ## 4 · Known defect to fix first
@@ -113,9 +120,9 @@ case and reports a marker that is absent.
 
 ## 5 · Acceptance
 
-- [ ] `tools/qwen-lead-check.mjs`, with a self-test that feeds it one fabricated line number and one
+- [x] `tools/qwen-lead-check.mjs`, with a self-test that feeds it one fabricated line number and one
       stale lead, and a registered verdict.
-- [ ] The §4 marker fix in `tools/qwen-agent.mjs`.
+- [x] The §4 marker fix in `tools/qwen-agent.mjs`.
 - [ ] One ABSENCE batch over 10 root `*-dsp.js` files, triaged by a bird, with the precision and the
       token cost recorded in a new §6 of this brief.
 - [ ] A keep, narrow or retire decision for the lens, posted on the board as `--kind decision`.
