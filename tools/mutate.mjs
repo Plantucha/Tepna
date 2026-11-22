@@ -214,21 +214,32 @@ const WANT_VERDICT = has('--verdict');
    is an UPPER BOUND on what those 16 workers needed, and the per-job figure below inherits that: it
    sizes a POOL conservatively (the direction that only ever shrinks it) and must never be quoted as a
    per-process number or used to set a `MemoryMax` — §4c's cap goes on the consumer, sized from VmHWM.
-   ⚠️ THE PER-PROCESS FIGURE IS NOW MEASURED, AND IT READS HIGHER THAN THIS CONSTANT. Measured
+   ⚠️ THE PER-PROCESS FIGURE IS MEASURED, AND LAZY LOADING HAS SINCE MOVED IT. Measured
    2026-11-22 on this box with `/usr/bin/time -v`: one worker (`node tests/run-tests.mjs
-   --group=oxydex-dsp`, 115 groups, 97 s) peaks at **1 494 392 kB** of its own RSS. So three
-   instruments now disagree in known directions — 7.88 GB by snapshot, 16.57 GB by cgroup peak, and
-   22.9 GB as a non-coincident sum of 16 per-process peaks — and none of the three pins the pool's
-   SIMULTANEOUS footprint. This constant therefore stays at 1 GiB: it sizes a pool from the cgroup
-   figure, and the paragraph above forbids reading a per-process number into it.
-   AND MOST OF A WORKER'S PEAK IS FIXED COST, PAID BEFORE ANY TEST RUNS. The same runner peaks at
-   1 148 144 kB under `--list`, which runs no group at all, and at 1 147 528 kB for one group. So the
-   marginal cost of 115 groups is about 347 MB against about 1.05 GB of load. Parsing
-   `tests/dex-tests.js` is not where the load goes: a probe that reads and parses its 7 398 183 bytes
-   peaks at 91 544 kB. A heap cap does not reach it either — `--max-old-space-size=512` lowers the
-   peak to 1 003 800 kB, and 256 aborts with exit 134. The cost is realm construction, which loads
-   every node's DSP before any group runs, so a worker that tests ONE node pays for all of them.
-   Lazy realm construction is how the ceiling below stops costing throughput, and it is its own unit.
+   --group=oxydex-dsp`, 115 groups) peaked at **1 494 392 kB** of its own RSS before #5414, and at
+   **880 672 kB** after it, with the wall clock falling from 97 s to 71 s. #5414 reads the runner's
+   repo-wide static scans lazily. The mechanism was the eager `env` object, NOT realm construction,
+   which three probes priced at 30 MB, 23 MB and 0 MB. A worker that runs ONE group now peaks at
+   267 396 kB, so the fixed load that used to dominate is gone.
+   🔴 AND THE POOL'S SIMULTANEOUS FOOTPRINT IS NOW PINNED, WHICH NO EARLIER INSTRUMENT DID.
+   Measured 2026-11-22 as `MemoryPeak` over ONE `systemd-run --user` cgroup holding N concurrent
+   workers of the heaviest shape above, with every worker green:
+
+     | N | runner       | MemoryPeak   | per worker |
+     |---|--------------|--------------|------------|
+     | 4 | before #5414 | 5.78 GiB     | 1.45 GiB   |
+     | 4 | after #5414  | 3.14 GiB     | 0.79 GiB   |
+     | 8 | after #5414  | **6.11 GiB** | 0.78 GiB   |
+
+   The 4-worker pair ran in ONE worktree with one file swapped, so the corpus and the group set are
+   identical across it. By that per-worker charge, 8 workers before #5414 would read about 11.6 GiB,
+   over the rule below. That is how `tepna-nightly-triage.service` died `Result=oom-kill` on
+   2026-11-21. That leg stayed unrun on purpose: it would pressure the box and reap other sessions'
+   gates, which is the failure this constant exists to prevent.
+   So the ceiling of 8 below is measurement-backed rather than arithmetic, and `JOB_BYTES` stays at
+   1 GiB. It sits just above the 0.78 GiB a pooled worker charges, which is the conservative
+   direction. The 2026-09-14 paragraph above still governs the shape of the claim: a pool figure may
+   size a pool, and a per-process figure may not.
    ⚠️ And do NOT reach for a `ps` snapshot as the alternative: the same 16 workers totalled 7.88 GB
    (mean 504 MB, median 499, p90 749, max 1038) — less than half the cgroup peak, because workers spike
    at different moments and an instantaneous sum never sees the overlap. Both instruments are wrong in
