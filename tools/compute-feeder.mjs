@@ -17,8 +17,8 @@
  *           Guards: it starts only when the card has VRAM for the model (a running GPU job keeps it out),
  *           it probes the router's 1-input embed between sites and stops when doc-search slows past 2 s,
  *           and it unloads the model at the end. A done-ledger keyed lens:file:blob skips answered work.
- *   shrike  keep two pools: `queue/` (Shrike works it now, --now-hours, default 6) and `reserve/` (Shrike
- *           never reads it; --reserve-hours, default 48, for when the fleet runs out of tokens). First batches of
+ *   shrike  keep two pools: `queue/` (Shrike works it now, --now-hours, default 6) and `reserve/` in the state folder (Shrike
+ *           cannot see it; --reserve-hours, default 48, for when the fleet runs out of tokens). First batches of
  *           kept qwen leads to verify, then whole-file lens audits, newest-changed files first. It NEVER
  *           prompts Shrike (Freebuff counts a scripted prompt as a policy strike); Shrike's HOUSE-RULES
  *           make it take the next queue file by itself.
@@ -43,7 +43,7 @@
  *   node tools/compute-feeder.mjs --selftest
  */
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -56,6 +56,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const STATE = process.env.COMPUTE_FEEDER_STATE || join(primaryGitDir(), 'tepna-mutation', 'compute-feeder');
 const OLLAMA = process.env.QWEN_FEEDER_OLLAMA || 'http://127.0.0.1:11434';
 const OUTBOX = process.env.SHRIKE_OUTBOX || '/srv/shrike-outbox';
+// The reserve lives in the feeder state, outside the outbox: Shrike reads every folder it can see (2026-11-22).
+const RESERVE = process.env.COMPUTE_FEEDER_RESERVE || join(STATE, 'reserve');
 const VRAM = '/sys/class/drm/card1/device';
 const CONTEXT_LINES = 12;
 const EMBED_SLOW_MS = 2000;
@@ -401,18 +403,24 @@ function poolFiles(dir) {
 
 function runRelease({ wantH, dryRun, why }) {
   const q = join(OUTBOX, 'queue');
-  const r = join(OUTBOX, 'reserve');
+  const r = RESERVE;
   const queueH = queuedHours(q);
   if (queueH == null) return 0;
   const names = pickRelease(poolFiles(r), queueH, wantH);
-  for (const n of names) if (!dryRun) renameSync(join(r, n), join(q, n));
+  // copy then unlink: a new file takes the queue folder group and ACL, and the pools can sit on two filesystems
+  for (const n of names)
+    if (!dryRun) {
+      copyFileSync(join(r, n), join(q, n));
+      unlinkSync(join(r, n));
+    }
   log(`shrike: ${dryRun ? 'would release' : 'released'} ${names.length} reserve file(s) into the queue (${why})`);
   return names.length;
 }
 
 function runShrike({ nowHours, reserveHours, dryRun }) {
   const qdir = join(OUTBOX, 'queue');
-  const rdir = join(OUTBOX, 'reserve');
+  const rdir = RESERVE;
+  if (!dryRun) mkdirSync(rdir, { recursive: true });
   const qHave = queuedHours(qdir);
   if (qHave == null) {
     log(`shrike: no ${qdir}; skipped`);
@@ -493,7 +501,7 @@ function status() {
         qwen: { byLens, answeredItems: done.length },
         shrike: {
           queueHours: queuedHours(),
-          reserveHours: queuedHours(join(OUTBOX, 'reserve')),
+          reserveHours: queuedHours(RESERVE),
           issuedTasks: issued.length,
           lastBirdPost: lastBirdPostMs() ? new Date(lastBirdPostMs()).toISOString() : null
         }
