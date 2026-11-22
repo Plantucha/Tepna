@@ -49,7 +49,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import vm from 'node:vm';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { maskNonCode } from './argv-reads.mjs';
-import { dissentOf, dissentStampOf, dissentTally, dissentTallyLine, refpickOf, signsOf } from './consensus-dissent-core.mjs';
+import { dissentOf, dissentStampOf, dissentTally, dissentTallyLine, refpickOf, refpickStampLine, refpickTally, refpickTallyLine, signsOf } from './consensus-dissent-core.mjs';
 import { argAt, findCalls, scanFiles } from './consensus-polarity-wiring.mjs';
 import { gitCommitOf, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 import { runsSidecarPath } from './trio-fold-validity.mjs';
@@ -210,6 +210,18 @@ function readPick(text, masked, call) {
     const tregion = text.slice(at, before);
     const named = namedPickOf(stmt, stmtEnd === -1 ? tregion : tregion.slice(0, stmtEnd));
     if (named) return { rule: named.rule, expr, read: 'named', why: named.why + (guarded ? ', then moved by the harmonic-outlier guard' : '') };
+    /* 🔴 A STAMP-CARRYING SITE DECLARES ITS RULE ONE HOP FURTHER BACK.
+       `CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md` §3 asks each leg to print the rule behind its
+       feet, so a leg keeps the whole `refpickOf` return and reads `.idx` off it on the next line. The
+       rule literal then sits in the statement before the binding this scan traced. Following a plain
+       field read of another local binding reaches it. The field name is PINNED, so no other member
+       read hops, and the hop carries no `guarded` flag: it moves no pick. */
+    const hopStamp = stmt.match(/=\s*([A-Za-z_$][\w$]*)\.idx\s*;/);
+    if (hopStamp) {
+      name = hopStamp[1];
+      before = at;
+      continue;
+    }
     const am = argmaxOf(region, name);
     if (am) return { rule: am.rule, expr, why: am.why + (guarded ? ', then moved by the harmonic-outlier guard' : '') };
     if (SNR_PICK_RE.test(region))
@@ -636,6 +648,27 @@ function selftest() {
   fail += ok(namedPickOf('const r = refpickOf(per).idx;', 'const r = refpickOf(per).idx;').rule === 'unknown', 'a named call carrying no rule literal reads unknown, never the rule a reader assumed');
   const CMT = "/* refpickOf(per, 'snr-pick') */\nconst refIdx = 0;\n";
   fail += ok(namedPickOf(maskNonCode(CMT), CMT) === null, 'a call written inside a comment names nothing, because the call is located on the masked copy');
+  /* 🔴 THE STAMP-CARRYING SHAPE IS THE ONE EVERY CONVERTED LEG NOW WRITES, so this scan has to read
+     it. `CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md` §3 asks each leg to print the rule behind
+     its feet, and that costs one statement between the pick and the consumer. */
+  const STAMPED = "const refpick = refpickOf(per, 'peak-argmax');\nconst refIdx = refpick.idx;\nconst cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);\n";
+  fail += ok(pickOf(STAMPED).rule === 'peak-argmax' && pickOf(STAMPED).read === 'named', 'a leg that keeps the whole pick stamp still reads NAMED, one hop further back');
+  const OTHERFIELD = "const refpick = refpickOf(per, 'peak-argmax');\nconst refIdx = refpick.score;\nconst cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);\n";
+  fail += ok(pickOf(OTHERFIELD).rule === 'unknown', 'CONTROL · the hop is pinned to `.idx`, so a read of another field buys no rule');
+  /* The two printers §3 asks for. ∅ Three reads, three wordings: a stamp nobody built, a rule that
+     picked nothing, and a pick made among equals never borrow each other's words. */
+  const PICKED = refpickOf(PER(3, 9, 1), 'peak-argmax');
+  fail += ok(/channel 1 of 3 under peak-argmax/.test(refpickStampLine(PICKED)), 'the printed stamp names the channel, the channel count and the rule');
+  fail += ok(
+    /arbitrary among 2 equals/.test(refpickStampLine(refpickOf(PER(5, 5, 1), 'peak-argmax'))),
+    'a tie prints as arbitrary among equals, so a reader sees a reference nothing chose on evidence'
+  );
+  fail += ok(/no channel of 0 carried a readable score/.test(refpickStampLine(refpickOf([], 'peak-argmax'))), '∅ a set with no readable score prints that, never a channel the rule did not pick');
+  fail += ok(refpickStampLine(null) === '  reference pick: not read', '∅ a stamp the run never built prints `not read`, never a pick');
+  const ptal = refpickTally([PICKED, refpickOf([], 'peak-argmax'), null]);
+  fail += ok(ptal.streams === 2 && ptal.picked === 1 && ptal.unscored === 1 && ptal.unread === 1, 'an unread stream never pads a rule nothing picked it under');
+  fail += ok(ptal.byRule['peak-argmax'] === 2, 'the rule tally counts every stream the rule ran on, scored or not');
+  fail += ok(/no readable score/.test(refpickTallyLine([])), 'the pooled line names the unscored class even when it is empty');
   fail += ok(
     declarationAudit([{ ...ROW('a.mjs', 'snr-pick'), read: 'named' }], T).rows[0].declarationState === 'diverged',
     'naming a rule in code never overrides the table: a named site that disagrees with it still diverges'

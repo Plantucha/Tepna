@@ -50,7 +50,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
-import { dissentStampOf, dissentTallyLine, refpickOf, signsOf } from './consensus-dissent-core.mjs';
+import { dissentStampOf, dissentTallyLine, refpickOf, refpickTallyLine, signsOf } from './consensus-dissent-core.mjs';
 import { legacyMatchRate, strictMatchRate, circShift, rawLags } from './pat-matchrate-strict.mjs';
 import { isCliEntry } from './argv-guard.mjs';
 import { populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
@@ -208,13 +208,14 @@ function ppgFeet(text, runsText) {
   );
   /* The reference pick, NAMED at the site so the census reads a declaration rather than a loop
      shape, and a tie stops hiding: `consensus-dissent-core.mjs#refpickOf`. Same pick. */
-  const refIdx = refpickOf(per, 'peak-argmax').idx;
+  const refpick = refpickOf(per, 'peak-argmax');
+  const refIdx = refpick.idx;
   /* @polarity-decision applies
      The timing points this reads the host offset from now come from the whole channel set. */
   const cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
   const pts = TIMING_POINT === 'peak' ? cons.peaks : cons.feet;
   if (!pts) throw new Error('consensusBeats exposed no `' + TIMING_POINT + '` series');
-  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, idx: pts, polarity, polaritySigns };
+  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, idx: pts, polarity, polaritySigns, refpick };
 }
 /* idx -> host-axis ms. `idx/fs` IS the device's own clock by construction (that is what makes the
    axis drawn), so it is also the right argument to `correctionAt`. */
@@ -405,6 +406,7 @@ if (IS_CLI && process.argv.includes('--verdict-sample')) {
   /* KEYED BY PATH, because the pair loop reads one stream once per partner: a push per read would
      count a stream as many times as it was paired and inflate every class in the tally. */
   const polByPath = new Map();
+  const pickByPath = new Map();
   /* EVERY NIGHT LEAVES A ROW OR A REFUSAL. The header's "REFUSALS ARE LOUD" was true of the four
      mid-loop guards below and FALSE of the three exits around them, which emitted nothing at all.
      That is the §∅ failure one level up: a night that was never evaluated reads exactly like a night
@@ -472,7 +474,9 @@ if (IS_CLI && process.argv.includes('--verdict-sample')) {
           continue;
         }
         polByPath.set(pf.f, pr.polarity);
+        pickByPath.set(pf.f, pr.refpick);
         if (REF_MODE === 'ppg-ppg') polByPath.set(ef.f, er.polarity);
+        if (REF_MODE === 'ppg-ppg') pickByPath.set(ef.f, er.refpick);
         const lo = Math.max(er.t0Ms, pr.t0Ms);
         const hi = Math.min(er.t0Ms + er.durSec * 1000, pr.t0Ms + pr.durSec * 1000);
         if (hi - lo < WINDOW_MIN * 60000) {
@@ -628,6 +632,7 @@ if (IS_CLI && process.argv.includes('--verdict-sample')) {
     const rl = ruleLine(population);
     if (rl) console.log(rl);
     console.log(dissentTallyLine([...polByPath.values()]));
+    console.log(refpickTallyLine([...pickByPath.values()]));
     const validity = validityLine(VALIDITY);
     if (validity) console.log(validity);
     console.log('POPULATION ' + JSON.stringify(population));
