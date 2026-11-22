@@ -66426,6 +66426,21 @@
       T.eq('main moving 2 min ago means Kodiak is busy — no merge', ops(pl([quietCur], ST({}), CTX({ mainMovedAtMs: NOW - 2 * MIN }))), '');
       T.eq('green, current, quiet past KODIAK_IDLE_MIN ⇒ merge by SHA', ops(pl([quietCur], ST({}), CTX({ mainMovedAtMs: NOW - (IDLE + 5) * MIN }))), 'merge:20');
       T.eq('the merge names the SHA it observed', pl([quietCur], ST({}), CTX({ mainMovedAtMs: NOW - (IDLE + 5) * MIN })).actions[0].headSha, SHA);
+
+      /* 🔴 AN UNREADABLE UPDATE STAMP IS NOT A QUIET QUEUE (residue
+         `2026-11-21-the-walker-turns-an-unparseable-pr-stamp-into-epoch-zero`). `Date.parse` answers
+         NaN on a stamp it cannot read, and the `|| 0` that stood here made it an update in 1970 — the
+         oldest possible one. Measured 2026-11-22 before the repair: the plan was `merge` with "Kodiak
+         quiet 29922480 min", so the KODIAK_IDLE_MIN wait never applied. The refusal is also
+         independent of main, because a stamp nobody can read states nothing about either clock. */
+      var QUIETCTX = CTX({ mainMovedAtMs: NOW - (IDLE + 5) * MIN });
+      var noStamp = cl(P({ number: 23, isDraft: false, updatedAtMs: Number.NaN }), REQ);
+      T.eq('classify carries a null stamp and manufactures no epoch zero', noStamp.updatedAtMs, null);
+      T.eq('an unreadable stamp plans NO action, where epoch zero merged', ops(pl([noStamp], ST({}), QUIETCTX)), '');
+      T.eq('…and it names the refusal instead', kinds(pl([noStamp], ST({}), QUIETCTX)), 'stamp-unreadable:23');
+      T.eq('an absent stamp refuses the same way', kinds(pl([cl(P({ number: 24, isDraft: false, updatedAtMs: undefined }), REQ)], ST({}), CTX({}))), 'stamp-unreadable:24');
+      T.eq('the refusal holds while main is busy, so the report never hides the broken stamp', kinds(pl([noStamp], ST({}), CTX({ mainMovedAtMs: NOW - 2 * MIN }))), 'stamp-unreadable:23');
+      T.eq('a readable stamp is untouched by the guard', ops(pl([quietCur], ST({}), QUIETCTX)), 'merge:20');
       var quietBehind = function (n) {
         return cl(P({ number: n, isDraft: false, mergeState: 'BEHIND', updatedAtMs: NOW - (IDLE + 5) * MIN }), REQ);
       };

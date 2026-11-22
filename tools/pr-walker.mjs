@@ -116,13 +116,25 @@ export const FALLBACK_REQUIRED = [
    pr: { number, isDraft, mergeState, labels, checks:[{name,bucket,link}], readable, headSha, updatedAtMs, branch }
    required: [context] from the ruleset, [] when unreadable. fallback stands in for the ruleset ONLY
    when it is unreadable, and even then it only ADDS to the reported names. */
+/* §∅ — A STAMP THAT DID NOT PARSE IS `null`, NEVER 0. `Date.parse` answers NaN on a stamp it cannot
+   read, and `NaN || 0` is epoch zero: the OLDEST possible update. Measured 2026-11-22 against the code
+   this replaces — an unparseable `updatedAt` planned `merge` with "Kodiak quiet 29922480 min", so the
+   `KODIAK_IDLE_MIN` wait that lets the queue bot act first was skipped whole. This tests PARSEABILITY
+   and not plausibility: a literal numeric 0 would still read as 1970, GitHub sends no such stamp, and
+   a floor nobody measured is not invented here. */
+export function stampMs(raw) {
+  if (raw === null || raw === undefined) return null;
+  const ms = typeof raw === 'number' ? raw : Date.parse(String(raw));
+  return Number.isFinite(ms) ? ms : null;
+}
+
 export function classify(pr, required, fallback = FALLBACK_REQUIRED) {
   const base = {
     number: pr.number,
     draft: !!pr.isDraft,
     headSha: pr.headSha,
     branch: pr.branch,
-    updatedAtMs: pr.updatedAtMs || 0,
+    updatedAtMs: stampMs(pr.updatedAtMs),
     behind: pr.mergeState === 'BEHIND',
     dirty: pr.mergeState === 'DIRTY',
     failed: [],
@@ -291,7 +303,15 @@ export function plan(classified, state, ctx) {
         }
         continue;
       }
-      const quietSince = Math.max(r.updatedAtMs || 0, ctx.mainMovedAtMs || 0);
+      /* §∅ + §4c: AN UNREADABLE UPDATE STAMP CANNOT SAY THE QUEUE WENT QUIET, so this refuses and
+         names it. A non-finite stamp reaching `|| 0` here read as an update in 1970, which passes every
+         quiet test by about 57 years: measured 2026-11-22, the plan was `merge` at "Kodiak quiet
+         29922480 min", with the idle wait skipped whole. */
+      if (!Number.isFinite(r.updatedAtMs)) {
+        alerts.push({ number: r.number, kind: 'stamp-unreadable', why: 'the updatedAt stamp did not parse, so no quiet window can be measured — a coder owns it' });
+        continue;
+      }
+      const quietSince = Math.max(r.updatedAtMs, ctx.mainMovedAtMs || 0);
       const quiet = now - quietSince > idleMs;
       if (!quiet) continue;
       const mins = Math.round((now - quietSince) / 60000);
@@ -355,7 +375,7 @@ export function snapshot() {
       labels: (p.labels || []).map((l) => l.name),
       headSha: p.headRefOid,
       branch: p.headRefName,
-      updatedAtMs: Date.parse(p.updatedAt),
+      updatedAtMs: stampMs(p.updatedAt),
       checks,
       readable,
       queueTitle: p.isDraft ? null : mergifyQueueTitle(p.headRefOid)
@@ -1222,6 +1242,20 @@ function selftest() {
     true,
     'the signature must not claim it re-ran FAILED jobs when it re-ran the whole run'
   );
+  /* The unreadable update stamp, row `2026-11-21-the-walker-turns-an-unparseable-pr-stamp-into-epoch-zero`.
+     A plant that restores `pr.updatedAtMs || 0` reds the last two legs, which is what makes them bite. */
+  const QNOW = Date.parse('2026-11-22T12:00:00Z');
+  eq(stampMs('2026-13-45T99:99Z'), null, 'an unparseable stamp is null, never 0');
+  eq(stampMs(undefined), null, 'an absent stamp is null');
+  eq(stampMs(Number.NaN), null, 'a NaN from Date.parse is null');
+  eq(stampMs('2026-11-22T12:00:00Z'), QNOW, 'a readable stamp keeps its instant');
+  eq(stampMs(QNOW), QNOW, 'a numeric stamp passes through');
+  eq(classify(mk({ updatedAtMs: Number.NaN }), req).updatedAtMs, null, 'classify carries the null and manufactures no zero');
+  const quietPlan = (upd) => plan([classify(mk({ number: 9, isDraft: false, updatedAtMs: upd }), req)], { reruns: {}, rebased: {} }, { nowMs: QNOW, mainMovedAtMs: 0, cap: 4 });
+  eq(quietPlan(QNOW - (KODIAK_IDLE_MIN + 10) * 60000).actions[0].op, 'merge', 'control: a stamp older than the idle wait still merges');
+  eq(quietPlan(QNOW - 60000).actions.length, 0, 'control: a fresh stamp waits');
+  eq(quietPlan(Number.NaN).actions.length, 0, 'an unreadable stamp plans NO action, where epoch zero merged');
+  eq(quietPlan(Number.NaN).alerts[0].kind, 'stamp-unreadable', 'it names the refusal instead');
   eq(fallbackDrift(['test', 'biome'], ['test']).missing.join(','), 'biome', 'drift names the lag');
   eq(fallbackDrift([], ['test']).readable, false, 'an unreadable ruleset judges no mirror');
   eq(classify(mk({ readable: false }), req).state, 'unknown', 'unreadable');
