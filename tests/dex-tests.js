@@ -37503,6 +37503,156 @@
       T.ok('PLANT · a changed oxydex-dsp.js is reported, and by name', pm.length === 1 && pm[0].indexOf('oxy/oxydex-dsp.js') === 0 && pm[0].indexOf('planted00000') > 0, JSON.stringify(pm));
     });
 
+    /* ── THE NOTE CHAIN IS A GATE, NOT ONLY A READ ───────────────────────────────────────────────
+       (residue `2026-11-22-eight-closure-moves-in-the-yield-pin-chain-carry-no-note`)
+
+       The closure assertion above reds when the live tree leaves the pin, so it forces a RE-CUT.
+       Nothing forced the NOTE. A session could re-cut, overwrite the pin, skip the `history[]` line,
+       and every assertion above stayed green with the reason gone. That is how the record lost 7
+       reasons — 5 moves in `oxydex-dsp.js` and 2 in `pulsedex-dsp.js`, dated between 2026-10-28 and
+       2026-11-12. A guessed reason is worse than an absent one, so those 7 stay lost and this group
+       only stops the 8th.
+
+       THIS GROUP JUDGES THE RECORD, NEVER THE TREE. It reads `chainGaps(pin.detector, pin.history,
+       pin.detector)`, so a dirty working tree cannot move it: the tree is the closure assertion's
+       question, and `--chain` prints that view for a reader. A head gap HERE means the PIN holds a
+       digest no note closes at, which is the re-cut that skipped its note and nothing else.
+
+       THE KEY IS THE DIGEST PAIR AND NEVER THE CLASS. A note landing above a head gap reclassifies
+       that same pair as internal: the new note closes the head, and the pair it stepped over reopens
+       as `closes → reopens`. A class-keyed baseline would red on that benign reclassification, and a
+       TOTAL would hide a new gap behind a closed one. So the baseline names the pair, the failure
+       text names the class, and PLANT 2 below proves the key survives the reclassification.
+       `KNOWN_CHAIN_GAPS` may only SHRINK: a PR that explains a gap deletes its line, and a PR that
+       adds one is the defect this group exists for. */
+    group('treatment-response · pin chain — a re-cut that skipped its note reds', 'treatment-response · pin · chain · absence · regression', function (T) {
+      var pin = env.treatmentYieldPin;
+      var YP = env.YieldPin;
+      if (!pin || !pin.detector || !YP || typeof YP.chainGaps !== 'function') {
+        T.skip(
+          'the pin and the chain reader are both available',
+          'Node-lane only — run-tests.mjs reads analysis/treatment-response-yield-pin.json and imports tools/treatment-response-yield-pin.mjs; the browser suite loads neither'
+        );
+        return;
+      }
+      /* The 8 gaps `origin/main` carries at `6b3347a52`, as `node
+         tools/treatment-response-yield-pin.mjs --chain` prints them. MAY ONLY SHRINK. */
+      var KNOWN_CHAIN_GAPS = [
+        'oxydex-profile.js 410146545439 -> 7f65bccefb87',
+        'oxydex-dsp.js 017b1384b659 -> f87d8a04d882',
+        'oxydex-dsp.js efd4441e8ece -> 2635f078d01e',
+        'oxydex-dsp.js 41d2c5601b71 -> 9d293fe86dda',
+        'oxydex-dsp.js 1a0df4a4722e -> 5e5ffe017b76',
+        'oxydex-dsp.js 180165dc7b5b -> d77b5ccfc929',
+        'pulsedex-dsp.js d5e923c8081e -> 3c1c1529d982',
+        'pulsedex-dsp.js 410ccd8abf45 -> f25accb7ea4c'
+      ];
+      var keyOf = function (file, from, to) {
+        return file + ' ' + (from == null ? 'absent' : from) + ' -> ' + (to == null ? 'absent' : to);
+      };
+      var seenOf = function (g) {
+        var out = [];
+        (g.head || []).forEach(function (h) {
+          out.push({ key: keyOf(h.file, h.lastNote, h.pinned), cls: 'head' });
+        });
+        (g.internal || []).forEach(function (i) {
+          out.push({ key: keyOf(i.file, i.closes, i.reopens), cls: 'internal' });
+        });
+        return out;
+      };
+      var label = function (s) {
+        return s.cls + ' ' + s.key;
+      };
+      var gaps = YP.chainGaps(pin.detector, pin.history, pin.detector);
+      var seen = seenOf(gaps);
+      var added = seen.filter(function (s) {
+        return KNOWN_CHAIN_GAPS.indexOf(s.key) < 0;
+      });
+      T.eq(
+        'every closure move the pin cannot explain is one the baseline already names',
+        added.map(label).join(' · ') || 'none',
+        'none',
+        added.length
+          ? 'the pin holds ' +
+              added.length +
+              ' closure digest(s) that no note closes at: ' +
+              added.map(label).join(' · ') +
+              '. A re-cut rewrote the pin and skipped the note, so the reason that run held is about to be lost like the 7 before it. ' +
+              'Read the chain back (`node tools/treatment-response-yield-pin.mjs --chain`, well under a second), append one note per line to `history[]` in ' +
+              'analysis/treatment-response-yield-pin.json with the REAL reason, and never add the pair to KNOWN_CHAIN_GAPS.'
+          : seen.length + ' known gap(s), none new'
+      );
+      var gone = KNOWN_CHAIN_GAPS.filter(function (k) {
+        return !seen.some(function (s) {
+          return s.key === k;
+        });
+      });
+      T.eq(
+        'the baseline names no gap the record has since explained',
+        gone.join(' · ') || 'none',
+        'none',
+        gone.length
+          ? 'these pair(s) carry a note now, so the ratchet owes its shrink — delete the line(s) from KNOWN_CHAIN_GAPS: ' + gone.join(' · ')
+          : KNOWN_CHAIN_GAPS.length + ' baselined pair(s), every one still unexplained'
+      );
+      T.eq(
+        'no closure basename holds two realm digests, which no note in this shape could name',
+        (gaps.ambiguous || [])
+          .map(function (g) {
+            return g.file;
+          })
+          .join(' · ') || 'none',
+        'none',
+        JSON.stringify(gaps.ambiguous || [])
+      );
+      /* REPORTED, NEVER ASSERTED: a closure file the chain has never covered carries no LOST reason,
+         because it has no earlier digest to have moved from. A new file in the worker's SCRIPTS table
+         reds the closure assertion above and then sits here, uncovered, with nothing to explain. */
+      T.ok(
+        'the uncovered closure files are the ones the record never held a move for',
+        Array.isArray(gaps.uncovered),
+        (gaps.uncovered || []).length + ' uncovered: ' + ((gaps.uncovered || []).join(' ') || 'none')
+      );
+      /* ANTI-VACUITY. An empty record or a one-realm pin would make every `none` above mean "nothing
+         was examined", which is the same green a clean record gives. */
+      T.ok(
+        'ANTI-VACUITY · the chain read a non-empty note record over both realms, and it found the baselined gaps',
+        (pin.history || []).length >= 8 && !!(pin.detector.oxy && pin.detector.pulse) && seen.length === KNOWN_CHAIN_GAPS.length,
+        JSON.stringify({ notes: (pin.history || []).length, gaps: seen.length, baseline: KNOWN_CHAIN_GAPS.length })
+      );
+      /* PLANT 1 · the leg must FIRE on the defect this group is about: a pin digest that no note
+         closes at, reported by pair and absent from the baseline. */
+      var skipped = JSON.parse(JSON.stringify(pin.detector));
+      skipped.oxy['oxydex-dsp.js'] = 'planted00001';
+      var sk = seenOf(YP.chainGaps(skipped, pin.history, skipped)).filter(function (s) {
+        return s.key.indexOf(' -> planted00001') > 0;
+      });
+      T.ok(
+        'PLANT · a pin digest no note closes at is reported as a head gap, by pair, and is not baselined',
+        sk.length === 1 && sk[0].cls === 'head' && sk[0].key.indexOf('oxydex-dsp.js ') === 0 && KNOWN_CHAIN_GAPS.indexOf(sk[0].key) < 0,
+        JSON.stringify(sk)
+      );
+      /* PLANT 2 · the class-blindness claim, executed rather than asserted in prose. A note that
+         closes the real head gap moves the pin on and leaves the SAME pair behind it, now internal.
+         The key must survive that, or the baseline would red on a benign note. */
+      var shifted = JSON.parse(JSON.stringify(pin.detector));
+      shifted.oxy['oxydex-profile.js'] = 'planted00002';
+      var withNote = (pin.history || []).concat([{ date: '2026-11-22', file: 'oxydex-profile.js', old: '7f65bccefb87', new: 'planted00002', reason: 'PLANT · not a record' }]);
+      var sg = seenOf(YP.chainGaps(shifted, withNote, shifted));
+      var samePair = sg.filter(function (s) {
+        return s.key === 'oxydex-profile.js 410146545439 -> 7f65bccefb87';
+      });
+      T.ok(
+        'PLANT · a note landing above a head gap reclassifies the same pair as internal, so the key holds',
+        samePair.length === 1 &&
+          samePair[0].cls === 'internal' &&
+          !sg.some(function (s) {
+            return s.cls === 'head' && s.key.indexOf('oxydex-profile.js ') === 0;
+          }),
+        JSON.stringify(sg)
+      );
+    });
+
     /* ── THE PIN MUST KNOW WHICH COHORT IT IS PINNING (board finding #4343) ───────────────────────
        `selectionCounts` replays the selector at the stated `nSubj 900`, and the pin publishes
        `txSkipped = txCandidates - nIntervention`. The second term comes from the rerun file on the
