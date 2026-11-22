@@ -55,19 +55,11 @@ ln -s /home/michal/Tepna/node_modules ../wt-<task>-<3 chars>/node_modules
 **Always** when touching a bundle, a ledger or a DSP; a one-file doc edit in a clean tree needs none.
 The per-session suffix prevents two sessions deriving one branch name for one defect (§2d).
 
-A worktree does not share the primary checkout's `node_modules`. Without the symlink,
-`npx --no-install biome` falls back to npx's cache — which may hold an unrelated package
-squatting the name (measured: `biome@0.3.3`, "a simple way to manage environment variables").
-It runs, changes nothing, and exits 0. Symlink the primary `node_modules` into every worktree.
+Symlink the primary `node_modules` into every worktree: without it `npx --no-install biome` can run a
+squatting package from npx's cache and exit 0 having checked nothing.
 
-**Check for filename collisions before creating a new tool.** Two sessions naming a new
-artifact after the same defect derive the same name (§🐦.2d's branch-name finding applied
-to FILES). A new file has no lease: it conflicts at merge if both sides are committed,
-and is overwritten silently if a session writes without looking. Before writing
-`tools/<name>.mjs`, run `node tools/name-lease.mjs tools/<name>.mjs`, which names every holder
-over three rails: `origin/main`, every local and remote-tracking ref, and every worktree on
-disk. It stays blind to a clone on another machine, and to a name claimed after it answered.
-`changes/` (dated keys) and the residue ledger (gate) have collision protection; `tools/` does not.
+**Check for filename collisions before creating a new tool:** `node tools/name-lease.mjs tools/<name>.mjs`
+names every holder on `origin/main`, every ref and every worktree on disk (blind to other machines).
 
 ### 2 · Never blanket-stage, never destroy or re-point a tree you did not dirty
 
@@ -134,8 +126,7 @@ Hook-enforced (`guard-shared-tree.sh` denies `git checkout <ref> -- <source>`; g
 
 A non-fast-forward rejection on "your" branch is the warning: find out who owns the name. Push with
 `--force-with-lease` only, and first check `git log --oneline -1 origin/<branch>` and
-`git log --format='%an' origin/<branch> -3 | sort -u`. (Kodiak's base merge on your own PR is the benign
-case: `kodiakhq[bot]` at the head, your commit contained — merge it in and push.)
+`git log --format='%an' origin/<branch> -3 | sort -u`.
 
 ### 3 · Shared-spine changes serialize (*why → RATIONALE §👥.3, PR #1232*)
 
@@ -166,9 +157,8 @@ until ! pgrep -f "pytest -q --cov"; do sleep 20; done      # ← NEVER EXITS: ma
    while kill -0 "$PID" 2>/dev/null; do sleep 20; done
    wait "$PID"; echo "EXIT=$?"
    ```
-3. **Sentinel you control** — the `&` is load-bearing. ⚠️ A sentinel dies WITH its writer: `kill -9` on
-   the subshell (§4c's watchdog) leaves 0 sentinel lines and a bare `until grep` polls forever (measured
-   2026-09-22: 2 h 08 min). Guard it — a PID if YOU launched it, a deadline if you did not:
+3. **Sentinel you control** — the `&` is load-bearing. ⚠️ A sentinel dies WITH its writer: after a `kill -9`
+   on the subshell a bare `until grep` polls forever. Guard it — a PID if YOU launched it, a deadline if you did not:
    ```sh
    ( pytest … ; echo "EXIT=$?" ) > /tmp/mine.$$.log 2>&1 & PID=$!   # same shell: PID guard beside the sentinel
    until grep -q '^EXIT=' /tmp/mine.$$.log || ! kill -0 "$PID" 2>/dev/null; do sleep 20; done
@@ -176,9 +166,6 @@ until ! pgrep -f "pytest -q --cov"; do sleep 20; done      # ← NEVER EXITS: ma
    # DIFFERENT shell (no $PID — only the sentinel outlives the producer): sentinel + deadline, e.g.
    for _ in $(seq 180); do grep -q '^EXIT=' /tmp/mine.log && break; sleep 20; done   # 1 h cap
    ```
-   Keep BOTH forms: the PID guard needs a `$PID` only the launching shell has, the sentinel is all a
-   later or different-shell waiter can read but cannot see a producer SIGKILLed before it wrote — and a
-   deadline cannot tell dead from slow.
 
 **The same self-match KILLS**: any list-then-act line whose text contains its pattern (`pkill -f x`,
 `for p in $(pgrep -f x)…`, a `case` label, a `/proc` scan into `xargs kill`) acts on itself — tell: exit
@@ -209,28 +196,23 @@ below; a death at exactly 114 s or 600 s is the tool timeout. Attribute pressure
 column — `/tmp` is a 30 GB tmpfs invisible to `ps`. Deleting orphans there is the owner's call;
 `lsof +D <dir>` first.
 
-**The exception: a step that SPAWNS A CHILD under a fixed cap.** Measured 2026-10-27,
-`verdict-adoption`'s 120 s child cap closed on `xerj-load.mjs` at load 44 (108.7 s, against 25.5 s
-idle) and step 38 of 41 red mid-run, leaving steps 39 to 41 unrun. A gate that cannot read a child
-says so: that one prints `⏱ UNEXAMINED <producer>` and exits **2 — it could not look** — where exit
-1 means it looked and an adoption failed. Read the step's own message before attributing a red to
-your diff.
+**The exception: a step that SPAWNS A CHILD under a fixed cap** can red under load. Such a gate prints
+`⏱ UNEXAMINED <producer>` and exits **2 — it could not look**; read the step's own message first.
 
 ### 5 · Landing (*why → RATIONALE §👥.5, §👥.5b*)
 
-- **Kodiak merges** (`.kodiak.toml`, `require_automerge_label = false`): every non-draft PR without a
-  `do-not-merge` label sits in its serial queue — it updates the front PR when BEHIND, waits for CI,
-  merges, repeats. A PR sitting BEHIND while the front is mid-CI is serialising, not stalling. To HOLD:
-  `do-not-merge` — a draft holds only until it is green (next bullet). Arming `--auto` adds nothing.
-- **The walker undrafts — no person does** (owner, 2026-11-01: "you constantly asking about it").
+- **Mergify merges** (`.mergify.yml`; replaced Kodiak 2026-11-18): every green non-draft PR without a
+  `do-not-merge` label enters its queue. To HOLD: `do-not-merge` — a draft holds only until it is green
+  (next bullet). A PR Mergify dequeued stays out after its checks turn green: read the `Mergify Merge
+  Queue` check-run title, and `@mergifyio requeue` your OWN PR.
+- **The walker undrafts — no person does** (owner, 2026-11-01).
   `tepna-pr-walker.timer` (rig user unit, about every 90 s) runs `tools/pr-walker.mjs` under the shared
   `Plantucha` login. Each pass marks a green draft ready while fewer than 4 PRs are out of draft, oldest
   first; it also re-runs a red required check once per head, rebases a conflict via `rebase-safe`, and
-  merges when Kodiak sits idle. So a `ready_for_review` by `Plantucha` is the walker — read
+  merges when the queue bot sits idle. So a `ready_for_review` by `Plantucha` is the walker — read
   `journalctl --user -u tepna-pr-walker.service` (local time), never ask the owner. A bird asking for
   an undraft is usually already served: read `gh pr view` first. **A capture-host PR the walker lands
-  deploys to vigil, and it carries NO deploy hold** (owner, 2026-11-02: "Stop putting do not merge
-  badge on vigil capture box"): vigil's update path defers the daemon restart while the box records.
+  deploys to vigil, and it carries NO deploy hold** (owner, 2026-11-02): vigil's update path defers the daemon restart while the box records.
 - **An author PR carries no build output** (`GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md`, 2026-11-18).
   Check 10 `no-build-outputs` in `tools/pr-compliance.mjs` is BLOCKING: no bundle, no `docs/` served
   copy, no analysis page, no `docs/TOOLS-INDEX.md`. The PR carries the source, `provenance/<App>.json`
@@ -240,16 +222,13 @@ your diff.
   judges, so a tree holding main's bundles passes. Until that PR merges, `docs/` serves the previous
   build, about one CI cycle. `node tools/rebase-safe.mjs --build-outputs "<p>"…` names the build
   outputs among the paths you give it; quote each path (`Data Unifier.html`).
-- Without Kodiak, `strict` status checks make an armed green BEHIND PR a **deadlock** (auto-merge never
-  updates a branch): `node tools/queue-doctor.mjs --dry-run` names the green-and-stuck state and
-  `node tools/land-pr.mjs <PR#>` drives one PR to merge. A merge queue is **not available** (user-owned
-  repo).
+- A green PR stuck with no queue bot: `node tools/queue-doctor.mjs --dry-run` names the state and
+  `node tools/land-pr.mjs <PR#>` drives one PR to merge.
 - **One PR per work-unit, not per increment.** Run the full gate once on the final state (a `-k` /
   `--group=` filter that matches nothing reads as a pass); push before writing the changeset and PR body;
   `git merge origin/main` locally and push once rather than `gh pr update-branch` + a second push.
 - **WIP cap: ≤ 4 open non-draft PRs repo-wide.** A finished unit waits for a slot.
-- **One open PR per coder, draft or not** (owner, 2026-11-07). The walker rebased #4458 23 times in
-  36 h, because one bird held four PRs that all conflicted on the same ledger merge. Finish and land
+- **One open PR per coder, draft or not** (owner, 2026-11-07). Finish and land
   one PR before you open the next. The fleet's one RESIDUE-only PR and the walker's own closure PRs
   do not count against a coder.
 - **Collect when** the pool has drained AND (`pend=0` OR wedged against that workflow's own history)
@@ -277,6 +256,11 @@ your diff.
   median with its cap. A row that misses either is the first thing to fix in your next unit.
 - **Plan the turn before you take it.** List every read and check the next step needs, then issue them
   all in one call. A turn costs the whole window; a tool call inside it costs only its output.
+- **Ack a board post only when it asks for one, hands you work or asks a question** (owner, 2026-11-22).
+  An ack is a turn.
+- **One memory write per unit, at the unit boundary** (owner, 2026-11-22). A `MEMORY.md` write changes
+  every bird's prompt prefix and misses the cache. Its read-on-resume line holds state and a pointer to
+  the state file only; lessons go in the state file or a lane INDEX.
 
 ### 7 · Decide your own recommended option (owner, 2026-10-30)
 
@@ -315,22 +299,16 @@ line after any SPDX comment:
   picking a row up creates a `-FOLLOWUPS-` brief. **A fix for a row that is already on main declares
   it on a `Residue-fixed: <key>` line in the PR body.** After the merge, the walker opens the
   RESIDUE-only PR that writes `fixed #<your PR>`, so no session spends a unit on that cell.
-- 🔴 **A code PR does not touch `briefs/RESIDUE.md`** (owner, 2026-11-07, reversing the 2026-10-12
-  ruling that let a PR carry its own row). In one day, 28 of 68 merges touched the ledger, and each
-  one put every open PR with a row into conflict. The walker rebased one PR 21 times. A fix that ships
+- 🔴 **A code PR does not touch `briefs/RESIDUE.md`** (owner, 2026-11-07). A fix that ships
   needs no row, because its changeset records it. Log a finding you do not fix in a RESIDUE-only PR,
   and close a row through `Residue-fixed:`. Only one RESIDUE-only PR is in flight across the fleet.
-- 🔴 **PICK A ROW UP FROM THE REF, NEVER FROM YOUR WORKING COPY** (*why → RATIONALE §📌*). Every
-  landing PR appends to the ledger, so a checkout is behind it most of the time and the scan still
-  returns a well-formed table with no line saying the file is old — **four sessions in two days
-  claimed a row `origin/main` already showed closed.** Two reads are right whatever your checkout is
+- 🔴 **PICK A ROW UP FROM THE REF, NEVER FROM YOUR WORKING COPY** (*why → RATIONALE §📌*). A checkout is
+  behind the ledger most of the time, and a stale copy still reads as a well-formed table. Two reads are right whatever your checkout is
   at: `node tools/residue-ids.mjs --open`, which names every row your copy gets wrong, and
   `git show origin/main:briefs/RESIDUE.md`. A worktree cut from the ref is current by construction.
   Hook-enforced by `guard-stale-ledger.sh`, which denies a read whose row states disagree with the
-  ref and names the first disagreement; hatch `CLAUDE_ALLOW_STALE_LEDGER=1`. **The criterion is the
-  FILE, not `behindCommits`** — the root is behind on commits that never touch the ledger, so only a
-  row-state disagreement means anything. §👥.2's caveat holds: a terminal, the web UI, a second agent
-  and an un-pulled tree inherit no hook.
+  ref and names the first disagreement; hatch `CLAUDE_ALLOW_STALE_LEDGER=1`. The criterion is the FILE, not
+  `behindCommits`; §👥.2's hook caveat holds.
 - **Supersession:** `Superseded-by: <NAME>` on the old, `Supersedes: <NAME>` on the new.
 - **`DOCS-INDEX.md` is the dashboard** — add a row for every new doc; reorganise the view, not the files.
 - 🔍 **Search before you size or build: `node tools/doc-search.mjs --read "<the thing>"`** (owner
@@ -363,8 +341,7 @@ line after any SPDX comment:
 ## ∅ ABSENCE IS NULL — never a number (non-negotiable; *why → RATIONALE §∅*)
 
 **A value that was not measured is `null` — never `0`, a default, or an in-range sentinel — at every
-layer: capture writer · sidecar · parser · DSP · export · render.** The O2Ring's `_PPG.txt` shipped
-thousands of in-band zeros through every green gate because the rule was never written for raw bytes.
+layer: capture writer · sidecar · parser · DSP · export · render.**
 
 - **A consumer cannot null what it cannot distinguish.** `0` is a legal sample (ECG crosses zero, an ACC
   axis rests there), so the fix is never `!= 0` in a DSP. **Validity travels out-of-band** in a sidecar
@@ -446,7 +423,7 @@ detectPeaks`). Never fuse or compare onboard summaries.
 
 **A real tri-device corpus exists** — O2Ring + Polar H10 (device `H10-01`) + Polar Verity Sense
 (device `VERITY-01`), 2026-06-10 → 2026-07-05, **CLAIM trioEligibleNights = 17 FROM analysis/tri_device_nights.json#result/window/count eligible nights** (~10 with clean Verity) — the ground truth behind the reference-free σ work. `tools/trio-eligible-nights.mjs` writes the night NAMES
-from each night's own fold stamp, held against its tracked exports; 90 nights qualify corpus-wide. Someone typed the earlier 20, and four of its nights fold two devices.
+from each night's own fold stamp, held against its tracked exports; 90 nights qualify corpus-wide.
 
 ## 🧪 Regression gate — after ANY `*-dsp.js` / `*-cross.js` / `*-app.js` change
 **`Dex-Test-Suite.html`** runs the real modules + `tests/dex-tests.js` (the same suite as
@@ -564,9 +541,7 @@ caption is correct when a badge sits on every series it draws.
   a denylist, so a spine module sits inside it and `computeHash` moves on all 14 as well — every
   corpus-backed fixture then owes re-verification. Rebuild each carrier locally (the walker commits it):
   `grep -lc 'data-inline-src="<file>"' *.html`. **Export-inert is the narrower claim, and it still
-  owes the rebuild:** the same line in `oxydex-render.js` moves `manifestHash` and holds OxyDex's
-  `computeHash` at `93f4d577efcd` (measured 2026-11-10 through `manifest-gate.js computeClosure`;
-  the earlier rule here read "an inert shared-module addition does not require re-bundling").
+  owes the rebuild** (a render-file comment moves `manifestHash`, not `computeHash`).
 
 ## 📦 Releases (CONTROLLED-RELEASES-2026-07-05; *why → RATIONALE §📦*)
 One suite SemVer in `suite.manifest.json`; `RELEASE-MANIFEST.json` append-only history; `CHANGELOG.md`
