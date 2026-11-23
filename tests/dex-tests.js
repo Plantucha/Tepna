@@ -78753,6 +78753,90 @@
       T.ok('gyro-only session exposes no postureAtSec (null)', !mg.postureAtSec);
     });
 
+    /* ════ THE INERTIAL AXIS IS ANCHORED ON THE HOST STAMP, NOT ON THE DEVICE COUNTER (§7.2) ════
+     `parseSensorXYZ` rebases `relNs` to the stream's own first kept sample, so `relNs / 1e9` measures
+     seconds-from-the-FILE-start while the motion grid reads it as seconds-from-`t0Ms`. The two differ by
+     the offset between the inertial file's start and the PPG t0, and that offset is not small: over the
+     canonical corpus it exceeds one 0.25 s grid cell on 1104 of 1413 paired ACC and PPG files, median
+     0.675 s, p95 1.66 s, worst 3.5 h. Pre-fix a 20 s burst planted 120 s into the ACC file was reported
+     at 120 s whatever the file's offset was, and an ACC file an hour away from the PPG reported
+     SATURATED coverage with `meanMotionIndexReason: null` — a fabricated stillness of the §∅ class.
+     `motiondex-dsp.js relSecOf` already anchors (DEEP-AUDIT-II §7.2); this mirrors it. These legs pin
+     the position, the per-stream base, the refusal, and that the RATE did not move. ════ */
+    group('PpgDex anchors the inertial axis on the host stamp (§7.2)', 'ppgdex-dsp · motion · clock', function (T) {
+      var P = env.PPGDSP;
+      if (!(P && typeof P.analyzeMotion === 'function' && typeof P.parseSensorXYZ === 'function')) {
+        T.skip('PPGDSP.analyzeMotion + parseSensorXYZ available', 'ppgdex-dsp not wired in this lane');
+        return;
+      }
+      var HZ = 25.84,
+        DUR = 600,
+        T0A = Date.UTC(2026, 5, 21, 23, 0, 0);
+      function isoA(ms) {
+        return new Date(ms).toISOString().replace('Z', '').replace('T', ' ');
+      }
+      // One 20 s burst planted 120 s into the FILE. `offSec` moves the file's START, never the burst.
+      function accTextA(offSec) {
+        var L = ['Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]'],
+          n = Math.round(HZ * DUR);
+        for (var i = 0; i < n; i++) {
+          var sa = i / HZ,
+            hot = sa >= 120 && sa < 140;
+          L.push(
+            isoA(T0A + offSec * 1000 + Math.round(sa * 1000)) +
+              ';' +
+              Math.round(sa * 1e9) +
+              ';' +
+              (hot ? 400 * Math.sin(sa * 9) : 0).toFixed(0) +
+              ';' +
+              (hot ? 400 * Math.cos(sa * 7) : 0).toFixed(0) +
+              ';' +
+              (1000 + (hot ? 300 * Math.sin(sa * 11) : 0)).toFixed(0)
+          );
+        }
+        return L.join('\n');
+      }
+      // The first grid cell whose motion index clears the floor — where the node SAYS the burst was.
+      function burstStartA(m) {
+        if (!m || !m.grid) return null;
+        for (var i = 0; i < m.grid.length; i++) if (m.grid[i] > 0.2) return i * m.dt;
+        return null;
+      }
+      var m0 = P.analyzeMotion(P.parseSensorXYZ(accTextA(0)), [], T0A, DUR);
+      T.eq('control · an ACC file that starts AT t0 reports the burst at its planted 120 s', burstStartA(m0), 120);
+      T.eq('control · …and it covers the whole span', m0.motionCoveredFrac, 1);
+
+      var m4 = P.analyzeMotion(P.parseSensorXYZ(accTextA(4)), [], T0A, DUR);
+      T.eq('an ACC file that starts 4 s LATE reports the burst at 124 s, not at the 120 s the counter alone gives', burstStartA(m4), 124);
+      T.ok('…and the 4 s shortfall at the end of the span is reported, never hidden', m4.motionCoveredFrac < 1 && m4.motionCoveredFrac > 0.97, 'coveredFrac=' + m4.motionCoveredFrac);
+
+      /* §∅ — AN ACC FILE THAT DOES NOT OVERLAP THE PPG IS NOT A STILL NIGHT. */
+      var mFar = P.analyzeMotion(P.parseSensorXYZ(accTextA(3600)), [], T0A, DUR);
+      T.eq('an ACC file one hour away from the PPG covers no cell', mFar.motionCoveredFrac, 0);
+      T.ok('…so the mean motion index refuses instead of reporting stillness', mFar.meanMotionIndex === null, 'meanMotionIndex=' + String(mFar.meanMotionIndex));
+      T.eq('…and it names the absence', mFar.meanMotionIndexReason, 'no-inertial-coverage');
+      T.ok('…while the parsed row count is unchanged, so the refusal is about POSITION, not parsing', mFar.nAcc === m0.nAcc && mFar.nAcc > 15000, 'nAcc=' + mFar.nAcc);
+
+      /* THE COUNTER STILL SETS THE SPACING. An anchor moves the origin, so the rate must not move. */
+      T.ok('the sample rate is identical at all three offsets', m0.accFs === m4.accFs && m4.accFs === mFar.accFs, m0.accFs + ' ' + m4.accFs + ' ' + mFar.accFs);
+
+      /* PER-STREAM bases: a gyro with its own start must not inherit the ACC's. */
+      var gyroA = [];
+      for (var gi = 0; gi < Math.round(HZ * DUR); gi++) {
+        var gs = gi / HZ,
+          ghot = gs >= 60 && gs < 80;
+        gyroA.push({ x: ghot ? 60 : 0.5, y: 0, z: 0, relNs: Math.round(gs * 1e9), tMs: T0A + 30000 + Math.round(gs * 1000) });
+      }
+      var mG = P.analyzeMotion(null, gyroA, T0A, DUR);
+      T.eq('a gyro stream carries its OWN base — a burst 60 s into a file that starts 30 s late reads at 90 s', burstStartA(mG), 90);
+
+      /* A stream with NO wall-clock column has only its counter, and that must still be an axis. */
+      var bareA = [];
+      for (var bi = 0; bi < Math.round(HZ * DUR); bi++) bareA.push({ x: 0, y: 0, z: 1000, relNs: Math.round((bi / HZ) * 1e9) });
+      var mBare = P.analyzeMotion(bareA, null, T0A, DUR);
+      T.ok('a counter-only stream keeps the counter as its axis', mBare.hasData && mBare.motionCoveredFrac > 0.9, 'coveredFrac=' + mBare.motionCoveredFrac);
+    });
+
     /* ════ 19 · POSITIONAL APNEA — epoch positions → fusion clustering (P10/feature) ════ */
     group('Positional apnea from epoch positions', 'integrator-dsp', function (T) {
       var A = env.adaptEnvelopeNode,
