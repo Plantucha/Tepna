@@ -34,7 +34,7 @@
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { CHARS_PER_TOKEN, MODEL, PRICE, resolveKey, scrub, spent as memorySpent, stateDir as memoryStateDir } from './memory-program.mjs';
 import { checkLeads, LENSES, readLeads, repoSource } from './qwen-lead-check.mjs';
 
@@ -368,7 +368,7 @@ if (isCliEntry(import.meta.url)) {
   const argv = process.argv.slice(2);
   refuseUnknownArgvOrExit(argv, SPEC, { tool: 'qwen-lead-triage' });
   if (argv.includes('--selftest')) selftest();
-  const cmd = argv.find((a) => !a.startsWith('--') && !/^\d+(\.\d+)?$/.test(a));
+  const [cmd] = positionalArgs(argv, { valued: SPEC.valued });
   const run = { pack: cmdPack, submit: cmdSubmit, poll: cmdPoll, collect: cmdCollect, report: cmdReport }[cmd];
   if (!run) {
     console.error('usage: node tools/qwen-lead-triage.mjs pack|submit|poll|collect|report [--limit N] [--cap-usd N] [--dry-run] | --selftest');
