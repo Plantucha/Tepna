@@ -99,7 +99,7 @@ export const DECLARED_PICKS = {
   'tools/beat-leg-closure.mjs': 'peak-argmax',
   'tools/pat-axis-leg-audit.mjs': 'peak-argmax',
   'tools/pat-finger-coupler.mjs': 'peak-argmax',
-  'tools/pat-host-offset.mjs': 'peak-argmax',
+  'tools/pat-host-offset.mjs': 'snr-pick-guarded',
   'tools/pat-literature-spec.mjs': 'peak-argmax',
   'tools/pat-matchrate-strict.mjs': 'peak-argmax',
   'tools/pat-ppg-ppg-control.mjs': 'peak-argmax',
