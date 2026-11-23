@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** PROPOSED — 2026-10-19 (remainder owner-blocked — verified 2026-10-26, Kestrel: the owner has not ruled on the INTERFACE roles, and the second box depends on that ruling. Row `2026-10-19-string-mutants-that-reach-an-interface-are-unmeasured` stays OPEN.) · Previously: PROPOSED — 2026-10-19 · **Residue:** `2026-10-19-string-mutants-that-reach-an-interface-are-unmeasured` · **Created:** 2026-10-19 · **RE-VERIFIED 2026-11-04 (Osprey): still owner-blocked, and no commit has pre-empted the ruling.** `capture-host/mutation_diff.py` carries `string_only_verdict` and no INTERFACE rule beside it. The commits that touched the file since the 2026-10-26 stamp are the per-gate criterion scope (#4193), the survivor-record ownership fix (#4173), the generator-named ledger (#4248) and the pinned-generator refusal (#4280); none of them makes an INTERFACE role required. A board search for the ruling returns nothing.
+**Status:** PROPOSED — 2026-10-19 (remainder owner-blocked — verified 2026-10-26, Kestrel: the owner has not ruled on the INTERFACE roles, and the second box depends on that ruling. Row `2026-10-19-string-mutants-that-reach-an-interface-are-unmeasured` stays OPEN.) · Previously: PROPOSED — 2026-10-19 · **Residue:** `2026-10-19-string-mutants-that-reach-an-interface-are-unmeasured` · **Created:** 2026-10-19 · **RE-VERIFIED 2026-11-04 (Osprey): still owner-blocked, and no commit has pre-empted the ruling.** `capture-host/mutation_diff.py` carries `string_only_verdict` and no INTERFACE rule beside it. The commits that touched the file since the 2026-10-26 stamp are the per-gate criterion scope (#4193), the survivor-record ownership fix (#4173), the generator-named ledger (#4248) and the pinned-generator refusal (#4280); none of them makes an INTERFACE role required. A board search for the ruling returns nothing. · **ADDED 2026-11-23 (Heron): §6b holds a seventh diff's base fixed and moves only the suite.** The gate reported `notRequired` 6 then 0 over PR #5458, and §5 places all six literals as INTERFACE dict keys.
 
 # STRING-MUTANT-REQUIREDNESS — what the mutation gate sets aside, measured over six diffs
 
@@ -119,12 +119,49 @@ The cost is therefore bounded and the tests are the ones a reader would want any
 NOT tell us is the cost on a diff that adds a new argparse surface, where the prose share is high and
 the exclusion is right for every one of those mutants.
 
+## 6b · A controlled re-run on a seventh diff (2026-11-23, Heron)
+
+§7 states that the exclusion count depends on the base and on the tests present. That claim rests on
+#3654, where the base moved as well as the suite. PR #5458 holds the two variables apart. The diff,
+the base and the generator are identical across two CI runs of `mutation (diff-scoped)`. Only the
+test file differs.
+
+| run | head | killed | survived | notRequired |
+|---|---|---|---|---|
+| before the tests | `43cb6abda` | 95 | 28 | **6** |
+| after the tests | `21a9161b2` | 129 | 0 | **0** |
+
+Both runs generated 129 mutants over the same two functions, `_lag1_acf` and `noise_id` in
+`capture-host/allan.py`. The branch adds a refusal to `noise_id` and nothing else to that module.
+
+**The six excluded mutants sat on two `return` dict literals.** The gate named them
+`x_noise_id__mutmut_75`, `_76`, `_86`, `_87`, `_88` and `_89`, on lines 703 and 705 of the branch's
+`allan.py`. Those lines carry the export keys `alpha`, `noise`, `differences` and `rho`. §5 places
+every one of them as INTERFACE, because a caller looks each name up.
+
+**The exclusion dissolved although nobody wrote a test for it.** The eight tests target the 28 real
+survivors. Each test reads the returned dict by key, so the same assertions kill all six string
+mutants as a side effect. The gate then reported `notRequired: 0`.
+
+Three findings follow.
+
+1. **An exclusion is a property of the SUITE, not of the literal.** The same literal, the same mutant
+   and the same base changed bucket when the tests changed. §3's count of 12 is a lower bound, and
+   this run grounds that claim better than §7 does.
+2. **§6's cost estimate holds up.** The tests this diff owed for its INTERFACE literals cost zero
+   extra work. A reader who asserts an export record by key pays that bill already.
+3. **A PASS can still carry an exclusion.** A green `mutation (diff-scoped)` run tells a reader
+   nothing about the literals it set aside. Only the verdict object's `notRequired` field does.
+
+This section adds no diff to §3's table. It measures one diff twice, so it answers a different
+question from the five-diff population above.
+
 ## 7 · What this does not show
 
 - **#3654 reads 0 here and 6 in the reproduction** that found the counting defect. That run used
   `--base 8c2041022` against the pre-merge head `76b7109b3`. The merged squash carries the PR's own
   tests, and those tests kill the same string mutants. So the gate's exclusion count depends on the
-  base and on the tests present, and §3 is a lower bound.
+  base and on the tests present, and §3 is a lower bound. §6b holds the base fixed and moves only the suite.
 - **Five diffs is not a sample of the repo.** It is the five most recent merged diffs with a mutable
   python change. Two carry every exclusion; three carry none.
 - **No mutant was re-run after classification.** The roles come from the AST and from the mutant's own
