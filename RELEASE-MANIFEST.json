@@ -1965,6 +1965,37 @@
         "MULTI-SENSOR-DERIVATIONS-FOLLOWUPS-2026-07-18-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.36.0",
+      "date": "2026-11-23",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "7fa43b959586",
+        "OxyDex": "8113e7dc146d",
+        "PulseDex": "3ff159e123d4",
+        "GlucoDex": "a0d9a50a6573",
+        "PpgDex": "9f3e8752d04e",
+        "HRVDex": "cf4f2b463d60",
+        "CPAPDex": "8a2ae9873f86",
+        "Integrator": "c10692c62963",
+        "MotionDex": "37ddd730c4ba",
+        "EEGDex": "35f1a1426167"
+      },
+      "briefs": [
+        "GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md",
+        "MUSE-HUNT-RECORD-2026-11-08-BRIEF.md",
+        "CVHR-HOLE-EDGE-EXCLUSION-2026-10-19-BRIEF.md",
+        "MUTATION-PROGRAM-2026-08-09-BRIEF.md",
+        "LOCAL-QWEN-SWEEPS-2026-11-22-BRIEF.md",
+        "MEMORY-PROGRAM-2026-11-22-BRIEF.md",
+        "MUSE-ATHENA-PROTOCOL-2026-11-14-BRIEF.md",
+        "CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md",
+        "PPG-FOOT-PLACEMENT-FOLLOWUPS-2026-09-01-BRIEF.md",
+        "PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
