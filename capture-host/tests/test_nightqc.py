@@ -7697,3 +7697,93 @@ def test_a_sidecar_next_door_does_not_join_a_cross_midnight_pool(tmp_path, _tz):
     s = _summarize(d22, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
     assert s["searched_dirs"] == ["2026-07-22", "2026-07-21"], s["searched_dirs"]
     assert s["span_sec"] == 4200, (s["span_sec"], "23:30 to 00:40, not to the sidecar write at 03:00")
+
+
+# ── a folder too thin to state its own offset borrows its neighbour's voters (board #7648) ──────────────
+#
+# MEASURED on the capture box, 2026-11-21: the Muse reconnected at 02:15 and opened its new file set under
+# the 11-21 date, while the other devices kept writing into 11-20. QC judged 11-21, the one file there cast
+# one offset vote under the floor of 2, pooling refused with the offset, and the 04:42 alert named 11
+# streams missing while every one of them recorded next door.
+
+_QV_OFF = 18000.0  # the box at UTC-5: an mtime sits 5 h above the civil stamp it closes on
+
+
+def _qv_civil(t):
+    return (_dtmod.datetime(1970, 1, 1) + _dtmod.timedelta(seconds=t)).strftime("%Y-%m-%dT%H:%M:%S.000")
+
+
+def _qv_file(night, name, open_stamp, hours):
+    """A data file that opens at `open_stamp` and closes `hours` later, its last row and mtime agreeing."""
+    t0 = nightqc.floating_stamp_s(open_stamp)
+    t1 = t0 + hours * 3600
+    p_ = os.path.join(night, name)
+    with open(p_, "w") as fh:
+        fh.write("Phone timestamp;sensor timestamp [ns];v\n")
+        fh.write(f"{_qv_civil(t0)};0;1\n")
+        fh.write(f";{int(hours * 3600 * 1e9) // 2};1\n")
+        fh.write(f"{_qv_civil(t1)};{int(hours * 3600 * 1e9)};1\n")
+    os.utime(p_, (t1 + _QV_OFF, t1 + _QV_OFF))
+
+
+_QV_DEVS = [
+    {"name": "H10", "device_id": "02849638", "streams": ["ecg", "acc"]},
+    {"name": "Sense", "device_id": "TEST0001", "streams": ["ppg"]},
+]
+
+
+def _qv_nights(tmp_path, neighbour_open, neighbour_hours):
+    d20 = str(tmp_path / "2026-11-20")
+    d21 = str(tmp_path / "2026-11-21")
+    os.makedirs(d20)
+    os.makedirs(d21)
+    for tag in ("ECG", "ACC"):
+        _qv_file(d20, f"Polar_H10_02849638_{neighbour_open}_{tag}.txt", neighbour_open, neighbour_hours)
+    _qv_file(d21, "Polar_VeritySense_TEST0001_20261121021514_PPG.txt", "20261121021514", 3.0)
+    return d21
+
+
+def test_PLANT_a_ONE_FILE_folder_pools_its_neighbour_by_a_JOINT_offset_vote(tmp_path):
+    """The 2026-11-21 shape: the neighbour still writes, and this folder holds one file of one device."""
+    d21 = _qv_nights(tmp_path, "20261120231732", 6.5)
+    own, _data = _recovered(d21)
+    assert own["offset_sec"] is None and own["voters"] == 1, own  # the premise: alone, it refuses
+    s = nightqc.summarize(d21, _QV_DEVS)
+    assert s["searched_dirs"] == ["2026-11-21", "2026-11-20"], s["searched_dirs"]
+    assert s["missing"] == [], s["missing"]
+    off = s["writer_offset"]
+    assert off["offset_sec"] == _QV_OFF and off["voters"] == 3, off
+    # each neighbour file opens from its own folder, so all three vote on the tight basis
+    assert off["voters_by_basis"] == {"last-row": 3, "extent": 0}, off
+    assert off["voted_with"] == "2026-11-20" and off["frame"] == "absolute", off
+
+
+def test_PLANT_a_one_file_folder_whose_neighbour_STOPPED_keeps_its_OWN_refusal(tmp_path):
+    """The joint vote pools nothing here: the neighbour stopped at 20:00, 6 h before this folder opened.
+    A folder judged alone publishes its own refusal, never an offset its neighbour lent it."""
+    d21 = _qv_nights(tmp_path, "20261120133000", 6.5)
+    s = nightqc.summarize(d21, _QV_DEVS)
+    assert s["searched_dirs"] == ["2026-11-21"], s["searched_dirs"]
+    off = s["writer_offset"]
+    assert off["offset_sec"] is None and off["voters"] == 1 and "voted_with" not in off, off
+
+
+def test_a_CALLER_offset_still_wins_over_the_joint_vote(tmp_path):
+    """A caller that knows the frame keeps it, and no neighbour file joins a vote that never runs."""
+    d21 = _qv_nights(tmp_path, "20261120231732", 6.5)
+    s = nightqc.summarize(d21, _QV_DEVS, writer_offset=nightqc.declared_offset(_QV_OFF))
+    assert s["searched_dirs"] == ["2026-11-21", "2026-11-20"], s["searched_dirs"]
+    assert "voted_with" not in s["writer_offset"], s["writer_offset"]
+
+
+def test_PLANT_a_POOLED_vote_moves_the_daemon_start_onto_the_voted_offset(tmp_path):
+    """A start stamp is floating civil time. After the joint vote pools, the summary raises it by the voted
+    offset, so it shares one timeline with the file spans it is tested against."""
+    d21 = _qv_nights(tmp_path, "20261120231732", 6.5)
+    with open(os.path.join(d21, writers.STARTS_NAME), "w") as fh:
+        fh.write("Phone timestamp;pid;git;dirty;adapter\n")
+        fh.write("2026-11-21T03:00:00.000;400443;2cd12712;no;00:00:00:00:00:01\n")
+    s = nightqc.summarize(d21, _QV_DEVS)
+    assert s["writer_offset"]["voted_with"] == "2026-11-20", s["writer_offset"]
+    assert s["daemon"]["stamps"] == [nightqc.floating_stamp_s("20261121030000") + _QV_OFF], s["daemon"]
+    assert s["daemon"]["inside_capture"] == 1 and s["session_basis"] == "daemon-starts", s
