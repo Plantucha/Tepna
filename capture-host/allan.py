@@ -616,12 +616,17 @@ _ALPHA_NAMES = {
 
 
 def _lag1_acf(x):
-    """Lag-1 autocorrelation of a mean-removed series; 0 when the series has no variance."""
+    """Lag-1 autocorrelation of a mean-removed series; None when the series has no variance.
+
+    §∅ — a series with no variance has no lag-1 autocorrelation: the ratio is 0/0, not 0. Returning 0
+    here made `noise_id` treat a constant series as decorrelated at depth 0 and name it `white-phase`,
+    in a record whose `classification` already said the series has no measurable instability.
+    """
     n = len(x)
     m = sum(x) / n
     den = sum((v - m) ** 2 for v in x)
     if den <= 0:
-        return 0.0
+        return None
     num = sum((x[i] - m) * (x[i + 1] - m) for i in range(n - 1))
     return num / den
 
@@ -643,7 +648,9 @@ def noise_id(phase, dmax=3):
     Returns `{alpha, noise, differences, rho}` on a successful identification, or a REFUSAL record
     `{alpha: None, noise: None, ok: False, reason, raw_alpha, differences, rho}` when the identification
     lands outside the five laws — the shape `stability` already uses for `too-few-taus`, and `noise:
-    None` is what a caller branches on either way.
+    None` is what a caller branches on either way. A series with no variance refuses with
+    `reason: no-variance-in-the-phase-series`, `raw_alpha: None` (no slope exists) and `rho: None`
+    (the autocorrelation is 0/0); it is not named `white-phase`.
 
     ⚠️ `alpha` WAS CLAMPED to [-2, +2], and the docstring justified it with the right argument for the
     wrong operation: "a sixth label would be invented rather than measured". True — but clamping does
@@ -664,6 +671,19 @@ def noise_id(phase, dmax=3):
     d = 0
     while True:
         r1 = _lag1_acf(x)
+        if r1 is None:
+            # §∅ — the series has no variance, so it has no autocorrelation to identify a power law
+            # from. Refuse with the cause; `raw_alpha` is None because no slope exists, and `rho` is
+            # None for the same reason. The value published before this was `white-phase`.
+            return {
+                "alpha": None,
+                "noise": None,
+                "ok": False,
+                "reason": "no-variance-in-the-phase-series",
+                "raw_alpha": None,
+                "differences": d,
+                "rho": None,
+            }
         rho = r1 / (1.0 + r1) if r1 != -1.0 else -1e9
         if rho < 0.25 or d >= dmax:
             raw = -2.0 * (rho + d) + 2.0
