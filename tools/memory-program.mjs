@@ -75,7 +75,7 @@ export const REDACTIONS = [
 export function isToken(t) {
   if (/^[0-9a-f]+$/i.test(t)) return false;
   if (/[A-Z]/.test(t) && /[a-z]/.test(t) && /\d/.test(t)) return true;
-  return !t.includes('-') && /\d/.test(t) && /[g-z]/i.test(t);
+  return !/-/.test(t) && /\d/.test(t) && /[g-z]/i.test(t);
 }
 export function redact(text) {
   let out = String(text);
