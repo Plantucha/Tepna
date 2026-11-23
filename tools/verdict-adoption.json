@@ -1626,6 +1626,18 @@
    },
    "note": "wave-2 adopter (Magpie, group C; read before flipping \u2014 exact): FAIL iff \u2265 1 lower-tier band issues a clinical directive with no declared disclaimer (the same `undeclared` list the exit code keys on) \u00b7 the two REFUSE paths (< 7 guides; 0 lower cards or 0 bands) are the examined-nothing shape \u2192 UNDERPOWERED with the counts, still exit 2. Population = lower-tier cards, checked = those carrying a band, band-less cards excluded. --json prints { \u2026verdict, census, hits } \u2014 a superset of the old shape; the cmd is the real run over the seven reference guides in the tree."
   },
+  "tools/h10-confidence-join-census.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/h10-confidence-join-census.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "sizes row 2026-11-23-the-h10-confidence-join-reads-two-axes: the H10 corner of sensor-trio-worker.js keys its HR map on the host-disciplined axis and its confidence map on the index axis, so a second graded under one key can be absent under the other and the join answered that absence with a trust of 1. The object is the `corpus-population` verdict alone \u2014 a night snapshot before the walk and a second after it \u2014 because the census states no pass band of its own and the pull request carries the decision. Population is H10 HR-map seconds, NOT the three-way overlap the worker averages over: reproducing that overlap needs the Verity and the ring as well, which is a full night per corner. Measured over 109 nights: 38442 of 2660691 seconds ungraded (1.44 %), per-night median 0.00 % and max 53.33 %, concentrated on the nights that carry a large clock resync. The cmd walks no corpus \u2014 three synthetic night names \u2014 so the gate does not depend on a night being present."
+  },
   "tools/h10-session-rate.mjs": {
    "bin": "decides",
    "status": "adopted",
