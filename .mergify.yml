@@ -23,6 +23,10 @@
 #    `Fleet-Session:` trailer. Mergify REJECTS a config that sets `commit_message_template`
 #    (measured 2026-11-18, check `Mergify Merge Queue`: "has been removed"), so this file uses the
 #    declarative `commit_message_format` that Mergify's own migration PR 5324 proposed.
+#  - `checks_timeout: 90 minutes`, not the default `auto`. `auto` derives the limit from recent CI
+#    runtime (41 min on 2026-11-23), and a diff-scoped mutation run on a large module takes about as
+#    long. Mergify dequeued PR 5361 twice with "checks timed out"; on draft 5454 the mutation job
+#    passed 2 min after the dequeue (Wren, board #7942). Null would let a hung check hold the queue.
 #  - `queue_branch_prefix` stays at Mergify's default `mergify/merge-queue/`. The walker skips that
 #    prefix (`QUEUE_BRANCH_PREFIX`) and pr-compliance exempts it for the `mergify[bot]` author only,
 #    because each member PR already passed that gate on its own head.
@@ -30,6 +34,7 @@ queue_rules:
   - name: default
     batch_size: 4
     batch_max_wait_time: 10 minutes
+    checks_timeout: 90 minutes
     merge_method: squash
     update_method: merge
     commit_message_format:
