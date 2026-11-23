@@ -87,6 +87,26 @@ expect 0 'ALLOW git commit --help' 'git commit --help'
 expect 0 'ALLOW an unrelated command' 'git status --short'
 expect 0 'ALLOW a command merely CONTAINING the word commit' 'echo "remember to commit"'
 
+# ── A HEREDOC BODY AND A QUOTED PHRASE ARE DATA, NOT COMMANDS (#8023) ───────────
+# Measured 2026-11-23: this hook denied a `python3` heredoc that creates no commit,
+# because the script in the body carried the phrase the legs above assert on, and it
+# reported `message source: -m`. The matcher read `(^|[;&|]|\s)git\s+...commit`, so ANY
+# whitespace before the phrase was command position. Two halves fix it: the body is
+# stripped, and the matcher needs a line start, a separator, an opener or a keyword.
+# Each ALLOW below is paired with a DENY differing in ONE property — where the phrase sits.
+expect 0 'ALLOW a heredoc BODY whose commit sits at a line start (it commits nothing)' $'cat > /dev/null <<\'SH\'\ngit commit -m "no trailer"\nSH'
+expect 0 'ALLOW a python heredoc BODY carrying the phrase as two string literals' $'python3 -I - <<\'PY\'\nrun(["git", "commit", "-m", "no trailer"])\nPY'
+expect 0 'ALLOW a heredoc body plus an unrelated -m elsewhere (the -m is not a message)' $'cat > /dev/null <<\'SH\'\ngit commit -m "no trailer"\nSH\ngrep -m 1 commit /dev/null'
+expect 2 'DENY  the same commit on the line AFTER the body ends' $'cat <<\'PY\' > /dev/null\nrun(["git", "commit", "-m", "in the body"])\nPY\ngit commit -m "real, and no trailer"'
+expect 0 'ALLOW the phrase inside a quoted argument (a space is NOT command position)' 'echo "the hook denies git commit -m with no trailer"'
+expect 0 'ALLOW the phrase inside a grep PATTERN' "grep -rn 'runs git commit -m' .claude/hooks"
+expect 2 'DENY  a real commit after && (a separator IS command position)' 'git add CONTRIBUTING.md && git commit -m "no trailer"'
+expect 2 'DENY  a real commit after then (a keyword is command position too)' 'if true; then git commit -m "no trailer"; fi'
+# ⚠ THE TRAILER IS STILL READ FROM THE FULL COMMAND, and this leg is why. A message may
+# arrive through a heredoc, so a trailer search over the STRIPPED text would deny a commit
+# whose trailer the hook refused to look at — §4b's shape wearing a refusal.
+expect 0 'ALLOW -m whose trailer arrives through a heredoc body' $'git commit -m "$(cat <<\'EOF\'\nfix: x\n\nFleet-Session: Magpie\nEOF\n)"'
+
 # ── the tree is the COMMAND's, not the hook's (--amend reads HEAD) ──────────────
 W="$TMP/w"
 mkdir -p "$W"
