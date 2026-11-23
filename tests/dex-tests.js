@@ -56575,6 +56575,90 @@
         /n\.ahiEst\.ahiODI4 < 5 \? 'g' : n\.ahiEst\.ahiODI4 < 15 \? 'w' : 'r'/.test(_cflat) && /n\.dfa\.alpha1 > 0\.85 \? 'g' : n\.dfa\.alpha1 > 0\.6 \? 'w' : 'r'/.test(_cflat),
         'the measured thresholds moved with the fix'
       );
+      /* ── §∅ · R-11 · A NIGHT ROW AND A CARD MUST NOT GRADE A NULL ────────────────────────────────
+         Hunt-record R-11 named three readings in the night rows. The population its producers reach
+         is 17 guard points over five surfaces of this one file, because every one of them returns a
+         PRESENT container with NULL members:
+           oxydex-dsp.js  `if (!(n >= ODI_MIN_MEASURED)) return { count: null, rate: null };`  (odi4, odi3)
+           oxydex-dsp.js  `if (n < 60 || durationHr <= 0) return { sbii: null, sbiiQ: null };`
+           oxydex-dsp.js  `if (!n) return { pred3p: null, pred3pQ: null };`
+           oxydex-dsp.js  the self-ingest reload hands back each `hrv` member as null on its own.
+         The §∅ asymmetry is the whole defect. `null < 5` is TRUE, so ODI-4, ODI-3, SBII and pRED drew
+         the REASSURING band over an absent column. `null >= 4` is FALSE, so HR-Var and pNN3 drew the
+         ALARM band. `null <= 52` is TRUE, so the HR-floor tile read a good resting floor. Each
+         reading was fabricated, and the two directions disguise each other.
+         The census is keyed on CONTAINER.FIELD, never on the field name alone: `scores.hrFloor` is a
+         different producer, and `h` is this file's own alias for `n.hrv`. */
+      T.ok('ANTI-VACUITY · the alias the census is keyed on still exists', /var h = n\.hrv;/.test(R), 'rename it and the census goes blind');
+      var PAIRS = '(?:(?:hrv|h)\\.(?:hrFloor|hrSdnn|pnn3|hrSlope)|odi4\\.(?:rate|count)|odi3\\.(?:rate|count)|sbii\\.sbii|pred3p\\.pred3p)';
+      var REF = new RegExp('(^|[^A-Za-z0-9_.])((?:[A-Za-z0-9_]+\\.)*' + PAIRS + ')\\b', 'gm');
+      var RL = R.split('\n'),
+        _fab = [],
+        refSeen = 0,
+        _rm;
+      while ((_rm = REF.exec(R)) !== null) {
+        refSeen++;
+        var _ref = _rm[2],
+          _st = _rm.index + _rm[1].length;
+        var _li = R.slice(0, _st).split('\n').length;
+        var _line = RL[_li - 1] || '',
+          _prev = RL.slice(Math.max(0, _li - 3), _li - 1).join('\n');
+        var _pre = R.slice(Math.max(0, _st - 4), _st),
+          _post = R.slice(_st + _ref.length, _st + _ref.length + 14);
+        var _esc = _ref.replace(/\./g, '\\.');
+        var _self = new RegExp(_esc + '\\s*(?:===?|!==?)\\s*null').test(_line);
+        var _if = new RegExp('if \\([^)]*' + _esc + '\\s*!==?\\s*null').test(_prev);
+        if (/^\s*(?:<|>)=?[^=]/.test(_post)) {
+          if (!_self && !_if) _fab.push(_li + ': ORDERING-COMPARISON over ' + _ref);
+        } else if (!/(?:nzv|sev|cv)\($/.test(_pre) && !/^\s*(?:===?|!==?)\s*null/.test(_post) && !/^\s*:\s*null/.test(_post) && !_self && !_if) {
+          _fab.push(_li + ': UNWRAPPED display sink over ' + _ref);
+        }
+      }
+      T.ok('ANTI-VACUITY · the census still reaches the whole population', refSeen >= 50, refSeen + ' reference(s) examined');
+      T.eq('no ABSENT night-row or card field is ordered against a threshold or reaches a sink raw', _fab, []);
+      /* ── THE TWO HELPERS THE 17 SITES ROUTE THROUGH, EXTRACTED AND RUN ───────────────────────────
+         A source match proves the call shape. It cannot prove the helper still answers absence, and
+         every site now depends on exactly that. So lift all three and execute them. */
+      var _grab = function (name) {
+        var mm = R.match(new RegExp('function ' + name + '\\([^)]*\\) \\{[\\s\\S]{0,260}?\\n\\}'));
+        return mm ? mm[0] : null;
+      };
+      var _hn = ['nzv', 'sev', 'stsCls'],
+        _hp = _hn.map(_grab);
+      T.ok(
+        'ANTI-VACUITY · all three absence helpers lifted out of the shipped source',
+        _hp.every(Boolean),
+        _hn
+          .filter(function (n, i) {
+            return !_hp[i];
+          })
+          .join(',') || 'ok'
+      );
+      var _H = null;
+      if (_hp.every(Boolean)) {
+        try {
+          _H = new Function(_hp.join('\n') + '\nreturn { nzv: nzv, sev: sev, stsCls: stsCls };')();
+        } catch {
+          _H = null;
+        }
+      }
+      if (!_H) {
+        T.skip('the absence helpers run', 'could not be lifted');
+      } else {
+        var _band = function (v) {
+          return v < 5 ? 'g' : v < 15 ? 'w' : 'r';
+        };
+        T.eq('nzv ANSWERS the em-dash for an absent value, with no unit glued to it', _H.nzv(null, '/h'), '—');
+        T.eq('…and for an absent value with no unit at all', _H.nzv(null), '—');
+        T.eq('CONTROL · a MEASURED zero keeps its number and its unit', _H.nzv(0, '/h'), '0/h');
+        T.eq('sev REFUSES to call the band function on an absent value', _H.sev(null, _band), '');
+        T.eq('CONTROL · a MEASURED zero still grades on the published band', _H.sev(0, _band), 'g');
+        T.eq('…and the empty class stsCls receives draws the NEUTRAL disc, not the good one', _H.stsCls(''), 'neu');
+        T.eq('CONTROL · stsCls still maps a measured good band', _H.stsCls('g'), 'ok');
+      }
+      T.eq('…because `null < 5` is TRUE, so ODI-4, ODI-3, SBII and pRED read REASSURING', null < 5, true);
+      T.eq('…and `null >= 4` is FALSE, so HR-Var and pNN3 read ALARM over the same absence', null >= 4, false);
+      T.eq('…and `null <= 52` is TRUE, so the HR-floor tile read a good resting floor', null <= 52, true);
     });
 
     /* ── §∅ · A RECOVERY THAT WAS NEVER OBSERVED IS NOT A RECOVERY OF ZERO SECONDS ─────────────
