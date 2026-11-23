@@ -41,10 +41,12 @@ def test_ring_charge_flag_is_read_from_batt_state_not_inferred():
 
 
 def test_polar_charge_is_inferred_from_a_RISING_battery():
-    """A Polar exposes no charge flag mid-session. A battery that rises is unambiguous — these cells do
-    not self-charge — and a battery that falls means it came off the dock."""
+    """A Polar exposes no charge flag mid-session. A battery that rises inside one link is a charge, and a
+    battery that falls means it came off the dock. A step across two links is not: a coin cell recovers at
+    rest (2026-11-21)."""
     src = module_source("capture.py")
-    assert "lvl > prev" in src and "charging=True" in src
+    assert "lvl > link_prev" in src and "charging=True" in src
+    assert "lvl > prev" not in src, "a rise against the previous link reads a rested coin cell as a charge"
     assert "lvl < prev" in src and "charging=False" in src, (
         "coming off the dock must clear the flag, or it latches on forever"
     )
