@@ -106,6 +106,18 @@ export const DECLARED_PICKS = {
   'tools/ppg-foot-consensus-e1.mjs': 'snr-pick',
   'tools/ppg-fusion-e3.mjs': 'snr-pick'
 };
+/* 🔴 THE SITES THAT CANNOT NAME THEIR RULE, each with the reason (brief
+   `CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md` §0). Every OTHER declared file must call
+   `refpickOf`, and the selftest holds the live tree to that complement. So a reverted conversion reds
+   here, and a NEW call site forces its author to choose: delegate, or write the reason down. A count
+   cannot carry this, because `named + inferred` stays equal when one site swaps with another. */
+export const INFERRED_SITES = {
+  'pat-feasibility-worker.js': 'a worker loaded by importScripts, so it imports no module from tools/',
+  'ppgdex-dsp.js': 'inlined into the bundles, so it imports no module from tools/',
+  'sensor-trio-worker.js': 'a worker loaded by importScripts, same bar',
+  'tools/ppg-foot-consensus-e1.mjs': 'it calls the shipped pickChannel, so the scan reads its rule off the callee',
+  'tools/ppg-fusion-e3.mjs': 'it calls the shipped pickChannel, so the scan reads its rule off the callee'
+};
 /* The states a census row can hold against the table. `undeclared` and `diverged` are the two the
    row asked for; `declared` is the quiet case. */
 export const DECLARATION_STATES = ['declared', 'undeclared', 'diverged'];
@@ -703,6 +715,41 @@ function selftest() {
     live.result.byRead.named + live.result.byRead.inferred === live.population.checked,
     `the read counts answer for every examined site — ${live.result.byRead.named} named, ${live.result.byRead.inferred} inferred of ${live.population.checked}`
   );
+  /* 🔴 THE THREE TOTALS ABOVE SURVIVE A SWAP. `named + inferred === checked` still holds when a
+     converted leg reverts to an inline loop and another site reads `named` in its place, because a sum
+     cannot see which file moved. Measured on this branch: reverting `pat-finger-coupler.mjs` to its
+     old argmax loop left all three totals green at 7 named and 6 inferred of 13.
+
+     So the three legs below judge the SET. `INFERRED_SITES` names every site that cannot delegate, so
+     the complement of the declared table is the set that must call `refpickOf`. The first leg holds
+     the excuses to the table, the second holds the live source to the complement, and the third holds
+     the scan's own read to the same set. The source text is read on the masked copy, so a call written
+     in a comment or a string names nothing. The core and this census are excluded by name, because
+     they define and test the helper rather than delegating to it. */
+  const EXPECTED_NAMED = Object.keys(DECLARED_PICKS)
+    .filter((f) => !(f in INFERRED_SITES))
+    .sort();
+  const staleExcuses = Object.keys(INFERRED_SITES).filter((f) => !(f in DECLARED_PICKS));
+  const CONVERTED = scanFiles(ROOT)
+    .filter((rel) => rel !== 'tools/consensus-dissent-core.mjs' && rel !== 'tools/consensus-refpick-dissent.mjs')
+    .filter((rel) => maskNonCode(readFileSync(join(ROOT, rel), 'utf8')).includes('refpickOf('))
+    .sort();
+  const namedFiles = [
+    ...new Set(
+      censusRows(ROOT)
+        .filter((r) => r.read === 'named')
+        .map((r) => r.in)
+    )
+  ].sort();
+  fail += ok(
+    staleExcuses.length === 0 && Object.keys(INFERRED_SITES).length > 0,
+    `every one of the ${Object.keys(INFERRED_SITES).length} excused site(s) is a declared call site — ${staleExcuses.length} stale`
+  );
+  fail += ok(
+    CONVERTED.join('|') === EXPECTED_NAMED.join('|'),
+    `the live source delegates at exactly the ${EXPECTED_NAMED.length} unexcused site(s) — calling refpickOf: ${CONVERTED.join(', ') || '(none)'}`
+  );
+  fail += ok(namedFiles.join('|') === EXPECTED_NAMED.join('|'), `the scan reads NAMED at exactly those ${EXPECTED_NAMED.length} site(s) — read named: ${namedFiles.join(', ') || '(none)'}`);
   fail += ok(DECLARED_PICKS['ppgdex-dsp.js'] === SHIPPED_RULE, 'the shipped path is the one site declared by the shipped rule, under its own name');
   /* ── THE PARITY LEG for `refpickOf`'s second rule (brief §3, fourth box) ─────────────────────────
 

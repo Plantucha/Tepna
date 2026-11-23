@@ -123,7 +123,24 @@ Osprey decided this under CLAUDE.md §7 and the owner may overrule it.
     DECISION (§7, Heron, 2026-11-23): the brief KEEPS the Rayleigh column and labels it. No
     reader-facing surface cites it, and a delete would destroy a one-session measurement, so I
     rejected the delete. The box still owes a figure census over the docs, so it stays unticked.
-- [ ] The census still reads every converted site as `named`, and `byRead` still answers for every examined site.
+- [x] The census still reads every converted site as `named`, and `byRead` still answers for every examined site.
+  - I measured the live tree on 2026-11-23 at `6e76825c7`. The census reads 13 call sites, 8 named and
+    5 inferred, with 0 undeclared and 0 diverged. The two read counts sum to the examined population.
+    `tools/selftest-all.mjs` runs that leg under the `npm run check` step `test:tools`.
+  - ⚠️ **A total cannot hold a set.** I reverted `tools/pat-finger-coupler.mjs` to its old argmax loop
+    and re-ran the selftest. All three totals stayed green at 7 named and 6 inferred of 13. No leg went
+    red, so the gate could not see a conversion reverting.
+  - `INFERRED_SITES` now names the five sites that cannot delegate, each with its reason. Three new
+    selftest legs hold the complement of `DECLARED_PICKS` to the live tree. The excuses must name
+    declared sites. The source must call `refpickOf` at exactly the eight unexcused sites. The scan
+    must read `named` at the same eight.
+  - Each leg carries its own mutant. The planted revert reds two legs. Dropping one excuse reds two
+    legs. An excuse for a file the table does not declare reds the first leg. The clean tree passes all
+    92 assertions.
+  - The population boundary stays worth stating. `SCAN` reads root `*.js` plus `tools/*.{mjs,js}`, and
+    it never recurses. `tests/dex-tests.js` holds four `consensusBeats` calls outside it, and each one
+    passes a literal `0` reference. `ppgdex-dsp.js:2998` is the declaration, which the scan skips under
+    its own assertion.
 
 ## 4 · What must not be done
 
