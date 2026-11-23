@@ -1663,6 +1663,121 @@ def test_main_re_arms_through_the_REAL_probe_and_reports_both_outcomes(tmp_path,
     assert "re-arm failed on the adapter that just came up" in caplog.text
 
 
+def _rearm_run(tmp_path, events, answers):
+    """Drive `run` over `(clock, packet)` events; returns the clock of each re-arm call and the telemetry."""
+    sent, now = [], [0.0]
+
+    def packets():
+        for at, (opcode, index, payload) in events:
+            now[0] = at
+            yield opcode, index, payload, 1
+
+    def rearm():
+        sent.append(now[0])
+        return answers[min(len(sent), len(answers)) - 1]
+
+    got = rc.run(packets(), _collector(), lambda a: None, rearm=rearm, clock=lambda: now[0])
+    return sent, got
+
+
+OPEN_PKT = (rc.MONITOR_OPCODE_OPEN_INDEX, ADAPTER, b"")
+NOISE_PKT = (rc.MONITOR_OPCODE_EVENT, ADAPTER + 1, b"")
+
+
+def test_a_re_arm_that_could_not_be_SENT_is_retried(tmp_path):
+    """The 2026-11-23 boot: the triggers arrived while the adapter was down, and nothing later qualified
+    as one. Packets that are not triggers, on ANOTHER adapter even, must carry the retry."""
+    events = [(0.0, OPEN_PKT), (0.249, NOISE_PKT), (0.25, NOISE_PKT), (0.7, NOISE_PKT), (0.75, NOISE_PKT)]
+    events += [(99.0, NOISE_PKT)]
+    sent, got = _rearm_run(tmp_path, events, [False, False, True])
+    assert sent == [0.0, 0.25, 0.75], "waits 0.25 s, then 0.5 s, then stops at the first success"
+    assert got["rearmed"] == 1 and got["rearm_retries"] == 2
+
+
+def test_the_retry_schedule_is_the_stated_one_and_its_last_wait_repeats(tmp_path):
+    assert rc.REARM_RETRY_S == (0.25, 0.5, 1.0, 2.0, 5.0, 15.0, 60.0)
+    steps = [0.0]
+    for wait in rc.REARM_RETRY_S + (60.0, 60.0):
+        steps.append(steps[-1] + wait)
+    events = [(0.0, OPEN_PKT)]
+    for at in steps[1:]:
+        events += [(at - 0.01, NOISE_PKT), (at, NOISE_PKT)]
+    sent, got = _rearm_run(tmp_path, events, [False])
+    assert sent == steps and got["rearm_retries"] == len(steps) - 1
+
+
+def test_a_re_arm_that_settled_is_NOT_retried(tmp_path):
+    for answer in (True, None):  # None: a caller that reports nothing keeps the old behaviour
+        sent, got = _rearm_run(tmp_path, [(0.0, OPEN_PKT), (500.0, NOISE_PKT)], [answer])
+        assert sent == [0.0] and got["rearm_retries"] == 0, answer
+
+
+def test_a_pending_retry_ends_when_OUR_adapter_goes_away_and_only_then(tmp_path):
+    """Re-arming into a disappearing controller is how a retry loop is born."""
+    for op in (rc.MONITOR_OPCODE_DEL_INDEX, rc.MONITOR_OPCODE_CLOSE_INDEX):
+        ours, theirs = (op, ADAPTER, b""), (op, ADAPTER + 1, b"")
+        sent, _ = _rearm_run(tmp_path, [(0.0, OPEN_PKT), (9.0, ours), (99.0, NOISE_PKT)], [False])
+        assert sent == [0.0], op
+        sent, _ = _rearm_run(tmp_path, [(0.0, OPEN_PKT), (9.0, theirs)], [False, True])
+        assert sent == [0.0, 9.0], op
+
+
+def test_a_new_trigger_sends_at_once_and_restarts_the_schedule(tmp_path):
+    events = [(0.0, OPEN_PKT), (0.25, NOISE_PKT), (0.3, OPEN_PKT), (0.55, NOISE_PKT)]
+    sent, got = _rearm_run(tmp_path, events, [False, False, False, True])
+    assert sent == [0.0, 0.25, 0.3, 0.55]
+    assert got["rearmed"] == 2 and got["rearm_retries"] == 2
+
+
+def test_main_retries_a_send_that_failed_and_not_a_refusal(tmp_path, caplog):
+    """Through the REAL `_rearm`: only `RadioClockUnavailable` is worth a second send."""
+    sysfs = _sysfs(tmp_path, {"hci1": OURS})
+    cfg = _cfg_file(tmp_path, dict(CFG, root=str(tmp_path / "srv")))
+    packets = [(rc.MONITOR_OPCODE_OPEN_INDEX, 1, b"", 1), (rc.MONITOR_OPCODE_EVENT, 5, b"", 2)]
+    ok = (rc.NORDIC_COMPANY_ID, 0, None)
+    refused = (rc.NORDIC_COMPANY_ID, rc.HCI_STATUS_UNKNOWN_COMMAND, None)
+    down = rc.RadioClockUnavailable("cannot send on hci1: Network is down")
+    for first, said, tail in (
+        (down, "re-arm failed on the adapter", "1 re-arm(s), 1 retried"),
+        (refused, "anchors NOT re-enabled", "1 re-arm(s), 0 retried"),
+        (ok, "anchors re-enabled", "1 re-arm(s), 0 retried"),
+    ):
+        ticks = iter((0.0, 100.0))
+        caplog.clear()
+        with caplog.at_level("INFO"):
+            rc.main(
+                ["--config", cfg],
+                sysfs,
+                probe=_flaky_probe([ok, first, ok]),
+                packets=packets,
+                clock=lambda t=ticks: next(t),
+            )
+        assert said in caplog.text and tail in caplog.text, said
+        assert ("anchors re-enabled after" in caplog.text) is (first is not refused)
+
+
+def test_main_does_not_retry_into_an_absent_adapter(tmp_path, caplog):
+    """The New Index that brings it back carries its address, so the next trigger is certain."""
+    sysfs = _sysfs(tmp_path, {"hci1": OURS})
+    cfg = _cfg_file(tmp_path, dict(CFG, root=str(tmp_path / "srv")))
+
+    def packets():
+        os.remove(os.path.join(sysfs, "hci1", "address"))
+        yield rc.MONITOR_OPCODE_OPEN_INDEX, 1, b"", 1
+        yield rc.MONITOR_OPCODE_EVENT, 5, b"", 2
+
+    ticks = iter((0.0, 100.0))
+    with caplog.at_level("INFO"):
+        rc.main(
+            ["--config", cfg],
+            sysfs,
+            probe=lambda i: (rc.NORDIC_COMPANY_ID, 0, None),
+            packets=packets(),
+            clock=lambda: next(ticks),
+        )
+    assert caplog.text.count("nothing to re-arm") == 1 and "0 retried" in caplog.text
+
+
 def _flaky_probe(sequence):
     """A probe whose answer differs between the startup call and the re-arm — which is the whole
     situation: it worked once, and the question is what happens the second time."""
