@@ -861,6 +861,19 @@
        and 200, motion null. So the fallback now runs only when the header named NONE of the three:
        a column the header leaves out is ABSENT (its cells read null), never borrowed from a neighbour. */
     var _headerNamed = timeCol >= 0 || spo2Col >= 0 || hrCol >= 0;
+    /* THE HEADERLESS COLUMN ORDER IS CITED, NOT GUESSED. A file with no header carries no names, so
+       the ORDER is the only thing that maps a cell to a signal. Six places in this tree state the
+       O2Ring / ViHealth order, and all six agree that SpO₂ comes before pulse:
+         `how-to-collect/oxydex-spo2.md:16`       `briefs/INGEST-AUDIT-BRIEF.md:186`
+         `docs/SYNTHETIC-CORPUS-README.md:49`     `synth-gen.js:212` and `:217`
+         `oxydex-dsp.js:401` (this node's own summary writer)
+         `briefs/O2RING-RAW-STREAMS-ABSENT-2026-08-04-BRIEF.md:68`
+       The offsets below count from the timestamp field the scan finds, and they are the same offsets
+       the last-resort defaults assume. Never reorder them without moving all six documents first. */
+    var HEADERLESS_OFFSETS = { spo2: 1, hr: 2, motion: 3 };
+    /* `_colSource` records WHICH route chose the columns, captured before the last-resort defaults
+       overwrite the evidence. It leaves parseCSV on the rows array — see `return rows` below. */
+    var _colSource = _headerNamed ? 'header' : 'none';
     if (!_headerNamed) {
       // Try rows until we find a valid one
       for (var i = firstDataIdx; i < Math.min(firstDataIdx + 5, lines.length); i++) {
@@ -870,9 +883,10 @@
         for (var j = 0; j < Math.min(parts.length, 3); j++) {
           if (parts[j].indexOf(':') >= 0) {
             timeCol = j;
-            spo2Col = j + 1;
-            hrCol = j + 2;
-            motionCol = j + 3 < parts.length ? j + 3 : -1;
+            spo2Col = j + HEADERLESS_OFFSETS.spo2;
+            hrCol = j + HEADERLESS_OFFSETS.hr;
+            motionCol = j + HEADERLESS_OFFSETS.motion < parts.length ? j + HEADERLESS_OFFSETS.motion : -1;
+            _colSource = 'positional';
             break;
           }
         }
@@ -881,6 +895,7 @@
     }
 
     // Last resort defaults — only for an unrecognised layout; a named header keeps its absences.
+    if (_colSource === 'none') _colSource = 'default';
     if (timeCol < 0) timeCol = 0;
     if (!_headerNamed && spo2Col < 0) spo2Col = 1;
     if (!_headerNamed && hrCol < 0) hrCol = 2;
@@ -979,6 +994,16 @@
       _prevTMs = _ts.tMs;
       rows.push({ tMs: _ts.tMs, t: new Date(_ts.tMs), spo2: spo2, hr: hr, motion: motion, pi: pi });
     }
+    /* §∅ — HOW THE COLUMNS WERE CHOSEN TRAVELS WITH THE ROWS. A named header and a positional guess
+       build the same row shape, so until now no consumer could tell a cell read from a NAMED column
+       from one assigned by OFFSET. The record rides on the ARRAY, not on each row: every existing
+       consumer keeps its length, its indexing and its row objects, and `JSON.stringify` drops an
+       array's own property, so no export byte moves.
+       LIMIT, and it is real: `map`, `slice`, `filter`, `concat` and a spread each return a plain
+       array and DROP this property. A consumer that needs it must read it BEFORE it reshapes. Both
+       call sites in this file hand `rows` straight to `processNight`, so it survives to there. A
+       suite leg pins that limit, so a later refactor cannot lose it quietly. */
+    /** @type {any} */ (rows).columnSource = _colSource;
     return rows;
   }
 

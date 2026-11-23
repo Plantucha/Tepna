@@ -24,7 +24,7 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "46faf431bb51",
       "oxydex-profile.js": "7f65bccefb87",
-      "oxydex-dsp.js": "84068a4357c0"
+      "oxydex-dsp.js": "760fadaf2751"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
@@ -326,11 +326,18 @@
       "old": "336e73354d8c",
       "new": "7be9ae41b8db",
       "reason": "unit `pdhr`: the node dropped three window-median statistics no road read — `_dispHr`, `dispMeanRR` and the `_cMeanRR` built from it — and a comment at the site now records the whole-record HR convention the export already publishes. The removal deletes no reachable arithmetic, so the detector reads the same rMSSD series; a paper-scale re-cut measured the SAME yield 233 tx / 239 flat with 667 / 661 skipped, so the counts are measured under the new closure rather than claimed inert."
+    },
+    {
+      "date": "2026-11-23",
+      "file": "oxydex-dsp.js",
+      "old": "84068a4357c0",
+      "new": "760fadaf2751",
+      "reason": "Unit oxyhdr: parseCSV names the headerless column offsets as a cited constant and publishes which route mapped the columns, as rows.columnSource with the values header, positional and default. No cell value moves. The offsets are the same 1/2/3 the inline expression already used, and the six documents that state the O2Ring order are now cited beside them. The new record is write-only inside this node, and it rides on the rows ARRAY, so JSON.stringify drops it and no export byte moves. This run RE-CUT the cohort at paper scale, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped, so no synthetic patient changed arm."
     }
   ],
-  "measuredAt": "2026-11-22T01:52:41.853Z",
+  "measuredAt": "2026-11-23T09:38:54.718Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "4bca441de"
+    "commit": "2ddafabed"
   }
 }

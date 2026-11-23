@@ -4617,10 +4617,16 @@
       if (typeof parse !== 'function') T.skip('parseCSV reachable', 'not on this surface');
       else {
         var junk = ['Device: ring', 'Firmware: 1.2.3', 'Report', 'Patient: none', 'Unit: percent'];
-        var hdrText = junk.concat(['Time,Pulse Rate,Oxygen Level,Motion', '23:00:16 12/06/2026,58,97,0', '23:00:17 12/06/2026,59,96,0', '23:00:18 12/06/2026,60,95,0']).join('\n');
+        /* The header order here is the DOCUMENTED O2Ring one — time, SpO₂, pulse, motion — because a
+           reader who copies a column order out of this suite must copy the real one. The parse is by
+           NAME, so the order does not decide the result; the earlier spelling put pulse second and so
+           read as a claim about the device that no document in this tree supports. */
+        var hdrText = junk.concat(['Time,Oxygen Level,Pulse Rate,Motion', '23:00:16 12/06/2026,97,58,0', '23:00:17 12/06/2026,96,59,0', '23:00:18 12/06/2026,95,60,0']).join('\n');
         var hdrRows = parse(hdrText);
         T.eq('parse sniff · a header on line 6 is still found ⇒ 3 rows', hdrRows.length, 3);
-        T.eq("parse sniff · …and SpO₂ comes from the header's third field, 97", hdrRows.length ? hdrRows[0].spo2 : null, 97);
+        T.eq('parse sniff · …and SpO₂ comes from the column the header NAMES, 97', hdrRows.length ? hdrRows[0].spo2 : null, 97);
+        T.eq('parse sniff · …and HR from its own named column, 58', hdrRows.length ? hdrRows[0].hr : null, 58);
+        T.eq('parse sniff · a named header records columnSource "header"', hdrRows.columnSource, 'header');
         var dataText = ['a,b,c', 'd,e,f', 'g,h,i', 'zz,23:00:16 12/06/2026,97,58', 'zz,23:00:17 12/06/2026,96,59', 'zz,23:00:18 12/06/2026,95,60'].join('\n');
         var dataRows = parse(dataText);
         T.eq('parse sniff · a timestamp on the 4th line is inside the 5-row scan ⇒ 3 rows', dataRows.length, 3);
@@ -4629,6 +4635,17 @@
         var colRows = parse(colText);
         T.eq('parse sniff · a 3-field headerless row is accepted ⇒ 3 rows', colRows.length, 3);
         T.eq('parse sniff · …with SpO₂ from the detected third field', colRows.length ? colRows[0].spo2 : null, 97);
+        /* The parser now publishes WHICH route mapped the columns, and the third leg pins the
+           documented limit: the record lives on the array, so a reshape drops it. */
+        T.eq('parse sniff · a positional sniff records columnSource "positional"', dataRows.columnSource, 'positional');
+        T.eq('parse sniff · …and so does the 3-field headerless row', colRows.columnSource, 'positional');
+        T.eq(
+          'parse sniff · columnSource does NOT survive a map (the documented limit)',
+          typeof dataRows.map(function (r) {
+            return r;
+          }).columnSource,
+          'undefined'
+        );
       }
     });
 
