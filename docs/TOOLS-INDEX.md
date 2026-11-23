@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**357 tools** · 356 with a purpose line · **1 without**
+**358 tools** · 357 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -258,6 +258,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`queue-doctor.mjs`](../tools/queue-doctor.mjs) | queue-doctor — drain a PR queue that CANNOT drain itself, and NAME the state that no view reports. |
 | [`qwen-agent.mjs`](../tools/qwen-agent.mjs) | READ-ONLY LOCAL-MODEL AGENT — owner-directed 2026-08-27: "make sure qwen will read CLAUDE.md and have access to bge and other stuff so it can behave like normal Claude coder." |
 | [`qwen-lead-check.mjs`](../tools/qwen-lead-check.mjs) | THE MECHANICAL CHECK ON A LOCAL-MODEL LEAD (briefs/LOCAL-QWEN-SWEEPS-2026-11-22-BRIEF.md §3.3). |
+| [`qwen-lead-triage.mjs`](../tools/qwen-lead-triage.mjs) | FIRST-PASS TRIAGE OF THE LOCAL MODEL'S LEADS THROUGH THE ANTHROPIC BATCH API (owner 2026-11-23: "Use API coder to triage Qwen work"; brief LOCAL-QWEN-SWEEPS-2026-11-22 §3.4–3.6). |
 | [`qwen-mypy-fix.mjs`](../tools/qwen-mypy-fix.mjs) | the mypy burn-down FIX lane (PYTHON-TYPES-AND-FORMAT §P2, qwen half). |
 | [`r5-hr-reference.mjs`](../tools/r5-hr-reference.mjs) | R5 (TCH-REFERENCE-VALIDATION §7) on the HR triplet — and the answer is that IT CANNOT BE RUN. |
 | [`read-lines-bounded.mjs`](../tools/read-lines-bounded.mjs) | ONE BOUNDED LINE READER, FOR EVERY TOOL THAT HANDS A RAW STREAM TO A DSP |
