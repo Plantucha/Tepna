@@ -5057,7 +5057,9 @@
       return (Math.atan2(My, Mx) * 180) / Math.PI;
     }
     if (accRows && accRows.length > 5) {
-      const w = Math.max(3, Math.round((accRows.length / durSec) * 2.0)); // ~2s low-pass → gravity
+      // Sized off the NATIVE rate, as the ~1 s window above is. `count / durSec` is the session
+      // average, and packet loss depresses it, which shortens this window in real time.
+      const w = Math.max(3, Math.round((_accHz != null ? _accHz : accRows.length / durSec) * 2.0)); // ~2s low-pass → gravity
       const gx = movavg(Float32Array.from(accRows.map((r) => r.x)), w);
       const gy = movavg(Float32Array.from(accRows.map((r) => r.y)), w);
       const gz = movavg(Float32Array.from(accRows.map((r) => r.z)), w);
@@ -5149,14 +5151,29 @@
       // returns just the position STRING — the stable contract consumed by the test suite.
       postureDetailAtSec = (s0, s1) => {
         const g = gravMed(s0, s1);
-        const need = (accRows.length / durSec) * 30; // need ≥30 s of gravity samples
+        /* THE FULL-COVERAGE EXPECTATION, and a pre-stated fraction of it as the refusal line.
+           `need` was `accRows.length / durSec * 30`, the session average rate. That average falls
+           with the packet loss this test exists to catch, so the window only had to be as covered
+           as the session: a night that lost 80 % of its ACC accepted a 30 s window holding 6 s of
+           gravity, and the coverage factor below then saturated at 1. A threshold the data moves
+           decides nothing (§🧾). The native rate states what full coverage IS, and
+           GRAV_MIN_COVER states how much of it a window must hold. Below that line the window
+           describes no continuous stretch of gravity and refuses; above it, reduced coverage
+           annotates through the confidence factor (owner ruling 2026-09-17, §∅).
+           MEASURED, so 0.5 is not a taste: over 2228 thirty-second windows in the first hour of 19
+           corpus ACC files, window coverage is bimodal — median 0.9998, p05 0.9975, 4.08 % below
+           0.5 and 4.22 % below 0.9. Almost nothing lies between. The old floor equalled a COMPLETE
+           window whenever the ACC spanned the session, so it cut through the dense mass and refused
+           46.6 % of those windows over a packet or two. 0.5 lands in the empty region instead. */
+        const GRAV_MIN_COVER = 0.5;
+        const need = (_accHz != null ? _accHz : accRows.length / durSec) * 30; // a FULLY covered 30 s window
         /* ∅ A WINDOW WITH TOO LITTLE GRAVITY COVERAGE WAS NEVER SCORED. The `conf: 0` this
            returned read as a measurement, and `:4778`'s clamp reaches a real 0 whenever no axis
            dominates, so no value test could separate the two. The interference member carried this
            node's own word for a clean field about a window nothing examined, which is the reading the
            §3a note below the epoch export already called a bug. This leg quotes no removed line,
            because a suite check reads the source for it. The refusal names itself instead. */
-        if (!g || g.n < need / gStride) return { position: 'unknown', conf: null, heading: null, magInterf: null, reason: 'low-gravity-coverage' };
+        if (!g || g.n * gStride < need * GRAV_MIN_COVER) return { position: 'unknown', conf: null, heading: null, magInterf: null, reason: 'low-gravity-coverage' };
         let base = _normPositionPPG(_posturePPG(g.x, g.y, g.z));
         const heading = magState.has ? headingAtSec(s0, s1) : null;
         const magInterf = magState.has ? magInterfAtSec(s0, s1) : null; // ∅ no magnetometer is not a clean field
