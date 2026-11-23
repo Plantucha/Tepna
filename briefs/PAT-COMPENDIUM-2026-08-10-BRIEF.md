@@ -74,6 +74,12 @@ With (1) fixed and (2) avoided, on box captures, the R-peak → finger-foot inte
 
 **10–23 ms on three of six nights**, against a published 8.22–15.4 ms and a `pat-gate.js` bar of 60 ms.
 
+**Pick rule behind the σ column (added 2026-11-23).** The 5-minute-bin PAT lag series comes from
+`pat-feasibility-worker.js`, which picks the reference PPG channel by a peak-count argmax. The shipped
+node picks on pulse-band SNR and then moves that pick with `harmonicOutlierRefIdx`. So a re-run under
+the shipped rule can move every σ in this table. The Rayleigh column names no producing artifact in
+the tree, and I did not identify one.
+
 ⚠️ **Status of these six rows: ONE session, not gate-backed.** They are the reason the old verdict is
 withdrawn, not yet the reason to publish a new one. What is solidly established is the *negative*: the
 ~90 ms figure was measured through a broken axis, a mis-read rate and a fixed window, so it does not
