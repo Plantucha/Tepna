@@ -45,10 +45,13 @@ echo "── $(date '+%F %T') driver start" >> "$LOG"
 # never corruption. (Owner directive: maximize qwen.)
 # shellcheck disable=SC2009  # pgrep -f matches this driver's own command line (CLAUDE.md §4); the [m] bracket does not.
 if ps ax -o args | grep -qE "[m]utate\.mjs --file|[m]utation-crawl\.mjs|[m]utation-ai-probe\.mjs|[m]utation-suite\.mjs --draft"; then
-  if curl -sf --max-time 5 http://127.0.0.1:11434/api/ps 2>/dev/null | grep -q '"model"'; then
-    echo "   pipeline busy AND model loaded — yielding" >> "$LOG"; exit 0
+  # Match a QWEN model only. bge-m3 (doc-search) stays loaded ~30 min after every search, and the
+  # rig runs OLLAMA_MAX_LOADED_MODELS=2, so bge never means the pipeline holds the card. Measured
+  # 2026-11-23 (Kestrel): the old `"model"` match yielded 169 times that day with only bge loaded.
+  if curl -sf --max-time 5 http://127.0.0.1:11434/api/ps 2>/dev/null | grep -qE '"model": *"qwen'; then
+    echo "   pipeline busy AND qwen loaded — yielding" >> "$LOG"; exit 0
   fi
-  echo "   pipeline running but GPU empty (CPU phase) — proceeding" >> "$LOG"
+  echo "   pipeline running but no qwen loaded (CPU phase) — proceeding" >> "$LOG"
 fi
 # ollama up?
 curl -sf --max-time 5 http://127.0.0.1:11434/api/version >/dev/null || { echo "   ollama down — skip" >> "$LOG"; exit 0; }
