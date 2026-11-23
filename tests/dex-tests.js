@@ -66286,12 +66286,13 @@
        header calls a DEADLOCK under `strict`, and CLAUDE.md §5 calls a no-op under Kodiak. The flag is
        the CALLER's measurement of config plus merge-bot liveness; only an explicit `true` reclassifies,
        so an unread probe keeps the pre-Kodiak verdict. */
-    group('Queue-doctor — a green BEHIND unarmed PR under Kodiak serialises, and arming is never its remedy', 'tools · queue-doctor-kodiak', function (T) {
+    group('Queue-doctor — a green unarmed PR under a live merge bot serialises, and arming is never its remedy', 'tools · queue-doctor-kodiak', function (T) {
       var cl = env.qdClassify,
         att = env.qdAttention,
-        cfg = env.qdKodiakConfig;
-      if (typeof cl !== 'function' || typeof att !== 'function' || typeof cfg !== 'function') {
-        T.skip('queue-doctor Kodiak rung is wired into this lane', 'browser lane cannot import tools/queue-doctor.mjs');
+        cfg = env.qdKodiakConfig,
+        drain = env.qdDrainOwner;
+      if (typeof cl !== 'function' || typeof att !== 'function' || typeof cfg !== 'function' || typeof drain !== 'function') {
+        T.skip('the queue-doctor merge-bot rung is wired into this lane', 'browser lane cannot import tools/queue-doctor.mjs');
         return;
       }
       var NOW = 1755000000000;
@@ -66308,14 +66309,27 @@
         r.pr = pr;
         return r;
       };
-      T.eq('under a live Kodiak a green BEHIND unarmed PR serialises', wrap({}, { kodiakOwnsDrain: true }).k, 'serialising');
-      T.eq('…and serialising is in NO attention set', att([wrap({}, { kodiakOwnsDrain: true })]).stuck.length, 0);
-      T.eq('with no merge bot the pre-Kodiak verdict stands', wrap({}, { kodiakOwnsDrain: false }).k, 'stuck-unarmed');
-      T.eq('an UNREAD probe is not a merger, so it keeps that verdict too', wrap({}, { kodiakOwnsDrain: null }).k, 'stuck-unarmed');
+      T.eq('under a live merge bot a green BEHIND unarmed PR serialises', wrap({}, { botOwnsDrain: true }).k, 'serialising');
+      T.eq('…and serialising is in NO attention set', att([wrap({}, { botOwnsDrain: true })]).stuck.length, 0);
+      T.eq('with no merge bot the hand-run verdict stands', wrap({}, { botOwnsDrain: false }).k, 'stuck-unarmed');
+      T.eq('an UNREAD probe is not a merger, so it keeps that verdict too', wrap({}, { botOwnsDrain: null }).k, 'stuck-unarmed');
       T.eq('a caller passing no options at all is unchanged', wrap({}, undefined).k, 'stuck-unarmed');
       T.eq('…and THAT one is attention (non-vacuity)', att([wrap({}, undefined)]).stuck.length, 1);
-      T.eq('an ARMED behind PR is untouched by the flag', wrap({ autoMerge: true }, { kodiakOwnsDrain: true }).k, 'stuck-behind');
-      T.eq('a green CURRENT unarmed PR still asks for a look', wrap({ mergeState: 'CLEAN' }, { kodiakOwnsDrain: true }).k, 'stuck-unarmed');
+      T.eq('an ARMED behind PR is untouched by the flag', wrap({ autoMerge: true }, { botOwnsDrain: true }).k, 'stuck-behind');
+      /* 🔴 THIS LEG FLIPPED ON 2026-11-23, deliberately. A green CURRENT unarmed PR under a live merge
+         bot is that queue's normal state, and the old verdict sent four such PRs to a person at
+         10:54:51Z; three of them merged two minutes later with `mergedBy=app/mergify`. */
+      T.eq('a green CURRENT unarmed PR serialises too under a live bot', wrap({ mergeState: 'CLEAN' }, { botOwnsDrain: true }).k, 'serialising');
+      T.eq('…and with no bot that same PR still asks for a look', wrap({ mergeState: 'CLEAN' }, { botOwnsDrain: false }).k, 'stuck-unarmed');
+      T.eq('…and an unread probe keeps it attention, never silence', att([wrap({ mergeState: 'CLEAN' }, { botOwnsDrain: null })]).stuck.length, 1);
+      /* WHO LAST MERGED is the whole evidence. An App reads `app/<slug>`; an older bot carries `[bot]`. */
+      T.eq('an App merger means a bot drains the repo', drain([{ mergedBy: { login: 'app/mergify' } }]), true);
+      T.eq('a bracketed bot login reads the same', drain([{ mergedBy: { login: 'kodiakhq[bot]' } }]), true);
+      T.eq('one bot among human lands still means the bot drains', drain([{ mergedBy: { login: 'Plantucha' } }, { mergedBy: { login: 'app/mergify' } }]), true);
+      T.eq('only human mergers mean a person merges here', drain([{ mergedBy: { login: 'Plantucha' } }]), false);
+      T.eq('∅ no merges read is null, never false', drain([]), null);
+      T.eq('∅ a row with no merger is null too', drain([{ mergedBy: null }]), null);
+      T.eq('∅ a probe that threw hands over null, never a boolean', drain(null), null);
       /* THE DECLARATION IS A CONFIG LINE, and a commented line declares nothing. */
       T.ok('the repo config declares an unarmed queue', cfg('[merge]\nrequire_automerge_label = false\n'));
       T.ok('a commented declaration is not one', !cfg('# require_automerge_label = false\n'));
