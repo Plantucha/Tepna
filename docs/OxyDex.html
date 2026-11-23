@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="f3c8979c43a9" data-compute-hash="8a67edbe30fe">
+<html lang="en" data-manifest-hash="8113e7dc146d" data-compute-hash="17ab35d0f3a8">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1GXN++OkM02KioWXqr41sn7DFt/p7OeiRsHDpnTpfhg=' 'sha256-4esQYmoU7FYRSxckVGhsPB+ddHAbdUxK5/3OtftYgPQ=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AJI3024kFPXR8vHy8m8EF0R1krYY18zhOaNj9BrPCdA=' 'sha256-ATGkTBNHH88hb93xCcS+YJy6Zx6VRWHVYdxEqrFfGTM=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-dsssYIYS8Tml6Xipmyr/3Yx/JuzB9S1yqIQJoQfO43w=' 'sha256-jcYwIYHWEOkRho/6EL++KYsUTDIxL+gNUno4PTReee0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-kSWZO1BAQD4LSgV4fXWui6PrzwX+1GsCJuv4lVI/5Dw=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1GXN++OkM02KioWXqr41sn7DFt/p7OeiRsHDpnTpfhg=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AJI3024kFPXR8vHy8m8EF0R1krYY18zhOaNj9BrPCdA=' 'sha256-ATGkTBNHH88hb93xCcS+YJy6Zx6VRWHVYdxEqrFfGTM=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-dsssYIYS8Tml6Xipmyr/3Yx/JuzB9S1yqIQJoQfO43w=' 'sha256-jcYwIYHWEOkRho/6EL++KYsUTDIxL+gNUno4PTReee0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-kSWZO1BAQD4LSgV4fXWui6PrzwX+1GsCJuv4lVI/5Dw=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.35.0</title>
@@ -15698,6 +15698,19 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
        and 200, motion null. So the fallback now runs only when the header named NONE of the three:
        a column the header leaves out is ABSENT (its cells read null), never borrowed from a neighbour. */
     var _headerNamed = timeCol >= 0 || spo2Col >= 0 || hrCol >= 0;
+    /* THE HEADERLESS COLUMN ORDER IS CITED, NOT GUESSED. A file with no header carries no names, so
+       the ORDER is the only thing that maps a cell to a signal. Six places in this tree state the
+       O2Ring / ViHealth order, and all six agree that SpO₂ comes before pulse:
+         `how-to-collect/oxydex-spo2.md:16`       `briefs/INGEST-AUDIT-BRIEF.md:186`
+         `docs/SYNTHETIC-CORPUS-README.md:49`     `synth-gen.js:212` and `:217`
+         `oxydex-dsp.js:401` (this node's own summary writer)
+         `briefs/O2RING-RAW-STREAMS-ABSENT-2026-08-04-BRIEF.md:68`
+       The offsets below count from the timestamp field the scan finds, and they are the same offsets
+       the last-resort defaults assume. Never reorder them without moving all six documents first. */
+    var HEADERLESS_OFFSETS = { spo2: 1, hr: 2, motion: 3 };
+    /* `_colSource` records WHICH route chose the columns, captured before the last-resort defaults
+       overwrite the evidence. It leaves parseCSV on the rows array — see `return rows` below. */
+    var _colSource = _headerNamed ? 'header' : 'none';
     if (!_headerNamed) {
       // Try rows until we find a valid one
       for (var i = firstDataIdx; i < Math.min(firstDataIdx + 5, lines.length); i++) {
@@ -15707,9 +15720,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         for (var j = 0; j < Math.min(parts.length, 3); j++) {
           if (parts[j].indexOf(':') >= 0) {
             timeCol = j;
-            spo2Col = j + 1;
-            hrCol = j + 2;
-            motionCol = j + 3 < parts.length ? j + 3 : -1;
+            spo2Col = j + HEADERLESS_OFFSETS.spo2;
+            hrCol = j + HEADERLESS_OFFSETS.hr;
+            motionCol = j + HEADERLESS_OFFSETS.motion < parts.length ? j + HEADERLESS_OFFSETS.motion : -1;
+            _colSource = 'positional';
             break;
           }
         }
@@ -15718,6 +15732,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     }
 
     // Last resort defaults — only for an unrecognised layout; a named header keeps its absences.
+    if (_colSource === 'none') _colSource = 'default';
     if (timeCol < 0) timeCol = 0;
     if (!_headerNamed && spo2Col < 0) spo2Col = 1;
     if (!_headerNamed && hrCol < 0) hrCol = 2;
@@ -15816,6 +15831,16 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       _prevTMs = _ts.tMs;
       rows.push({ tMs: _ts.tMs, t: new Date(_ts.tMs), spo2: spo2, hr: hr, motion: motion, pi: pi });
     }
+    /* §∅ — HOW THE COLUMNS WERE CHOSEN TRAVELS WITH THE ROWS. A named header and a positional guess
+       build the same row shape, so until now no consumer could tell a cell read from a NAMED column
+       from one assigned by OFFSET. The record rides on the ARRAY, not on each row: every existing
+       consumer keeps its length, its indexing and its row objects, and `JSON.stringify` drops an
+       array's own property, so no export byte moves.
+       LIMIT, and it is real: `map`, `slice`, `filter`, `concat` and a spread each return a plain
+       array and DROP this property. A consumer that needs it must read it BEFORE it reshapes. Both
+       call sites in this file hand `rows` straight to `processNight`, so it survives to there. A
+       suite leg pins that limit, so a later refactor cannot lose it quietly. */
+    /** @type {any} */ (rows).columnSource = _colSource;
     return rows;
   }
 
