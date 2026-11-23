@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** PROPOSED — 2026-10-19 (remainder owner-blocked — verified 2026-10-26, Kestrel: the owner has not ruled on the INTERFACE roles, and the second box depends on that ruling. Row `2026-10-19-string-mutants-that-reach-an-interface-are-unmeasured` stays OPEN.) · Previously: PROPOSED — 2026-10-19 · **Residue:** `2026-10-19-string-mutants-that-reach-an-interface-are-unmeasured` · **Created:** 2026-10-19 · **RE-VERIFIED 2026-11-04 (Osprey): still owner-blocked, and no commit has pre-empted the ruling.** `capture-host/mutation_diff.py` carries `string_only_verdict` and no INTERFACE rule beside it. The commits that touched the file since the 2026-10-26 stamp are the per-gate criterion scope (#4193), the survivor-record ownership fix (#4173), the generator-named ledger (#4248) and the pinned-generator refusal (#4280); none of them makes an INTERFACE role required. A board search for the ruling returns nothing. · **ADDED 2026-11-23 (Heron): §6b holds a seventh diff's base fixed and moves only the suite.** The gate reported `notRequired` 6 then 0 over PR #5458, and §5 places all six literals as INTERFACE dict keys.
+**Status:** PROPOSED — 2026-10-19 (remainder owner-blocked — verified 2026-10-26, Kestrel: the owner has not ruled on the INTERFACE roles, and the second box depends on that ruling. Row `2026-10-19-string-mutants-that-reach-an-interface-are-unmeasured` stays OPEN.) · Previously: PROPOSED — 2026-10-19 · **Residue:** `2026-10-19-string-mutants-that-reach-an-interface-are-unmeasured` · **Created:** 2026-10-19 · **RE-VERIFIED 2026-11-04 (Osprey): still owner-blocked, and no commit has pre-empted the ruling.** `capture-host/mutation_diff.py` carries `string_only_verdict` and no INTERFACE rule beside it. The commits that touched the file since the 2026-10-26 stamp are the per-gate criterion scope (#4193), the survivor-record ownership fix (#4173), the generator-named ledger (#4248) and the pinned-generator refusal (#4280); none of them makes an INTERFACE role required. A board search for the ruling returns nothing. · **ADDED 2026-11-23 (Heron): §6b holds a seventh diff's base fixed and moves only the suite.** The gate reported `notRequired` 6 then 0 over PR #5458, and §5 places all six literals as INTERFACE dict keys. **§6c ADDED 2026-11-23 (Heron): `tools/mutation-excused-rate.mjs` already measures the rate this brief's ruling waits on** — **CLAIM interfaceReachingExcused = 1036 FROM analysis/mutation-excused-rate.json#interfaceReaching/occurrences** excused mutants over **CLAIM measurableDiffs = 157 FROM analysis/mutation-excused-rate.json#diffs/examined** measurable diffs, a 0.665 share of every exclusion, and the brief named no such tool.
 
 # STRING-MUTANT-REQUIREDNESS — what the mutation gate sets aside, measured over six diffs
 
@@ -156,6 +156,43 @@ Three findings follow.
 This section adds no diff to §3's table. It measures one diff twice, so it answers a different
 question from the five-diff population above.
 
+## 6c · The rate the ruling waits on already exists (2026-11-23, Heron)
+
+§6 sizes the cost over five diffs, and nothing above names a tool that widens that population.
+`tools/mutation-excused-rate.mjs` widens it. The tool reads the `mutation-diff.json` artifacts CI has
+already uploaded, and it runs mutmut zero times. Its committed record spans 2026-08-02 to 2026-10-21.
+
+| field | value |
+|---|---|
+| diffs whose mutation job ran | 157 |
+| diffs carrying any exclusion | 134 |
+| diffs carrying an interface-reaching exclusion | 99 |
+| interface-reaching excused mutants | **1036** over 112 distinct keys |
+| per measurable diff | 6.5987 |
+| share of all excused mutants | **0.665** |
+| merged PRs in the same window | 3109 |
+
+The tool pre-states this brief's own claim as its criterion, at a threshold of zero, so its status
+reads FAIL. That FAIL quantifies the defect. It does not report a gate breaking.
+
+**The five-diff sample holds up at scale.** §3 reads 9 of 12, or 75 %. The tool reads 0.665 over 157
+diffs. A 12-mutant sample cannot resolve those two apart, so the small measurement survives its own
+widening. `distinctKeysByRule` counts `dict-key` 77, `join-or-split-separator` 31, `vector-element` 18
+and `strftime-format` 8. The four sum above the 112 distinct keys, so one key may match two rules.
+
+**The dict-key class is the largest, and §6b's six mutants all sit in it.** So the diff this brief
+measures twice falls in the rule class that carries most of the repo-wide count.
+
+Two cautions a reader should carry.
+
+1. **The denominator is the diffs the gate EXAMINED, never every merged PR.** The record quotes both,
+   157 against 3109, because a relevance filter can skip the job on a change that would have reded it.
+2. **The window closed on 2026-10-21.** §6b's diff, PR #5458, falls outside it, so the two
+   measurements do not overlap.
+
+So the owner's ruling no longer waits on a rate. It waits on the decision alone, and §6's
+bounded-cost argument now rests on 157 diffs rather than five.
+
 ## 7 · What this does not show
 
 - **#3654 reads 0 here and 6 in the reproduction** that found the counting defect. That run used
@@ -179,6 +216,7 @@ question from the five-diff population above.
 
 ## 9 · Interlocks
 
-`MUTATION-PROGRAM-2026-08-09-BRIEF.md` (the gate's programme) · `briefs/RESIDUE.md` row
+`MUTATION-PROGRAM-2026-08-09-BRIEF.md` (the gate's programme) · `tools/mutation-excused-rate.mjs`
+(the repo-wide rate, offline over CI's own artifacts; §6c) · `briefs/RESIDUE.md` row
 `2026-10-19-string-mutants-that-reach-an-interface-are-unmeasured` (OPEN; it closes when the owner
 rules) · board 163, 167, 168, 169 · the counting fix is #3669.
