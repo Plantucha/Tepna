@@ -102,6 +102,17 @@ Osprey decided this under CLAUDE.md §7 and the owner may overrule it.
     The paper also pins 54-pairing figures and box-capture sigma figures, and this unit did not
     identify the leg that produced them. So the box counts figures from here, and it stays open on
     those two groups.
+
+    Resolved 2026-11-23: both groups trace to `pat-feasibility-worker.js`, which picks the
+    reference channel by a peak-count argmax. The paper withdraws the 54-pairing figures, and it
+    keeps them only as the claim it corrects. So the box does not bind to that group. This PR
+    states the rule beside the live box-capture sigma figures in the paper. The same statement
+    goes under the six-night table in `PAT-COMPENDIUM-2026-08-10-BRIEF.md`.
+
+    The box stays OPEN on one column. `PAT-COMPENDIUM-2026-08-10-BRIEF.md` pins a Rayleigh R per
+    night, and no artifact in the tree declares that column. `tools/circular-stats.mjs` has one
+    consumer, the Integrator block-precision tool, which measures a different quantity. The box
+    closes when a bird names the producer, or when the brief withdraws the column.
 - [ ] The census still reads every converted site as `named`, and `byRead` still answers for every examined site.
 
 ## 4 · What must not be done
