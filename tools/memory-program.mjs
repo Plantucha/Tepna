@@ -189,7 +189,8 @@ export function estimateUsd(pack) {
   return inTok * PRICE.inPerTok + pack.length * EST_OUT_TOKENS * PRICE.outPerTok;
 }
 export function spent() {
-  return readJsonl(join(stateDir(), 'results.jsonl')).reduce((s, r) => s + (r.usd || 0), 0);
+  /* A row without a cost is unknown spend, never $0: NaN makes the cap refuse (fail closed). */
+  return readJsonl(join(stateDir(), 'results.jsonl')).reduce((s, r) => s + (Number.isFinite(r.usd) ? r.usd : Number.NaN), 0);
 }
 export async function cmdSubmit() {
   const cap = Number(arg('--cap-usd', 150));
@@ -198,7 +199,7 @@ export async function cmdSubmit() {
   const est = estimateUsd(pack);
   const already = spent();
   console.log(`requests ${pack.length} · estimate $${est.toFixed(2)} · spent $${already.toFixed(2)} · cap $${cap}`);
-  if (already + est > cap) throw new Error(`refused: spent + estimate passes the cap`);
+  if (!(already + est <= cap)) throw new Error(`refused: spent + estimate passes the cap`);
   if (process.argv.includes('--dry-run')) return;
   const requests = pack.map((o, i) => ({
     custom_id: `m${String(i).padStart(4, '0')}`,
@@ -256,7 +257,9 @@ export async function cmdCollect() {
       }
       const m = r.result.message;
       const u = m.usage || {};
-      const cost = ((u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) * 1.25 + (u.cache_read_input_tokens || 0) * 0.1) * PRICE.inPerTok + (u.output_tokens || 0) * PRICE.outPerTok;
+      /* The API omits a cache field it did not use, so an absent cache count is a legal zero. The two
+     main counts are always present; an absent one leaves the cost NaN, which the cap refuses. */
+      const cost = (u.input_tokens + (u.cache_creation_input_tokens ?? 0) * 1.25 + (u.cache_read_input_tokens ?? 0) * 0.1) * PRICE.inPerTok + u.output_tokens * PRICE.outPerTok; // absence-ok: the API omits an unused cache count
       usd += cost;
       const text = (m.content || [])
         .filter((c) => c.type === 'text')
@@ -319,7 +322,7 @@ export function cmdReport() {
   const ans = rs.filter((r) => r.answer);
   const by = (f) => {
     const m = {};
-    for (const r of ans) m[f(r)] = (m[f(r)] || 0) + 1;
+    for (const r of ans) m[f(r)] = (m[f(r)] ?? 0) + 1; // absence-ok: a tally starts at zero
     return m;
   };
   const missing = readJsonl(join(sd, 'refs-missing.jsonl'));
