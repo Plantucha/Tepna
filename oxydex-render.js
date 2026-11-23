@@ -354,7 +354,9 @@ function oxyClinicalSummary(review, nights) {
       'ODI-4',
       (recent.odi4.rate != null ? recent.odi4.rate : '—') + '/hr',
       recent.odi4.count != null ? recent.odi4.count + ' events' : '',
-      recent.odi4.rate < 5 ? 'ok' : recent.odi4.rate < 15 ? 'warn' : 'bad'
+      sev(recent.odi4.rate, function (v) {
+        return v < 5 ? 'ok' : v < 15 ? 'warn' : 'bad';
+      })
     );
   if (st.meanSpo2 != null) h += kpi('Mean SpO₂', st.meanSpo2 + '%', 'min ' + (st.minSpo2 != null ? st.minSpo2 + '%' : '—'), st.meanSpo2 >= 95 ? 'ok' : st.meanSpo2 >= 92 ? 'warn' : 'bad');
   if (st.minSpo2 != null) h += kpi('Min SpO₂', st.minSpo2 + '%', 'lowest reading', st.minSpo2 >= 90 ? 'ok' : st.minSpo2 >= 85 ? 'warn' : 'bad');
@@ -2196,7 +2198,14 @@ function renderSmartSummary(n) {
       })
     );
   }
-  if (n.odi4) html += ssKPI('ODI-4 Rate', cv(n.odi4.rate, 5, 15, '/hr'), n.odi4.rate < 5 ? 'good' : n.odi4.rate < 15 ? 'warn' : 'bad');
+  if (n.odi4)
+    html += ssKPI(
+      'ODI-4 Rate',
+      cv(n.odi4.rate, 5, 15, '/hr'),
+      sev(n.odi4.rate, function (v) {
+        return v < 5 ? 'good' : v < 15 ? 'warn' : 'bad';
+      })
+    );
   // ODI-3 IS NOT GRADED — there is no published ODI-3 severity band to grade it against
   // (REFERENCE-GUIDE-AUDIT dim 3). The guide publishes an ODI-**4** table (AASM <5/5-14.9/15-29.9/>=30)
   // and says of ODI-3 only that it is "more sensitive for mild hypoxemia"; `oxydex-registry.js` carries a
@@ -2451,6 +2460,20 @@ function setGCSmooth(k) {
 function nrKpi(label, val, cls) {
   return '<div class="nr-kpi"><div class="nr-kpi-label">' + evBadge(label) + label + '</div><div class="nr-kpi-val ' + stsCls(cls) + '">' + val + '</div></div>';
 }
+/* §∅ · hunt-record R-11 — `nrKpi` and `nrChip` print the VALUE they are handed, and the CLASS
+   comes from a comparison against that same value. So a field-level null inside a PRESENT
+   container printed the literal text `null` and graded it: `null < 5` is TRUE, so the ODI-4 KPI
+   drew the reassuring green band over an index nobody could compute, and `null >= 4` is FALSE,
+   so the HR-Var chip drew the alarm band. The container guard cannot stand in for the field
+   guard, because every producer here returns the container WITH null members on purpose
+   (`detectODI` refuses under 60 measured samples, `computeSBII` and `computePRED3p` refuse a
+   short record, and the self-ingest reload writes each `hrv` member as an explicit null).
+   Both halves of the guard already shipped in this file, and the night rows were the surface
+   that reached neither: `nzv(v, suffix)` answers the em-dash for the VALUE, and `sev(v, fn)`
+   answers '' for the CLASS, which `stsCls` maps to the neutral band. The sites below now route
+   through the same two helpers the stat cards use. They name no mechanism, because the renderer
+   cannot tell a short record from an absent reload column, and a borrowed reason is its own
+   defect. */
 function nrChip(label, val, cls, title) {
   // metric chips carry an evidence dot BEFORE the label; flag/alert chips (empty val) stay bare
   var b = val !== '' && val != null && typeof evBadge === 'function' ? evBadge(label) : '';
@@ -2481,9 +2504,23 @@ function nightRowInner(n) {
   if (s.meanSpo2 != null) centerHtml += nrKpi('SpO₂', s.meanSpo2 + '%', s.meanSpo2 >= 95 - _sAdj ? 'g' : s.meanSpo2 >= 92 - _sAdj ? 'w' : 'r');
   if (s.minSpo2 != null) centerHtml += nrKpi('Min O₂', s.minSpo2 + '%', s.minSpo2 >= 90 - _sAdj ? 'g' : s.minSpo2 >= 85 - _sAdj ? 'w' : 'r');
   if (s.t90pct != null) centerHtml += nrKpi('T<90%', s.t90pct + '%', s.t90pct === 0 ? 'g' : s.t90pct < 0.5 ? 'w' : 'r');
-  if (n.odi4) centerHtml += nrKpi('ODI-4', n.odi4.rate + '/h', n.odi4.rate < 5 ? 'g' : n.odi4.rate < 15 ? 'w' : 'r');
+  if (n.odi4)
+    centerHtml += nrKpi(
+      'ODI-4',
+      nzv(n.odi4.rate, '/h'),
+      sev(n.odi4.rate, function (v) {
+        return v < 5 ? 'g' : v < 15 ? 'w' : 'r';
+      })
+    );
   if (n.karv && n.karv.zones && n.karv.zones.z2) centerHtml += nrKpi('Z2', n.karv.zones.z2.low + '–' + n.karv.zones.z2.high, 'g');
-  else if (n.hrv) centerHtml += nrKpi('HR⌊', n.hrv.hrFloor + ' bpm', n.hrv.hrFloor <= 52 ? 'g' : n.hrv.hrFloor <= 60 ? 'w' : 'r');
+  else if (n.hrv)
+    centerHtml += nrKpi(
+      'HR⌊',
+      nzv(n.hrv.hrFloor, ' bpm'),
+      sev(n.hrv.hrFloor, function (v) {
+        return v <= 52 ? 'g' : v <= 60 ? 'w' : 'r';
+      })
+    );
   centerHtml += '</div>';
 
   // ── RIGHT: removed v22.40 — the chevron button was decorative-only
@@ -2495,19 +2532,70 @@ function nightRowInner(n) {
   var chipsArr = [];
   var h = n.hrv;
   if (h) {
-    chipsArr.push(nrChip('HR-Var', h.hrSdnn, h.hrSdnn >= 4 ? 'g' : h.hrSdnn >= 2.5 ? 'w' : 'r'));
-    chipsArr.push(nrChip('pNN3', h.pnn3 + '%', h.pnn3 >= 1.5 ? 'g' : h.pnn3 >= 0.5 ? 'w' : 'r'));
-    chipsArr.push(nrChip('HRsl', (h.hrSlope > 0 ? '+' : '') + h.hrSlope, h.hrSlope < 0 ? 'g' : h.hrSlope < 1 ? 'w' : 'r'));
+    chipsArr.push(
+      nrChip(
+        'HR-Var',
+        nzv(h.hrSdnn),
+        sev(h.hrSdnn, function (v) {
+          return v >= 4 ? 'g' : v >= 2.5 ? 'w' : 'r';
+        })
+      )
+    );
+    chipsArr.push(
+      nrChip(
+        'pNN3',
+        nzv(h.pnn3, '%'),
+        sev(h.pnn3, function (v) {
+          return v >= 1.5 ? 'g' : v >= 0.5 ? 'w' : 'r';
+        })
+      )
+    );
+    chipsArr.push(
+      nrChip(
+        'HRsl',
+        nzv(h.hrSlope == null ? null : (h.hrSlope > 0 ? '+' : '') + h.hrSlope),
+        sev(h.hrSlope, function (v) {
+          return v < 0 ? 'g' : v < 1 ? 'w' : 'r';
+        })
+      )
+    );
   }
-  if (n.odi3) chipsArr.push(nrChip('ODI-3', n.odi3.rate + '/h', n.odi3.rate < 5 ? 'g' : n.odi3.rate < 15 ? 'w' : 'r'));
+  if (n.odi3)
+    chipsArr.push(
+      nrChip(
+        'ODI-3',
+        nzv(n.odi3.rate, '/h'),
+        sev(n.odi3.rate, function (v) {
+          return v < 5 ? 'g' : v < 15 ? 'w' : 'r';
+        })
+      )
+    );
   /* §∅ — `null < 30` is TRUE, so an NSI nobody could compute would have rendered GREEN. */
   if (n.comp && n.comp.nsi != null) chipsArr.push(nrChip('NSI', n.comp.nsi, n.comp.nsi < 30 ? 'g' : n.comp.nsi < 60 ? 'w' : 'r'));
   if (n.comp && n.comp.sfi != null) chipsArr.push(nrChip('SFI', n.comp.sfi, n.comp.sfi < 1 ? 'g' : n.comp.sfi < 3 ? 'w' : 'r'));
   if (n.motSleep) chipsArr.push(nrChip('SleepEff', n.motSleep.sleepEff + '%', n.motSleep.sleepEff >= 90 ? 'g' : n.motSleep.sleepEff >= 80 ? 'w' : 'r'));
   if (n.sleepArch && n.sleepArch.wasoMin != null) chipsArr.push(nrChip('WASO', n.sleepArch.wasoMin + 'm', n.sleepArch.wasoMin < 10 ? 'g' : n.sleepArch.wasoMin < 30 ? 'w' : 'r'));
   if (n.hrAdv) chipsArr.push(nrChip('RMSSD', n.hrAdv.rmssd, n.hrAdv.rmssd >= 2 ? 'g' : n.hrAdv.rmssd >= 1 ? 'w' : 'r'));
-  if (n.sbii) chipsArr.push(nrChip('SBII', n.sbii.sbii, n.sbii.sbii < 2.58 ? 'g' : n.sbii.sbii < 12.8 ? 'w' : 'r'));
-  if (n.pred3p) chipsArr.push(nrChip('pRED', n.pred3p.pred3p + '%', n.pred3p.pred3p < 2.78 ? 'g' : n.pred3p.pred3p < 10.84 ? 'w' : 'r'));
+  if (n.sbii)
+    chipsArr.push(
+      nrChip(
+        'SBII',
+        nzv(n.sbii.sbii),
+        sev(n.sbii.sbii, function (v) {
+          return v < 2.58 ? 'g' : v < 12.8 ? 'w' : 'r';
+        })
+      )
+    );
+  if (n.pred3p)
+    chipsArr.push(
+      nrChip(
+        'pRED',
+        nzv(n.pred3p.pred3p, '%'),
+        sev(n.pred3p.pred3p, function (v) {
+          return v < 2.78 ? 'g' : v < 10.84 ? 'w' : 'r';
+        })
+      )
+    );
   // DEEP-AUDIT-II §2.2 — ONE band set for DesSev: <5 good · <15 warn · else bad. This chip
   // carried {10,25} while the metric card used {5,15} and the score used {5,15,30}, so the
   // same night could read green on the chip and warn on the card beside it. {5,15,30} is
@@ -3698,7 +3786,7 @@ function nightDetail(n, idx) {
   html += '<div class="sec-label">Clinical Hypoxic Indices <span class="cite-note">(Hui 2024 Respirology · SHHS 4,485pt cohort)</span></div>';
   html += '<div class="grid">';
   if (n.sbii && n.sbii.sbiiQ) {
-    html += metric('SBII', n.sbii.sbii, '%\u00B2\u00B7min/hr', n.sbii.sbiiQ === 'Q1(low)' ? 'good' : n.sbii.sbiiQ === 'Q2' ? 'good' : n.sbii.sbiiQ === 'Q3' ? 'warn' : 'bad', 'research');
+    html += metric('SBII', nzv(n.sbii.sbii), '%\u00B2\u00B7min/hr', n.sbii.sbiiQ === 'Q1(low)' ? 'good' : n.sbii.sbiiQ === 'Q2' ? 'good' : n.sbii.sbiiQ === 'Q3' ? 'warn' : 'bad', 'research');
     html += metric(
       'SBII Quintile',
       n.sbii.sbiiQ,
@@ -3710,7 +3798,7 @@ function nightDetail(n, idx) {
   if (n.pred3p && n.pred3p.pred3pQ) {
     html += metric(
       'pRED-3p',
-      n.pred3p.pred3p + '%',
+      nzv(n.pred3p.pred3p, '%'),
       '% rec time w/ desat events',
       n.pred3p.pred3pQ.indexOf('Q1') > -1 || n.pred3p.pred3pQ.indexOf('Q2') > -1 ? 'good' : n.pred3p.pred3pQ === 'Q3' ? 'warn' : 'bad',
       'research'
@@ -3879,10 +3967,19 @@ function nightDetail(n, idx) {
   html += '<div class="sec-label">Desaturation · Pulse</div>';
   html +=
     '<div class="grid">' +
-    (n.odi4 ? metric('ODI-4', n.odi4.rate, 'evt/hr · ' + n.odi4.count + ' total', n.odi4.rate < 5 ? 'good' : n.odi4.rate < 15 ? 'warn' : 'bad') : '') +
+    (n.odi4
+      ? metric(
+          'ODI-4',
+          nzv(n.odi4.rate),
+          'evt/hr · ' + nzv(n.odi4.count) + ' total',
+          sev(n.odi4.rate, function (v) {
+            return v < 5 ? 'good' : v < 15 ? 'warn' : 'bad';
+          })
+        )
+      : '') +
     // ODI-3 ungraded — no published band; see renderSmartSummary for the evidence. This site had shifted
     // ODI-4's ladder one notch; the other borrowed it unchanged. Neither was citable.
-    (n.odi3 ? metric('ODI-3', n.odi3.rate, 'evt/hr · ' + n.odi3.count + ' total (ranges not established)', '') : '') +
+    (n.odi3 ? metric('ODI-3', nzv(n.odi3.rate), 'evt/hr · ' + nzv(n.odi3.count) + ' total (ranges not established)', '') : '') +
     metric('Mean HR', nzv(s.meanHr), 'bpm', '') +
     metric(
       'HR Range',
@@ -3908,9 +4005,16 @@ function nightDetail(n, idx) {
          Recovery-index green light one bullet above it in that brief, and the same fix: require the
          measurement positively, show an em dash otherwise. Render-only ⇒ computeHash is unmoved. */
       metric('HR-Var SD', h.hrSdnn == null || !isFinite(h.hrSdnn) ? '—' : +h.hrSdnn.toFixed(2) + 'bpm', '1Hz SD (rel. only)', '') +
-      metric('pNN3-equiv', h.pnn3 + '%', 'pairs ≥3bpm', h.pnn3 >= 1.5 ? 'good' : h.pnn3 >= 0.5 ? 'warn' : 'bad') +
-      metric('HR Floor', h.hrFloor, 'bpm (p5)', '') +
-      metric('HR Slope', (h.hrSlope > 0 ? '+' : '') + h.hrSlope, 'bpm/hr', '') +
+      metric(
+        'pNN3-equiv',
+        nzv(h.pnn3, '%'),
+        'pairs ≥3bpm',
+        sev(h.pnn3, function (v) {
+          return v >= 1.5 ? 'good' : v >= 0.5 ? 'warn' : 'bad';
+        })
+      ) +
+      metric('HR Floor', nzv(h.hrFloor), 'bpm (p5)', '') +
+      metric('HR Slope', nzv(h.hrSlope == null ? null : (h.hrSlope > 0 ? '+' : '') + h.hrSlope), 'bpm/hr', '') +
       metric('RSA proxy', h.rsaProxy != null ? h.rsaProxy : '—', 'SpO₂ SD/30s', '') +
       '</div>';
     html += '</div>'; // /.sec-section secondary
