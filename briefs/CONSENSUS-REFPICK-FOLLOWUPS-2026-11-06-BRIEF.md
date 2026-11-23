@@ -67,11 +67,18 @@ Osprey decided this under CLAUDE.md §7 and the owner may overrule it.
     doc-cited legs remain: `pat-feasibility-worker.js`, `pat-host-offset.mjs` and
     `pat-matchrate-strict.mjs`.
 - [x] `refpickOf` grows a second rule only with a parity leg against the code it replaces. `snr-pick-guarded` delegates to the shipped pick, and 17 parity assertions hold it against `analyze`.
-- [x] A doc that cites a PAT figure states the pick rule behind it.
-  - Three docs cite one: `papers/wearable-clock-drift.html` §3.6, the 52-night entry in
-    `papers/RERUN-RESULTS.md`, and the §3a sweep table in
-    `PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md`. Each one now names its rule. The app
-    bundles name a PAT tool as a code reference, never a figure. So the box does not bind there.
+- [ ] A doc that cites a PAT figure states the pick rule behind it.
+  - Population: every reader-facing surface under `papers/` and `docs/papers/`, plus every brief
+    that pins a figure a PAT leg produced. The app bundles name a PAT tool as a code reference,
+    never a figure. So the box does not bind there. Thirty further briefs name a PAT leg and pin
+    none of its figures.
+  - Three surfaces now name their rule: `papers/wearable-clock-drift.html` §3.6, the 52-night
+    entry in `papers/RERUN-RESULTS.md`, and the §3a sweep table in
+    `PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md`.
+  - Two briefs still pin a `pat-host-offset` figure with no rule beside it: the per-night beat
+    offsets in `RADIO-DELAY-FLOOR-2026-11-03-BRIEF.md`, and the 14-night drop count in
+    `PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md`. Each one gets its rule line in that leg's
+    own PR under box 2.
 - [ ] The census still reads every converted site as `named`, and `byRead` still answers for every examined site.
 
 ## 4 · What must not be done
