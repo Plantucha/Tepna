@@ -136,10 +136,98 @@ export function dissentTallyLine(stamps) {
    measured nothing. `idx` is `null` there, and a caller that indexes the pick throws on the null
    rather than deriving every foot on a channel no pass scored. No live leg reaches it: a detected
    channel carries a `peaks` array, and an empty one scores a real 0. */
-export const REFPICK_RULES = ['peak-argmax'];
+/* ── THE SHIPPED RULE IS NOT A LOOP, SO THIS MODULE HOLDS NO COPY OF IT ──────────────────────────
 
-export function refpickOf(perChannel, rule) {
+   `CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md` §3 asks each cited PAT leg to read the SHIPPED
+   rule, and its §5 asks the census to still read every converted site as `named`. A site reads
+   `named` only when it calls `refpickOf`, so convergence has to travel through this helper. The
+   shipped rule is `pickChannel` (pulse-band SNR over the RAW channels) and then
+   `harmonicOutlierRefIdx` (move the reference onto a coherent majority). Neither reads `perChannel`:
+   `pickChannel` scores `rec.ch[c]` at `rec.fs`, which this module never sees.
+
+   🔴 SO THE RULE IS DELEGATED, NEVER RE-IMPLEMENTED. A second copy of an SNR pick in `tools/` would
+   desync from `ppgdex-dsp.js` with no gate able to see it, which is the defect the row behind this
+   brief already measured once. The caller passes the two SHIPPED functions and the parsed record,
+   and this helper only names the rule, builds the guard's two inputs the way `analyze` builds them,
+   and reports what moved. `consensus-refpick-dissent.mjs --selftest` holds the delegation against
+   those same three lines of `analyze`, which is the parity leg §3's fourth box requires.
+
+   🔴 AND IT REFUSES RATHER THAN FALLS BACK. An absent injection, a record it cannot score, or a
+   `perChannel` in another index space than `rec.ch` throws. A fallback onto `peak-argmax` would let
+   a leg declare the shipped rule and measure the ported one — a figure stating a rule it did not
+   run, which is worse than the unnamed loop this helper replaced.
+
+   ∅ THE GUARD'S ZERO IS AN INPUT AND NEVER A SCORE. `analyze` pads an unscored channel with `0` for
+   the re-pick, because `harmonicOutlierRefIdx` ranks on that array. This helper reproduces the pad
+   so the guard sees what the node sees, and it still returns `score: null` for a channel that
+   carries no finite SNR. `scored` is the record-level absence channel: `false` says no channel ever
+   chose a reference, while `idx` stays the real position `analyze` derives its feet on. A leg
+   annotates that; it must not refuse where the node does not, or it stops measuring the node. */
+export const REFPICK_RULES = ['peak-argmax', 'snr-pick-guarded'];
+
+function shippedRefpick(perChannel, opts) {
+  const o = opts || {};
+  const pick = o.pickChannel;
+  const guard = o.harmonicOutlierRefIdx;
+  const rec = o.rec;
+  if (typeof pick !== 'function' || typeof guard !== 'function') {
+    throw new TypeError("refpickOf('snr-pick-guarded'): pass the shipped pickChannel and harmonicOutlierRefIdx — this module holds no copy of either");
+  }
+  if (!rec || !rec.ch || typeof rec.ch.length !== 'number') {
+    throw new TypeError("refpickOf('snr-pick-guarded'): needs the parsed record, because the shipped rule scores the RAW channels");
+  }
+  const channels = perChannel ? perChannel.length : 0;
+  const keepIdx = Array.isArray(o.keepIdx) ? o.keepIdx : null;
+  if (keepIdx && keepIdx.length !== channels) {
+    throw new TypeError(`refpickOf('snr-pick-guarded'): keepIdx names ${keepIdx.length} raw channel(s) for ${channels} detected one(s)`);
+  }
+  if (!keepIdx && channels !== rec.ch.length) {
+    throw new TypeError(`refpickOf('snr-pick-guarded'): perChannel holds ${channels} channel(s) and rec.ch holds ${rec.ch.length} — a deduping caller passes keepIdx and its own remapped refIdx`);
+  }
+  if (keepIdx && !Number.isInteger(o.refIdx)) {
+    throw new TypeError("refpickOf('snr-pick-guarded'): a deduping caller passes opts.refIdx, because the remap onto the deduped set is the caller's own");
+  }
+  const sel = pick(rec);
+  const map = keepIdx || Array.from({ length: channels }, (_, i) => i);
+  const snrIdx = keepIdx ? o.refIdx : sel.idx;
+  const durSec = Number.isFinite(o.durSec) ? o.durSec : rec.durSec;
+  const snrAt = (i) => {
+    const sc = sel.scores && sel.scores[map[i]] ? sel.scores[map[i]].snr : null;
+    return Number.isFinite(sc) ? sc : null;
+  };
+  const rates = [];
+  const snr = [];
+  for (let i = 0; i < channels; i++) {
+    const pc = perChannel[i];
+    rates.push(pc && pc.peaks && pc.peaks.length > 10 && durSec > 0 ? (pc.peaks.length / durSec) * 60 : null);
+    const s = snrAt(i);
+    snr.push(s === null ? 0 : s);
+  }
+  const guarded = guard(snrIdx, rates, snr);
+  const idx = Number.isInteger(guarded) && guarded >= 0 && guarded < channels ? guarded : null;
+  const win = Number.isInteger(snrIdx) && snrIdx >= 0 && snrIdx < channels ? snrAt(snrIdx) : null;
+  let ties = 0;
+  if (win !== null) {
+    for (let i = 0; i < channels; i++) {
+      if (i === snrIdx) continue;
+      if (snrAt(i) === win) ties++;
+    }
+  }
+  return {
+    rule: 'snr-pick-guarded',
+    idx,
+    score: idx === null ? null : snrAt(idx),
+    ties,
+    channels,
+    snrIdx: Number.isInteger(snrIdx) ? snrIdx : null,
+    movedByGuard: idx !== null && idx !== snrIdx,
+    scored: !!sel.scored
+  };
+}
+
+export function refpickOf(perChannel, rule, opts) {
   if (!REFPICK_RULES.includes(rule)) throw new TypeError(`refpickOf: unknown pick rule ${JSON.stringify(rule)} (known: ${REFPICK_RULES.join(', ')})`);
+  if (rule === 'snr-pick-guarded') return shippedRefpick(perChannel, opts);
   const channels = perChannel ? perChannel.length : 0;
   let idx = null;
   let score = null;
