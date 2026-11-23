@@ -83,7 +83,8 @@ one this ledger exists to catch: a real effect read off a subset too small to ca
   source (48.1 %)** — **67 % are not measurements**, and the three populations are indistinguishable
   from their ppm values and night lengths alone. **Pooling inverts the sign:** all-52 median **+5.0 ppm**
   vs closed-only **−3.0 ppm** (IQR −23…+6). Closure residual median 5.9, max 55.8 ppm; two nights
-  (07-04, 07-11) additionally fail their own beat-correspondence chance control. Written into
+  (07-04, 07-11) additionally fail their own beat-correspondence chance control. That control reads
+  its consensus reference channel under the shipped `snr-pick-guarded` rule. Written into
   `wearable-clock-drift.html` §3.6 and cross-referenced from `dead-ends.html` wall 2.7.
 - **The general lesson.** The entry below was right that an unavailability claim is an empirical claim.
   This entry adds the sibling: **a per-corner magnitude read off two dozen nights is an empirical claim
