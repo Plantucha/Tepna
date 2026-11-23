@@ -4781,10 +4781,31 @@
       return true;
     };
     const _useRelNs = _relNsUsable(accRows) && _relNsUsable(gyroRows) && _relNsUsable(magRows);
+    /* §7.2 THE ANCHOR. `relNs` is the DEVICE counter and `parseSensorXYZ` rebases it to THIS stream's
+       own first kept sample, so `relNs / 1e9` reads as seconds-from-the-stream-start while every
+       consumer below reads it as seconds-from-the-global-`t0Ms`. The two differ by the offset between
+       the inertial file's start and the PPG `t0Ms`, and that offset is not small: over the canonical
+       corpus 1104 of 1413 paired ACC and PPG files start more than one 0.25 s grid cell apart, median
+       0.675 s, p95 1.66 s, worst 3.5 h. So the whole motion grid slid, and a non-overlapping inertial
+       file reported SATURATED coverage with no reason at all — a fabricated stillness of the §∅ class.
+       Anchor the counter on the stream's own wall-clock base before measuring it against `t0Ms`, which
+       is what `motiondex-dsp.js relSecOf` already does (DEEP-AUDIT-II §7.2). The counter still sets the
+       SPACING, because it is the precise axis; only its ORIGIN now comes from the host stamp.
+       An inertial file that does not overlap the PPG span now covers no cell, so `meanMotionIndex`
+       refuses with the `no-inertial-coverage` reason it already publishes. */
+    const _streamBaseMs = (rows) => {
+      if (rows) for (let i = 0; i < rows.length; i++) if (rows[i] && rows[i].tMs != null) return rows[i].tMs;
+      return null;
+    };
+    const _accBaseMs = _streamBaseMs(accRows),
+      _gyroBaseMs = _streamBaseMs(gyroRows),
+      _magBaseMs = _streamBaseMs(magRows);
     // ACC dynamic magnitude (de-gravitated)
-    function relSecOf(r) {
-      if (_useRelNs && isFinite(r.relNs)) return r.relNs / 1e9;
+    function relSecOf(r, baseMs) {
+      if (_useRelNs && isFinite(r.relNs) && baseMs != null && t0Ms != null) return (baseMs - t0Ms) / 1000 + r.relNs / 1e9;
       if (r.tMs != null && t0Ms != null) return (r.tMs - t0Ms) / 1000;
+      // No wall-clock anchor exists on this stream, so the counter is the only axis there is.
+      if (_useRelNs && isFinite(r.relNs)) return r.relNs / 1e9;
       return null;
     }
     /* NATIVE sample rate = MEDIAN inter-sample interval, never count ÷ span (DEEP-AUDIT-III §4.1,
@@ -4798,12 +4819,12 @@
        are read as the native rate. And the rate SIZES the ~1 s gravity window below, so an
        under-stated rate makes that window too SHORT in real time and shifts the de-gravitated
        magnitude every motion metric is built on. */
-    function _nativeHz(rows) {
+    function _nativeHz(rows, baseMs) {
       if (!rows || rows.length < 3) return null;
       const d = [];
       let prev = null;
       for (let i = 0; i < Math.min(rows.length, 4000); i++) {
-        const t = relSecOf(rows[i]);
+        const t = relSecOf(rows[i], baseMs);
         if (t == null) continue;
         if (prev != null && t > prev) d.push(t - prev);
         prev = t;
@@ -4813,9 +4834,9 @@
       const dm = d[d.length >> 1];
       return isFinite(dm) && dm > 0 ? 1 / dm : null;
     }
-    const _accHz = _nativeHz(accRows),
-      _gyroHz = _nativeHz(gyroRows),
-      _magHz = _nativeHz(magRows);
+    const _accHz = _nativeHz(accRows, _accBaseMs),
+      _gyroHz = _nativeHz(gyroRows, _gyroBaseMs),
+      _magHz = _nativeHz(magRows, _magBaseMs);
     let accMag = [];
     if (accRows && accRows.length > 5) {
       const mags = accRows.map((r) => Math.sqrt(r.x * r.x + r.y * r.y + r.z * r.z));
@@ -4833,7 +4854,7 @@
         for (const sp of _blank) if (tMs >= sp.t0Ms && tMs < sp.t1Ms) return true;
         return false;
       };
-      accMag = accRows.map((r, i) => ({ s: _blank.length && _inBlank(r.tMs) ? null : relSecOf(r), v: Math.abs(mags[i] - base[i]) }));
+      accMag = accRows.map((r, i) => ({ s: _blank.length && _inBlank(r.tMs) ? null : relSecOf(r, _accBaseMs), v: Math.abs(mags[i] - base[i]) }));
     }
     /* ── THE GYRO'S ZERO-RATE BIAS IS NOT MOTION ──────────────────────────────────────────────────
        ACC is de-gravitated three lines up — `|mag - movavg(mag, ~1s)|` — because a raw accelerometer
@@ -4877,7 +4898,7 @@
       const sortedGy = Array.from(rawGy).sort((a, b) => a - b);
       const p10 = sortedGy[Math.floor(sortedGy.length * 0.1)];
       gyroBias = Math.min(isFinite(p10) && p10 > 0 ? p10 : 0, GY_FULL / 4);
-      gyroMag = gyroRows.map((r, i) => ({ s: relSecOf(r), v: rawGy[i] - gyroBias }));
+      gyroMag = gyroRows.map((r, i) => ({ s: relSecOf(r, _gyroBaseMs), v: rawGy[i] - gyroBias }));
     }
     // accumulate into grid (max within each 0.25s cell)
     const accCell = new Float32Array(nG),
@@ -4995,7 +5016,7 @@
     const magHas = !!(magRows && magRows.length > 5);
     let magState = { has: magHas };
     if (magHas) {
-      magState.ss = magRows.map(relSecOf);
+      magState.ss = magRows.map((r) => relSecOf(r, _magBaseMs));
       magState.mx = magRows.map((r) => r.x);
       magState.my = magRows.map((r) => r.y);
       magState.mz = magRows.map((r) => r.z);
@@ -5040,7 +5061,7 @@
       const gx = movavg(Float32Array.from(accRows.map((r) => r.x)), w);
       const gy = movavg(Float32Array.from(accRows.map((r) => r.y)), w);
       const gz = movavg(Float32Array.from(accRows.map((r) => r.z)), w);
-      const ss = accRows.map(relSecOf);
+      const ss = accRows.map((r) => relSecOf(r, _accBaseMs));
       _gAxis = { gx, gy, gz, ss };
       const gStride = Math.max(1, Math.floor(ss.length / 5000));
       function gravMed(s0, s1) {

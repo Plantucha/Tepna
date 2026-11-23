@@ -292,7 +292,7 @@ Ordered by gain ÷ cost. **★ = do first.** Sites are `ppgdex-dsp.js` unless st
 | **2 ★ ✅** | **`buildPPI` gap flag; `correctRR` EXCLUDES, never fills.** Today rejected intervals are replaced by a running median of the last 7 accepted — a fabricated value that then flows into `nn`, SDNN, LF/HF, DFA-α1, SampEn, CVHR, epochs and `contentId`. | `:1116`, `:1149-1153`, `:1917`, `:2116` | At the file's own 28.8 % correction rate, ~29 % of the exported series stops being a constant. DFA-α1 falls and SampEn rises on degraded nights — that is the bias being removed | Low on clean data; large and *correct* on degraded | Very high |
 | ~~3~~ | ~~Multi-session export shape fix~~ — **WITHDRAWN 2026-07-21, the claim was stale.** `integrator-dsp.js` already carries a `MULTI_CARRIERS` table matching all three fleet spellings (`nights`/`multiNight`, `recordings`/`multiRecording`, `sessions`/`multiSession`); DEEP-AUDIT-II §8.1 fixed exactly this bug. Verified in source before implementing. **No action.** | — | none | — | — |
 | 4 | **`isFinite` on ch1/ch2/amb, row-atomic drop** | `:269-278` | Closes a silent 3-LED→2-LED degradation that reports `ledAgreementPct: 67`, zero peaks, and no error | None; byte-inert on clean captures | Very high |
-| 5 | **ACC: per-file fs, sensor-ns join, overlap assert** | `:1811` | Removes a 2× rate error (25.84 vs assumed 52 Hz) and a 3.5–4.2 s (~600-sample) motion-gate misregistration | Low; motion gates shift where they were wrong | Very high |
+| 5 ▶ | **ACC: per-file fs, sensor-ns join, overlap assert** | `:1811` | Removes a 2× rate error (25.84 vs assumed 52 Hz) and a 3.5–4.2 s (~600-sample) motion-gate misregistration | Low; motion gates shift where they were wrong | Very high |
 | 6 | **Whole-night channel scoring (p25 aggregate), still one fixed reference** — replaces the single ~90 s mid-record window that currently decides for the whole night | `:1706-1755` (the brief said `:380-435`, which is 1,300 lines off) | Removes a 1-in-85 single-point-of-failure; changes the pick on 2 of 8 nights | ✅ **shipped** 2026-10-19 (#3678) — measured 8 of 27 nights, and the real-night fixture did NOT move a measured value — the one committed metric that moved is the seeded `qrs-equiv` witness, rMSSD 41.4 → 41.2. See §4 #6 EXECUTED | High |
 | 7 ✅ | **Ambient-referenced perfusion index**, genuinely per-epoch — **EXECUTED 2026-10-19, see below** | `ppgdex-dsp.js perfWindow`, `ppgdex-morph.js perfusionIndex` + `perWindowMorph` (the `:2121-2123` anchor was stale) | PI stops dividing by the detector's ~650,000-count zero-light pedestal, and its per-epoch series stops being one repeated number | **Measured, not 2.0–3.4×: 0.78–3.90× over 27 nights, median 2.02×, and 1.14–177× WITHIN one night** — so the trend's shape moved too; docs moved with it | High on direction, medium on absolute calibration (§1.6) |
 | 8 | **`morph.pre` 0.15 → 0.50 s** (or feed it `det.feet`) | `ppgdex-morph.js:39` | `riseTimeMs`/`crestTimeMs` stop being pinned to the window (147.4 ms ceiling vs 296 ms true); fixes `augmentationIndexPct`, `reflectionIndex`, SDPPG a-wave | Isolated to one node — cheapest gate in the list | Very high |
@@ -513,7 +513,7 @@ pattern:
 | #3 | — | withdrawn, claim was stale |
 | **#1 ★** | *"**Moves every fixture**; `env.equiv` PPG leg reds by design"* | ✅ **shipped** 2026-08-21 (#1614) — the prediction held, all six fixtures moved on OUTPUT |
 | **#2 ★** | ~29 % of the exported series stops being a fabricated constant | **shipped** — treatment (1) landed, (2) 2026-10-19 (#3687), (3) 2026-10-19 (the gap mask reached `cvhrFromNN`, and the two nodes now count one way) |
-| #5 | motion gates shift where they were wrong | open |
+| #5 | motion gates shift where they were wrong | **shipped** — join + overlap assert 2026-11-22; per-file fs stays open, see §4 #5 |
 | #6 | *"Reference identity changes ⇒ downstream moves on those nights"* | ✅ **shipped** 2026-10-19 (#3678) |
 | #7 | *"Surfaced number changes 2–3.4×; docs must move with it"* | ✅ **shipped** 2026-10-19 — measured 0.78–3.90×, median 2.02×, and hash-only on every fixture |
 | #8 | every morphology value (measured above) | ✅ **shipped** 2026-10-19 (#3673) — hash-only, see §4 #8 EXECUTED |
@@ -700,7 +700,7 @@ which named #1614 in one command — cheap only because the source comment cites
 ---
 
 **Landing order** (one gated change at a time per `CLAUDE.md` §👥.3):
-`4 ✅ → 12 ✅ → 8 ✅ → 1 ✅ → 6 ✅ → 7 ✅ → 2 ✅ → 10 ✗ → 11 ✅ → 5 → 9 ✗` *(#9 reads ✗: measured 2026-10-19 as E-2 and not shipped, §6.5. #10 reads ✗: measured 2026-10-19 and not shipped. One half breaks beat detection at 48 bpm. The other half changes nothing the acceptance endpoint can see. #2 reads ◐, not ✅. Treatments (1) and (2) have landed. Treatment (3) stays open, because it reaches ECGDex. #11 landed ahead of #5, which is the ACC item and sits in another lane. #3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*
+`4 ✅ → 12 ✅ → 8 ✅ → 1 ✅ → 6 ✅ → 7 ✅ → 2 ✅ → 10 ✗ → 11 ✅ → 5 ▶ → 9 ✗` *(#9 reads ✗: measured 2026-10-19 as E-2 and not shipped, §6.5. #10 reads ✗: measured 2026-10-19 and not shipped. One half breaks beat detection at 48 bpm. The other half changes nothing the acceptance endpoint can see. #2 reads ◐, not ✅. Treatments (1) and (2) have landed. Treatment (3) stays open, because it reaches ECGDex. #11 landed ahead of #5, which is the ACC item and sits in another lane. #3 withdrawn; #4 and #12 SHIPPED 2026-07-21, mutation-verified both directions, real-corpus equiv leg reproduces byte-identical)*
 
 ---
 
@@ -880,6 +880,40 @@ the VLF of every epoch in this corpus, and the paragraph above says why nothing 
 inner-gap threshold also stays open: 5 of the 1098 epochs report across a gap over 60 s, and picking the
 number from those 5 would read a threshold off the data it judges (§🧾). Both wait for a measured gap
 distribution, and the gap one wants a residue row once somebody measures it.
+
+### ▶ #5 EXECUTED IN PART 2026-11-22 — the join and the overlap assert landed, the per-file fs half did not
+
+The row asks for three things: a per-file sample rate, a sensor-ns join, and an overlap assert. Two
+of them landed here. One did not, and the next session should not have to re-derive which.
+
+**The join — LANDED.** `parseSensorXYZ` rebases `relNs` to the stream's own first kept sample. So
+`relSecOf` returned seconds-from-the-FILE-start while every motion consumer read it as
+seconds-from-`t0Ms`. Over the canonical corpus that offset exceeds one 0.25 s grid cell on 1104 of
+1413 paired ACC and PPG files. Median 0.675 s, IQR 0.33..1.19 s, p95 1.66 s, worst 3.5 h.
+
+The row's
+own "3.5-4.2 s (~600-sample) misregistration" understates the tail and overstates the median.
+`relSecOf` now anchors each stream on its own wall-clock base, which mirrors
+`motiondex-dsp.js relSecOf` (DEEP-AUDIT-II §7.2).
+
+**The overlap assert — LANDED, in the §∅ form.** An inertial file that does not overlap the PPG span
+now covers no cell. `meanMotionIndex` refuses and names `no-inertial-coverage`. Before this change
+that same file reported `motionCoveredFrac` 1 and `meanMotionIndex` 0.03 with no reason at all.
+
+**Per-file fs — HALF DONE, and I measured the remaining half.** `_nativeHz` reads the median
+inter-sample interval, and the ~1 s gravity window of `accMag` uses it. Two sites still derive the
+rate from `accRows.length / durSec`:
+
+- the ~2 s gravity low-pass for posture — an under-stated rate shortens that window in real time;
+- the `need` floor in `postureDetailAtSec` — an under-stated rate LOWERS the floor, so a thinly
+  covered window passes a guard §∅ wrote to refuse it.
+
+The second one is a design call, not a substitution. On the suite's own 1800 s posture case the floor
+moves from 250 samples to 750, and that window holds exactly 750. A one-sample shortfall would flip
+it. Somebody must pick that threshold against a measured coverage distribution, never against the
+case that happens to sit on the boundary.
+
+Status stays IN-PROGRESS.
 
 ## 5 · Acceptance / Done-when
 
