@@ -95,7 +95,7 @@ export const DECLARED_PICKS = {
   'pat-feasibility-worker.js': 'peak-argmax',
   'ppgdex-dsp.js': SHIPPED_RULE,
   'sensor-trio-worker.js': 'variance-argmax',
-  'tools/beat-correspondence.mjs': 'peak-argmax',
+  'tools/beat-correspondence.mjs': 'snr-pick-guarded',
   'tools/beat-leg-closure.mjs': 'peak-argmax',
   'tools/pat-axis-leg-audit.mjs': 'peak-argmax',
   'tools/pat-finger-coupler.mjs': 'peak-argmax',
@@ -674,6 +674,17 @@ function selftest() {
   );
   fail += ok(/no channel of 0 carried a readable score/.test(refpickStampLine(refpickOf([], 'peak-argmax'))), '∅ a set with no readable score prints that, never a channel the rule did not pick');
   fail += ok(refpickStampLine(null) === '  reference pick: not read', '∅ a stamp the run never built prints `not read`, never a pick');
+  /* THE TWO GUARDED CLAUSES ARE ADDITIVE. A leg still on `peak-argmax` must print the line it
+     printed before the guarded rule existed, so the first assertion pins the WHOLE string. */
+  fail += ok(refpickStampLine(PICKED) === '  reference pick: channel 1 of 3 under peak-argmax (score 9)', 'an argmax stamp prints no guard clause, so an unconverted leg keeps its line byte for byte');
+  fail += ok(
+    / moved off channel 2 by the harmonic guard$/.test(refpickStampLine({ rule: 'snr-pick-guarded', idx: 0, score: 3, ties: 0, channels: 3, snrIdx: 2, movedByGuard: true, scored: true })),
+    'a guarded stamp names the channel the harmonic guard moved the reference off'
+  );
+  fail += ok(
+    /, on a channel set no window scored$/.test(refpickStampLine({ rule: 'snr-pick-guarded', idx: 0, score: 0, ties: 0, channels: 3, snrIdx: 0, movedByGuard: false, scored: false })),
+    '∅ a guarded stamp over a channel set no window scored says so beside the pick'
+  );
   const ptal = refpickTally([PICKED, refpickOf([], 'peak-argmax'), null]);
   fail += ok(ptal.streams === 2 && ptal.picked === 1 && ptal.unscored === 1 && ptal.unread === 1, 'an unread stream never pads a rule nothing picked it under');
   fail += ok(ptal.byRule['peak-argmax'] === 2, 'the rule tally counts every stream the rule ran on, scored or not');
