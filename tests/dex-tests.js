@@ -40354,7 +40354,12 @@
       T.eq('the typeof form is gone from the whole render source', String(rnd.indexOf("typeof raw === 'number'")), '-1');
 
       // THE LADDERS AND THE SITE, both lifted from the shipped source, so these legs gate behaviour.
-      var cols = new Function('return ' + rnd.slice(colsStart + 'const TABLE_COLS = '.length, colsEnd) + '\n];')();
+      /* The `d_otr` ladder reads the module-level `otrRank` (R-4, one ladder for three sites), so the
+         lifted column closures need that declaration lexically or the call throws a ReferenceError. */
+      var ladderSrc = /\nconst OTR_CAUTION = [\s\S]*?\nconst otrRank = [^\n]*\n/.exec(rnd);
+      T.ok('ANTI-VACUITY · the OTR ladder declarations are visible', !!ladderSrc, 'otrRank block located');
+      if (!ladderSrc) return;
+      var cols = new Function(ladderSrc[0] + ' return ' + rnd.slice(colsStart + 'const TABLE_COLS = '.length, colsEnd) + '\n];')();
       var expr = pillSite[0]
         .trim()
         .replace(/^const cls = /, '')
@@ -40391,6 +40396,143 @@
       }
       // An Infinity is a fabrication rather than a reading, so it carries no verdict either.
       T.eq('an infinite value carries no colour', mkCls(graded[0], Infinity), '');
+    });
+
+    /* ════ ONE METRIC CARRIED THREE LADDERS, AND THE TWO THAT AGREED WERE NEVER MEASURED ══════════
+       Hunt-record row R-4. `d_otr` was graded at THREE sites in `hrvdex-render.js`: the KPI strip cut
+       at 50 and 150, the chart cut once at 15, and the metrics table cut at 5 and 15. So one reader
+       saw the same night as 'good', 'caution' and 'red' at once.
+
+       The row called the ladder decidable because two sites agree. Two sites agreeing is a vote.
+       Heron measured the producer's own output instead (hrvdex-dsp.js:874) over the 30-measurement
+       Welltory export: median 5.97, p75 9.68, p90 29.61, max 145.05, saturated 0. The 50/150 ladder
+       graded 28 of the 30 rows 'good' and reached its top band on NO row, so it separated nothing.
+       The 5/15 ladder split the same 30 rows 13 / 12 / 5. That measurement decided it, and the vote
+       happened to point the same way.
+
+       `otrRank` is now the only ladder, and each site maps the rank to its own palette. The legs
+       below are a NAMED SET of three sites, not a count: a count cannot see one site drifting back
+       to a literal while another stays correct — the lesson the
+       reference-pick census unit (#5511) paid for. Each leg is sized by the
+       mutant it must catch: the two constants, the two band boundaries, and a revert of any one site.
+
+       Absence never reaches `otrRank` at a site — `kgrade` answers 'neutral' first for the KPI tile,
+       the table's pill site guards `Number.isFinite(raw)`, and a non-finite row draws no bar for the
+       chart to colour. So the absence leg pins the helper DIRECTLY, where a mutant can red it. */
+    group('HRVDex render — one OTR ladder, and all three sites read it', 'sources', function (T) {
+      var rnd = (env.sources || {})['hrvdex-render.js'];
+      if (!rnd) {
+        T.ok('hrvdex-render.js source provided', false, 'runner passed no hrvdex-render.js');
+        return;
+      }
+      var ladderSrc = /\nconst OTR_CAUTION = [\s\S]*?\nconst otrRank = [^\n]*\n/.exec(rnd);
+      T.ok('ANTI-VACUITY · the one ladder is declared in the served source', !!ladderSrc, 'otrRank block located');
+      if (!ladderSrc) return;
+
+      // THE HELPER · lifted from the shipped source, so these legs gate behaviour and not a copy.
+      var otrRank = new Function(ladderSrc[0] + 'return otrRank;')();
+      var kgLine = /\nconst kgrade = [^\n]*\n/.exec(rnd);
+      T.ok('ANTI-VACUITY · kgrade is visible', !!kgLine, 'kgrade located');
+      if (!kgLine) return;
+      var kgrade = new Function(kgLine[0] + 'return kgrade;')();
+
+      // THE BANDS · 5 and 15, with both boundaries pinned. A `<=` for a `<` moves exactly these two.
+      T.eq('a value under the caution band ranks 0', String(otrRank(4.9)), '0');
+      T.eq('the caution threshold itself ranks 1, never 0', String(otrRank(5)), '1');
+      T.eq('a value inside the caution band ranks 1', String(otrRank(14.9)), '1');
+      T.eq('the high threshold itself ranks 2, never 1', String(otrRank(15)), '2');
+      T.eq('a value far above the band ranks 2', String(otrRank(145.05)), '2');
+      // §∅ · a real 0 is a reading and ranks; an absence carries no rank at all.
+      T.eq('CONTROL · a measured 0 ranks 0 rather than refusing', String(otrRank(0)), '0');
+      T.eq('an unmeasured (NaN) value carries NO rank', String(otrRank(NaN)), 'null');
+      T.eq('a refused (null) value carries no rank either', String(otrRank(null)), 'null');
+      T.eq('an absent (undefined) value carries no rank', String(otrRank(undefined)), 'null');
+
+      /* THE NAMED SET · the three grading sites, each located by its own content. A fourth site that
+         grows its own literal is caught by the retired-literal legs below. */
+      var sites = [
+        { name: 'the KPI strip tile', re: /\n\s*color: kgrade\(r\.d_otr,[^\n]*\n/ },
+        { name: "the chart's band fill", re: /\n\s*backgroundColor: rows\.map\(\(r\) => \([^\n]*d_otr[^\n]*\n/ },
+        { name: 'the metrics-table column', re: /\n\s*\{ key: 'd_otr',[^\n]*\n/ }
+      ];
+      var found = sites.filter(function (x) {
+        x.hit = x.re.exec(rnd);
+        return !!x.hit;
+      });
+      T.eq('ANTI-VACUITY · all three grading sites are still in the source', String(found.length), '3');
+      if (found.length !== 3) return;
+      var viaLadder = found.filter(function (x) {
+        return /otrRank\(/.test(x.hit[0]);
+      });
+      T.eq(
+        'every one of the three sites reads the one ladder',
+        viaLadder.length + ' of 3',
+        '3 of 3',
+        'off the ladder: ' +
+          found
+            .filter(function (x) {
+              return !/otrRank\(/.test(x.hit[0]);
+            })
+            .map(function (x) {
+              return x.name;
+            })
+            .join(', ')
+      );
+
+      // THE RETIRED LITERALS · one leg per site, so a revert of any single site reds its own leg.
+      T.eq("the KPI strip's retired 50/150 ladder is gone", String(rnd.indexOf("x < 50 ? 'good'")), '-1');
+      T.eq("the chart's retired bare cut at 15 is gone", String(rnd.indexOf('r.d_otr > 15')), '-1');
+      T.eq("the table's retired 5/15 literal is gone", String(rnd.indexOf("v < 5 ? 'green' : v < 15")), '-1');
+
+      // BEHAVIOUR AT EACH SITE · the shipped expression, evaluated. One row, three palettes, one verdict.
+      var kpiExpr = sites[0].hit[0]
+        .trim()
+        .replace(/^color: /, '')
+        .replace(/,$/, '');
+      var kpiColor = new Function('otrRank', 'kgrade', 'r', 'return (' + kpiExpr + ');');
+      T.eq('the KPI tile grades a 4 good', kpiColor(otrRank, kgrade, { d_otr: 4 }), 'good');
+      T.eq('the KPI tile grades a 7 warn, where 50/150 called it good', kpiColor(otrRank, kgrade, { d_otr: 7 }), 'warn');
+      T.eq('the KPI tile grades a 20 bad, where 50/150 called it good', kpiColor(otrRank, kgrade, { d_otr: 20 }), 'bad');
+      T.eq('the KPI tile grades an unmeasured value neutral', kpiColor(otrRank, kgrade, { d_otr: NaN }), 'neutral');
+
+      var bgExpr = sites[1].hit[0]
+        .trim()
+        .replace(/^backgroundColor: /, '')
+        .replace(/,$/, '');
+      var bgFill = new Function('otrRank', 'rows', 'rgba', 'return (' + bgExpr + ');');
+      var rgbaStub = function (c, a) {
+        return c + ':' + a;
+      };
+      var fills = bgFill(otrRank, [{ d_otr: 7 }, { d_otr: 15 }, { d_otr: 20 }], rgbaStub);
+      T.eq('the chart fills a 7 orange', fills[0], 'orange:0.1');
+      T.eq('the chart fills the high threshold itself red, where the bare `> 15` left it orange', fills[1], 'red:0.2');
+      T.eq('the chart fills a 20 red', fills[2], 'red:0.2');
+
+      var colExpr = sites[2].hit[0].trim().replace(/,$/, '');
+      var otrCol = new Function('otrRank', 'fmt1', 'return (' + colExpr + ');')(otrRank, function (v) {
+        return String(v);
+      });
+      T.eq('the table column is still keyed d_otr', otrCol.key, 'd_otr');
+      T.eq('the table grades a 4 green', otrCol.color(4), 'green');
+      T.eq('the table grades a 7 yellow', otrCol.color(7), 'yellow');
+      T.eq('the table grades a 20 red', otrCol.color(20), 'red');
+
+      /* THE AGREEMENT · the three palettes are different words for ONE rank, so one reading can no
+         longer wear two verdicts. This is the leg the defect itself would have reded, and it is a
+         SET over the three sites rather than a sum. The chart carries only two bands, so what it can
+         report is 'high or not' — compared against the rank, never against a fallback that borrows it.
+         The boundary value 15 is in the list because the chart's retired `> 15` differed from the
+         other two sites at exactly that reading and nowhere else. */
+      [4, 7, 15, 20].forEach(function (v) {
+        var want = ['good', 'warn', 'bad'][otrRank(v)];
+        var chartHigh = bgFill(otrRank, [{ d_otr: v }], rgbaStub)[0] === 'red:0.2';
+        var tableWord = ['good', 'warn', 'bad'][['green', 'yellow', 'red'].indexOf(otrCol.color(v))];
+        T.eq(
+          'a reading of ' + v + ' wears ONE rank at all three sites',
+          [kpiColor(otrRank, kgrade, { d_otr: v }), tableWord, String(chartHigh)].join('/'),
+          [want, want, String(otrRank(v) === 2)].join('/')
+        );
+      });
     });
 
     /* ════ AN ABSENT RECOVERY INDEX MUST NOT GRANT A TRAINING GREEN LIGHT ══════════════════════════
