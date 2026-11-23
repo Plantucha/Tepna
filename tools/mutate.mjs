@@ -3106,7 +3106,7 @@ export function truncatedVerdict(live, meta) {
     killed: fin.reduce((a, r) => a + r.killed, 0) + (fly ? fly.killed : 0),
     survivorsSeen: fin.reduce((a, r) => a + r.survivors.length, 0) + (fly ? fly.survivors : 0),
     blockingSurvivorsInFinishedFiles: blocking.length,
-    invalid: fin.reduce((a, r) => a + r.invalid + (r.quarantined || 0), 0) + (fly ? fly.invalid + fly.quarantined : 0),
+    invalid: fin.reduce((a, r) => a + r.invalid + (r.quarantined || 0), 0) + (fly ? fly.invalid + fly.quarantined : 0), // absence-ok: a tally of excluded mutants, on the same spelling as measuredDenominator - a record written before quarantine existed quarantined none
     filesPlanned: Number.isFinite(L.filesPlanned) ? L.filesPlanned : null,
     filesFinished: fin.length,
     /* ∅ The file the cap landed inside, or `null` when it landed between two — never a borrowed name. */
