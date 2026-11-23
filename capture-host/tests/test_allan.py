@@ -1602,3 +1602,138 @@ def test_the_published_curve_rounds_tau_to_four_places_and_not_to_five_or_to_an_
     assert tau_first != round(1.0 / 3.0, 5), "5 places publish a digit the contract does not"
     assert tau_first != round(1.0 / 3.0), "a bare round publishes a zero-second tau"
     assert got["tau_min"] == pytest.approx(1.0 / 3.0), "the unrounded tau stays on the record"
+
+
+# ── The two functions the refusal touched, mutation-pinned ────────────────────────────────────────
+# The diff-scoped mutation gate scopes by FUNCTION, so `_lag1_acf` and `noise_id` entered scope whole
+# and reported 28 survivors on lines the refusal never wrote. Each test below names the mutants it
+# kills, because a survivor list is the only record of why the assertion is shaped this way.
+
+# A 33-sample series whose lag-1 autocorrelation is EXACTLY 1/3, so rho is exactly 0.25. Three blocks
+# of paired samples and three isolated ones, each block separated by a zero, give num = 2 and den = 6
+# as exact integers. The mean is exactly 0, so no rounding enters before the ratio.
+_QUARTER = [float(v) for v in ([1, 1, 0, -1, -1, 0, 1, 0, -1] + [0] * 24)]
+
+# 32 samples, each non-zero sample isolated by a zero, so num is exactly 0 and the series identifies
+# at depth 0. It is the shortest input the length guard admits.
+_SHORTEST = [float(v) for v in ([1, 0, -1, 0] * 8)]
+
+# A quartic stays correlated through three differences, so the DEPTH bound stops the loop rather than
+# the correlation threshold. It is the input the `noise_id` docstring already names.
+_QUARTIC = [float(i) ** 4 for i in range(600)]
+
+
+def test_lag1_acf_pins_the_RATIO_and_not_only_its_sign():
+    """Four mutants rewrite the numerator alone: either mean subtraction flipped to addition, the lag
+    reversed to `x[i - 1]`, or one pair dropped from the sum. A sign assertion reads the same under
+    all four, so the test pins the value. The series has a non-zero mean and no symmetry, which is
+    what makes each of the four land somewhere else.
+
+    Kills `_lag1_acf` mutants 15, 16, 17 and 21.
+    """
+    got = allan._lag1_acf([0.0, 1.0, 3.0, 2.0, 7.0, 4.0, 1.0, 9.0])
+    assert got == pytest.approx(-0.11650268336314848, abs=1e-12)
+    # The four mutants land at 0.2095, -0.6599, -0.1970 and 0.0747 — each outside the tolerance, and
+    # two of them on the other side of zero.
+
+
+def test_thirty_two_samples_identify_and_thirty_one_do_not():
+    """`len(x) < 32` is the entry guard. Two mutants move it by one in each direction, so the test
+    stands on the boundary itself: 32 samples identify, 31 refuse.
+
+    Kills `noise_id` mutants 4 and 5.
+    """
+    got = allan.noise_id(_SHORTEST)
+    assert got is not None, "32 samples are long enough"
+    assert got["noise"] == "white-phase" and got["differences"] == 0
+    assert allan.noise_id(_SHORTEST[:31]) is None, "31 samples are not"
+
+
+def test_one_difference_leaves_exactly_thirty_two_samples_and_still_identifies():
+    """The post-difference guard repeats the 32-sample floor, and the differencing itself consumes
+    exactly one sample. A 33-sample input puts both on their boundary: the difference leaves 32, which
+    the guard must admit. One mutant shortens the difference by a second sample and two move the floor,
+    and all three turn this identification into `None`.
+
+    Kills `noise_id` mutants 101, 102 and 103.
+    """
+    got = allan.noise_id(_QUARTER)
+    assert got is not None, "one difference leaves exactly the 32 samples the floor admits"
+    assert got["differences"] == 1 and got["noise"] == "white-frequency"
+
+
+def test_rho_exactly_at_the_quarter_threshold_still_DIFFERENCES():
+    """The loop differences while `rho >= 0.25`, so the threshold test is strict. One mutant relaxes
+    it to `<=`, which stops the loop at depth 0 and names `white-phase`. The series reaches the
+    threshold exactly: its lag-1 autocorrelation is the exact ratio 2/6, so rho is exactly 0.25.
+
+    Kills `noise_id` mutant 41.
+    """
+    assert allan._lag1_acf(_QUARTER) == 1.0 / 3.0, "the construction is exact, not approximate"
+    got = allan.noise_id(_QUARTER)
+    assert got["differences"] == 1, "a rho sitting ON the threshold is not yet decorrelated"
+    assert got["noise"] == "white-frequency", "stopping at depth 0 would name white-phase instead"
+
+
+def test_the_depth_bound_stops_at_THREE_differences_by_default():
+    """`dmax` defaults to 3 and the loop stops at `d >= dmax`. One mutant raises the default to 4 and
+    one relaxes the comparison to `>`, and both let a fourth difference run. The quartic is the input
+    that separates them: it stays correlated through three differences, so the DEPTH bound stops it
+    rather than the correlation threshold.
+
+    Kills `noise_id` mutants 1 and 43.
+    """
+    got = allan.noise_id(_QUARTIC)
+    assert got["differences"] == 3, "the default admits three differences and no fourth"
+    assert got["reason"] == "alpha-outside-the-named-power-laws"
+    assert allan.noise_id(_QUARTIC, dmax=4)["differences"] == 4, "a fourth difference is reachable"
+
+
+def test_the_refusal_rounds_raw_alpha_and_rho_to_four_places():
+    """The refusal publishes both numbers at 4 places. Seven mutants rewrite those two calls: a bare
+    `round` returning an integer, a dropped argument, a `None` precision, and 5 places. The quartic
+    carries a fifth digit on each number, so an exact comparison separates every one of them.
+
+    Kills `noise_id` mutants 69, 71, 72, 78, 79, 80 and 81.
+    """
+    got = allan.noise_id(_QUARTIC)
+    assert got["raw_alpha"] == -4.9975
+    assert got["rho"] == 0.4987
+    assert got["raw_alpha"] != round(-4.997481108312343, 5), "5 places publish a digit the shape does not"
+    assert got["rho"] != round(0.49874055415617125, 5), "and the same holds for rho"
+    assert got["raw_alpha"] != round(-4.997481108312343), "a bare round publishes an integer alpha"
+    assert got["rho"] != 4, "a dropped first argument rounds the PRECISION instead"
+
+
+def test_the_successful_identification_rounds_rho_to_four_places():
+    """The success return rounds rho on its own line, so it carries the same four mutants as the
+    refusal and needs its own assertion. The 33-sample series identifies after one difference with a
+    rho that carries a fifth digit.
+
+    Kills `noise_id` mutants 91, 92, 93 and 94.
+    """
+    got = allan.noise_id(_QUARTER)
+    assert got["rho"] == 0.1219
+    assert got["rho"] != round(0.12193921496247077, 5), "5 places publish a digit the shape does not"
+    assert got["rho"] != round(0.12193921496247077), "a bare round publishes a zero rho"
+    assert got["rho"] != 4, "a dropped first argument rounds the PRECISION instead"
+
+
+def test_an_autocorrelation_of_minus_one_takes_the_sentinel_rather_than_dividing_by_zero(monkeypatch):
+    """`rho = r1 / (1 + r1)` divides by zero at `r1 == -1`, so the line guards that value and
+    substitutes a sentinel. No series reaches it: the estimator bounds `|r1|` strictly below 1, since
+    `num <= den - (y_first^2 + y_last^2) / 2` and a series with both ends on the mean has no variance
+    left to correlate. The guard is therefore unreachable from any input, and only a stubbed
+    autocorrelation can state what it does.
+
+    Five mutants rewrite the guard: two make the division run and raise, and three change the
+    sentinel. The stub makes all five observable.
+
+    Kills `noise_id` mutants 31, 36, 37, 38 and 39.
+    """
+    monkeypatch.setattr(allan, "_lag1_acf", lambda x: -1.0)
+    got = allan.noise_id([float(i) for i in range(40)])
+    assert got["rho"] == -1e9, "the sentinel itself is the contract"
+    assert got["raw_alpha"] == 2000000002.0, "and the slope the sentinel produces travels with it"
+    assert got["differences"] == 0, "a positive sentinel would difference instead of stopping"
+    assert got["reason"] == "alpha-outside-the-named-power-laws"
