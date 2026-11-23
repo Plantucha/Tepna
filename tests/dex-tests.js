@@ -40153,6 +40153,91 @@
       T.ok('AF/tachycardia (2× density, clean QRS ⇒ SQI ≥ baseline) → NOT down-weighted (c≈1) — AF-safe', ca.get(300) > 0.95, 'c@300=' + ca.get(300));
     });
 
+    /* ════ THE JOIN READ TWO CLOCKS ════ Residue row
+       `2026-11-23-the-h10-confidence-join-reads-two-axes`, axis half. `beatConfidence` keyed its
+       per-second weights on `peaks[k] / fs`, which is the device clock, while the worker's ECG HR map
+       keys each second through `rec.tMsAt` — the host-disciplined axis of CLAUDE.md §🔒.7 where one
+       exists. On a night the axis corrects, the two key sets drift apart and the fused hat reads NO
+       weight for a second that carries HR. The optional `beatMs` parameter carries the caller's own
+       axis, so the two key sets agree by construction.
+       These legs are sized against the mutant rather than the reading. Leg (b) shifts the axis by a
+       whole hour, so dropping `_bm` from `secAbs` leaves the device keys and reds it. Legs (c) and (d)
+       pin the REFUSAL: a per-beat fallback would mix two clocks inside one key set, and §∅ forbids a
+       value no consumer can tell from a measured one. */
+    group('beatConfidence per-beat time axis — one clock on both sides of the fused-hat join', 'ecgdex-dsp · ppgdex-dsp · clock · absence', function (T) {
+      var FS = 130,
+        N = 300;
+      var PK = [],
+        QS = [];
+      for (var k = 0; k < N; k++) {
+        PK.push(k * FS);
+        QS.push(k >= 40 && k < 120 ? 0.2 : 0.8);
+      }
+      var T0 = Date.UTC(2026, 5, 21, 22, 0, 0);
+      var SHIFT = 3600000;
+      var keysOf = function (m) {
+        return Array.from(m.keys()).sort(function (a, b) {
+          return a - b;
+        });
+      };
+      [
+        ['ECGDSP', env.ECGDSP],
+        ['PPGDSP', env.PPGDSP]
+      ].forEach(function (pair) {
+        var name = pair[0],
+          D = pair[1];
+        if (!D || typeof D.beatConfidence !== 'function') {
+          T.skip(name + '.beatConfidence available', name + ' not co-loaded in this runner');
+          return;
+        }
+        var bm = [];
+        for (var j = 0; j < N; j++) bm.push(T0 + (PK[j] / FS) * 1000 + SHIFT);
+        // (a) no axis handed in → the device clock, exactly what every earlier caller received
+        var dev = D.beatConfidence(PK, QS, FS, T0);
+        T.eq(name + ' · (a) no beatMs reports the device axis out of band', dev.axis, 'device');
+        T.eq(name + ' · (a) the first key is the record-start second', keysOf(dev)[0], Math.floor(T0 / 1000));
+        // (b) THE TRANSFORMING LEG — a one-hour axis moves every key by 3600 s and no value at all
+        var host = D.beatConfidence(PK, QS, FS, T0, undefined, bm);
+        var kd = keysOf(dev),
+          kh = keysOf(host);
+        T.eq(name + ' · (b) a handed-in axis reports host', host.axis, 'host');
+        T.eq(name + ' · (b) the key count does not move with the axis', kh.length, kd.length);
+        var shifted = kd.length === kh.length;
+        for (var s = 0; s < kd.length && shifted; s++) if (kh[s] - kd[s] !== SHIFT / 1000) shifted = false;
+        T.ok(name + ' · (b) every key moves by exactly 3600 s', shifted, 'drop `_bm` from secAbs and the device keys come back');
+        var sameVals = kd.length === kh.length;
+        for (var v = 0; v < kd.length && sameVals; v++) if (dev.get(kd[v]) !== host.get(kh[v])) sameVals = false;
+        T.ok(name + ' · (b) the trust values are untouched — only the keys ride the axis', sameVals, 'the axis must not change what the statistic decides');
+        // (c) ONE non-finite beat time refuses the whole map — §∅, never a per-beat fallback
+        var bad = bm.slice(0);
+        bad[7] = Number.NaN;
+        var cNaN = D.beatConfidence(PK, QS, FS, T0, undefined, bad);
+        T.eq(name + ' · (c) one non-finite beat time refuses the map', cNaN.size, 0);
+        T.eq(name + ' · (c) …reporting the refusal out of band', cNaN.axis, 'refused');
+        T.ok(name + ' · (c) …with a reason, because a refusal carrying none reads as a quiet pass', typeof cNaN.reason === 'string' && /mix two clocks/.test(cNaN.reason), String(cNaN.reason));
+        T.eq(name + ' · (c) …and never calibrated', cNaN.calibrated, false);
+        // (d) an axis one beat short refuses too: the caller counted a different beat population
+        var cShort = D.beatConfidence(PK, QS, FS, T0, undefined, bm.slice(0, N - 1));
+        T.eq(name + ' · (d) an axis one beat short refuses', cShort.size, 0);
+        T.eq(name + ' · (d) …as a refusal, not a device fallback', cShort.axis, 'refused');
+        // (e) an explicit null is absence, not a malformed axis, so the keys ride the device clock
+        T.eq(name + ' · (e) a null axis is absence, so the keys ride the device clock', D.beatConfidence(PK, QS, FS, T0, undefined, null).axis, 'device');
+      });
+      /* The worker owns the join and has no module surface in this runner, so the single-source
+         property of the axis is a source leg. */
+      var wk = env.sources && env.sources['sensor-trio-worker.js'];
+      T.ok('the worker source is readable in this lane', !!wk, 'sensor-trio-worker.js not in env.sources — list it in BOTH lanes');
+      if (wk) {
+        T.ok(
+          'the worker hands its own axis to hrConfidence',
+          /hrConfidence\(rec\.int16, bp, peaks, fs, t0, beatMs\)/.test(wk),
+          'without beatMs the weights key on the device clock and the join misses'
+        );
+        T.ok('ONE body derives the beat time', wk.split('rec.tMsAt(peaks[').length - 1 === 1, 'a second copy of the rule is how the two key sets came apart');
+        T.ok('the per-second HR keys go through that body', /pairs\.push\(\[secFloor\(beatTMs\(i\)\), hr\]\)/.test(wk), 'the HR map must not re-derive the axis inline');
+      }
+    });
+
     /* ════ 8e · SECURITY — STRICT script-src (SECURITY-CSP-STRICT-SCRIPT-SRC-2026-07-11) ════
        The inline-handler → event-delegation refactor that lets script-src drop 'unsafe-inline' in
        favour of per-block sha256 hashes. Guards the whole thing statically (the Playwright harness
