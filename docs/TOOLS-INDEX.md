@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**353 tools** · 352 with a purpose line · **1 without**
+**355 tools** · 354 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -64,6 +64,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`codex-export.mjs`](../tools/codex-export.mjs) | THE SOURCE-ONLY EXPORT AN EXTERNAL READER MAY SEE. Owner ruling 2026-10-04: an external model (Codex) may read SOURCE, never the CORPUS. |
 | [`cohort-fit.mjs`](../tools/cohort-fit.mjs) | DOES THE SYNTHETIC COHORT LOOK LIKE A REAL ONE? — and what would it take to project it onto one. |
 | [`commit-shape.mjs`](../tools/commit-shape.mjs) | the AGENT-NEUTRAL half of the shared-tree guards. WHY THIS EXISTS. |
+| [`compute-feeder.mjs`](../tools/compute-feeder.mjs) | KEEP THE FREE COMPUTE FED (owner 2026-11-22: "build some program feeding qwen and shrike … when fleet run out of tokens, there will be 2 days of compute always ready"). |
 | [`consensus-dissent-core.mjs`](../tools/consensus-dissent-core.mjs) | `applyConsensusPolarity` RETURNS THE CHANNELS IT RE-DETECTED, AND TEN CALLERS THREW IT AWAY. |
 | [`consensus-polarity-wiring.mjs`](../tools/consensus-polarity-wiring.mjs) | THE WIRING IS WHERE A FIX STOPS BEING APPLIED, AND NOTHING COUNTED THE WIRING. |
 | [`consensus-refpick-dissent.mjs`](../tools/consensus-refpick-dissent.mjs) | A DISSENTING LED CAN WIN THE REFERENCE PICK, AND NOBODY HAD READ THE WINNER. |
@@ -254,6 +255,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`pw-launch.mjs`](../tools/pw-launch.mjs) | ONE PLACE THAT KNOWS WHY CHROMIUM CANNOT START ON THIS BOX — the Playwright launch arguments every headless tool and gate shares, with the AppArmor user-namespace case detected and named. |
 | [`queue-doctor.mjs`](../tools/queue-doctor.mjs) | queue-doctor — drain a PR queue that CANNOT drain itself, and NAME the state that no view reports. |
 | [`qwen-agent.mjs`](../tools/qwen-agent.mjs) | READ-ONLY LOCAL-MODEL AGENT — owner-directed 2026-08-27: "make sure qwen will read CLAUDE.md and have access to bge and other stuff so it can behave like normal Claude coder." |
+| [`qwen-lead-check.mjs`](../tools/qwen-lead-check.mjs) | THE MECHANICAL CHECK ON A LOCAL-MODEL LEAD (briefs/LOCAL-QWEN-SWEEPS-2026-11-22-BRIEF.md §3.3). |
 | [`qwen-mypy-fix.mjs`](../tools/qwen-mypy-fix.mjs) | the mypy burn-down FIX lane (PYTHON-TYPES-AND-FORMAT §P2, qwen half). |
 | [`r5-hr-reference.mjs`](../tools/r5-hr-reference.mjs) | R5 (TCH-REFERENCE-VALIDATION §7) on the HR triplet — and the answer is that IT CANNOT BE RUN. |
 | [`read-lines-bounded.mjs`](../tools/read-lines-bounded.mjs) | ONE BOUNDED LINE READER, FOR EVERY TOOL THAT HANDS A RAW STREAM TO A DSP |
