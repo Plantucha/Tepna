@@ -269,7 +269,12 @@ export function refpickStampLine(stamp) {
     return `  reference pick: none under ${stamp.rule} — no channel of ${stamp.channels} carried a readable score`;
   }
   const tied = stamp.ties > 0 ? `, arbitrary among ${stamp.ties + 1} equals` : '';
-  return `  reference pick: channel ${stamp.idx} of ${stamp.channels} under ${stamp.rule} (score ${stamp.score}${tied})`;
+  /* ∅ TWO FACTS THE ARGMAX RULE HAS NO FIELD FOR. The guarded rule can move the reference off the
+     SNR winner, and it can report a pick no channel scored. Both clauses read a strict `true` or
+     `false`, so a stamp that never carried the field prints exactly the line it printed before. */
+  const moved = stamp.movedByGuard === true ? `, moved off channel ${stamp.snrIdx} by the harmonic guard` : '';
+  const unscored = stamp.scored === false ? ', on a channel set no window scored' : '';
+  return `  reference pick: channel ${stamp.idx} of ${stamp.channels} under ${stamp.rule} (score ${stamp.score}${tied})${moved}${unscored}`;
 }
 
 /* The pooled tally over the streams a run SCORED. A stream the run never read has no stamp, so it

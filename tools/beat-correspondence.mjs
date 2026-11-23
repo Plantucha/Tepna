@@ -44,7 +44,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
-import { dissentStampLine, dissentStampOf, refpickOf, signsOf } from './consensus-dissent-core.mjs';
+import { dissentStampLine, dissentStampOf, refpickOf, refpickStampLine, signsOf } from './consensus-dissent-core.mjs';
 import { gitShort } from './verdict-emit.mjs';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
@@ -511,9 +511,23 @@ function ppgFootTimes(text, runsText) {
     signsBefore,
     PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn))
   );
-  /* The reference pick, NAMED at the site so the census reads a declaration rather than a loop
-     shape, and a tie stops hiding: `consensus-dissent-core.mjs#refpickOf`. Same pick. */
-  const refIdx = refpickOf(per, 'peak-argmax').idx;
+  /* THE SHIPPED PICK, NOT A PORTED ARGMAX. `ppgdex-dsp.js#analyze` ranks the RAW channels by
+     `channelSNR` and then lets `harmonicOutlierRefIdx` move the reference onto a coherent majority.
+     This leg published a figure under a peak-count argmax, which picks a different channel on 37 of
+     54 nights — row 2026-11-03-three-pick-rules-disagree-on-the-consensus-reference-on-thirty-seven-nights.
+     The core holds no copy of either function, so the call injects both and the rule stays single-sourced.
+     ORDER: the polarity pass above runs first, which is the order `analyze` ships. `pickChannel`
+     scores the raw channels, so the pass cannot move the SNR ranking, and the guard reads the
+     post-polarity peak counts the way `analyze` reads them. */
+  const refpick = refpickOf(per, 'snr-pick-guarded', {
+    pickChannel: PPGDSP.pickChannel,
+    harmonicOutlierRefIdx: PPGDSP.harmonicOutlierRefIdx,
+    rec
+  });
+  const refIdx = refpick.idx;
+  /* ∅ A NIGHT NO CHANNEL SCORED HAS NO REFERENCE. `analyze` keeps channel 0 there, and this leg
+     keeps it too rather than inventing a second rule. The stamp carries `scored: false` out of
+     band, so a reader sees the pick that evidence never chose. */
   /* @polarity-decision applies
      The edit distance now compares a train the whole channel set voted on against the ECG’s. */
   const cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
@@ -564,7 +578,10 @@ function ppgFootTimes(text, runsText) {
     /* the dissent stamp travels with the times (row
        2026-11-04-pat-figures-were-published-under-the-overruled-polarity) */
     polarity,
-    signs: signsBefore
+    signs: signsBefore,
+    /* the pick stamp travels with the times, beside the polarity stamp (box 1 of
+       CONSENSUS-REFPICK-FOLLOWUPS): a figure must name the rule behind its feet */
+    refpick
   };
 }
 
@@ -702,6 +719,7 @@ async function main() {
     `extracted: ECG ${tA.length} R-peaks (${((tA[tA.length - 1] - tA[0]) / 60000).toFixed(0)} min)   PPG ${tB.length} feet (${((tB[tB.length - 1] - tB[0]) / 60000).toFixed(0)} min)   t0 delta ${((tB[0] - tA[0]) / 1000).toFixed(1)} s`
   );
   console.log(dissentStampLine(pRead.polarity, pRead.signs));
+  console.log(refpickStampLine(pRead.refpick));
   const eb = eRead.blanking;
   console.log(
     `  ECG blanking: sidecar ${eb.sidecar}${eb.reason ? ` (${eb.reason})` : ''} · ${eb.nDropped == null ? 'dropped null — no run set reached this leg' : `${eb.nDropped} of ${eRead.nDetected} R-peaks dropped across ${eb.nRanges} run(s)`}`
