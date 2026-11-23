@@ -2784,7 +2784,9 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
       sw += w[i];
       swd += w[i] * d[i];
     }
-    if (sw <= 0) return 0;
+    /* §∅ · nothing carried weight, so this variance was never measured. A 0 reads as a perfect
+       agreement the data never showed. `tchSigmasFused` refuses the hat on a null leg. */
+    if (sw <= 0) return null;
     var mu = swd / sw,
       s = 0;
     for (i = 0; i < d.length; i++) s += w[i] * (d[i] - mu) * (d[i] - mu);
@@ -2950,11 +2952,35 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
         v = cV ? cV[i] : 1,
         o = cO ? cO[i] : 1,
         t = ct[i];
-      wHV.push(t * h * v);
-      wHO.push(t * h * o);
-      wVO.push(t * v * o);
+      /* §∅ · mirrors `sensor-trio-worker.js`. An absent ARRAY defaults to 1 and the suite pins that.
+         A NULL ELEMENT is one second the corner's grader never reached, so a zero weight excludes it
+         from the two pairwise variances rather than lending it full trust. */
+      var hOk = h != null && Number.isFinite(h),
+        vOk = v != null && Number.isFinite(v),
+        oOk = o != null && Number.isFinite(o);
+      wHV.push(hOk && vOk ? t * h * v : 0);
+      wHO.push(hOk && oOk ? t * h * o : 0);
+      wVO.push(vOk && oOk ? t * v * o : 0);
     }
-    var cv = threeCorneredHat(_wvar(dHV, wHV), _wvar(dHO, wHO), _wvar(dVO, wVO));
+    var wvHV = _wvar(dHV, wHV),
+      wvHO = _wvar(dHO, wHO),
+      wvVO = _wvar(dVO, wVO);
+    /* §∅ · a leg with no weighed second says nothing about either corner, so the hat refuses here too
+       rather than splitting the one surviving pair variance between two corners. */
+    if (wvHV == null || wvHO == null || wvVO == null) {
+      return {
+        h10: null,
+        verity: null,
+        o2: null,
+        negVar: { h10: null, verity: null, o2: null },
+        neg: null,
+        reason: 'no-weighted-pairs',
+        dHV: dHV,
+        dHO: dHO,
+        dVO: dVO
+      };
+    }
+    var cv = threeCorneredHat(wvHV, wvHO, wvVO);
     return {
       h10: cv.a > 0 ? Math.sqrt(cv.a) : null,
       verity: cv.b > 0 ? Math.sqrt(cv.b) : null,
