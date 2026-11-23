@@ -66,9 +66,17 @@ export const REDACTIONS = [
   [/\b(?:(?:10|127)(?:\.\d{1,3}){3}|(?:192\.168|172\.(?:1[6-9]|2\d|3[01]))(?:\.\d{1,3}){2})\b/g, '<private-ip>'],
   [/https?:\/\/[^\s)>\]'"`]*(?:ntfy|hc-ping|healthchecks|webhook|hooks\.)[^\s)>\]'"`]*/gi, '<private-url>'],
   [/\b(auth_pass|password|passwd|secret|token|api[_-]?key)(\s*[:=]\s*)\S+/gi, '$1$2<redacted>'],
-  /* a long mixed-alphabet token; a pure-hex run (a commit or a hash) stays */
-  [/\b(?=[A-Za-z0-9_-]{32,}\b)(?=[A-Za-z0-9_-]*[g-zG-Z])(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]{32,}\b/g, '<long-token>']
+  /* a long token; see isToken for what counts */
+  [/\b[A-Za-z0-9_-]{32,}\b/g, (t) => (isToken(t) ? '<long-token>' : t)]
 ];
+/* A secret token mixes cases and digits, or is one unbroken run with a digit and a non-hex letter.
+   A kebab-case slug with a date in it is neither: the first rule cut 14 memory names and their
+   [[links]] (measured on the import, 2026-11-23). A pure-hex run (a commit, a hash) stays. */
+export function isToken(t) {
+  if (/^[0-9a-f]+$/i.test(t)) return false;
+  if (/[A-Z]/.test(t) && /[a-z]/.test(t) && /\d/.test(t)) return true;
+  return !t.includes('-') && /\d/.test(t) && /[g-z]/i.test(t);
+}
 export function redact(text) {
   let out = String(text);
   for (const [re, rep] of REDACTIONS) out = out.replace(re, rep);
