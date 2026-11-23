@@ -55,6 +55,7 @@
  *   node tools/analysis-rerun.mjs --only treatment-response-analysis.html --paper-scale --out <rerun.json>
  *   node tools/treatment-response-yield-pin.mjs --rerun <rerun.json> [--out analysis/treatment-response-yield-pin.json]
  *   node tools/treatment-response-yield-pin.mjs --chain [--pin <pin.json>]   # read the chain, write nothing
+ *   node tools/treatment-response-yield-pin.mjs --blame [--pin <pin.json>] [--ref origin/main]   # resolve each gap to its revision
  *   node tools/treatment-response-yield-pin.mjs --selftest
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
@@ -190,8 +191,9 @@ export function movedFiles(pinned, current) {
    commits that moved both realms at once, so one PR owed two notes.
 
    So a re-cut compares the digest it is about to write against the last note's `new`, per file. A HEAD
-   gap is the move this run owes a note for. An INTERNAL gap is a move the record already lost, and no
-   later run can answer it. The two are reported apart, because asking a session to explain someone
+   gap is the move this run owes a note for. An INTERNAL gap is a move no later RE-CUT can name,
+   because the run that made it is over — and `--blame` still reads WHICH EDIT moved it out of git,
+   because the digest is the file's own hash. The two are reported apart, because asking a session to explain someone
    else's edit invites a guessed reason, and a guessed reason is worse than an absent one.
 
    A note names a BARE basename, while a closure is per realm. The two realms agree on every shared
@@ -269,6 +271,104 @@ export function chainGaps(detector, history, prevDetector) {
   return { moves, head, internal, uncovered, ambiguous };
 }
 
+/* The file's revisions on `ref`, NEWEST FIRST, each carrying the digest its bytes hash to. A path git
+   does not know returns `[]` rather than throwing, because an absent path is a reading this mode has
+   to report. The walk hashes one revision at a time and holds no blob after it. */
+function gitRevisions(ref, file) {
+  /* `stdio` silences git's own stderr: a ref this walk cannot read is a reading it REPORTS, and a
+     `fatal:` line in the middle of a gate run reads as the gate breaking. */
+  const git = (args) => execFileSync('git', ['-C', ROOT, ...args], { encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] });
+  let log;
+  try {
+    log = git(['log', '--format=%x01%h%x02%cs%x02%s', ref, '--', file]);
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const rec of String(log).split('\u0001')) {
+    if (!rec.trim()) continue;
+    const [short, date, subject] = rec.replace(/\n$/, '').split('\u0002');
+    if (!short) continue;
+    let digest = null;
+    try {
+      digest = sha12(git(['show', short + ':' + file]));
+    } catch {
+      continue;
+    }
+    out.push({ short, date: date || null, subject: (subject || '').trim(), digest });
+  }
+  return out;
+}
+
+/* ── WHICH COMMIT PRODUCED A DIGEST ────────────────────────────────────────────
+   An INTERNAL gap used to read as a reason the record lost for good. It is not one. A closure digest
+   is `sha12` of that file's own bytes, and git holds every revision of the file, so the digest names
+   a revision. Measured 2026-11-23 against `origin/main` at `bd49758cf9`: all 14 digests in this
+   pin's 8 gaps resolve, each to exactly ONE revision, over 185 revisions of three files.
+
+   What a revision CANNOT state is whether the cohort yield moved, because only a re-cut counts the
+   cohort. So a resolved gap is a LEAD and never a note: a reason read off a subject line is still a
+   guess about the counts. This mode answers WHICH EDIT MOVED THE DIGEST, and it leaves `history[]`
+   alone.
+
+   The walk is injected, so the arithmetic rests on no repository: `revisionsOf(file)` returns the
+   file's revisions NEWEST FIRST, each `{ short, date, subject, digest }`. */
+export function resolveGapDigests(gaps, revisionsOf) {
+  const cache = new Map();
+  const revs = (file) => {
+    if (!cache.has(file)) cache.set(file, revisionsOf(file) || []);
+    return cache.get(file);
+  };
+  /* An absent digest is not an unresolved one: the chain records `null` when a note names no side,
+     and borrowing a revision for it would invent the very move the gap asks about. */
+  const at = (file, digest) => {
+    if (digest == null) return { digest: null, rev: null, index: -1, state: 'absent' };
+    const list = revs(file);
+    const index = list.findIndex((r) => r && r.digest === digest);
+    if (index < 0) return { digest, rev: null, index: -1, state: 'unresolved' };
+    return { digest, rev: list[index], index, state: 'resolved' };
+  };
+  const rows = [];
+  const add = (kind, file, oldDigest, newDigest, when) => {
+    const older = at(file, oldDigest);
+    const newer = at(file, newDigest);
+    /* NEWEST FIRST, so the newer revision carries the SMALLER index. A pair that reads the other way
+       is an anomaly of the record, never a negative count of edits. */
+    let span = null;
+    let order = 'unknown';
+    if (older.state === 'resolved' && newer.state === 'resolved') {
+      order = older.index > newer.index ? 'forward' : 'reversed';
+      span = order === 'forward' ? older.index - newer.index - 1 : null;
+    }
+    rows.push({ kind, file, when: when || null, old: older, new: newer, span, order, revisions: revs(file).length });
+  };
+  for (const g of gaps && gaps.head ? gaps.head : []) add('head', g.file, g.lastNote ?? null, g.pinned ?? null, g.noteDate ? 'last note ' + g.noteDate : null);
+  for (const g of gaps && gaps.internal ? gaps.internal : []) add('internal', g.file, g.closes ?? null, g.reopens ?? null, g.after && g.before ? 'between ' + g.after + ' and ' + g.before : null);
+  return rows;
+}
+
+/* The lines the session reads for a blame. Pure, and empty on a clean chain: a mode that prints a
+   heading over no rows reads as a finding about nothing. */
+export function formatBlame(rows) {
+  const L = [];
+  if (!rows || !rows.length) return L;
+  const side = (s) => {
+    if (s.state === 'absent') return '(no digest)';
+    if (s.state === 'unresolved') return s.digest + ' UNRESOLVED — no revision of this file on the walked ref hashes to it';
+    return s.digest + '  ' + s.rev.short + ' ' + s.rev.date + ' ' + s.rev.subject;
+  };
+  const resolved = rows.filter((r) => r.old.state === 'resolved' && r.new.state === 'resolved').length;
+  L.push('  ⓘ ' + resolved + ' of ' + rows.length + ' gap(s) resolve to the revisions that moved the digest. A revision names the EDIT and never the counts:');
+  for (const r of rows) {
+    L.push('    ' + r.file + ' · ' + r.kind.toUpperCase() + (r.when ? ' · ' + r.when : '') + '  (' + r.revisions + ' revision(s) walked)');
+    L.push('      from  ' + side(r.old));
+    L.push('      to    ' + side(r.new));
+    if (r.order === 'reversed') L.push('      ⚠ the newer digest is the OLDER revision, so the record disagrees with the history');
+    else if (r.span != null) L.push('      ' + r.span + ' further revision(s) of this file sit between them');
+  }
+  return L;
+}
+
 /* The lines the session reads. Pure, so a selftest can assert the gap reaches the text rather than
    asserting that a `console.log` was reached. A clean chain prints nothing. */
 export function formatChain(gaps, out, today, opts) {
@@ -294,7 +394,7 @@ export function formatChain(gaps, out, today, opts) {
     for (const g of gaps.head) L.push('    ' + g.file + ' (' + g.realms.join(', ') + ')  pin ' + g.pinned + '  last note ' + g.lastNote + ' on ' + g.noteDate);
   }
   if (gaps.internal.length) {
-    L.push('  ⓘ ' + gaps.internal.length + ' earlier gap(s) this run cannot answer — the record lost them, and a guessed reason is worse than none:');
+    L.push('  ⓘ ' + gaps.internal.length + ' earlier gap(s) this run cannot answer — never guess one; `--blame` names the revision that moved each digest:');
     for (const g of gaps.internal) {
       L.push('    ' + g.file + '  ' + g.closes + ' → (no note) → ' + g.reopens + '  between ' + g.after + ' and ' + g.before);
     }
@@ -678,6 +778,94 @@ function selftest() {
   );
   ok('chain: a clean chain prints nothing', formatChain(cg1, 'analysis/pin.json', '2026-11-09').length === 0, 'silent');
 
+  /* ── BLAME · WHICH REVISION MOVED THE DIGEST ─────────────────────────────────
+     The walk is INJECTED in these legs, so they assert the arithmetic and never a repository. The
+     three ANTI-VACUITY legs at the end hold that arithmetic against the real git walk. */
+  const REVS = {
+    'oxydex-dsp.js': [
+      { short: 'ddd4444', date: '2026-11-10', subject: 'the newest revision', digest: 'dddddddddddd' },
+      { short: 'ccc3333', date: '2026-11-09', subject: 'one between the two', digest: 'cccccccccccc' },
+      { short: 'bbb2222', date: '2026-11-08', subject: 'the one the note closes at', digest: 'bbbbbbbbbbbb' },
+      { short: 'aaa1111', date: '2026-10-28', subject: 'the oldest revision', digest: 'aaaaaaaaaaaa' }
+    ]
+  };
+  const walk = (f) => REVS[f] || [];
+  const headGap = (lastNote, pinned) => ({ head: [{ file: 'oxydex-dsp.js', realms: ['oxy'], lastNote, pinned, noteDate: '2026-11-08' }], internal: [] });
+  const bl1 = resolveGapDigests(headGap('bbbbbbbbbbbb', 'dddddddddddd'), walk);
+  ok(
+    'blame: a HEAD gap resolves both sides to the revisions that hold those digests',
+    bl1.length === 1 && bl1[0].old.rev.short === 'bbb2222' && bl1[0].new.rev.short === 'ddd4444',
+    JSON.stringify(bl1.map((r) => [r.old.state, r.new.state]))
+  );
+  ok('blame: and the edits between them are counted, because the gap covers every one of them', bl1[0].span === 1 && bl1[0].order === 'forward', JSON.stringify([bl1[0].span, bl1[0].order]));
+  const bl2 = resolveGapDigests({ head: [], internal: [{ file: 'oxydex-dsp.js', closes: 'aaaaaaaaaaaa', reopens: 'cccccccccccc', after: '2026-10-28', before: '2026-11-09' }] }, walk);
+  ok(
+    'blame: an INTERNAL gap resolves too, so the record never lost which edit moved it',
+    bl2.length === 1 && bl2[0].kind === 'internal' && bl2[0].old.rev.short === 'aaa1111' && bl2[0].new.rev.short === 'ccc3333' && bl2[0].span === 1,
+    JSON.stringify(bl2)
+  );
+  /* EDGE · a digest no revision holds. The honest answer is UNRESOLVED, because the nearest revision
+     is a borrowed one, and a borrowed revision is the guessed reason this mode exists to refuse. */
+  const bl3 = resolveGapDigests(headGap('ffffffffffff', 'dddddddddddd'), walk);
+  ok('blame EDGE · a digest no revision holds reads UNRESOLVED and borrows nothing', bl3[0].old.state === 'unresolved' && bl3[0].old.rev === null && bl3[0].span === null, JSON.stringify(bl3[0].old));
+  ok(
+    'blame EDGE · and the text says UNRESOLVED, rather than printing a revision beside it',
+    formatBlame(bl3).some((l) => l.includes('UNRESOLVED')) && !formatBlame(bl3).some((l) => /ffffffffffff\s{2}[0-9a-f]{7}/.test(l)),
+    JSON.stringify(formatBlame(bl3))
+  );
+  /* EDGE · a side the record never named is ABSENT, never unresolved: nothing was asked of the walk. */
+  const bl4 = resolveGapDigests(headGap(null, 'dddddddddddd'), walk);
+  ok(
+    'blame EDGE · a null side reads ABSENT rather than unresolved, because the record named no digest',
+    bl4[0].old.state === 'absent' && formatBlame(bl4).some((l) => l.includes('(no digest)')),
+    JSON.stringify(bl4[0].old)
+  );
+  /* EDGE · the pair the other way round. A negative count of edits would read as a measurement. */
+  const bl5 = resolveGapDigests(headGap('dddddddddddd', 'aaaaaaaaaaaa'), walk);
+  ok(
+    'blame EDGE · a pair that reads backwards is flagged, never a negative count of edits',
+    bl5[0].order === 'reversed' && bl5[0].span === null && formatBlame(bl5).some((l) => l.includes('disagrees with the history')),
+    JSON.stringify([bl5[0].order, bl5[0].span])
+  );
+  /* CONTROL · a clean chain. A heading over no rows reads as a finding about nothing. */
+  ok('blame CONTROL · a clean chain resolves nothing and prints nothing', resolveGapDigests({ head: [], internal: [] }, walk).length === 0 && formatBlame([]).length === 0, 'silent');
+  /* CONTROL · a path the walk does not know. Both sides stay unresolved and the walked count is 0. */
+  const bl6 = resolveGapDigests({ head: [{ file: 'no-such-file.js', lastNote: 'aaaaaaaaaaaa', pinned: 'dddddddddddd', noteDate: '2026-11-08' }], internal: [] }, walk);
+  ok(
+    'blame CONTROL · a path the walk does not know leaves both sides unresolved over 0 revisions',
+    bl6[0].old.state === 'unresolved' && bl6[0].new.state === 'unresolved' && bl6[0].revisions === 0,
+    JSON.stringify(bl6[0])
+  );
+  /* ANTI-VACUITY · every leg above rests on an injected table, so the walk itself is held against the
+     real repository here: the parse, the hash, and the pointer the chain text gives its reader. */
+  const realRevs = gitRevisions('HEAD', 'oxydex-profile.js');
+  ok(
+    'blame ANTI-VACUITY · the git walk parses a real revision: a 12-hex digest, a short sha, a date and a subject',
+    realRevs.length > 0 && /^[0-9a-f]{12}$/.test(realRevs[0].digest) && /^[0-9a-f]{7,}$/.test(realRevs[0].short) && /^\d{4}-\d{2}-\d{2}$/.test(realRevs[0].date) && realRevs[0].subject.length > 0,
+    JSON.stringify(realRevs[0] || null)
+  );
+  const headBytes = execFileSync('git', ['-C', ROOT, 'show', 'HEAD:oxydex-profile.js'], { encoding: 'utf8', maxBuffer: 1 << 28 });
+  ok('blame ANTI-VACUITY · and its digest is the digest of that revision read independently', realRevs[0].digest === sha12(headBytes), realRevs[0].digest + ' vs ' + sha12(headBytes));
+  ok(
+    'blame ANTI-VACUITY · the chain text sends its reader to --blame, so the pointer names a real mode',
+    formatChain({ moves: null, head: [], internal: [{ file: 'x.js', closes: 'a', reopens: 'b', after: '2026-11-01', before: '2026-11-02' }], uncovered: [], ambiguous: [] }, 'p', '2026-11-23').some(
+      (l) => l.includes('`--blame`')
+    ),
+    'pointer'
+  );
+  /* …and the mode behind that pointer is reachable from the CLI. An absent pin answers 2 in its OWN
+     words, which is what says the dispatch reached the blame branch and not the chain one. */
+  const blAbsent = cap(() => main(['--blame', '--pin', tmpPin]));
+  ok('blame ANTI-VACUITY · an absent pin answers 2 and prints no report, because it examined nothing', blAbsent.rc === 2 && blAbsent.lines.length === 0, JSON.stringify(blAbsent));
+  /* …and the dispatch reaches the walk. A ref git does not know makes every side unresolved, which no
+     other mode prints, and it costs one failed `git log` rather than a hash of every revision. */
+  const blNoRef = cap(() => main(['--blame', '--ref', 'refs/tepna/no-such-ref']));
+  ok(
+    'blame ANTI-VACUITY · the CLI dispatches --blame, and a ref git does not know resolves nothing',
+    blNoRef.rc === 0 && blNoRef.lines.some((l) => l.includes('walked refs/tepna/no-such-ref')) && blNoRef.lines.some((l) => l.includes('UNRESOLVED')),
+    JSON.stringify(blNoRef.lines.slice(0, 3))
+  );
+
   /* The real generator, at the real configuration — the number the pin is built on. */
   const CG = loadCohortGen();
   ok('the real CohortGen loads outside a browser', !!(CG && typeof CG.sampleProfile === 'function'), CG ? CG.VERSION : 'null');
@@ -708,6 +896,29 @@ function main(argv) {
      `2026-11-22-eight-closure-moves-in-the-yield-pin-chain-carry-no-note`). It judges the PIN
      against its own notes, never the tree, and it reds on a digest pair its baseline does not
      name — so a re-cut that skips its note no longer lands quietly. */
+  /* `--blame` RESOLVES EACH GAP TO THE REVISION THAT MOVED IT, and writes nothing. It walks only the
+     files the chain names, because a walk hashes every revision of a file. It decides nothing: a
+     revision answers WHICH EDIT, while whether the cohort yield moved stays a question only a re-cut
+     answers, so this mode exits 0 over a gap it resolved and over one it could not. */
+  if (argv.includes('--blame')) {
+    const pinPath = arg('--pin', PIN);
+    if (!existsSync(pinPath)) {
+      console.error('no such pin: ' + pinPath);
+      console.error('  the blame read needs the record on disk, because it derives nothing and invents nothing');
+      return 2;
+    }
+    const ref = arg('--ref', 'origin/main');
+    const history = historyOnDisk(pinPath, (f) => readFileSync(f, 'utf8'));
+    const pinned = detectorOnDisk(pinPath, (f) => readFileSync(f, 'utf8'));
+    const workerSrc = readFileSync(join(ROOT, 'cohort-worker.js'), 'utf8');
+    const live = realmDigests(workerSrc, ['oxy', 'pulse'], (f) => (existsSync(join(ROOT, f)) ? sha12(readFileSync(join(ROOT, f), 'utf8')) : null));
+    const rows = resolveGapDigests(chainGaps(live, history, pinned), (f) => gitRevisions(ref, f));
+    console.log('read ' + pinPath + '  \u00b7 walked ' + ref);
+    const lines = formatBlame(rows);
+    for (const line of lines) console.log(line);
+    if (!lines.length) console.log('  the chain is clean, so no gap asks for a revision');
+    return 0;
+  }
   if (argv.includes('--chain')) {
     const pinPath = arg('--pin', PIN);
     if (!existsSync(pinPath)) {
@@ -728,7 +939,9 @@ function main(argv) {
   }
   const rerunPath = arg('--rerun', null);
   if (!rerunPath) {
-    console.error('usage: node tools/treatment-response-yield-pin.mjs --rerun <analysis-rerun-results.json> [--out <pin.json>] | --chain [--pin <pin.json>] | --selftest');
+    console.error(
+      'usage: node tools/treatment-response-yield-pin.mjs --rerun <analysis-rerun-results.json> [--out <pin.json>] | --chain [--pin <pin.json>] | --blame [--pin <pin.json>] [--ref <ref>] | --selftest'
+    );
     return 2;
   }
   if (!existsSync(rerunPath)) {
