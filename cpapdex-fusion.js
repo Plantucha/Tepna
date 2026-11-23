@@ -240,11 +240,25 @@
   /* ════════════════════════════════════════════════════════════════════════
    NODE EXPORT — schema.name:"ganglior.node-export"
    ════════════════════════════════════════════════════════════════════════ */
+  /* The same resolution `cpapdex-dsp.js buildLongitudinal`, `cpapdex-cross.js` and
+     `cpapdex-render.js` use, so the export and the deep table never disagree with the KPI above
+     them. A real night's usage is its POOLED MASK-ON figure, null when a session went unmeasured.
+     A back-compat `{therapyHours}` stub holds no metrics block, and its figure comes from
+     `buildSession`, where `durMin` is mask-on already. `night.therapyHours` on a real night sums
+     WALL spans, so it is the recording envelope and belongs under a recording label only. Row
+     `2026-11-07-the-cpap-usage-kpi-draws-the-recording-envelope-under-the-mask-on-label`. */
+  function _usageH(n) {
+    if (!n) return null;
+    if (n.metrics) return n.metrics.usageHours != null ? n.metrics.usageHours : null;
+    return n.therapyHours != null ? n.therapyHours : null;
+  }
+
   function cpapBuildExport(night) {
     if (!night) return null;
     var events = cpapEvents(night);
     var cross = cpapCrossMetrics(night);
     var D = global.CpapDsp;
+    var usageH = _usageH(night);
     return {
       // P8/kernel: stamp THIS build's physiology-kernel hash so the Integrator's
       // kernel audit can detect a CPAPDex built against a different rulebook.
@@ -366,7 +380,12 @@
           return s.sqi != null && isFinite(s.sqi);
         }).length,
         sqiBasis: 'leak-quality (1 − largeLeakFraction) — R7 separate from conf; mean over ASSESSED sessions only',
-        lowUsage: night.therapyHours != null && night.therapyHours < 2,
+        /* §∅ · hunt-record R-8 — "usage" is the MASK-ON figure, so this flag graded the wrong
+           quantity. `night.therapyHours` sums wall spans, so a night that recorded 6 h and wore the
+           mask for 1.5 h answered `false`. The flag also answered `false` when the DSP measured no
+           mask-on time at all, which manufactures a determinate answer out of an absence. It now
+           reads the resolver above, and it answers `null` when that figure is absent. */
+        lowUsage: usageH == null ? null : usageH < 2,
         truncatedSessions: (night.sessions || []).filter(function (s) {
           return s.truncated;
         }).length
@@ -445,6 +464,7 @@
   function cpapFullMetricsTable(night) {
     if (!night) return '';
     var nm = night.metrics || {};
+    var usageH = _usageH(night);
     var s0 = (night.sessions && night.sessions[0]) || {};
     var m = s0.metrics || {};
     var cross = cpapCrossMetrics(night);
@@ -461,7 +481,25 @@
     r(null, 'Source', 'ResMed AirSense 11 (EDF)', '', '—', '', 'BRP 25 Hz · PLD 0.5 Hz · SA2 1 Hz · EVE/CSL annotations');
     r(null, 'Night start', global.CpapDsp ? global.CpapDsp.fmtDateTime(night.t0Ms) : night.t0Ms, '', '—', '', 'Floating wall-clock (viewer-tz-independent)');
     r(null, 'Sessions', night.nSessions, '', '—', '', night.offMaskGaps && night.offMaskGaps.length ? night.offMaskGaps.length + ' off-mask gap(s)' : 'single session');
-    r('usageHours', 'Therapy hours', _fmt(night.therapyHours, 2), 'hr', '≥4', _sev(4, 2, night.therapyHours), 'Total mask-on time across sessions');
+    /* §∅ · hunt-record R-8 — this row wears the `usageHours` badge, whose registry citation reads
+       "Total mask-on hours (pressure > 0)", and the row's own note repeated that claim. It drew
+       `night.therapyHours`, which sums the sessions' WALL spans, so it published the recording
+       ENVELOPE under a mask-on label. Mask-on time never exceeds that envelope, so an off-mask night
+       read ok against the ≥ 4 h CMS adherence grade that only mask-on hours can earn. The row now
+       draws and grades the resolver's figure, and it states the envelope beside the value in every
+       case. When no mask-on figure exists the value refuses, and the note carries the DSP's own
+       reason token rather than a borrowed one. `cpapdex-render.js` ships this shape on the live KPI,
+       and the `durSec` comment above states the same distinction. */
+    r(
+      'usageHours',
+      'Usage Hours',
+      _fmt(usageH, 2),
+      'hr',
+      '≥4',
+      _sev(4, 2, usageH),
+      (usageH != null ? 'Total mask-on time across sessions' : 'mask-on unmeasured · ' + (night.usageReason || nm.usageReason || 'unstated')) +
+        (night.therapyHours != null ? ' · ' + _fmt(night.therapyHours, 2) + ' h recorded' : '')
+    );
 
     sec('Residual Events (device-scored EVE — top tier)');
     r('residualAHI', 'Residual AHI', _fmt(nm.residualAHI, 2), '/hr', '<5', _sev(5, 15, nm.residualAHI, true), 'AirSense firmware-scored apneas+hypopneas / therapy hr');
