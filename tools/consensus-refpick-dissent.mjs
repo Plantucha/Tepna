@@ -101,7 +101,7 @@ export const DECLARED_PICKS = {
   'tools/pat-finger-coupler.mjs': 'peak-argmax',
   'tools/pat-host-offset.mjs': 'snr-pick-guarded',
   'tools/pat-literature-spec.mjs': 'peak-argmax',
-  'tools/pat-matchrate-strict.mjs': 'peak-argmax',
+  'tools/pat-matchrate-strict.mjs': SHIPPED_RULE,
   'tools/pat-ppg-ppg-control.mjs': 'peak-argmax',
   'tools/ppg-foot-consensus-e1.mjs': 'snr-pick',
   'tools/ppg-fusion-e3.mjs': 'snr-pick'

@@ -74,7 +74,13 @@ Osprey decided this under CLAUDE.md §7 and the owner may overrule it.
     conversion first owes a browser re-run of Table 1, which also puts capture filenames on screen.
     Heron decided this under CLAUDE.md §7 on 2026-11-23, board entry #7993.
 
-    One doc-cited leg remains: `pat-matchrate-strict.mjs`.
+  - `tools/pat-matchrate-strict.mjs` reads the shipped rule since 2026-11-23. This rig holds raw
+    capture for 2 of the 6 nights the §3a table pins. On 2026-07-26 ten numbers moved and no
+    verdict moved. On 2026-07-28 every number held, so both rules name one channel there. The
+    2026-07-25 night refuses alignment under both rules, at 0 anchors.
+
+    Every doc-cited leg now reads the shipped rule, except the browser worker. Decision #7993
+    holds that leg open, so this box stays open.
 - [x] `refpickOf` grows a second rule only with a parity leg against the code it replaces. `snr-pick-guarded` delegates to the shipped pick, and 17 parity assertions hold it against `analyze`.
 - [ ] A doc that cites a PAT figure states the pick rule behind it. Count the FIGURES, not the surfaces.
   - Population: every reader-facing surface under `papers/` and `docs/papers/`, plus every brief
