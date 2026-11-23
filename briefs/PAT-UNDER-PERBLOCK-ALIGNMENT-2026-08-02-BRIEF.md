@@ -136,6 +136,13 @@ favour alignment grants the observation it grants the null identically.
 > six nights score below chance"* is now a statement about the strict definition alone; under the legacy
 > one it is inverted. The §3c pair-selection caveat is unchanged and still bounds both.
 
+**The pick rule behind every number above.** `tools/pat-matchrate-strict.mjs` picks its consensus
+reference channel by a peak-count argmax. The shipped node picks on pulse-band SNR, and
+`harmonicOutlierRefIdx` then moves that pick. The two rules name a different channel on 37 of 54
+Verity nights — row
+`2026-11-03-three-pick-rules-disagree-on-the-consensus-reference-on-thirty-seven-nights`. So a
+reader must not hold this table against a figure the node produced.
+
 **And under it the coupling leg does not survive.** Observed strict `matchRate` is 5–9 %, i.e. *at*
 its own floor; **four of six nights score BELOW chance** and only two reach p<0.05, at ratios 1.22
 and 1.35. There is no R→foot coupling here beyond what a phase-randomised foot train produces.
