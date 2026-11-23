@@ -538,6 +538,58 @@ export function epochSqi(s, t0, t1) {
   return { ok: true, mean: sum / n, cleanShare: clean / n, n };
 }
 
+/* ═══════════════════ §POOLING'S TWO FURTHER GATES, UNDER epochSqi's DISCIPLINE ═══════════════════
+ * `papers/ppg-quality-gate-pooling.html` Table 1 scores THREE gates over one epoch population, and
+ * only the first of them had a producer. Each of these reads the SAME covering session, the SAME
+ * window and the SAME beat floor as `epochSqi`, so the three gates are scored on identical seconds
+ * and a gate's ranking cannot come from a population of its own.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* GATE 2 — the epoch's mean LED agreement. The paper defines it as the epoch mean of the fraction of
+   the three optical channels that agreed on each beat, which is the node's own per-beat `agree`. ∅ —
+   a beat the node left unscored is skipped, never counted as nought agreement, and an epoch under the
+   beat floor is NAMED rather than scored over two beats. */
+export function epochLed(s, t0, t1) {
+  if (!s || !s.led || !s.beatMs || !s.led.length || !s.beatMs.length) return { ok: false, reason: 'no-led-channel' };
+  let sum = 0,
+    n = 0;
+  const lim = Math.min(s.beatMs.length, s.led.length);
+  for (let i = 0; i < lim; i++) {
+    const t = s.beatMs[i];
+    if (!(t >= t0 && t < t1)) continue;
+    const a = s.led[i];
+    if (!Number.isFinite(a)) continue;
+    sum += a;
+    n++;
+  }
+  if (n < SQI_MIN_BEATS) return { ok: false, reason: n === 0 ? 'no-scored-beat' : 'thin-led-epoch' };
+  return { ok: true, mean: sum / n, n };
+}
+
+/* GATE 3 — the epoch's beat coverage, and it is NOT the node's clean-beat share. The paper's own
+   methods list defines it as detected beats × median interval ÷ epoch duration, so it is computed
+   here from the published beat times alone. `ppgdex-dsp.js:7232` publishes `coveragePct` as
+   `cleanBeatPct`, a DIFFERENT quantity, and substituting it would reproduce the paper's row with
+   another measurement wearing its name.
+   ∅ — the median interval needs two beats inside the window; one beat gives a count and no interval,
+   so the epoch is named rather than assigned a coverage of its own duration. */
+export function epochCoverage(s, t0, t1) {
+  if (!s || !s.beatMs || !s.beatMs.length) return { ok: false, reason: 'no-beat-channel' };
+  const inWin = [];
+  for (let i = 0; i < s.beatMs.length; i++) {
+    const t = s.beatMs[i];
+    if (t >= t0 && t < t1) inWin.push(t);
+  }
+  if (inWin.length < SQI_MIN_BEATS) return { ok: false, reason: inWin.length === 0 ? 'no-beat' : 'thin-coverage-epoch' };
+  const d = [];
+  for (let i = 1; i < inWin.length; i++) d.push(inWin[i] - inWin[i - 1]);
+  const med = median(d);
+  if (!(med > 0)) return { ok: false, reason: 'no-median-interval' };
+  const dur = t1 - t0;
+  if (!(dur > 0)) return { ok: false, reason: 'no-epoch-duration' };
+  return { ok: true, ratio: (inWin.length * med) / dur, n: inWin.length, medIntervalMs: med };
+}
+
 /* THE AUC AS A RANK STATISTIC with MID-RANKS, so a tied pair counts half — which is what an AUC means
    and what a threshold sweep over a tied score would also give. ∅ — an AUC over one class is not
    chance, it is undefined, so this returns null rather than 0.5. */
@@ -644,6 +696,84 @@ export function nightAucs(rows, biasPct, pick) {
   }
   nights.sort((a, b) => (a.night < b.night ? -1 : a.night > b.night ? 1 : 0));
   return { nights, excluded };
+}
+
+/* ══════════════════════ THE POOLED TEST, AND WHY IT IS A SEPARATE STATISTIC ══════════════════════
+ * The paper's pooled column treats all 1,488 epochs as one sample, which is the analysis its own
+ * night-clustered column exists to contradict. Reproducing the contradiction needs BOTH, so this is
+ * the pooled half: a Mann-Whitney U over the concatenated epochs, the exact statistic the paper names.
+ *
+ * TIES ARE CORRECTED, because they are not rare here — a gate like beat coverage saturates at one and
+ * an uncorrected variance would inflate every z on that gate alone. U itself comes from `aucMidRank`,
+ * so the AUC and the test cannot disagree about the same ranks.
+ *
+ * THE TAIL IS COMPUTED, NOT APPROXIMATED TO SEVEN DIGITS. The published p values reach 7e-23, and the
+ * textbook erf approximation carries an ABSOLUTE error near 1.5e-7, which says nothing at all about a
+ * tail that small. So this uses the series below 1 and the Mills-ratio continued fraction above it,
+ * both accurate in double precision, and the object names the method rather than leaving a reader to
+ * assume one. A p value is reported BESIDE the criterion here and is never the criterion itself: a
+ * band around 7e-23 would be a band around a number no corpus can land on twice.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* The upper standard-normal tail, Q(z) = P(Z > z), for z >= 0. */
+export function normalTailQ(z) {
+  if (!Number.isFinite(z)) return null;
+  const x = Math.abs(z);
+  const pdf = Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
+  if (x <= 1) {
+    /* erf by its Taylor series, which converges fast well inside this range. */
+    let term = x,
+      sum = x,
+      n = 0;
+    while (Math.abs(term) > 1e-18 && n < 200) {
+      n++;
+      term *= (-1 * x * x) / n;
+      sum += term / (2 * n + 1);
+    }
+    const erf = (2 / Math.sqrt(Math.PI)) * sum;
+    const q = 0.5 * (1 - erf);
+    return z >= 0 ? q : 1 - q;
+  }
+  let f = 0;
+  for (let n = 240; n >= 1; n--) f = n / (x + f);
+  const q = pdf / (x + f);
+  return z >= 0 ? q : 1 - q;
+}
+
+/* MANN-WHITNEY U over two independent samples, two-sided, tie-corrected, with a continuity
+   correction. ∅ — a test over one class is not a null result, so it returns null. */
+export function mannWhitneyU(pos, neg) {
+  const P2 = (pos || []).filter(Number.isFinite),
+    N2 = (neg || []).filter(Number.isFinite);
+  if (!P2.length || !N2.length) return null;
+  const auc = aucMidRank(P2, N2);
+  if (auc == null) return null;
+  const nP = P2.length,
+    nN = N2.length,
+    N = nP + nN;
+  const u = auc * nP * nN;
+  const all = P2.concat(N2)
+    .slice()
+    .sort((a, b) => a - b);
+  let tieTerm = 0,
+    i = 0,
+    tiedGroups = 0;
+  while (i < N) {
+    let j = i;
+    while (j + 1 < N && all[j + 1] === all[i]) j++;
+    const t = j - i + 1;
+    if (t > 1) {
+      tieTerm += t * t * t - t;
+      tiedGroups++;
+    }
+    i = j + 1;
+  }
+  const varU = N > 1 ? ((nP * nN) / 12) * (N + 1 - tieTerm / (N * (N - 1))) : 0;
+  if (!(varU > 0)) return { u, auc, nPos: nP, nNeg: nN, tiedGroups, z: null, p: null, reason: 'zero-variance' };
+  const muU = (nP * nN) / 2;
+  const cc = Math.max(0, Math.abs(u - muU) - 0.5);
+  const z = cc / Math.sqrt(varU);
+  return { u, auc, nPos: nP, nNeg: nN, tiedGroups, z: (u >= muU ? 1 : -1) * z, p: Math.min(1, 2 * normalTailQ(z)), method: 'normal-approximation-tie-corrected' };
 }
 
 /* ════════════════════════════════════════ SELFTEST ════════════════════════════════════════ */
@@ -784,6 +914,53 @@ function selftest() {
   ok('a non-consecutive pair contributes no jitter sample (too few ⇒ null)', gj === null, JSON.stringify(gj));
   ok('sd is the SAMPLE sd (÷ n−1)', Math.abs(sd([800, 900]) - Math.sqrt(5000)) < 1e-9);
   ok('quantile interpolates — IQR is not a nearest-rank approximation', quantile([1, 2, 3, 4], 0.25) === 1.75, String(quantile([1, 2, 3, 4], 0.25)));
+  /* ══ §POOLING'S LEGS. The tail is asserted against VALUES, not against itself, because the whole
+     reason it exists is that the textbook approximation reads nought in the range the paper quotes. */
+  const qRef = [
+    [0, 0.5],
+    [1.96, 2.49978951e-2],
+    [3, 1.34989803e-3],
+    [6, 9.86587645e-10],
+    [9.85, 3.42719879e-23]
+  ];
+  const qBad = qRef.filter(([z, want]) => Math.abs(normalTailQ(z) / want - 1) > 1e-6);
+  ok('the normal tail holds to 1e-6 RELATIVE from the centre out to 3e-23', qBad.length === 0, JSON.stringify(qBad));
+  ok('the tail is symmetric — Q(-z) = 1 − Q(z)', Math.abs(normalTailQ(-1.96) - (1 - 2.49978951e-2)) < 1e-9, String(normalTailQ(-1.96)));
+  /* A HAND-CHECKABLE U: two samples that do not overlap give AUC 1 and U = nP·nN. */
+  const mw = mannWhitneyU([3, 4], [1, 2]);
+  ok('U over separated samples reads AUC 1 and U = nP·nN', mw && mw.auc === 1 && mw.u === 4, JSON.stringify(mw));
+  ok('the pooled p is two-sided — it is 2·Q(z)', mw && Math.abs(mw.p - 2 * normalTailQ(mw.z)) < 1e-12, String(mw && mw.p));
+  /* THE TIE CORRECTION MUST BITE, and a fully tied sample is where it bites hardest: every rank is the
+     same mid-rank, so there is no information and the variance term collapses. */
+  const mwT = mannWhitneyU([1, 1, 1], [1, 1, 1]);
+  ok('a fully tied sample has no discriminating variance and names it', mwT && mwT.p === null && mwT.reason === 'zero-variance', JSON.stringify(mwT));
+  ok('a one-class pooled test is null, never chance (§∅)', mannWhitneyU([1, 2], []) === null);
+  /* THE TWO FURTHER GATES. A perfectly regular train fills its window exactly, which is the one
+     coverage value a reader can check by hand. */
+  const beats = Array.from({ length: 60 }, (_, i) => 1000 + i * 1000);
+  const sCov = { beatMs: beats, sqi: null, led: null };
+  const cov = epochCoverage(sCov, 1000, 61000);
+  ok('beat coverage is beats × median interval ÷ duration — a full minute of 1 Hz beats reads 1.0', cov.ok && Math.abs(cov.ratio - 1) < 1e-12, JSON.stringify(cov));
+  ok(
+    'a half-populated window reads about half',
+    (() => {
+      const c = epochCoverage({ beatMs: beats.slice(0, 30) }, 1000, 61000);
+      return c.ok && Math.abs(c.ratio - 0.5) < 1e-9;
+    })()
+  );
+  ok('one beat gives no median interval, so the epoch is NAMED not scored (§∅)', epochCoverage({ beatMs: [1000] }, 0, 300000).reason === 'thin-coverage-epoch');
+  ok('an epoch with no beat is named separately from a thin one', epochCoverage({ beatMs: [9e9] }, 0, 300000).reason === 'no-beat');
+  /* LED AGREEMENT reads the node's own per-beat array on the SAME index as the beat times, and an
+     unscored beat is skipped rather than read as total disagreement. */
+  const sLed = { beatMs: [1000, 2000, 3000, 4000, 5000, 6000], led: [1, 1, 1, 2 / 3, 2 / 3, null] };
+  const led = epochLed(sLed, 0, 300000);
+  ok(
+    'LED agreement is the mean over SCORED beats only — a null beat leaves the mean alone',
+    led.ok && led.n === 5 && Math.abs(led.mean - (1 + 1 + 1 + 2 / 3 + 2 / 3) / 5) < 1e-12,
+    JSON.stringify(led)
+  );
+  ok('a single-channel record has no LED channel and says so', epochLed({ beatMs: [1, 2], led: null }, 0, 300000).reason === 'no-led-channel');
+  ok('an epoch under the beat floor is named, never scored over two beats', epochLed({ beatMs: [1000, 2000], led: [1, 1] }, 0, 300000).reason === 'thin-led-epoch');
   /* THE HARMONIC LEG (row `2026-10-19-the-ppi-jitter-endpoint-cannot-see-a-2x-harmonic`). A detector
      firing twice per beat is the failure this endpoint gated nine punch-list items against, and it
      could not see one: the extra beats pair with nothing, no two matched pairs stay consecutive, and
@@ -1359,6 +1536,12 @@ function fingerSession(rec, res) {
        so the pair shares an index. The times come from `relSec` through the node, never from
        index/fs — the Clock Contract §7 rule that a node does not hand-roll a rate. */
     sqi: res.sqi && res.sqi.length ? res.sqi : null,
+    /* THE PER-BEAT LED AGREEMENT, published by the POOLING REALM's patch and null in the shipped
+       realm. It is indexed on `det.peaks` exactly as `sqi` is — `consensusBeats` returns one `agree`
+       entry per consensus peak — so the three arrays share one index and one membership rule. A
+       single-channel record has no consensus to agree about and the node publishes nulls, which the
+       epoch scorer skips rather than reading as disagreement (§∅). */
+    led: res.consAgree && res.consAgree.length ? res.consAgree : null,
     beatMs: (() => {
       const bt = res.beatTimes || [];
       const out = new Float64Array(bt.length);
