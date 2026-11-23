@@ -20,7 +20,7 @@
  *   node tools/paper-claim-markers.mjs --base origin/main    # …and refuse baseline GROWTH
  *   node tools/paper-claim-markers.mjs --json                # one tepna.verdict/1
  *   node tools/paper-claim-markers.mjs --verdict-sample      # the verdict shape, examining nothing
- *   node tools/paper-claim-markers.mjs --work-list           # the unmarked papers, and the artifact each could bind to
+ *   node tools/paper-claim-markers.mjs --work-list           # the unmarked papers, the artifact each could bind to, and what produced each
  *   node tools/paper-claim-markers.mjs --write-baseline      # freeze today's unmarked set
  *   node tools/paper-claim-markers.mjs --selftest
  *
@@ -47,6 +47,23 @@
  * carried the same three as token leads, on the shared word `reference`. So the tree decides a
  * destination, a declaration decides a token lead, and a record stating `supersededFigure` says so
  * beside its own lead. The work list now names one bindable paper where it named two.
+ *
+ * THE PAPER NAMES ITS PRODUCER, AND A COINCIDENT VALUE DOES NOT. Every lead this file knew read a
+ * RECORD: a declared destination, or a shared slug token. No record names any of the 19 baselined
+ * papers, and a grep over all 19 finds no `analysis/` path, so the work list offered 0 leads for 19
+ * papers and would have kept doing so. Two further leads were measured at `ca2fdab90`, and one
+ * survived.
+ *
+ * REFUTED — A LEAD KEYED ON THE VALUE. Match every number a paper states against every numeric leaf
+ * of the 23 committed records under `analysis/` (4031 distinct values). 18 of the 19 papers return at
+ * least one hit, `papers/dead-ends.html` returns 106 over 242 stated numbers, and its top hits bind a
+ * published figure to an H10 accelerometer epoch standard deviation. This is CLAUDE.md §∅'s
+ * value-keyed detector, which flags every singleton, so it is not in this file.
+ *
+ * KEPT — THE PRODUCER THE MASTHEAD DECLARES. 11 of the 19 name an artifact the tree carries, and the
+ * work list prints it with the cost of re-running it: a `node-tool` re-runs here, an `analysis-page`
+ * needs a browser over the corpus. That names the artifact whose output a reader commits as a record
+ * and then binds. The other 8 declare none, which is a finding about the paper, not about the marker.
  *
  * A MALFORMED STAMP IS NOT A MARKER. `parseStamps` reports a stamp with no `producer=`, no `output=`
  * or no table above it as malformed, and this gate counts it as absent, because a marker that the
@@ -76,6 +93,11 @@ export const ARTIFACT_DIR = 'analysis/published-numbers';
 export const BASELINE_REASON = 'residue 2026-11-08-twenty-papers-carry-no-claim-marker-and-the-resolver-skips-papers · board #4527 CitB-1';
 
 const REFS_RE = /<ol class="refs">[\s\S]*?<\/ol>/g;
+const META_RE = /<p class="meta"[^>]*>([\s\S]*?)<\/p>/g;
+/* The masthead's own words for what produced the paper, and the `·` that ends the declaration. */
+const PRODUCER_RE = /(?:Analysis(?:\s+tools?)?|Benchmark harness)\s*:/i;
+const SEPARATOR_RE = /\u00b7|&middot;/;
+const PRODUCER_CODE_RE = /<code>([^<]+)<\/code>/g;
 /* The suite's own CLAIM grammar (`tests/run-tests.mjs`), matching the bare and the sourced form alike:
    either one gives the number a name a resolver can read, which is what the row counts. */
 const CLAIM_RE = /CLAIM\s+([A-Za-z][A-Za-z0-9_]*)\s*=\s*(-?\d+(?:\.\d+)?)/g;
@@ -193,6 +215,81 @@ export function usableCandidates(file, candidates, records) {
     const html = declaredHtml(states);
     return html ? html.replace(/^papers\//, '') === String(file).replace(/^papers\//, '') : false;
   });
+}
+
+/**
+ * The producing artifacts a paper DECLARES in its own masthead, exactly as it writes them.
+ *
+ * Every Tepna paper carries a `<p class="meta">` masthead naming what produced it, under one of
+ * three labels the corpus itself writes — `Analysis tool:`, `Analysis tools:`, `Analysis:` and
+ * `Benchmark harness:` — followed by `<code>` paths. That line is the paper's own statement, so it
+ * is evidence rather than a guess, and it answers the one question the reader who writes a marker
+ * has to answer first: which artifact do I re-run to get a record to bind to.
+ *
+ * THE LABEL SET IS ENUMERATED, AND `Detectors:` IS DELIBERATELY OUT. Read over the 24 papers, the
+ * masthead segments that name a path the tree carries fall under those labels, plus `Detectors:`
+ * (6 segments, every one a `*-dsp.js` module), `Preregistration:` (one acceptance file) and 12
+ * unlabelled continuations of a `Detectors:` list. A detector is a component the analysis tool
+ * drove, not the artifact that emits the number, so binding a paper figure to one would publish a
+ * wrong provenance. An unlabelled sweep also reads four revision-note paragraphs, whose labels are
+ * prose fragments (`NOT because of the generator:`), which is why the set is a list and not a shape.
+ *
+ * A LEAD, NEVER A CRITERION. A producer says where a number came from. It does not say the number
+ * is bound, and this function feeds the work list alone — the verdict and the ratchet never read it.
+ *
+ * @param {string} html the page
+ * @returns {string[]} the declared paths, in the order the masthead writes them, deduplicated
+ */
+export function declaredProducers(html) {
+  const out = [];
+  for (const m of String(html || '').matchAll(META_RE)) {
+    const seg = m[1];
+    const at = seg.search(PRODUCER_RE);
+    if (at === -1) continue;
+    /* The masthead is one `·`-separated list, so the declaration ends at the next separator.
+       Reading to the end of the line instead would swallow `Detectors:` and `Substrate:`. */
+    const tail = seg.slice(at);
+    const stop = tail.search(SEPARATOR_RE);
+    for (const c of (stop > 0 ? tail.slice(0, stop) : tail).matchAll(PRODUCER_CODE_RE)) {
+      const p = c[1].replace(/&nbsp;/g, ' ').trim();
+      if (p && !out.includes(p)) out.push(p);
+    }
+  }
+  return out;
+}
+
+/**
+ * Where a declared producer sits in the tree, and what running it costs.
+ *
+ * A paper writes a bare tool name the root carries (`qrs-yield-analysis.html`), a repo-relative
+ * path (`tools/known-clock-recovery.mjs`), a sibling page under `papers/`
+ * (`timestamp-pathology-analysis.html`) or a path relative to `papers/` (`../clock.js`), so the
+ * candidates are tried in that order and the FIRST the tree carries wins. A name the tree carries
+ * nowhere reads `absent`, which is a finding about the paper and not about the marker.
+ *
+ * @param {string} named the path as the masthead writes it
+ * @param {(p: string) => boolean} [treeHas] the tree reader
+ * @returns {{named: string, path: string|null, kind: 'node-tool'|'analysis-page'|'other'|'absent'}}
+ */
+export function resolveProducer(named, treeHas = treeHasDefault) {
+  const raw = String(named || '').trim();
+  const candidates = [raw, `tools/${raw}`, `papers/${raw}`, raw.replace(/^(?:\.\.\/)+/, '')];
+  const path = candidates.find((p) => p && !p.includes(' ') && treeHas(p)) || null;
+  if (!path) return { named: raw, path: null, kind: 'absent' };
+  if (path.endsWith('.mjs')) return { named: raw, path, kind: 'node-tool' };
+  if (path.endsWith('.html')) return { named: raw, path, kind: 'analysis-page' };
+  return { named: raw, path, kind: 'other' };
+}
+
+/**
+ * The producer leads for one paper, resolved against the tree.
+ *
+ * @param {string} text the paper's source
+ * @param {(p: string) => boolean} [treeHas] the tree reader
+ * @returns {{named: string, path: string|null, kind: string}[]}
+ */
+export function producerLeads(text, treeHas = treeHasDefault) {
+  return declaredProducers(text).map((p) => resolveProducer(p, treeHas));
 }
 
 /**
@@ -317,6 +414,7 @@ export function census(papers, baseline, artifacts = [], records = [], treeHas =
     unresolvedBaseline: [],
     workList: {},
     declaredList: {},
+    producerList: {},
     danglingPublished: [],
     pageDestinations: []
   };
@@ -344,6 +442,7 @@ export function census(papers, baseline, artifacts = [], records = [], treeHas =
     c.unmarked.push(s.file);
     c.workList[s.file] = usableCandidates(s.file, artifactCandidates(s.file, artifacts), records);
     c.declaredList[s.file] = declaredLeads(s.file, records, livePapers, treeHas);
+    c.producerList[s.file] = producerLeads(p.text, treeHas);
     if (!(s.file in base)) c.unbaselined.push(s.file);
   }
   const live = new Set(c.unmarked);
@@ -533,6 +632,28 @@ export function selftest() {
   ok(artifactCandidates('papers/b.html', ['sigma-corpus-2026-10-21.json']).length === 0, 'a paper sharing no token names none');
   ok(census(papers, {}, []).unbaselined.length === census(papers, {}, ['sigma-corpus-2026-10-21.json']).unbaselined.length, 'the artifact list cannot change the finding set');
 
+  // THE PRODUCER CHANNEL. The paper declares what produced it, and the tree decides what that costs.
+  const MAST = '<p class="meta">Draft v2 \u00b7 July 2026 \u00b7 Analysis tool: <code>qrs-yield-analysis.html</code> \u00b7 Detectors: real <code>ecgdex-dsp.js</code></p>';
+  ok(declaredProducers(MAST).join(',') === 'qrs-yield-analysis.html', 'the masthead declaration stops at the separator, so a detector is not a producer');
+  ok(declaredProducers('<p class="meta">Draft v1 \u00b7 Analysis: <code>a.html</code>, <code>b.mjs</code></p>').length === 2, 'a two-artifact declaration reads both');
+  ok(declaredProducers('<p class="meta">Draft v1 \u00b7 Benchmark harness: <code>cohort-runner.html</code></p>')[0] === 'cohort-runner.html', 'the harness label is in the enumerated set');
+  ok(declaredProducers('<p class="meta">Draft v1 \u00b7 Detectors: <code>ecgdex-dsp.js</code></p>').length === 0, 'a detector-only masthead declares no producer');
+  ok(declaredProducers('<p>Analysis tool: <code>x.mjs</code></p>').length === 0, 'a declaration outside the meta line is prose');
+  const hasOnly = (set) => (q) => set.includes(q);
+  ok(resolveProducer('known-clock-recovery.mjs', hasOnly(['tools/known-clock-recovery.mjs'])).kind === 'node-tool', 'a bare tool name resolves under tools/ and re-runs here');
+  ok(resolveProducer('x-analysis.html', hasOnly(['papers/x-analysis.html'])).path === 'papers/x-analysis.html', 'a sibling page resolves under papers/');
+  ok(resolveProducer('../clock.js', hasOnly(['clock.js'])).kind === 'other', 'a path relative to papers/ resolves at the root');
+  ok(resolveProducer('x.html', hasOnly(['x.html', 'papers/x.html'])).path === 'x.html', 'the root wins over papers/, so one name reads one way');
+  ok(resolveProducer('gone.html', hasOnly([])).kind === 'absent', 'a producer the tree carries nowhere reads absent, never resolved');
+  ok(producerLeads(MAST, hasOnly(['qrs-yield-analysis.html']))[0].kind === 'analysis-page', 'a page producer carries the cost of a browser run');
+  const withMast = [paper('papers/b.html', `<p>0.91 ICC.</p>${MAST}`), paper(INDEX_PAGE, '<p>2 papers.</p>')];
+  const pc = census(withMast, { 'papers/b.html': BASELINE_REASON }, [], [], hasOnly(['qrs-yield-analysis.html']));
+  ok(pc.producerList['papers/b.html'].length === 1 && censusStatus(pc) === 'PASS', 'a producer lead rides beside the census and never moves its status');
+  ok(
+    census(withMast, {}, [], [], hasOnly([])).unbaselined.length === census(withMast, {}, [], [], hasOnly(['qrs-yield-analysis.html'])).unbaselined.length,
+    'what the tree carries cannot change the finding set'
+  );
+
   // THE DECLARED CHANNEL. An artifact names its own destination, and that name beats a shared token.
   const REC = [
     { name: 'analysis/published-numbers/sigma-corpus-2026-10-21.json', publishedIn: 'papers/sigma-no-reference.html' },
@@ -640,10 +761,20 @@ function main() {
         const raw = artifactCandidates(f, artifacts).length;
         process.stdout.write(raw ? `${f} — no artifact declares it, and ${raw} token lead(s) are decided against it\n` : `${f} — no artifact declares it, and none shares a slug token\n`);
       }
+      /* THE PAPER'S OWN ANSWER TO "WHICH ARTIFACT". A record declares a destination, and the papers
+         here have no record yet, so the only party that can name the producer is the paper. */
+      const prod = c.producerList[f] || [];
+      if (!prod.length) process.stdout.write('    produced by: the masthead declares no analysis tool\n');
+      for (const pr of prod) {
+        process.stdout.write(pr.kind === 'absent' ? `    produced by: ${pr.named}, which nothing in the tree carries\n` : `    produced by: ${pr.path} (${pr.kind})\n`);
+      }
     }
     const declared = c.unmarked.filter((f) => (c.declaredList[f] || []).length).length;
     const tokenOnly = c.unmarked.filter((f) => !(c.declaredList[f] || []).length && (c.workList[f] || []).length).length;
-    process.stdout.write(`· ${c.unmarked.length} unmarked paper(s): ${declared} declared by an artifact, ${tokenOnly} with a token lead only\n`);
+    const withProducer = c.unmarked.filter((x) => (c.producerList[x] || []).some((pr) => pr.kind !== 'absent')).length;
+    process.stdout.write(
+      `· ${c.unmarked.length} unmarked paper(s): ${declared} declared by an artifact, ${tokenOnly} with a token lead only, ${withProducer} naming a producing artifact the tree carries\n`
+    );
     for (const d of c.danglingPublished) process.stdout.write(`⚠ ${ARTIFACT_DIR}/${d.name} publishes into ${d.declared}, which nothing in the tree carries\n`);
     for (const d of c.pageDestinations) process.stdout.write(`· ${ARTIFACT_DIR}/${d.name} publishes into ${d.declared}, a page outside papers/ — it binds no paper number\n`);
     process.exit(0);
