@@ -46,7 +46,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { dissentStampLine, dissentStampOf, dissentTallyLine, refpickOf, signsOf } from './consensus-dissent-core.mjs';
+import { dissentStampLine, dissentStampOf, dissentTallyLine, refpickOf, refpickStampLine, refpickTallyLine, signsOf } from './consensus-dissent-core.mjs';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 
@@ -208,7 +208,8 @@ async function main() {
     const pol = dissentStampOf(signsBefore, corrected);
     /* The reference pick, NAMED at the site so the census reads a declaration rather than a loop
        shape, and a tie stops hiding: `consensus-dissent-core.mjs#refpickOf`. Same pick. */
-    const refIdx = refpickOf(per, 'peak-argmax').idx;
+    const refpick = refpickOf(per, 'peak-argmax');
+    const refIdx = refpick.idx;
     /* @polarity-decision applies
        The feet whose index-to-time conversion this audits now come from the whole channel set. */
     const feet = PPGDSP.consensusBeats(per, refIdx, rec.fs).feet;
@@ -218,12 +219,13 @@ async function main() {
     const durSec = rec.n / rec.fs;
     /* §17 provenance, printed beside the error so `ok` is never read as `independent`. */
     const predictedMs = h.ok && h.ppm != null ? Math.abs(h.ppm) * 1e-6 * durSec * 1000 : Number.NaN;
-    rows.push({ file: f.split('/').pop(), ax, a, h, predictedMs, pol });
+    rows.push({ file: f.split('/').pop(), ax, a, h, predictedMs, pol, pick: refpick });
     console.log(`${f.split('/').pop()}`);
     console.log(`   axis ${ax.nominal ? 'NOMINAL' : 'REAL'} (max dev ${ax.maxDevMs.toFixed(1)} ms) · feet ${a.n} fractional ${a.fractional} · relSec branch taken ${a.branchTaken}/${a.n}`);
     console.log(`   within-5min-bin residual: median ${a.withinBinMedianMs.toFixed(2)} ms  p90 ${a.withinBinP90Ms.toFixed(2)}  max ${a.withinBinMaxMs.toFixed(2)}  (${a.bins} bins)`);
     console.log(`   beat-to-beat |delta| median ${a.beatToBeatMedianMs.toFixed(3)} ms  -> ramp, not jitter`);
     console.log('  ' + dissentStampLine(pol, signsBefore).trim());
+    console.log('  ' + refpickStampLine(refpick).trim());
     console.log(
       `   §17 provenance: ok=${!!h.ok} independent=${h.independent} spreadMs=${h.spreadMs != null ? h.spreadMs.toFixed(2) : '-'} ppm=${h.ppm != null ? h.ppm.toFixed(1) : '-'} drawn=${h.drawn} qShare=${h.quantizedShare != null ? h.quantizedShare.toFixed(3) : '-'}`
     );
@@ -238,6 +240,7 @@ async function main() {
     const validity = validityLine(VALIDITY);
     if (validity) console.log('  ' + validity);
     console.log(dissentTallyLine(rows.map((r) => r.pol)));
+    console.log(refpickTallyLine(rows.map((r) => r.pick)));
     console.log(`\nAGGREGATE over ${rows.length} files: relSec branch taken ${taken}/${tot} feet · within-bin residual median-of-medians ${q(wb, 0.5).toFixed(2)} ms`);
   }
 }

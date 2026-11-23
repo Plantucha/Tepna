@@ -45,11 +45,12 @@
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import vm from 'node:vm';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { maskNonCode } from './argv-reads.mjs';
-import { dissentOf, dissentStampOf, dissentTally, dissentTallyLine, refpickOf, signsOf } from './consensus-dissent-core.mjs';
+import { dissentOf, dissentStampOf, dissentTally, dissentTallyLine, refpickOf, refpickStampLine, refpickTally, refpickTallyLine, signsOf } from './consensus-dissent-core.mjs';
 import { argAt, findCalls, scanFiles } from './consensus-polarity-wiring.mjs';
 import { gitCommitOf, populationVerdict, ruleLine, snapshotEntries } from './corpus-scope-core.mjs';
 import { runsSidecarPath } from './trio-fold-validity.mjs';
@@ -94,13 +95,13 @@ export const DECLARED_PICKS = {
   'pat-feasibility-worker.js': 'peak-argmax',
   'ppgdex-dsp.js': SHIPPED_RULE,
   'sensor-trio-worker.js': 'variance-argmax',
-  'tools/beat-correspondence.mjs': 'peak-argmax',
+  'tools/beat-correspondence.mjs': 'snr-pick-guarded',
   'tools/beat-leg-closure.mjs': 'peak-argmax',
   'tools/pat-axis-leg-audit.mjs': 'peak-argmax',
   'tools/pat-finger-coupler.mjs': 'peak-argmax',
-  'tools/pat-host-offset.mjs': 'peak-argmax',
+  'tools/pat-host-offset.mjs': 'snr-pick-guarded',
   'tools/pat-literature-spec.mjs': 'peak-argmax',
-  'tools/pat-matchrate-strict.mjs': 'peak-argmax',
+  'tools/pat-matchrate-strict.mjs': SHIPPED_RULE,
   'tools/pat-ppg-ppg-control.mjs': 'peak-argmax',
   'tools/ppg-foot-consensus-e1.mjs': 'snr-pick',
   'tools/ppg-fusion-e3.mjs': 'snr-pick'
@@ -210,6 +211,18 @@ function readPick(text, masked, call) {
     const tregion = text.slice(at, before);
     const named = namedPickOf(stmt, stmtEnd === -1 ? tregion : tregion.slice(0, stmtEnd));
     if (named) return { rule: named.rule, expr, read: 'named', why: named.why + (guarded ? ', then moved by the harmonic-outlier guard' : '') };
+    /* 🔴 A STAMP-CARRYING SITE DECLARES ITS RULE ONE HOP FURTHER BACK.
+       `CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md` §3 asks each leg to print the rule behind its
+       feet, so a leg keeps the whole `refpickOf` return and reads `.idx` off it on the next line. The
+       rule literal then sits in the statement before the binding this scan traced. Following a plain
+       field read of another local binding reaches it. The field name is PINNED, so no other member
+       read hops, and the hop carries no `guarded` flag: it moves no pick. */
+    const hopStamp = stmt.match(/=\s*([A-Za-z_$][\w$]*)\.idx\s*;/);
+    if (hopStamp) {
+      name = hopStamp[1];
+      before = at;
+      continue;
+    }
     const am = argmaxOf(region, name);
     if (am) return { rule: am.rule, expr, why: am.why + (guarded ? ', then moved by the harmonic-outlier guard' : '') };
     if (SNR_PICK_RE.test(region))
@@ -430,6 +443,14 @@ function realm(files) {
   sb.navigator = { userAgent: 'v' };
   sb.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
   const ctx = vm.createContext(sb);
+  /* The rewrite is loaded HERE as well as in the CLI block, so a caller that never reaches the
+     corpus path still gets a bound realm — the selftest's parity leg is one. `createRequire` keeps
+     this synchronous, and the path is absolute for the reason the note above gives. */
+  if (typeof classicify !== 'function') {
+    const B = createRequire(import.meta.url)(join(ROOT, 'tools', 'build-core.js'));
+    classicify = B.classicify || (B.default && B.default.classicify);
+  }
+  if (typeof classicify !== 'function') throw new Error('consensus-refpick-dissent: build-core.js carries no classicify, so no realm can load');
   for (const f of files) vm.runInContext(classicify(readFileSync(join(ROOT, f), 'utf8')), ctx, { filename: f });
   return sb;
 }
@@ -636,6 +657,38 @@ function selftest() {
   fail += ok(namedPickOf('const r = refpickOf(per).idx;', 'const r = refpickOf(per).idx;').rule === 'unknown', 'a named call carrying no rule literal reads unknown, never the rule a reader assumed');
   const CMT = "/* refpickOf(per, 'snr-pick') */\nconst refIdx = 0;\n";
   fail += ok(namedPickOf(maskNonCode(CMT), CMT) === null, 'a call written inside a comment names nothing, because the call is located on the masked copy');
+  /* 🔴 THE STAMP-CARRYING SHAPE IS THE ONE EVERY CONVERTED LEG NOW WRITES, so this scan has to read
+     it. `CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md` §3 asks each leg to print the rule behind
+     its feet, and that costs one statement between the pick and the consumer. */
+  const STAMPED = "const refpick = refpickOf(per, 'peak-argmax');\nconst refIdx = refpick.idx;\nconst cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);\n";
+  fail += ok(pickOf(STAMPED).rule === 'peak-argmax' && pickOf(STAMPED).read === 'named', 'a leg that keeps the whole pick stamp still reads NAMED, one hop further back');
+  const OTHERFIELD = "const refpick = refpickOf(per, 'peak-argmax');\nconst refIdx = refpick.score;\nconst cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);\n";
+  fail += ok(pickOf(OTHERFIELD).rule === 'unknown', 'CONTROL · the hop is pinned to `.idx`, so a read of another field buys no rule');
+  /* The two printers §3 asks for. ∅ Three reads, three wordings: a stamp nobody built, a rule that
+     picked nothing, and a pick made among equals never borrow each other's words. */
+  const PICKED = refpickOf(PER(3, 9, 1), 'peak-argmax');
+  fail += ok(/channel 1 of 3 under peak-argmax/.test(refpickStampLine(PICKED)), 'the printed stamp names the channel, the channel count and the rule');
+  fail += ok(
+    /arbitrary among 2 equals/.test(refpickStampLine(refpickOf(PER(5, 5, 1), 'peak-argmax'))),
+    'a tie prints as arbitrary among equals, so a reader sees a reference nothing chose on evidence'
+  );
+  fail += ok(/no channel of 0 carried a readable score/.test(refpickStampLine(refpickOf([], 'peak-argmax'))), '∅ a set with no readable score prints that, never a channel the rule did not pick');
+  fail += ok(refpickStampLine(null) === '  reference pick: not read', '∅ a stamp the run never built prints `not read`, never a pick');
+  /* THE TWO GUARDED CLAUSES ARE ADDITIVE. A leg still on `peak-argmax` must print the line it
+     printed before the guarded rule existed, so the first assertion pins the WHOLE string. */
+  fail += ok(refpickStampLine(PICKED) === '  reference pick: channel 1 of 3 under peak-argmax (score 9)', 'an argmax stamp prints no guard clause, so an unconverted leg keeps its line byte for byte');
+  fail += ok(
+    / moved off channel 2 by the harmonic guard$/.test(refpickStampLine({ rule: 'snr-pick-guarded', idx: 0, score: 3, ties: 0, channels: 3, snrIdx: 2, movedByGuard: true, scored: true })),
+    'a guarded stamp names the channel the harmonic guard moved the reference off'
+  );
+  fail += ok(
+    /, on a channel set no window scored$/.test(refpickStampLine({ rule: 'snr-pick-guarded', idx: 0, score: 0, ties: 0, channels: 3, snrIdx: 0, movedByGuard: false, scored: false })),
+    '∅ a guarded stamp over a channel set no window scored says so beside the pick'
+  );
+  const ptal = refpickTally([PICKED, refpickOf([], 'peak-argmax'), null]);
+  fail += ok(ptal.streams === 2 && ptal.picked === 1 && ptal.unscored === 1 && ptal.unread === 1, 'an unread stream never pads a rule nothing picked it under');
+  fail += ok(ptal.byRule['peak-argmax'] === 2, 'the rule tally counts every stream the rule ran on, scored or not');
+  fail += ok(/no readable score/.test(refpickTallyLine([])), 'the pooled line names the unscored class even when it is empty');
   fail += ok(
     declarationAudit([{ ...ROW('a.mjs', 'snr-pick'), read: 'named' }], T).rows[0].declarationState === 'diverged',
     'naming a rule in code never overrides the table: a named site that disagrees with it still diverges'
@@ -651,6 +704,118 @@ function selftest() {
     `the read counts answer for every examined site — ${live.result.byRead.named} named, ${live.result.byRead.inferred} inferred of ${live.population.checked}`
   );
   fail += ok(DECLARED_PICKS['ppgdex-dsp.js'] === SHIPPED_RULE, 'the shipped path is the one site declared by the shipped rule, under its own name');
+  /* ── THE PARITY LEG for `refpickOf`'s second rule (brief §3, fourth box) ─────────────────────────
+
+     🔴 A DELEGATION IS ONLY HONEST IF SOMETHING HOLDS IT TO THE SHIPPED LINES. `refpickOf(per,
+     'snr-pick-guarded', …)` calls the shipped `pickChannel` and `harmonicOutlierRefIdx` rather than
+     carrying a copy of either, so the thing that can rot is the plumbing between them: the guard's
+     two input arrays. `analyze` builds them from the detected peak counts and the pick's own score
+     table, and this leg holds the helper against those same three lines of `analyze` on a record the
+     shipped detector really ran on. A stub guard then captures the arrays, because an equal OUTPUT
+     can hide two wrong INPUTS that happen to agree.
+
+     ∅ The arrays carry `null` rates and a `0` SNR pad, so they are compared element by element with
+     `String`. `JSON.stringify` renders a non-finite number as `null` and would read two different
+     arrays as one. */
+  const PP = realm(['clock.js', 'kernel-constants.js', 'metric-registry.js', 'ppgdex-registry.js', 'ppgdex-morph.js', 'ppgdex-dsp.js']).PPGDSP;
+  const synthCh = (fs, sec, bpm, amp, noise) => {
+    const n = Math.round(fs * sec);
+    const out = new Float32Array(n);
+    let seed = 7;
+    const rnd = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed / 0x7fffffff - 0.5;
+    };
+    for (let i = 0; i < n; i++) {
+      const t = i / fs;
+      out[i] = amp * Math.sin(2 * Math.PI * (bpm / 60) * t) + noise * rnd();
+    }
+    return out;
+  };
+  const FS = 55;
+  const SEC = 120;
+  const recS = { fs: FS, durSec: SEC, n: Math.round(FS * SEC), ch: [synthCh(FS, SEC, 60, 1, 0.9), synthCh(FS, SEC, 60, 1, 0.4), synthCh(FS, SEC, 60, 1, 0.05)] };
+  const perS = recS.ch.map((c) => PP.detectChannel(c, recS.fs));
+  const selS = PP.pickChannel(recS);
+  /* `analyze`'s own three lines, with the dedupe remap reduced to the identity it takes on a record
+     whose channels are distinct — the case this leg builds, and the case every ported leg runs. */
+  const ratesS = perS.map((pc) => (pc && pc.peaks && pc.peaks.length > 10 && recS.durSec > 0 ? (pc.peaks.length / recS.durSec) * 60 : null));
+  const snrS = recS.ch.map((_, c) => (selS.scores && selS.scores[c] ? selS.scores[c].snr : 0));
+  const refIdxUsedS = PP.harmonicOutlierRefIdx(selS.idx, ratesS, snrS);
+  const shipped = { pickChannel: PP.pickChannel, harmonicOutlierRefIdx: PP.harmonicOutlierRefIdx, rec: recS };
+  const sameArr = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => String(v) === String(b[i]));
+  const got = refpickOf(perS, SHIPPED_RULE, shipped);
+  fail += ok(got.rule === SHIPPED_RULE && got.idx === refIdxUsedS, `the delegated pick is the shipped pick — ${got.idx} against ${refIdxUsedS}`);
+  fail += ok(got.snrIdx === selS.idx, 'the SNR pick travels beside the guarded one, so a leg can report that the guard moved it');
+  fail += ok(got.scored === !!selS.scored && got.channels === perS.length, 'the record-level score flag and the channel count come from the shipped pick');
+  fail += ok(got.score !== null && Number.isFinite(got.score), 'a scored channel reports its own SNR as the score');
+  let seenRates = null;
+  let seenSnr = null;
+  const spy = refpickOf(perS, SHIPPED_RULE, {
+    ...shipped,
+    harmonicOutlierRefIdx: (ri, rates, snr) => {
+      seenRates = rates;
+      seenSnr = snr;
+      return ri;
+    }
+  });
+  fail += ok(sameArr(seenRates, ratesS), 'the guard reads the rate array `analyze` builds, element for element');
+  fail += ok(sameArr(seenSnr, snrS), 'the guard reads the SNR array `analyze` builds, pad for pad');
+  fail += ok(spy.idx === selS.idx && spy.movedByGuard === false, 'a guard that keeps the pick reports no move');
+  const moved = refpickOf(perS, SHIPPED_RULE, { ...shipped, harmonicOutlierRefIdx: () => (selS.idx === 0 ? 1 : 0) });
+  fail += ok(moved.idx !== selS.idx && moved.movedByGuard === true, 'a guard that moves the pick is reported as a move, never folded into the SNR pick');
+  /* ∅ A RECORD NOTHING SCORED. Every sample below is absent, so `channelSNR` scores no window and
+     returns `snr: null` — its own §∅ branch. `analyze` still derives its feet on channel 0, so this
+     helper reports that index and says `scored: false` beside it. The absence travels out of band,
+     and a leg annotates it rather than refusing where the node does not. */
+  const recNull = { fs: FS, durSec: SEC, n: 64, ch: [new Float32Array(64).fill(Number.NaN)] };
+  const perNull = recNull.ch.map((c) => PP.detectChannel(c, recNull.fs));
+  const unscored = refpickOf(perNull, SHIPPED_RULE, { pickChannel: PP.pickChannel, harmonicOutlierRefIdx: PP.harmonicOutlierRefIdx, rec: recNull });
+  fail += ok(unscored.scored === false && unscored.score === null, 'a record no channel scored reports score null and scored false, never a zero');
+  fail += ok(unscored.idx === 0, 'the index stays the real position `analyze` derives feet on, so a leg still measures the node');
+  /* MEASURED, and NOT this unit's to change: an ALL-ZERO channel is scored, at `snr: 0`. A constant
+     stream carries no pulse, so a leg reading `scored` as "a reference was chosen on evidence" would
+     read this record wrong. The flag answers for the scorer and never for the signal, and that is
+     `ppgdex-dsp.js`'s own question. This assertion records the reading so a later change reds here. */
+  const recZero = { fs: FS, durSec: SEC, n: 64, ch: [new Float32Array(64)] };
+  const zero = refpickOf(
+    recZero.ch.map((c) => PP.detectChannel(c, recZero.fs)),
+    SHIPPED_RULE,
+    { pickChannel: PP.pickChannel, harmonicOutlierRefIdx: PP.harmonicOutlierRefIdx, rec: recZero }
+  );
+  fail += ok(zero.scored === true && zero.score === 0, 'MEASURED · the shipped pick scores an all-zero channel at 0, and this helper reports that read rather than a null it never measured');
+  /* 🔴 THE REFUSALS. Each one would otherwise let a leg declare the shipped rule and run another. */
+  const throws = (fn) => {
+    try {
+      fn();
+      return false;
+    } catch (e) {
+      return e instanceof TypeError;
+    }
+  };
+  fail += ok(
+    throws(() => refpickOf(perS, SHIPPED_RULE)),
+    'the shipped rule with no injected functions refuses, never falls back to the peak rule'
+  );
+  fail += ok(
+    throws(() => refpickOf(perS, SHIPPED_RULE, { pickChannel: PP.pickChannel, harmonicOutlierRefIdx: PP.harmonicOutlierRefIdx })),
+    'the shipped rule with no record refuses'
+  );
+  fail += ok(
+    throws(() => refpickOf(perS.slice(0, 2), SHIPPED_RULE, shipped)),
+    'a perChannel in another index space than rec.ch refuses, because the pick would land on the wrong channel'
+  );
+  fail += ok(
+    throws(() => refpickOf(perS, SHIPPED_RULE, { ...shipped, keepIdx: [0, 1, 2] })),
+    'a deduping caller that passes no remapped refIdx refuses'
+  );
+  fail += ok(
+    throws(() => refpickOf(perS, 'snr-pick', shipped)),
+    'the bare SNR pick is still not a rule this helper implements'
+  );
+  /* CONTROL · the peak rule is untouched by the second rule, and it ignores the options. */
+  const ctl = refpickOf(perS, 'peak-argmax', shipped);
+  fail += ok(ctl.rule === 'peak-argmax' && ctl.score === perS[ctl.idx].peaks.length, 'CONTROL · the peak rule still counts peaks and ignores the shipped options');
   console.log(fail ? `\nselftest: ${fail} FAILURE(S) of ${ASSERTED}` : `\nselftest: all ${ASSERTED} assertions passed`);
   return fail;
 }

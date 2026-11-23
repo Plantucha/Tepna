@@ -185,6 +185,15 @@ folded here, beside a `corpus-population` verdict that reads PASS for movement a
 | 2026-10-30 | 577 ms | 1030 ms | 3 | 270 ms |
 | 2026-10-31 | 200 ms | 1154 ms | 4 | 374 ms |
 
+The pick rule behind both rows is the peak-count argmax. The run above scored each PPG channel by
+peak count and took the argmax as the consensus reference. `tools/pat-host-offset.mjs` reads the
+shipped `snr-pick-guarded` rule since 2026-11-23, so a re-run can name another channel. Six archive
+nights measured that change: the pick moved on 4 of 5 scored streams. Nine of twelve shared windows
+moved a number.
+
+The rig corpus copy holds none of the three nights this table covers. So nobody re-ran them. A
+reader must not hold a fresh run against these two rows.
+
 **The agreement test** compares the two. Between those two nights the floor offset moved 629.09 ms and
 the beat offset moved −377 ms modulo an RR of 1092 ms, so the two disagree by −86.0 ms. Board note
 #3332 posted the criterion before this data existed: a median absolute disagreement at or under 90 ms,

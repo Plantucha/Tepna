@@ -55,7 +55,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { dissentStampOf, dissentTallyLine, refpickOf, signsOf } from './consensus-dissent-core.mjs';
+import { dissentStampOf, dissentTallyLine, refpickOf, refpickTallyLine, signsOf } from './consensus-dissent-core.mjs';
 import { NIGHT_RE, coverageIdentity, notANight, populationVerdict, ruleLine, snapshotNights } from './corpus-scope-core.mjs';
 import { readRunsSidecar, validityLine } from './trio-fold-validity.mjs';
 /* The ECG axis arithmetic is single-sourced in `pat-matchrate-strict.mjs` for row
@@ -323,7 +323,8 @@ function ppgFootTimes(text, runsText, opts) {
   );
   /* The reference pick, NAMED at the site so the census reads a declaration rather than a loop
      shape, and a tie stops hiding: `consensus-dissent-core.mjs#refpickOf`. Same pick. */
-  const refIdx = refpickOf(per, 'peak-argmax').idx;
+  const refpick = refpickOf(per, 'peak-argmax');
+  const refIdx = refpick.idx;
   /* @polarity-decision applies
      The residuals this spec holds against the literature now come from the whole channel set. */
   let cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
@@ -398,6 +399,7 @@ function ppgFootTimes(text, runsText, opts) {
     n: cons.feet.length,
     polarity,
     polaritySigns,
+    refpick,
     usedRelSec: cons.feet.length > 0 && nViaRel === cons.feet.length,
     feetViaRelSec: nViaRel,
     feetViaSampleRate: cons.feet.length - nViaRel,
@@ -462,6 +464,7 @@ const covered = [];
 const ALL = [];
 /* One stamp per SCORED night, so the pooled line counts the same streams the table above lists. */
 const polStamps = [];
+const pickStamps = [];
 let anyFs = { ecg: null, ppg: null };
 for (const n of nights) {
   const dir = path.join(DIR, n);
@@ -502,6 +505,7 @@ for (const n of nights) {
   /* ROWS, NOT NAMES: `notANight` keys on `row.night` and refuses a bare name (board #4054). */
   covered.push({ night: n, ok: true });
   polStamps.push(P.polarity);
+  pickStamps.push(P.refpick);
 }
 console.log('  ' + '-'.repeat(88));
 /* THE POPULATION, REPORTED BEFORE THE EARLY EXIT — a run that measures nothing still walked a root,
@@ -519,6 +523,7 @@ console.log(
 const rl = ruleLine(population);
 if (rl) console.log('  ' + rl);
 console.log(dissentTallyLine(polStamps));
+console.log(refpickTallyLine(pickStamps));
 console.log(`  selected but not scored: ${unscored.length ? unscored.join(', ') : 'none'}`);
 console.log('POPULATION ' + JSON.stringify(population));
 const validity = validityLine(VALIDITY);

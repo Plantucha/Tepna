@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**353 tools** · 352 with a purpose line · **1 without**
+**357 tools** · 356 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -64,6 +64,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`codex-export.mjs`](../tools/codex-export.mjs) | THE SOURCE-ONLY EXPORT AN EXTERNAL READER MAY SEE. Owner ruling 2026-10-04: an external model (Codex) may read SOURCE, never the CORPUS. |
 | [`cohort-fit.mjs`](../tools/cohort-fit.mjs) | DOES THE SYNTHETIC COHORT LOOK LIKE A REAL ONE? — and what would it take to project it onto one. |
 | [`commit-shape.mjs`](../tools/commit-shape.mjs) | the AGENT-NEUTRAL half of the shared-tree guards. WHY THIS EXISTS. |
+| [`compute-feeder.mjs`](../tools/compute-feeder.mjs) | KEEP THE FREE COMPUTE FED (owner 2026-11-22: "build some program feeding qwen and shrike … when fleet run out of tokens, there will be 2 days of compute always ready"). |
 | [`consensus-dissent-core.mjs`](../tools/consensus-dissent-core.mjs) | `applyConsensusPolarity` RETURNS THE CHANNELS IT RE-DETECTED, AND TEN CALLERS THREW IT AWAY. |
 | [`consensus-polarity-wiring.mjs`](../tools/consensus-polarity-wiring.mjs) | THE WIRING IS WHERE A FIX STOPS BEING APPLIED, AND NOTHING COUNTED THE WIRING. |
 | [`consensus-refpick-dissent.mjs`](../tools/consensus-refpick-dissent.mjs) | A DISSENTING LED CAN WIN THE REFERENCE PICK, AND NOBODY HAD READ THE WINNER. |
@@ -147,6 +148,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`make-synthetic-inputs.mjs`](../tools/make-synthetic-inputs.mjs) | a COMMITTABLE vendor-format input for every node. WHY. The suite's strongest correctness gate — Phase-9 `compute() ≡ committed export` — DOES NOT RUN IN CI. |
 | [`measurement-emitter-perf-oxydex.mjs`](../tools/measurement-emitter-perf-oxydex.mjs) | MEASUREMENT-PROVENANCE-ROADMAP §10 for the OXYDEX emitter and the Integrator adapter — runtime, peak memory, export size, against bands written BEFORE the run. |
 | [`measurement-walk.mjs`](../tools/measurement-walk.mjs) | WALK A MEASUREMENT BACK TO ITS RAW INPUT — the roadmap §3 backward walk-through, as a check. |
+| [`memory-program.mjs`](../tools/memory-program.mjs) | Reads the shared fleet memory directory (READ-ONLY) and asks the Anthropic Batch API to classify each file, so that a bird can consolidate the directory from a reviewed proposal. |
 | [`memory-supersession.mjs`](../tools/memory-supersession.mjs) | WHICH MEMORY LESSON LEADS WITH A RULING THE FLEET HAS ALREADY REPLACED (residue `2026-10-28-a-replaced-owner-ruling-ranks-first-from-the-memory-corpus`). |
 | [`module-carriers.mjs`](../tools/module-carriers.mjs) | A FILE NAMED FOR ONE NODE CAN BE READ BY A SURFACE THAT HAS NOTHING TO DO WITH THAT NODE. |
 | [`motion-rho-vs-minrho.mjs`](../tools/motion-rho-vs-minrho.mjs) | is the shipped correlation proxy in the right range, on the right nights? |
@@ -193,6 +195,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`o2ring-frame-cadence.mjs`](../tools/o2ring-frame-cadence.mjs) | IS THE O2RING'S ~1 Hz CADENCE A FIRMWARE CLOCK OR HOST BLE FRAMING? |
 | [`o2ring-step-imbalance.mjs`](../tools/o2ring-step-imbalance.mjs) | O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS §2 — does the step imbalance track the POLL INTERVAL? |
 | [`odi4-shhs-recut.mjs`](../tools/odi4-shhs-recut.mjs) | THE SHHS1 TABLES OF `papers/odi4-ahi-bias.html` §3.2, RE-CUT FROM A COMMITTED RECORD — Table 3 (ODI-4 vs scored AHI and vs the expert desaturation index on the same nights), Table 4's… |
+| [`ollama-router-check.mjs`](../tools/ollama-router-check.mjs) | Puts the rig's Ollama router under the tool selftest gate. CI and `npm run test:tools` find selftests by scanning `tools/*.mjs`, so a Python router and a shell watcher would run no check… |
 | [`oracle-ecg-firmware-rr.mjs`](../tools/oracle-ecg-firmware-rr.mjs) | THE ORACLE HARNESS, ECG LEG — Tepna's Pan–Tompkins against an INDEPENDENT detector on real H10 nights |
 | [`oracle-ppg-device-beats.mjs`](../tools/oracle-ppg-device-beats.mjs) | THE ORACLE HARNESS, PPG LEG — PpgDex's foot detector against the RING'S OWN beat markers |
 | [`oxy-hr-bias.mjs`](../tools/oxy-hr-bias.mjs) | R5-HR-TRIPLET-REFERENCE §5 — "Investigate OxyDex's −0.36 bpm bias." |
@@ -254,6 +257,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`pw-launch.mjs`](../tools/pw-launch.mjs) | ONE PLACE THAT KNOWS WHY CHROMIUM CANNOT START ON THIS BOX — the Playwright launch arguments every headless tool and gate shares, with the AppArmor user-namespace case detected and named. |
 | [`queue-doctor.mjs`](../tools/queue-doctor.mjs) | queue-doctor — drain a PR queue that CANNOT drain itself, and NAME the state that no view reports. |
 | [`qwen-agent.mjs`](../tools/qwen-agent.mjs) | READ-ONLY LOCAL-MODEL AGENT — owner-directed 2026-08-27: "make sure qwen will read CLAUDE.md and have access to bge and other stuff so it can behave like normal Claude coder." |
+| [`qwen-lead-check.mjs`](../tools/qwen-lead-check.mjs) | THE MECHANICAL CHECK ON A LOCAL-MODEL LEAD (briefs/LOCAL-QWEN-SWEEPS-2026-11-22-BRIEF.md §3.3). |
 | [`qwen-mypy-fix.mjs`](../tools/qwen-mypy-fix.mjs) | the mypy burn-down FIX lane (PYTHON-TYPES-AND-FORMAT §P2, qwen half). |
 | [`r5-hr-reference.mjs`](../tools/r5-hr-reference.mjs) | R5 (TCH-REFERENCE-VALIDATION §7) on the HR triplet — and the answer is that IT CANNOT BE RUN. |
 | [`read-lines-bounded.mjs`](../tools/read-lines-bounded.mjs) | ONE BOUNDED LINE READER, FOR EVERY TOOL THAT HANDS A RAW STREAM TO A DSP |

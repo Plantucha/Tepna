@@ -136,6 +136,24 @@ favour alignment grants the observation it grants the null identically.
 > six nights score below chance"* is now a statement about the strict definition alone; under the legacy
 > one it is inverted. The §3c pair-selection caveat is unchanged and still bounds both.
 
+**The pick rule behind every number above.** `tools/pat-matchrate-strict.mjs` picks its consensus
+reference channel by a peak-count argmax when this table ran. The shipped node picks on pulse-band SNR, and
+`harmonicOutlierRefIdx` then moves that pick. The two rules name a different channel on 37 of 54
+Verity nights — row
+`2026-11-03-three-pick-rules-disagree-on-the-consensus-reference-on-thirty-seven-nights`. So a
+reader must not hold this table against a figure the node produced.
+
+**The tool reads the shipped rule since 2026-11-23, and this table predates that.** This rig holds no
+raw capture for 2026-07-20, 2026-07-22 or 2026-07-23. 2026-07-25 refuses alignment on the archive
+tree under both rules, with 0 anchors. So I re-ran 2 of the 6 nights under the shipped rule.
+
+On 2026-07-26 ten numbers moved: legacy `matchRate` 0.4186 to 0.4174, `residIQR` 15.5 to 16.7,
+`chanceMean` 0.2406 to 0.2404, `chanceP95` 0.2545 to 0.2532 and `z` 23.2 to 23.4; strict `matchRate`
+0.0596 to 0.0604, `residIQR` 38.8 to 38.3, `chanceP95` 0.0977 to 0.0976, `ratio` 0.64 to 0.65 and
+`z` -8.8 to -8.7. Every other input is deterministic, so only a moved pick explains them. No verdict
+moved: the legacy ratio holds at 1.74 with p 0.0109, and the strict ratio stays under one with p 1.
+On 2026-07-28 every number held, so both rules name one channel there.
+
 **And under it the coupling leg does not survive.** Observed strict `matchRate` is 5–9 %, i.e. *at*
 its own floor; **four of six nights score BELOW chance** and only two reach p<0.05, at ratios 1.22
 and 1.35. There is no R→foot coupling here beyond what a phase-randomised foot train produces.

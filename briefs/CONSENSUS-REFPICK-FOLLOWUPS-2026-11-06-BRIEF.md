@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** PROPOSED — 2026-11-06 · **Created:** 2026-11-06 · **Interlocks:** `PPGDEX-ALGORITHM-DEEP-DIVE.md` §6.3 (the shipped consensus) · `PARTIAL-ADOPTION-DETECTION-2026-09-20-BRIEF.md` (count a freeze, never assume it)
+**Status:** IN-PROGRESS — 2026-11-22 · **Created:** 2026-11-06 · **Interlocks:** `PPGDEX-ALGORITHM-DEEP-DIVE.md` §6.3 (the shipped consensus) · `PARTIAL-ADOPTION-DETECTION-2026-09-20-BRIEF.md` (count a freeze, never assume it)
 
 # CONSENSUS-REFPICK-FOLLOWUPS — the reference pick is named everywhere; it is still not the same rule
 
@@ -59,10 +59,49 @@ Osprey decided this under CLAUDE.md §7 and the owner may overrule it.
 
 ## 3 · Acceptance
 
-- [ ] Each PAT leg's output carries the rule behind its feet, beside the polarity stamp it already carries.
+- [x] Each PAT leg's output carries the rule behind its feet, beside the polarity stamp it already carries.
 - [ ] Each cited leg reads the shipped rule, one leg per PR. Every PR body names the numbers that moved.
-- [ ] `refpickOf` grows a second rule only with a parity leg against the code it replaces.
-- [ ] A doc that cites a PAT figure states the pick rule behind it.
+  - `tools/beat-correspondence.mjs` reads the shipped rule since PR 5474. The reference moved on
+    both nights the paper cites: channel 0 to channel 2 on 2026-07-04, and channel 2 to channel 0
+    on 2026-07-11. Both nights still refuse every plane, so the cited chance control holds.
+  - `tools/pat-host-offset.mjs` reads the shipped rule since 2026-11-23. Over six archive nights the
+    pick moved on 4 of 5 scored streams. Nine of twelve shared windows moved a number. One window
+    crossed the chance line. `2026-10-04 win 0` moved `strictP` from 0.0392 to 0.0588, so the
+    significant strict windows fell from 6 to 5.
+  - `pat-feasibility-worker.js` keeps `peak-argmax`, and the paper now states that rule beside the
+    figures this leg produced. The worker runs only in a browser over dropped capture folders, and
+    no node harness executes its analyse path. So no PR can name the numbers that moved. A
+    conversion first owes a browser re-run of Table 1, which also puts capture filenames on screen.
+    Heron decided this under CLAUDE.md §7 on 2026-11-23, board entry #7993.
+
+  - `tools/pat-matchrate-strict.mjs` reads the shipped rule since 2026-11-23. This rig holds raw
+    capture for 2 of the 6 nights the §3a table pins. On 2026-07-26 ten numbers moved and no
+    verdict moved. On 2026-07-28 every number held, so both rules name one channel there. The
+    2026-07-25 night refuses alignment under both rules, at 0 anchors.
+
+    Every doc-cited leg now reads the shipped rule, except the browser worker. Decision #7993
+    holds that leg open, so this box stays open.
+- [x] `refpickOf` grows a second rule only with a parity leg against the code it replaces. `snr-pick-guarded` delegates to the shipped pick, and 17 parity assertions hold it against `analyze`.
+- [ ] A doc that cites a PAT figure states the pick rule behind it. Count the FIGURES, not the surfaces.
+  - Population: every reader-facing surface under `papers/` and `docs/papers/`, plus every brief
+    that pins a figure a PAT leg produced. The app bundles name a PAT tool as a code reference,
+    never a figure. So the box does not bind there. Thirty further briefs name a PAT leg and pin
+    none of its figures.
+  - Three surfaces now name their rule: `papers/wearable-clock-drift.html` §3.6, the 52-night
+    entry in `papers/RERUN-RESULTS.md`, and the §3a sweep table in
+    `PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md`.
+  - Both briefs now name their rule. `RADIO-DELAY-FLOOR-2026-11-03-BRIEF.md` states the peak-count
+    argmax beside its per-night beat offsets. `PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md`
+    states the same rule in §8.1 for every §8 number. The rig corpus copy holds none of the three
+    RADIO-DELAY-FLOOR nights. So that brief keeps a rule line and no re-run.
+  - Corrected 2026-11-23: the tick above counted each surface once, so it missed a second leg inside
+    one surface. `papers/wearable-clock-drift.html` pinned Table 1 and the 11 of 21 pass rate from
+    `pat-feasibility-worker.js` with no rule beside either. This PR states the rule in the Table 1
+    caption and in the §5 determinism bullet.
+
+    The paper also pins 54-pairing figures and box-capture sigma figures, and this unit did not
+    identify the leg that produced them. So the box counts figures from here, and it stays open on
+    those two groups.
 - [ ] The census still reads every converted site as `named`, and `byRead` still answers for every examined site.
 
 ## 4 · What must not be done

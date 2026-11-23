@@ -16674,6 +16674,131 @@
       T.ok('the adopter population is non-empty', ADOPTERS.length >= 20, 'ADOPTERS=' + ADOPTERS.length + ' — 28 measured 2026-10-20; the guard scan matched almost nothing');
       T.eq('every adopter calls the guard behind IS_CLI — none at module scope', UNGUARDED.join(', '), '');
     });
+    /* ════ A TOP-LEVEL ARGV BRANCH FIRES INSIDE WHOEVER IMPORTS THE FILE ══════════════════════════
+       Row 2026-11-21-the-module-scope-argv-tripwire-judges-only-the-guards-adopters. The group above
+       derives its population from the files that already call `refuseUnknownArgvOrExit`, so a tool that
+       reads a flag at column 0 and never calls the guard sits outside it. `process.argv` belongs to
+       whoever is RUNNING, so a `--verdict-sample` test at module scope fires inside any importer whose
+       argv carries the token. Measured 2026-11-22: four of the pinned tools, imported from a script run
+       with that token, each printed a `tepna.verdict/1` object into the importer's own stdout.
+       THIS PIN NAMES NO TOOL, AND THAT IS THE POINT. `verdict-adoption.mjs` asks which tests name a
+       producer, over a raw `git grep` of `tests/` that strips no comments. A tree-wide scanner whose
+       baseline lists paths therefore READS as a test about each one, and it moved a `decides` producer
+       from `ungated` to `names-only` — two red check steps for a tool this group never exercises.
+       So the baseline is a digest over `basename:count`, and the failure message prints the measured
+       list at runtime. Measured population: 25 branches over 18 files, one file exempt.
+       THE EXEMPTION IS A RULE, NOT A NAME. One tool spawns itself as a Worker and passes its own argv,
+       so its module-scope read IS the Worker entry. A rule expires by itself; a name does not, and a
+       name would drag that tool into the adoption gate too.
+       The baseline pins COUNTS, never line numbers. A line number would red on any unrelated insert,
+       and the scan reads comment-stripped text whose numbering differs from the raw file. */
+    group('no tool reads an unguarded argv flag at module scope', 'tools · argv-guard · source-scan', function (T) {
+      var TT = env.toolTexts;
+      var nodeLane = typeof process !== 'undefined' && process && process.env != null;
+      if (!TT) {
+        if (nodeLane) T.ok('env.toolTexts is wired in the node lane', false, 'absent — the top-level argv scan examined nothing');
+        else T.skip('the top-level argv branch scan', 'no directory enumeration in this lane (browser); the node lane carries it');
+        return;
+      }
+      var stripC = function (t) {
+        return t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
+      };
+      /* The guard is reached through a local alias in six spellings, bound three ways: a const, a let
+         reassigned later, and an arrow IIFE. The backward window turns `=>` into `->`, because the
+         arrow's `=` kills the `[^=]*$` tail and the alias then reads as unbound. */
+      var guardAliases = function (src) {
+        var names = ['isCliEntry'];
+        var re = /isCliEntry/g;
+        var m = re.exec(src);
+        while (m) {
+          var back = src.slice(Math.max(0, m.index - 240), m.index).replace(/=>/g, '->');
+          var a = /(?:const|let|var)?\s*([A-Za-z_$][\w$]*)\s*=\s*[^=]*$/.exec(back);
+          if (a && names.indexOf(a[1]) < 0) names.push(a[1]);
+          m = re.exec(src);
+        }
+        return names;
+      };
+      /* Column 0 IS module scope: a branch inside any function is indented by this tree's formatter. */
+      var unguardedArgvBranches = function (src) {
+        var t = stripC(src);
+        var names = guardAliases(t);
+        var hits = [];
+        t.split('\n').forEach(function (line, i) {
+          if (!/^if\s*\(/.test(line) || !/process\.argv/.test(line)) return;
+          /* Token membership, never a pattern built from a name. Every alias is an identifier,
+             so the maximal identifier runs on the line answer the question exactly, and no
+             scanner has to trust that this code escaped a metacharacter it never receives. */
+          var ids = line.match(/[A-Za-z_$][\w$]*/g) || [];
+          var guarded = names.some(function (a) {
+            return ids.indexOf(a) >= 0;
+          });
+          if (!guarded) hits.push(i + 1);
+        });
+        return hits;
+      };
+      var selfWorker = function (src) {
+        var t = stripC(src);
+        return /new Worker\(\s*fileURLToPath\(\s*import\.meta\.url\s*\)/.test(t) && /argv:\s*\[/.test(t);
+      };
+      var fnv = function (s) {
+        var h = 0x811c9dc5;
+        for (var i = 0; i < s.length; i++) {
+          h ^= s.charCodeAt(i);
+          h = (h + (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24)) >>> 0;
+        }
+        return ('0000000' + h.toString(16)).slice(-8);
+      };
+      var PLANTS = [
+        ['a const alias behind the guard', 'const IS_CLI = isCliEntry(import.meta.url);\nif (IS_CLI && process.argv.includes("--x")) { run(); }\n', 0],
+        ['a let alias assigned later', 'let IS_MAIN = false;\nIS_MAIN = isCliEntry(import.meta.url);\nif (IS_MAIN && process.argv.includes("--x")) { run(); }\n', 0],
+        [
+          'an alias bound through an arrow IIFE',
+          'const IS_MAIN = (() => { try { return isCliEntry(import.meta.url); } catch { return false; } })();\nif (IS_MAIN && process.argv.includes("--x")) { run(); }\n',
+          0
+        ],
+        ['a differently named alias', 'const DIRECT = isCliEntry(import.meta.url);\nif (DIRECT && process.argv.includes("--x")) { run(); }\n', 0],
+        ['an alias the branch does not use', 'const IS_CLI = isCliEntry(import.meta.url);\nif (process.argv.includes("--x")) { run(); }\n', 1],
+        ['a commented-out branch', '// if (process.argv.includes("--x")) { run(); }\n', 0],
+        ['a branch inside a function', 'function main() {\n  if (process.argv.includes("--x")) { run(); }\n}\n', 0],
+        ['two bare branches in one file', 'if (process.argv.includes("--a")) { a(); }\nif (process.argv.includes("--b")) { b(); }\n', 2],
+        ['a self-Worker spawn', 'const w = new Worker(fileURLToPath(import.meta.url), { argv: ["--worker-child"] });\n', 0]
+      ];
+      PLANTS.forEach(function (p) {
+        T.eq('the scanner reads ' + p[0], unguardedArgvBranches(p[1]).length, p[2]);
+      });
+      T.ok('the self-Worker rule reads the spawn it exempts', selfWorker(PLANTS[8][1]), 'the rule no longer matches its own plant');
+      T.ok('the self-Worker rule refuses an ordinary tool', !selfWorker(PLANTS[7][1]), 'the rule matches a file that spawns nothing');
+      var PINNED_DIGEST = '4e4d3020';
+      var PINNED_TOTAL = 25;
+      var counts = {};
+      var total = 0;
+      var workers = 0;
+      Object.keys(TT)
+        .sort()
+        .forEach(function (k) {
+          if (selfWorker(TT[k])) {
+            workers += 1;
+            return;
+          }
+          var n = unguardedArgvBranches(TT[k]).length;
+          if (n > 0) {
+            counts[k] = n;
+            total += n;
+          }
+        });
+      var canon = Object.keys(counts)
+        .map(function (k) {
+          return k.replace(/^.*\//, '') + ':' + counts[k];
+        })
+        .sort()
+        .join('\n');
+      var digest = fnv(canon);
+      T.ok('the tools tree was actually read', Object.keys(TT).length >= 100, 'only ' + Object.keys(TT).length + ' tools/*.mjs visible');
+      T.eq('exactly one tool spawns itself as a Worker with its own argv', workers, 1);
+      T.ok('the scanner still finds the pinned population', total > 0, 'measured 0 unguarded branches against a pinned total of ' + PINNED_TOTAL + ' — the scan matched nothing');
+      T.ok('the pinned total does not grow', total <= PINNED_TOTAL, 'total ' + total + ' over pinned ' + PINNED_TOTAL + ' — measured ' + JSON.stringify(counts));
+      T.eq('the pinned population is unchanged', digest, PINNED_DIGEST, 'measured ' + JSON.stringify(counts) + ' — the new digest is ' + digest);
+    });
     /* ════ A GUARD'S HATCH MUST NOT DISARM THE GUARD'S OWN SELF-TEST ═══════════════════════════════
        Row 2026-10-21-the-guard-hatch-disarms-the-guards-own-selftest. Every hatch in this tree is
        documented in COMMAND POSITION, and that is also the position which EXPORTS it to every child
@@ -37376,6 +37501,148 @@
       planted.oxy['oxydex-dsp.js'] = 'planted00000';
       var pm = YieldPin.movedFiles(pin.detector, planted);
       T.ok('PLANT · a changed oxydex-dsp.js is reported, and by name', pm.length === 1 && pm[0].indexOf('oxy/oxydex-dsp.js') === 0 && pm[0].indexOf('planted00000') > 0, JSON.stringify(pm));
+
+      /* ── THE NOTE CHAIN IS A GATE, NOT ONLY A READ ───────────────────────────────────────────────
+         (residue `2026-11-22-eight-closure-moves-in-the-yield-pin-chain-carry-no-note`)
+
+         The closure assertion above reds when the live tree leaves the pin, so it forces a RE-CUT.
+         Nothing forced the NOTE. A session could re-cut, overwrite the pin, skip the `history[]` line,
+         and every assertion above stayed green with the reason gone. That is how the record lost 7
+         reasons — 5 moves in `oxydex-dsp.js` and 2 in `pulsedex-dsp.js`, dated between 2026-10-28 and
+         2026-11-12. A guessed reason is worse than an absent one, so those 7 stay lost and these legs
+         only stop the 8th.
+
+         THESE LEGS JUDGE THE RECORD, NEVER THE TREE. They read `chainGaps(pin.detector, pin.history,
+         pin.detector)`, so a dirty working tree cannot move it: the tree is the closure assertion's
+         question, and `--chain` prints that view for a reader. A head gap HERE means the PIN holds a
+         digest no note closes at, which is the re-cut that skipped its note and nothing else.
+
+         THE KEY IS THE DIGEST PAIR AND NEVER THE CLASS. A note landing above a head gap reclassifies
+         that same pair as internal: the new note closes the head, and the pair it stepped over reopens
+         as `closes → reopens`. A class-keyed baseline would red on that benign reclassification, and a
+         TOTAL would hide a new gap behind a closed one. So the baseline names the pair, the failure
+         text names the class, and PLANT 2 below proves the key survives the reclassification.
+         `KNOWN_CHAIN_GAPS` may only SHRINK: a PR that explains a gap deletes its line, and a PR that
+         adds one is the defect these legs exist for. */
+      /* The host group above already refused without `pin` and `YieldPin`, so these legs need
+         no second guard: one skip in a lane that loads neither file is the honest count. */
+      var YP = YieldPin;
+      /* The 8 gaps `origin/main` carries at `6b3347a52`, as `node
+         tools/treatment-response-yield-pin.mjs --chain` prints them. MAY ONLY SHRINK. */
+      var KNOWN_CHAIN_GAPS = [
+        'oxydex-profile.js 410146545439 -> 7f65bccefb87',
+        'oxydex-dsp.js 017b1384b659 -> f87d8a04d882',
+        'oxydex-dsp.js efd4441e8ece -> 2635f078d01e',
+        'oxydex-dsp.js 41d2c5601b71 -> 9d293fe86dda',
+        'oxydex-dsp.js 1a0df4a4722e -> 5e5ffe017b76',
+        'oxydex-dsp.js 180165dc7b5b -> d77b5ccfc929',
+        'pulsedex-dsp.js d5e923c8081e -> 3c1c1529d982',
+        'pulsedex-dsp.js 410ccd8abf45 -> f25accb7ea4c'
+      ];
+      var keyOf = function (file, from, to) {
+        return file + ' ' + (from == null ? 'absent' : from) + ' -> ' + (to == null ? 'absent' : to);
+      };
+      var seenOf = function (g) {
+        var out = [];
+        (g.head || []).forEach(function (h) {
+          out.push({ key: keyOf(h.file, h.lastNote, h.pinned), cls: 'head' });
+        });
+        (g.internal || []).forEach(function (i) {
+          out.push({ key: keyOf(i.file, i.closes, i.reopens), cls: 'internal' });
+        });
+        return out;
+      };
+      var label = function (s) {
+        return s.cls + ' ' + s.key;
+      };
+      var gaps = YP.chainGaps(pin.detector, pin.history, pin.detector);
+      var seen = seenOf(gaps);
+      var added = seen.filter(function (s) {
+        return KNOWN_CHAIN_GAPS.indexOf(s.key) < 0;
+      });
+      T.eq(
+        'every closure move the pin cannot explain is one the baseline already names',
+        added.map(label).join(' · ') || 'none',
+        'none',
+        added.length
+          ? 'the pin holds ' +
+              added.length +
+              ' closure digest(s) that no note closes at: ' +
+              added.map(label).join(' · ') +
+              '. A re-cut rewrote the pin and skipped the note, so the reason that run held is about to be lost like the 7 before it. ' +
+              'Read the chain back (`node tools/treatment-response-yield-pin.mjs --chain`, well under a second), append one note per line to `history[]` in ' +
+              'analysis/treatment-response-yield-pin.json with the REAL reason, and never add the pair to KNOWN_CHAIN_GAPS.'
+          : seen.length + ' known gap(s), none new'
+      );
+      var gone = KNOWN_CHAIN_GAPS.filter(function (k) {
+        return !seen.some(function (s) {
+          return s.key === k;
+        });
+      });
+      T.eq(
+        'the baseline names no gap the record has since explained',
+        gone.join(' · ') || 'none',
+        'none',
+        gone.length
+          ? 'these pair(s) carry a note now, so the ratchet owes its shrink — delete the line(s) from KNOWN_CHAIN_GAPS: ' + gone.join(' · ')
+          : KNOWN_CHAIN_GAPS.length + ' baselined pair(s), every one still unexplained'
+      );
+      T.eq(
+        'no closure basename holds two realm digests, which no note in this shape could name',
+        (gaps.ambiguous || [])
+          .map(function (g) {
+            return g.file;
+          })
+          .join(' · ') || 'none',
+        'none',
+        JSON.stringify(gaps.ambiguous || [])
+      );
+      /* REPORTED, NEVER ASSERTED: a closure file the chain has never covered carries no LOST reason,
+         because it has no earlier digest to have moved from. A new file in the worker's SCRIPTS table
+         reds the closure assertion above and then sits here, uncovered, with nothing to explain. */
+      T.ok(
+        'the uncovered closure files are the ones the record never held a move for',
+        Array.isArray(gaps.uncovered),
+        (gaps.uncovered || []).length + ' uncovered: ' + ((gaps.uncovered || []).join(' ') || 'none')
+      );
+      /* ANTI-VACUITY. An empty record or a one-realm pin would make every `none` above mean "nothing
+         was examined", which is the same green a clean record gives. */
+      T.ok(
+        'ANTI-VACUITY · the chain read a non-empty note record over both realms, and it found the baselined gaps',
+        (pin.history || []).length >= 8 && !!(pin.detector.oxy && pin.detector.pulse) && seen.length === KNOWN_CHAIN_GAPS.length,
+        JSON.stringify({ notes: (pin.history || []).length, gaps: seen.length, baseline: KNOWN_CHAIN_GAPS.length })
+      );
+      /* PLANT 1 · the leg must FIRE on the defect this group is about: a pin digest that no note
+         closes at, reported by pair and absent from the baseline. */
+      var skipped = JSON.parse(JSON.stringify(pin.detector));
+      skipped.oxy['oxydex-dsp.js'] = 'planted00001';
+      var sk = seenOf(YP.chainGaps(skipped, pin.history, skipped)).filter(function (s) {
+        return s.key.indexOf(' -> planted00001') > 0;
+      });
+      T.ok(
+        'PLANT · a pin digest no note closes at is reported as a head gap, by pair, and is not baselined',
+        sk.length === 1 && sk[0].cls === 'head' && sk[0].key.indexOf('oxydex-dsp.js ') === 0 && KNOWN_CHAIN_GAPS.indexOf(sk[0].key) < 0,
+        JSON.stringify(sk)
+      );
+      /* PLANT 2 · the class-blindness claim, executed rather than asserted in prose. A note that
+         closes the real head gap moves the pin on and leaves the SAME pair behind it, now internal.
+         The key must survive that, or the baseline would red on a benign note. */
+      var shifted = JSON.parse(JSON.stringify(pin.detector));
+      shifted.oxy['oxydex-profile.js'] = 'planted00002';
+      var withNote = (pin.history || []).concat([{ date: '2026-11-22', file: 'oxydex-profile.js', old: '7f65bccefb87', new: 'planted00002', reason: 'PLANT · not a record' }]);
+      var sg = seenOf(YP.chainGaps(shifted, withNote, shifted));
+      var samePair = sg.filter(function (s) {
+        return s.key === 'oxydex-profile.js 410146545439 -> 7f65bccefb87';
+      });
+      T.ok(
+        'PLANT · a note landing above a head gap reclassifies the same pair as internal, so the key holds',
+        samePair.length === 1 &&
+          samePair[0].cls === 'internal' &&
+          !sg.some(function (s) {
+            return s.cls === 'head' && s.key.indexOf('oxydex-profile.js ') === 0;
+          }),
+        JSON.stringify(sg)
+      );
     });
 
     /* ── THE PIN MUST KNOW WHICH COHORT IT IS PINNING (board finding #4343) ───────────────────────
@@ -66473,6 +66740,19 @@
       rq[SHA] = 1;
       T.eq('one requeue per head: a second dequeue of the same head plans nothing', ops(pl([deq], ST({ requeued: rq }), QCTX('none'))), '');
       T.eq('a second dequeue of the same head is an alert', kinds(pl([deq], ST({ requeued: rq }), QCTX('none'))), 'dequeued:50');
+      /* A walker regen PR has no coder to read that alert (residue
+         `2026-11-23-a-dequeued-regen-pr-has-no-coder-to-requeue-it`), so it gets three requeues per head. */
+      var rgn = cl(P({ number: 53, isDraft: false, queueTitle: 'Dequeued — checks failed', branch: 'claude/regen-walker-48115944f-abcde' }), REQ);
+      T.eq('a dequeued regen PR is requeued after its first requeue', ops(pl([rgn], ST({ requeued: rq }), QCTX('none'))), 'requeue:53');
+      T.eq('a dequeued regen PR raises no alert while it has requeues left', kinds(pl([rgn], ST({ requeued: rq }), QCTX('none'))), '');
+      var rq2 = {};
+      rq2[SHA] = 2;
+      T.eq('a regen PR still gets its third requeue', ops(pl([rgn], ST({ requeued: rq2 }), QCTX('none'))), 'requeue:53');
+      var rq3 = {};
+      rq3[SHA] = 3;
+      T.eq('a regen PR past three requeues of one head plans nothing', ops(pl([rgn], ST({ requeued: rq3 }), QCTX('none'))), '');
+      T.eq('a regen PR past three requeues of one head is an alert', kinds(pl([rgn], ST({ requeued: rq3 }), QCTX('none'))), 'dequeued:53');
+      T.eq('the regen cap is three', env.pwRegenRequeues, 3);
       var inq = cl(P({ number: 52, isDraft: false, queueTitle: 'Running merge queue checks' }), REQ);
       T.eq('a PR the queue still holds is not requeued', ops(pl([inq], ST({}), QCTX('none'))), '');
       T.eq("queueBot 'unknown' requeues nothing — an API error fails closed", ops(pl([deq], ST({}), QCTX('unknown'))), '');
@@ -78421,6 +78701,88 @@
       T.ok('…and none returns a zero confidence', !/conf: 0,/.test(src));
     });
 
+    /* ════ §🧾 · THE POSTURE COVERAGE FLOOR THAT THE DATA ITSELF MOVED ═══════════════════════════
+       `postureDetailAtSec` refuses a 30 s window that holds too little gravity. It sized "too
+       little" as `accRows.length / durSec * 30` — the session average rate times the window. Packet
+       loss depresses that average, so the floor fell with the very loss it had to catch: a window
+       only had to be as covered as the session around it. A night that kept 20 % of its ACC
+       therefore scored a 30 s window holding 7 s of gravity, and the coverage factor
+       `(g.n * gStride) / need` saturated at 1, so the window published FULL coverage confidence.
+       The native rate now states what a full window holds, and GRAV_MIN_COVER states the fraction
+       of it the window must carry. Below that line the window refuses; above it, reduced coverage
+       annotates through the confidence (owner ruling 2026-09-17). */
+    group('PpgDex posture — the gravity floor is the native rate, not the session average (§🧾)', 'ppgdex-dsp · posture · absence', function (T) {
+      var P = env.PPGDSP;
+      if (!(P && typeof P.analyzeMotion === 'function')) {
+        T.ok('PPGDSP.analyzeMotion available', false);
+        return;
+      }
+      var FS = 25,
+        DUR = 1800,
+        G = { x: 20, y: -15, z: 990 }; // supine, one dominant axis — identical in every window below
+      // A lossy night: each 30 s block carries only its first 6 s of ACC. Two blocks differ — the
+      // block at 60 s keeps 9 s (30 % of the window), the block at 600 s keeps 18 s (60 %).
+      var lossy = [];
+      for (var b = 0; b < DUR / 30; b++) {
+        var blockStart = b * 30,
+          keepSec = blockStart === 60 ? 9 : blockStart === 600 ? 18 : 6;
+        for (var i = 0; i < FS * keepSec; i++) lossy.push({ x: G.x, y: G.y, z: G.z, relNs: (blockStart + i / FS) * 1e9 });
+      }
+      var m = P.analyzeMotion(lossy, null, 0, DUR);
+      T.ok('CONTROL · the motion block has data, else every leg below is vacuous', m.hasData === true, 'hasData=' + m.hasData);
+      T.eq('CONTROL · the native rate is read off the inter-sample interval, not the 5 Hz span average', m.accFs, FS);
+
+      // 30 % of a 30 s window. The old floor was the session average (about 5.2 Hz × 30 ≈ 156
+      // samples) and this window holds 225, so it scored at a confidence of 1.
+      var thin = m.postureDetailAtSec(60, 90);
+      T.eq('a window holding 9 s of gravity in 30 s REFUSES', thin.position, 'unknown');
+      T.eq('…and names the reason, so no reader reads it as a measured posture', thin.reason, 'low-gravity-coverage');
+      T.eq('…and publishes no confidence at all', thin.conf, null);
+
+      // 60 % of the window — above the floor, so it is scored, and the confidence states the gap.
+      var partial = m.postureDetailAtSec(600, 630);
+      T.eq('CONTROL · a window holding 18 s of gravity is still SCORED — reduced coverage annotates', partial.position, 'supine');
+      T.eq('CONTROL · …and states no reason', partial.reason, null);
+      T.eq('its confidence reports the 60 % coverage instead of saturating at 1', partial.conf, 0.6);
+
+      /* THE CASE THE CORPUS IS MADE OF. Measured over 2228 thirty-second windows in the first hour
+         of 19 ACC files (each over 20 MB, sampled evenly from the 289 the corpus holds), window
+         coverage is bimodal: median 0.9998, p05 0.9975, and only 4.08 % below 0.5. But 59.9 % sit
+         below 1.0, because BLE drops a packet now and then. The old floor equalled a COMPLETE
+         window whenever the ACC spanned the session, so it cut straight through that dense mass
+         and refused 46.6 % of all windows. A window that lost 5 % of its samples is reduced
+         coverage, not a discontinuity, so the owner ruling of 2026-09-17 says it annotates. */
+      var nibbled = [];
+      for (var q = 0; q < FS * 600; q++) {
+        var insideThin = q >= FS * 60 && q < FS * 90;
+        if (insideThin && q % 20 === 0) continue; // scatter the loss, so the window stays continuous
+        nibbled.push({ x: G.x, y: G.y, z: G.z, relNs: (q / FS) * 1e9 });
+      }
+      var mn = P.analyzeMotion(nibbled, null, 0, 600);
+      var nibbledWin = mn.postureDetailAtSec(60, 90);
+      T.eq('a window that lost 5 % of its gravity samples is SCORED, not refused', nibbledWin.position, 'supine');
+      T.eq('…and states no reason, because reduced coverage annotates', nibbledWin.reason, null);
+      T.eq('…and its confidence reports the coverage it actually had', nibbledWin.conf, 0.95);
+      T.eq('CONTROL · a complete window in the same stream keeps full confidence', mn.postureDetailAtSec(120, 150).conf, 1);
+
+      // The ordinary case must not move. A contiguous stream is its own native rate, so the floor
+      // it computes is the same number before and after.
+      var full = [];
+      for (var k = 0; k < FS * 600; k++) full.push({ x: G.x, y: G.y, z: G.z, relNs: (k / FS) * 1e9 });
+      var mf = P.analyzeMotion(full, null, 0, 600);
+      var whole = mf.postureDetailAtSec(60, 90);
+      T.eq('CONTROL · a fully covered window is scored', whole.position, 'supine');
+      T.eq('CONTROL · …at a confidence the coverage factor does not reduce', whole.conf, 1);
+      T.eq('CONTROL · …and the ordinary stream still reports its native rate', mf.accFs, FS);
+
+      // The criterion is pre-stated in the source, not derived from the night it judges (§🧾).
+      var src = (env.sources || {})['ppgdex-dsp.js'] || '';
+      T.ok('CONTROL · the shipped DSP source is readable', src.length > 1000, 'len=' + src.length);
+      T.ok('the coverage fraction is a named constant with a stated value', /GRAV_MIN_COVER = 0\.5;/.test(src));
+      T.ok('the floor reads the native rate, and the session average is only its fallback', /const need = \(_accHz != null \? _accHz : accRows\.length \/ durSec\) \* 30;/.test(src));
+      T.ok('no gravity window is sized off the span average alone any more', !/\(accRows\.length \/ durSec\) \* 2\.0/.test(src));
+    });
+
     group('PPGDex limb posture from ACC', 'ppgdex-dsp', function (T) {
       var P = env.PPGDSP;
       if (!(P && typeof P.analyzeMotion === 'function')) {
@@ -78484,6 +78846,90 @@
         durSec
       );
       T.ok('gyro-only session exposes no postureAtSec (null)', !mg.postureAtSec);
+    });
+
+    /* ════ THE INERTIAL AXIS IS ANCHORED ON THE HOST STAMP, NOT ON THE DEVICE COUNTER (§7.2) ════
+     `parseSensorXYZ` rebases `relNs` to the stream's own first kept sample, so `relNs / 1e9` measures
+     seconds-from-the-FILE-start while the motion grid reads it as seconds-from-`t0Ms`. The two differ by
+     the offset between the inertial file's start and the PPG t0, and that offset is not small: over the
+     canonical corpus it exceeds one 0.25 s grid cell on 1104 of 1413 paired ACC and PPG files, median
+     0.675 s, p95 1.66 s, worst 3.5 h. Pre-fix a 20 s burst planted 120 s into the ACC file was reported
+     at 120 s whatever the file's offset was, and an ACC file an hour away from the PPG reported
+     SATURATED coverage with `meanMotionIndexReason: null` — a fabricated stillness of the §∅ class.
+     `motiondex-dsp.js relSecOf` already anchors (DEEP-AUDIT-II §7.2); this mirrors it. These legs pin
+     the position, the per-stream base, the refusal, and that the RATE did not move. ════ */
+    group('PpgDex anchors the inertial axis on the host stamp (§7.2)', 'ppgdex-dsp · motion · clock', function (T) {
+      var P = env.PPGDSP;
+      if (!(P && typeof P.analyzeMotion === 'function' && typeof P.parseSensorXYZ === 'function')) {
+        T.skip('PPGDSP.analyzeMotion + parseSensorXYZ available', 'ppgdex-dsp not wired in this lane');
+        return;
+      }
+      var HZ = 25.84,
+        DUR = 600,
+        T0A = Date.UTC(2026, 5, 21, 23, 0, 0);
+      function isoA(ms) {
+        return new Date(ms).toISOString().replace('Z', '').replace('T', ' ');
+      }
+      // One 20 s burst planted 120 s into the FILE. `offSec` moves the file's START, never the burst.
+      function accTextA(offSec) {
+        var L = ['Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]'],
+          n = Math.round(HZ * DUR);
+        for (var i = 0; i < n; i++) {
+          var sa = i / HZ,
+            hot = sa >= 120 && sa < 140;
+          L.push(
+            isoA(T0A + offSec * 1000 + Math.round(sa * 1000)) +
+              ';' +
+              Math.round(sa * 1e9) +
+              ';' +
+              (hot ? 400 * Math.sin(sa * 9) : 0).toFixed(0) +
+              ';' +
+              (hot ? 400 * Math.cos(sa * 7) : 0).toFixed(0) +
+              ';' +
+              (1000 + (hot ? 300 * Math.sin(sa * 11) : 0)).toFixed(0)
+          );
+        }
+        return L.join('\n');
+      }
+      // The first grid cell whose motion index clears the floor — where the node SAYS the burst was.
+      function burstStartA(m) {
+        if (!m || !m.grid) return null;
+        for (var i = 0; i < m.grid.length; i++) if (m.grid[i] > 0.2) return i * m.dt;
+        return null;
+      }
+      var m0 = P.analyzeMotion(P.parseSensorXYZ(accTextA(0)), [], T0A, DUR);
+      T.eq('control · an ACC file that starts AT t0 reports the burst at its planted 120 s', burstStartA(m0), 120);
+      T.eq('control · …and it covers the whole span', m0.motionCoveredFrac, 1);
+
+      var m4 = P.analyzeMotion(P.parseSensorXYZ(accTextA(4)), [], T0A, DUR);
+      T.eq('an ACC file that starts 4 s LATE reports the burst at 124 s, not at the 120 s the counter alone gives', burstStartA(m4), 124);
+      T.ok('…and the 4 s shortfall at the end of the span is reported, never hidden', m4.motionCoveredFrac < 1 && m4.motionCoveredFrac > 0.97, 'coveredFrac=' + m4.motionCoveredFrac);
+
+      /* §∅ — AN ACC FILE THAT DOES NOT OVERLAP THE PPG IS NOT A STILL NIGHT. */
+      var mFar = P.analyzeMotion(P.parseSensorXYZ(accTextA(3600)), [], T0A, DUR);
+      T.eq('an ACC file one hour away from the PPG covers no cell', mFar.motionCoveredFrac, 0);
+      T.ok('…so the mean motion index refuses instead of reporting stillness', mFar.meanMotionIndex === null, 'meanMotionIndex=' + String(mFar.meanMotionIndex));
+      T.eq('…and it names the absence', mFar.meanMotionIndexReason, 'no-inertial-coverage');
+      T.ok('…while the parsed row count is unchanged, so the refusal is about POSITION, not parsing', mFar.nAcc === m0.nAcc && mFar.nAcc > 15000, 'nAcc=' + mFar.nAcc);
+
+      /* THE COUNTER STILL SETS THE SPACING. An anchor moves the origin, so the rate must not move. */
+      T.ok('the sample rate is identical at all three offsets', m0.accFs === m4.accFs && m4.accFs === mFar.accFs, m0.accFs + ' ' + m4.accFs + ' ' + mFar.accFs);
+
+      /* PER-STREAM bases: a gyro with its own start must not inherit the ACC's. */
+      var gyroA = [];
+      for (var gi = 0; gi < Math.round(HZ * DUR); gi++) {
+        var gs = gi / HZ,
+          ghot = gs >= 60 && gs < 80;
+        gyroA.push({ x: ghot ? 60 : 0.5, y: 0, z: 0, relNs: Math.round(gs * 1e9), tMs: T0A + 30000 + Math.round(gs * 1000) });
+      }
+      var mG = P.analyzeMotion(null, gyroA, T0A, DUR);
+      T.eq('a gyro stream carries its OWN base — a burst 60 s into a file that starts 30 s late reads at 90 s', burstStartA(mG), 90);
+
+      /* A stream with NO wall-clock column has only its counter, and that must still be an axis. */
+      var bareA = [];
+      for (var bi = 0; bi < Math.round(HZ * DUR); bi++) bareA.push({ x: 0, y: 0, z: 1000, relNs: Math.round((bi / HZ) * 1e9) });
+      var mBare = P.analyzeMotion(bareA, null, T0A, DUR);
+      T.ok('a counter-only stream keeps the counter as its axis', mBare.hasData && mBare.motionCoveredFrac > 0.9, 'coveredFrac=' + mBare.motionCoveredFrac);
     });
 
     /* ════ 19 · POSITIONAL APNEA — epoch positions → fusion clustering (P10/feature) ════ */

@@ -35,6 +35,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════ */
 
 import { execFileSync } from 'node:child_process';
+import { isCliEntry } from './argv-guard.mjs';
 
 /** Pure core: everything decidable from git's own output, so it is testable without a repo state. */
 export function describeSubject({ head, branch, porcelain }) {
@@ -178,16 +179,21 @@ function selfTest() {
   return fail ? 1 : 0;
 }
 
-const argv = process.argv.slice(2);
-if (argv.includes('--selftest') || argv.includes('--self-test')) {
-  process.exit(selfTest());
+/* THE PURE CORE IS IMPORTABLE, SO THE CLI SITS BEHIND A GUARD. `run-check.mjs` repeats this subject
+   beside its own summary, and a module whose CLI runs at import time cannot be imported at all: it
+   would print a subject and `process.exit(0)` inside its importer, mid-gate. `isCliEntry` asks
+   whether node was launched on THIS file, by inode rather than by a resolved string. */
+if (isCliEntry(import.meta.url)) {
+  const argv = process.argv.slice(2);
+  if (argv.includes('--selftest') || argv.includes('--self-test')) {
+    process.exit(selfTest());
+  }
+  const subject = describeSubject({
+    head: git(['rev-parse', '--short', 'HEAD']) || '(unknown)',
+    branch: git(['rev-parse', '--abbrev-ref', 'HEAD']),
+    porcelain: gitRaw(['status', '--porcelain'])
+  });
+  for (const l of formatSubject(subject)) console.log(l);
+  /* Always 0 — see the header. This names the subject; it does not judge it. */
+  process.exit(0);
 }
-
-const subject = describeSubject({
-  head: git(['rev-parse', '--short', 'HEAD']) || '(unknown)',
-  branch: git(['rev-parse', '--abbrev-ref', 'HEAD']),
-  porcelain: gitRaw(['status', '--porcelain'])
-});
-for (const l of formatSubject(subject)) console.log(l);
-/* Always 0 — see the header. This names the subject; it does not judge it. */
-process.exit(0);

@@ -130,6 +130,66 @@ intervention (annotated). Any future attempt starts from a new pre-registration 
 instrument that can see one of the three parked terms independently (the O2Ring second-site
 lever remains the candidate).
 
+
+### 1b · 07-24's worse narrowSD on the counter axis is the WINDOW, not the axis (measured 2026-11-22)
+
+Row `2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock` left one measurable item: what
+07-24's worse narrowSD is. That night failed the pre-stated bar for flipping the default ECG axis,
+at 15.1 ms on `linear` against 20.7 ms on `counter`, while 5 of 6 nights passed. PR #4783 flipped
+the default to `counter` anyway, and the owner accepted it, so the exception stood with no reason
+beside it.
+
+**Reproduced on one night.** `tools/pat-window-oracle.mjs --half-width 100 --fiducial foot` over
+`smoketest-captures/2026-07-24` (142 MB, 172 raw streams, 1 night offered and 1 scored):
+
+| axis | mode | narrowN | narrowSD | fullN | fullSD | nullSD | band |
+|---|---|---|---|---|---|---|---|
+| `linear` | 395 | 1438 | **14.68** | 2823 | 35.88 | 59.67 | SIGNAL RECOVERED |
+| `counter` | 435 | 1585 | **21.10** | 2909 | 35.74 | 57.19 | PARTIAL |
+| `piecewise` | 485 | 2888 | **40.50** | 2910 | 42.27 | 54.34 | PARTIAL |
+
+The row's two figures reproduce to 0.4 ms, so the measurement holds.
+
+**The counter axis is not less precise on this night. It admits more beats.** `narrowSD` is the
+spread of the real lags the mode window accepts, so the window selects the population the spread
+describes. At ±100 ms the counter axis accepts 1585 pairs against 1438, which is 10.2 % more, and
+the extras sit in the window's outer ring. The axis-independent full-search spread holds at
+35.88 ms against 35.74 ms, a difference of 0.14 ms.
+
+**A half-width sweep separates the two readings.** Same night, same fiducial, both axes:
+
+| half-width | `linear` narrowN / SD | `counter` narrowN / SD | axis gap |
+|---|---|---|---|
+| ±40 ms | 7 / 1.03 ms | 153 / 4.54 ms | 3.51 ms |
+| ±60 ms | 232 / 6.20 ms | 474 / 9.08 ms | 2.88 ms |
+| ±100 ms | 1438 / 14.68 ms | 1585 / 21.10 ms | 6.42 ms |
+| ±150 ms | 2378 / 28.02 ms | 2618 / 29.28 ms | 1.26 ms |
+
+`narrowSD` rises 27-fold with the window on the linear axis and 6-fold on the counter axis, while
+`fullSD` never moves. So `narrowSD` measures the window first and the axis second. At ±40 ms the
+linear axis rests its 1.03 ms on **7 of 2823 pairs**, and at ±150 ms, where both axes accept most
+of the night, the two agree to 1.26 ms.
+
+🔴 **A fixed-window `narrowSD` is therefore not comparable ACROSS axes, and the bar that rejected
+the flip compared exactly that.** The quantity rewards whichever axis accepts FEWER pairs, because
+a tighter population carries a tighter spread. The tool already prints `band label is w-dependent`
+beside every row; the pre-stated bar read the w-dependent number as an axis property.
+
+**What this does NOT establish.** The margin over the circ-shifted null stays wider on `linear` at
+every half-width: 22.20, 28.86, 44.99 and 59.50 ms against 17.55, 25.26, 36.09 and 55.84 ms. So
+the two axes are not equal on this night by the beat-the-null measure, and the counter axis buys
+its larger population at some cost in contrast. The piecewise axis degrades for the separate
+reason §1 already records, and the sweep adds nothing there: it accepts 99.2 % of the night at
+±100 ms, which is why its `narrowSD` and `fullSD` converge.
+
+**The row stays OPEN.** Its other item is the default for every `ecgRpeakTimes` caller, which the
+row reserves for the owner and the PAT program. This section discharges the 07-24 item only.
+
+**Evidence.** `tools/pat-window-oracle.mjs` at `4b2572280`, 11 runs over the one night, every run
+exit 0 with population `checked 1, eligible 1, excluded 0` and `movement PASS`. Both validity
+sidecars read absent, so each stream's validity is UNKNOWN rather than clean, and that is true of
+all three axes equally.
+
 ## 2 · `channelSNR` is un-exported and `pat-per-led.mjs` silently prints n/a
 
 `channelSNR` is local to `ppgdex-dsp.js` (defined ~line 830, used internally, never on the
