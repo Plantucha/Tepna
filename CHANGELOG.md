@@ -30,6 +30,91 @@ changesets.)
 
 ---
 
+## [2.36.0] — 2026-11-23
+
+### Added
+- Pin the two absence guards at the `quantity.js` conversion boundary with six assertions.
+- Red a new top-level `process.argv` branch in any tool, which fires inside every importer.
+- Name the `npm run check` steps that diff a committed range. Repeat the gate subject beside the summary, so a green run over a dirty tree states what it never read.
+- Add `tools/compute-feeder.mjs` and `tools/qwen-lead-check.mjs`. The feeder supplies the two consumers that cost no Claude tokens. It asks the local model one lens question per site and checks each lead mechanically. It keeps 6 h of tasks in the Shrike queue and 48 h in a reserve for when the fleet runs out of tokens. Stage 6 of `tools/qwen-idle-driver.sh` runs it each cycle. `tools/qwen-agent.mjs` now finds its CLAUDE.md markers without regard to case and reports a marker that is absent. (`LOCAL-QWEN-SWEEPS-2026-11-22-BRIEF.md`)
+- Add `tools/memory-program.mjs`, which classifies the fleet memory through the Batch API. A doc-search repeat in the same session now prints one line, and `--again` runs it in full. Each passage stops at 400 characters. A refusal names at most three paths on one line, and each search logs its best score. (`MEMORY-PROGRAM-2026-11-22-BRIEF.md`)
+- Show the Muse optical channels as a live PPG card with a heart rate on the capture monitor. (`MUSE-ATHENA-PROTOCOL-2026-11-14-BRIEF.md`)
+- Track the rig Ollama router and its watcher in `tools/`, with a selftest wrapper in the tool gate. The router now sends one-input bge-m3 embeds to LAN embed boxes in turn before the GPU. The watcher restarts a hung GPU backend and reports a dead box. Three tools now call `127.0.0.1` instead of `localhost`, which saves about 200 ms of connect time per call on the rig.
+- Read the yield pin's note chain with `--chain`, which costs no re-cut and writes no file.
+- Publish the PpgDex whole-record heart rate as `wholeRecordHR` beside a new `hrWindow` label for the display rate.
+- Print the consensus reference pick rule beside the polarity stamp on every PAT leg output. (`CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md`)
+- Red the suite when the cohort yield pin holds a closure digest that none of its own notes
+- - Add the shipped consensus pick rule to `refpickOf`, held against `analyze` by 17 parity assertions. (`CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md`)
+- Resolve each unexplained closure-digest move in the cohort yield pin to the revision that made it. A digest is the file's own hash, so git holds the answer the record called lost.
+
+### Changed
+- Remove `.kodiak.toml` from main, step 1 of the Mergify cutover. From the next walker pass, the walker reads `queueBot: 'none'` and plans no merge, so Kodiak and Mergify never race each other on one queue. (`GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md`)
+- Ship the Mergify queue configuration. It stays inert until the owner installs the app. The walker (`GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md`)
+- Catch a general `x || 0` on an added code line in the absence gate.
+- Bind the sigma paper's eight population numbers to the committed record with sourced CLAIM markers.
+- The absence gate now scans the `.mjs` tree and declares the Python tree it cannot read.
+- Five new suite groups pin twenty round-2 mutation survivors in OxyDex, HRVDex, the Integrator, MotionDex and PpgDex. Each leg uses a hand-derived expected value. Shrike wrote the legs, and Kestrel re-ran each of the twenty mutants against them: every mutant reds the filtered run. The change is test-only, and no source file moves. (`MUTATION-PROGRAM-2026-08-09-BRIEF.md`)
+- Boot the test runner's cohort-worker realm only when a group asks for it. A worker that runs one other group now peaks at 178 MB, not 274 MB.
+- Read the test runner's repo-wide static scans only when a group asks for one. A worker that ran one group paid for every scan, and its peak falls from 1 147 528 kB to 267 396 kB.
+- Remove the three PulseDex window-median statistics no road read, and pin the whole-record HR convention.
+- Record the measured simultaneous footprint of the mutation worker pool. Eight workers of the heaviest shape peak at 6.11 GiB in one cgroup, so the ceiling of eight is now measured.
+- Bind the known-clock paper's two substrate sizes to the committed run outputs with sourced CLAIM markers.
+- Cite the headerless column order and publish how OxyDex chose its columns.
+- Name the producing artifact each unmarked paper declares in its own masthead, so the paper work list offers a lead where no record declares one.
+- Read the three root R-peak timers the PAT ECG axis census missed, which saw 17 of 20 sites. (`PPG-FOOT-PLACEMENT-FOLLOWUPS-2026-09-01-BRIEF.md`)
+- - Read the shipped SNR reference pick in the beat-correspondence leg, with the rule on its stamp. (`CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md`)
+- - Name the consensus reference pick rule beside every doc figure that a PAT leg produced. (`CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md`)
+- State the reference pick rule beside the clock-drift paper's feasibility figures. (`CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md`)
+- State the reference pick rule beside the live box-capture sigma figures. (`CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md`)
+- Read the shipped consensus reference pick in the host-offset leg. (`CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md`)
+- Read the shipped consensus reference pick in the strict matchRate leg. (`CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md`)
+
+### Fixed
+- Pin six manifest-gate mutants that the suite let survive. The GATE A compare and the legacy-text refusal now each have an assertion that reds. Both text hashes over a legacy text and the GATE B absent output have one too.
+- The Mergify queue now starts by itself. Mergify ignored the `pull_request_rules` queue action and waited for a command on every PR, so `.mergify.yml` now sets `merge_protections_settings.auto_merge_conditions: true`. (`GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md`)
+- Replace `commit_message_template` with `commit_message_format` in `.mergify.yml`. Mergify rejected the whole config because of the removed key, so the queue merged nothing after the cutover. (`GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md`)
+- Pin the MotionDex counter read when the header names the counter first. A mutant that skipped column 0 published no duration, and no test saw it.
+- Refuse a JS mutation sweep whose own clean baseline reds, because such a baseline drops true survivors silently.
+- Draw the OxyDex desaturation dots from the stamped events, so each dot carries an honest time.
+- Bound the PpgDex per-window perfusion index to the samples the device sent, so no window reports a NaN.
+- - Publish null, not a measured zero, for an absent PpgDex inertial stream.
+- Refuse the PpgDex mean SQI over an empty beat population, and name the cause beside it.
+- Name the cause when PpgDex publishes no morphology, so the export refuses the whole block.
+- Publish null for an uncovered cell in the PpgDex motion ribbon, because a zero reads as calm.
+- Break the PpgDex line chart path at every absent epoch, so no line crosses unmeasured time.
+- Split the `rebase-safe` rebuild advice into two classes. The `git add` line now names only the paths a
+- Name a ring gap that the ring declared empty `device:no reading`, so the solid judge no longer fails a night on it.
+- Paint no colour over an absent value in the HRVDex table, where a NaN took the last ladder arm. (`MUSE-HUNT-RECORD-2026-11-08-BRIEF.md`)
+- Refuse with exit code 2 when the wild-anchor census or the H10 session-rate tool examines nothing.
+- Exclude the whole CVHR decision window around a dropout, not the hole's own seconds, in both detectors. (`CVHR-HOLE-EDGE-EXCLUSION-2026-10-19-BRIEF.md`)
+- Treat a `DEX_UPLOADS` override as exclusive in the Lomb share profile.
+- Wait for the page to finish reading before the night-seal gate reads the manifest.
+- `tools/pr-compliance.mjs` check 10 now exempts a release PR, keyed on its declared `claude/release-<semver>-<suffix>` head branch. The release rebuilds every bundle, so the tag carries the new version. Check 10 red the v2.35.0 release PR on its 78 build outputs. (`GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md`)
+- The PR walker now requeues a PR that Mergify dequeued. Mergify keeps a PR out of its queue after a batch failure, even after the PR's own checks turn green. The walker reads the title of the `Mergify Merge Queue` check run on each non-draft head. A green PR whose title starts with `Dequeued` or `Checks aborted` gets one `@mergifyio queue` comment per head SHA. A second dequeue of the same head is an alert for a coder. (`GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md`)
+- The PR walker now reads the `protect-main` ruleset's strict flag. It updates a held PR that is BEHIND main only while the ruleset is strict, and the ruleset stopped being strict at the Mergify cutover. Its fallback list of required contexts now names `local-steps`. The `land-through-the-queue` and `residue-row` skills now describe Mergify instead of Kodiak. (`GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md`)
+- Split the absence gate's examined-nothing green into three distinct statuses with their own exit codes.
+- Refuse an unknown flag in the three CVHR sweep tools, where a typo used to buy a long sweep.
+- Guard the PulseDex ln-rMSSD producer, so a measured zero rMSSD exports `null` and never `-Infinity`.
+- Let a thin QC folder join its neighbour's offset vote. A reconnect after midnight then reports no false device gap.
+- Refuse a fixture check with exit 2 when it reached no comparison. A run over an absent corpus exited 0, which read as a clean set.
+- The licence table's local-search rows recorded versions the box stopped running. It read `v1.0.0-rc.93` for the index binary against the installed rc.104, and 0.34.4 for the model runtime against 0.40.17. It also named two of the three local models, and six tools read the third one.
+- The update watcher reads an npm version again. `npm view <pkg> version --json` prints an array when several versions match. The reader kept that array, so the table's own formatter threw a `TypeError`. The throw came before the notify step. The watcher therefore posted no ready update at all, and its daily unit sat in the failed state.
+- Name the HTTP cause a bounded fetch failed on, and cap every bound at what the client allows.
+- Count a Polar battery rise only inside one link, so a coin cell that recovers at rest no longer reads as a charge.
+- Hold the default mutation worker pool under the fleet rule of 8 GB per consumer. A quiet box let the pool reach 16 workers, and the nightly triage unit ended with an out-of-memory kill.
+- Refuse a nested default in the absence gate's stamp-write pattern, so the full-tree baseline falls to 39.
+- Guard the update watcher's command-line work with the house entry predicate. An import of its exports ran the whole tool, which read three networks and rewrote the state file.
+- Refuse the ECGDex VO₂ estimate when the rMSSD or the heart rate was never measured.
+- Refuse a walker action when the PR update stamp does not parse. An unparseable stamp read as epoch zero, which skipped the whole idle wait.
+- Name a zero-extent host axis in the Allan refusal reason, instead of the borrowed `too-few-taus`.
+- - Refuse the Allan noise identification on a constant phase series, rather than naming `white-phase`.
+- The Mergify queue now waits 90 minutes for checks. The derived `auto` limit was 41 minutes. Mergify dequeued PR 5361 twice while its diff-scoped mutation job still ran. That job passed 2 minutes after the second dequeue. (`GENERATED-OUT-OF-PRS-2026-10-20-BRIEF.md`)
+- Size the PpgDex posture coverage floor off the native ACC rate and a stated fraction. (`PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md`)
+- PpgDex anchors its inertial axis on the host stamp, so a late ACC file no longer shifts motion metrics.
+- The walker requeues a dequeued walker regen PR up to three times per head, because no coder reads the alert for it. A coder's PR keeps one requeue per head.
+
+---
+
 ## [2.35.0] — 2026-11-18
 
 ### Added
@@ -4606,7 +4691,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.35.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.36.0...HEAD
+[2.36.0]: https://github.com/Plantucha/Tepna/compare/v2.35.0...v2.36.0
 [2.35.0]: https://github.com/Plantucha/Tepna/compare/v2.34.0...v2.35.0
 [2.34.0]: https://github.com/Plantucha/Tepna/compare/v2.33.0...v2.34.0
 [2.33.0]: https://github.com/Plantucha/Tepna/compare/v2.32.0...v2.33.0
