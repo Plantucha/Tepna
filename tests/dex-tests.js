@@ -37046,6 +37046,86 @@
         T.approx('  · and classic TCH is likewise unchanged (the differences cancel)', clsAF.h10, clsClean.h10, 1e-9);
         // identical series ⇒ negative-assumption flagged, same as tchSigmas
         T.ok('tchSigmasFused identical series → neg flagged', S.tchSigmasFused([1, 2, 3, 4], [1, 2, 3, 4], [1, 2, 3, 4]).neg === true);
+
+        /* ── §∅ · AN UNGRADED SECOND IS NOT A TRUSTED ONE ─────────────────────────────────────
+           Row `2026-11-23-the-h10-confidence-join-reads-two-axes`. The trio worker keys its H10 HR map
+           on the host-disciplined axis and keys its confidence map on the index axis, so a second
+           graded under one key can be absent under the other. The join answered an absent key with a
+           trust of 1, which §∅ forbids. It now writes null, and these legs pin what null must mean.
+
+           A NULL element already produced the zero weight through coercion, which the first two legs
+           pin as an EQUALITY so a future `grade == null ? 1 : grade` reds. The two legs that pin NEW
+           behaviour are the NaN arm and the all-ungraded arm. Measured on main before this unit:
+           one NaN grade nulls all THREE corners, and an all-ungraded H10 corner still reports verity
+           and o2 as 1.2951 each — half of the one surviving pair variance, a decomposition the data
+           never supported. The burst is the transforming path: without it every arm agrees. */
+        var ngN = 300,
+          ngH = [],
+          ngV = [],
+          ngO = [],
+          gi;
+        for (gi = 0; gi < ngN; gi++) {
+          var ngT = 60 + 5 * Math.sin(gi / 10),
+            ngB = gi >= 40 && gi < 120 ? 9 * Math.sin(gi / 1.7) : 0;
+          ngH.push(ngT + 1.0 * Math.sin(gi / 3.1) + ngB);
+          ngV.push(ngT + 1.4 * Math.sin(gi / 2.7 + 1));
+          ngO.push(ngT + 2.2 * Math.sin(gi / 2.3 + 2));
+        }
+        var ngOnes = new Array(ngN).fill(1),
+          ngNull = [],
+          ngZero = [],
+          ngNaN = [];
+        for (gi = 0; gi < ngN; gi++) {
+          var ngX = gi >= 40 && gi < 120;
+          ngNull.push(ngX ? null : 1);
+          ngZero.push(ngX ? 0 : 1);
+          ngNaN.push(ngX ? NaN : 1);
+        }
+        var fOne = S.tchSigmasFused(ngH, ngV, ngO, ngOnes, ngOnes, ngOnes),
+          fNull = S.tchSigmasFused(ngH, ngV, ngO, ngNull, ngOnes, ngOnes),
+          fZero = S.tchSigmasFused(ngH, ngV, ngO, ngZero, ngOnes, ngOnes),
+          fNaN = S.tchSigmasFused(ngH, ngV, ngO, ngNaN, ngOnes, ngOnes);
+        T.eq('an ungraded second weighs exactly what a zero-trust second weighs', fNull.h10, fZero.h10);
+        T.ok(
+          '  · and that is NOT the full-trust answer (the burst would ride into σ)',
+          Math.abs(fNull.h10 - fOne.h10) > 2,
+          'gap ' + Math.abs(fNull.h10 - fOne.h10).toFixed(4) + ' (measured 2.4999: 0.8106 against 3.3105)'
+        );
+        T.ok(
+          'a NaN grade is excluded, not propagated into all three corners',
+          Number.isFinite(fNaN.h10) && Number.isFinite(fNaN.verity) && Number.isFinite(fNaN.o2),
+          'main returned null for h10, verity AND o2 on one NaN grade — got ' + String(fNaN.h10) + ', ' + String(fNaN.verity) + ', ' + String(fNaN.o2)
+        );
+        T.eq('  · and it weighs what a zero-trust second weighs', fNaN.h10, fZero.h10);
+        var fAll = S.tchSigmasFused(ngH, ngV, ngO, new Array(ngN).fill(null), ngOnes, ngOnes);
+        T.eq('no graded H10 second → the hat refuses h10', fAll.h10, null);
+        T.eq('  · and refuses verity rather than splitting the one surviving pair variance', fAll.verity, null);
+        T.eq('  · and o2 likewise (main reported 1.2951 for both)', fAll.o2, null);
+        T.eq('  · naming the reason, because a null with no reason is not a refusal', fAll.reason, 'no-weighted-pairs');
+        T.eq('  · and claiming no negative variance it never tested', fAll.neg, null);
+
+        /* The worker carries its own copy of this estimator and the suite cannot execute worker-local
+           functions, so the three facts that live only there are source legs. */
+        var ngWk = env.sources && env.sources['sensor-trio-worker.js'];
+        T.ok('the worker source is readable in this lane', !!ngWk, 'sensor-trio-worker.js not in env.sources — list it in BOTH lanes');
+        if (ngWk) {
+          T.ok(
+            'the worker join writes null for an ungraded H10 second, never 1',
+            /Hconf\.get\(ks\[i\]\) : null;/.test(ngWk) && !/Hconf\.get\(ks\[i\]\) : 1;/.test(ngWk),
+            'the `: 1` default came back — an absent confidence key is absence, not full trust'
+          );
+          T.ok(
+            'the surfaced mean skips an ungraded second',
+            /if \(a\[j\] == null \|\| !Number\.isFinite\(a\[j\]\)\) continue;/.test(ngWk),
+            '`meanOf` must exclude a null grade, or conf.h10 averages manufactured ones'
+          );
+          T.ok(
+            'the coverage rides inside the conf object, so no reader can take a mean without its n',
+            /n: \{ h10: gradedOf\(m\.cH\)/.test(ngWk),
+            'conf.n must travel with conf — a mean with no denominator is the §∅ defect one layer up'
+          );
+          T.ok('the worker copy refuses an unweighed leg too', /no-weighted-pairs/.test(ngWk), 'the two copies must agree: a leg with no weighed second refuses in both');
+        }
       }
 
       // ── Bland–Altman ──

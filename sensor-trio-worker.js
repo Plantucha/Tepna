@@ -266,7 +266,10 @@ function _wvarF(d, w) {
     sw += w[i];
     swd += w[i] * d[i];
   }
-  if (sw <= 0) return 0;
+  /* §∅ · nothing carried weight, so the weighted variance was never measured. A 0 here reads as
+     "the three series agreed perfectly", which is the opposite of what happened. The caller
+     refuses the whole hat on a null leg. */
+  if (sw <= 0) return null;
   var mu = swd / sw,
     s = 0;
   for (i = 0; i < d.length; i++) s += w[i] * (d[i] - mu) * (d[i] - mu);
@@ -314,13 +317,34 @@ function tchSigmasFused(hh, vv, oo, cH, cV, cO) {
       v = cV ? cV[i] : 1,
       o = cO ? cO[i] : 1,
       t = ct[i];
-    wHV[i] = t * h * v;
-    wHO[i] = t * h * o;
-    wVO[i] = t * v * o;
+    /* §∅ · an ABSENT confidence array still defaults to 1, which the suite pins: a corner whose DSP
+       exposes no confidence at all is a documented equal-weight case. A NULL ELEMENT inside a present
+       array is the other thing — one second that the corner's own grader never reached. The join in
+       `trioSigmaNoRef` writes null there, so a zero weight EXCLUDES that second from the two pairwise
+       variances it would otherwise bias. It never stands in as a trust of 1. */
+    var hOk = h != null && Number.isFinite(h),
+      vOk = v != null && Number.isFinite(v),
+      oOk = o != null && Number.isFinite(o);
+    wHV[i] = hOk && vOk ? t * h * v : 0;
+    wHO[i] = hOk && oOk ? t * h * o : 0;
+    wVO[i] = vOk && oOk ? t * v * o : 0;
   }
   var _wvHV = _wvarF(dHV, wHV),
     _wvHO = _wvarF(dHO, wHO),
     _wvVO = _wvarF(dVO, wVO);
+  /* §∅ · a pairwise leg with no weighed second carries NO information about either corner. The hat
+     would still return numbers: with `hv` and `ho` at 0 it hands verity and o2 half of `vo` each,
+     which is a decomposition the data never supported. So the hat refuses, and it names the reason. */
+  if (_wvHV == null || _wvHO == null || _wvVO == null) {
+    return {
+      h10: null,
+      verity: null,
+      o2: null,
+      neg: null,
+      reason: 'no-weighted-pairs',
+      vars: { hv: _wvHV, ho: _wvHO, vo: _wvVO }
+    };
+  }
   var cv = threeCorneredHat(_wvHV, _wvHO, _wvVO);
   /* `vars` are the WEIGHTED pairwise variances — the ones THIS hat is built from, so the sensitivity
      row describes the σ̂ the page actually shows rather than a classic hat nobody displays. Same shape
@@ -1249,8 +1273,19 @@ async function runRealNight(m) {
       hh.push(H.get(ks[i]));
       vv.push(V.get(ks[i]));
       oo.push(O.get(ks[i]));
-      var _ch = Hconf && Hconf.has(ks[i]) ? Hconf.get(ks[i]) : 1;
-      cH.push(Number.isFinite(_ch) ? _ch : 1);
+      /* §∅ · row `2026-11-23-the-h10-confidence-join-reads-two-axes`. The confidence map keys each
+         second on the INDEX axis — `beatConfidence` in `ecgdex-dsp.js` uses
+         `Math.floor((t0 + peaks[k] / fs * 1000) / 1000)` — while the HR map above keys it on the
+         HOST-DISCIPLINED axis through `rec.tMsAt`. So one beat can carry two different keys, and the
+         join finds no confidence for a second that was graded under the other key. Osprey measured
+         199,969 of 2,320,271 H10 HR-map seconds over 112 nights, which is 8.6 percent, with a
+         per-night maximum of 60.5 percent. A default of 1 reports FULL TRUST for a second nobody
+         graded, and CLAUDE.md §∅ forbids a default in place of absence. So the grade is NULL here.
+         `meanOf` then excludes it from the surfaced mean, and `tchSigmasFused` gives it a zero
+         weight, so an ungraded second biases neither number. The axis seam itself is the row's
+         other half and it moves two DSP files, so it travels in its own unit. */
+      var _ch = Hconf && Hconf.has(ks[i]) ? Hconf.get(ks[i]) : null;
+      cH.push(Number.isFinite(_ch) ? _ch : null);
       var _cv = Vconf && Vconf.has(ks[i]) ? Vconf.get(ks[i]) : 1;
       cV.push(Number.isFinite(_cv) ? _cv : 1);
       // the pleth path carries per-beat confidence; the markers and the CSV are the device's own beats (a smoothed
@@ -1514,13 +1549,37 @@ self.onmessage = function (ev) {
         dVO.push(vv[i] - oo[i]);
       }
       var pairSd = { hv: Math.sqrt(variance(dHV)), ho: Math.sqrt(variance(dHO)), vo: Math.sqrt(variance(dVO)) };
+      /* §∅ · a NULL element is a second whose trust nobody graded, so it never enters the mean.
+         The ruling of 2026-09-17 says reduced COVERAGE annotates rather than refuses, so the mean
+         survives on the graded seconds and `confN` carries how many of them there were. A mean over
+         ZERO graded seconds is null, never 0. */
       var meanOf = function (a) {
         if (!a || !a.length) return null; // ABSENCE IS NULL — no confidence array means no mean, not 0
-        var t = 0;
-        for (var j = 0; j < a.length; j++) t += a[j];
-        return t / a.length;
+        var t = 0,
+          k = 0;
+        for (var j = 0; j < a.length; j++) {
+          if (a[j] == null || !Number.isFinite(a[j])) continue;
+          t += a[j];
+          k++;
+        }
+        return k ? t / k : null;
       };
-      var conf = { h10: meanOf(m.cH), verity: meanOf(m.cV), o2: meanOf(m.cO) };
+      var gradedOf = function (a) {
+        if (!a || !a.length) return null;
+        var k = 0;
+        for (var j = 0; j < a.length; j++) if (a[j] != null && Number.isFinite(a[j])) k++;
+        return k;
+      };
+      /* §∅ · the coverage rides INSIDE this object, so a reader cannot take a mean without its n. It
+         is deliberately not a second payload key: the suite's dead-key leg calls a worker key no page
+         reads DEAD, and that leg reads depth-1 payload members only. */
+      var conf = {
+        h10: meanOf(m.cH),
+        verity: meanOf(m.cV),
+        o2: meanOf(m.cO),
+        n: { h10: gradedOf(m.cH), verity: gradedOf(m.cV), o2: gradedOf(m.cO) },
+        seconds: ks.length
+      };
       // one-minute bins keyed by the floating wall-clock minute — a minute with no three-way overlap is
       // ABSENT from the bin map and comes out null, so the renderer draws a gap, never a bridge
       var bins = {},
