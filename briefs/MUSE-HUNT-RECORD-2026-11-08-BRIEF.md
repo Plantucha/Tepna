@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** IN-PROGRESS — 2026-11-22 · **Created:** 2026-11-08 · **Interlocks:** `briefs/RESIDUE.md` (the verified rows) · `AUDIT-PROMPT.md`
+**Status:** IN-PROGRESS — 2026-11-23 · **Created:** 2026-11-08 · **Interlocks:** `briefs/RESIDUE.md` (the verified rows) · `AUDIT-PROMPT.md`
 
 # MUSE-HUNT-RECORD — every Muse hunt finding, and its state on main
 
@@ -52,7 +52,7 @@ the tables is Muse's number at that HEAD. Main has moved since then, so read the
 | R-1 | `ecgdex-app.js` tile and morph table | CVHR graded on AHI cut-points in two of four copies | row `2026-11-08-ecgdex-cvhr-keeps-ahi-cut-points-in-two-render-copies` |
 | R-2 | `cpapdex-render.js` `pressureCard`, `ventCard` | night cards draw session 1 metrics | row `2026-11-08-cpapdex-night-cards-draw-session-one-metrics` |
 | R-3 | HRVDex derived-metric colours | a NaN value prints a dash, but the colour ladder grades it red or green | fixed here: the population held TWO sites. `kgrade` already covered the 28 KPI ladders. This unit gives `renderTable`'s one pill site `Number.isFinite`, over 25 graded columns of 54. Measured on a NaN: 20 columns took red, 3 green, 1 yellow |
-| R-4 | HRVDex Overtrain Risk | the table and the KPI strip use two contradictory ladders | holds on main, and the population is THREE sites, not two: the KPI strip cuts at 50 and 150, the chart at 15, the table at 5 and 15. The ladder is decidable, because two sites agree and the producer caps at 500. A later unit takes 5 and 15 |
+| R-4 | HRVDex Overtrain Risk | the table and the KPI strip use two contradictory ladders | fixed here: the population held THREE sites, all in `hrvdex-render.js`. One `otrRank` helper carries the only ladder now, and each site maps the rank to its own palette. A measurement chose 5 and 15, not the vote of the two agreeing sites. Over the 30-measurement Welltory export the producer's median is 5.97 and its max is 145.05. So 50 and 150 graded 28 of the 30 rows good and reached their top band on no row. The 5 and 15 cuts split the same 30 rows 13 / 12 / 5 |
 | R-5a | `pulsedex-overview.js` Baevsky SI tile | null SI graded good | fixed on main: the tile uses `_kd(r.si, 150, 250)` |
 | R-5b | `pulsedex-overview.js` KPI grid | HF n.u. and ABS null graded bad; LF/HF and resp rate null graded warn; coverage prints the string "null" | fixed on main: `_kc`, `_kd` and `_kn` read the null first, and every named tile carries a null arm. The string concatenation is gone |
 | R-6 | `ppgdex-app.js` Poincare line | absent area printed as 0 ms² | row `2026-11-08-ppgdex-poincare-line-prints-null-and-an-absent-area-as-zero` |
