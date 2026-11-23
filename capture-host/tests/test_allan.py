@@ -1108,6 +1108,41 @@ def test_the_slope_classifier_and_its_TABLE_are_untouched_by_this_addition():
     assert allan.classify(-1.0)["noise"] == "white/flicker-phase"
 
 
+def test_a_constant_series_REFUSES_rather_than_naming_white_phase():
+    """§∅ — the lag-1 autocorrelation of a constant series is 0/0, not 0. Returning 0 named it
+    `white-phase`, and `stability` published that beside a `classification` that says the series has no
+    measurable instability. One record answered one input twice."""
+    got = allan.noise_id([5.0] * 64)
+    assert got["ok"] is False, got
+    assert got["reason"] == "no-variance-in-the-phase-series", got
+    assert got["alpha"] is None and got["noise"] is None, got
+    assert got["rho"] is None and got["raw_alpha"] is None, got
+
+
+def test_stability_does_not_name_a_power_law_beside_no_measurable_instability():
+    st = allan.stability([5.0] * 64, TAU0)
+    assert st["lag1_noise"]["ok"] is False, st["lag1_noise"]
+    assert st["lag1_noise"]["noise"] is None
+    assert st["classification"]["noise"] is None
+    assert "no measurable instability" in st["classification"]["meaning"]
+
+
+def test_a_varying_series_still_names_the_same_law():
+    """CONTROL — the refusal must not swallow the identification it replaced."""
+    got = allan.noise_id(_white_pm())
+    assert got["noise"] == "white-phase", got
+
+
+def test_the_refusal_is_pinned_to_the_VARIANCE_not_the_length():
+    """A linear ramp is 64 samples long and differences down to a constant in ONE step. A guard on
+    length would answer it; the guard is on the variance, so it refuses at d=1 with the reason."""
+    ramp = [float(i) for i in range(64)]
+    got = allan.noise_id(ramp)
+    assert got["ok"] is False, got
+    assert got["reason"] == "no-variance-in-the-phase-series", got
+    assert got["differences"] == 1, got
+
+
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 # MTIE — the PEAK counterpart to TDEV's RMS (ITU-T G.810). Needed because `timing_uncertainty`
 # summarised delivery jitter as IQR/1.349, which assumes a Gaussian tail, and the corpus has excess
@@ -1414,15 +1449,48 @@ def _cubic(n=600):
     return [float(i) ** 3 for i in range(n)]
 
 
+def _integrated3(seed=7, n=N):
+    """A triple-integrated random walk: its THIRD difference is white noise, so the series still VARIES
+    at the depth where `noise_id` stops (rho ≈ 0, raw ≈ -4). The cubic above becomes a CONSTANT there,
+    which is a refusal for its own reason since the no-variance fix, so a test that must reach the
+    NAME-TABLE bound uses this probe instead."""
+    rng = random.Random(seed)
+    f = 0.0
+    v = 0.0
+    x = [0.0]
+    for _ in range(n):
+        f += rng.gauss(0, 1)
+        v += f
+        x.append(x[-1] + v)
+    return x
+
+
 def test_PLANT_a_series_needing_THREE_differences_refuses_instead_of_reading_random_walk():
     """Not an edge case, which is what the clamp's framing hid. alpha = round(-2*(rho+d)+2) with
     rho >= 0, so inside [-2,+2] needs rho + d <= 2.25 — EVERY series at d = 3 is unnameable, and dmax
-    DEFAULTS to 3. This cubic decorrelates cleanly (rho 0.0) and was reported random-walk FM."""
+    DEFAULTS to 3. This cubic was reported random-walk FM. It reaches d = 3 as a CONSTANT (the third
+    difference of i**3 is 6), so since the no-variance fix it refuses for the missing variance instead.
+    The test below carries the d = 3 bound on a series that still varies there."""
     got = allan.noise_id(_cubic())
-    assert got["differences"] == 3 and got["rho"] == 0.0, got
+    # The cubic's THIRD difference is a constant, so the refusal now names the missing variance rather
+    # than an alpha outside the table: the identification has no autocorrelation left to read, and
+    # `rho`/`raw_alpha` are None because neither exists. Still a refusal, and still not random-walk FM.
+    assert got["differences"] == 3 and got["rho"] is None, got
     assert got["ok"] is False and got["noise"] is None and got["alpha"] is None, got
-    assert got["reason"] == "alpha-outside-the-named-power-laws"
-    assert got["raw_alpha"] == -4.0, "and it says HOW far outside, not merely that it was"
+    assert got["reason"] == "no-variance-in-the-phase-series"
+    assert got["raw_alpha"] is None, "no slope exists at a zero denominator"
+
+
+def test_the_d3_bound_still_refuses_a_series_that_VARIES_at_depth_three():
+    """The no-variance refusal must not swallow the bound the PLANT above was written for. This probe
+    is white noise at its THIRD difference, so it reaches d = 3 decorrelated and with a real slope —
+    and alpha then lands outside the five named laws. Measured: renaming the reason string reds no
+    test without this leg, because the PLANT above now stops one refusal earlier."""
+    got = allan.noise_id(_integrated3())
+    assert got["ok"] is False and got["noise"] is None and got["alpha"] is None, got
+    assert got["reason"] == "alpha-outside-the-named-power-laws", got
+    assert got["differences"] == 3, got
+    assert got["raw_alpha"] == pytest.approx(-4.0, abs=0.05), "and it says HOW far outside"
 
 
 def test_the_refusal_keeps_the_keys_a_reader_branches_on():
@@ -1442,7 +1510,9 @@ def test_the_bound_is_keyed_on_the_NAME_TABLE_not_a_literal_range(monkeypatch):
     law admits it with no second edit — and this is the test that would fail if someone re-introduced
     the literal."""
     monkeypatch.setitem(allan._ALPHA_NAMES, -4, "made-up-sixth-law")
-    got = allan.noise_id(_cubic())
+    # The probe must still VARY at d=3: the cubic is a constant there, and since the no-variance fix
+    # that input refuses before any alpha can be read. This series' third difference is white noise.
+    got = allan.noise_id(_integrated3())
     assert got["alpha"] == -4 and got["noise"] == "made-up-sixth-law", got
     assert "ok" not in got, "an admitted law is an identification, not a refusal"
 
