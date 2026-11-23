@@ -63,11 +63,14 @@ Osprey decided this under CLAUDE.md §7 and the owner may overrule it.
 - [ ] Each cited leg reads the shipped rule, one leg per PR. Every PR body names the numbers that moved.
   - `tools/beat-correspondence.mjs` reads the shipped rule since PR 5474. The reference moved on
     both nights the paper cites: channel 0 to channel 2 on 2026-07-04, and channel 2 to channel 0
-    on 2026-07-11. Both nights still refuse every plane, so the cited chance control holds. Three
-    doc-cited legs remain: `pat-feasibility-worker.js`, `pat-host-offset.mjs` and
-    `pat-matchrate-strict.mjs`.
+    on 2026-07-11. Both nights still refuse every plane, so the cited chance control holds.
+  - `tools/pat-host-offset.mjs` reads the shipped rule since 2026-11-23. Over six archive nights the
+    pick moved on 4 of 5 scored streams. Nine of twelve shared windows moved a number. One window
+    crossed the chance line. `2026-10-04 win 0` moved `strictP` from 0.0392 to 0.0588, so the
+    significant strict windows fell from 6 to 5. Two doc-cited legs remain:
+    `pat-feasibility-worker.js` and `pat-matchrate-strict.mjs`.
 - [x] `refpickOf` grows a second rule only with a parity leg against the code it replaces. `snr-pick-guarded` delegates to the shipped pick, and 17 parity assertions hold it against `analyze`.
-- [ ] A doc that cites a PAT figure states the pick rule behind it.
+- [x] A doc that cites a PAT figure states the pick rule behind it.
   - Population: every reader-facing surface under `papers/` and `docs/papers/`, plus every brief
     that pins a figure a PAT leg produced. The app bundles name a PAT tool as a code reference,
     never a figure. So the box does not bind there. Thirty further briefs name a PAT leg and pin
@@ -75,10 +78,10 @@ Osprey decided this under CLAUDE.md §7 and the owner may overrule it.
   - Three surfaces now name their rule: `papers/wearable-clock-drift.html` §3.6, the 52-night
     entry in `papers/RERUN-RESULTS.md`, and the §3a sweep table in
     `PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md`.
-  - Two briefs still pin a `pat-host-offset` figure with no rule beside it: the per-night beat
-    offsets in `RADIO-DELAY-FLOOR-2026-11-03-BRIEF.md`, and the 14-night drop count in
-    `PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md`. Each one gets its rule line in that leg's
-    own PR under box 2.
+  - Both briefs now name their rule. `RADIO-DELAY-FLOOR-2026-11-03-BRIEF.md` states the peak-count
+    argmax beside its per-night beat offsets. `PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md`
+    states the same rule in §8.1 for every §8 number. The rig corpus copy holds none of the three
+    RADIO-DELAY-FLOOR nights. So that brief keeps a rule line and no re-run.
 - [ ] The census still reads every converted site as `named`, and `byRead` still answers for every examined site.
 
 ## 4 · What must not be done

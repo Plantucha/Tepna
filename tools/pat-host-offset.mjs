@@ -207,8 +207,19 @@ function ppgFeet(text, runsText) {
     PPGDSP.applyConsensusPolarity(per, (i, sgn) => PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn))
   );
   /* The reference pick, NAMED at the site so the census reads a declaration rather than a loop
-     shape, and a tie stops hiding: `consensus-dissent-core.mjs#refpickOf`. Same pick. */
-  const refpick = refpickOf(per, 'peak-argmax');
+     shape, and a tie stops hiding: `consensus-dissent-core.mjs#refpickOf`. The rule here is the
+     SHIPPED one: `analyze` scores pulse-band SNR through `pickChannel`, then lets
+     `harmonicOutlierRefIdx` move the pick onto a coherent majority (`ppgdex-dsp.js`, the `sel` site
+     and `refIdxUsed`). The core holds no copy of either function, so this site injects both. A
+     peak-count argmax named a different channel on 37 of 54 Verity nights - row
+     2026-11-03-three-pick-rules-disagree-on-the-consensus-reference-on-thirty-seven-nights.
+     `pickChannel` scores the RAW channels and pulse-band SNR is sign-invariant, so a pick taken
+     after the polarity pass above still matches the order `analyze` ships. */
+  const refpick = refpickOf(per, 'snr-pick-guarded', {
+    pickChannel: PPGDSP.pickChannel,
+    harmonicOutlierRefIdx: PPGDSP.harmonicOutlierRefIdx,
+    rec
+  });
   const refIdx = refpick.idx;
   /* @polarity-decision applies
      The timing points this reads the host offset from now come from the whole channel set. */

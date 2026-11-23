@@ -156,6 +156,14 @@ that is leaving, which is the session least likely to search first.
 The predictor never sees a mode, a foot, a lag or a regime, so the circularity §-park names is absent
 by construction.
 
+The reference pick rule behind every §8 number is the peak-count argmax.
+`tools/pat-host-offset.mjs` supplied the `ppmP` half of the predictor, and its consensus reference
+channel came from a peak-count argmax over the Verity PPG channels. The tool reads the shipped
+`snr-pick-guarded` rule since 2026-11-23. Six archive nights measured that change: the pick moved on
+4 of 5 scored streams, and nine of twelve shared windows moved a number. So a re-run of this join
+carries a different reference. The 14-night drop count in §8.4 and the ρ figures in §8.2 and §8.7
+stand on the older rule.
+
 ### 8.2 · Result — primary tree `uploads/vigil-archive/captures`
 
 ```
