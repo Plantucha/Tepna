@@ -67,6 +67,9 @@ const SENTENCE = {
   FAIL: 'a mutant on a line this change wrote SURVIVED — no test can see the change there.',
   UNKNOWN: 'the run could not prove anything — treat as unmeasured, not as a pass.',
   NOT_APPLICABLE: 'the gate does not bind on this change (no mutable JS source, or no mutable operator on the changed lines). Not a pass — nothing was examined.',
+  /* `mutate.mjs` emits this from its signal handler when a step cap stops the sweep: some of the
+     population reached a verdict and the rest did not, which is neither a pass nor a finding. */
+  UNDERPOWERED: 'the run was stopped before it examined the population — the mutants it never reached are unmeasured, not killed.',
   NOT_RUN: 'the gate did not run. Not a pass.'
 };
 
@@ -185,6 +188,23 @@ function selftest() {
   ok('UNKNOWN + exit 3 → UNKNOWN, excluded shown', render(nd(un), 3).status === 'UNKNOWN' && /\(2 excluded\)/.test(render(nd(un), 3).md));
   const nr = { ...base, status: 'NOT_RUN', population: { checked: 0, eligible: 0, excluded: 0 }, result: null, reason: 'cannot diff against origin/main' };
   ok('NOT_RUN + exit 2 → NOT_RUN, not a pass', render(nd(nr), 2).status === 'NOT_RUN' && /Not a pass/.test(render(nd(nr), 2).md));
+  /* THE TIMED-OUT RUN, now that it carries an object (residue
+     2026-10-20-the-js-gate-cannot-finish-a-large-dsp-diff-at-ci-parallelism). The step cap kills the
+     shell too, so no exit code is recorded and the workflow passes the literal `none` — which must not
+     read as a disagreement, and must not read as a pass either. */
+  const up = {
+    ...base,
+    status: 'UNDERPOWERED',
+    population: { checked: 25, eligible: 205, excluded: 180 },
+    result: { plannedMutants: 205, reached: 25, survivorsSeen: 16, fileInFlight: 'oxydex-dsp.js' },
+    reason: 'stopped by SIGTERM after 2271 s: 25 of 205 mutant(s) reached a verdict, so 180 are unmeasured, not killed'
+  };
+  const r8 = render(nd(up), 'none');
+  ok(
+    'UNDERPOWERED with no exit code recorded → UNDERPOWERED, 25 of 205 shown, never a pass or a disagreement',
+    r8.status === 'UNDERPOWERED' && /checked \*\*25\*\* of 205/.test(r8.md) && /unmeasured, not killed/.test(r8.md) && !/disagree/.test(r8.md),
+    r8.md
+  );
   const r4 = render('', 0);
   ok('NO object + exit 0 → UNKNOWN, never PASS (the old mapping)', r4.status === 'UNKNOWN' && /did not report/.test(r4.md), r4.md);
   ok('garbage lines only → UNKNOWN', render('not json\n{"file":"a.js"}\n', 0).status === 'UNKNOWN');

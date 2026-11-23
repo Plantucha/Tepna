@@ -2332,6 +2332,9 @@ async function runFile(file) {
        not a TTY, emit a NEWLINE checkpoint periodically instead, with elapsed and a projected finish
        so the reader can decide whether to keep waiting. */
     ++done;
+    /* THE SAME COUNTERS THE PROGRESS LINE PRINTS, published for `truncatedVerdict`: a cap that lands
+       here is the one reader that cannot wait for the per-file record. */
+    if (LIVE && LIVE.inFlight) LIVE.inFlight = { file, reached: done, killed, survivors: survivors.length, invalid, quarantined: quarantinedThisRun };
     const el = (Date.now() - _t0) / 1000;
     /* `invalid` IS PART OF THE PROGRESS LINE, not just the JSON. A run on a contended box timed out
        24 mutants; each was correctly classified INVALID rather than counted as a kill — but the line
@@ -3064,9 +3067,120 @@ export function verdictSample() {
     { base: 'origin/main', commit: null, commitReason: '--verdict-sample: synthetic result set, no code identity claimed', at: '2026-09-22T00:00:00Z' }
   ).verdict;
 }
+/* ── A RUN THE CAP CUT SHORT STILL OWES AN OBJECT (§🧾; residue
+   `2026-10-20-the-js-gate-cannot-finish-a-large-dsp-diff-at-ci-parallelism`) ──────────────────
+   `reportOne` flushes one NDJSON record per FINISHED file, and the verdict below is written once, at
+   the end of the sweep. A step cap that lands INSIDE a file writes neither: run `39162011567` reached
+   25 of 205 mutants and left `mutation-diff.ndjson` EMPTY, which `tools/mutation-summary.mjs` can only
+   render as UNKNOWN `no object`. The `if: always()` step said TIMED OUT in prose, and no consumer
+   could read it — so the lane published nothing at all about a run that measured a quarter of its
+   population.
+
+   The signal handler now emits the same `tepna.verdict/1` object over the population the run actually
+   reached. `LIVE` is the gate's own plan plus two live counters, ∅ until the sweep starts.
+
+   WHAT IT WILL NOT CLAIM. A survivor seen inside the file still running is reported in `result` and
+   never promoted to FAIL: the equivalence excusal that decides whether a survivor BLOCKS is computed
+   per file by `runFile`, and the truncated file wrote no record, so a FAIL off the raw count would be
+   the over-claim `survivorsToBlock` exists to prevent. A blocking survivor in a FINISHED file is
+   decided, and a cap cannot unprove it. */
+export let LIVE = null;
+let VERDICT_EMITTED = false;
+export function truncatedVerdict(live, meta) {
+  meta = meta || {};
+  const L = live || {};
+  const fin = Array.isArray(L.results) ? L.results.filter((r) => !r.error) : [];
+  const fly = L.inFlight || null;
+  /* `measuredDenominator` is the arithmetic the finished verdict uses, so a mutant excluded there is
+     excluded here. The in-flight file has no record, so its own counters are read instead. */
+  const reached = fin.reduce((a, r) => a + measuredDenominator(r), 0) + (fly ? Math.max(0, fly.reached - fly.invalid - fly.quarantined) : 0);
+  const planned = Number.isFinite(L.planned) ? L.planned : 0;
+  /* The object must satisfy checked + excluded = eligible, and a plan below the count reached cannot
+     happen — both come from one enumeration. The clamp keeps a THROW out of a signal handler, where it
+     would cost the verdict it is there to write, and the reason says so if it ever bites. */
+  const eligible = Math.max(planned, reached);
+  const blocking = fin.flatMap((r) => survivorsToBlock(r).map((s) => ({ file: r.file, ...s })));
+  const result = {
+    plannedMutants: planned,
+    reached,
+    killed: fin.reduce((a, r) => a + r.killed, 0) + (fly ? fly.killed : 0),
+    survivorsSeen: fin.reduce((a, r) => a + r.survivors.length, 0) + (fly ? fly.survivors : 0),
+    blockingSurvivorsInFinishedFiles: blocking.length,
+    invalid: fin.reduce((a, r) => a + r.invalid + (r.quarantined || 0), 0) + (fly ? fly.invalid + fly.quarantined : 0),
+    filesPlanned: Number.isFinite(L.filesPlanned) ? L.filesPlanned : null,
+    filesFinished: fin.length,
+    /* ∅ The file the cap landed inside, or `null` when it landed between two — never a borrowed name. */
+    fileInFlight: fly ? fly.file : null,
+    elapsedS: Number.isFinite(L.t0) ? Math.round((Date.now() - L.t0) / 1000) : null,
+    /* `jobsAtStop`, not `jobs`: the one-record-builder tripwire below counts `^\s+jobs:` across the
+       whole file, and a second object literal carrying that key is exactly what it exists to catch.
+       This is a different record, so it takes a different key rather than weakening the guard. */
+    jobsAtStop: Number.isFinite(L.jobCount) ? L.jobCount : null,
+    truncatedBy: meta.signal || null
+  };
+  const stop = 'stopped by ' + (meta.signal || 'an unnamed signal') + (result.elapsedS == null ? '' : ' after ' + result.elapsedS + ' s');
+  const mk = (status, fields) =>
+    verdictObject(status, {
+      evidence: ['tools/mutate.mjs', ...fin.map((r) => r.file), ...(fly ? [fly.file] : [])],
+      commit: meta.commit,
+      commitReason: meta.commitReason,
+      at: meta.at,
+      base: meta.base,
+      ...fields
+    });
+  if (!reached)
+    return mk('NOT_RUN', {
+      checked: 0,
+      eligible,
+      result: null,
+      reason: stop + ' with no mutant verdict — ' + (planned ? planned + ' mutant(s) were planned and none was examined' : 'the sweep had not started')
+    });
+  if (blocking.length)
+    return mk('FAIL', {
+      checked: reached,
+      eligible,
+      result,
+      reason:
+        blocking.length +
+        ' mutant(s) survived in a file that FINISHED: ' +
+        blocking
+          .slice(0, 5)
+          .map((s) => s.file + ':' + s.line + ' [' + s.op + ']')
+          .join(', ') +
+        (blocking.length > 5 ? ', …' : '') +
+        ' — and the run was ' +
+        stop +
+        ', so a further ' +
+        (eligible - reached) +
+        ' mutant(s) are unmeasured'
+    });
+  return mk('UNDERPOWERED', {
+    checked: reached,
+    eligible,
+    result,
+    reason:
+      stop +
+      ': ' +
+      reached +
+      ' of ' +
+      eligible +
+      ' mutant(s) reached a verdict, so ' +
+      (eligible - reached) +
+      ' are unmeasured, not killed' +
+      (planned && planned < reached ? ' (the plan counted ' + planned + ', below the count the run reached)' : '') +
+      (result.survivorsSeen > blocking.length
+        ? '. ' +
+          (result.survivorsSeen - blocking.length) +
+          ' survivor(s) in `' +
+          (fly ? fly.file : 'an unnamed file') +
+          '` are reported and block nothing: that file wrote no record, so the equivalence ledger decided nothing about them'
+        : '')
+  });
+}
 function emitVerdict(v) {
   // VERDICT-CONTRACT §1: under --json the object is the last NDJSON line (it has no `file`, so the
   // per-file readers skip it by shape); otherwise one labelled line on stdout beside the prose.
+  VERDICT_EMITTED = true;
   console.log(AS_JSON ? JSON.stringify(v) : 'VERDICT (tepna.verdict/1): ' + JSON.stringify(v));
 }
 function headCommit() {
@@ -4015,6 +4129,35 @@ function selftest() {
       threw = e.message;
     }
     ck('PASS with a reason is refused', /reason: null/.test(threw), true);
+    /* ── THE TRUNCATION VERDICT — residue `2026-10-20-the-js-gate-cannot-finish-a-large-dsp-diff-at-ci-parallelism`
+       Run `39162011567`'s own numbers: 205 planned over two files, 25 reached inside the first. */
+    const live = (over) => ({
+      planned: 205,
+      filesPlanned: 2,
+      jobCount: 3,
+      t0: Date.now() - 2271000,
+      results: [],
+      inFlight: { file: 'oxydex-dsp.js', reached: 25, killed: 9, survivors: 16, invalid: 0, quarantined: 0 },
+      ...over
+    });
+    const tmeta = { signal: 'SIGTERM', commit: 'ec4e2d93', base: 'origin/main', at: '2026-11-23T00:00:00Z' };
+    const t25 = truncatedVerdict(live(), tmeta);
+    ck('🔴 a cap that cuts the sweep still emits an object — 25 of 205 is UNDERPOWERED, never a pass', t25.status, 'UNDERPOWERED');
+    ck('…and the population is run 39162011567’s own arithmetic', JSON.stringify(t25.population), '{"checked":25,"eligible":205,"excluded":180}');
+    ck('…valid under verdict.js', val(t25), true);
+    ck('…and the reason names the signal and what stayed unmeasured', /SIGTERM/.test(t25.reason) && /180 are unmeasured/.test(t25.reason), true);
+    ck('…the 16 survivors it SAW are reported, never promoted to FAIL (no record ⇒ no excusal)', t25.result.survivorsSeen + ':' + t25.result.blockingSurvivorsInFinishedFiles, '16:0');
+    ck('…and the file the cap landed inside is named, so the unmeasured half is addressable', t25.result.fileInFlight, 'oxydex-dsp.js');
+    const t0m = truncatedVerdict(live({ inFlight: null }), tmeta);
+    ck('🔴 a cap before any mutant finished → NOT_RUN over checked 0, never PASS', t0m.status + ':' + t0m.population.checked, 'NOT_RUN:0');
+    ck('…valid', val(t0m), true);
+    const tnone = truncatedVerdict(null, tmeta);
+    ck('a kill before the sweep started says the sweep had not started', tnone.status + ':' + /had not started/.test(tnone.reason), 'NOT_RUN:true');
+    ck('…valid', val(tnone), true);
+    const tfail = truncatedVerdict(live({ results: [row({ killed: 9, survivors: [_s7], equivalence: { blocking: [_s7], refuted: [], orphaned: [], notDecided: [] } })] }), tmeta);
+    ck('a BLOCKING survivor in a FINISHED file is decided, and a cap cannot unprove it → FAIL', tfail.status + ':' + /a\.js:7/.test(tfail.reason), 'FAIL:true');
+    ck('…and that run checked the finished file plus the in-flight mutants', tfail.population.checked, 35);
+    ck('…valid', val(tfail), true);
     /* THE CRITERION NAME IS A PUBLISHED KEY, so it is pinned and not merely emitted. Both halves of
        it are a claim about THIS lane: `blocking_survivors` because the bound takes
        `blockingSurvivors` and an excused survivor leaves the list, and `on_changed_lines` because
@@ -4240,6 +4383,15 @@ if (IS_MAIN) {
   for (const sg of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGQUIT'])
     process.on(sg, () => {
       restoreAll(sg);
+      /* THE OBJECT, BEFORE THE EXIT (§🧾). The tree comes back first — a report is worth less than
+         the source — and the emit is wrapped, because a throw here would cost both the verdict and the
+         exit code. The diff lane only: a survey emits no verdict when it finishes, so one on its way
+         out would invent a gate. `VERDICT_EMITTED` guards the race at the very end of a run, where a
+         second object would be the LAST one and `mutation-summary.mjs` reads the last one. */
+      if (DIFF && !VERDICT_EMITTED)
+        try {
+          emitVerdict(truncatedVerdict(LIVE, { signal: sg, commit: headCommit(), base: DIFF_BASE }));
+        } catch {}
       dropPool();
       process.exit(sg === 'SIGINT' ? 130 : 143);
     });
@@ -4373,6 +4525,9 @@ if (IS_MAIN) {
        consumers. A plan is worth more to the run that gets cancelled than to the one that finishes. */
     process.stderr.write('  diff gate: ' + planned + ' mutant(s) on ' + [...DIFF_LINES.values()].reduce((a, s) => a + s.size, 0) + ' changed line(s) in ' + files.length + ' file(s)\n');
     process.stderr.write('  worst case ~' + mins + ' min at ' + JOBS + ' job(s); killed mutants return in seconds with bail' + (BAIL ? '' : ' (currently OFF)') + '\n\n');
+    /* PUBLISH THE PLAN: a cap that stops the sweep mid-file needs a denominator, and this is the one
+       place that counts the whole population before any of it is spent (`truncatedVerdict`). */
+    LIVE = { planned, filesPlanned: files.length, jobCount: JOBS, t0: Date.now(), results: null, inFlight: null };
   }
 
   /* REPORT PER FILE, AS IT COMPLETES — never buffer a long run to the end.
@@ -4514,10 +4669,15 @@ if (IS_MAIN) {
   }
 
   const results = [];
+  if (LIVE) LIVE.results = results;
   try {
     for (const f of files) {
+      /* The in-flight record starts at zero because nothing has completed yet; `tick` replaces it on
+         every mutant verdict, and it goes back to `null` the moment the file writes its record. */
+      if (LIVE) LIVE.inFlight = { file: f, reached: 0, killed: 0, survivors: 0, invalid: 0, quarantined: 0 };
       const r = await runFile(f);
       results.push(r);
+      if (LIVE) LIVE.inFlight = null;
       reportOne(r);
     }
   } finally {
