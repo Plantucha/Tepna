@@ -416,7 +416,16 @@ export function snapshot() {
 }
 
 /* Which bot merges: 'kodiak' while `.kodiak.toml` is on main, 'none' on a 404, 'unknown' on any
-   other failure. Only 'kodiak' turns on the green-PR fallback, so an API error merges nothing. */
+   other failure. Only 'kodiak' turns on the green-PR fallback, so an API error merges nothing.
+   🔴 THIS CONFIG READ IS AN ERA MARKER, NOT A CLAIM ABOUT WHO MERGES, and the difference is what
+   kept it honest through the Mergify cutover. `tools/queue-doctor.mjs` asked "does a bot drain here"
+   of the same file and read an absent file as `false`, so it asserted a human merger over a repo four
+   bot merges had just drained (fixed 2026-11-23 by reading the MERGER instead). The value here only
+   NARROWS an action, and every action behind it carries its own per-PR evidence: the fallback merge
+   needs an explicit 'kodiak', and the requeue path needs 'none' AND a `Mergify Merge Queue` check run
+   whose title reads a dequeue. So the next cutover removes the evidence rather than inverting it —
+   with no such check run the title reads null and `plan()` acts on nothing, which the suite pins.
+   Read a config file for WHICH ERA this is; never for WHO acted. */
 export function queueBotOf(read) {
   try {
     read();

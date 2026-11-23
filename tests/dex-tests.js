@@ -67118,6 +67118,14 @@
       var inq = cl(P({ number: 52, isDraft: false, queueTitle: 'Running merge queue checks' }), REQ);
       T.eq('a PR the queue still holds is not requeued', ops(pl([inq], ST({}), QCTX('none'))), '');
       T.eq("queueBot 'unknown' requeues nothing — an API error fails closed", ops(pl([deq], ST({}), QCTX('unknown'))), '');
+      /* 🔴 THE NEXT CUTOVER, pinned. `queueBot` reads 'none' from an ABSENT `.kodiak.toml`, so a repo
+         whose queue bot is neither Kodiak nor Mergify reads 'none' too. The requeue path then needs a
+         `Mergify Merge Queue` check run as well, and a repo without one carries no title. Nothing
+         asserted that before 2026-11-23, and it is the property that makes this config read an era
+         marker rather than the stale merger claim `queue-doctor` carried. */
+      var noq = cl(P({ number: 54, isDraft: false, queueTitle: null }), REQ);
+      T.eq("queueBot 'none' with NO queue check run plans nothing", ops(pl([noq], ST({}), QCTX('none'))), '');
+      T.eq('…and it raises no alert either, so an absent queue is silence, not a dequeue', kinds(pl([noq], ST({}), QCTX('none'))), '');
       T.eq(
         'a red dequeued PR gets a rerun, never a requeue',
         ops(
