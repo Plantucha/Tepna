@@ -78688,6 +78688,88 @@
       T.ok('…and none returns a zero confidence', !/conf: 0,/.test(src));
     });
 
+    /* ════ §🧾 · THE POSTURE COVERAGE FLOOR THAT THE DATA ITSELF MOVED ═══════════════════════════
+       `postureDetailAtSec` refuses a 30 s window that holds too little gravity. It sized "too
+       little" as `accRows.length / durSec * 30` — the session average rate times the window. Packet
+       loss depresses that average, so the floor fell with the very loss it had to catch: a window
+       only had to be as covered as the session around it. A night that kept 20 % of its ACC
+       therefore scored a 30 s window holding 7 s of gravity, and the coverage factor
+       `(g.n * gStride) / need` saturated at 1, so the window published FULL coverage confidence.
+       The native rate now states what a full window holds, and GRAV_MIN_COVER states the fraction
+       of it the window must carry. Below that line the window refuses; above it, reduced coverage
+       annotates through the confidence (owner ruling 2026-09-17). */
+    group('PpgDex posture — the gravity floor is the native rate, not the session average (§🧾)', 'ppgdex-dsp · posture · absence', function (T) {
+      var P = env.PPGDSP;
+      if (!(P && typeof P.analyzeMotion === 'function')) {
+        T.ok('PPGDSP.analyzeMotion available', false);
+        return;
+      }
+      var FS = 25,
+        DUR = 1800,
+        G = { x: 20, y: -15, z: 990 }; // supine, one dominant axis — identical in every window below
+      // A lossy night: each 30 s block carries only its first 6 s of ACC. Two blocks differ — the
+      // block at 60 s keeps 9 s (30 % of the window), the block at 600 s keeps 18 s (60 %).
+      var lossy = [];
+      for (var b = 0; b < DUR / 30; b++) {
+        var blockStart = b * 30,
+          keepSec = blockStart === 60 ? 9 : blockStart === 600 ? 18 : 6;
+        for (var i = 0; i < FS * keepSec; i++) lossy.push({ x: G.x, y: G.y, z: G.z, relNs: (blockStart + i / FS) * 1e9 });
+      }
+      var m = P.analyzeMotion(lossy, null, 0, DUR);
+      T.ok('CONTROL · the motion block has data, else every leg below is vacuous', m.hasData === true, 'hasData=' + m.hasData);
+      T.eq('CONTROL · the native rate is read off the inter-sample interval, not the 5 Hz span average', m.accFs, FS);
+
+      // 30 % of a 30 s window. The old floor was the session average (about 5.2 Hz × 30 ≈ 156
+      // samples) and this window holds 225, so it scored at a confidence of 1.
+      var thin = m.postureDetailAtSec(60, 90);
+      T.eq('a window holding 9 s of gravity in 30 s REFUSES', thin.position, 'unknown');
+      T.eq('…and names the reason, so no reader reads it as a measured posture', thin.reason, 'low-gravity-coverage');
+      T.eq('…and publishes no confidence at all', thin.conf, null);
+
+      // 60 % of the window — above the floor, so it is scored, and the confidence states the gap.
+      var partial = m.postureDetailAtSec(600, 630);
+      T.eq('CONTROL · a window holding 18 s of gravity is still SCORED — reduced coverage annotates', partial.position, 'supine');
+      T.eq('CONTROL · …and states no reason', partial.reason, null);
+      T.eq('its confidence reports the 60 % coverage instead of saturating at 1', partial.conf, 0.6);
+
+      /* THE CASE THE CORPUS IS MADE OF. Measured over 2228 thirty-second windows in the first hour
+         of 19 ACC files (each over 20 MB, sampled evenly from the 289 the corpus holds), window
+         coverage is bimodal: median 0.9998, p05 0.9975, and only 4.08 % below 0.5. But 59.9 % sit
+         below 1.0, because BLE drops a packet now and then. The old floor equalled a COMPLETE
+         window whenever the ACC spanned the session, so it cut straight through that dense mass
+         and refused 46.6 % of all windows. A window that lost 5 % of its samples is reduced
+         coverage, not a discontinuity, so the owner ruling of 2026-09-17 says it annotates. */
+      var nibbled = [];
+      for (var q = 0; q < FS * 600; q++) {
+        var insideThin = q >= FS * 60 && q < FS * 90;
+        if (insideThin && q % 20 === 0) continue; // scatter the loss, so the window stays continuous
+        nibbled.push({ x: G.x, y: G.y, z: G.z, relNs: (q / FS) * 1e9 });
+      }
+      var mn = P.analyzeMotion(nibbled, null, 0, 600);
+      var nibbledWin = mn.postureDetailAtSec(60, 90);
+      T.eq('a window that lost 5 % of its gravity samples is SCORED, not refused', nibbledWin.position, 'supine');
+      T.eq('…and states no reason, because reduced coverage annotates', nibbledWin.reason, null);
+      T.eq('…and its confidence reports the coverage it actually had', nibbledWin.conf, 0.95);
+      T.eq('CONTROL · a complete window in the same stream keeps full confidence', mn.postureDetailAtSec(120, 150).conf, 1);
+
+      // The ordinary case must not move. A contiguous stream is its own native rate, so the floor
+      // it computes is the same number before and after.
+      var full = [];
+      for (var k = 0; k < FS * 600; k++) full.push({ x: G.x, y: G.y, z: G.z, relNs: (k / FS) * 1e9 });
+      var mf = P.analyzeMotion(full, null, 0, 600);
+      var whole = mf.postureDetailAtSec(60, 90);
+      T.eq('CONTROL · a fully covered window is scored', whole.position, 'supine');
+      T.eq('CONTROL · …at a confidence the coverage factor does not reduce', whole.conf, 1);
+      T.eq('CONTROL · …and the ordinary stream still reports its native rate', mf.accFs, FS);
+
+      // The criterion is pre-stated in the source, not derived from the night it judges (§🧾).
+      var src = (env.sources || {})['ppgdex-dsp.js'] || '';
+      T.ok('CONTROL · the shipped DSP source is readable', src.length > 1000, 'len=' + src.length);
+      T.ok('the coverage fraction is a named constant with a stated value', /GRAV_MIN_COVER = 0\.5;/.test(src));
+      T.ok('the floor reads the native rate, and the session average is only its fallback', /const need = \(_accHz != null \? _accHz : accRows\.length \/ durSec\) \* 30;/.test(src));
+      T.ok('no gravity window is sized off the span average alone any more', !/\(accRows\.length \/ durSec\) \* 2\.0/.test(src));
+    });
+
     group('PPGDex limb posture from ACC', 'ppgdex-dsp', function (T) {
       var P = env.PPGDSP;
       if (!(P && typeof P.analyzeMotion === 'function')) {
