@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** IN-PROGRESS (phase A landed 2026-09-21 — format frozen, vectors on main; **phase C landed #2812 2026-09-22** — `night-seal.js`, the in-page reader (WebCrypto + `DecompressionStream`, no vendored code), wired into OverDex's file input with the card prompt, IndexedDB per (boxId, keyId), the provenance badge and one `tepna.verdict/1` per seal; judged on the SAME vector and eight plants as the Python and Node readers in the node lane AND a `browser-gates` leg; the ~~four~~ (superseded 2026-09-25 — see the later clause; #2812's body names five sealer-built plants) sealer-built plants are now committed vectors under `plants/` ⚠️ **COUNT CHECKED 2026-09-25 (triage): `plants/expected.json` enumerates FIVE committed plant vectors, each with a file and a sha256 — `consent absent`, `consent disagrees`, `flipped byte in one stream`, `truncated payload`, `unknown signing key`. Either a fifth plant landed after this clause was written, or one of the five is not sealer-built and the clause should name which. Not resolved here: the enumeration is the evidence, the count is not, and I could not tell from the tree which of the five the word "sealer-built" excludes.**. B may proceed; D follows C) · ⚠️ **API-LANE TRIAGE 2026-11-04 — RE-VERIFIED BY MAGPIE, NOT TAKEN ON ITS WORD.** The managed-agent lane read this brief at `4ca6b91cc` and reported six acceptance items: two met, three open, one blocked. I re-ran the cited check behind every MET item in my own tree and **every one reproduces** (one capture-host pytest selection, one named test group). An empty `-k` or `--group=` filter exits 0. So I read the collected count and the plan line, never the exit code, and none of them collected nothing. **The OPEN and BLOCKED verdicts stay the lane's self-report, unverified here.** The remainder the lane reports is four items, which its own batch file lists. · **Created:** 2026-09-21 · **Interlocks:** `CORPUS-TIER-30-NIGHTS-2026-09-20-BRIEF.md` (dev-only tiering this brief scopes out of deployment) · `SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md` (sidecars travel inside the seal) · `LITERATURE-USE-POLICY-2026-07-11-BRIEF.md` (§10 citations) · owner design session 2026-09-21 (this brief is its transcript, condensed)
+**Status:** IN-PROGRESS (phase A landed 2026-09-21 — format frozen, vectors on main; **phase C landed #2812 2026-09-22** — `night-seal.js`, the in-page reader (WebCrypto + `DecompressionStream`, no vendored code), wired into OverDex's file input with the card prompt, IndexedDB per (boxId, keyId), the provenance badge and one `tepna.verdict/1` per seal; judged on the SAME vector and eight plants as the Python and Node readers in the node lane AND a `browser-gates` leg; the ~~four~~ (superseded 2026-09-25 — see the later clause; #2812's body names five sealer-built plants) sealer-built plants are now committed vectors under `plants/` ⚠️ **COUNT CHECKED 2026-09-25 (triage): `plants/expected.json` enumerates FIVE committed plant vectors, each with a file and a sha256 — `consent absent`, `consent disagrees`, `flipped byte in one stream`, `truncated payload`, `unknown signing key`. Either a fifth plant landed after this clause was written, or one of the five is not sealer-built and the clause should name which. Not resolved here: the enumeration is the evidence, the count is not, and I could not tell from the tree which of the five the word "sealer-built" excludes.**. B may proceed; D follows C) · ⚠️ **API-LANE TRIAGE 2026-11-04 — RE-VERIFIED BY MAGPIE, NOT TAKEN ON ITS WORD.** The managed-agent lane read this brief at `4ca6b91cc` and reported six acceptance items: two met, three open, one blocked. I re-ran the cited check behind every MET item in my own tree and **every one reproduces** (one capture-host pytest selection, one named test group). An empty `-k` or `--group=` filter exits 0. So I read the collected count and the plan line, never the exit code, and none of them collected nothing. **The OPEN and BLOCKED verdicts stay the lane's self-report, unverified here.** The remainder the lane reports is four items, which its own batch file lists. · ⚠️ **COUNT ANSWERED 2026-11-23 (Heron, rig) — the population is EIGHT, and §6 names the five committed vectors beside the three the tests build.** · **Created:** 2026-09-21 · **Interlocks:** `CORPUS-TIER-30-NIGHTS-2026-09-20-BRIEF.md` (dev-only tiering this brief scopes out of deployment) · `SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md` (sidecars travel inside the seal) · `LITERATURE-USE-POLICY-2026-07-11-BRIEF.md` (§10 citations) · owner design session 2026-09-21 (this brief is its transcript, condensed)
 
 # CAPTURE-NIGHT-SEAL — one self-protecting file per night, carrier-agnostic
 
@@ -141,8 +141,19 @@ medical devices pair with **cards**, and so does this:
   from an unknown key (fingerprint mismatch) · a forged header with the correct payload (signature covers
   header ‖ payload hash) · a stale revision presented after a newer one (`Tepna-Seal-Revision`) · `consent`
   absent from the header (must read `null`, not `"no"`).
+  - ⚠️ **COUNT ANSWERED 2026-11-23 (Heron, rig).** The population is EIGHT, not seven.
+    `capture-host/tools/seal_vectors.py` enumerates them in `PLANTS`, and
+    `test_the_EIGHT_plants_red_by_name_in_BOTH_readers_and_each_is_SEEN` asserts that denominator as an
+    equality. The JS leg asserts the same eight. Its own comment calls them the brief's seven plus the
+    consent-mirror plant, which is `consent disagrees`.
+    The dated phase-A records below say seven, and they stay, because the eighth plant arrived after them.
+  - Five specs carry `sealed=True`, so the sealer builds them and the tree commits them under `plants/`.
+    Three carry no such flag. `wrong card key` and `stale revision` are read-side parameters, and
+    `forged header` is post-seal byte surgery. So the 2026-09-25 header question has a third answer.
+    The set GREW, and every committed vector comes from the sealer. Read the plant set from that table,
+    never from the bullet above.
 - **Anti-vacuity:** the plant runner asserts the reader *saw* each plant (a comment-swallowed decoy gives a
-  vacuous green — memory `verify-the-plant-was-seen`), and the gate publishes its denominator (all seven
+  vacuous green — memory `verify-the-plant-was-seen`), and the gate publishes its denominator (all eight
   plants enumerated as an equality, not `≥`).
 - The corpus verification that #2784 did by hand becomes a nightly `tools/verify-seals.mjs` over the
   outbox and the archive, log kept, **reporting only on state change** (owner ruling 2026-09-13) — NDSA
@@ -243,9 +254,20 @@ for §8 releases.
       `boxKey` and `revision` in the clear).
 - [ ] A real box night arrives in `outbox/` as a seal, verified on the rig with `verify-seals.mjs`; card PDF
       and consent question exist at setup; deploy owner-authorized (B).
-- [ ] OverDex opens a `.tepna` from its file input, shows the provenance badge, reds the tampered plant by
+      **Phase B owes this box, and the deploy needs the owner's word (checked 2026-11-23, Heron).**
+- [x] OverDex opens a `.tepna` from its file input, shows the provenance badge, reds the tampered plant by
       stream name, and still opens an unsealed legacy folder with the "provenance unknown" badge (C).
+      **VERIFIED 2026-11-23 (Heron, rig) — phase C landed #2812, and this box had stayed open since.**
+      `OverDex.src.html` loads `night-seal.js`. `overdex-app.js` adds `.tepna` to the file input's `accept`
+      list, detects it before classification, and opens it through `NightSeal.unseal`. The badge sits inline
+      before the label, at the evidence-badge placement. The JS group `Night seal — the in-page reader opens
+      the vector and reds all eight plants by name` runs all eight plants, asserts that denominator as an
+      equality, and reds each plant by its own kind. The same group pins the three badge strings: a verified
+      seal, a tampered stream as `TAMPERED: <stream>`, and a file from no seal as `unsealed folder —
+      provenance unknown`. One equality on `KINDS` holds the refusal vocabulary across the three readers.
 - [ ] Nightly `verify-seals` log exists and reports only on state change (§6).
+      **`capture-host/unseal.py` says phase B installs this nightly run, and the tree holds no unit or
+      timer for it (checked 2026-11-23, Heron).**
 - [ ] Residue rows, if any, in `briefs/RESIDUE.md`; header flipped to DONE with the measured numbers.
 
 ## 13 · Phase B — the three box-side decisions (Wren, 2026-09-21, written BEFORE building)
