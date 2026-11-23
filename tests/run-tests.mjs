@@ -82,6 +82,7 @@ import {
   fallbackDrift as pwFallbackDrift,
   FALLBACK_REQUIRED as PW_FALLBACK,
   CAP as PW_CAP,
+  REGEN_REQUEUES_PER_HEAD as PW_REGEN_REQUEUES,
   KODIAK_IDLE_MIN as PW_IDLE_MIN,
   STALE_PENDING_MIN as PW_STALE_MIN,
   HOLD_LABEL as PW_HOLD_LABEL
@@ -3809,6 +3810,7 @@ async function main() {
     pwFallbackDrift: pwFallbackDrift,
     pwFallbackRequired: PW_FALLBACK,
     pwCap: PW_CAP,
+    pwRegenRequeues: PW_REGEN_REQUEUES,
     pwIdleMin: PW_IDLE_MIN,
     pwStaleMin: PW_STALE_MIN,
     pwHoldLabel: PW_HOLD_LABEL,
