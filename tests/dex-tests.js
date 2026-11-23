@@ -56596,6 +56596,30 @@
         _fab = [],
         refSeen = 0,
         _rm;
+      /* An INDEX SCAN, never a RegExp built from the reference. A dot-only escape over a
+         dynamic pattern is `js/incomplete-sanitization`, which CodeQL rates HIGH: alerts 295/296
+         and 304/305 closed on 2026-11-12, and one more on this very line in PR 5524. A LOCAL COPY of the
+         14-character class is the shape that spreads, and the escaper's one home
+         (`tools/regex-escape-core.mjs`) is a tool module this file cannot load in the browser
+         lane. So this scan escapes nothing. It walks each occurrence of the reference and reads
+         the text that follows it, and it is STRICTER than the old pattern: the `if (` it accepts
+         must sit on the reference's own line with no `)` between them. */
+      var _nullCmp = function (hay, ref, neOnly, needIf) {
+        var at = hay.indexOf(ref);
+        while (at >= 0) {
+          var after = hay.slice(at + ref.length);
+          var hit = neOnly ? /^\s*!==?\s*null/.test(after) : /^\s*(?:===?|!==?)\s*null/.test(after);
+          if (hit) {
+            if (!needIf) return true;
+            var seg = hay.slice(0, at);
+            seg = seg.slice(seg.lastIndexOf('\n') + 1);
+            var ifAt = seg.lastIndexOf('if (');
+            if (ifAt >= 0 && seg.slice(ifAt + 4).indexOf(')') < 0) return true;
+          }
+          at = hay.indexOf(ref, at + 1);
+        }
+        return false;
+      };
       while ((_rm = REF.exec(R)) !== null) {
         refSeen++;
         var _ref = _rm[2],
@@ -56605,9 +56629,8 @@
           _prev = RL.slice(Math.max(0, _li - 3), _li - 1).join('\n');
         var _pre = R.slice(Math.max(0, _st - 4), _st),
           _post = R.slice(_st + _ref.length, _st + _ref.length + 14);
-        var _esc = _ref.replace(/\./g, '\\.');
-        var _self = new RegExp(_esc + '\\s*(?:===?|!==?)\\s*null').test(_line);
-        var _if = new RegExp('if \\([^)]*' + _esc + '\\s*!==?\\s*null').test(_prev);
+        var _self = _nullCmp(_line, _ref, false, false);
+        var _if = _nullCmp(_prev, _ref, true, true);
         if (/^\s*(?:<|>)=?[^=]/.test(_post)) {
           if (!_self && !_if) _fab.push(_li + ': ORDERING-COMPARISON over ' + _ref);
         } else if (!/(?:nzv|sev|cv)\($/.test(_pre) && !/^\s*(?:===?|!==?)\s*null/.test(_post) && !/^\s*:\s*null/.test(_post) && !_self && !_if) {
