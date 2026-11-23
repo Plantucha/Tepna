@@ -113,6 +113,16 @@ Osprey decided this under CLAUDE.md §7 and the owner may overrule it.
     night, and no artifact in the tree declares that column. `tools/circular-stats.mjs` has one
     consumer, the Integrator block-precision tool, which measures a different quantity. The box
     closes when a bird names the producer, or when the brief withdraws the column.
+
+    I searched the tree on 2026-11-23, and the column has no producing artifact. I read every tracked
+    `*.js`, `*.mjs` and `*.py` outside `node_modules` for `rayleigh`, and again for `resultant`,
+    `concentration`, `lag phase` and `phase lock`. Three artifacts compute a mean resultant length for
+    a different quantity, and `pat-feasibility-worker.js` carries no circular math.
+    `PAT-COMPENDIUM-2026-08-10-BRIEF.md` now states that beside the six-night table.
+
+    DECISION (§7, Heron, 2026-11-23): the brief KEEPS the Rayleigh column and labels it. No
+    reader-facing surface cites it, and a delete would destroy a one-session measurement, so I
+    rejected the delete. The box still owes a figure census over the docs, so it stays unticked.
 - [ ] The census still reads every converted site as `named`, and `byRead` still answers for every examined site.
 
 ## 4 · What must not be done
