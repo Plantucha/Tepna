@@ -284,7 +284,22 @@ export function readChunk(text, cap = READ_CHARS) {
 
 /* The CLI flags this tool understands, stripped from the query words. Exported so the selftest can
    pin that a flag never leaks into the embedded query (it did once as a token-fallback term). */
-export const CLI_FLAGS = new Set(['--quiet', '--no-ext', '--ext-only', '--pull-ext', '--read', '--hybrid', '--code', '--semantic', '--brief', '--rerank', '--no-rerank', '--no-map', '--board-all']);
+export const CLI_FLAGS = new Set([
+  '--quiet',
+  '--no-ext',
+  '--ext-only',
+  '--pull-ext',
+  '--read',
+  '--hybrid',
+  '--code',
+  '--semantic',
+  '--brief',
+  '--rerank',
+  '--no-rerank',
+  '--no-map',
+  '--board-all',
+  '--again'
+]);
 export function stripFlags(argv) {
   return (argv || []).filter((a) => !CLI_FLAGS.has(a));
 }
@@ -597,6 +612,57 @@ export function stampSession(root, sessionId, query, fs = { mkdirSync, writeFile
   try {
     fs.mkdirSync(dirname(p), { recursive: true });
     fs.writeFileSync(p, `${new Date().toISOString()}\t${String(query).replace(/\s+/g, ' ').trim()}\n`, { flag: 'a' });
+    return p;
+  } catch {
+    return null;
+  }
+}
+
+/* ── REPEATS, THE WARNING AND THE SCORE LOG (memory program, 2026-11-22) ─────────────────────────
+   Measured over 7 days of four rig transcripts: 6,537 searches, and 2,630 of them (40 %) repeated a
+   query the same session had already run. The answer is in that session's context already, so a
+   repeat inside REPEAT_WINDOW_MS prints one line and still stamps (the edit guard asks whether a
+   search ran, and it did). `--again` runs it in full. The long read-warning prints on the first
+   search of a session; later ones get its one-line form. Each search appends its best reranker score
+   to a local log, so the refusal floor can later be set from this fleet's own data. */
+export const REPEAT_WINDOW_MS = 30 * 60_000;
+export const SCORE_LOG = 'doc-search-scores.jsonl';
+const normQuery = (q) =>
+  String(q ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+export function priorSearches(root, sessionId, read = (f) => readFileSync(f, 'utf8')) {
+  const p = sessionStampPath(root, sessionId);
+  if (!p) return [];
+  try {
+    return read(p)
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => {
+        const [at, ...rest] = l.split('\t');
+        return { at: Date.parse(at), q: rest.join('\t') };
+      })
+      .filter((e) => Number.isFinite(e.at));
+  } catch {
+    return [];
+  }
+}
+export function repeatOf(prior, query, nowMs = Date.now(), windowMs = REPEAT_WINDOW_MS) {
+  const q = normQuery(query);
+  if (!q) return null;
+  const hits = prior.filter((e) => normQuery(e.q) === q && nowMs - e.at >= 0 && nowMs - e.at <= windowMs);
+  return hits.length ? hits[hits.length - 1] : null;
+}
+export function repeatLine(prev) {
+  const hhmm = new Date(prev.at).toISOString().slice(11, 16);
+  return `▸ same query as your search at ${hhmm}Z in this session — its answer is above in your context. \`--again\` runs it in full.`;
+}
+export function logScore(root, rec, fs = { mkdirSync, writeFileSync }) {
+  try {
+    const p = sharedStatePath(root, SCORE_LOG)[0];
+    fs.mkdirSync(dirname(p), { recursive: true });
+    fs.writeFileSync(p, `${JSON.stringify({ at: new Date().toISOString(), ...rec })}\n`, { flag: 'a' });
     return p;
   } catch {
     return null;
@@ -1315,6 +1381,45 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
     wrote.join(' | ')
   );
   ok('no session ⇒ nothing written', stampSession('/repo', '', 'q', fakeStampFs) === null && wrote.length === 2);
+  {
+    const t0 = Date.parse('2026-11-22T20:00:00Z');
+    const prior = [
+      { at: t0, q: 'What  moved' },
+      { at: t0 + 60_000, q: 'other' }
+    ];
+    ok('a repeat inside the window is found, case and spaces ignored', repeatOf(prior, 'what moved', t0 + 5 * 60_000)?.at === t0);
+    ok('CONTROL: a new query is not a repeat', repeatOf(prior, 'what changed', t0 + 60_000) === null);
+    ok('CONTROL: a repeat past the window runs again', repeatOf(prior, 'what moved', t0 + REPEAT_WINDOW_MS + 1) === null);
+    ok('CONTROL: an empty query is never a repeat', repeatOf(prior, '  ', t0) === null);
+    ok('the repeat line names the time and the way out', repeatLine(prior[0]).includes('20:00Z') && repeatLine(prior[0]).includes('--again'));
+    ok('--again is a flag, not a query word', stripFlags(['--again', 'x']).join(' ') === 'x');
+    const body = `${new Date(t0).toISOString()}\twhat moved\nbroken line\n`;
+    const ps = priorSearches('/repo', 'abc-123', () => body);
+    ok('the stamp file reads back as prior searches; a bad line is skipped', ps.length === 1 && ps[0].q === 'what moved');
+    ok('CONTROL: no session ⇒ no prior searches', priorSearches('/repo', '', () => body).length === 0);
+    ok(
+      'CONTROL: an unreadable stamp ⇒ no prior searches, not a failed search',
+      priorSearches('/repo', 'abc-123', () => {
+        throw new Error('enoent');
+      }).length === 0
+    );
+    const logged = [];
+    logScore('/repo', { lane: 'hybrid', rerank: 0.2 }, { mkdirSync: () => {}, writeFileSync: (f, b, o) => logged.push([f, b, o.flag]) });
+    ok('a score is appended as one JSON line to the shared log', logged.length === 1 && logged[0][2] === 'a' && JSON.parse(logged[0][1]).rerank === 0.2 && logged[0][0].endsWith(SCORE_LOG));
+    ok(
+      'CONTROL: an unwritable log is null, not a failed search',
+      logScore(
+        '/repo',
+        {},
+        {
+          mkdirSync: () => {
+            throw new Error('ro');
+          },
+          writeFileSync: () => {}
+        }
+      ) === null
+    );
+  }
   ok(
     'an unwritable stamp is null, not a failed search',
     stampSession('/repo', 'abc-123', 'q', {
@@ -1511,7 +1616,18 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
      (answer or exit 2) for callers who need to know the index itself answered. Both lanes leave the
      session stamp the edit guard reads, because the rule is "a search ran", not "which lane ran". */
   const lane = searchLane(process.argv);
+  const prior = priorSearches(ROOT, process.env.CLAUDE_CODE_SESSION_ID);
   const brief = process.argv.includes('--brief');
+  const shortWarn = brief || prior.length > 0;
+  {
+    const q0 = stripFlags(process.argv.slice(2)).join(' ').trim();
+    const prev = process.argv.includes('--again') ? null : repeatOf(prior, q0);
+    if (prev) {
+      console.log(repeatLine(prev));
+      stampSession(ROOT, process.env.CLAUDE_CODE_SESSION_ID, q0);
+      process.exit(0);
+    }
+  }
   if (lane !== 'semantic') {
     const q = stripFlags(process.argv.slice(2)).join(' ').trim();
     if (!q) {
@@ -1527,8 +1643,9 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
       );
       process.stdout.write(`${xq.render(out, q, { brief })}\n`);
       if (wantsMap(process.argv) && !out.refused) await printMapLines(out.hits.map((h) => h.path));
-      for (const line of readWarningLines(brief)) console.log(line);
+      for (const line of readWarningLines(shortWarn)) console.log(line);
       stampSession(ROOT, process.env.CLAUDE_CODE_SESSION_ID, q);
+      logScore(ROOT, { lane: 'hybrid', q, rerank: Number.isFinite(out.signals?.rerank) ? out.signals.rerank : null, refused: !!out.refused, hits: out.hits.length });
       process.exit(0);
     } catch (e) {
       if (lane === 'hybrid-strict') {
@@ -1598,7 +1715,8 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
     }
   }
   if (wantsMap(process.argv)) await printMapLines(hits.map((h) => h.file));
-  for (const line of readWarningLines(brief)) console.log(line);
+  for (const line of readWarningLines(shortWarn)) console.log(line);
+  logScore(ROOT, { lane: 'semantic', q: query, best: hits.length ? hits[0].score : null, hits: hits.length });
   /* The stamp the edit guard reads (see SESSION STAMP above). After the hits, so a refused or
      crashed search leaves nothing — a stamp is evidence a search RAN, never that one was attempted. */
   stampSession(ROOT, process.env.CLAUDE_CODE_SESSION_ID, query);
