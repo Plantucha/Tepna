@@ -94264,6 +94264,77 @@
       /* THE ONE EXCLUSION, STATED. A matcher that admitted a record-end time would read a clean file as
          a defect, so the exclusion is named here rather than tuned into the regex. */
       T.ok('the excluded member converts a record LENGTH, never a peak', /t0Ms \+ \(r\.int16\.length \/ fs\) \* 1000/.test(TT['tools/trio-fold-merge.mjs'] || ''), 'an end time');
+      /* ── AND THE POPULATION ABOVE IS `tools/` ALONE, MEASURED 2026-11-23 ─────────────────────────
+         Every reader above arrives through `env.toolTexts`, which `tools/write-root-adoption.mjs#toolTexts`
+         fills from `tools/*.mjs`, non-recursively. So this group's own claim at its head — that it is the
+         only reader seeing the whole population at once — held for `tools/` and for nothing else. A census
+         of every R-peak timer in this checkout reads 20 sites: 17 under `tools/`, all of them judged
+         above, and 3 at the root that no leg read. `env.sources` already carries all three, because
+         `readSources()` names them for other gates and the NEXT group in this file evaluates the worker
+         body out of it, so closing the gap costs one read and no new wiring.
+         THE MATCHER MISSED A SPELLING TOO, so a wider population alone would still have read one of the
+         three clean. `IDX_FORM` above requires the literal `t0Ms` and a plain token in the position slot;
+         `sensor-trio-worker.js` writes `t0 + (peaks[i] / fs) * 1000`, and the worker writes `posAt(i)`.
+         `ROOT_IDX_FORM` reads both `t0` spellings and a call expression in that slot.
+         WHAT THE THREE DO, AND IT IS NOT THIS ROW'S DEFECT. The row names a private WHOLE-FILE `fs`. Both
+         PAT-family workers time on `rec.tMsAt`, the host-disciplined axis, and keep the index form only as
+         the fallback arm of that ternary. They are therefore not instances of the defect, and the gap this
+         closes belongs to the INSTRUMENT and not to them. It still decides something: the remaining default
+         is an owner and PAT-program call, and the set it governs read as 17 sites and is 20.
+         A THIRD AXIS, NAMED. `rPeakTimesOnAxis` defaults to `counter`, the six flagged tools default to
+         `linear`, and these two take `tMsAt`. That is three axes in one tree, which is the fact the
+         decision needs and which no leg stated.
+         THE LIMIT, AND IT IS REAL: this file reads no directory, so a NEW root timer stays invisible until
+         `readSources()` names it. The enrolment point is that `wanted` list, exactly as the corpus gate
+         names its own three `.js` blind spots rather than globbing for them. */
+      var ROOT_TIMERS = ['ecgdex-dsp.js', 'pat-feasibility-worker.js', 'sensor-trio-worker.js'];
+      var SRC = env.sources || {};
+      var unreadable = ROOT_TIMERS.filter(function (f) {
+        return !SRC[f];
+      });
+      /* FAIL CLOSED (§4b): an absent text REDS and never passes. This line runs only past the
+         `env.toolTexts` guard above, so the lane is the node lane and the sources are owed. */
+      T.eq('every root R-peak timer is readable from env.sources', unreadable.join(', '), '');
+      if (!unreadable.length) {
+        var ROOT_IDX_FORM = /\bt0(?:Ms)? \+ \(.{0,40}\/ *[A-Za-z0-9_.]*\bfs\b\) \* 1000/;
+        var HOST_AXIS = /tMsAt === 'function' \? [^\n]*t0(?:Ms)? \+ \(/;
+        /* ANTI-VACUITY BOTH WAYS, as above: the widened matcher must read the sanctioned copy, and it must
+           read the spelling the narrow one missed, or it is a regex that proves nothing. */
+        T.ok('ANTI-VACUITY · the widened matcher reads the sanctioned linear arm', ROOT_IDX_FORM.test(TT['tools/pat-matchrate-strict.mjs'] || ''), 'pat-matchrate-strict carries it');
+        T.ok(
+          'ANTI-VACUITY · and it reads the t0 spelling the narrow matcher missed',
+          ROOT_IDX_FORM.test(SRC['sensor-trio-worker.js']) && !IDX_FORM.test(SRC['sensor-trio-worker.js']),
+          'the matcher gap, measured'
+        );
+        var PAT_WORKERS = ['pat-feasibility-worker.js', 'sensor-trio-worker.js'];
+        T.eq(
+          'both PAT-family root workers time R peaks on the host-disciplined axis',
+          PAT_WORKERS.filter(function (f) {
+            return !HOST_AXIS.test(SRC[f]);
+          }).join(', '),
+          ''
+        );
+        T.eq(
+          'and neither reaches the shared function, which is the state the remaining default governs',
+          PAT_WORKERS.filter(function (f) {
+            return /rPeakTimesOnAxis/.test(SRC[f]);
+          }).join(', '),
+          ''
+        );
+        /* THE ROOT EXCLUSION, STATED LIKE THE ONE ABOVE. `ecgdex-dsp.js` IS the node, so its beat series is
+           its own arithmetic and the Clock Contract governs it rather than this row. A matcher that called
+           the node a PAT consumer would read the owner of the signal as a defect. */
+        T.ok('the excluded root member is the node that OWNS the ECG beat series', ROOT_IDX_FORM.test(SRC['ecgdex-dsp.js']) && /parseECG/.test(SRC['ecgdex-dsp.js']), 'the node, not a consumer');
+        /* THE RATCHET: a name that no longer times a peak REDS as stale rather than sitting here excusing
+           nothing, which is the rule the `tools/` baseline above already follows. */
+        T.eq(
+          'the declared root set carries no stale name',
+          ROOT_TIMERS.filter(function (f) {
+            return !ROOT_IDX_FORM.test(SRC[f]);
+          }).join(', '),
+          ''
+        );
+      }
     });
 
     group("PAT arrival-floor axis — the corrected lag removes the links' BUFFERING, not a clock (route-PAT fix 2026-09-27)", 'pat · arrival-floor · plant', function (T) {
