@@ -190,6 +190,9 @@ expectcmd ALLOW "inline hatch in command position releases it"        "CLAUDE_AL
 #   UNFIXED hook — the cd-extraction resolved a non-repo, the guard failed open, and the leg proved
 #   nothing. It has to reach the staleness query to be testing command-position matching at all.
 expectcmd ALLOW "inline hatch after && is command position too"       "cd $WORK && CLAUDE_ALLOW_STALE_BRIEF=1 sed -i 's/a/b/' briefs/SHARED-BRIEF.md"
+# A SECOND HATCH HAD NO SPELLING. The pattern read one assignment after the separator, so a bird that
+# needed two hatches at once could spell only the first. Pre-fix this leg read DENY.
+expectcmd ALLOW "a hatch STACKED behind another is command position too" "cd $WORK && CLAUDE_ALLOW_BLANKET_GIT=1 CLAUDE_ALLOW_STALE_BRIEF=1 sed -i 's/a/b/' briefs/SHARED-BRIEF.md"
 # The negation, and the reason the match is anchored: merely NAMING the variable must not release
 # the guard, or writing prose about the hatch would disable it.
 expectcmd DENY  "the variable merely QUOTED does not release it"      "echo 'set CLAUDE_ALLOW_STALE_BRIEF=1 to override' >> briefs/SHARED-BRIEF.md"

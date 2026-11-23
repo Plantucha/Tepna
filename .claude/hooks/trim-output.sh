@@ -99,7 +99,7 @@ bg="$(printf '%s' "$payload" | jq -r '.tool_input.run_in_background // false' 2>
 # The hatch, inline on the command. The anchor is deliberate: a bare occurrence in an
 # echo, a grep pattern or a heredoc line must not release the hook, or quoting the
 # variable's name in prose would disable it. This is guard-stale-brief.sh's rule.
-printf '%s' "$cmd" | grep -qE '(^|[;&|])[[:space:]]*CLAUDE_ALLOW_UNTRIMMED=1[[:space:]]' && exit 0
+printf '%s' "$cmd" | grep -qE '(^|[;&|])[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*CLAUDE_ALLOW_UNTRIMMED=1[[:space:]]' && exit 0
 
 # ── THE SIX PASS-THROUGH SHAPES ────────────────────────────────────────────────
 # Each one returns the command unchanged. None of them denies anything.

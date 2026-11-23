@@ -106,7 +106,7 @@ elif [ -n "$cmd" ]; then
     exit 0                                           # not a shape this guard judges
   fi
   # inline hatch on the command line itself (an Edit/Write cannot carry one; a command can)
-  printf '%s\n' "$cmd" | grep -qE '(^|[[:space:]])CLAUDE_ALLOW_NO_DOC_SEARCH=1([[:space:]]|$)' && exit 0
+  printf '%s\n' "$cmd" | grep -qE '(^|[;&|])[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*CLAUDE_ALLOW_NO_DOC_SEARCH=1[[:space:]]' && exit 0
   what="$shape (\`$(printf '%s' "$cmd" | head -c 60 | tr '\n' ' ')…\`)"
   target_dir="$(printf '%s\n' "$cmd" | grep -oE 'git[[:space:]]+-C[[:space:]]+[^ ;&|]+' | head -1 | awk '{print $3}')"
   [ -z "$target_dir" ] && target_dir="$(printf '%s\n' "$cmd" | grep -oE '^[[:space:]]*cd[[:space:]]+[^ ;&|]+' | head -1 | awk '{print $2}')"

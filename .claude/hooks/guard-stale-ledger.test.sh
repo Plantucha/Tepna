@@ -139,6 +139,8 @@ expect ALLOW "a heredoc body naming the ledger is DATA"        "$STALE" "$(cmdj 
 see briefs/RESIDUE.md for the row
 X")"
 expect ALLOW "the hatch in command position"                   "$STALE" "$(cmdj "CLAUDE_ALLOW_STALE_LEDGER=1 $READ_CMD")"
+# The stack: one assignment after the separator was all the pattern read. Pre-fix this leg read DENY.
+expect ALLOW "the hatch STACKED behind another assignment"     "$STALE" "$(cmdj "CLAUDE_ALLOW_BLANKET_GIT=1 CLAUDE_ALLOW_STALE_LEDGER=1 $READ_CMD")"
 expect ALLOW "the hatch exported — the only form a Read sees"  "$STALE" "$(pathj "$STALE/briefs/RESIDUE.md")" CLAUDE_ALLOW_STALE_LEDGER=1
 expect ALLOW "a Grep whose path is a DIRECTORY, not the file"  "$STALE" "$(grepj "$STALE/briefs")"
 
