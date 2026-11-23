@@ -385,6 +385,22 @@ const kgrade = (v, ladder) => (v == null || isNaN(v) ? 'neutral' : ladder(v));
    reading and still yields a delta. ABSENCE-SURVEY row a67da4ab5c84. */
 const kdelta = (cur, prv, digits) => (Number.isFinite(cur) && Number.isFinite(prv) ? (cur - prv).toFixed(digits) : null);
 
+/* ── ONE OTR ladder · MUSE-HUNT-RECORD R-4 ───────────────────────────────────────────────────────
+   `d_otr` carried THREE ladders on one metric: the KPI strip cut at 50 and 150, this file's chart
+   cut once at 15, and the metrics table cut at 5 and 15. Heron measured the producer's own output
+   over the 30-measurement Welltory export (hrvdex-dsp.js:874, `min(500, (sns/(psns+0.001)) *
+   (100/(pnn50+0.01)))`): median 5.97, p75 9.68, p90 29.61, max 145.05, saturated 0. The 50/150
+   ladder graded 28 of those 30 rows 'good' and reached its top band on NO row, so it separated
+   nothing; 5 and 15 split the same 30 rows 13 / 12 / 5. So 5 and 15 are the ladder, and the two
+   agreeing sites were right for a reason nobody had measured.
+   Each site keeps its OWN palette and reads the RANK, so one edit here moves all three. Absence
+   answers null: the KPI strip draws 'neutral' through kgrade, the table never calls its own colour
+   callback on a non-finite value (guarded at the `Number.isFinite(raw)` arm below), and a non-finite
+   row draws no bar for the chart to colour. */
+const OTR_CAUTION = 5;
+const OTR_HIGH = 15;
+const otrRank = (v) => (v == null || isNaN(v) ? null : v < OTR_CAUTION ? 0 : v < OTR_HIGH ? 1 : 2);
+
 function renderKPIs(rows) {
   const r = rows[rows.length - 1];
   const prev = rows.length > 1 ? rows[rows.length - 2] : null;
@@ -609,7 +625,7 @@ function renderKPIs(rows) {
       label: 'Overtrain Risk',
       val: r.d_otr_sat ? '500+' : r.d_otr != null && !isNaN(r.d_otr) ? r.d_otr.toFixed(0) : undefined,
       sub: 'SNS/PSNS load',
-      color: kgrade(r.d_otr, (x) => (x < 50 ? 'good' : x < 150 ? 'warn' : 'bad')),
+      color: kgrade(r.d_otr, (x) => ['good', 'warn', 'bad'][otrRank(x)]),
       delta: null,
       unit: '',
       inverse: true
@@ -1088,12 +1104,12 @@ function renderAllCharts(rows, sm) {
       label: 'OTR Index (capped 500)',
       data: Sf((r) => r.d_otr),
       borderColor: rgba('orange', 1),
-      backgroundColor: rows.map((r) => (r.d_otr > 15 ? rgba('red', 0.2) : rgba('orange', 0.1))),
+      backgroundColor: rows.map((r) => (otrRank(r.d_otr) === 2 ? rgba('red', 0.2) : rgba('orange', 0.1))),
       fill: true,
       pointBackgroundColor: rows.map((r) => (r.d_otr_sat ? rgba('red', 1) : rgba('orange', 1))),
       pointRadius: rows.map((r) => (r.d_otr_sat ? 6 : 2))
     },
-    { label: 'Caution (15)', data: rows.map(() => 15), borderColor: rgba('red', 0.4), borderDash: [4, 2], pointRadius: 0 },
+    { label: `Caution (${OTR_HIGH})`, data: rows.map(() => OTR_HIGH), borderColor: rgba('red', 0.4), borderDash: [4, 2], pointRadius: 0 },
     { label: 'Saturated (500)', data: rows.map(() => 500), borderColor: rgba('red', 0.2), borderDash: [2, 4], pointRadius: 0 }
   ]);
   mkChart('ch_rmssd_circ', labs, [
@@ -1578,7 +1594,7 @@ const TABLE_COLS = [
   { key: 'd_crs', label: 'Resilience', fmt: (v) => fmt4(v) },
   { key: 'd_sfd', label: 'Stress-Focus Δ', fmt: (v) => fmt1(v) },
   { key: 'd_focus_eff', label: 'Focus Eff', fmt: (v) => fmt3(v) },
-  { key: 'd_otr', label: 'OTR Index', fmt: (v) => fmt1(v), color: (v) => (v < 5 ? 'green' : v < 15 ? 'yellow' : 'red') },
+  { key: 'd_otr', label: 'OTR Index', fmt: (v) => fmt1(v), color: (v) => ['green', 'yellow', 'red'][otrRank(v)] },
   { key: 'd_rmssd_circ', label: 'rMSSD Circ.Adj', fmt: (v) => fmt1(v) + 'ms' },
   { key: 'd_nn50', label: 'NN50 est.', fmt: (v) => fmt0(v) },
   /* d_auto_age (Auto Age) row REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴) */
