@@ -80,6 +80,18 @@ node picks on pulse-band SNR and then moves that pick with `harmonicOutlierRefId
 the shipped rule can move every σ in this table. The Rayleigh column names no producing artifact in
 the tree, and I did not identify one.
 
+**The Rayleigh column has no producing artifact (searched 2026-11-23, Heron, rig).** I searched every
+tracked `*.js`, `*.mjs` and `*.py` outside `node_modules` for `rayleigh`, and again for `resultant`,
+`concentration`, `lag phase` and `phase lock`. Nothing computes a per-night Rayleigh R of the PAT lag
+phase. Three artifacts compute a mean resultant length for a different quantity.
+
+`tools/circular-stats.mjs` gives `rayleighP(n, rBar)`, and its one consumer
+`tools/integrator-block-precision.mjs` reads per-block offset scatter. `capture-host/nightqc.py` scans
+arrival times for a BLE link period. `integrator-dsp.js` reports `wrappedConcentration`, which says
+whether the unwrap blocks agree on one phase. `pat-feasibility-worker.js` carries no circular math, so
+the σ column and the R column share no producer. Read the R column as a one-session number with no
+artifact behind it. Any surface that cites it owes a fresh computation.
+
 ⚠️ **Status of these six rows: ONE session, not gate-backed.** They are the reason the old verdict is
 withdrawn, not yet the reason to publish a new one. What is solidly established is the *negative*: the
 ~90 ms figure was measured through a broken axis, a mis-read rate and a fixed window, so it does not
