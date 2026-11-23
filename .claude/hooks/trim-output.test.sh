@@ -151,6 +151,11 @@ echo "── the hatch ───────────────────
 got="$(CLAUDE_ALLOW_UNTRIMMED=1 hook "$(payload 'seq 1 500')")"
 if [ "$got" = PASS ]; then echo "  ok    CLAUDE_ALLOW_UNTRIMMED=1 in the environment       PASS"
 else echo "  FAIL  the environment hatch did not release the hook: $got"; fail=$((fail+1)); fi
+# The INLINE hatch, and the stack. The pattern read only the first assignment after a separator, so a
+# hatch behind another one had no spelling. Pre-fix the stacked leg read WRAP.
+expect PASS 'the inline hatch in command position'      'CLAUDE_ALLOW_UNTRIMMED=1 seq 1 500'
+expect PASS 'the hatch STACKED behind another'          'CLAUDE_ALLOW_BLANKET_GIT=1 CLAUDE_ALLOW_UNTRIMMED=1 seq 1 500'
+expect WRAP 'the hatch merely NAMED is data'            'echo CLAUDE_ALLOW_UNTRIMMED=1; seq 1 500'
 
 # ⚠ THE HOOK MUST DRAIN STDIN BEFORE IT EXITS, AND THE HATCH IS THE PATH THAT DID NOT.
 # The hatch sat above the read, so it exited on a payload it had never consumed and left

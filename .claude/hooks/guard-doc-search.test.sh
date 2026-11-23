@@ -161,6 +161,15 @@ rm -f "$STATE/doc-search-sessions/$SID"
 check ALLOW "$(run_cmd 'echo "the commit message says git commit"' "$REPO")" "the words in PROSE (echo) are not a commit"
 check ALLOW "$(run_cmd 'git log --grep commit' "$REPO")"                    "…nor an argument to another git verb"
 check ALLOW "$(run_cmd 'CLAUDE_ALLOW_NO_DOC_SEARCH=1 git commit -m x' "$REPO")" "the inline hatch on the command line ⇒ allow"
+# THE STACK, AND THE HOLE THE DATA-POSITION MATCH LEFT. Until 2026-11-23 this hook read the hatch as
+# `(^|[[:space:]])VAR=1([[:space:]]|$)`, which is DATA position: prose in a commit message, or the
+# variable as a grep ARGUMENT, released the guard. The three sibling hooks read command position
+# instead, but only the FIRST assignment after a separator, so a hatch stacked behind another one had
+# no spelling at all. One shape fixes both. Measured: all three legs below read the WRONG verdict
+# against the pre-fix pattern — the first DENY, the two others ALLOW.
+check ALLOW "$(run_cmd 'CLAUDE_ALLOW_BLANKET_GIT=1 CLAUDE_ALLOW_NO_DOC_SEARCH=1 git commit -m x' "$REPO")" "the hatch STACKED behind another assignment ⇒ allow"
+check DENY  "$(run_cmd 'git commit -m "set CLAUDE_ALLOW_NO_DOC_SEARCH=1 to override"' "$REPO")" "the hatch merely NAMED in a message is data ⇒ deny"
+check DENY  "$(run_cmd 'grep -rn CLAUDE_ALLOW_NO_DOC_SEARCH=1 .claude/hooks && git commit -m x' "$REPO")" "…nor as a grep ARGUMENT ⇒ deny"
 : > "$STATE/doc-search-sessions/$SID"
 check ALLOW "$(run_cmd 'git commit -m x' "$REPO")"                          "…stamped ⇒ the same commit is allowed"
 touch -d '4 hours ago' "$STATE/doc-search-sessions/$SID"

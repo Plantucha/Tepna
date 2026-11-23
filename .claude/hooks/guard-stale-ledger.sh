@@ -91,7 +91,7 @@ f="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // .tool_input.path /
 # The inline half of the hatch. COMMAND POSITION only — start of the command or straight after a
 # `;`/`&&`/`||`/`|`/newline — so a bare occurrence in an echo, a grep pattern or a heredoc line
 # cannot release the guard. Quoting the variable's name in prose must not switch it off.
-printf '%s' "${cmd:-}" | grep -qE '(^|[;&|])[[:space:]]*CLAUDE_ALLOW_STALE_LEDGER=1[[:space:]]' && exit 0
+printf '%s' "${cmd:-}" | grep -qE '(^|[;&|])[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*CLAUDE_ALLOW_STALE_LEDGER=1[[:space:]]' && exit 0
 
 LEDGER='briefs/RESIDUE.md'
 

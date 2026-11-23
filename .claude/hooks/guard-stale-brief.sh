@@ -103,7 +103,7 @@ cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null
 # One line and guarded: a bare `exit 0` on its own line is the dead-code shape this hook's own
 # self-test refuses, because one of those short-circuits the guard into a no-op while every
 # behavioural leg still reads green.
-printf '%s' "${cmd:-}" | grep -qE '(^|[;&|])[[:space:]]*CLAUDE_ALLOW_STALE_BRIEF=1[[:space:]]' && exit 0
+printf '%s' "${cmd:-}" | grep -qE '(^|[;&|])[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*CLAUDE_ALLOW_STALE_BRIEF=1[[:space:]]' && exit 0
 
 # ── RESOLVE THE REPOSITORY FROM THE EDITED FILE, NOT FROM THE HOOK'S CWD ───────
 #    A PreToolUse hook runs with cwd = $CLAUDE_PROJECT_DIR (the shared root). CLAUDE.md §👥.1
