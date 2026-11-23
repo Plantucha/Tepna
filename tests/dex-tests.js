@@ -48153,16 +48153,19 @@
      `night.therapyHours` sums each session's `durMin`, and the full-set constructor sets `durMin`
      from the WALL span ("WALL duration (for off-mask gap math)"). The pooled MASK-ON figure lives
      in `night.metrics.usageHours`, which the registry defines as "Total mask-on hours
-     (pressure > 0)". Nine readers took the envelope: the night card's `usageHours` tile and its
+     (pressure > 0)". Eleven readers took the envelope: the night card's `usageHours` tile and its
      grade, the hero's Usage subscore, the CMS adherence chip, the history rows, review mode's
      tile, `buildLongitudinal`'s ratio and 7 d trend, and `cpapdex-cross.js`'s metric getter,
      night weight and `compliancePct`. A night whose mask came off for five hours inside a 7.5 h
-     recording therefore read as compliant. Row
+     recording therefore read as compliant. Hunt-record R-8 found the last two, both in
+     `cpapdex-fusion.js` and both outside the file set the source scan below used to read: the deep
+     metrics table's `usageHours` row, and the export's `lowUsage` flag. Row
      `2026-11-07-the-cpap-usage-kpi-draws-the-recording-envelope-under-the-mask-on-label`. */
-    group('CPAPDex usage — the mask-on label draws mask-on hours, never the recording envelope', 'cpapdex-dsp · cpapdex-cross · cpapdex-render · absence', function (T) {
+    group('CPAPDex usage — the mask-on label draws mask-on hours, never the recording envelope', 'cpapdex-dsp · cpapdex-cross · cpapdex-render · cpapdex-fusion · absence', function (T) {
       var D = env.CpapDsp || env.CPAPDSP;
       var CP = env.CPAPCross;
       var CR = env.CpapRender;
+      var F = env.CpapFusion;
       if (!D || typeof D.buildLongitudinal !== 'function') {
         T.skip('CpapDsp.buildLongitudinal', 'CPAPDex not co-loaded in this runner');
         return;
@@ -48175,6 +48178,16 @@
       };
       var worn = function (t0) {
         return { t0Ms: t0, therapyHours: 7.5, nSessions: 1, metrics: { residualAHI: 3, largeLeakPct: 2, usageHours: 6.5 }, sessions: [{}] };
+      };
+
+      /* A night the DSP could not measure at all: a metrics block with no `usageHours`, and the
+         DSP's own reason token beside it. Its envelope stands at the same 7.5 h. */
+      var blankNight = function (t0) {
+        return { t0Ms: t0, therapyHours: 7.5, nSessions: 1, metrics: { residualAHI: 3, largeLeakPct: 2, usageReason: 'no-pressure-channel' }, sessions: [{}] };
+      };
+      /* 1.5 h of mask-on inside the same envelope — under 2 h on mask-on, over it on the envelope. */
+      var lowNight = function (t0) {
+        return { t0Ms: t0, therapyHours: 7.5, nSessions: 1, metrics: { residualAHI: 3, largeLeakPct: 2, usageHours: 1.5 }, sessions: [{}] };
       };
       var T0 = Date.UTC(2026, 0, 1, 22, 0, 0);
 
@@ -48267,9 +48280,45 @@
         T.skip('CpapRender.cpapClinicalSummary', 'cpapdex-render.js not co-loaded in this runner');
       }
 
-      /* 7 · source legs — the coercion may not come back anywhere. */
+      /* 7 · the DEEP METRICS TABLE and the export's low-usage flag — both in `cpapdex-fusion.js`,
+         and both found after the nine above. The table row carries the registry id `usageHours`, so
+         its badge cites "Total mask-on hours (pressure > 0)" while the value and the ≥ 4 h CMS grade
+         read the envelope. Both sites now call the same resolver the three files above use. */
+      if (F && typeof F.cpapFullMetricsTable === 'function') {
+        var tabOff = F.cpapFullMetricsTable(offMask(T0));
+        var tabWorn = F.cpapFullMetricsTable(worn(T0));
+        T.ok('the deep table draws the 2.5 h the mask was ON', /class="fmt-v">2\.50</.test(tabOff), 'it drew the 7.5 h envelope');
+        T.eq('no cell in that table reads 7.50 as the usage VALUE', (tabOff.match(/class="fmt-v">7\.50</g) || []).length, 0);
+        T.ok('the 4 h CMS grade follows the mask-on figure', /2\.50<\/td><td>hr<\/td><td>≥4<\/td><td><span class="pill pill-yellow">/.test(tabOff), 'the envelope graded it OK');
+        T.ok('CONTROL · the worn night draws 6.50 h and keeps its OK', /6\.50<\/td><td>hr<\/td><td>≥4<\/td><td><span class="pill pill-green">/.test(tabWorn));
+        T.ok('both tables still state the envelope, under a recording label', /7\.50 h recorded/.test(tabOff) && /7\.50 h recorded/.test(tabWorn));
+        /* ∅ A night whose mask-on time went unmeasured refuses the value and names the DSP's own
+           reason token. The envelope stays in the note, where it is labelled as a recording. */
+        var tabBlank = F.cpapFullMetricsTable(blankNight(T0));
+        /* The value CELL of the usage row, not any dash in the table — a dozen unmeasured rows print
+           one, so a bare dash test passes whatever this row draws. */
+        T.ok('∅ a night that measured no mask-on time refuses the value', /class="fmt-v">—<\/td><td>hr<\/td><td>≥4</.test(tabBlank), 'the usage row drew a figure');
+        T.ok('∅ …and the note carries the reason the DSP recorded', /mask-on unmeasured · no-pressure-channel/.test(tabBlank), 'a borrowed reason is not this one');
+        T.eq('∅ nothing promotes the envelope into that empty cell', (tabBlank.match(/class="fmt-v">7\.50</g) || []).length, 0);
+      } else {
+        T.skip('CpapFusion.cpapFullMetricsTable', 'cpapdex-fusion.js not co-loaded in this runner');
+      }
+
+      /* The export's `lowUsage` flag graded the same wrong quantity, and it answered `false` over an
+         absence — a determinate answer manufactured from nothing measured. The flag has one site in
+         the tree, its own writer, so these three legs are its only coverage. */
+      if (F && typeof F.cpapBuildExport === 'function') {
+        var qLow = F.cpapBuildExport(lowNight(T0)).quality;
+        T.eq('a mask worn 1.5 h inside a 7.5 h recording IS low usage', qLow.lowUsage, true, 'the envelope answered false');
+        T.eq('CONTROL · a 6.5 h mask-on night is not low usage', F.cpapBuildExport(worn(T0)).quality.lowUsage, false);
+        T.eq('∅ a night with no mask-on figure answers null, never false', F.cpapBuildExport(blankNight(T0)).quality.lowUsage, null, 'false grades an absence');
+      } else {
+        T.skip('CpapFusion.cpapBuildExport', 'cpapdex-fusion.js not co-loaded in this runner');
+      }
+
+      /* 8 · source legs — the coercion may not come back anywhere. */
       var _srcs = env.sources || {};
-      ['cpapdex-dsp.js', 'cpapdex-cross.js', 'cpapdex-render.js'].forEach(function (f) {
+      ['cpapdex-dsp.js', 'cpapdex-cross.js', 'cpapdex-render.js', 'cpapdex-fusion.js'].forEach(function (f) {
         var s = _srcs[f] || '';
         if (!s) {
           T.skip('env.sources["' + f + '"]', 'source text not exposed in this runner');
@@ -48291,7 +48340,40 @@
         );
       });
 
-      /* 8 · anti-vacuity — the two fixtures really do straddle the line. */
+      /* The file SET was the second blind spot: the scan named three files, and the fourth mixer
+         was never in it, so a lone fixed sibling left half of one bug on main. Derive the set from
+         the runner's own curated sources instead of naming it. */
+      var _mixers = Object.keys(_srcs)
+        .filter(function (k) {
+          var t = _srcs[k] || '';
+          return /usageHours/.test(t) && /therapyHours/.test(t);
+        })
+        .sort()
+        .join(' ');
+      T.eq(
+        'exactly four curated sources mix mask-on hours with the recording envelope',
+        _mixers,
+        'cpapdex-cross.js cpapdex-dsp.js cpapdex-fusion.js cpapdex-render.js',
+        'a new mixer owes its own legs here'
+      );
+
+      /* Fusion's two call sites, pinned by shape. The envelope keeps exactly one formatter, and it
+         sits under its own `h recorded` label — a bare envelope value would break the equality. */
+      var _fus = _srcs['cpapdex-fusion.js'] || '';
+      if (!_fus) {
+        T.skip('env.sources["cpapdex-fusion.js"]', 'source text not exposed in this runner');
+      } else {
+        T.eq('fusion · the usage row draws the resolver', (_fus.match(/_fmt\(usageH, 2\)/g) || []).length, 1);
+        T.eq('fusion · …and grades the same figure', (_fus.match(/_sev\(4, 2, usageH\)/g) || []).length, 1);
+        T.eq('fusion · the low-usage flag thresholds the resolver', (_fus.match(/lowUsage: usageH == null \? null : usageH < 2/g) || []).length, 1);
+        T.eq(
+          'fusion · every envelope formatter sits under its own recorded label',
+          (_fus.match(/_fmt\(night\.therapyHours, 2\) \+ ' h recorded'/g) || []).length,
+          (_fus.match(/_fmt\(night\.therapyHours, 2\)/g) || []).length
+        );
+      }
+
+      /* 9 · anti-vacuity — the two fixtures really do straddle the line. */
       T.ok(
         'ANTI-VACUITY · the fixture pair straddles the 4 h line on mask-on and agrees on the envelope',
         offMask(T0).metrics.usageHours < 4 && worn(T0).metrics.usageHours >= 4 && offMask(T0).therapyHours === worn(T0).therapyHours
