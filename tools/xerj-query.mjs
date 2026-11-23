@@ -552,6 +552,11 @@ export async function selftest() {
   const briefOut = render({ hits: one, refused: false }, 'q', { brief: true });
   ok(briefOut.includes('a.js:3-9') && !briefOut.includes('long passage'), '--brief prints the hit line without its passage');
   ok(render({ hits: one, refused: false }, 'q').includes('long passage'), 'CONTROL: without --brief the passage prints');
+  ok(capPassage('x'.repeat(1000)).length === PASSAGE_CHARS + 2 && capPassage('x'.repeat(1000)).endsWith(' …'), 'a long passage is cut to the cap and marked');
+  ok(capPassage('short  text\n here') === 'short text here', 'CONTROL: a short passage prints whole, on one line');
+  ok(!render({ hits: [{ score: 0.03, path: 'a.js', where: '', text: 'w '.repeat(2000) }], refused: false }, 'q').includes('w '.repeat(300)), 'render prints the capped passage');
+  const refusedMany = render({ hits: ['a', 'b', 'c', 'd'].map((x) => ({ score: 0.01, path: `${x}.md`, where: '', text: 'p' })), refused: true, signals: { rerank: 0.05 } }, 'q');
+  ok(refusedMany.includes('a.md · b.md · c.md') && !refusedMany.includes('d.md'), 'a refusal names at most three nearest paths, on one line');
 
   // 6 · LOOPBACK ONLY.
   ok(isLoopback('http://127.0.0.1:9200'), 'loopback is accepted');
@@ -771,6 +776,17 @@ export async function selftest() {
   return { ok: fail.length === 0, ran, fail, line };
 }
 
+/* THE PASSAGE CAP (memory program, 2026-11-22). Measured over 6,537 doc-search calls in 7 days:
+   the five full passages were most of each answer (one default search printed 5,631 bytes). The
+   path and line range are the address; the first PASSAGE_CHARS characters say whether to open it. */
+export const PASSAGE_CHARS = 400;
+export function capPassage(text, n = PASSAGE_CHARS) {
+  const t = String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return t.length <= n ? t : `${t.slice(0, n).trimEnd()} …`;
+}
+
 /* `brief`: one line per hit, without the passage (`doc-search --brief`). The path is the answer's
    address; the reader opens it. A refusal prints the same in both modes. */
 export function render(out, query, { brief = false } = {}) {
@@ -781,8 +797,16 @@ export function render(out, query, { brief = false } = {}) {
     const { cos, bm25, rerank } = out.signals;
     if (Number.isFinite(rerank)) lines.push(`  no prior work — the reranker's best score ${rerank.toFixed(3)} is below the floor ${REFUSE_RERANK}.`);
     else lines.push(`  no prior work — both halves are below the refusal floor: cosine ${cos.toFixed(3)} < ${REFUSE_COS}, BM25 ${bm25.toFixed(1)} < ${REFUSE_BM25}.`);
-    lines.push('  The paths below are the weak best guesses, for reference only, not evidence:', '');
-    for (const h of out.hits) lines.push(`    ${h.path}${h.where}`);
+    /* One line of nearest paths, never their passages: a weak hit read in full is the cost the
+       refusal exists to save (memory program, 2026-11-22: below the floor, a path was used next
+       far less often than above it). */
+    if (out.hits.length)
+      lines.push(
+        `  nearest (weak, not evidence): ${out.hits
+          .slice(0, 3)
+          .map((h) => `${h.path}${h.where}`)
+          .join(' · ')}`
+      );
     return lines.join('\n');
   }
   if (Number.isFinite(out.signals?.rerank)) lines.push(`  reranker best score ${out.signals.rerank.toFixed(3)} (floor ${REFUSE_RERANK}; the order below is the fused one)`, '');
@@ -797,7 +821,7 @@ export function render(out, query, { brief = false } = {}) {
   for (const h of out.hits) {
     lines.push(`  ${h.score.toFixed(3)}  ${h.path}${h.where}`);
     if (brief) continue;
-    lines.push(`        ${h.text}`);
+    lines.push(`        ${capPassage(h.text)}`);
     lines.push('');
   }
   return lines.join('\n');
