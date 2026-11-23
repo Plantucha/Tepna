@@ -364,18 +364,29 @@ export function classify(pr, required, nowMs, opts = {}) {
        while the walker logged it `ready green, behind main` with `actions: none` behind two older PRs.
        The header above calls arming under `strict` a DEADLOCK — so this rung printed the one remedy
        this same file argues against, and `--report` exited 1 over a healthy queue.
-       The flag is the CALLER's measurement (config + merge-bot liveness), never a guess here: only an
-       explicit `true` reclassifies, so an unread probe keeps the pre-Kodiak verdict. */
+       The flag is the CALLER's measurement (WHO LAST MERGED, never a config file), and never a guess
+       here: only an explicit `true` reclassifies, so an unread probe keeps the pre-bot verdict. */
     if (!pr.autoMerge) {
-      if (opts.kodiakOwnsDrain === true) {
-        return { k: 'serialising', why: "green + BEHIND + unarmed — Kodiak updates the front of its serial queue in turn, so unarmed is that queue's normal state", idleMin };
+      if (opts.botOwnsDrain === true) {
+        return { k: 'serialising', why: "green + BEHIND + unarmed — the merge bot updates the front of its serial queue in turn, so unarmed is that queue's normal state", idleMin };
       }
       return { k: 'stuck-unarmed', why: 'green + BEHIND but auto-merge NOT armed — updating cannot land it', idleMin };
     }
     return { k: 'stuck-behind', why: `green + BEHIND + armed, idle ${idleMin.toFixed(0)}m`, idleMin };
   }
   if (pr.mergeState === 'UNKNOWN') return { k: 'computing', why: 'GitHub still computing mergeability' };
-  if (!pr.autoMerge) return { k: 'stuck-unarmed', why: 'green and mergeable but auto-merge NOT armed', idleMin };
+  /* 🔴 THE SAME GUARD BELONGS HERE. Until 2026-11-23 this rung carried no flag, so a green CURRENT
+     unarmed PR read `stuck-unarmed` under a live merge bot — the exact population the rung above
+     exists to spare. Measured 2026-11-23: at 10:54:51Z the report named four such PRs and asked for a
+     person; three merged at 10:56:52–10:57:00Z with `mergedBy=app/mergify` and no human action, and
+     the fourth merged at 11:05:37Z. Arming one of them is worse than a no-op, because GitHub's own
+     auto-merge bypasses the speculative-merge checks the queue runs on its own branch. */
+  if (!pr.autoMerge) {
+    if (opts.botOwnsDrain === true) {
+      return { k: 'serialising', why: "green and mergeable but unarmed — a merge bot drains this repo, and unarmed is that queue's normal state", idleMin };
+    }
+    return { k: 'stuck-unarmed', why: 'green and mergeable but auto-merge NOT armed', idleMin };
+  }
   return { k: 'ready', why: 'green and current — auto-merge should take it' };
 }
 
@@ -413,6 +424,29 @@ export function attention(classified) {
  * @param {unknown} tomlText
  * @returns {boolean}
  */
+/* A login that belongs to an App, not a person. GitHub reports an App merger as `app/<slug>`, and the
+   older bot accounts carry a `[bot]` suffix, so both spellings read as a bot here. */
+export const BOT_MERGER = /^app\/|\[bot\]$|kodiak|mergify/i;
+
+/**
+ * Does a BOT drain this repo, read from who last merged? ∅: nothing readable returns `null`, never
+ * `false`, because `false` is the claim "a human merges here".
+ * 🔴 This replaced a probe keyed on `.kodiak.toml` (2026-11-23). Mergify replaced Kodiak on
+ * 2026-11-18 and that file left main, so the old probe's `readFileSync` catch returned `false` and
+ * the tool asserted a human merger over a repo that four bot merges had just drained. An absent
+ * config file stops being evidence the moment a second implementation exists; the merger does not.
+ * One bot login among the recent merges is enough, because `tools/land-pr.mjs` lands a PR under a
+ * person's own account, so a human login beside a bot's does not mean the bot stopped draining.
+ * @param {Array<{mergedBy?: {login?: string}}>} rows  newest merges first
+ * @returns {boolean|null}
+ */
+export function drainOwnerFrom(rows) {
+  if (!Array.isArray(rows)) return null;
+  const logins = rows.map((r) => (r && r.mergedBy && typeof r.mergedBy.login === 'string' ? r.mergedBy.login : '')).filter((s) => s !== '');
+  if (logins.length === 0) return null;
+  return logins.some((l) => BOT_MERGER.test(l));
+}
+
 export function kodiakConfigSaysUnarmed(tomlText) {
   if (typeof tomlText !== 'string') return false;
   return /^[^#\n]*require_automerge_label\s*=\s*false\b/m.test(tomlText);
@@ -525,25 +559,23 @@ const gh = (a) => execFileSync('gh', a, { encoding: 'utf8', maxBuffer: 32 * 1024
 const git = (a) => execFileSync('git', a, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, timeout: 120000, stdio: ['ignore', 'pipe', 'pipe'] });
 
 /**
- * Is Kodiak the merger HERE — measured, not assumed? `.kodiak.toml` is INERT until the owner installs
- * the App, so the config alone proves nothing and the last merge names the merger.
- * ∅: a probe that did not read returns `null`, never `false` — `false` would read as "a human merges
- * here", which is the claim this function exists to stop guessing.
+ * Does a merge bot drain this repo — measured, not assumed? The decision reads the MERGER of the
+ * recent merges, so it survives a bot swap. A Kodiak config is a weaker second signal, and it speaks
+ * only when the merger did not read: the config is INERT until the owner installs the App.
+ * ∅: a probe that did not read returns `null`, never `false`.
  * @returns {boolean|null}
  */
-function kodiakOwnsDrain() {
-  let cfg = null;
+function botOwnsDrain() {
+  let byMerger = null;
   try {
-    cfg = readFileSync(join(git(['rev-parse', '--show-toplevel']).trim(), '.kodiak.toml'), 'utf8');
+    byMerger = drainOwnerFrom(JSON.parse(gh(['pr', 'list', '--state', 'merged', '--limit', '5', '--json', 'mergedBy'])));
   } catch {
-    return false;
+    byMerger = null;
   }
-  if (!kodiakConfigSaysUnarmed(cfg)) return false;
+  if (byMerger !== null) return byMerger;
   try {
-    const rows = JSON.parse(gh(['pr', 'list', '--state', 'merged', '--limit', '1', '--json', 'mergedBy']));
-    const login = Array.isArray(rows) && rows[0] && rows[0].mergedBy ? rows[0].mergedBy.login : null;
-    if (typeof login !== 'string' || login === '') return null;
-    return /kodiak/i.test(login);
+    const cfg = readFileSync(join(git(['rev-parse', '--show-toplevel']).trim(), '.kodiak.toml'), 'utf8');
+    return kodiakConfigSaysUnarmed(cfg) ? true : null;
   } catch {
     return null;
   }
@@ -746,8 +778,8 @@ function main() {
   }
   const unreadable = prs.filter((p) => !p.readable);
   const now = Date.now();
-  const kodiak = kodiakOwnsDrain();
-  const classified = prs.filter((p) => p.readable).map((p) => ({ pr: p, ...classify(p, required, now, { kodiakOwnsDrain: kodiak }) }));
+  const botDrains = botOwnsDrain();
+  const classified = prs.filter((p) => p.readable).map((p) => ({ pr: p, ...classify(p, required, now, { botOwnsDrain: botDrains }) }));
 
   const { stuck, failing, cancelled, wedged, dirty, unexpanded } = attention(classified);
   const stamp = new Date(now).toISOString().slice(11, 19);
@@ -765,7 +797,7 @@ function main() {
      sits outside `attention()` so `--report` does not exit 1 over Kodiak doing its job. */
   const serialising = classified.filter((c) => c.k === 'serialising');
   if (serialising.length) {
-    console.log(`${stamp}  ↻ SERIALISING: ${serialising.length} PR(s) green + BEHIND + unarmed while Kodiak drains its queue — information, not attention`);
+    console.log(`${stamp}  ↻ SERIALISING: ${serialising.length} PR(s) green + unarmed while the merge bot drains its queue — information, not attention`);
     for (const c of serialising) console.log(`    #${c.pr.number}  ${c.why}  — ${c.pr.title.slice(0, 52)}`);
   }
   /* A RED PR IS NOT AN IDLE QUEUE. classify() says so (`failing`); the report must too. */
@@ -835,16 +867,16 @@ function main() {
 
   const unarmed = stuck.filter((c) => c.k === 'stuck-unarmed');
   if (unarmed.length) {
-    /* THE REMEDY FOLLOWS THE MERGER. Under a live Kodiak, arming adds nothing (CLAUDE.md §5) and the
-       question is the bot's queue; with no bot, arming is the pre-Kodiak path this tool was built for;
-       with the probe unread, the tool says it could not look rather than picking one. */
-    if (kodiak === true) {
+    /* THE REMEDY FOLLOWS THE MERGER. Under a live merge bot, arming adds nothing (CLAUDE.md §5) and
+       the question is the bot's queue; with no bot, arming is the hand-run path this tool was built
+       for; with the probe unread, the tool says it could not look rather than picking one. */
+    if (botDrains === true) {
       console.log(
-        `    → ${unarmed.length} green and unarmed while the merge bot is LIVE: Kodiak merges unarmed PRs, so arming adds nothing — read its queue instead (\`gh pr list --state merged --limit 1 --json mergedBy\`).`
+        `    → ${unarmed.length} green and unarmed while a merge bot is LIVE: the bot merges unarmed PRs, so arming adds nothing — read its queue instead (\`gh pr list --state merged --limit 5 --json mergedBy\`).`
       );
-    } else if (kodiak === null) {
+    } else if (botDrains === null) {
       console.log(
-        `    → ${unarmed.length} unarmed, and the merge-bot probe did NOT read: if Kodiak is installed, arming adds nothing (CLAUDE.md §5) — probe it with \`gh pr list --state merged --limit 1 --json mergedBy\`.`
+        `    → ${unarmed.length} unarmed, and the merge-bot probe did NOT read: if a merge bot is installed, arming adds nothing (CLAUDE.md §5) — probe it with \`gh pr list --state merged --limit 5 --json mergedBy\`.`
       );
     } else {
       console.log(`    → ${unarmed.length} need a human: arm auto-merge (\`gh pr merge <N> --auto --squash\`); updating cannot land them.`);
