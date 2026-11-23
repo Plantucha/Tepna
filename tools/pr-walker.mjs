@@ -51,6 +51,9 @@
  * 5337). Under `queueBot === 'none'`, a green non-draft PR whose `Mergify Merge Queue` check run reads
  * `Dequeued` or `Checks aborted` gets one `@mergifyio queue` comment per head SHA. A second dequeue
  * of the same head is an alert, because a coder owns a head that fails the batch twice.
+ * A WALKER REGEN PR HAS NO CODER, so it gets `REGEN_REQUEUES_PER_HEAD` requeues per head before the
+ * alert (residue `2026-11-23-a-dequeued-regen-pr-has-no-coder-to-requeue-it`). A batch failure on a
+ * regen PR is usually another PR's red, and every build output waits behind the one open regen PR.
  * A MERGE-QUEUE BRANCH IS NOT A PR TO WALK. Mergify tests a batch on a draft PR whose head starts
  * with `QUEUE_BRANCH_PREFIX`. Readying it, rebasing it or merging it would take the batch from the
  * queue, so `plan()` drops it before it counts the pool.
@@ -215,6 +218,9 @@ export function runIdOf(link) {
           absent or unreadable value keeps the old behaviour */
 /* One rebase per head SHA; a head that already stopped once is a coder's, named by the step. */
 /* The title of the `Mergify Merge Queue` check run says that Mergify threw the PR out of the queue. */
+/* Requeues per head for a walker regen PR. A coder's PR gets one; see the header. */
+export const REGEN_REQUEUES_PER_HEAD = 3;
+
 export function mergifyDequeued(title) {
   return /^(Dequeued|Checks aborted)\b/.test(String(title || ''));
 }
@@ -298,7 +304,16 @@ export function plan(classified, state, ctx) {
       if (!kodiakRuns) {
         if (ctx.queueBot === 'none' && mergifyDequeued(r.queueTitle)) {
           const n = (state.requeued || {})[r.headSha] || 0;
-          if (n < 1) actions.push({ op: 'requeue', number: r.number, headSha: r.headSha, why: `green, Mergify reads "${r.queueTitle}"` });
+          const regen = String(r.branch || '').startsWith(REGEN_BRANCH_PREFIX);
+          const cap = regen ? REGEN_REQUEUES_PER_HEAD : 1;
+          if (n < cap)
+            actions.push({ op: 'requeue', number: r.number, headSha: r.headSha, why: `green, Mergify reads "${r.queueTitle}"${regen ? ` (walker regen PR, requeue ${n + 1} of ${cap})` : ''}` });
+          else if (regen)
+            alerts.push({
+              number: r.number,
+              kind: 'dequeued',
+              why: `Mergify dequeued walker regen head ${String(r.headSha).slice(0, 9)} ${cap + 1} times — no coder owns it; close it and the walker builds the next main`
+            });
           else alerts.push({ number: r.number, kind: 'dequeued', why: `Mergify dequeued head ${String(r.headSha).slice(0, 9)} again after a requeue — a coder owns it` });
         }
         continue;

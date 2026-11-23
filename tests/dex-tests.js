@@ -66740,6 +66740,19 @@
       rq[SHA] = 1;
       T.eq('one requeue per head: a second dequeue of the same head plans nothing', ops(pl([deq], ST({ requeued: rq }), QCTX('none'))), '');
       T.eq('a second dequeue of the same head is an alert', kinds(pl([deq], ST({ requeued: rq }), QCTX('none'))), 'dequeued:50');
+      /* A walker regen PR has no coder to read that alert (residue
+         `2026-11-23-a-dequeued-regen-pr-has-no-coder-to-requeue-it`), so it gets three requeues per head. */
+      var rgn = cl(P({ number: 53, isDraft: false, queueTitle: 'Dequeued — checks failed', branch: 'claude/regen-walker-48115944f-abcde' }), REQ);
+      T.eq('a dequeued regen PR is requeued after its first requeue', ops(pl([rgn], ST({ requeued: rq }), QCTX('none'))), 'requeue:53');
+      T.eq('a dequeued regen PR raises no alert while it has requeues left', kinds(pl([rgn], ST({ requeued: rq }), QCTX('none'))), '');
+      var rq2 = {};
+      rq2[SHA] = 2;
+      T.eq('a regen PR still gets its third requeue', ops(pl([rgn], ST({ requeued: rq2 }), QCTX('none'))), 'requeue:53');
+      var rq3 = {};
+      rq3[SHA] = 3;
+      T.eq('a regen PR past three requeues of one head plans nothing', ops(pl([rgn], ST({ requeued: rq3 }), QCTX('none'))), '');
+      T.eq('a regen PR past three requeues of one head is an alert', kinds(pl([rgn], ST({ requeued: rq3 }), QCTX('none'))), 'dequeued:53');
+      T.eq('the regen cap is three', env.pwRegenRequeues, 3);
       var inq = cl(P({ number: 52, isDraft: false, queueTitle: 'Running merge queue checks' }), REQ);
       T.eq('a PR the queue still holds is not requeued', ops(pl([inq], ST({}), QCTX('none'))), '');
       T.eq("queueBot 'unknown' requeues nothing — an API error fails closed", ops(pl([deq], ST({}), QCTX('unknown'))), '');
