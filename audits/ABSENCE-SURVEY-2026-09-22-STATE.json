@@ -25,8 +25,8 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 119,
-  "fixed": 166,
+  "open": 115,
+  "fixed": 170,
   "accepted-with-reason": 5
  },
  "consumerCensus": {
@@ -301,7 +301,8 @@
    "severity": "high",
    "occurrence": 0,
    "surveyLine": 5838,
-   "state": "open"
+   "state": "fixed",
+   "note": "the ACC parser now states the rate it used: `accFsSource` reads `ms-delta` when the median stamp delta measured it, and `assumed` when under six rows carried a parseable stamp. It rides on the stream itself as `_accFsSource`, so it survives `planCompanionGraft`, which moves the array and not the scalars. The three consumers that spend the rate as a TIMEBASE refuse on `assumed`: `epochMotion`, `stampEpochPositions` with the new reason `acc-rate-assumed`, and `accAnalyze`, whose card `renderACCComparison` already hides on null. The loader line names the assumption instead of printing 4 Hz as a measurement. Measured over the corpus 2026-11-24: of 1958 `_ACC` files 1410 measure the rate, 510 fall under the 120-sample floor and were refused there already, 38 are empty, and NONE both clear the floor and lack stamps, so the refusal drops no night in hand. Plant: tests/dex-tests.js, the ECGDex device-twin block leg `parseDeviceACC states an assumed rate as assumed`, the three refusal legs, and an 800-row measured control that must still answer (2026-11-24, Heron)"
   },
   {
    "key": "c2a261aa410f",
@@ -1135,7 +1136,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 2350,
-   "state": "open"
+   "state": "fixed",
+   "note": "fixed #5157 (906193003): the ACC-to-ECG placement is a named function that returns `offSec: null` with its own reason when no measurement supports it, and `epochMotion` refuses on that null rather than aligning at 0 s. The `baseOffset … : 0` clamp this finding names is gone from the file. Hand-read against origin/main 2026-11-24 (Heron); not credited by content, and not credited to this PR."
   },
   {
    "key": "8f746802f623",
@@ -1180,7 +1182,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 5853,
-   "state": "open"
+   "state": "fixed",
+   "note": "the relative per-sample axis a stampless file receives is still built from the rate, and it now names that rate: `_relBaseSource` rides beside `_relBase`, so an axis synthesised from an assumed 4 Hz is distinguishable from one spaced by a measured step. That is §∅ out-of-band validity, carried beside the stream rather than encoded in a sample value. Every consumer that reads position or motion off that axis refuses on `assumed`. Plant: tests/dex-tests.js, the leg `the synthesised relative axis names the rate it was built from` (2026-11-24, Heron)"
   },
   {
    "key": "152d39f86efd",
@@ -2423,7 +2426,8 @@
    "severity": "low",
    "occurrence": 0,
    "surveyLine": 2635,
-   "state": "open"
+   "state": "fixed",
+   "note": "fixed #5088 (d7d7f0d0a): the gait fields initialise from `accPresent`, so `steps`, `briskPct` and `cadencePresentPct` are null when the record carried no usable ACC and 0 only when a stream was there to measure. `sustainedGait`, both sub-scores and `ambulatory` all guard on `!= null`. Hand-read against origin/main 2026-11-24 (Heron); not credited by content, and not credited to this PR."
   },
   {
    "key": "cdfe1932bf24",
