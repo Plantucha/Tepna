@@ -744,6 +744,15 @@ def battery_alert_step(pct, latched: int | None) -> tuple[int | None, int | None
     return None, latched
 
 
+def battery_voltage_note(mv) -> str:
+    """PURE: the sentence a low-battery alert adds when the device also reports its cell voltage, else "".
+
+    A fuel gauge can read low while the cell still holds charge: the Muse read 1 % for 3 h 54 min before its
+    cell was empty (2026-11-22, 3.01 V). The voltage lets the reader of the alert see which one it is. No
+    threshold is set on it, because one discharge to empty is on record."""
+    return "" if mv is None else f" The cell reads {mv / 1000:.2f} V."
+
+
 def offline_alert_due(down_since: float | None, now: float, threshold_sec: float) -> bool:
     """True when a device has been continuously offline for at least `threshold_sec`. `down_since` is the
     monotonic time it first went offline (None = currently connected → never due)."""

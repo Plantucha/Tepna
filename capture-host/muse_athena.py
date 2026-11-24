@@ -39,7 +39,7 @@ TAG_EEG = 0x12
 TAG_OPTICS = 0x36
 TAG_MOTION = 0x47
 TAG_53 = 0x53  # meaning unresolved
-TAG_88 = 0x88  # battery in its first two data bytes (brief §6.4); the other 18 bytes unresolved
+TAG_88 = 0x88  # fuel gauge: percent, capacities, voltage, current, temperature (brief §6.4): see `gauge`
 TAG_BATTERY = TAG_88
 TAG_11 = 0x11  # layout INFERRED from the size only (brief §6.7): kept raw
 TAG_34 = 0x34  # 4 optical channels, 3 samples a record at 64 Hz: see `optics4`
@@ -224,6 +224,43 @@ def battery_pct(rec: Record) -> float | None:
     return int.from_bytes(rec.data[:2], "little") / 256
 
 
+@dataclass(frozen=True)
+class Gauge:
+    """The resolved fields of one 0x88 record. `remaining`, `full` and `current` are raw gauge counts: their
+    absolute scale depends on a sense resistor that is not known."""
+
+    percent: float
+    remaining: int
+    full: int
+    cell_mv: int | None  # None for a zero field: a cell at 0 V powers nothing, so that is no reading
+    current: int  # signed, negative on discharge
+    temp_c: float
+
+
+def gauge(rec: Record) -> Gauge | None:
+    """The fuel-gauge fields of a 0x88 record (brief §6.4). Little-endian 16-bit fields; bytes 6-13 stay
+    unread because their meaning is not measured.
+
+    The percent is the gauge's own estimate and it reads LOW near empty. On the night of 2026-11-21 it read
+    1 % for 3 h 54 min while the headband streamed at full rate, until the cell reached 3.01 V. The voltage is
+    the second witness: it does not depend on the capacity the gauge believes."""
+    pct = battery_pct(rec)
+    if pct is None:
+        return None
+
+    def u16(at: int, signed: bool = False) -> int:
+        return int.from_bytes(rec.data[at : at + 2], "little", signed=signed)
+
+    return Gauge(
+        percent=pct,
+        remaining=u16(2),
+        full=u16(4),
+        cell_mv=round(u16(14) * 78.125 / 1000) or None,
+        current=u16(16, signed=True),
+        temp_c=u16(18, signed=True) / 256,
+    )
+
+
 def frame_counter(pkt: bytes) -> int | None:
     """The packet counter of a notification whose frame header holds, or None. It reads the header
     only, so a packet that `tokenise` refuses for a record fault still keeps its place in the counter
@@ -287,7 +324,9 @@ STOP_SEQUENCE = ("s", "h")
 # data records each one sent and the battery fall over about 22 s (brief §6.7). The ten it refused
 # (`rc 69`) are absent, so the Devices page cannot offer them. The two presets of each pair differ in
 # a way not identified; the label says so rather than inventing a difference.
-DEFAULT_PRESET = "p1045"  # EEG + 4 optics + motion: the night candidate of brief §6.6 (drain run owed)
+DEFAULT_PRESET = (
+    "p1045"  # EEG + 4 optics + motion: the the night preset; 11 h 37 min on one charge, measured (brief §6.9)
+)
 PRESETS: dict[str, str] = {
     "p1045": "EEG + optics 0x34 + motion · 0.08–0.11 pt / 22 s (night default)",
     "p1046": "EEG + optics 0x34 + motion · 0.08–0.11 pt / 22 s (pair of p1045)",

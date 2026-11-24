@@ -54,7 +54,14 @@ def _optics4(counter, tick):
 
 
 def _battery(counter, pct256):
-    return _pkt(counter, bytes([M.TAG_BATTERY, 0, 1, 0, 0]) + pct256.to_bytes(2, "little") + bytes(18))
+    return _pkt(
+        counter,
+        bytes([M.TAG_BATTERY, 0, 1, 0, 0])
+        + pct256.to_bytes(2, "little")
+        + bytes(12)
+        + (38579).to_bytes(2, "little")
+        + bytes(4),
+    )
 
 
 def _frag(text):
@@ -134,6 +141,7 @@ def test_a_session_subscribes_starts_the_preset_records_raw_frames_and_stops(tmp
     assert c.writes == sent
     assert calls["secs"][:n_start] == [0.6, 0.6, 1.5] + [0.6] * (n_start - 3)
     st = capture.STATUS["devices"]["Muse"]
+    assert (st["battery"], st["battery_mv"]) == (72, 3014)
     assert (st["battery"], st["fw"], st["preset_active"], st["preset"]) == (72, "1.2.3", 4165, "p1045")
     assert "Muse" in capture._LAST_DATA
 

@@ -5560,9 +5560,9 @@ async def run_muse_athena(dev: dict, root: str):
                         rec_ns = [clock.ns(r.tick) for r in pkt.records]
                         first_ns, last_ns = rec_ns[0], rec_ns[-1]
                         for r, r_ns in zip(pkt.records, rec_ns, strict=True):
-                            pct = muse_athena.battery_pct(r)
-                            if pct is not None:
-                                _set(name, battery=round(pct))
+                            gauge = muse_athena.gauge(r)
+                            if gauge is not None:
+                                _set(name, battery=round(gauge.percent), battery_mv=gauge.cell_mv)
                             eeg = muse_athena.eeg_samples(r)
                             if eeg is not None:
                                 BUS.push(eeg_key, [row[:MUSE_LIVE_CHANNELS] for row in eeg], MUSE_EEG_HZ, dev_ns=r_ns)
@@ -10344,7 +10344,8 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 delivered = await notifier.send(
                     f"Tepna: {name} battery {pct} %",
                     f"{name} battery reads {pct} %. "
-                    + ("Replace or charge it before the next night." if crit else "Plan a replacement or a charge."),
+                    + ("Replace or charge it before the next night." if crit else "Plan a replacement or a charge.")
+                    + alerts.battery_voltage_note(dst.get("battery_mv")),
                     email=crit,
                     cap_counted=True,
                 )
