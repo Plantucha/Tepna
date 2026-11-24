@@ -108,7 +108,8 @@ import { PPGUI } from './ppgdex-render.js';
   //  INGEST — accept a FileList; group PPG sessions + attach companions
   // ════════════════════════════════════════════════════════════════════════
   function loadFiles(fileList) {
-    const files = Array.from(fileList || []);
+    const picked = ING.pickRingWave(Array.from(fileList || []));
+    const files = picked.kept;
     if (!files.length) return;
     progress(6, 'Reading ' + files.length + ' file' + (files.length > 1 ? 's' : '') + '…');
     const museRefused = []; // a Muse recording that answered no PPG, named in the result line
@@ -166,7 +167,8 @@ import { PPGUI } from './ppgdex-render.js';
           }
         });
         const plan = ING.planIngestPpg(parsed, { sniffedForeign });
-        const skipped = plan.skipped; // foreign + sniff-foreign + duplicate-session (set aside, reported)
+        // the ring file of each session that the other ring file replaces
+        const skipped = plan.skipped.concat(picked.dropped.map((f) => ({ name: f.name, kind: 'duplicate' }))); // foreign + sniff-foreign + duplicate-session (set aside, reported)
         let ppgFiles = plan.ppgPrimaries; // deduped real PPG primaries, drop order
         if (plan.hr.length)
           showOK('Ignored ' + plan.hr.length + ' Polar `*_HR.txt` device-HR file' + (plan.hr.length > 1 ? 's' : '') + ' — PpgDex analyzes the raw PPG waveform; drop the matching `*_PPG.txt`.');
@@ -256,6 +258,7 @@ import { PPGUI } from './ppgdex-render.js';
             rec._preChannels = muse ? rec.ch.map((c) => DSP.detectChannel(c, rec.fs, MUSE_SIGN)) : await DSP.detectChannelsAsync(rec);
             r = DSP.analyze(rec, progress);
             if (muse) r.opticalDevice = 'Muse';
+            r.ringRaw = !!rec.rawAxis; // the O2Ring's two-channel file, not its 125 Hz pleth
           } catch (e) {
             showErr(e.message || String(e));
             continue;
@@ -1290,7 +1293,14 @@ import { PPGUI } from './ppgdex-render.js';
            read — and `siteSource` beside it says how strong that evidence is ('device-default' =
            inferred from the layout, 'declared' = the wearer said so). No new inference is invented
            here; the lie is simply removed. */
-        device: r.opticalDevice === 'Muse' ? 'Muse S Athena headband (3 of 4 optical channels)' : r.site === 'finger' ? 'O2Ring-class single-channel finger pleth' : 'Polar Verity Sense (3-LED)',
+        device:
+          r.opticalDevice === 'Muse'
+            ? 'Muse S Athena headband (3 of 4 optical channels)'
+            : r.ringRaw
+              ? 'O2Ring raw two-wavelength finger PPG'
+              : r.site === 'finger'
+                ? 'O2Ring-class single-channel finger pleth'
+                : 'Polar Verity Sense (3-LED)',
         /* Emitted by the DSP's builder since #626 and missing from this one — the sibling-divergence
            class again: two builders for one export, and only one of them told you where the signal
            was taken from. Verbatim from hrvBuildNodeExport's siblings so the app and compute() agree. */
