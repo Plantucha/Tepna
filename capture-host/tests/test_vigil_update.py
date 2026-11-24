@@ -1422,6 +1422,77 @@ def test_the_docs_only_advance_names_the_source_and_never_claims_identity(box):
     assert not box["called"].exists()
 
 
+def _docs_only_deploy(box):
+    """A box whose daemon runs HEAD1 while the checkout moved to a docs-only HEAD2. Returns both."""
+    _advance(box)
+    _write_status(box["status"], {"Ring": False})
+    _run(box)
+    head1 = _git(box["repo"], "rev-parse", "HEAD").stdout.strip()
+    box["called"].unlink()
+    _advance(box, path="README")
+    r = _run(box, TEPNA_VERSION_FETCH=_version(head1))
+    assert "marker advanced to" in r.stdout, r.stdout
+    return head1, _git(box["repo"], "rev-parse", "HEAD").stdout.strip()
+
+
+def test_a_docs_only_advance_is_reported_ONCE_and_every_later_tick_is_silent(box):
+    """The process keeps its start sha after a docs-only deploy, so its sha differs from HEAD until the
+    next restart. Each two-minute tick called that a debt and cancelled it one line later: 2506 of 3112
+    OWED lines on vigil from 2026-11-17 to 2026-11-24. The line must hold no debt it does not owe."""
+    head1, head2 = _docs_only_deploy(box)
+    for _ in range(2):
+        r = _run(box, "--pending-only", TEPNA_VERSION_FETCH=_version(head1))
+        assert r.returncode == 0 and r.stdout == "" and r.stderr == "", (r.stdout, r.stderr)
+    r = _run(box, TEPNA_VERSION_FETCH=_version(head1))
+    assert "nothing to do" in r.stdout and "OWED" not in r.stdout and "marker advanced" not in r.stdout
+    assert box["mark"].read_text().strip() == head2
+    assert not box["called"].exists()
+
+
+def test_code_on_top_of_a_docs_only_advance_is_still_announced_and_restarts(box):
+    """The control against silence that swallows a debt: the marker reads HEAD2, the daemon runs HEAD1,
+    and code lands on top."""
+    head1, _ = _docs_only_deploy(box)
+    _advance(box)
+    _write_status(box["status"], {"Ring": True})
+    r = _run(box, TEPNA_VERSION_FETCH=_version(head1))
+    assert "OWED" not in r.stdout, "this tick merged it, so no earlier tick owes it"
+    assert not box["called"].exists()
+    _write_status(box["status"], {"Ring": False})
+    r = _run(box, "--pending-only", TEPNA_VERSION_FETCH=_version(head1))
+    assert "restart still OWED" in r.stdout and "the daemon is on " + head1[:12] in r.stdout
+    assert box["called"].exists()
+
+
+def test_an_unnameable_daemon_sha_reports_the_debt_before_the_reason(box):
+    """A failed diff restores the restart, and both lines stand: the debt, then why nothing cancels it."""
+    _hand_restarted_box(box)
+    r = _run(box, TEPNA_VERSION_FETCH=_version("dead0beef"))
+    assert r.stdout.index("restart still OWED") < r.stdout.index("cannot establish what changed")
+    assert box["called"].exists()
+
+
+def test_a_forced_restart_still_names_the_outstanding_debt(box):
+    """`--force-restart` skips the content gate, so no gate verdict stands between it and the line."""
+    head1, _ = _docs_only_deploy(box)
+    r = _run(box, "--force-restart", TEPNA_VERSION_FETCH=_version(head1))
+    assert "restart still OWED" in r.stdout and "cannot establish" not in r.stdout
+    assert box["called"].exists()
+
+
+def test_a_docs_only_advance_from_the_marker_names_the_fallback_once(box):
+    """With a silent daemon the marker is the authority. The advance says so, and then owes nothing."""
+    _advance(box)
+    _write_status(box["status"], {"Ring": False})
+    _run(box)
+    box["called"].unlink()
+    _advance(box, path="README")
+    r = _run(box)
+    assert r.stdout.count("using the deploy marker") == 1 and "marker advanced to" in r.stdout
+    assert _run(box, "--pending-only").stdout == ""
+    assert not box["called"].exists()
+
+
 # ---------------------------------------------------------------- steps 3 + 4 run for a 0644 script
 
 

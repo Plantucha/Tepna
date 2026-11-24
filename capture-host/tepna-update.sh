@@ -716,11 +716,8 @@ restart_owed=0
 if [ "$before" != "$after" ]; then
   restart_owed=1                         # merged this tick
 elif [ "$running_sha" != "$after" ]; then
-  restart_owed=1                         # an earlier tick merged and deferred; still owed
-  say "restart still OWED from an earlier tick — ${running_label} ${running_sha:0:12}, disk is at ${after:0:12}"
+  restart_owed=1                         # an earlier tick merged and deferred; the gate below decides
 fi
-# A restart judged from the fallback authority says so, once, beside the judgement it informed.
-[ "$restart_owed" = 1 ] && [ -n "$fallback_note" ] && say "$fallback_note"
 
 # --- 5b · the CONTENT gate: a sha that moved is not code that moved ------------------------------
 # Measured on vigil 2026-09-05 13:40:45: the daemon was restarted to deploy `93a17e27`, a docs-only
@@ -749,18 +746,32 @@ fi
 # started on an older sha. `/api/version` keeps reporting the sha the process started on — that is
 # correct (build_id.py: what is RUNNING, probed once at startup), and it will read older than the
 # checkout after a docs-only deploy on purpose. Do not "fix" that by restarting.
+#
+# ⚠️ THE DEBT IS ANNOUNCED AFTER THE GATE, AND THE ADVANCE ONLY WHEN THE MARKER MOVES. Both lines used to
+# print on every tick from a docs-only deploy to the daemon's next restart: the process keeps its start
+# sha on purpose, so the sha test above stays true, and the gate then cancelled a debt that the journal
+# had already called OWED. Measured on vigil 2026-11-17 to 2026-11-24: 2506 of 3112 OWED lines were
+# cancelled in the same tick. A marker already at HEAD is an advance already reported.
+delta_rc=0
 if [ "$restart_owed" = 1 ] && [ "$MODE" != "--force-restart" ]; then
   # A sha git cannot resolve fails the diff itself (planted: the 40-zero marker), so the exit code is
   # the whole "unknowable" test — there is no separate resolvability check to fall out of sync with it.
   delta="$(git -C "$REPO_DIR" diff --name-only "$running_sha..$after" -- capture-host/ 2>/dev/null)"; delta_rc=$?
-  if [ "$delta_rc" != 0 ]; then
-    say "cannot establish what changed between ${running_sha:0:12} and ${after:0:12} — restarting rather than assuming nothing did"
-  elif [ -z "$delta" ]; then
-    printf '%s\n' "$after" > "$DEPLOYED_MARK" 2>/dev/null || warn "could not record the deployed SHA at $DEPLOYED_MARK"
-    say "no capture-host/ change between ${running_sha:0:12} and ${after:0:12} — the daemon's capture-host CODE is current (${running_label} ${running_sha:0:12}); marker advanced to ${after:0:12}, no restart"
+  if [ "$delta_rc" = 0 ] && [ -z "$delta" ]; then
+    if [ "$(cat "$DEPLOYED_MARK" 2>/dev/null)" != "$after" ]; then
+      # A verdict reached from the fallback authority says so, beside the verdict it informed.
+      [ -n "$fallback_note" ] && say "$fallback_note"
+      printf '%s\n' "$after" > "$DEPLOYED_MARK" 2>/dev/null || warn "could not record the deployed SHA at $DEPLOYED_MARK"
+      say "no capture-host/ change between ${running_sha:0:12} and ${after:0:12} — the daemon's capture-host CODE is current (${running_label} ${running_sha:0:12}); marker advanced to ${after:0:12}, no restart"
+    fi
     _defer_clear
     restart_owed=0
   fi
+fi
+if [ "$restart_owed" = 1 ]; then
+  [ "$before" = "$after" ] && say "restart still OWED from an earlier tick — ${running_label} ${running_sha:0:12}, disk is at ${after:0:12}"
+  [ -n "$fallback_note" ] && say "$fallback_note"
+  [ "$delta_rc" != 0 ] && say "cannot establish what changed between ${running_sha:0:12} and ${after:0:12} — restarting rather than assuming nothing did"
 fi
 
 if [ "$restart_owed" = 0 ]; then
