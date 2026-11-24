@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="2e42cc2ee789" data-compute-hash="8e16bd760e9b">
+<html lang="en" data-manifest-hash="0cd57d1b4138" data-compute-hash="6d2388fca962">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3QOLYKBsffbmLXFalO1pSufl+HcbSk6JP025X/WpQs=' 'sha256-FN+9mZF/E31+1lM1aatPWdf//6LjIOCvdeIgtCSciLw=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-JXvOiNWxxEpaIqPVZaw5jBzxRZM+d44OZqhZ1oEInTc=' 'sha256-LRa7VQaZD1GO9QtTgm/NOp9niJoNbsRPsWXzCbrnE10=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UiJdLIejK5YCW72lJMbSpQm6oU3PbLlrDpblXzUyWAg=' 'sha256-WLSf6RDbro32fr9V499zIXx05PeWHrSytiNLDT0boh4=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-poV646fY+mJ9UXvTWQzQfv+vvxLiLoWfaPwe6QYLL+s=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wYDQbx7BnjeWBpxiSXeMr45U444dBQ1yup2hvhEudhU='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3QOLYKBsffbmLXFalO1pSufl+HcbSk6JP025X/WpQs=' 'sha256-FCj+atbc3xEU0yRTX7MWus+kfvoNPgYFxszdwjvufcQ=' 'sha256-FN+9mZF/E31+1lM1aatPWdf//6LjIOCvdeIgtCSciLw=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-JXvOiNWxxEpaIqPVZaw5jBzxRZM+d44OZqhZ1oEInTc=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UiJdLIejK5YCW72lJMbSpQm6oU3PbLlrDpblXzUyWAg=' 'sha256-WLSf6RDbro32fr9V499zIXx05PeWHrSytiNLDT0boh4=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-e/i+Iz0Msf7DmnX8mhTW+WSenM3n4K53z69golEajqg=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wYDQbx7BnjeWBpxiSXeMr45U444dBQ1yup2hvhEudhU='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.36.0</title>
@@ -19226,6 +19226,25 @@ __exports.PpgDex = window.PpgDex;
    ════════════════════════════════════════════════════════════════════════ */
 (function (global) {
   'use strict';
+  /* §∅ AN ABSENT STAMP IS NOT 1970. The legacy fallback below once sorted on `(a.t0Ms || 0)`, so a
+     recording with no parsed stamp took the FIRST place in the list and read as the oldest one. A
+     record with no finite stamp now sorts AFTER every dated one and keeps its insertion order; a
+     measured stamp of 0 is still a stamp. The helper stays LOCAL and pure for two reasons: the arm
+     that holds it runs only when `CrossNightEnvelope` is ABSENT, so it cannot borrow a comparator
+     from that module, and tests/dex-tests.js slices it out of this source and runs it. Twin of
+     `_byStamp` in ecgdex-app.js. */
+  function _byStamp(key) {
+    return function (a, b) {
+      const x = a ? a[key] : undefined,
+        y = b ? b[key] : undefined;
+      const fx = typeof x === 'number' && isFinite(x),
+        fy = typeof y === 'number' && isFinite(y);
+      if (fx && fy) return x - y;
+      if (fx) return -1;
+      if (fy) return 1;
+      return 0;
+    };
+  }
   const r1 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 10) / 10);
   const r2 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 100) / 100);
   const r3 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 1000) / 1000);
@@ -19634,7 +19653,7 @@ __exports.PpgDex = window.PpgDex;
       });
     }
     // ── legacy fallback (pre-envelope flat shape) — only when the shared builder is ABSENT ──
-    const sorted = [...list].sort((a, b) => (a.t0Ms || 0) - (b.t0Ms || 0));
+    const sorted = [...list].sort(_byStamp('t0Ms'));
     /* §∅ — The fallback arm cannot answer `null`: `crossNight` reads `p.w != null ? p.w : 1`, so a
        null weight becomes a FULL recording one layer down. So an absence keeps the floor COEFFICIENT
        and travels on a flag beside the number, in the envelope's own vocabulary. */
@@ -23900,8 +23919,25 @@ const { PPGUI } = __require('ppgdex-render.js');
   // ════════════════════════════════════════════════════════════════════════
   //  SESSION SWITCHER + CROSS-NIGHT
   // ════════════════════════════════════════════════════════════════════════
+  /* §∅ AN ABSENT STAMP IS NOT 1970. `sessionsSorted` once sorted on `(a.t0Ms || 0)`, so a session
+     with no parsed stamp took the FIRST place in the switcher and read as the oldest one. A record
+     with no finite stamp now sorts AFTER every dated one and keeps its insertion order; a measured
+     stamp of 0 is still a stamp. The helper stays LOCAL and pure so tests/dex-tests.js can slice it
+     out of this source and run it. Twin of `_byStamp` in ecgdex-app.js. */
+  function _pgByStamp(key) {
+    return function (a, b) {
+      const x = a ? a[key] : undefined,
+        y = b ? b[key] : undefined;
+      const fx = typeof x === 'number' && isFinite(x),
+        fy = typeof y === 'number' && isFinite(y);
+      if (fx && fy) return x - y;
+      if (fx) return -1;
+      if (fy) return 1;
+      return 0;
+    };
+  }
   function sessionsSorted() {
-    return Object.values(allSessions).sort((a, b) => (a.t0Ms || 0) - (b.t0Ms || 0));
+    return Object.values(allSessions).sort(_pgByStamp('t0Ms'));
   }
   /* Three sensors of one night start within minutes of each other, so a start time does not tell them apart. */
   function sensorTag(s) {
