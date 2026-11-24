@@ -1132,6 +1132,26 @@ export const SEEDS = [
     at: 'ecgdex-dsp.js:2635',
     state: 'fixed',
     note: 'fixed #5088 (d7d7f0d0a): the gait fields initialise from `accPresent`, so `steps`, `briskPct` and `cadencePresentPct` are null when the record carried no usable ACC and 0 only when a stream was there to measure. `sustainedGait`, both sub-scores and `ambulatory` all guard on `!= null`. Hand-read against origin/main 2026-11-24 (Heron); not credited by content, and not credited to this PR.'
+  },
+  {
+    at: 'ecgdex-dsp.js:2231',
+    state: 'fixed',
+    note: 'fixed #3043 (7e224760e): `detectCVHR` now takes the `spansGap` mask the beat builder already writes, and `hrSeries[s]` is null for every second inside a dropout, with `coveredSec` and `excludedSec` beside it. The held value stays in the internal `hr` grid on purpose, because a null there poisons every moving-average window that reads it; the fabrication is contained instead of spread. Plant: tests/dex-tests.js, the CVHR hole group, legs `WITHOUT the mask every second is a number`, `WITH the mask the dropout is absent from the exported series` and `coveredSec accounts for exactly the seconds that are not null`, each with its own anti-vacuity leg. Hand-read against origin/main 2026-11-24 (Heron); not credited by content, and not credited to this PR.'
+  },
+  {
+    at: 'ecgdex-dsp.js:3576',
+    state: 'fixed',
+    note: 'fixed #2984 (271768288): `validateHR` no longer forward-fills the device series. An uncovered second stays NaN, `_rollMedian` skips it, the pairing guard drops it, and the report publishes `devMeasuredSec`, `comparableSec` and `coverage`, so a half-absent night cannot read as a covered one. Plant: tests/dex-tests.js section 8b of the ECGDex device-twin block, where a device that stops at 290 s of a 600 s record contributes no pairs from the silent stretch, and the leg states the 44 percent error dilution the hold used to produce. Hand-read against origin/main 2026-11-24 (Heron); not credited by content, and not credited to this PR.'
+  },
+  {
+    at: 'ecgdex-dsp.js:4964',
+    state: 'fixed',
+    note: 'the text parser has labelled the rate since #2962 (aacb85ffb) as `ns-counter`, `ms-step`, `ms-delta` or `assumed`, and THIS PR carries that label to a reader. The reshape in `analyze` dropped `fsSource`, so no export and no cell held it, and an assumed 130 still reached every consumer as the same number a measured file yields. `analyze` now forwards `fsSource` the way it forwards `fsRaw`, and the signal-quality clock cell publishes it beside `fs` and `fsRaw`. Plant: tests/dex-tests.js, the fs-provenance group, leg `the published clock cell says the rate was ASSUMED` with a measured `ns-counter` control beside it. Both legs red on origin/main (measured 2026-11-24, Heron).'
+  },
+  {
+    at: 'ecgdex-dsp.js:6484',
+    state: 'fixed',
+    note: 'the canonical-frame branch of `compute` has labelled an fs-less frame `assumed`, and a frame that carried a rate `caller`, since #2962 (aacb85ffb). That label reached no surface until THIS PR: `compute` returns the node export, and `rec.fsSource` never entered it, so the frame path published no provenance a consumer could read and the finding was not plantable at all. The carry in `analyze` plus the clock cell makes both arms observable. Plant: tests/dex-tests.js, the fs-provenance group, leg `a frame that carried NO rate is labelled assumed` beside the `caller` control. Both legs red on origin/main (measured 2026-11-24, Heron).'
   }
 ];
 
