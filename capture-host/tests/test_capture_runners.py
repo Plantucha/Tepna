@@ -9298,6 +9298,7 @@ def test_alert_poller_stays_QUIET_for_a_ring_that_powered_off_after_a_completed_
             sent.append(title)
             return True
 
+    monkeypatch.setattr(capture, "_now", lambda: capture._dt.datetime(2026, 11, 5, 6, 21))  # unknown span: a morning
     cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="O2Ring")]}
     capture.STATUS["devices"]["O2Ring"] = {"connected": False}
     capture._LAST_DATA.pop("O2Ring", None)
@@ -9379,6 +9380,7 @@ def test_alert_poller_names_a_polar_power_off_without_calling_it_a_ring(monkeypa
             return True
 
     nm = "Polar H10 02849638"
+    monkeypatch.setattr(capture, "_now", lambda: capture._dt.datetime(2026, 11, 5, 6, 21))  # unknown span: a morning
     cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name=nm)]}
     capture.STATUS["devices"][nm] = {"connected": False}
     capture._LAST_DATA.pop(nm, None)
@@ -9493,6 +9495,7 @@ def test_alert_poller_RETRIES_an_undelivered_pulled_night_end_note(monkeypatch):
             sent.append(title)
             return False
 
+    monkeypatch.setattr(capture, "_now", lambda: capture._dt.datetime(2026, 11, 5, 6, 21))  # unknown span: a morning
     cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="O2Ring")]}
     capture.STATUS["devices"]["O2Ring"] = {"connected": False}
     capture._LAST_DATA.pop("O2Ring", None)
@@ -9577,13 +9580,17 @@ def test_stream_end_settled_is_the_hold_and_no_less():
     assert a.stream_end_settled(1000.0, 1000.0 + a.STREAM_END_HOLD_S)
 
 
-def test_worth_a_night_note_needs_an_hour_and_speaks_when_the_span_is_unknown():
+def test_worth_a_night_note_needs_an_hour_and_an_unknown_span_needs_the_morning():
     a = capture.alerts
-    assert a.worth_a_night_note(None, 5.0) and a.worth_a_night_note(5.0, None)
-    assert a.worth_a_night_note(0.0, a.NIGHT_NOTE_MIN_S)
-    assert not a.worth_a_night_note(0.0, a.NIGHT_NOTE_MIN_S - 0.1)
+    for hour in (4, 11):
+        assert a.worth_a_night_note(None, 5.0, hour) and a.worth_a_night_note(5.0, None, hour)
+    for hour in (3, 12, 20):
+        assert not a.worth_a_night_note(None, 5.0, hour) and not a.worth_a_night_note(5.0, None, hour)
+    # A KNOWN span never reads the clock: a long wear that ends in the evening is still long.
+    assert a.worth_a_night_note(0.0, a.NIGHT_NOTE_MIN_S, 20)
+    assert not a.worth_a_night_note(0.0, a.NIGHT_NOTE_MIN_S - 0.1, 6)
     # A span is a DIFFERENCE: a 10 min wear late in the box's uptime is still a short wear.
-    assert not a.worth_a_night_note(50_000.0, 50_600.0)
+    assert not a.worth_a_night_note(50_000.0, 50_600.0, 6)
 
 
 def _pulled_poll(monkeypatch, *, first, last):
@@ -10758,6 +10765,7 @@ def test_alert_poller_keeps_a_9_h_old_night_note_quiet_but_drops_the_9_h_old_pul
 
 def test_alert_poller_saves_the_quiet_state_in_wall_clock_seconds(tmp_path, monkeypatch):
     nm = "Polar H10 TEST0001"
+    monkeypatch.setattr(capture, "_now", lambda: capture._dt.datetime(2026, 11, 5, 6, 21))  # unknown span: a morning
     cfg = _quiet_setup(tmp_path, nm)
     capture._LAST_PULL_OK[nm] = 1000.0  # a pull completed one minute ago
     try:
@@ -10903,6 +10911,7 @@ def test_alert_poller_speaks_again_the_poll_AFTER_the_box_releases_the_link(monk
     """THE SUPPRESSION MUST NOT OUTLIVE THE HOLD. It needs no expiry only because the slot is released
     however the pull ends, so the very next poll has to reach the clauses below it. A device still not
     advertising after a completed pull is then the expected power-off, and the note goes out."""
+    monkeypatch.setattr(capture, "_now", lambda: capture._dt.datetime(2026, 11, 5, 6, 21))  # unknown span: a morning
     cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="Dev")]}
     capture.STATUS["devices"]["Dev"] = {"connected": False}
     capture._LAST_DATA.pop("Dev", None)
