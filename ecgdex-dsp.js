@@ -2660,7 +2660,20 @@
     return { offSec: measured, measuredSec: measured, reason: null };
   }
 
-  function epochMotion(deviceACC, accFs, ecgT0Ms, durSec, epochs) {
+  /* ∅ — the single reader of the ACC rate's provenance. `null` means no producer stated one, which
+     is the back-compatible answer for a synthetic rec, a canonical SignalFrame and every caller that
+     predates the field; only the string 'assumed' is a positive statement that nothing measured it. */
+  function _accRateSrc(acc) {
+    return acc && acc._accFsSource ? acc._accFsSource : null;
+  }
+
+  function epochMotion(deviceACC, accFs, ecgT0Ms, durSec, epochs, accFsSource) {
+    /* ∅ — every window below is seconds-per-sample arithmetic, so this function spends the RATE as a
+       TIMEBASE. A rate the parser assumed is not a timebase: `fs * 30` would read 120 fabricated
+       samples as 30 measured seconds, and each epoch's motion score would carry that guess
+       (ABSENCE-SURVEY bb7e618a8fd9). `null` is this function's established absence answer, and the
+       three refusals below already use it. */
+    if (accFsSource === 'assumed') return null;
     const fs = accFs || 4;
     if (!deviceACC || !epochs || !epochs.length || deviceACC.length < fs * 30) return null;
     const N = deviceACC.length;
@@ -3581,15 +3594,21 @@
     /* §∅ — the ACC placement is computed ONCE here as well, so the reason behind a refusal reaches the
        reader exactly once beside the four features it withdraws (`_accPlace`). The four producers
        each refuse on their own; this carries the WHY. */
-    const _accPl = rec.deviceACC && rec.accFs && rec.deviceACC.length >= rec.accFs * 30 ? _accPlace(rec.deviceACC, rec.t0Ms, durSec) : null;
-    const _epochMot = rec.deviceACC && rec.accFs && rec.deviceACC.length >= rec.accFs * 30 ? epochMotion(rec.deviceACC, rec.accFs, rec.t0Ms, durSec, epochs) : null;
+    const _accPl = rec.deviceACC && rec.accFs && _accRateSrc(rec.deviceACC) !== 'assumed' && rec.deviceACC.length >= rec.accFs * 30 ? _accPlace(rec.deviceACC, rec.t0Ms, durSec) : null;
+    const _epochMot =
+      rec.deviceACC && rec.accFs && _accRateSrc(rec.deviceACC) !== 'assumed' && rec.deviceACC.length >= rec.accFs * 30
+        ? epochMotion(rec.deviceACC, rec.accFs, rec.t0Ms, durSec, epochs, _accRateSrc(rec.deviceACC))
+        : null;
     const stages = longRec ? stageSleep(epochs, _epochMot) : [];
 
     // ── activity-gated mode (AMBULATORY-MODE-BRIEF §1) ───────────────────────────
     // Consult the activity/gait/ACC evidence ALREADY computed before letting duration/
     // time-of-day unlock sleep-only analyses. accExtras (gait + sleep-stage consensus) is
     // computed once here and cached on the result so the UI/export reuse it (no 2nd pass).
-    const _accEx = rec.deviceACC && rec.accFs && rec.deviceACC.length >= rec.accFs * 30 && accExtras ? accExtras(rec.deviceACC, rec.accFs, rec.t0Ms, durSec, epochs, stages) : null;
+    const _accEx =
+      rec.deviceACC && rec.accFs && _accRateSrc(rec.deviceACC) !== 'assumed' && rec.deviceACC.length >= rec.accFs * 30 && accExtras
+        ? accExtras(rec.deviceACC, rec.accFs, rec.t0Ms, durSec, epochs, stages)
+        : null;
     const modeInfo = classifyMode(durSec, rec.t0Ms, _accEx, longRec);
     const ambulatory = modeInfo.ambulatory;
 
@@ -3681,7 +3700,7 @@
 
     prog(96, 'Ganglior events…');
     // per-epoch body position from companion ACC (mutates epochs → epoch.position; feeds event meta)
-    const epochPos = stampEpochPositions(epochs, rec.deviceACC, rec.accFs, rec.t0Ms, durSec);
+    const epochPos = stampEpochPositions(epochs, rec.deviceACC, rec.accFs, rec.t0Ms, durSec, _accRateSrc(rec.deviceACC));
     // Clock Contract §2.6: thread the real anchor (or null) — NEVER fabricate now(). A stampless
     // recording yields events with t:null/tMs:null, matching the export's startEpochMs:null.
     const events = gangliorEvents(cvhr, ambulatory ? [] : stages, rec.t0Ms != null ? rec.t0Ms : null, sqi, times, epochPos, _accEx ? _accEx.movementOnsets : null);
@@ -3961,6 +3980,7 @@
       deviceHR: rec.deviceHR || null,
       deviceACC: rec.deviceACC || null,
       accFs: rec.accFs || null,
+      accFsSource: _accRateSrc(rec.deviceACC),
       /* ∅ A ZERO STAMP IS A STAMP. `|| null` published `startEpochMs: null` for a recording whose
          anchor the caller gave as 0, which is floating 1970-01-01T00:00:00 and a legal `tMs` under
          Clock Contract §1. The sibling stamp in this same reshape already reads
@@ -4639,17 +4659,24 @@
     return false;
   }
 
-  function stampEpochPositions(epochs, deviceACC, accFs, ecgT0Ms, durSec) {
+  function stampEpochPositions(epochs, deviceACC, accFs, ecgT0Ms, durSec, accFsSource) {
     if (!epochs || !epochs.length) return [];
     const fs = accFs || 4;
-    if (!deviceACC || deviceACC.length < fs * 30) {
+    /* ∅ — `acc-rate-assumed` joins the two absences named below, because posture is read off a
+       seconds axis built from the rate. No parseable stamp means no rate, so every posture this
+       would name rests on a 4 Hz guess (ABSENCE-SURVEY bb7e618a8fd9 / 8e7fbb47bd6f). The reason
+       travels with the epoch, exactly as the other two already do. */
+    const rateAssumed = accFsSource === 'assumed';
+    if (rateAssumed || !deviceACC || deviceACC.length < fs * 30) {
       /* §∅ — TWO ABSENCES, NOT ONE. A night with no companion ACC and a night whose ACC is too
          short to fill one window both stamped 'unknown' and named nothing, so the state a reader
          can act on — load the companion — read exactly like a stream that arrived and fell short.
          `posAt` below promises the distinction in its own comment ("null when no ACC was loaded");
          this return has always handed it a POPULATED list of 'unknown' instead, so the promise was
          never kept for a single epoch. */
-      const why = !deviceACC || !deviceACC.length ? 'no-acc-stream' : 'acc-too-short';
+      let why = 'acc-too-short';
+      if (rateAssumed) why = 'acc-rate-assumed';
+      else if (!deviceACC || !deviceACC.length) why = 'no-acc-stream';
       epochs.forEach((e) => {
         e.position = 'unknown';
         e.positionReason = why;
@@ -4711,7 +4738,12 @@
     }
     return out;
   }
-  function accAnalyze(deviceACC, accFs, ecgT0Ms, durSec, epochs) {
+  function accAnalyze(deviceACC, accFs, ecgT0Ms, durSec, epochs, accFsSource) {
+    /* ∅ — this function publishes `accFs` in its own return, and the card draws it as
+       "N samples @ F Hz". A rate nothing measured would read there as a measured one, and every
+       window below spends it as a timebase (ABSENCE-SURVEY bb7e618a8fd9). `null` is the answer the
+       card already handles: `renderACCComparison` hides the card on it. */
+    if (accFsSource === 'assumed') return null;
     const fs = accFs || 4;
     if (!deviceACC || deviceACC.length < fs * 30) return null;
     const xs = deviceACC.map((d) => d.x),
@@ -7451,10 +7483,24 @@
         }
       }
     }
+    /* ∅ F2 — A RATE NOTHING MEASURED IS NOT A RATE. The 4 below is a shape default, so the loops
+       have a number; `accFsSource` says whether anything measured it. An assumed rate and a measured
+       one are the same JS number, which is why the provenance travels BESIDE it — the same remedy
+       `fsSource` already applies to the ECG rate in this file (ABSENCE-SURVEY bb7e618a8fd9). A
+       consumer that spends the rate as a TIMEBASE reads this field and refuses; one that needs only a
+       sample count does not. Measured over the corpus 2026-11-24: of 1958 `_ACC` files, 1410 measure
+       the rate, 510 fall under the 120-sample floor and are refused already, 38 are empty, and NONE
+       both clear the floor and lack stamps — so the refusal below drops no night in hand. */
     var fs = 4,
+      accFsSource = 'assumed',
       ts2 = [];
+    /* ∅ — `Number.isFinite`, never the global: `isFinite(null)` is TRUE, because the global coerces
+       first and `Number(null)` is 0. A stamp-less row therefore entered this median as a measured
+       ZERO. Where every row is stamp-less the median came out 0, which only looked harmless because
+       `md > 0` then left the rate assumed; where SOME rows parse, each absent stamp pulled the median
+       toward 0 and INFLATED the published rate. */
     for (var j = 0; j < out.length; j++) {
-      if (isFinite(out[j].tsMs)) ts2.push(out[j].tsMs);
+      if (Number.isFinite(out[j].tsMs)) ts2.push(out[j].tsMs);
     }
     if (ts2.length > 5) {
       var dt = [];
@@ -7463,12 +7509,30 @@
         return a - b;
       });
       var md = dt[dt.length >> 1];
-      if (md > 0) fs = Math.max(1, Math.min(200, Math.round(1000 / md)));
+      if (md > 0) {
+        fs = Math.max(1, Math.min(200, Math.round(1000 / md)));
+        accFsSource = 'ms-delta';
+      }
     }
-    if (!isFinite(out[0].tsMs)) {
-      for (var q = 0; q < out.length; q++) out[q].tsMs = Math.round((q / fs) * 1000);
-      /** @type {any} */
-      (out)._relBase = true;
+    if (!Number.isFinite(out[0].tsMs)) {
+      /* ∅ — per-sample time rebuilt FROM THE RATE, which is honest only when something measured the
+         rate. A relative axis spaced by a MEASURED step is a documented design, and the caller re-bases
+         it onto the ECG `t0Ms` (Clock Contract §2.6). The same loop over an ASSUMED 4 Hz manufactures a
+         clock the file never carried, and it read exactly like the measured case
+         (ABSENCE-SURVEY 8e7fbb47bd6f). So the synthesis now runs only on a measured rate and names the
+         step it spent; an assumed rate leaves `tsMs` absent and states the reason. The old test used
+         the global `isFinite`, which is TRUE for null, so this branch could not be reached at all by
+         the stamp-less file it was written for. */
+      if (accFsSource === 'assumed') {
+        /** @type {any} */
+        (out)._relBaseReason = 'acc-rate-assumed';
+      } else {
+        for (var q = 0; q < out.length; q++) out[q].tsMs = Math.round((q / fs) * 1000);
+        /** @type {any} */
+        (out)._relBase = true;
+        /** @type {any} */
+        (out)._relBaseSource = accFsSource;
+      }
     }
     /* `accClockSteps` is the tripwire's whole product: 0 on every clean file, so a consumer that does
        not read it is unaffected, and non-zero says the device axis was NOT spent — the samples carry
@@ -7593,11 +7657,18 @@
        `deviceACC` — the app's module global, `planCompanionGraft`, the `analyze` reshape — carries
        the motion stream's own timing and waveform facts with it and no signature changes. The two
        fields are ALSO returned below, because a test reads the parser's own result. */
+    /* ∅ — the rate's provenance rides on the STREAM, next to `_accTiming` and `_relBase`, because
+       every holder of the samples holds it: the app keeps the array across a companion graft, and a
+       parallel scalar on the REC would be a second source of truth that drifts on the first graft.
+       The sibling field in this function's return object is the same local, for a caller that reads
+       the return rather than the stream; only this one survives `planCompanionGraft`. */
+    /** @type {any} */ (out)._accFsSource = accFsSource;
     /** @type {any} */ (out)._accTiming = accTiming;
     /** @type {any} */ (out)._accQuality = accQuality;
     return {
       acc: out,
       accFs: fs,
+      accFsSource: accFsSource,
       accClockSteps: accClockSteps,
       accMaxStepMs: accClockSteps ? Math.round(accMaxStepMs) : null,
       accAxis: accClockSteps ? 'host' : 'device',

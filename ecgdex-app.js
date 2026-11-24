@@ -420,7 +420,8 @@ self.onmessage = async (e) => {
         return;
       }
       const out = parsed.acc,
-        fs = parsed.accFs;
+        fs = parsed.accFs,
+        fsSrc = parsed.accFsSource;
       // a STAMPLESS twin result is relative-from-0 (+_relBase); re-base onto the recording's t0Ms
       // here, as the old loader did (Clock Contract §2.6 — never fabricate a now() anchor). Inert
       // when the twin returned absolute stamps (_relBase unset).
@@ -432,7 +433,10 @@ self.onmessage = async (e) => {
       }
       DEVICE_ACC = out;
       ACC_FS = fs;
-      setLoad('acc', '✅ ' + out.length.toLocaleString() + ' ACC @ ' + fs + ' Hz loaded');
+      /* ∅ — this line reads the rate as a measurement, so an assumed rate says so here. The parser
+         answers 'assumed' when under six rows carried a parseable stamp, and posture, motion and the
+         ACC card all refuse on it downstream (ABSENCE-SURVEY bb7e618a8fd9). */
+      setLoad('acc', '✅ ' + out.length.toLocaleString() + ' ACC @ ' + fs + ' Hz' + (fsSrc === 'assumed' ? ' (ASSUMED — no stamps parsed; posture and motion refuse)' : '') + ' loaded');
       if (RESULT) {
         RESULT.deviceACC = DEVICE_ACC;
         RESULT.accFs = ACC_FS;
@@ -445,7 +449,7 @@ self.onmessage = async (e) => {
             });
             DEVICE_ACC._relBase = false;
           }
-          const ep = DSP.stampEpochPositions(RESULT.epochs, DEVICE_ACC, ACC_FS, RESULT.t0Ms, RESULT.durSec);
+          const ep = DSP.stampEpochPositions(RESULT.epochs, DEVICE_ACC, ACC_FS, RESULT.t0Ms, RESULT.durSec, DEVICE_ACC && DEVICE_ACC._accFsSource);
           const posEntryAt = (sec) => {
             const m = sec / 60;
             for (const p of ep) {
@@ -1293,7 +1297,7 @@ self.onmessage = async (e) => {
   }
 
   function renderACCComparison(r) {
-    const a = DSP.accAnalyze(r.deviceACC, r.accFs, r.t0Ms, r.durSec, r.epochs);
+    const a = DSP.accAnalyze(r.deviceACC, r.accFs, r.t0Ms, r.durSec, r.epochs, r.deviceACC && r.deviceACC._accFsSource);
     if (!a) {
       $('accCard').style.display = 'none';
       return;
