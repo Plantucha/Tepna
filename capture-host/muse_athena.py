@@ -152,9 +152,16 @@ def lost_between(prev: int | None, cur: int) -> int:
     return (cur - prev - 1) % 256
 
 
+def signed_tick(tick: int) -> int:
+    """The 24-bit tick as a signed number. A record that starts just before a fold carries a small
+    NEGATIVE time, which the unsigned field shows as a value just under 2^24. Read unsigned, the step
+    into that record is 67 ms too long and the step out of it is 67 ms too short."""
+    return tick - 0x1000000 if tick >= 0x800000 else tick
+
+
 def tick_seconds(prev: int, cur: int) -> float:
     """Device time from one tick to a later one, in seconds, across at most one 2^28 ns fold."""
-    return ((cur - prev) * NS_PER_TICK % WRAP_NS) / 1e9
+    return ((signed_tick(cur) - signed_tick(prev)) * NS_PER_TICK % WRAP_NS) / 1e9
 
 
 def unpack_lsb(data: bytes, width: int, signed: bool = False) -> list[int]:
@@ -241,7 +248,7 @@ class TickClock:
 
     def feed(self, tick: int) -> int:
         """The unwrapped device time of `tick` in ns, exact to within the 100 ns of one tick."""
-        v = tick * NS_PER_TICK
+        v = signed_tick(tick) * NS_PER_TICK
         if self.ns_now is None:
             self.ns_now = v
         else:
