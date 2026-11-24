@@ -1124,16 +1124,21 @@ def stream_end_settled(last_mono: float, now_mono: float) -> bool:
 
 # A SHORT WEAR IS NOT A NIGHT. MEASURED 2026-11-01: the ring sent "night ended" four times between
 # 14:09 and 14:31 local, once after each daytime wear of a few minutes, and the H10 sent one at 14:33.
-# The pull after each wear was real, so the silence is still licensed. Only the note goes. An episode
-# with no known span (after a restart, `stream_since` starts empty) still gets its note: an unknown span
-# is not a short one.
+# The pull after each wear was real, so the silence is still licensed. Only the note goes.
+#
+# AN UNKNOWN SPAN IS A NIGHT ONLY IN THE MORNING. After a restart `stream_since` starts empty, so the span
+# is unknown, and the note must not name a night the box never saw. Measured on the capture box 2026-11-23:
+# the ring streamed unworn for 4 min and powered off at 20:14, a deploy restarted the daemon at 20:58, and
+# at 20:59 the box sent "night ended". The other two notes sent within 5 min of a daemon start in those
+# 14 days fell between 04:00 and 11:59, the hours `STREAM_MORNING_HOURS` already names as a night's end.
 NIGHT_NOTE_MIN_S = 3600.0
 
 
-def worth_a_night_note(first_mono: float | None, last_mono: float | None) -> bool:
-    """Did the episode run long enough to call its end a night? True when its span is unknown."""
+def worth_a_night_note(first_mono: float | None, last_mono: float | None, hour: int) -> bool:
+    """PURE: did the episode run long enough to call its end a night? `hour` is the local hour now, and it
+    decides alone when the span is unknown."""
     if first_mono is None or last_mono is None:
-        return True
+        return hour in STREAM_MORNING_HOURS
     return last_mono - first_mono >= NIGHT_NOTE_MIN_S
 
 

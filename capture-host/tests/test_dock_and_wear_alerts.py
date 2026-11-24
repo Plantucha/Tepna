@@ -70,7 +70,7 @@ def poll(monkeypatch):
     an optional fifth item, the monotonic time of a pull that completed by that poll."""
     keep = {k: dict(v) if isinstance(v, dict) else v for k, v in capture.STATUS["devices"].items()}
 
-    def go(steps, notifier=None, acfg=None):
+    def go(steps, notifier=None, acfg=None, hour=12):
         n = notifier or _N()
         it = {"i": -1}
 
@@ -96,9 +96,9 @@ def poll(monkeypatch):
 
         monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
         monkeypatch.setattr(capture._time, "monotonic", lambda: steps[it["i"]][0])
-        # The wall clock is pinned to midday: the night-battery alert reads `_now`, and a run inside the
+        # The wall clock is pinned, to midday by default: the night-battery alert reads `_now`, and a run inside the
         # night window must not decide these dock and wear tests (test_battery_alerts.py, the pin rule).
-        monkeypatch.setattr(capture, "_now", lambda: dt.datetime(2026, 11, 4, 12, 0))
+        monkeypatch.setattr(capture, "_now", lambda: dt.datetime(2026, 11, 4, hour, 0))
         cfg = {
             "alerts": {"poll_sec": 1, "offline_sec": 10**6, **(acfg or {})},
             "devices": [_dev(name=NM, address=ADDR)],
@@ -216,3 +216,57 @@ def test_a_worn_stream_after_the_desk_re_arms_the_note_for_the_next_night(poll):
     # licenses no silence of it (measured on the capture box 2026-11-08, see powered_off_after_pull).
     later = [(9000, ON, 9000, None), (12700, ON, 12700, None), (12800, OFF, 12700, 12750, 12760)]
     assert poll(_NIGHT + _DESK + later) == ["Tepna: " + NM + " night ended"] * 2
+
+
+# ── the ring states its wear in `worn`, and an unknown span is not a night ─────────────────────────────
+UNWORN = {"connected": True, "worn": False}
+NOTE = "Tepna: " + NM + " night ended"
+
+
+def test_an_unworn_ring_stream_in_the_evening_sends_nothing(poll):
+    """MEASURED on the capture box 2026-11-23: the ring came back at 20:12 with "no finger contact", 1 s after
+    its pull. The box read its wear as unknown, and sent two offline alerts and a night note."""
+    capture._LAST_PULL_OK[NM] = 900
+    steps = [(1000, UNWORN, 1000, None), (1100, OFF, 1000, None), (3000, OFF, 1000, None)]
+    assert poll(steps, acfg={"offline_sec": 300}, hour=20) == []
+
+
+def test_a_ring_that_states_no_wear_still_begins_an_episode(poll):
+    """The mirror: `worn` None is unknown, and an unknown wear may be a real one. The pull came before this
+    stream began, so it licenses no silence, and the alert goes out."""
+    capture._LAST_PULL_OK[NM] = 900
+    on = {"connected": True, "worn": None}
+    steps = [(1000, on, 1000, None), (1100, OFF, 1000, None), (1500, OFF, 1000, None)]
+    assert poll(steps, acfg={"offline_sec": 300}, hour=20) == ["Tepna: sensor offline"]
+
+
+def test_a_wear_after_an_unworn_return_is_its_own_episode(poll):
+    """The return closed the gap unworn. A wear of 9 min then begins there, not at the night before it."""
+    capture._LAST_PULL_OK[NM] = 4000
+    short = [(9000, UNWORN, 9000, None), (9060, ON, 9060, None), (9600, OFF, 9590, None, 9595)]
+    assert poll(_NIGHT + short) == [NOTE]
+
+
+def test_a_night_after_an_unworn_return_keeps_the_span_it_began_with(poll):
+    capture._LAST_PULL_OK[NM] = 4000
+    night = [(9000, UNWORN, 9000, None), (9060, ON, 9060, None), (12800, ON, 12800, None)]
+    assert poll(_NIGHT + night + [(12900, OFF, 12800, None, 12850)]) == [NOTE] * 2
+
+
+def test_a_moment_without_contact_inside_a_night_does_not_split_it(poll):
+    capture._LAST_PULL_OK[NM] = 4750
+    inside = [(1000, ON, 1000, None), (3000, UNWORN, 3000, None), (3060, ON, 3060, None), (4700, ON, 4700, None)]
+    assert poll(inside + [(4800, OFF, 4700, None)]) == [NOTE]
+
+
+@pytest.mark.parametrize(("hour", "sent"), [(6, [NOTE]), (12, []), (20, [])])
+def test_a_silence_whose_span_a_restart_erased_is_a_night_only_in_the_morning(poll, hour, sent):
+    """MEASURED 2026-11-23: a deploy restarted the daemon at 20:58, and at 20:59 the box sent "night ended"."""
+    capture._LAST_PULL_OK[NM] = 900
+    assert poll([(1000, OFF, None, None)], hour=hour) == sent
+
+
+@pytest.mark.parametrize(("hour", "sent"), [(6, [NOTE]), (20, [])])
+def test_a_dock_with_no_sample_time_is_a_night_only_in_the_morning(poll, hour, sent):
+    steps = [(1000, ON, 1000, None), (5000, DOCK, None, None)]
+    assert poll(steps, hour=hour) == sent
