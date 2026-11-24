@@ -3761,6 +3761,14 @@
          moved it needs the number it moved FROM, and the comment on `hostAxis` at :3425 records
          what this reshape costs a field it does not name. */
       fsRaw: rec.fsRaw != null ? rec.fsRaw : null,
+      /* §∅ — AND WHERE THAT RATE CAME FROM. Both producers already label it: the text parser writes
+         `fsSource` in `ecgTimingResolve` and the canonical-frame branch of `compute` writes its own
+         (`caller` or `assumed`). This reshape then dropped the label, so it reached no consumer and
+         no export — an ASSUMED 130 and a measured 130 arrived at every reader as the same number.
+         ABSENCE-SURVEY findings ca2996627891 (text) and c2a261aa410f (frame) are exactly that gap.
+         Carried like `fsRaw` above, and `null` when a caller hands analyze a hand-built rec: an
+         unlabelled rate has no provenance to report, and a default here would invent one. */
+      fsSource: rec.fsSource != null ? rec.fsSource : null,
       durSec,
       // Carry the parsed clock end through analyze — like `offsetMin`, it is a property of the
       // RECORDING, not of the analysis, so analyze must pass it rather than re-derive it. Note the
@@ -8418,6 +8426,13 @@
         maxStepMs: ax && ax.maxStepMs !== undefined ? ax.maxStepMs : null,
         resyncs: Array.isArray(r.clockResyncs) ? r.clockResyncs.length : null,
         fsRaw: r.fsRaw != null ? r.fsRaw : null,
+        /* THE RATE'S PROVENANCE, BESIDE THE RATE. `ns-counter`, `ms-step` and `ms-delta` are
+           measurements; `caller` means a canonical frame carried the rate; `assumed` means nothing
+           in the file measured it and the cell is publishing the H10 nominal 130. This cell already
+           qualifies the AXIS four ways and said nothing about where the RATE came from, so a file
+           that measured 130 Hz and a file that measured nothing published one identical number.
+           `null` when the rec carried no label, which is not a claim that the rate was measured. */
+        fsSource: r.fsSource != null ? r.fsSource : null,
         fs: r.fs != null ? r.fs : null
       }
     );
