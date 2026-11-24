@@ -13715,6 +13715,14 @@ const OxyDex = window.OxyDex;
   }
   // Altitude VO₂max correction: aerobic capacity falls ~1% per 300 m above ~1500 m (Buskirk; Wehrlin & Hallén 2006)
   function altVO2Factor(elevM) {
+    /* ∅ AN ABSENT ELEVATION IS NOT A MEASURED SEA LEVEL. `null <= 1500` is TRUE, so the bare
+       form answered a flat 1 — the same value a coast night measures — for a profile where
+       nobody entered an elevation. The 2026-08-25 test bank saw this and refused to pin it:
+       "null is not an elevation ... something there needs investigating, not pinning". This is
+       that investigation. `ecgdex-profile.js:195` and `ppgdex-profile.js:170` already refuse,
+       so PulseDex was the one road left. The CALLERS apply a neutral 1 to the VO₂ math and
+       publish this null, which keeps "no correction applied" apart from "corrected by 1.000". */
+    if (elevM == null || !Number.isFinite(elevM)) return null;
     return elevM <= 1500 ? 1 : Math.max(0.55, 1 - ((elevM - 1500) / 300) * 0.01);
   }
   // Periodic-breathing index from the RR tachogram: power concentration in the

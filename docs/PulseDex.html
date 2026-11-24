@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="1f62b3fde5c7" data-compute-hash="cc5db2ce4b28"><head>
+<html lang="en" data-manifest-hash="83d1a76b4f8d" data-compute-hash="5ab07f3e2191"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LA7FzxwxP2tLxmKV4tPt3XC4QDa4uxZkD9f3pr6DVRU=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-Vh4NGXhRdDPT/oFgxxGvxM+Si2nd9MAgmKJidn1gZ0M=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-g6WCMuBNJLjoJ+sGjvYw9TNFW6AJaN7Ijg3eVCfBi14=' 'sha256-lcwniptgITPs+FLPgVCGUNs9+szpkudWXzvniEIjTUA=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p+xyrfgd3LO3d1/myD+Kq9aZjCLnuFakVo8eFpGTb3k=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CIK+HS7/1xOvtV34dY8m6yXaUzx3kMmgW6RsanoNH+Y=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LA7FzxwxP2tLxmKV4tPt3XC4QDa4uxZkD9f3pr6DVRU=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZiT2EEwIWDPy/MmXy1TMLxWhsKK6QV6vglexpjC1hbA=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-g6WCMuBNJLjoJ+sGjvYw9TNFW6AJaN7Ijg3eVCfBi14=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-uSE9XQRyRTFiBY0Fk9vTwrU2DdZ2Lz2KTqkP/o1DOfk=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.36.0</title>
@@ -8010,6 +8010,14 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
   }
   // Altitude VO₂max correction: aerobic capacity falls ~1% per 300 m above ~1500 m (Buskirk; Wehrlin & Hallén 2006)
   function altVO2Factor(elevM) {
+    /* ∅ AN ABSENT ELEVATION IS NOT A MEASURED SEA LEVEL. `null <= 1500` is TRUE, so the bare
+       form answered a flat 1 — the same value a coast night measures — for a profile where
+       nobody entered an elevation. The 2026-08-25 test bank saw this and refused to pin it:
+       "null is not an elevation ... something there needs investigating, not pinning". This is
+       that investigation. `ecgdex-profile.js:195` and `ppgdex-profile.js:170` already refuse,
+       so PulseDex was the one road left. The CALLERS apply a neutral 1 to the VO₂ math and
+       publish this null, which keeps "no correction applied" apart from "corrected by 1.000". */
+    if (elevM == null || !Number.isFinite(elevM)) return null;
     return elevM <= 1500 ? 1 : Math.max(0.55, 1 - ((elevM - 1500) / 300) * 0.01);
   }
   // Periodic-breathing index from the RR tachogram: power concentration in the
@@ -10443,9 +10451,10 @@ function reRender() {
     r.tanaka = tanaka;
     r.hrmaxRejected = hrmaxIn > 0 && !hrmaxValid;
     r.elev = _pp.elev == null || !isFinite(_pp.elev) ? null : +_pp.elev; // §∅ — absent ≠ sea level
-    r.altFactor = r.elev == null ? 1 : +altVO2Factor(r.elev).toFixed(3); // no elevation entered ⇒ no correction
+    r.altFactor = r.elev == null ? null : +altVO2Factor(r.elev).toFixed(3); // §∅ — null with no elevation entered
+    const altApplied = r.altFactor == null ? 1 : r.altFactor; // no elevation entered ⇒ no correction
     // §∅ — an absent HRmax gives no VO₂ estimate; `15.3 * null` is 0, which would read as measured
-    r.vo2base = r.hrmaxEff == null ? null : +(vo2Base(r.rhrEff, r.hrmaxEff) * r.altFactor).toFixed(1);
+    r.vo2base = r.hrmaxEff == null ? null : +(vo2Base(r.rhrEff, r.hrmaxEff) * altApplied).toFixed(1);
     r.vo2adj = r.lnrmssd == null || r.vo2base == null ? null : +vo2Adj(r.vo2base, r.lnrmssd).toFixed(1);
     const gtIn = _pp.vo2gt;
     r.vo2gt = gtIn > 0 ? +Number(gtIn).toFixed(1) : null;
@@ -15718,10 +15727,13 @@ function calculate() {
   /* §∅ — absent ≠ sea level. `|| 0` published a coast night for an empty profile, and the
 altitude factor then sat at 1 without saying whether a height was entered at all. */
   const elev = _pp.elev == null || !isFinite(_pp.elev) ? null : +_pp.elev;
-  const altFactor = elev == null ? 1 : altVO2Factor(elev); // ≤1 above 1500 m; 1 with no elevation entered (no correction)
+  /* ∅ — the factor PUBLISHES the null; `altApplied` carries the neutral 1 into the math only.
+     A single local could not say both things, and the one it said was the measured-looking one. */
+  const altFactor = elev == null ? null : altVO2Factor(elev); // ≤1 above 1500 m; null with no elevation entered
+  const altApplied = altFactor == null ? 1 : altFactor; // no elevation entered ⇒ no correction
   /* §∅ — `(15.3 * null) / 60` is 0, not NaN, so an absent HRmax would publish VO₂ base 0.0 ml/kg/min:
      an in-band figure on a research surface. The estimate refuses instead. */
-  const vo2b = hrmaxEff == null ? null : +(vo2Base(rhrEff, hrmaxEff) * altFactor).toFixed(1);
+  const vo2b = hrmaxEff == null ? null : +(vo2Base(rhrEff, hrmaxEff) * altApplied).toFixed(1);
   const vo2a = lnrm == null || vo2b == null ? null : +vo2Adj(vo2b, lnrm).toFixed(1);
   const efc = _hrvRefused ? null : +efcIdx(energy, focus, coh).toFixed(1);
   const crs = _r1(crsIdx(coh, cRm, cPn, stress), 4);
@@ -15837,7 +15849,7 @@ altitude factor then sat at 1 without saying whether a height was entered at all
     tanaka,
     hrmaxRejected,
     elev,
-    altFactor: +altFactor.toFixed(3),
+    altFactor: altFactor == null ? null : +altFactor.toFixed(3),
     pb,
     efc,
     crs,
