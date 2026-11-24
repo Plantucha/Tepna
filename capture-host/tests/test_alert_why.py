@@ -61,7 +61,7 @@ def test_the_licence_holds_until_a_night_begins_after_the_stamp():
 
 def test_the_quiet_state_carries_the_night_start_through_a_restart():
     saved = alerts.quiet_state_to_save({}, {"ring": 900.0}, 1060.0, _WALL, 1000.0)
-    assert saved == {"pull_ok": {}, "ended": {"ring": _WALL - 160.0}, "night_began": _WALL - 60.0}
+    assert saved == {"pull_ok": {}, "ended": {"ring": _WALL - 160.0}, "night_began": _WALL - 60.0, "spans": {}}
     assert alerts.quiet_state_to_save({}, {}, 1060.0, _WALL)["night_began"] is None
     # a restart: the monotonic clock starts again at 10.0, and 100 s of wall time passed
     assert alerts.night_began_restored(saved, 10.0, _WALL + 100.0) == 10.0 - 160.0
