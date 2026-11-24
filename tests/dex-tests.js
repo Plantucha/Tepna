@@ -33913,6 +33913,10 @@
         hostMs = Date.UTC(2026, 10, 15, 1, 2, 3, 456),
         skipped = 0,
         seed = 12345,
+        baseShift = 0,
+        low,
+        ev,
+        line,
         i,
         b;
       for (b = 0; b < 256; b++) HEX.push((b < 16 ? '0' : '') + b.toString(16));
@@ -33945,7 +33949,9 @@
         rec[4] = (tk >> 16) & 0xff;
         return rec;
       }
-      function row(ctr, rec, hMs, dNs) {
+      /* The header time (`M.headerBase`) is written only for a stream that asks for it with `base0`; the
+         header of the others stays zero, which reads as no device time. */
+      function row(ctr, rec, hMs, dNs, base) {
         var len = M.HEADER_LEN + rec.length,
           pkt = new Uint8Array(len),
           hex = [],
@@ -33953,6 +33959,8 @@
           j;
         pkt[0] = o.lengthByte == null ? len : o.lengthByte;
         pkt[1] = ctr & 0xff;
+        pkt[2] = (ctr >> 8) & 0xff;
+        for (j = 0; j < 5; j++) pkt[3 + j] = Math.floor(base / Math.pow(256, j)) % 256;
         pkt.set(rec, M.HEADER_LEN);
         for (j = 0; j < len; j++) hex.push(HEX[pkt[j]]);
         /* §🔒.1 — the capture host writes a FLOATING civil stamp with no zone, so it is built here
@@ -33971,7 +33979,7 @@
           p(d.getUTCSeconds()) +
           '.' +
           p(d.getUTCMilliseconds(), 3);
-        return host + ';' + (o.blankNs ? '' : dNs) + ';' + (o.blankCounter ? '' : ctr & 0xff) + ';' + (o.blankLength ? '' : len) + ';' + hex.join('');
+        return (o.blankHost ? '' : host) + ';' + (o.blankNs ? '' : dNs) + ';' + (o.blankCounter ? '' : ctr & 0xff) + ';' + (o.blankLength ? '' : len) + ';' + hex.join('');
       }
       for (i = 0; i < nRec; i++) {
         if (i === gapAt && gapLen) {
@@ -33980,9 +33988,32 @@
           hostMs += (1000 / 128) * gapLen;
           skipped = gapLen;
         }
-        lines.push(row(counter, eegRecord(index, Math.floor(((tick * 100) % M.WRAP_NS) / 100), i), hostMs + (o.jitterHost ? Math.round((rnd() - 0.5) * 12) : 0), tick * 100));
+        ev = o.event ? o.event(i) : {};
+        if (ev.lose) {
+          index = (index + ev.lose) & 0xff;
+          counter = (counter + ev.lose) & 0xffff;
+          tick += TICKS_PER_REC * ev.lose;
+          hostMs += ev.hostMs == null ? (1000 / 128) * ev.lose : ev.hostMs;
+        }
+        if (ev.restart) {
+          index = 0;
+          counter = 0;
+          tick += ev.restart * 10000;
+          hostMs += ev.hostMs;
+        }
+        if (ev.baseShift != null) baseShift = ev.baseShift;
+        low = Math.floor(((tick * 100) % M.WRAP_NS) / 100);
+        if (ev.neg) low = (Math.floor((low * 100 - M.WRAP_NS) / 100) + 0x1000000) & 0xffffff; // a negative time under the next fold
+        line = row(
+          counter,
+          eegRecord(index, low, i),
+          hostMs + (o.jitterHost ? Math.round((rnd() - 0.5) * 12) : 0),
+          tick * 100,
+          o.base0 ? o.base0 + Math.floor((tick * 100) / M.WRAP_NS) + baseShift + (ev.neg ? 1 : 0) : 0
+        );
+        for (b = 0; b < (ev.times || 1); b++) lines.push(line);
         index = (index + 1) & 0xff;
-        counter = (counter + 1 + skipped) & 0xff;
+        counter = (counter + 1 + skipped) & 0xffff;
         skipped = 0;
         tick += TICKS_PER_REC;
         hostMs += 1000 / 128;
@@ -34368,6 +34399,115 @@
       );
       T.eq('the other two epochs still score', JSON.stringify(res.quality), JSON.stringify({ analyzablePct: 66.7, nUnscorable: 1 }));
       T.eq('the provenance the frame carried through compute', JSON.stringify([res.channel, res.source, res.fs, res.durSec, res.unit]), JSON.stringify(['left-ear', 'muse-raw', 256, 90, null]));
+    });
+
+    group('EEGDex reads a gap off the device time in the packet header', 'eegdex · ingest · muse-header', function (T) {
+      var D = env.EEGDSP,
+        M = env.MuseFrame;
+      if (!D || !M) {
+        T.skip('env.EEGDSP and env.MuseFrame available', 'eegdex-dsp.js or muse-frame.js is not executed by this lane');
+        return;
+      }
+      /* The header of one synthetic packet: every byte of the two fields is its own value. */
+      var pkt = M.tokenise([34, 0x0d, 0x02, 0xf1, 0xa2, 0xb3, 0xc4, 0x05, 0x00].concat([M.TAG_BATTERY], new Array(24).fill(0))).packet;
+      T.eq('the packet counter is 16 bits, low byte first', M.packetSeq(pkt), 0x020d);
+      T.eq('the device time is 40 bits, low byte first', M.headerBase(pkt), 0xf1 + 0xa2 * 256 + 0xb3 * 65536 + 0xc4 * 16777216 + 5 * 4294967296);
+
+      var BASE = 6634441000, // 2026, in units of 2^28 ns since 1970
+        N = 2000;
+      function ingest(o) {
+        return D.ingestMuseRaw(buildMuseRawText(Object.assign({ records: N, gapLen: 0, base0: BASE }, o)));
+      }
+      function at(k, ev) {
+        return {
+          event: function (i) {
+            return i === k ? ev : {};
+          }
+        };
+      }
+      function tally(r) {
+        return JSON.stringify([r.frames.eegRecords, r.frames.lostRecords, r.frames.lostFrames, r.frames.repeats, r.frames.restarts, r.samples.length]);
+      }
+      var clean = ingest({});
+      T.eq('a whole stream loses nothing across 58 folds of the tick', tally(clean), JSON.stringify([N, 0, 0, 0, 0, 2 * N]));
+      T.eq('and it is whole', clean.truncated, false);
+
+      /* A PACKET DELIVERED TWICE. Read as records, the second copy steps the index back and the modulo
+         turns it into 255 lost records, which is 2 s of NaN. 21 packets in 22 recordings did this. */
+      var twice = ingest(at(700, { times: 2 }));
+      T.eq('a packet the link delivered twice is read once', tally(twice), JSON.stringify([N, 0, 0, 1, 0, 2 * N]));
+      T.ok(
+        'and every sample is the sample of the clean stream',
+        twice.samples.every(function (v, i) {
+          return v === clean.samples[i];
+        })
+      );
+
+      var lost = ingest(at(700, { lose: 5 }));
+      T.eq('five lost packets are five records', tally(lost), JSON.stringify([N, 5, 5, 0, 0, 2 * (N + 5)]));
+      var cycle = ingest(at(700, { lose: 924 }));
+      T.eq('a loss past the 256-record index is counted whole', tally(cycle), JSON.stringify([N, 924, 924, 0, 0, 2 * (N + 924)]));
+      T.ok('and the device axis carries those seconds', Math.abs(cycle.hostAxis.ppm) < 200, JSON.stringify(cycle.hostAxis));
+      var neg = ingest({
+        event: function (i) {
+          return { neg: i % 7 === 3 };
+        }
+      });
+      T.eq('a tick written as a negative time under the next fold is the same instant', tally(neg), tally(clean));
+      T.eq('and so is one on the far side of a loss', tally(ingest(at(700, { lose: 924, neg: true }))), tally(cycle));
+      var far = ingest(at(700, { lose: 1792, hostMs: 0 }));
+      T.eq('a long loss that the host stamps deny by more than 10 s takes the host gap', JSON.stringify([far.frames.lostRecords, far.frames.restarts]), JSON.stringify([0, 1]));
+      var mid = ingest(at(700, { lose: 300, hostMs: 15000 }));
+      T.eq('so does any loss past one index cycle', mid.frames.lostRecords, 1920);
+      var back = ingest(at(700, { lose: 1792, hostMs: -5000 }));
+      T.eq('a host gap that runs backwards is no negative loss', JSON.stringify([back.frames.lostRecords, back.frames.gapCount]), '[0,0]');
+      var near = ingest(at(700, { lose: 924, hostMs: 0 }));
+      T.eq('a host stamp that arrived late does not deny a 7.2 s loss', near.frames.lostRecords, 924);
+
+      /* A STREAM THAT RESTARTS INSIDE THE FILE. Counter and index go back to 0, so neither measures it. */
+      var re = ingest(at(700, { restart: 108829, hostMs: 108837 }));
+      var reLost = Math.round(108829 / 7.8125 + 1) - 1;
+      T.eq('a restart takes its silence from the device time', tally(re), JSON.stringify([N, reLost, 0, 0, 1, 2 * (N + reLost)]));
+      T.eq('the gap sits where the stream stopped', JSON.stringify(re.frames.gaps), JSON.stringify([{ firstSample: 1400, records: reLost, samples: 2 * reLost }]));
+      T.ok('and the device axis carries the silence', Math.abs(re.hostAxis.ppm) < 200 && re.hostAxis.ok === true, JSON.stringify(re.hostAxis));
+      var cut = buildMuseRawText(Object.assign({ records: N, gapLen: 0, base0: BASE }, at(700, { restart: 108829, hostMs: 108837 }))).split('\n');
+      cut.splice(700, 0, '2026-11-15T01:02:08.000;;0;9;090000000000000000');
+      var re2 = D.ingestMuseRaw(cut.join('\n'));
+      T.eq('a restart behind an unreadable packet is still a restart', JSON.stringify([re2.frames.lostRecords, re2.frames.restarts]), JSON.stringify([reLost, 1]));
+      var rtc = ingest(at(700, { restart: 108829, hostMs: 108837, baseShift: -2900000000 }));
+      var rtcLost = Math.round(108837 / 7.8125 + 1) - 1;
+      T.eq('a device clock that lost its date at the restart leaves the host gap', JSON.stringify([rtc.frames.lostRecords, rtc.frames.restarts]), JSON.stringify([rtcLost, 1]));
+      var blind = ingest(Object.assign({ blankHost: true }, at(700, { restart: 108829, hostMs: 108837 })));
+      T.eq('with no host stamp the index is the only reading left', JSON.stringify([blind.frames.lostRecords, blind.frames.restarts]), JSON.stringify([68, 0]));
+
+      /* A STALE HEADER. The first packets of a stream can carry an old device time, and the index says
+         that nothing is absent. */
+      var stale = ingest({
+        event: function (i) {
+          return i === 0 ? { baseShift: -25 } : i === 2 ? { baseShift: 0 } : {};
+        }
+      });
+      T.eq('a stale header on the first packets is not a gap', tally(stale), JSON.stringify([N, 0, 0, 0, 0, 2 * N]));
+      var later = ingest({
+        event: function (i) {
+          return i === 700 ? { lose: 5 } : i === 900 ? { baseShift: -25 } : {};
+        }
+      });
+      T.eq('a header step after a counted loss is not a restart', tally(later), JSON.stringify([N, 5, 5, 0, 0, 2 * (N + 5)]));
+      var bat = '8800000000' + '0'.repeat(40) + '\n';
+      var tailLoss = D.ingestMuseRaw(
+        buildMuseRawText({ records: N, gapLen: 0, base0: BASE }) + '2026-11-15T01:02:30.000;;211;34;22d307000000000000' + bat + '2026-11-15T01:02:31.000;;218;34;22da07000000000000' + bat
+      );
+      T.eq('packets lost after the last EEG record are counted', JSON.stringify([tailLoss.frames.lostFrames, tailLoss.frames.unparsable]), '[9,{}]');
+      /* 3 folds back is under one index cycle. 149 folds back is 5119.6 records, 20 whole cycles to the
+         rounding, which the index alone cannot deny. Neither is an old copy of a record. */
+      T.eq(
+        'a header that steps back keeps every record',
+        JSON.stringify([tally(ingest(at(900, { baseShift: -3 }))), tally(ingest(at(900, { baseShift: -149 })))]),
+        JSON.stringify([tally(clean), tally(clean)])
+      );
+      var noTime = ingest(Object.assign({ base0: 0 }, at(700, { lose: 300 })));
+      T.eq('a header with no device time leaves the index count', noTime.frames.lostRecords, 44);
     });
 
     group('Every raw-frame ingest refusal is named', 'eegdex · ingest · muse-refusals', function (T) {

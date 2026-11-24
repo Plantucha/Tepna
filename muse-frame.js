@@ -28,9 +28,9 @@
 (function (global) {
   'use strict';
 
-  /* The notification frame (brief §2.1): `[length u8][packet counter u8][7 bytes]`.
-     The seven header bytes are kept verbatim and NOT interpreted — the probe did not
-     resolve them, and a guessed field is a fabricated reading. */
+  /* The notification frame (brief §4): `[length u8][packet counter u16 LE][device time u40 LE][0]`.
+     `packet.counter` stays the low byte, because the captured file's counter column holds that byte.
+     `packetSeq` reads the 16 bits and `headerBase` the device time. */
   var HEADER_LEN = 9;
   /* Each record: `[tag u8][record index u8][device tick, 24-bit little-endian]`. */
   var RECORD_HEAD = 5;
@@ -68,7 +68,8 @@
   var EEG_FIELDS = 16, // 14-bit, LSB-first: 2 samples x 8 channels, sample after sample (§6.5)
     EEG_WIDTH = 14,
     EEG_CHANNELS = 8,
-    EEG_SAMPLES = 2;
+    EEG_SAMPLES = 2,
+    EEG_RECORD_NS = 7812500; // 78 125 ticks, 128 records a second (§2.4)
   /* The four electrodes pinned by the owner's events in the worn capture (§6.5). Channels
      4-7 are NOT identified, so they keep their wire number and no name. */
   var EEG_ELECTRODES = ['left-ear', 'left-forehead', 'right-forehead', 'right-ear'];
@@ -169,6 +170,22 @@
   function frameCounter(pkt) {
     if (!pkt || pkt.length < HEADER_LEN || pkt[0] !== pkt.length) return null;
     return pkt[1];
+  }
+
+  /* The 16-bit packet counter. It starts at 0 at each stream start and steps by 1 from one packet to
+     the next. A packet that the link delivered twice carries the same counter and the same bytes. */
+  function packetSeq(packet) {
+    return packet.counter + 256 * packet.header[0];
+  }
+
+  /* The device time of the header, in units of 2^28 ns since 1970, or 0 when the header holds none. The
+     record tick adds the part below the fold: device ns = base x WRAP_NS + signed tick x NS_PER_TICK.
+     Measured on 22 recordings, 12.06 M packets. A number in ns since 1970 is past 2^53, so a caller
+     subtracts two bases before it multiplies. The header can be stale for the first packets of a
+     stream, so a caller holds a step against the record index before it trusts the step. */
+  function headerBase(packet) {
+    var h = packet.header;
+    return h[1] + 256 * (h[2] + 256 * (h[3] + 256 * (h[4] + 256 * h[5])));
   }
 
   /* Packets (or records of one tag) lost between two consecutive 8-bit counters. The
@@ -483,6 +500,7 @@
     EEG_WIDTH: EEG_WIDTH,
     EEG_CHANNELS: EEG_CHANNELS,
     EEG_SAMPLES: EEG_SAMPLES,
+    EEG_RECORD_NS: EEG_RECORD_NS,
     EEG_ELECTRODES: EEG_ELECTRODES,
     TAG_34: TAG_34,
     OPTICS4_CHANNELS: OPTICS4_CHANNELS,
@@ -495,6 +513,9 @@
     unpackLsb: unpackLsb,
     tokenise: tokenise,
     frameCounter: frameCounter,
+    packetSeq: packetSeq,
+    headerBase: headerBase,
+    signedTick: signedTick,
     lostBetween: lostBetween,
     tickSeconds: tickSeconds,
     TickClock: TickClock,

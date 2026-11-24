@@ -1192,10 +1192,42 @@
 
      THE GAP IS MEASURED FROM THE EEG RECORD'S OWN INDEX, NOT THE NOTIFICATION COUNTER. One
      notification carries records of several tags, so a gap of k notifications is NOT k EEG records.
-     The per-tag `index` steps by one from one record of THAT tag to the next, which is the only
-     counter that answers how many EEG records went missing. The notification counter is kept beside
-     it as a separate diagnostic, and both inherit the frame reader's documented modulo-256 blind
-     spot: a loss of exactly 256 reads as 0. */
+     The per-tag `index` steps by one from one record of THAT tag to the next, modulo 256, so on its
+     own it cannot tell a loss of 924 records from a loss of 156. The device time in the packet header
+     gives the whole count. The two must agree modulo 256, and a step the index does not confirm is a
+     stale header and not a gap (`museGap`).
+
+     TWO EVENTS ARE NOT A LOSS. The link can deliver one packet twice. Its records step the index AND
+     the device time back by the same count, so they are old copies and are dropped: the modulo alone
+     turns that step back into 254 lost records. A stream
+     that restarts inside a file puts the counter and the index back to 0, so no counter measures the
+     silence and the device time alone does, held against the host stamps. */
+  var MUSE_GAP_HOST_TOL_NS = 10e9, // a counted loss past one index cycle sits this close to the host gap
+    MUSE_RESTART_TOL_NS = 2e9; // past this the device clock itself moved at the restart
+
+  /* One EEG record against the one before it: `{ missed, spanNs, restart }`. `missed` is the count of
+     records between the two. `spanNs` is the device time between them, or `null` when the header does
+     not confirm one and the fold of the tick is the only reading left. */
+  function museGap(lib, prev, cur) {
+    var m8 = lib.lostBetween(prev ? prev.index : null, cur.index),
+      out = { missed: m8, spanNs: null, restart: false, old: false };
+    if (!prev || !(prev.base > 0) || !(cur.base > 0)) return out;
+    var dNs = (cur.base - prev.base) * lib.WRAP_NS + (lib.signedTick(cur.tick) - lib.signedTick(prev.tick)) * lib.NS_PER_TICK,
+      hostNs = prev.hostMs == null || cur.hostMs == null ? null : (cur.hostMs - prev.hostMs) * 1e6,
+      n = Math.round(dNs / lib.EEG_RECORD_NS);
+    var agree = (n - 1 - m8) % 256 === 0;
+    if (agree && n < 1 && n > -256) out.old = true;
+    else if (agree && n >= 1 && (n <= 256 || (hostNs !== null && Math.abs(hostNs - dNs) <= MUSE_GAP_HOST_TOL_NS))) {
+      out.missed = n - 1;
+      out.spanNs = dNs;
+    } else if (cur.seqBroken && hostNs !== null) {
+      out.spanNs = Math.abs(hostNs - dNs) > MUSE_RESTART_TOL_NS ? hostNs : dNs;
+      out.missed = Math.max(0, Math.round(out.spanNs / lib.EEG_RECORD_NS) - 1);
+      out.restart = true;
+    }
+    return out;
+  }
+
   function ingestMuseRaw(text, opts) {
     opts = opts || {};
     var lib = opts.frame || (typeof global !== 'undefined' && global ? global.MuseFrame : null);
@@ -1228,9 +1260,18 @@
       lostRecords = 0,
       lostFrames = 0,
       gapCount = 0,
-      prevIndex = null,
-      prevCounter = null,
+      repeats = 0,
+      restarts = 0,
+      prev = null,
+      prevSeq = null,
       prevTick = null,
+      seqBroken = false,
+      pendingLost = 0,
+      seq,
+      base,
+      cur,
+      gap,
+      before,
       row,
       pkt,
       rec,
@@ -1251,14 +1292,22 @@
         unparsable[pkt.reason] = (unparsable[pkt.reason] || 0) + 1;
         /* §∅ — an unreadable notification breaks BOTH chains. The next row's step is then unexamined
            rather than read across a frame nobody decoded, which is what a null does here. */
-        prevCounter = null;
+        prevSeq = null;
+        seqBroken = true;
         continue;
       }
-      if (row.counter == null) prevCounter = null;
+      seq = lib.packetSeq(pkt.packet);
+      if (row.counter == null) prevSeq = null;
       else {
-        lostFrames += lib.lostBetween(prevCounter, row.counter);
-        prevCounter = row.counter;
+        if (prevSeq !== null && seq !== prevSeq && seq !== (prevSeq + 1) % 65536) {
+          seqBroken = true;
+          pendingLost += (seq - prevSeq - 1 + 65536) % 65536;
+        }
+        prevSeq = seq;
       }
+      base = lib.headerBase(pkt.packet);
+      ck = ckLib.parseTimestamp(row.hostRaw, {});
+      hostMs = ck && isFinite(ck.tMs) ? ck.tMs : null;
       rowTick = null;
       for (r = 0; r < pkt.packet.records.length; r++) {
         rec = pkt.packet.records[r];
@@ -1266,35 +1315,49 @@
         smp = lib.eegSamples(rec);
         if (!smp) {
           unparsable['eeg-undecodable'] = (unparsable['eeg-undecodable'] || 0) + 1;
-          prevIndex = null;
+          prev = null;
           prevTick = null;
           continue;
         }
-        missed = lib.lostBetween(prevIndex, rec.index);
+        cur = { index: rec.index, tick: rec.tick, base: base, hostMs: hostMs, seqBroken: seqBroken };
+        gap = museGap(lib, prev, cur);
+        if (gap.old) {
+          repeats++; // the link delivered one record twice
+          continue;
+        }
+        missed = gap.missed;
+        /* A restart puts the packet counter back to 0, so its step across the restart is no loss count. */
+        if (gap.restart) restarts++;
+        else lostFrames += pendingLost;
+        pendingLost = 0;
+        seqBroken = false;
         if (missed) {
           gapCount++;
           if (gaps.length < 64) gaps.push({ firstSample: out.length, records: missed, samples: missed * lib.EEG_SAMPLES });
           lostRecords += missed;
           for (k = missed * lib.EEG_SAMPLES; k > 0; k--) out.push(NaN);
         }
-        tsec = clk.feed(rec.tick) / 1e9;
+        before = clk.nsNow;
+        clk.feed(rec.tick);
+        /* The tick alone folds at 0.268 s. The header time restores the whole folds of a longer step. */
+        if (gap.spanNs !== null) clk.nsNow += Math.round((gap.spanNs - (clk.nsNow - before)) / lib.WRAP_NS) * lib.WRAP_NS;
+        tsec = clk.nsNow / 1e9;
         /* The rate is MEASURED from the device clock, over consecutive records with no gap between
            them. A step across a gap spans the missing records and is not an inter-record interval. */
         if (prevTick !== null && !missed) steps.push(tsec - prevTick);
         prevTick = tsec;
-        prevIndex = rec.index;
+        prev = cur;
         for (s = 0; s < smp.length; s++) out.push(smp[s][ci]);
         if (rowTick === null) rowTick = tsec;
         eegRecords++;
       }
       if (rowTick === null) continue;
-      ck = ckLib.parseTimestamp(row.hostRaw, {});
-      hostMs = ck ? ck.tMs : null;
       /* §🔒.7 — an anchor is `{ devMs, hostMs }` from the SAME row, and a row with no parseable host
          stamp contributes none rather than a fabricated one. */
-      if (hostMs != null && isFinite(hostMs)) anchors.push({ devMs: rowTick * 1000, hostMs: hostMs });
+      if (hostMs !== null) anchors.push({ devMs: rowTick * 1000, hostMs: hostMs });
     }
 
+    lostFrames += pendingLost;
     if (!eegRecords) return { ok: false, reason: 'no-eeg-record', rows: parsed.rows.length, refusedRows: parsed.refused, unparsable: unparsable };
     /* A rate from one or two intervals is not a rate. The floor is the three `DexClock.hostAxis`
        refuses below, for the same reason: two points cannot disagree. */
@@ -1334,6 +1397,8 @@
         eegRecords: eegRecords,
         lostRecords: lostRecords,
         lostFrames: lostFrames,
+        repeats: repeats,
+        restarts: restarts,
         gapCount: gapCount,
         gaps: gaps,
         refusedRows: parsed.refused,

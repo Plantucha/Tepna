@@ -68,7 +68,13 @@ to `<base>_RAWRUNS.txt` (`_RunSidecar`, rule `counter-gap`; a repeat is `counter
   values of particular channels, not filled dropouts; which channels is the same open question.
 - [ ] **Tag `0x53`** (4.18 records/s, 24 data bytes; the sampled record holds 12 little-endian 16-bit values near
   0x2000) and **tag `0x88`** (0.99 records/s, 20 data bytes): meaning unknown.
-- [ ] **Header bytes 2–4** (vary) and **5–8** (constant in this capture): meaning unknown. Kept verbatim per packet.
+- [x] **Header bytes 2–4 and 5–8** — decoded 2026-11-24 (unit `musehdr`, `muse-frame.js`).
+  - Bytes 1–2 are a 16-bit little-endian packet counter. Byte 1 alone is its low byte.
+  - Bytes 3–7 are a 40-bit little-endian device Unix time in units of 2^28 ns. Byte 8 is 0.
+  - Device time of a record = header time × 2^28 ns + signed tick × 100 ns.
+  - Measured on 22 recordings, 26 161 677 EEG records: 26 161 590 steps are clean. `eegdex-dsp.js` now reads a gap
+    off this time, and the index count stays the fallback.
+  - Open: the recorder keeps its own tick clock. The first packets of a stream can carry a stale header time.
 - [ ] **Units and scales** of every field (EEG µV per count, optical channel map, gyroscope scale).
 - [ ] **A second capture** must reproduce §2 before the recorder relies on it (one capture is one firmware state).
 
