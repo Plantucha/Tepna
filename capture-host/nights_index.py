@@ -52,6 +52,8 @@ NODES: dict[str, tuple[tuple[Pattern, ...], Pattern | None]] = {
             "Polar_VeritySense_*_PPI.txt",
             "Wellue_O2Ring-S_*_PPG.txt",
             "Wellue_O2Ring-S_*_PPG2W.txt",
+            # PpgDex reads the headband's optical channels out of the frame file
+            "Muse_*_RAW.txt",
         ),
         "Polar_VeritySense_*_PPG.txt",
     ),
