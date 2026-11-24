@@ -38,7 +38,8 @@
  *     `isRealmArtefact` is reused rather than re-derived.
  *
  * Usage:
- *   node tools/mutation-ai-probe.mjs --file oxydex-dsp.js [--limit N] [--per-mutant K]
+ *   node tools/mutation-ai-probe.mjs --file oxydex-dsp.js [--limit N] [--per-mutant K] [--gpu-wait-min 45]
+ *     exit 4 = a GPU job held the card for the whole wait; the pass is not finished
  *   node tools/mutation-ai-probe.mjs --selftest
  */
 import { existsSync, readFileSync, writeFileSync, mkdirSync, openSync, writeSync, readdirSync, statSync, unlinkSync } from 'node:fs';
@@ -47,6 +48,7 @@ import { execFileSync } from 'node:child_process';
 import vm from 'node:vm';
 import { loadRealm, isRealmArtefact } from './mutation-crawl.mjs';
 import { isCliEntry } from './argv-guard.mjs';
+import { EXIT_BUSY, gpuState, unload, waitForGpu } from './gpu-gate.mjs';
 import { boundedFetch } from './net-bound.mjs';
 
 const argv = process.argv.slice(2);
@@ -1033,6 +1035,10 @@ async function main() {
     log('  seed pool: ' + pool.length + ' known-killing input(s), ' + (ranked ? ranked + ' embedded for bge-m3 ranking' : 'NOT embedded — bge unreachable, trying in insertion order'));
   }
   let poolKills = 0;
+  const GPU_CHECK_EVERY = 10;
+  const GPU_WAIT_MIN = Number(opt('--gpu-wait-min', '45'));
+  let asked = 0;
+  let gpuBusy = null;
 
   const t0 = Date.now();
   const found = [];
@@ -1075,6 +1081,23 @@ async function main() {
     }
     const prog =
       '[' + String(i + 1).padStart(4) + '/' + pick.length + '  ' + rate.toFixed(1) + '/min  ETA ' + Math.round((pick.length - i - 1) / Math.max(rate, 0.01)) + 'm  found ' + found.length + ']';
+
+    /* A GPU job that holds the card spills the model, and a spilled model answers at 2 to 28 tok/s and
+       slows the GPU job too (2026-11-24). Wait for the card before an ask, never record an answer that
+       was not asked, and leave with EXIT_BUSY so the driver does not read a waiting pass as converged. */
+    if (asked++ % GPU_CHECK_EVERY === 0) {
+      let g = { ok: true };
+      try {
+        g = await waitForGpu({ state: () => gpuState(MODEL, HOST), drop: () => unload(MODEL, HOST), waitMin: GPU_WAIT_MIN, log });
+      } catch {
+        /* an unreachable server is the ask's own refusal below, not a busy card */
+      }
+      if (!g.ok) {
+        gpuBusy = g.why;
+        log('⏸ GPU BUSY: ' + g.why + '. Stopping; the journal keeps every answer.');
+        break;
+      }
+    }
 
     /* CRASH-LOOP BELT: record the ATTEMPT before executing anything. The vm timeout stops ordinary
        infinite loops, but a mutant that OOMs or hard-crashes the process leaves no verdict — and a
@@ -1264,6 +1287,7 @@ async function main() {
   // accepted. Printing the real values makes it copy-pasteable and makes any future drift show up
   // the first time somebody follows the advice.
   log('  → ' + outPath + '   (feed to: node tools/mutation-suite.mjs --draft ' + file + ' --crawl-dir ' + crawlDir + ')');
+  if (gpuBusy) process.exitCode = EXIT_BUSY;
 }
 
 /**
