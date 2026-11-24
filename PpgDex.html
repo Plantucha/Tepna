@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="5ca75ed0d1ac" data-compute-hash="19b014a11db2">
+<html lang="en" data-manifest-hash="11f116f76653" data-compute-hash="29537cff92bd">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3QOLYKBsffbmLXFalO1pSufl+HcbSk6JP025X/WpQs=' 'sha256-FN+9mZF/E31+1lM1aatPWdf//6LjIOCvdeIgtCSciLw=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LRa7VQaZD1GO9QtTgm/NOp9niJoNbsRPsWXzCbrnE10=' 'sha256-Lg3Qjt79FZt7ayKj+1c1xlLwbUAcBsRrVpSwb7dXDOk=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UiJdLIejK5YCW72lJMbSpQm6oU3PbLlrDpblXzUyWAg=' 'sha256-WB5Nu9o8/IUbJu5Tu2LeQmspeIHPqucn5z1ENIYT6M4=' 'sha256-WLSf6RDbro32fr9V499zIXx05PeWHrSytiNLDT0boh4=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sYHaJdpNdlMIGDZgnrzyT9ldxVS4u6wkh+Hm8oQE644='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3QOLYKBsffbmLXFalO1pSufl+HcbSk6JP025X/WpQs=' 'sha256-FN+9mZF/E31+1lM1aatPWdf//6LjIOCvdeIgtCSciLw=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-JXvOiNWxxEpaIqPVZaw5jBzxRZM+d44OZqhZ1oEInTc=' 'sha256-LRa7VQaZD1GO9QtTgm/NOp9niJoNbsRPsWXzCbrnE10=' 'sha256-Lg3Qjt79FZt7ayKj+1c1xlLwbUAcBsRrVpSwb7dXDOk=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UiJdLIejK5YCW72lJMbSpQm6oU3PbLlrDpblXzUyWAg=' 'sha256-WLSf6RDbro32fr9V499zIXx05PeWHrSytiNLDT0boh4=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-poV646fY+mJ9UXvTWQzQfv+vvxLiLoWfaPwe6QYLL+s=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.36.0</title>
@@ -12419,6 +12419,25 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     }
     return feet;
   }
+  /* Beat timing in a NARROWER band than beat detection. `detectChannel` keeps 0.5-8 Hz, and the
+     peaks it votes on, the SQI and the pulse shape stay on that waveform. A forehead band's 8 Hz foot
+     rides high-frequency noise, and rMSSD carries that jitter as variability. Each voted peak moves
+     FORWARD to the low-passed maximum (within `TIMING_SNAP_SEC`), and the foot is the same tangent foot
+     on that waveform. Forward only: a peak that sits late has the same trough and the same steepest
+     rise before it, so it gives the same foot. The reach is below the detector's 0.3 s refractory
+     floor, so a moved peak cannot reach the next one and the feet stay in order. */
+  const TIMING_SNAP_SEC = 0.2;
+  function timingFeet(chan, sign, peaks, fs, hiHz) {
+    const lp0 = bandpass(chan, fs, 0.5, hiHz);
+    const lp = sign === -1 ? negate(lp0) : lp0;
+    const h = Math.round(TIMING_SNAP_SEC * fs);
+    const snapped = peaks.map((p) => {
+      let m = p;
+      for (let j = p + 1; j <= p + h && j < lp.length; j++) if (lp[j] > lp[m]) m = j;
+      return m;
+    });
+    return refineFeet(lp, snapped, Math.round(fs * 0.85));
+  }
   function negate(x) {
     const y = new Float32Array(x.length);
     for (let i = 0; i < x.length; i++) y[i] = -x[i];
@@ -15723,6 +15742,9 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     const refIdxUsed = harmonicOutlierRefIdx(refIdx, _chRates, _chSnr);
     const bp = perChannel[refIdxUsed].bp; // reference-channel band-passed waveform
     const cons = consensusBeats(perChannel, refIdxUsed, rec.fs);
+    // A source whose 8 Hz foot is noisy (`rec.footHiHz`, set by the app per device) re-times the same
+    // voted beats in a narrower band. Absent ⇒ the consensus feet stand, byte-identical.
+    if (rec.footHiHz > 0) cons.feet = timingFeet(chIn[keepIdx[refIdxUsed]], perChannel[refIdxUsed].sign, cons.peaks, rec.fs, rec.footHiHz);
     /* PER-CHANNEL DETECTOR AGREEMENT (three-cornered hat). Only meaningful with three genuinely
        distinct channels in the same rows — a deduped 1- or 2-channel record, or a replicated one, has
        no third corner and gets null rather than a two-corner approximation. Runs on the CONSENSUS-
@@ -17172,6 +17194,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     bandpass,
     detectBeats,
     detectChannel,
+    timingFeet,
     consensusBeats,
     consensusSign,
     /* PPG-FOOT-PLACEMENT §0 — exported so the polarity RULE is directly testable rather than reachable
@@ -22844,6 +22867,11 @@ const { PPGUI } = __require('ppgdex-render.js');
   // night rMSSD of 169 and 119 ms, -1 reads 66 and 53, and the arm sensor reads 43 and 31. The heart
   // rate agrees within 1 bpm on either sign.
   const MUSE_SIGN = -1;
+  // TIMING BAND. The forehead foot in the 0.5-8 Hz band rides noise, so rMSSD reads high. The voted beats
+  // keep that band and the foot is re-timed in 0.5-3 Hz, the pulse band `cadenceSamples` already uses.
+  // Measured on the 7 recordings of 2026-11-15 to 2026-11-22 that overlap a chest ECG, same beats both
+  // sides, 5-min epochs: rMSSD +5 to +72 percent at 8 Hz, +1 to +18 percent at 3 Hz, against 27 to 39 ms.
+  const MUSE_FOOT_HI_HZ = 3;
   async function readMuseOptics(f) {
     const reader = f.stream().pipeThrough(new TextDecoderStream()).getReader();
     const ppg = new window.MuseFrame.OpticsPpg({
@@ -23019,6 +23047,7 @@ const { PPGUI } = __require('ppgdex-render.js');
             // serial fallback when Worker is unavailable — the headless/gated path); analyze() then
             // reuses rec._preChannels for the consensus merge + HRV on the main thread.
             rec._preChannels = muse ? rec.ch.map((c) => DSP.detectChannel(c, rec.fs, MUSE_SIGN)) : await DSP.detectChannelsAsync(rec);
+            if (muse) rec.footHiHz = MUSE_FOOT_HI_HZ;
             r = DSP.analyze(rec, progress);
             if (muse) r.opticalDevice = 'Muse';
             r.ringRaw = !!rec.rawAxis; // the O2Ring's two-channel file, not its 125 Hz pleth
@@ -23287,7 +23316,7 @@ const { PPGUI } = __require('ppgdex-render.js');
     // Same `!== 'finger'` test as declaredSite: once a declaration has stamped r.site to 'ankle',
     // a `=== 'wrist'` gate here would make the control vanish and the choice unchangeable.
     if (r && r.opticalDevice === 'Muse')
-      return '<div class="ctx-note">Optical site: forehead (Muse headband, 3 of its 4 optical channels). The pulse rate agrees with an arm sensor. The beat-to-beat spread (rMSSD, SDNN, pNN50) reads higher here than on the arm.</div>';
+      return '<div class="ctx-note">Optical site: forehead (Muse headband, 3 of its 4 optical channels). The pulse rate agrees with an arm sensor. The beat-to-beat spread reads high: on 7 recordings of one wearer, rMSSD read 1 to 18 % above a chest ECG over the same beats.</div>';
     if (!r || r.site === 'finger') return '';
     const cur = declaredSite(r);
     const opts = SITE_CHOICES.map((c) => `<option value="${c.v}"${cur === c.v ? ' selected' : ''}>${c.l}</option>`).join('');
