@@ -13846,7 +13846,11 @@
       var src = env.sources || {};
       var UNDECLARED = {
         cpapdex: '',
-        ecgdex: 'accPosture cpcHfc deepMin edrDisagree edrResp remMin rraccRate rsaAmplitude sigmaLnRmssd stageConsensus varLnRmssd',
+        /* `deepMin` and `remMin` LEFT this baseline on 2026-11-24, and `lightMin` and `wakeMin`
+           never joined it: the sleep-stage chips in ecgdex-app.js now badge through a
+           `stageEvId` map that names all four ids as strings, which is route 1. The set
+           ratchets DOWN only. */
+        ecgdex: 'accPosture cpcHfc edrDisagree edrResp rraccRate rsaAmplitude sigmaLnRmssd stageConsensus varLnRmssd',
         /* `timeAbove` and `timeBelow` LEFT this baseline on 2026-11-11: glucodex-cross.js gave
            GlucoDex a *_DEFS table, and both ids are keys in it with a get: accessor naming the
            real per-day key (`tar`, `tbr`) — route 2. The set ratchets DOWN only. */
@@ -111306,6 +111310,107 @@
       T.ok('∅ · control · an unresolvable label DOES mint the forbidden disc', E.idForLabel(probe) === null && E.badgeForLabel(probe, true) !== '', 'the detector must be able to see the defect');
       T.ok('∅ · control · the deny list swallows no real metric', /ev-measured/.test(E.badgeForLabel('Mean HR', true)), E.badgeForLabel('Mean HR', true));
       T.eq('∅ · control · a denied label is denied even with fallback off', E.badgeForLabel('Intervals (QRS/QT/PR)', false), '');
+    });
+
+    /* ════ ∅ · THE FOUR SLEEP-STAGE CHIPS CARRY A BADGE, AND NOT A FABRICATED ONE ═══════════
+       Row 2026-11-24-ecgdex-stage-chips-surface-minutes-with-no-badge. The sleep card prints four
+       stage minute counts as chips, built from one literal array. The template badged none of them,
+       so four graded numbers reached a reader bare (CLAUDE.md §🎫). The sibling group above could not
+       see this surface: it harvests LITERAL `evBadge('…')` arguments, and the chips pass a loop
+       variable.
+
+       Two halves fail together, so this group pins both. The template owes the call. The registry
+       owes an entry for each of the four labels — `Deep` and `REM` already had one through the alias
+       map, while `Light` and `Wake` resolved to nothing and would have minted the `experimental`
+       fallback the sibling group forbids. All four come off the same HR-pattern epoch engine
+       (`ECGDSP.stageSleep`), so all four carry that engine's `heuristic` grade. None is EEG.
+
+       The population comes from the APP SOURCE, not from a list written here: a fifth chip added to
+       that array reds this group instead of slipping past it. */
+    group('∅ the ECGDex sleep-stage chips badge every stage minute count', 'ecgdex-app · ecgdex-registry · evidence · badges · ∅', function (T) {
+      var E = env.EcgRegistry;
+      var src = (env.sources || {})['ecgdex-app.js'];
+      if (!(E && typeof E.idForLabel === 'function' && typeof E.badgeForLabel === 'function')) {
+        T.skip('env.EcgRegistry exposes idForLabel + badgeForLabel', 'the registry is co-loaded in this lane, so an absence here means it stopped publishing them');
+        return;
+      }
+      var tierOf = function (label) {
+        var b = E.badgeForLabel(label, true);
+        var m = /ev-([a-z]+)/.exec(b || '');
+        return m ? m[1] : null;
+      };
+      // 1 · THE CHIP TEMPLATE. The array and the chip markup are read out of the live source, so a
+      // template that stops badging reds here even when the registry stays complete.
+      var chips = [],
+        tpl = '';
+      if (src == null) {
+        T.skip('∅ · ecgdex-app.js available for the chip harvest', 'ecgdex-app.js not in env.sources');
+      } else {
+        var blk = /\$\(\s*'sleepStats'\s*\)\.innerHTML\s*=\s*(\[[^\]]*\])([\s\S]{0,900}?)\.join\(''\)/.exec(src);
+        T.ok('∅ · the chip template was located in the app source', !!blk, 'the sleepStats assignment moved — re-point the harvest, never drop the leg');
+        if (blk) {
+          var lre = /'([^']+)'/g,
+            lm = lre.exec(blk[1]);
+          while (lm) {
+            chips.push(lm[1]);
+            lm = lre.exec(blk[1]);
+          }
+          tpl = blk[2];
+          T.eq('∅ · the harvest found the four stage chips', chips.join(' · '), 'Deep · Light · REM · Wake');
+          T.ok('∅ · the chip markup calls the badge helper on every chip', /evBadge\(\s*stageEvId\[st\]\s*\)/.test(tpl), 'the four stage minute counts render with no disc');
+          T.ok(
+            '∅ · …and the disc sits before the label, which is the dense-text placement',
+            /evBadge\(stageEvId\[st\]\)\}\$\{st\}/.test(tpl),
+            'the badge moved out of the inline position the ladder allows'
+          );
+          // The map is harvested too, so a chip pointed at the wrong registry id reds here.
+          var mre = /const stageEvId = \{([^}]*)\}/.exec(src);
+          T.ok('∅ · the stage id map was located beside the chips', !!mre, 'the chips badge a label again, so Light and Wake lean on the entry-label index');
+          if (mre) {
+            var pairs = [],
+              pre = /(\w+):\s*'([^']+)'/g,
+              pm = pre.exec(mre[1]);
+            while (pm) {
+              pairs.push(pm[1] + '→' + pm[2]);
+              pm = pre.exec(mre[1]);
+            }
+            T.eq('∅ · …and it names one registry id per chip', pairs.join(' · '), 'Deep→deepMin · Light→lightMin · REM→remMin · Wake→wakeMin');
+            var idTiers = pairs.map(function (x) {
+              var id = x.split('→')[1];
+              return id + '=' + tierOf(id);
+            });
+            T.eq('∅ · …and every mapped id grades heuristic through the badge path', idTiers.join(' · '), 'deepMin=heuristic · lightMin=heuristic · remMin=heuristic · wakeMin=heuristic');
+          }
+        }
+      }
+      // 2 · THE REGISTRY. Every harvested chip label must resolve, and must carry the grade of the
+      // engine that produced it.
+      var fell = chips.filter(function (l) {
+        return !E.idForLabel(l);
+      });
+      T.eq('∅ · every chip label resolves to a registry entry', fell.join(' · '), '');
+      var tiers = chips.map(function (l) {
+        return l + '=' + tierOf(l);
+      });
+      T.eq('∅ · …and each one carries the HR-pattern staging grade', tiers.join(' · '), 'Deep=heuristic · Light=heuristic · REM=heuristic · Wake=heuristic');
+      T.eq('∅ · Light resolves to its own entry, not to a neighbour', E.idForLabel('Light'), 'lightMin');
+      T.eq('∅ · Wake resolves to its own entry, not to a neighbour', E.idForLabel('Wake'), 'wakeMin');
+      // 3 · CONTROLS. The first proves the detector can still SEE the fabricated disc it forbids.
+      T.ok(
+        '∅ · control · an unresolvable stage-like label still mints the forbidden disc',
+        E.idForLabel('Stage Zz') === null && /ev-experimental/.test(E.badgeForLabel('Stage Zz', true)),
+        'the detector must be able to see the defect'
+      );
+      T.eq('∅ · control · Deep kept the alias it already resolved through', E.idForLabel('Deep'), 'deepMin');
+      T.eq(
+        '∅ · control · no chip label claims an EEG-grade tier',
+        ['measured', 'validated']
+          .filter(function (x) {
+            return tiers.join(' ').indexOf('=' + x) >= 0;
+          })
+          .join(' · '),
+        ''
+      );
     });
 
     /* DEEP-AUDIT-III §5.2 — LF/HF is a PER-SEGMENT quantity, so a night is the MEDIAN OF THE RATIOS.
