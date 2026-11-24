@@ -67,7 +67,9 @@ to `<base>_RAWRUNS.txt` (`_RunSidecar`, rule `counter-gap`; a repeat is `counter
 - [ ] **The zeros.** Exact zeros are 4.6 % of the fields in groups 0–3 and 8–11 and 0.02 % elsewhere. They are rail
   values of particular channels, not filled dropouts; which channels is the same open question.
 - [ ] **Tag `0x53`** (4.18 records/s, 24 data bytes; the sampled record holds 12 little-endian 16-bit values near
-  0x2000) and **tag `0x88`** (0.99 records/s, 20 data bytes): meaning unknown.
+  0x2000): meaning unknown.
+- [x] **Tag `0x88`** (20 data bytes) — a fuel-gauge record, decoded 2026-11-24 (unit `musegauge`, §6.4). Bytes 6–13
+  stay unread.
 - [x] **Header bytes 2–4 and 5–8** — decoded 2026-11-24 (unit `musehdr`, `muse-frame.js`).
   - Bytes 1–2 are a 16-bit little-endian packet counter. Byte 1 alone is its low byte.
   - Bytes 3–7 are a 40-bit little-endian device Unix time in units of 2^28 ns. Byte 8 is 0.
@@ -134,6 +136,21 @@ length-prefixed fragments on the control characteristic.
 percent. Against the device's own `bp`: 78.61 and 78.64, 76.27 and 76.27, 74.88 and 74.89 (18 presets, largest
 difference 0.09). In preset p1023 this record arrives 50 times per second and nothing else does.
 
+The record is a dump of a fuel gauge, as ten 16-bit little-endian fields. Measured 2026-11-24 on 3 429 records, one per
+minute, on 9 nights (2026-11-15 to 11-23). `muse_athena.gauge` reads the resolved fields.
+
+| bytes | field | evidence |
+|---|---|---|
+| 0–1 | percent × 256 | §6.4 above |
+| 2–3, 4–5 | remaining and full capacity, raw | percent × full / 100 equals remaining within 2.02 counts |
+| 6–7 | unread; possibly time to empty | 0 at empty, noisy |
+| 8–9 | unread; 0 or 65535 | possibly time to full |
+| 10–11 | unread; rises with charge and discharge | 267 to 907 over the 9 nights |
+| 12–13 | unread; constant 29500 | one value in all records |
+| 14–15 | cell voltage × 78.125 µV | inferred from the range: 3.77 V at 50 %, 3.01 V at the last record before the stop |
+| 16–17 | signed current, raw | median −72 to −84 on discharge |
+| 18–19 | temperature × 256 °C | 22 to 33 °C |
+
 **6.5 EEG layout and electrodes, from the worn capture (preset p1041).** Fields j and j + 8 of a `0x12` record are the
 same channel (correlation 0.90 for 0↔8 and 3↔11; medians and spreads equal pairwise). So a record is **2 samples × 8
 channels, sample after sample, 256 Hz**. Events done by the owner while recording:
@@ -182,3 +199,14 @@ Rejected (`rc 69`): p20, p22, p23, p31, p32, p50, p51, p60, p61, p63.
 fourth device of the reference-free noise estimate. So the night preset keeps optics. Candidates: p1045 / p1046 (EEG 8
 channels + 4 optical values + motion). Open before choosing: a drain run of at least 20 minutes, and a check that the
 4-value optics carry a usable pulse line.
+
+**6.9 The drain of p1045, measured 2026-11-24 over 9 nights.** This answers the drain run of §6.8.
+
+- The drain is steady. It is 25.2 to 28.7 raw capacity counts per hour on every night.
+- The gauge reads low. On the night of 2026-11-21 it read 1 % at 03:24, and the headband streamed at full rate until
+  07:18. That is 3 h 54 min at 1 %, and 11 h 37 min on one charge. The last record reads 3.01 V.
+- The believed full capacity was 200 to 217 counts before that discharge and 237 after it. The night used about 300.
+- So the percent falls 11 % per hour early and 13 to 16 % per hour late, at one steady current.
+- On all 8 complete nights the headband stopped within about 1 minute of the chest strap. Its gauge then read
+  14, 3, 26, 16, 12, 17, 1 and 31 %. Only the 1 % night ended on an empty cell.
+- The drain of p1046 is not measured. One discharge to empty is on record, so no voltage threshold is set.
