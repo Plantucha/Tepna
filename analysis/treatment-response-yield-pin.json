@@ -23,7 +23,7 @@
       "clock-seam.js": "3820c4fb6529",
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "46faf431bb51",
-      "oxydex-profile.js": "7f65bccefb87",
+      "oxydex-profile.js": "9a35c718b8cf",
       "oxydex-dsp.js": "760fadaf2751"
     },
     "pulse": {
@@ -389,11 +389,18 @@
       "old": "84068a4357c0",
       "new": "760fadaf2751",
       "reason": "Unit oxyhdr: parseCSV names the headerless column offsets as a cited constant and publishes which route mapped the columns, as rows.columnSource with the values header, positional and default. No cell value moves. The offsets are the same 1/2/3 the inline expression already used, and the six documents that state the O2Ring order are now cited beside them. The new record is write-only inside this node, and it rides on the rows ARRAY, so JSON.stringify drops it and no export byte moves. This run RE-CUT the cohort at paper scale, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped, so no synthetic patient changed arm."
+    },
+    {
+      "date": "2026-11-24",
+      "file": "oxydex-profile.js",
+      "old": "7f65bccefb87",
+      "new": "9a35c718b8cf",
+      "reason": "The profile VO₂max override wrote vo2Low and vo2High from a literal 10.8 and never wrote `see`, so the card printed a ±10.8 range beside \"±0 SEE\". The override now reads the result's own `see` where the DSP wrote one, writes that number back, and builds both range ends from it. The edit moves the VO₂max profile override alone. `measureFromResults` selects on the ODI and rMSSD series, which no profile field feeds, so no detector output moves for a fully measured night. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped."
     }
   ],
-  "measuredAt": "2026-11-23T09:38:54.718Z",
+  "measuredAt": "2026-11-24T15:24:20.155Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "2ddafabed"
+    "commit": "28db0e7fb"
   }
 }
