@@ -144,7 +144,9 @@ export function scanMemory({ memoryRoot, replacements, readFn = readText, dirFn 
   if (!memoryRoot) return { ok: false, reason: 'no memory root resolved on this machine', rows: [], eligible: 0, checked: 0, excluded: 0 };
   const names = dirFn(memoryRoot);
   if (names === null) return { ok: false, reason: `the memory directory is not readable at \`${tilde(memoryRoot)}\``, rows: [], eligible: 0, checked: 0, excluded: 0 };
-  const files = names.filter((f) => String(f).endsWith('.md')).sort();
+  /* The versioned memory keeps its notes one level down, in `<lane>/`; the old directory is flat. */
+  const isNote = (f) => String(f).endsWith('.md');
+  const files = names.flatMap((f) => (isNote(f) ? [f] : (dirFn(join(memoryRoot, f)) ?? []).filter(isNote).map((n) => `${f}/${n}`))).sort(); // absence-ok: a name that is no directory holds no note
   const rows = [];
   let checked = 0;
   let excluded = 0;
@@ -291,6 +293,19 @@ export function selftest() {
   ok(marks.map.get(560) === '#605' && marks.map.size === 1, 'the replaced posts come from the board corpus’s own marks, not from a second reader');
   ok(marks.files === 3 && marks.unreadable === 0, 'only `<digits>.md` under `<digits>/` is an entry, so a README and a stray .txt are not board posts');
 
+  /* The versioned memory is one directory per lane. */
+  const laneNote = fm('Posted as board #560: two open PRs per bird.', 'the cap');
+  const lanes = scanMemory({
+    memoryRoot: '/v',
+    replacements: marks.map,
+    readFn: (p) => (p === '/v/git-and-queue/cap.md' || p === '/v/flat.md' ? laneNote : null),
+    dirFn: (p) => ({ '/v': ['git-and-queue', 'flat.md', 'stray.txt'], '/v/git-and-queue': ['cap.md', 'x.json'] })[p] ?? null
+  });
+  ok(
+    lanes.rows.map((x) => x.file).join() === 'flat.md,git-and-queue/cap.md' && lanes.eligible === 2 && lanes.excluded === 0,
+    'a note inside a lane directory is read, and a stray file is neither read nor excluded'
+  );
+
   MEM['two-open-prs-per-bird.md'] = fm('Posted as board #560: two open PRs per bird.', 'the cap is two open PRs per bird');
   let r = run();
   ok(r.scan.rows.length === 1 && r.scan.rows[0].where === 'lead' && r.scan.rows[0].successor === '#605', 'a lead that cites a replaced post with a board cue is the finding');
@@ -382,7 +397,7 @@ function main() {
     return i >= 0 && argv[i + 1] ? argv[i + 1] : dflt;
   };
   const boardRoot = opt('--board-root', BOARD_CORPUS);
-  const memoryRoot = opt('--memory-root', externalRootPath('memory'));
+  const memoryRoot = opt('--memory-root', externalRootPath('memrepo') ?? externalRootPath('memory'));
   const board = boardReplacements(boardRoot);
   const scan = board.map === null ? { ok: false, reason: board.reason, rows: [], eligible: 0, checked: 0, excluded: 0 } : scanMemory({ memoryRoot, replacements: board.map });
   const v = buildVerdict({ scan, board, memoryRoot, boardRoot, commit: undefined });

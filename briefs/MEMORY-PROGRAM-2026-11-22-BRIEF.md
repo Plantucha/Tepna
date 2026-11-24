@@ -26,19 +26,26 @@ current and versioned memory. A bird reviews each proposal before anything moves
 
 ## 3 · Steps
 
-- [ ] **A · Baseline.** A fixed set of questions with a known current answer. Score whether the
+- [x] **A · Baseline.** A fixed set of questions with a known current answer. Score whether the
       top doc-search hit is current and correct. Record file count, kB and the hit rate.
+      Done 2026-11-23. The question is a real fleet query. The answer is the memory file that the same
+      session then read. Section 8 gives the score.
 - [x] **B1 · Classify** each file with `tools/memory-program.mjs` (Batch API, `claude-opus-5-5`):
       kind, lane, summary, durable claims with their identifiers, historical flag, promotion hint.
       Done 2026-11-22. The table below gives the result. One file is over the 1M-token request limit
       and was not classified.
 - [x] **B0 · doc-search output cuts** (section 6). Done 2026-11-22 in this PR.
-- [ ] **B2 · Dead references.** `refs` checks each cited identifier against `origin/main`.
-- [ ] **B3 · Duplicates.** Cluster the claims by bge similarity on the rig. Ask the model to merge
+- [x] **B2 · Dead references.** `refs` checks each cited identifier against `origin/main`.
+      Done 2026-11-23. The memory repo gates typed citations and repairs links between notes.
+- [x] **B3 · Duplicates.** Cluster the claims by bge similarity on the rig. Ask the model to merge
       each cluster into one current claim and name the claims it replaces.
+      Done 2026-11-23. Of 30 archived notes, a live note names 26 in `supersedes`. The other four state
+      "historical, no successor".
 - [ ] **B4 · State files.** Roll each state file into a short head plus an archive.
+      Done on 2026-11-23 for Kestrel, Heron, Osprey and Magpie. Wren and Finch are not switched.
 - [ ] **C · Rules to skills.** Fold each promotion candidate into an existing or new skill under
-      `.claude/skills/`, one PR at a time.
+      `.claude/skills/`, one PR at a time. First unit 2026-11-23: `memory-append`,
+      `handoff-at-a-unit-boundary`, `worktree-to-pr` and `land-through-the-queue`.
 - [ ] **D · Re-measure** with the step A question set. Report the before and after.
 
 ## 4 · Acceptance
@@ -109,3 +116,23 @@ The owner asked for a robust design from the start. An Opus review compared thre
 
 Rejected: mem0, Letta and Zep. Each needs a model on the write path, keeps state a reviewer cannot
 read, and adds a second retrieval system next to bge.
+
+## 8 · Step A score and the state after the switch
+
+Score of 2026-11-23, before the switch, 923 queries. A hit is a printed note that the session then read.
+
+| stratum | queries | hit in top 1 | hit in top 5 | refused |
+|---|---|---|---|---|
+| L (lesson notes) | 422 | 71 | 232 (0.55) | 14 |
+| S (state files) | 501 | 26 | 66 (0.13) | 14 |
+
+The criterion of step D is the L rate in the top 5, not lower than 0.55. It was set before the switch.
+
+| item | before | after |
+|---|---|---|
+| live memory | 829 files, 10,132 kB, no git | 803 notes, 3,287 kB, private git repo |
+| archived notes | 0 | 30: 26 with a replacement, 4 marked historical |
+| loaded `MEMORY.md` | hand-written | generated, 5.2 kB |
+| links between notes | 3,019 | 2,970: 2,891 live, 4 to the archive, 75 to a note nobody wrote |
+
+The drop in kB is mostly the state files, which left the indexed set (step B4).
