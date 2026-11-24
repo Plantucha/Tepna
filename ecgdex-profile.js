@@ -94,6 +94,7 @@
     };
     const sx = $('ecgSex');
     const cp = $('ecgCPAP');
+    const _ev = v('ecgElev', null); // §∅ — an empty elevation box is not a measured 0 m
     return {
       age: clamp(v('ecgAge', 42), 12, 95),
       sex: sx ? sx.value : 'M',
@@ -102,7 +103,7 @@
       hrmax: v('ecgHRmax', 0),
       rhr: v('ecgRHR', 0),
       vo2gt: v('ecgVO2', 0),
-      elev: clamp(v('ecgElev', 0), 0, 6000),
+      elev: _ev == null ? null : clamp(_ev, 0, 6000),
       cpap: cp ? cp.value === 'yes' : false,
       _origins: null
     };
@@ -180,7 +181,19 @@
   function popNorms(sex) {
     return sex === 'F' ? { h: 163, w: 71 } : { h: 177, w: 86 };
   }
+  /* §∅ — AN UNKNOWN ELEVATION IS NOT SEA LEVEL. `null <= 1500` coerces the null to 0 and answers
+     1, the very factor a MEASURED coastal night earns. So the record published `altitudeFactor: 1`
+     over an elevation nobody entered, and the full-metrics row appended nothing, because it
+     annotates only below 1. `dex-profile.js` already resolves an absent elevation to null, and its
+     own caption already reads "not set"; this file turned that null back into a number.
+     The CORRECTION stays neutral. A factor of 1 is what the math must apply when it holds no
+     elevation, because reduced coverage annotates and only a discontinuity refuses (owner ruling
+     2026-09-17). What changes is the PUBLISHED factor, now null, so every reader can tell an
+     unmeasured elevation from a measured sea-level one.
+     The test bank rejected a pin on this input on 2026-08-25 with the words "something there needs
+     investigating, not pinning". This is that investigation. */
   function altVO2Factor(elev) {
+    if (elev == null || !Number.isFinite(elev)) return null;
     return elev <= 1500 ? 1 : +(1 - (0.0033 * (elev - 1500)) / 100).toFixed(3);
   }
   function vo2Base(rhr, hrmax) {
@@ -256,6 +269,9 @@
     const hrmaxValid = p.hrmax > 0 && p.hrmax >= 140 && p.hrmax > rhrEff + 45;
     const hrmaxEff = hrmaxValid ? Math.round(p.hrmax) : tanaka;
     const altF = altVO2Factor(p.elev);
+    // The math applies a neutral 1 when nobody entered an elevation. `altFactor` below publishes
+    // the null, so a reader never takes an unmeasured elevation for a measured sea-level one.
+    const altApplied = altF == null ? 1 : altF;
     /* ∅ AN ABSENT rMSSD CANNOT CARRY AN HRV MODULATION, AND THE FLOOR HID THAT.
        `Math.max(1, null)` is 1, so `lnrm` read exactly 0 and `vo2Adj` applied its whole minus
        8 per cent arm to a night that measured no rMSSD: against a 50.0 base the card published
@@ -269,7 +285,7 @@
        `ppgdex-profile.js`. This was the third road, and the only unguarded one. */
     const rmOk = Number.isFinite(r.dispRm);
     const lnrm = rmOk ? Math.log(Math.max(1, r.dispRm)) : null;
-    const vo2b = rhrEff > 0 ? +(vo2Base(rhrEff, hrmaxEff) * altF).toFixed(1) : null;
+    const vo2b = rhrEff > 0 ? +(vo2Base(rhrEff, hrmaxEff) * altApplied).toFixed(1) : null;
     const vo2a = lnrm == null || vo2b == null ? null : +vo2Adj(vo2b, lnrm).toFixed(1);
     // ANS age removed (WP-A) — no longer computed; export keeps ansAge:null for back-compat.
     // apneaRisk + estAHI RETIRED 2026-07-31 (see the note above apneaRisk). The AMBULATORY veto

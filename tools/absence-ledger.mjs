@@ -1182,6 +1182,27 @@ export const SEEDS = [
     at: 'ecgdex-morph.js:656',
     state: 'fixed',
     note: 'hand-read 2026-11-24: already fixed on main. `afScreen` returns `verdict: insufficient` with every metric `null` when no window held enough usable beats, so a scoreless screen never reads as `no-af`.'
+  },
+  {
+    at: 'ecgdex-app.js:1611',
+    state: 'fixed',
+    note: 'hand-read 2026-11-24 (Heron): already fixed on main. `_welltoryRowFor` writes an EMPTY Date cell over an absent `t0Ms`, and its own comment states why 0 is not a refusal. The 1970-01-01 stamp the survey read is gone, and `num()` already emitted the empty string for every absent number beside it. Not credited to this PR.'
+  },
+  {
+    at: 'ecgdex-app.js:1643',
+    state: 'fixed',
+    note: 'hand-read 2026-11-24 (Heron): already fixed on main. `exportRR` writes an EMPTY Phone timestamp over an absent `t0Ms`, which is the shape the PulseDex handoff parser reads, so the filename no longer contradicts the rows inside it. Not credited to this PR.'
+  },
+  {
+    at: 'ecgdex-profile.js:254',
+    state: 'fixed',
+    note: 'THIS PR. `altVO2Factor` answered 1 over an absent elevation, because `null <= 1500` coerces the null to 0, so the record published `altitudeFactor: 1`, the node-export republished it, and the full-metrics row appended nothing. The factor now answers null for an absent or non-finite elevation, the VO2 math still applies a neutral 1 (reduced coverage annotates), and the row names the absence. The legacy DOM path read an empty elevation box as 0 m and answers null too. Plant: tests/dex-tests.js, group `an elevation nobody entered publishes no altitude factor`. Two legs red on origin/main (measured 2026-11-24, Heron).'
+  },
+  {
+    at: 'ecgdex-profile.js:71',
+    state: 'accepted-with-reason',
+    reason:
+      'hand-read 2026-11-24 (Heron): the priors age 42, 80 kg and 178 cm are what COMPUTE runs on, and `getProfile` carries `_origins` beside them, so no reader takes a prior for an entered value. `ageEnteredIn` gates every age-relative surface, and `renderHero` says `No age entered, so this card shows no age-relative HRV comparison` rather than grading against 42. The group `ECGDex grades against the age entered, not the population prior behind it` pins both halves. The substitution stays; the claim does not.'
   }
 ];
 
