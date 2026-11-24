@@ -757,6 +757,14 @@ function _hrvProvenanceAlerts(rows) {
   return out;
 }
 
+/* 🎫 EVERY NUMBER IN AN ALERT ROW CARRIES ITS BADGE, INLINE BEFORE ITS LABEL. The :814 template
+   renders an icon span and a message span, so a row has no card corner to hold an `.ev-corner`:
+   §🎫's second placement (inline `.ev` before the label in dense text) is the one that fits, and it
+   also lets ONE row grade two metrics, which the coherence row below does. The badge therefore
+   belongs in each message, not in a per-row field. A caption with no number of its own stays bare
+   ('Optimal Coherence + Energy'), because the two numbers under it each carry one. `VLF%` is the
+   label the metrics table already uses for this quantity (:1572), so the alert shows the same badge
+   the table head shows and this file invents no grade. */
 function renderAlerts(rows) {
   // v2.9: use the chronologically latest measurement for alerts,
   // not the last of the morning-filtered kpiRows (which may be days old).
@@ -764,10 +772,17 @@ function renderAlerts(rows) {
   const panel = document.getElementById('alertPanel');
   const alerts = [];
 
-  if (r._stress > 70) alerts.push({ type: 'red', icon: '🚨', msg: `<strong>High Stress ${r._stress}</strong> — Today's stress exceeds 70. Consider breathwork or reduced training load.` });
+  if (r._stress > 70)
+    alerts.push({ type: 'red', icon: '🚨', msg: `<strong>${evBadge('Stress')}High Stress ${r._stress}</strong> — Today's stress exceeds 70. Consider breathwork or reduced training load.` });
   // An absent energy is null, and `null < 30` is true: guard it, or the panel raises 'Low Energy null'.
-  if (Number.isFinite(r._energy) && r._energy < 30) alerts.push({ type: 'red', icon: '⚡', msg: `<strong>Low Energy ${r._energy}</strong> — Energy below 30. Recovery priority day.` });
-  if (r.d_si > 250) alerts.push({ type: 'red', icon: '⚠️', msg: `<strong>Baevsky SI ${r.d_si != null ? r.d_si.toFixed(0) : undefined}</strong> — Stress Index exceeds 250. Elevated autonomic load.` });
+  if (Number.isFinite(r._energy) && r._energy < 30)
+    alerts.push({ type: 'red', icon: '⚡', msg: `<strong>${evBadge('Energy')}Low Energy ${r._energy}</strong> — Energy below 30. Recovery priority day.` });
+  if (r.d_si > 250)
+    alerts.push({
+      type: 'red',
+      icon: '⚠️',
+      msg: `<strong>${evBadge('Baevsky SI')}Baevsky SI ${r.d_si != null ? r.d_si.toFixed(0) : undefined}</strong> — Stress Index exceeds 250. Elevated autonomic load.`
+    });
   // Baevsky unit guard (DexUnits.guardBaevsky) — surface ms-vs-s normalization instead of silently scaling (-III §1)
   if (r.d_si_flagged)
     alerts.push({
@@ -785,24 +800,32 @@ function renderAlerts(rows) {
     alerts.push({
       type: 'yellow',
       icon: '🌊',
-      msg: `<strong>VLF ${r.d_vlf_pct != null ? r.d_vlf_pct.toFixed(0) : undefined}% of total power</strong> — Dominant VLF may indicate slow regulatory stress or measurement artifact.`
+      msg: `<strong>${evBadge('VLF%')}VLF ${r.d_vlf_pct != null ? r.d_vlf_pct.toFixed(0) : undefined}% of total power</strong> — Dominant VLF may indicate slow regulatory stress or measurement artifact.`
     });
   if (r.d_ari < 0.85)
     alerts.push({
       type: 'yellow',
       icon: '📉',
-      msg: `<strong>Recovery Index ${r.d_ari != null ? r.d_ari.toFixed(2) : undefined}</strong> — rMSSD significantly below 7-day baseline. Rest day indicated.`
+      msg: `<strong>${evBadge('Recov Index')}Recovery Index ${r.d_ari != null ? r.d_ari.toFixed(2) : undefined}</strong> — rMSSD significantly below 7-day baseline. Rest day indicated.`
     });
   if (r.d_sdnn_z < -1.5)
     alerts.push({
       type: 'yellow',
       icon: '📊',
-      msg: `<strong>SDNN Z-score ${r.d_sdnn_z != null ? r.d_sdnn_z.toFixed(2) : undefined}</strong> — SDNN more than 1.5 SD below personal rolling baseline.`
+      msg: `<strong>${evBadge('SDNN Z-score')}SDNN Z-score ${r.d_sdnn_z != null ? r.d_sdnn_z.toFixed(2) : undefined}</strong> — SDNN more than 1.5 SD below personal rolling baseline.`
     });
   if (r._coherence > 70 && r._energy > 55)
-    alerts.push({ type: 'green', icon: '✅', msg: `<strong>Optimal Coherence + Energy</strong> — Coherence ${r._coherence}, Energy ${r._energy}. Excellent HRV regulation today.` });
+    alerts.push({
+      type: 'green',
+      icon: '✅',
+      msg: `<strong>Optimal Coherence + Energy</strong> — ${evBadge('Coherence')}Coherence ${r._coherence}, ${evBadge('Energy')}Energy ${r._energy}. Excellent HRV regulation today.`
+    });
   if (r.d_ari > 1.1)
-    alerts.push({ type: 'green', icon: '🔋', msg: `<strong>Recovery above baseline</strong> — rMSSD ${(r.d_ari * 100 - 100).toFixed(0)}% above 7-day mean. Good day for higher intensity training.` });
+    alerts.push({
+      type: 'green',
+      icon: '🔋',
+      msg: `<strong>Recovery above baseline</strong> — ${evBadge('rMSSD')}rMSSD ${(r.d_ari * 100 - 100).toFixed(0)}% above 7-day mean. Good day for higher intensity training.`
+    });
 
   /* D17 — the node's own refusals and unexamined channels lead, because they qualify every
      clinical line under them and every figure on the page. */
