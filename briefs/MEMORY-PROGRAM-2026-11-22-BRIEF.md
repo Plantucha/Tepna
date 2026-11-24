@@ -41,8 +41,8 @@ current and versioned memory. A bird reviews each proposal before anything moves
       each cluster into one current claim and name the claims it replaces.
       Done 2026-11-23. Of 30 archived notes, a live note names 26 in `supersedes`. The other four state
       "historical, no successor".
-- [ ] **B4 · State files.** Roll each state file into a short head plus an archive.
-      Done on 2026-11-23 for Kestrel, Heron, Osprey and Magpie. Wren and Finch are not switched.
+- [x] **B4 · State files.** Roll each state file into a short head plus an archive.
+      Done on 2026-11-23 for Kestrel, Heron, Osprey and Magpie, and by 2026-11-24 for Wren and Finch.
       Memory PR 18 adds `live.mjs remote`, the switch for a host without the memory repo (board #8239).
 - [x] **C · Rules to skills.** Fold each promotion candidate into an existing or new skill under
       `.claude/skills/`, one PR at a time. First unit 2026-11-23: `memory-append`,
