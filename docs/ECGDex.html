@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="67f2133d20e9" data-compute-hash="86e343209bb2">
+<html lang="en" data-manifest-hash="28f2b984c7ff" data-compute-hash="86e343209bb2">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ETqZPnyEOMCJ7vZgS1XxfM5eP45arYHcZc+vUSdnVMY=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-csoYuQTC7Oifl4DXdjZQTi/R1rLzeEQyG2MFYNR64tg=' 'sha256-dGsrycTNZcsjv/DOfnpj8GQnU3e4MkxPcrWg2xqKQUQ=' 'sha256-iqPNvfgaOLLxsrqf67NdcyYbCf6pshw6DVlOebr7HSE=' 'sha256-jXCcccdrNQGiQxKLg1YLoK8qJnx1KvldxWDfC9EfOq0=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-va9iMScWxEdN7cjNjYXiSv9RdPWnx5fnCHzd3Fx9doY=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ETqZPnyEOMCJ7vZgS1XxfM5eP45arYHcZc+vUSdnVMY=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-csoYuQTC7Oifl4DXdjZQTi/R1rLzeEQyG2MFYNR64tg=' 'sha256-iqPNvfgaOLLxsrqf67NdcyYbCf6pshw6DVlOebr7HSE=' 'sha256-jXCcccdrNQGiQxKLg1YLoK8qJnx1KvldxWDfC9EfOq0=' 'sha256-nINCo0TXagqAfjMc8qrTo7HJKrwLN81EsTVzWJvJer8=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-pcZ6GBB3TWPH0GzY1aqx1kD5FSyR/eNGlnglW9DY+oI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.36.0</title>
@@ -22429,6 +22429,7 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
     };
     const sx = $('ecgSex');
     const cp = $('ecgCPAP');
+    const _ev = v('ecgElev', null); // §∅ — an empty elevation box is not a measured 0 m
     return {
       age: clamp(v('ecgAge', 42), 12, 95),
       sex: sx ? sx.value : 'M',
@@ -22437,7 +22438,7 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
       hrmax: v('ecgHRmax', 0),
       rhr: v('ecgRHR', 0),
       vo2gt: v('ecgVO2', 0),
-      elev: clamp(v('ecgElev', 0), 0, 6000),
+      elev: _ev == null ? null : clamp(_ev, 0, 6000),
       cpap: cp ? cp.value === 'yes' : false,
       _origins: null
     };
@@ -22515,7 +22516,19 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
   function popNorms(sex) {
     return sex === 'F' ? { h: 163, w: 71 } : { h: 177, w: 86 };
   }
+  /* §∅ — AN UNKNOWN ELEVATION IS NOT SEA LEVEL. `null <= 1500` coerces the null to 0 and answers
+     1, the very factor a MEASURED coastal night earns. So the record published `altitudeFactor: 1`
+     over an elevation nobody entered, and the full-metrics row appended nothing, because it
+     annotates only below 1. `dex-profile.js` already resolves an absent elevation to null, and its
+     own caption already reads "not set"; this file turned that null back into a number.
+     The CORRECTION stays neutral. A factor of 1 is what the math must apply when it holds no
+     elevation, because reduced coverage annotates and only a discontinuity refuses (owner ruling
+     2026-09-17). What changes is the PUBLISHED factor, now null, so every reader can tell an
+     unmeasured elevation from a measured sea-level one.
+     The test bank rejected a pin on this input on 2026-08-25 with the words "something there needs
+     investigating, not pinning". This is that investigation. */
   function altVO2Factor(elev) {
+    if (elev == null || !Number.isFinite(elev)) return null;
     return elev <= 1500 ? 1 : +(1 - (0.0033 * (elev - 1500)) / 100).toFixed(3);
   }
   function vo2Base(rhr, hrmax) {
@@ -22591,6 +22604,9 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
     const hrmaxValid = p.hrmax > 0 && p.hrmax >= 140 && p.hrmax > rhrEff + 45;
     const hrmaxEff = hrmaxValid ? Math.round(p.hrmax) : tanaka;
     const altF = altVO2Factor(p.elev);
+    // The math applies a neutral 1 when nobody entered an elevation. `altFactor` below publishes
+    // the null, so a reader never takes an unmeasured elevation for a measured sea-level one.
+    const altApplied = altF == null ? 1 : altF;
     /* ∅ AN ABSENT rMSSD CANNOT CARRY AN HRV MODULATION, AND THE FLOOR HID THAT.
        `Math.max(1, null)` is 1, so `lnrm` read exactly 0 and `vo2Adj` applied its whole minus
        8 per cent arm to a night that measured no rMSSD: against a 50.0 base the card published
@@ -22604,7 +22620,7 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
        `ppgdex-profile.js`. This was the third road, and the only unguarded one. */
     const rmOk = Number.isFinite(r.dispRm);
     const lnrm = rmOk ? Math.log(Math.max(1, r.dispRm)) : null;
-    const vo2b = rhrEff > 0 ? +(vo2Base(rhrEff, hrmaxEff) * altF).toFixed(1) : null;
+    const vo2b = rhrEff > 0 ? +(vo2Base(rhrEff, hrmaxEff) * altApplied).toFixed(1) : null;
     const vo2a = lnrm == null || vo2b == null ? null : +vo2Adj(vo2b, lnrm).toFixed(1);
     // ANS age removed (WP-A) — no longer computed; export keeps ansAge:null for back-compat.
     // apneaRisk + estAHI RETIRED 2026-07-31 (see the note above apneaRisk). The AMBULATORY veto
@@ -26101,7 +26117,14 @@ self.onmessage = async (e) => {
       /* The rMSSD twin of the row above — the table named only the Rest-HR copy, but this row printed
          `expRmssd` (a prior) under the target "age norm". Same predicate, same disclosure. */
       ['Expected rMSSD', r.ageEntered ? r.expRmssd : '—', 'ms', r.ageEntered ? 'age norm' : '—', 'neutral', r.ageEntered ? 'Age-typical rMSSD for comparison' : 'population default, age not entered'],
-      ['VO₂max base', r.vo2base == null ? '—' : r.vo2base, 'ml/kg/min', '—', 'neutral', 'Uth–Sørensen HRmax/HRrest' + (r.altFactor && r.altFactor < 1 ? ' · alt ×' + r.altFactor : '')],
+      [
+        'VO₂max base',
+        r.vo2base == null ? '—' : r.vo2base,
+        'ml/kg/min',
+        '—',
+        'neutral',
+        'Uth–Sørensen HRmax/HRrest' + (r.altFactor == null ? ' · alt unknown (no elevation entered)' : r.altFactor < 1 ? ' · alt ×' + r.altFactor : '')
+      ],
       ['VO₂max adj', r.vo2adj == null ? '—' : r.vo2adj, 'ml/kg/min', '≥40', r.vo2adj == null ? 'neutral' : r.vo2adj >= 45 ? 'ok' : r.vo2adj >= 38 ? 'warn' : 'bad', 'HRV-adjusted estimate'],
       ...(r.vo2gt ? [['VO₂max GT', r.vo2gt, 'ml/kg/min', 'lab', 'neutral', 'Your entered ground truth']] : []),
       /* 'Apnea risk' + 'Est. AHI' rows retired 2026-07-31 (§10). The target column ('<5', 'Minimal')
@@ -27245,7 +27268,7 @@ self.onmessage = async (e) => {
         vo2maxAdjusted: r.vo2adj ?? null,
         vo2maxGroundTruth: r.vo2gt ?? null,
         altitudeFactor: r.altFactor ?? null,
-        altitudeFactorFormula: 'elev≤1500m → 1; else 1 − 0.0033·(elev−1500)/100',
+        altitudeFactorFormula: 'no elevation entered → null; elev≤1500m → 1; else 1 − 0.0033·(elev−1500)/100',
         vo2maxFormula: 'Uth–Sørensen 15.3·HRmax/HRrest, ×altitudeFactor, then ×(1 + clamp(±0.08, 0.10·(lnRMSSD−3.4)))',
         expectedRMSSDForAge: r.expRmssd ?? null,
         expectedRestHRForAge: r.expRHR ?? null
