@@ -42,7 +42,13 @@
      pair, which is the legacy behaviour and every contiguous recording. */
   /* Round-or-null for the absence-bearing helpers: keeps `null` null instead of letting `+null` become
      0 and re-manufacturing the very value §∅ forbids. Same shape as the pg.sd1/sd2 guards below. */
-  const _rmOrNull = (v, d) => (v == null ? null : +v.toFixed(d));
+  /* ∅ AND NaN IS NOT `== null`, SO IT WALKED THROUGH. `+NaN.toFixed(3)` stays NaN, and a NaN
+     reaching a render surface falls through every comparison to the worst severity, or prints the
+     word NaN beside a metric label. Infinity does the same: `.toFixed()` stringifies it and `+`
+     turns it back, which is how `validation.dRMSSDPct` once read 65 797.8 (see `_pctDiff` below).
+     A non-finite number states no measurement, so this helper answers the absence it exists for.
+     Row 2026-11-24-rmornull-passes-nan-into-the-crcplv-surfaces. */
+  const _rmOrNull = (v, d) => (v == null || !Number.isFinite(v) ? null : +v.toFixed(d));
   /* A percent difference against a device reference, refusing instead of manufacturing one. The
      denominator is absent (null) or zero for a 1-beat device record — `rmssd` now returns null there
      and `std` returns 0 — and `x / 0` is Infinity, which `.toFixed()` stringifies to "Infinity" and
@@ -2296,8 +2302,20 @@
        lock at all" — so a consumer handed 0 cannot tell an uncoupled record from an unmeasured one.
        The sibling fields `plvDuringSurges` and `plvBaseline` already refuse this case with
        `sIn.length ? … : null`. The reason names the window, never a borrowed one (§∅). */
-    const plv = plvCnt ? plvAcc / plvCnt : null;
-    const plvReason = plvCnt ? null : 'no complete 60 s coupling window in the record — phase locking not computable';
+    /* ∅ A SECOND ABSENCE AT THE SAME FIELD, and it needs its OWN reason. One beat interval of
+       0 ms makes `hrAbs` infinite, the detrended grid NaN, and every phase difference NaN, so the
+       windowed mean is NaN while `plvCnt` counts real windows. The null branch below refuses it,
+       and the reason names THIS cause rather than borrowing the empty-window one. Measured on a
+       400-beat series with one 0 ms interval: `crcPLV` read NaN with `crcPLVReason` null.
+       Row 2026-11-24-rmornull-passes-nan-into-the-crcplv-surfaces. */
+    const _plvMean = plvCnt ? plvAcc / plvCnt : null;
+    const plv = _plvMean != null && Number.isFinite(_plvMean) ? _plvMean : null;
+    const plvReason =
+      plv != null
+        ? null
+        : plvCnt
+          ? 'the windowed phase-locking value is not finite — a non-finite beat interval reached the phase grid'
+          : 'no complete 60 s coupling window in the record — phase locking not computable';
     // 4) RSA amplitude = robust peak-to-trough of the resp-band HR oscillation (the RSA itself),
     // drift- and polarity-proof. Efficiency ratio = inspiratory:expiratory HR (Border 2025).
     const meanHRabs = mean(Array.from(hrAbsU));
@@ -2357,7 +2375,14 @@
           acc += localPLV(s, s + wN);
           cnt++;
         }
-        if (cnt) epochCRC.push({ tMin: e.tMin, plv: +(acc / cnt).toFixed(3) });
+        /* ∅ The same non-finite window, on the PER-EPOCH series. This push carries no
+           `_rmOrNull`, and the surge split averages `ec.plv` with `mean`, so one NaN epoch makes
+           `plvDuringSurges` and `plvBaseline` NaN as well. A null would read as 0 through that
+           sum, so an unmeasured epoch joins no series and no mean. */
+        if (cnt) {
+          const _epPlv = acc / cnt;
+          if (Number.isFinite(_epPlv)) epochCRC.push({ tMin: e.tMin, plv: +_epPlv.toFixed(3) });
+        }
       }
     }
     // CPC on the RAW grids (see the edrRawU note) — never on edrB/hrB, which retain 0-22 % of LFC.
