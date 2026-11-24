@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**360 tools** · 359 with a purpose line · **1 without**
+**361 tools** · 360 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -247,6 +247,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`ppi-jitter-vs-ecg.mjs`](../tools/ppi-jitter-vs-ecg.mjs) | O2RING-FINGER-HRV-VALIDATION §3, the PRIMARY endpoint PPI-jitter sd for the O2Ring FINGER pleth against paired H10 chest ECG, reported as median + IQR across nights so it is directly… |
 | [`ppi-match.mjs`](../tools/ppi-match.mjs) | PPG-beat ↔ ECG-beat alignment and jitter, shared by the §3 apparatus |
 | [`pr-compliance.mjs`](../tools/pr-compliance.mjs) | Enforces the standing PR rules from the fleet workflow: 1. Body starts with a "Rule 0:" line (the git-grep evidence line). |
+| [`pr-open.mjs`](../tools/pr-open.mjs) | one command that gates the body, pushes, opens the draft PR and posts the note. |
 | [`pr-walker.mjs`](../tools/pr-walker.mjs) | pr-walker — the landing pipeline runs ITSELF: every open PR is classified each pass and the walker takes the one action its state calls for, with nobody typing a number into a queue file. |
 | [`probe-child-death-codes.mjs`](../tools/probe-child-death-codes.mjs) | WHAT A DYING CHILD ACTUALLY REPORTS — measured, not reasoned. |
 | [`probe-clock-equivalence.mjs`](../tools/probe-clock-equivalence.mjs) | IS A SURVIVING clock.js MUTANT A TEST GAP, OR IS IT UNKILLABLE? |

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="0cd57d1b4138" data-compute-hash="6d2388fca962">
+<html lang="en" data-manifest-hash="d0766d22aa41" data-compute-hash="ab1a368fb6c4">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3QOLYKBsffbmLXFalO1pSufl+HcbSk6JP025X/WpQs=' 'sha256-FCj+atbc3xEU0yRTX7MWus+kfvoNPgYFxszdwjvufcQ=' 'sha256-FN+9mZF/E31+1lM1aatPWdf//6LjIOCvdeIgtCSciLw=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-JXvOiNWxxEpaIqPVZaw5jBzxRZM+d44OZqhZ1oEInTc=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UiJdLIejK5YCW72lJMbSpQm6oU3PbLlrDpblXzUyWAg=' 'sha256-WLSf6RDbro32fr9V499zIXx05PeWHrSytiNLDT0boh4=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-e/i+Iz0Msf7DmnX8mhTW+WSenM3n4K53z69golEajqg=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wYDQbx7BnjeWBpxiSXeMr45U444dBQ1yup2hvhEudhU='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3QOLYKBsffbmLXFalO1pSufl+HcbSk6JP025X/WpQs=' 'sha256-FCj+atbc3xEU0yRTX7MWus+kfvoNPgYFxszdwjvufcQ=' 'sha256-FN+9mZF/E31+1lM1aatPWdf//6LjIOCvdeIgtCSciLw=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UiJdLIejK5YCW72lJMbSpQm6oU3PbLlrDpblXzUyWAg=' 'sha256-WLSf6RDbro32fr9V499zIXx05PeWHrSytiNLDT0boh4=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-e/i+Iz0Msf7DmnX8mhTW+WSenM3n4K53z69golEajqg=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wYDQbx7BnjeWBpxiSXeMr45U444dBQ1yup2hvhEudhU=' 'sha256-zxV4DCpRJohvPwd65AN+/CH0kNLzHAU+vIKI6BC4I28='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.36.0</title>
@@ -15957,10 +15957,23 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
             ? 'sqi-absent'
             : 'sqi-flat';
     const _t0 = rec.t0Ms || 0;
+    /* ∅ ONE SECOND, SPELLED ONE WAY. `beatConfidence` keys every beat through `secAbs` —
+       `floor((t0 + (round(sec·fs)/fs)·1000) / 1000)` over the pseudo-sample indices this call hands
+       it — and this reader spelled the same second from the UNROUNDED `sec`. The two spellings
+       differ by up to `500/fs` ms, so a beat within half a sample of a second boundary reads the
+       NEIGHBOURING second's trust, and a beat whose key rounds past the map's own span reads no
+       entry at all. That miss used to publish `1`, the top of the scale, for a beat the statistic
+       never weighed — and `ppiConfReason` / `ppiConfCue` cover the WHOLE map, so no field beside it
+       recorded the per-beat state. The reader now derives the key the way the map wrote it, and a
+       key the map does not carry answers `null`. `parsePPG` throws `no-sample-rate` on a
+       non-positive `fs` (:1735), so the rounding here always divides by a measured rate.
+       `integrator-dsp.js:181` already refuses a non-finite `conf`, and the rich export copies the
+       array verbatim (:8895). */
+    const _confKey = (sec) => Math.floor((_t0 + (Math.round(sec * rec.fs) / rec.fs) * 1000) / 1000);
     const ppiConf = _pConfMap
       ? corr.tt.map((s) => {
-          const c = _pConfMap.get(Math.floor((_t0 + s * 1000) / 1000));
-          return Number.isFinite(c) ? +c.toFixed(3) : 1;
+          const c = _pConfMap.get(_confKey(s));
+          return Number.isFinite(c) ? +c.toFixed(3) : null;
         })
       : null;
     // §4: per-interval CLEAN-adjacency mask — interval i (between beat i & i+1) is clean when it
