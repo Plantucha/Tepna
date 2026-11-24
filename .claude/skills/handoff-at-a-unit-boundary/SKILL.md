@@ -8,8 +8,8 @@ description: Use when a work unit ends, when a PR is opened or merges, when park
 The index (bge + xerj) **is** the memory, so notes are the durable artefact, not a courtesy. Sessions
 compact at 20 % of the window; whatever is not written down is gone at that moment.
 
-Append a dated section to your own state file in the memory directory
-(`<name>-state-YYYY-MM-DD-<part>.md`) containing all seven:
+Write your state head (its path is in the head of `MEMORY.md`, at most 2 kB) with all seven. A longer
+handoff goes in `handoffs/<unit>.md` in the worktree, and the state head points at it:
 
 1. **Unit** — what was being done, in one line.
 2. **Branch + worktree** — the exact paths, and the commit sha if one exists.
@@ -20,9 +20,8 @@ Append a dated section to your own state file in the memory directory
 6. **Blockers** — what would make the next step fail, and the cost if it does.
 7. **The doc-search query** that finds the relevant prior work, so the resumer starts where you ended.
 
-Then add the pointer line to the lane INDEX file; put it under READ ON RESUME in `MEMORY.md` only if
-it genuinely must be read on every resume. See `memory-append` for the frontmatter and the
-read-before-overwrite rule.
+A tool writes `MEMORY.md`, so a handoff adds no line to it. A lesson from the unit goes to the memory
+inbox: see `memory-append`.
 
 ## Measured
 
