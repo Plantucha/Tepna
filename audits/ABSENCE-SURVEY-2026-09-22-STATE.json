@@ -1183,7 +1183,7 @@
    "occurrence": 0,
    "surveyLine": 5853,
    "state": "fixed",
-   "note": "the relative per-sample axis a stampless file receives is still built from the rate, and it now names that rate: `_relBaseSource` rides beside `_relBase`, so an axis synthesised from an assumed 4 Hz is distinguishable from one spaced by a measured step. That is §∅ out-of-band validity, carried beside the stream rather than encoded in a sample value. Every consumer that reads position or motion off that axis refuses on `assumed`. Plant: tests/dex-tests.js, the leg `the synthesised relative axis names the rate it was built from` (2026-11-24, Heron)"
+   "note": "a stampless file no longer receives a synthesised per-sample axis at all. The synthesis now runs only on a measured rate and records that rate in `_relBaseSource`; an assumed rate leaves `tsMs` absent and names `_relBaseReason: acc-rate-assumed`. The branch was also unreachable for the file it serves: its test used the global `isFinite`, which is true for null, so a null-stamped row read as a measured 0. It now reads `Number.isFinite`, which also keeps absent stamps out of the rate median. Plant: the stampless twin in tests/dex-tests.js asserts no `_relBase` plus the named reason, and a first-row-only gap still rebuilds the axis under `ms-delta`."
   },
   {
    "key": "152d39f86efd",
