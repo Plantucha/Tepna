@@ -25355,6 +25355,81 @@
       T.ok('…and no cvhrReason', !('cvhrReason' in realGap), JSON.stringify(realGap.cvhrReason));
     });
 
+    /* ∅ ABSENCE-SURVEY `aebac9bed7cd` (medium) — THE TRUST MAP AND ITS READER SPELLED ONE SECOND
+       TWO WAYS. `beatConfidence` keys every beat through `secAbs`, over the pseudo-sample indices
+       `analyze` hands it: `floor((t0 + (round(sec·fs)/fs)·1000) / 1000)`. The reader spelled the same
+       second from the UNROUNDED `sec`. The two differ by up to `500/fs` ms — 3.70 ms at the Verity's
+       135 Hz — so a beat whose absolute ms sits inside that margin of a second boundary asked the map
+       for a key it never wrote. That miss published `1`, the TOP of the trust scale, for a beat the
+       statistic never weighed. `ppiConfReason` and `ppiConfCue` both describe the WHOLE map, so no
+       field beside the element carried its state — CLAUDE.md §∅, a consumer cannot null what it
+       cannot distinguish.
+       A crossing needs `t0Ms % 1000 !== 0`. With an integer `fs` and a `t0Ms` on the second, the
+       boundary falls exactly on a sample index, and `round` can never land below it. The F10
+       synthetic above carries a `t0Ms` ending in 007, which is the shape the plant below uses.
+       MEASURED, and the reason this row is not a corpus finding: ZERO crossings over six inputs —
+       one real Verity stream and the five committed synthetics, 521 corrected beats in total. The
+       defect is latent. Its expected incidence is `2·(500/fs)/1000` of beats, about 0.74 % at
+       135 Hz, and the two real PPG streams the corpus holds span about 14 minutes together. */
+    group('PpgDex ∅ — the per-beat trust reader spells the second the way the map wrote it', 'ppgdex-dsp · beatConfidence · key · ABSENCE-SURVEY', function (T) {
+      var P = env.PPGDSP;
+      var src = (env.sources && env.sources['ppgdex-dsp.js']) || '';
+      if (!(P && typeof P.beatConfidence === 'function') || !src) {
+        T.skip('PPGDSP.beatConfidence and the ppgdex-dsp.js source are available', 'not loaded');
+        return;
+      }
+
+      // ── 1 · THE READER'S KEY IS THE MAP'S KEY ───────────────────────────────────────
+      T.ok(
+        'the reader derives its key from the ROUNDED beat time, the way `secAbs` wrote it',
+        src.indexOf('const _confKey = (sec) => Math.floor((_t0 + (Math.round(sec * rec.fs) / rec.fs) * 1000) / 1000);') !== -1 && src.indexOf('_pConfMap.get(_confKey(s))') !== -1
+      );
+      T.eq('the unrounded spelling is gone from the reader', src.split('_pConfMap.get(Math.floor((_t0 + s * 1000) / 1000))').length - 1, 0);
+      T.eq('and a key the map does not carry answers null, never a perfect trust', src.split('return Number.isFinite(c) ? +c.toFixed(3) : 1;').length - 1, 0);
+
+      // ── 2 · WHY — the REAL map builder, on a beat train whose last beat straddles a boundary ───
+      /* `t0Ms` ends in 007, `fs` is the Verity's 135, and the last beat sits at 24.9961 s: its
+         rounded spelling floors to …4024 and its raw spelling to …4025, one second past the map's
+         own span. Twenty-four beats clear the `n < 20` floor, so the calibrated arm builds the map. */
+      var T0 = 1782864000007,
+        FS = 135;
+      var beatSec = [];
+      for (var k = 1; k <= 23; k++) beatSec.push(k + 0.5);
+      beatSec.push(24.9961);
+      var sqiArr = beatSec.map(function (_s, j) {
+        return 0.8 - (j % 5) * 0.05;
+      });
+      var map = P.beatConfidence(
+        beatSec.map(function (s) {
+          return Math.round(s * FS);
+        }),
+        sqiArr,
+        FS,
+        T0
+      );
+      var mapKey = function (s) {
+        return Math.floor((T0 + (Math.round(s * FS) / FS) * 1000) / 1000);
+      };
+      var rawKey = function (s) {
+        return Math.floor((T0 + s * 1000) / 1000);
+      };
+      var last = beatSec[beatSec.length - 1];
+      /* `instanceof Map` is false across the vm realm boundary, so the shape test is the interface. */
+      T.ok('the plant is a map with per-second weights', !!map && typeof map.get === 'function' && map.size > 1, 'size=' + (map && map.size));
+      T.ok('the plant really straddles a boundary: the two spellings differ by one second', rawKey(last) - mapKey(last) === 1, 'raw=' + rawKey(last) + ' rounded=' + mapKey(last));
+      T.ok('the map CARRIES the rounded key — the beat was weighed', map.has(mapKey(last)), 'key=' + mapKey(last));
+      T.ok('the map does NOT carry the raw key — the old reader asked for a second outside the span', !map.has(rawKey(last)), 'key=' + rawKey(last));
+      T.ok(
+        'every other beat agrees under both spellings, so the plant isolates ONE beat',
+        beatSec.slice(0, -1).every(function (s) {
+          return rawKey(s) === mapKey(s);
+        })
+      );
+      /* The whole point: `map.get(rawKey)` is `undefined`, and the old reader turned that into 1. */
+      T.eq('the miss the old reader read as a perfect trust', map.get(rawKey(last)), undefined);
+      T.ok("…while the map's own answer for that beat is a weight it computed", Number.isFinite(map.get(mapKey(last))), 'c=' + String(map.get(mapKey(last))));
+    });
+
     /* ════ THE PORT OF F3 — PpgDex counts CVHR per hour OBSERVED, on the SAME basis as ECGDex ════
        `cvhrFromNN` divided events by `tt[N-1]`, the wall span, so sensor dead time sat in the
        denominator of a metric the Integrator corroborates against ECGDex's `apnea.cvhrIndex`. The
