@@ -58,10 +58,40 @@ payload="$(cat 2>/dev/null)" || exit 0
 cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null)"
 [ -z "$cmd" ] && exit 0
 
+# ⚠ A HEREDOC BODY IS DATA, NOT A COMMAND, and this guard read it as one until 2026-11-23.
+# It denied a `python3 - <<PY` call that creates no commit, because the script in the body
+# carried the phrase, and it reported `message source: -m`. Two halves make the body data:
+# this loop drops every heredoc body, and the matcher below needs COMMAND POSITION, which
+# also makes a quoted phrase and a grep pattern data. The same defect, in its hatch-pattern
+# spelling, cost four sibling hooks a fix in #5522 — this is the fifth.
+#   WHAT STAYS ON THE FULL COMMAND: the TRAILER search. A message may legitimately arrive
+# through a heredoc, so reading the trailer from the stripped text would deny a commit whose
+# trailer the hook simply refused to look at — the §4b shape wearing a refusal.
+strip_heredocs() { # stdin -> stdout, every heredoc BODY removed
+  local line delim='' out=''
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [ -n "$delim" ]; then
+      [ "$(printf '%s' "$line" | tr -d '[:space:]')" = "$delim" ] && delim=''
+      continue
+    fi
+    out+="$line"$'\n'
+    if [[ "$line" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]? ]]; then
+      delim="${BASH_REMATCH[1]}"
+    fi
+  done
+  printf '%s' "$out"
+}
+cmdscan="$(printf '%s\n' "$cmd" | strip_heredocs)"
+
 # `git commit` only — not `git commit-tree`, not `--help`. Same matcher as guard-format.sh
 # so the two guards agree on what a commit is.
-printf '%s' "$cmd" | grep -qE '(^|[;&|]|\s)git\s+(-[^ ]+\s+|-C\s+\S+\s+)*commit(\s|$)' || exit 0
-printf '%s' "$cmd" | grep -qE '\-\-help|\-h\b' && exit 0
+# COMMAND POSITION: a line start, a separator, a subshell or group opener, or a shell
+# keyword — optionally behind VAR=val assignments, the way the four hooks in #5522 read a
+# hatch. A `git commit` behind a quote, inside prose or as a grep pattern is data and no
+# longer matches, so this guard fails OPEN on an exotic position rather than denying a
+# command that commits nothing. `pr-compliance.mjs` stays the agent-neutral backstop.
+printf '%s' "$cmdscan" | grep -qE '(^|[;&|(){]|\b(then|do|else)[[:space:]])[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*git[[:space:]]+(-[^ ]+\s+|-C\s+\S+\s+)*commit(\s|$)' || exit 0
+printf '%s' "$cmdscan" | grep -qE '\-\-help|\-h\b' && exit 0
 
 # ── WHERE IS THE MESSAGE? ───────────────────────────────────────────────────────
 # Three readable shapes and two unreadable ones. `msg` stays empty when unreadable.
@@ -70,7 +100,7 @@ src=''
 
 # 1 · -F/--file <path>. The fleet's normal form (a heredoc to a temp file, then -F), so
 #     this is the shape that matters most. `-F -` is stdin: unreadable, allow.
-mfile="$(printf '%s' "$cmd" \
+mfile="$(printf '%s' "$cmdscan" \
   | grep -oE '(^|\s)(-F|--file)(=|[[:space:]]+)[^[:space:];&|]+' \
   | head -1 | sed -E 's/^.*(-F|--file)(=|[[:space:]]+)//' | tr -d '\042\047')"
 mfile="${mfile/#\~/$HOME}"
@@ -90,18 +120,18 @@ fi
 #     string. jq gives us the command as the one string the harness has, so the fallback
 #     below is a regex — but it only has to find the TRAILER, not reconstruct the message,
 #     and the trailer is anchored to a line start.
-if [ -z "$msg" ] && printf '%s' "$cmd" | grep -qE '(^|\s)(-m|--message)(=|[[:space:]])'; then
+if [ -z "$msg" ] && printf '%s' "$cmdscan" | grep -qE '(^|\s)(-m|--message)(=|[[:space:]])'; then
   msg="$cmd"
   src='-m'
 fi
 
 # 3 · --amend with neither: the message is HEAD's, which lives in the tree the command
 #     names. Resolve that tree the way guard-format.sh does — §👥 lesson, see header.
-if [ -z "$msg" ] && printf '%s' "$cmd" | grep -qE '(^|\s)--amend(\s|$)'; then
-  tree="$(printf '%s' "$cmd" \
+if [ -z "$msg" ] && printf '%s' "$cmdscan" | grep -qE '(^|\s)--amend(\s|$)'; then
+  tree="$(printf '%s' "$cmdscan" \
     | grep -oE '(^|[;&|]|\s)git\s+(-[^ ]+\s+)*-C\s+\S+\s+(-[^ ]+\s+)*commit(\s|$)' \
     | head -1 | sed -E 's/^.*-C[[:space:]]+([^[:space:]]+).*$/\1/' | tr -d '\042\047')"
-  [ -z "$tree" ] && tree="$(printf '%s' "$cmd" \
+  [ -z "$tree" ] && tree="$(printf '%s' "$cmdscan" \
     | grep -oE '(^|[;&|][[:space:]]*)cd[[:space:]]+([^[:space:];&|]+)' \
     | head -1 | sed -E 's/^.*cd[[:space:]]+//' | tr -d '\042\047')"
   tree="${tree/#\~/$HOME}"
