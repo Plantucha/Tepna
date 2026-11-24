@@ -38283,18 +38283,11 @@
       /* The host group above already refused without `pin` and `YieldPin`, so these legs need
          no second guard: one skip in a lane that loads neither file is the honest count. */
       var YP = YieldPin;
-      /* The 8 gaps `origin/main` carries at `6b3347a52`, as `node
-         tools/treatment-response-yield-pin.mjs --chain` prints them. MAY ONLY SHRINK. */
-      var KNOWN_CHAIN_GAPS = [
-        'oxydex-profile.js 410146545439 -> 7f65bccefb87',
-        'oxydex-dsp.js 017b1384b659 -> f87d8a04d882',
-        'oxydex-dsp.js efd4441e8ece -> 2635f078d01e',
-        'oxydex-dsp.js 41d2c5601b71 -> 9d293fe86dda',
-        'oxydex-dsp.js 1a0df4a4722e -> 5e5ffe017b76',
-        'oxydex-dsp.js 180165dc7b5b -> d77b5ccfc929',
-        'pulsedex-dsp.js d5e923c8081e -> 3c1c1529d982',
-        'pulsedex-dsp.js 410ccd8abf45 -> f25accb7ea4c'
-      ];
+      /* EMPTY since 2026-11-24. `--blame` resolved all 8 pairs `origin/main` carried at `6b3347a52` to
+         the revisions that moved them, and `history[]` now holds one note per pair. The ratchet MAY
+         ONLY SHRINK, so a new pair belongs in `history[]` and never on this list. PLANT 1 below is the
+         proof that the leg still fires over an empty baseline. */
+      var KNOWN_CHAIN_GAPS = [];
       var keyOf = function (file, from, to) {
         return file + ' ' + (from == null ? 'absent' : from) + ' -> ' + (to == null ? 'absent' : to);
       };
@@ -38364,7 +38357,7 @@
       /* ANTI-VACUITY. An empty record or a one-realm pin would make every `none` above mean "nothing
          was examined", which is the same green a clean record gives. */
       T.ok(
-        'ANTI-VACUITY · the chain read a non-empty note record over both realms, and it found the baselined gaps',
+        'ANTI-VACUITY · the chain read a non-empty note record over both realms, and it agrees with the baseline',
         (pin.history || []).length >= 8 && !!(pin.detector.oxy && pin.detector.pulse) && seen.length === KNOWN_CHAIN_GAPS.length,
         JSON.stringify({ notes: (pin.history || []).length, gaps: seen.length, baseline: KNOWN_CHAIN_GAPS.length })
       );
@@ -38381,23 +38374,31 @@
         JSON.stringify(sk)
       );
       /* PLANT 2 · the class-blindness claim, executed rather than asserted in prose. A note that
-         closes the real head gap moves the pin on and leaves the SAME pair behind it, now internal.
-         The key must survive that, or the baseline would red on a benign note. */
-      var shifted = JSON.parse(JSON.stringify(pin.detector));
-      shifted.oxy['oxydex-profile.js'] = 'planted00002';
-      var withNote = (pin.history || []).concat([{ date: '2026-11-22', file: 'oxydex-profile.js', old: '7f65bccefb87', new: 'planted00002', reason: 'PLANT · not a record' }]);
-      var sg = seenOf(YP.chainGaps(shifted, withNote, shifted));
-      var samePair = sg.filter(function (s) {
-        return s.key === 'oxydex-profile.js 410146545439 -> 7f65bccefb87';
-      });
+         closes a head gap moves the pin on and leaves the SAME pair behind it, now internal. The key
+         must survive that, or the baseline would red on a benign note. The scenario is SYNTHETIC since
+         2026-11-24: the record explains every real pair, so no live pair can stand in for the
+         reclassification, and a plant that carries its own two states proves more than one that
+         borrows a gap the record is about to lose. */
+      var pFile = 'planted-chain.js';
+      var realmsAt = function (digest) {
+        var det = {};
+        Object.keys(pin.detector).forEach(function (r) {
+          det[r] = {};
+          det[r][pFile] = digest;
+        });
+        return det;
+      };
+      var pNote = function (date, old, nxt) {
+        return { date: date, file: pFile, old: old, new: nxt, reason: 'PLANT · not a record' };
+      };
+      var pHist = [pNote('2026-11-01', 'planted000p0', 'planted000p1')];
+      var sgHead = seenOf(YP.chainGaps(realmsAt('planted000p2'), pHist, realmsAt('planted000p2')));
+      var sgMoved = seenOf(YP.chainGaps(realmsAt('planted000p3'), pHist.concat([pNote('2026-11-02', 'planted000p2', 'planted000p3')]), realmsAt('planted000p3')));
+      var pPair = pFile + ' planted000p1 -> planted000p2';
       T.ok(
         'PLANT · a note landing above a head gap reclassifies the same pair as internal, so the key holds',
-        samePair.length === 1 &&
-          samePair[0].cls === 'internal' &&
-          !sg.some(function (s) {
-            return s.cls === 'head' && s.key.indexOf('oxydex-profile.js ') === 0;
-          }),
-        JSON.stringify(sg)
+        sgHead.length === 1 && sgHead[0].cls === 'head' && sgHead[0].key === pPair && sgMoved.length === 1 && sgMoved[0].cls === 'internal' && sgMoved[0].key === pPair,
+        JSON.stringify({ head: sgHead, moved: sgMoved })
       );
     });
 
