@@ -1244,6 +1244,16 @@ export const SEEDS = [
     at: 'ppgdex-dsp.js:6267',
     state: 'fixed',
     note: 'The re-ingest event sort no longer coerces an absent `tMs` to 0, landed by #5574. Hand-read 2026-11-24 (Heron) against origin/main: ppgdex-dsp.js:9058 calls `DexClock.sortEventsByClock(json.ganglior_events, _evAnchor(json))`, and the consumer `ppgReviewTimeline` at ppgdex-app.js:1686 calls the same shared key, which sorts an unplaceable event last. Both halves of the row are closed. Read by content, never by a snippet match.'
+  },
+  {
+    at: 'cpapdex-cross.js:648',
+    state: 'fixed',
+    note: '`compareChannel` took `a.fs || b.fs || 1`, so a 1 Hz rate nobody measured converted every sample count the comparator reports into time: `endMs`, `ai0`, `bi0`, `overlapN`, the fine lag, the ~10-min window `fs * 600`, and the published `overlapMin`, `appliedLagSec` and `scaleOverTime[].startMin`. The rate now reads `Number.isFinite(x) && x > 0` on either side and refuses when neither header carries one. A measured rate on ONE side still compares, so the refusal is narrow. Plant: tests/dex-tests.js, group `CPAPDex ∅ — the comparator refuses an unmeasured rate and an absent start stamp`. Eight of twelve legs red on origin/main (measured 2026-11-24, Heron).'
+  },
+  {
+    at: 'cpapdex-cross.js:650',
+    state: 'fixed',
+    note: '`compareChannel` took `(a.t0Ms || 0) - (b.t0Ms || 0)` for `clockOffsetSec`, which is the headline FINDING of this comparator. An absent start stamp on one side therefore manufactured a disagreement against epoch 0, and the overlap refusal below worded it as an EdfSink UTC-vs-local-civil clock defect, a borrowed reason for a different cause. Absent on BOTH sides it read a perfect 0 s agreement instead and compared on. The comparator now refuses, publishes `clockOffsetSec: null` and names which side carries no stamp. The `|| 0` coercions at the overlap window and at `ai0`/`bi0` are gone, so the refusal is the only path. Same plant group as the rate row.'
   }
 ];
 
