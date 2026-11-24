@@ -18,9 +18,11 @@
 # Replace `_anchor_event`'s bytes with the first real report the flashed dongle produces.
 
 import os
+import re
 import struct
 
 import polar_pmd as pmd
+import pytest
 import radioclock as rc
 from _srcscan import after_last, module_source, until_anchor
 
@@ -1775,7 +1777,114 @@ def test_main_does_not_retry_into_an_absent_adapter(tmp_path, caplog):
             packets=packets(),
             clock=lambda: next(ticks),
         )
-    assert caplog.text.count("nothing to re-arm") == 1 and "0 retried" in caplog.text
+    assert caplog.messages.count("radio clock: %s is not present after the reset — nothing to re-arm" % OURS) == 1
+    assert "0 retried" in caplog.text
+
+
+def test_main_describes_itself_and_logs_under_its_own_name(tmp_path, caplog, capsys):
+    with pytest.raises(SystemExit):
+        rc.main(["--help"])
+    assert "Nordic connection-event anchors as a second clock" in capsys.readouterr().out
+    cfg = _cfg_file(tmp_path, {"radio_clock": {"enabled": False}})
+    with caplog.at_level("INFO"):
+        rc.main(["--config", cfg])
+    (record,) = caplog.records
+    assert record.name == "radioclock"
+    assert (record.msg, record.args) == ("%s", ("radio_clock.enabled is false — nothing to do",))
+
+
+def test_main_names_the_config_it_cannot_use_and_why(tmp_path, caplog, monkeypatch):
+    gone, empty = str(tmp_path / "gone.yaml"), tmp_path / "empty.yaml"
+    empty.write_text("", encoding="utf-8")
+    opened = []
+    real_open = open
+
+    def _open(path, *a, **kw):
+        opened.append((path, kw.get("encoding")))
+        return real_open(path, *a, **kw)
+
+    monkeypatch.setattr("builtins.open", _open)
+    with caplog.at_level("INFO"):
+        assert rc.main(["--config", gone]) == 0
+        assert rc.main(["--config", str(empty)]) == 0
+    assert caplog.messages == [
+        "radio clock unavailable: cannot read %s ([Errno 2] No such file or directory: '%s')" % (gone, gone),
+        "radio clock unavailable: %s is empty or not a YAML mapping" % empty,
+    ]
+    assert [(p, e) for p, e in opened if p in (gone, str(empty))] == [(gone, "utf-8"), (str(empty), "utf-8")]
+
+
+def test_main_reads_the_monitor_through_the_socket_module_it_was_given(tmp_path, monkeypatch, caplog):
+    seen = []
+    monkeypatch.setattr(rc, "open_monitor_socket", lambda mod: seen.append(mod) or "the socket")
+    monkeypatch.setattr(rc, "read_monitor", lambda sock: seen.append(sock) or [])
+    sysfs = _sysfs(tmp_path, {"hci1": OURS})
+    cfg = _cfg_file(tmp_path, dict(CFG, root=str(tmp_path / "srv")))
+    assert rc.main(["--config", cfg], sysfs, probe=_ok_probe, socket_module="the module") == 0
+    assert seen == ["the module", "the socket"]
+
+
+def test_main_re_arms_the_radio_clocks_OWN_adapter_over_the_suite_wide_one(tmp_path):
+    other = "AA:BB:CC:DD:EE:01"
+    sysfs = _sysfs(tmp_path, {"hci1": OURS, "hci2": other})
+    cfg = _cfg_file(
+        tmp_path,
+        dict(CFG, adapter=other, radio_clock={"enabled": True, "adapter": OURS}, root=str(tmp_path / "srv")),
+    )
+    probed = []
+
+    def _probe(index):
+        probed.append(index)
+        return _ok_probe(index)
+
+    rc.main(["--config", cfg], sysfs, probe=_probe, packets=[(rc.MONITOR_OPCODE_OPEN_INDEX, 1, b"", 1)])
+    assert probed == [1, 1]
+
+
+def test_main_stamps_the_file_name_with_the_local_time_it_opened(tmp_path):
+    sysfs = _sysfs(tmp_path, {"hci1": OURS})
+    root = tmp_path / "srv"
+    cfg = _cfg_file(tmp_path, dict(CFG, root=str(root)))
+    rc.main(["--config", cfg], sysfs, probe=_ok_probe, packets=[(o, 1, p, t) for (o, _i, p, t) in _stream()])
+    (made,) = root.rglob("*_RADIOCLOCK.csv")
+    assert re.fullmatch(r"\d{8}T\d{6}_%s_RADIOCLOCK\.csv" % H10.replace(":", "-"), made.name)
+
+
+def test_main_follows_a_moved_adapter_and_listens_on_its_NEW_index(tmp_path, caplog):
+    sysfs = _sysfs(tmp_path, {"hci1": OURS})
+    cfg = _cfg_file(tmp_path, dict(CFG, root=str(tmp_path / "srv")))
+
+    def packets():
+        os.rename(os.path.join(sysfs, "hci1"), os.path.join(sysfs, "hci3"))
+        yield _new_index(OURS, index=3)
+        yield rc.MONITOR_OPCODE_OPEN_INDEX, 3, b"", 2
+
+    with caplog.at_level("INFO"):
+        rc.main(["--config", cfg], sysfs, probe=_ok_probe, packets=packets())
+    assert caplog.messages.count("radio clock: %s moved hci1 → hci3; following the address, not the index" % OURS) == 1
+    assert "2 re-arm(s)" in caplog.text
+
+
+def test_main_states_the_reason_a_re_arm_did_not_take(tmp_path, caplog):
+    """Each line carries its own cause; a line without one sends the reader to the wrong fix."""
+    cfg = _cfg_file(tmp_path, dict(CFG, root=str(tmp_path / "srv")))
+    opened = [(rc.MONITOR_OPCODE_OPEN_INDEX, 1, b"", 1)]
+    for answer, line in (
+        (rc.RadioClockUnavailable("it is down"), "re-arm failed on the adapter that just came up: it is down"),
+        (
+            (rc.NORDIC_COMPANY_ID, None, "the version read failed"),
+            "anchors NOT re-enabled after an adapter reset: " + rc.ENABLE_REFUSED % "the version read failed",
+        ),
+    ):
+        caplog.clear()
+        sysfs = _sysfs(tmp_path, {"hci1": OURS})
+        with caplog.at_level("INFO"):
+            rc.main(["--config", cfg], sysfs, probe=_flaky_probe([_ok_probe(1), answer]), packets=opened)
+        assert "radio clock: " + line in caplog.messages
+
+
+def _ok_probe(_index):
+    return rc.NORDIC_COMPANY_ID, 0, None
 
 
 def _flaky_probe(sequence):

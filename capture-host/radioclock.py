@@ -1109,8 +1109,8 @@ def run(packets, collector: Collector, open_writer, flush_every: int = 64, rearm
     written = 0
     rearmed = 0
     rearm_retries = 0
-    rearm_tries = 0  # sends that failed since the last trigger
-    rearm_due: float | None = None  # when the next send is owed; None when none is
+    #: `(sends that failed since the last trigger, when the next one is owed)`; None when none is owed.
+    rearm_owed: tuple[int, float] | None = None
     rolled = 0
     try:
         for opcode, index, payload, host_ns in packets:
@@ -1120,17 +1120,16 @@ def run(packets, collector: Collector, open_writer, flush_every: int = 64, rearm
                 now = clock()
                 if rearm_needed(opcode, index, payload, collector.adapter_index, collector.adapter_address):
                     rearmed += 1
-                    rearm_tries = 0
-                    rearm_due = now
+                    rearm_owed = (0, now)
                 elif opcode in _MONITOR_OPCODES_GONE and index == collector.adapter_index:
-                    rearm_due = None
-                if rearm_due is not None and now >= rearm_due:
-                    rearm_due = None
-                    if rearm_tries:
+                    rearm_owed = None
+                if rearm_owed is not None and now >= rearm_owed[1]:
+                    tries = rearm_owed[0]
+                    rearm_owed = None
+                    if tries:
                         rearm_retries += 1
                     if rearm() is False:
-                        rearm_due = now + REARM_RETRY_S[min(rearm_tries, len(REARM_RETRY_S) - 1)]
-                        rearm_tries += 1
+                        rearm_owed = (tries + 1, now + REARM_RETRY_S[min(tries, len(REARM_RETRY_S) - 1)])
             row = collector.feed(opcode, index, payload, host_ns)
             if row is None:
                 continue
@@ -1505,10 +1504,9 @@ def main(
         return 0
 
     root = cfg.get("root") or "/srv/tepna"
-    rc_cfg = (cfg or {}).get("radio_clock") or {}
-    address = rc_cfg.get("adapter") or cfg.get("adapter")
+    address = cfg["radio_clock"].get("adapter") or cfg.get("adapter")  # `decide` refuses an absent block
     collector = Collector(index, devices, adapter_address=address)
-    if packets is None:  # pragma: no cover — the socket path, exercised on the box
+    if packets is None:
         packets = read_monitor(open_monitor_socket(socket_module))
 
     import datetime as _dt
