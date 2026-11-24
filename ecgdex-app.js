@@ -1019,7 +1019,7 @@ self.onmessage = async (e) => {
       ${eb('Couplets', m.couplets, m.runsGE3 + ' run(s) ≥3', m.runsGE3 > 0 ? 'bad' : m.couplets > 0 ? 'warn' : 'ok')}
       ${eb('Bigeminy', m.bigeminyCycles, 'N-V cycles', m.bigeminyCycles > 3 ? 'warn' : 'ok')}
     </div>
-    <div class="q-note">Beats classified <b>N / PVC / PAC</b> from prematurity, QRS width (median ${m.medW} ms) &amp; template correlation; ectopic beats are tagged on the waveform above (PVC purple, PAC blue). ${m.runsGE3 > 0 ? '<b style="color:var(--red)">⚠ Ventricular run(s) ≥3 beats detected — review.</b>' : 'No ventricular runs ≥3.'}</div>`;
+    <div class="q-note">Beats classified <b>N / PVC / PAC</b> from prematurity, QRS width (${m.medW != null ? 'median ' + m.medW + ' ms' : 'no plausible width measured'}) &amp; template correlation; ectopic beats are tagged on the waveform above (PVC purple, PAC blue). ${m.runsGE3 > 0 ? '<b style="color:var(--red)">⚠ Ventricular run(s) ≥3 beats detected — review.</b>' : 'No ventricular runs ≥3.'}</div>`;
 
     // intervals + AF
     const cell = (l, v, u, nr, sev, note) =>
