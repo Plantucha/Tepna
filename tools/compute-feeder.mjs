@@ -48,6 +48,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { gpuState } from './gpu-gate.mjs';
 import { primaryGitDir } from './home-paths.mjs';
 import { boundedFetch } from './net-bound.mjs';
 import { checkLeads, LENSES, readLeads, repoSource } from './qwen-lead-check.mjs';
@@ -58,10 +59,8 @@ const OLLAMA = process.env.QWEN_FEEDER_OLLAMA || 'http://127.0.0.1:11434';
 const OUTBOX = process.env.SHRIKE_OUTBOX || '/srv/shrike-outbox';
 // The reserve lives in the feeder state, outside the outbox: Shrike reads every folder it can see (2026-11-22).
 const RESERVE = process.env.COMPUTE_FEEDER_RESERVE || join(STATE, 'reserve');
-const VRAM = '/sys/class/drm/card1/device';
 const CONTEXT_LINES = 12;
 const EMBED_SLOW_MS = 2000;
-const HEADROOM_B = 0.5e9;
 const LEADS_PER_BATCH = 15;
 const AUDIT_EST_H = 1.5;
 const VERIFY_EST_H = 1;
@@ -154,25 +153,6 @@ async function api(path, body, ms = 600_000) {
   return r.json();
 }
 
-function vram() {
-  try {
-    return { total: +readFileSync(`${VRAM}/mem_info_vram_total`, 'utf8'), used: +readFileSync(`${VRAM}/mem_info_vram_used`, 'utf8') };
-  } catch {
-    return null;
-  }
-}
-
-/** Pure: may the model load now? A loaded model always may; else the card needs its size plus headroom. */
-export function vramAllows({ loaded, sizeB, total, used }) {
-  if (loaded) return { ok: true, why: 'model already loaded' };
-  if (!sizeB) return { ok: false, why: 'model size unknown (not pulled?)' };
-  if (total == null) return { ok: false, why: 'VRAM counters unreadable' };
-  const free = total - used;
-  return free >= sizeB + HEADROOM_B
-    ? { ok: true, why: `free ${(free / 1e9).toFixed(1)} GB ≥ ${(sizeB / 1e9).toFixed(1)} + 0.5` }
-    : { ok: false, why: `free ${(free / 1e9).toFixed(1)} GB < ${(sizeB / 1e9).toFixed(1)} + 0.5 GB (a GPU job holds the card)` };
-}
-
 async function embedMs() {
   const t = Date.now();
   try {
@@ -191,19 +171,13 @@ async function runQwen({ budgetMin, lensFilter, model, dryRun }) {
   log(`qwen: ${pending.length} lens×file item(s) pending`);
   if (!pending.length || dryRun) return { leadsFile: null, sites: 0 };
 
-  let tags;
-  let ps;
+  let gate;
   try {
-    tags = await api('/api/tags', null, 10_000);
-    ps = await api('/api/ps', null, 10_000);
+    gate = await gpuState(model, OLLAMA);
   } catch (e) {
     log(`qwen: ollama unreachable (${e.message}); skipped`);
     return { leadsFile: null, sites: 0 };
   }
-  const loaded = (ps.models || []).some((m) => m.name === model);
-  const sizeB = (tags.models || []).find((m) => m.name === model)?.size ?? null;
-  const v = vram();
-  const gate = vramAllows({ loaded, sizeB, total: v?.total ?? null, used: v?.used ?? 0 });
   log(`qwen: VRAM gate — ${gate.why}`);
   if (!gate.ok) return { leadsFile: null, sites: 0 };
 
@@ -530,10 +504,6 @@ function selftest() {
   ck('parseReply reads a no', parseReply('{"defect":false}'), { defect: false });
   ck('parseReply refuses prose', parseReply('YES it is'), null);
   ck('parseReply refuses a lead with no claim', parseReply('{"defect":true}'), null);
-  ck('VRAM gate passes a loaded model', vramAllows({ loaded: true, sizeB: 0, total: null, used: 0 }).ok, true);
-  ck('VRAM gate refuses during a GPU job', vramAllows({ loaded: false, sizeB: 17e9, total: 21.4e9, used: 8e9 }).ok, false);
-  ck('VRAM gate passes on a free card', vramAllows({ loaded: false, sizeB: 17e9, total: 21.4e9, used: 1.5e9 }).ok, true);
-  ck('VRAM gate refuses an unknown size', vramAllows({ loaded: false, sizeB: null, total: 21.4e9, used: 0 }).ok, false);
   ck('estHours reads the header', [estHours('x\nest-hours: 2.5\n'), estHours('no header')], [2.5, 1]);
   const vt = verifyTask([{ lens: 'absence', file: 'a.js', line: 4, quote: 'x | y', claim: 'c' }], '/o.md');
   ck('a verify task starts with Rule 0 and keeps the table intact', [vt.startsWith('**Rule 0 first.**'), vt.includes('`x   y`')], [true, true]);
