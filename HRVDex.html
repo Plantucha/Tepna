@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="173a1c709611" data-compute-hash="a19fb3f17aee">
+<html lang="en" data-manifest-hash="a7cc1c7af137" data-compute-hash="244c1b480bc7">
 <head>
 <!--
   HRVDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-2q8nSUJiMKGVIi5iskV2WTQFAuie/9vQfo0jKPAyWp4=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8PRBTa79fUaN2zhWDMHlkkyA9S3dSTeqfWILOdsEo0k=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-JGpGAy4Cg7SQYROJGszfN1J0ctgzSZuz7qBEHqyvLL8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-a+VjREBQeVKDNHJ5fDY4D5PiKMlc6Ya7sJzgGxe4GRE=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fY+WW1g6oEfevLM6QNQkHOQ8TDEtUff3UE7iGLRizdY=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8PRBTa79fUaN2zhWDMHlkkyA9S3dSTeqfWILOdsEo0k=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-JGpGAy4Cg7SQYROJGszfN1J0ctgzSZuz7qBEHqyvLL8=' 'sha256-K2z7Qf9jsgo0TKiwWpEHWY3m9Fpg6pbcx6TlB3UVFzA=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S+lSf6xgiAD5367fiZM4FACJIKFgGrKudkKKxmGa/gU=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-a+VjREBQeVKDNHJ5fDY4D5PiKMlc6Ya7sJzgGxe4GRE=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>HRVDex — Heart Rate Variability Analyzer · v2.36.0</title>
@@ -8541,6 +8541,21 @@ body.light .topbar::after{ opacity:.25; }
     sdnn: { label: 'SDNN', unit: 'ms', goodDirection: 'up', depth: 'basic', evidence: 'validated', cite: 'SDNN — overall HRV (Task Force 1996)' },
     lfhf: { label: 'LF/HF', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'validated', cite: 'LF:HF — sympatho-vagal balance (Task Force 1996)' },
     hfnu: { label: 'HF n.u.', unit: '%', goodDirection: 'up', depth: 'research', evidence: 'validated', cite: 'Normalised HF power — parasympathetic (Task Force 1996)' },
+    /* THE BAND WAS GRADED EVERYWHERE BUT HERE. `d_vlf_pct` reaches the reader in the metrics table
+       (`hrvdex-render.js:1572`) and now in an alert row, and no entry held it, so `badgeForLabel`'s
+       fallback drew a FABRICATED experimental disc — the under-grade the registry's own note at §2.8
+       warns about. The grade is not mine to invent: the same band is `validated` under Task Force
+       1996 in both sibling nodes that measure it (`ecgdex-registry.js:324`, `pulsedex-registry.js:67`),
+       and a normalised share of total power takes the same grade as the normalised units beside it
+       (`hfnu` above). `research` depth matches the siblings' VLF rows. */
+    vlfPct: {
+      label: 'VLF%',
+      unit: '%',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'validated',
+      cite: 'VLF share of total power (Task Force 1996) — graded as ECGDex vlf and PulseDex vlf grade the same band'
+    },
     sd1sd2: {
       /* RENDERED AS `d_sd1_sd2` — the `d_` convention does not derive this key from the id.
          Confirmed by LABEL, not by name: registry 'SD1/SD2' ≡ render 'SD1/SD2'. */
@@ -13432,6 +13447,14 @@ function _hrvProvenanceAlerts(rows) {
   return out;
 }
 
+/* 🎫 EVERY NUMBER IN AN ALERT ROW CARRIES ITS BADGE, INLINE BEFORE ITS LABEL. The :814 template
+   renders an icon span and a message span, so a row has no card corner to hold an `.ev-corner`:
+   §🎫's second placement (inline `.ev` before the label in dense text) is the one that fits, and it
+   also lets ONE row grade two metrics, which the coherence row below does. The badge therefore
+   belongs in each message, not in a per-row field. A caption with no number of its own stays bare
+   ('Optimal Coherence + Energy'), because the two numbers under it each carry one. `VLF%` is the
+   label the metrics table already uses for this quantity (:1572), so the alert shows the same badge
+   the table head shows and this file invents no grade. */
 function renderAlerts(rows) {
   // v2.9: use the chronologically latest measurement for alerts,
   // not the last of the morning-filtered kpiRows (which may be days old).
@@ -13439,10 +13462,17 @@ function renderAlerts(rows) {
   const panel = document.getElementById('alertPanel');
   const alerts = [];
 
-  if (r._stress > 70) alerts.push({ type: 'red', icon: '🚨', msg: `<strong>High Stress ${r._stress}</strong> — Today's stress exceeds 70. Consider breathwork or reduced training load.` });
+  if (r._stress > 70)
+    alerts.push({ type: 'red', icon: '🚨', msg: `<strong>${evBadge('Stress')}High Stress ${r._stress}</strong> — Today's stress exceeds 70. Consider breathwork or reduced training load.` });
   // An absent energy is null, and `null < 30` is true: guard it, or the panel raises 'Low Energy null'.
-  if (Number.isFinite(r._energy) && r._energy < 30) alerts.push({ type: 'red', icon: '⚡', msg: `<strong>Low Energy ${r._energy}</strong> — Energy below 30. Recovery priority day.` });
-  if (r.d_si > 250) alerts.push({ type: 'red', icon: '⚠️', msg: `<strong>Baevsky SI ${r.d_si != null ? r.d_si.toFixed(0) : undefined}</strong> — Stress Index exceeds 250. Elevated autonomic load.` });
+  if (Number.isFinite(r._energy) && r._energy < 30)
+    alerts.push({ type: 'red', icon: '⚡', msg: `<strong>${evBadge('Energy')}Low Energy ${r._energy}</strong> — Energy below 30. Recovery priority day.` });
+  if (r.d_si > 250)
+    alerts.push({
+      type: 'red',
+      icon: '⚠️',
+      msg: `<strong>${evBadge('Baevsky SI')}Baevsky SI ${r.d_si != null ? r.d_si.toFixed(0) : undefined}</strong> — Stress Index exceeds 250. Elevated autonomic load.`
+    });
   // Baevsky unit guard (DexUnits.guardBaevsky) — surface ms-vs-s normalization instead of silently scaling (-III §1)
   if (r.d_si_flagged)
     alerts.push({
@@ -13460,24 +13490,32 @@ function renderAlerts(rows) {
     alerts.push({
       type: 'yellow',
       icon: '🌊',
-      msg: `<strong>VLF ${r.d_vlf_pct != null ? r.d_vlf_pct.toFixed(0) : undefined}% of total power</strong> — Dominant VLF may indicate slow regulatory stress or measurement artifact.`
+      msg: `<strong>${evBadge('VLF%')}VLF ${r.d_vlf_pct != null ? r.d_vlf_pct.toFixed(0) : undefined}% of total power</strong> — Dominant VLF may indicate slow regulatory stress or measurement artifact.`
     });
   if (r.d_ari < 0.85)
     alerts.push({
       type: 'yellow',
       icon: '📉',
-      msg: `<strong>Recovery Index ${r.d_ari != null ? r.d_ari.toFixed(2) : undefined}</strong> — rMSSD significantly below 7-day baseline. Rest day indicated.`
+      msg: `<strong>${evBadge('Recov Index')}Recovery Index ${r.d_ari != null ? r.d_ari.toFixed(2) : undefined}</strong> — rMSSD significantly below 7-day baseline. Rest day indicated.`
     });
   if (r.d_sdnn_z < -1.5)
     alerts.push({
       type: 'yellow',
       icon: '📊',
-      msg: `<strong>SDNN Z-score ${r.d_sdnn_z != null ? r.d_sdnn_z.toFixed(2) : undefined}</strong> — SDNN more than 1.5 SD below personal rolling baseline.`
+      msg: `<strong>${evBadge('SDNN Z-score')}SDNN Z-score ${r.d_sdnn_z != null ? r.d_sdnn_z.toFixed(2) : undefined}</strong> — SDNN more than 1.5 SD below personal rolling baseline.`
     });
   if (r._coherence > 70 && r._energy > 55)
-    alerts.push({ type: 'green', icon: '✅', msg: `<strong>Optimal Coherence + Energy</strong> — Coherence ${r._coherence}, Energy ${r._energy}. Excellent HRV regulation today.` });
+    alerts.push({
+      type: 'green',
+      icon: '✅',
+      msg: `<strong>Optimal Coherence + Energy</strong> — ${evBadge('Coherence')}Coherence ${r._coherence}, ${evBadge('Energy')}Energy ${r._energy}. Excellent HRV regulation today.`
+    });
   if (r.d_ari > 1.1)
-    alerts.push({ type: 'green', icon: '🔋', msg: `<strong>Recovery above baseline</strong> — rMSSD ${(r.d_ari * 100 - 100).toFixed(0)}% above 7-day mean. Good day for higher intensity training.` });
+    alerts.push({
+      type: 'green',
+      icon: '🔋',
+      msg: `<strong>Recovery above baseline</strong> — ${evBadge('rMSSD')}rMSSD ${(r.d_ari * 100 - 100).toFixed(0)}% above 7-day mean. Good day for higher intensity training.`
+    });
 
   /* D17 — the node's own refusals and unexamined channels lead, because they qualify every
      clinical line under them and every figure on the page. */
