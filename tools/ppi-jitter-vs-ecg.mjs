@@ -1020,6 +1020,22 @@ function selftest() {
   );
   ok('a single-channel record has no LED channel and says so', epochLed({ beatMs: [1, 2], led: null }, 0, 300000).reason === 'no-led-channel');
   ok('an epoch under the beat floor is named, never scored over two beats', epochLed({ beatMs: [1000, 2000], led: [1, 1] }, 0, 300000).reason === 'thin-led-epoch');
+  /* THE DEFECT THE REAL CORPUS FOUND, now a leg. The first two-night run reached NOT_RUN — the two
+     earliest Verity nights predate the tri-device window and carry no paired H10 — and the emitter
+     attached a result to it, so `Verdict.validate` refused the whole object and the run exited 2
+     having measured nothing it could report. No pure leg could have caught it while the result was
+     built inside the emitter, which is why the build is a function of its own now. */
+  ok(
+    'an empty run is NOT_RUN — no epoch carried a bias label, so no gate was ranked',
+    poolingVerdictStatus(poolingReport([])) === 'NOT_RUN' || !POOL_PUBLISHED,
+    poolingVerdictStatus(poolingReport([]))
+  );
+  ok('…and NOT_RUN carries NO result, because nothing was examined', poolingResultOf(poolingReport([]), 'NOT_RUN', [], null) === null);
+  ok('…nor does NOT_APPLICABLE, where the criterion does not bind', poolingResultOf(poolingReport([]), 'NOT_APPLICABLE', [], null) === null);
+  ok(
+    'the arm reads the result rule from the CONTRACT helper, not from a list of its own',
+    ['NOT_RUN', 'NOT_APPLICABLE'].every((st) => poolingResultOf({}, st, [], null) === null)
+  );
   /* TABLE 1'S HEADLINE, ASSERTED RATHER THAN COMPUTED. The paper's claim is not three AUC values, it
      is that the ORDER of the three gates reverses between the pooled column and the night-clustered
      one. So the legs below plant a set that must reverse, one that must not, and one that cannot
@@ -2023,6 +2039,40 @@ function poolingDeviations(R) {
   return out;
 }
 
+/* THE RESULT, BUILT ONLY WHERE A RESULT MAY EXIST. The contract decides that, not this arm — and
+   the real corpus found the arm deciding it wrongly. The first two-night run reached NOT_RUN, the
+   emitter attached a result anyway, and `Verdict.validate` refused the object: "NOT_RUN must carry
+   result: null". A measurement cannot ride a status that says nothing was examined. §3.4 routes its
+   result through the same helper; this arm did not, and no selftest leg could see it because the
+   emitter exits the process. So the build is pure and the refusal comes first. */
+function poolingResultOf(R, status, dev, worst) {
+  if (!sqiStatusCarriesResult(status)) return null;
+  return {
+    orderReverses: R.reversed,
+    pooledOrder: R.pooledOrder,
+    clusteredOrder: R.clusteredOrder,
+    nightsEvaluable: R.nightsEvaluable,
+    worstCell: worst,
+    cells: dev,
+    gates: POOL_GATES.map((g) => ({
+      gate: g.key,
+      scored: R.gates[g.key].scored,
+      nCatastrophic: R.gates[g.key].nCat,
+      pooledAuc: R.gates[g.key].pooled ? R.gates[g.key].pooled.auc : null,
+      pooledP: R.gates[g.key].pooled ? R.gates[g.key].pooled.p : null,
+      pooledMethod: R.gates[g.key].pooled ? R.gates[g.key].pooled.method || R.gates[g.key].pooled.reason : null,
+      clusteredAuc: R.gates[g.key].clusteredAuc,
+      nightsAboveChance: R.gates[g.key].above,
+      nights: R.gates[g.key].A.length,
+      clusteredP: R.gates[g.key].w ? R.gates[g.key].w.p : null,
+      nightsExcluded: R.gates[g.key].nights.excluded
+    })),
+    ledUnscored: { ...ledDrops },
+    coverageUnscored: { ...covDrops },
+    sessionsWithMisalignedAgreement: agreeMisaligned.slice(),
+    device: DEVICE
+  };
+}
 function emitPoolingVerdict(R) {
   const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
   const status = poolingVerdictStatus(R);
@@ -2048,31 +2098,7 @@ function emitPoolingVerdict(R) {
     status,
     population: { checked, eligible: R.epochs, excluded: R.epochs - checked },
     criterion: { name: 'table1_order_reversal_with_six_auc_cells_in_band', threshold: POOL_REPRO_BAND, unit: 'auc', direction: 'lte' },
-    result: {
-      orderReverses: R.reversed,
-      pooledOrder: R.pooledOrder,
-      clusteredOrder: R.clusteredOrder,
-      nightsEvaluable: R.nightsEvaluable,
-      worstCell: worst,
-      cells: dev,
-      gates: POOL_GATES.map((g) => ({
-        gate: g.key,
-        scored: R.gates[g.key].scored,
-        nCatastrophic: R.gates[g.key].nCat,
-        pooledAuc: R.gates[g.key].pooled ? R.gates[g.key].pooled.auc : null,
-        pooledP: R.gates[g.key].pooled ? R.gates[g.key].pooled.p : null,
-        pooledMethod: R.gates[g.key].pooled ? R.gates[g.key].pooled.method || R.gates[g.key].pooled.reason : null,
-        clusteredAuc: R.gates[g.key].clusteredAuc,
-        nightsAboveChance: R.gates[g.key].above,
-        nights: R.gates[g.key].A.length,
-        clusteredP: R.gates[g.key].w ? R.gates[g.key].w.p : null,
-        nightsExcluded: R.gates[g.key].nights.excluded
-      })),
-      ledUnscored: { ...ledDrops },
-      coverageUnscored: { ...covDrops },
-      sessionsWithMisalignedAgreement: agreeMisaligned.slice(),
-      device: DEVICE
-    },
+    result: poolingResultOf(R, status, dev, worst),
     evidence: POOL_PUBLISHED ? ['tools/ppi-jitter-vs-ecg.mjs', POOL_PUBLISHED.paper] : ['tools/ppi-jitter-vs-ecg.mjs'],
     reason,
     producedBy: { tool: 'tools/ppi-jitter-vs-ecg.mjs', commit: commitOf.commit, commitReason: commitOf.commit ? null : commitOf.reason }
