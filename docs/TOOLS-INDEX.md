@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**359 tools** · 358 with a purpose line · **1 without**
+**360 tools** · 359 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -266,6 +266,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`read-ref-drift.mjs`](../tools/read-ref-drift.mjs) | hold the paths a census read against the ref, and name the censused checkout's distance from the ref beside the answer. |
 | [`reanchor-equivalence.mjs`](../tools/reanchor-equivalence.mjs) | THE CLASSIFICATION DECAYS BECAUSE ITS KEY CONTAINS A LINE NUMBER. |
 | [`rebase-safe.mjs`](../tools/rebase-safe.mjs) | REBASE ONTO origin/main WITHOUT SILENTLY REVERTING SOURCE. WHY THIS EXISTS. |
+| [`refpick-figure-census.mjs`](../tools/refpick-figure-census.mjs) | EVERY PUBLISHED FIGURE A PAT LEG PRODUCED STATES THE PICK RULE BEHIND IT — counted by FIGURE, never by surface (brief CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06 §3, the fourth acceptance box). |
 | [`regen-cpap-goldens.mjs`](../tools/regen-cpap-goldens.mjs) | Regenerate CPAPDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
 | [`regen-ecgdex-goldens.mjs`](../tools/regen-ecgdex-goldens.mjs) | Regenerate ECGDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
 | [`regen-eegdex-goldens.mjs`](../tools/regen-eegdex-goldens.mjs) | Regenerate EEGDex's committed node-export fixture by RE-RUNNING THE REAL MODULES on the committed input and re-exporting — never by hand-editing a value (CLAUDE.md §🔏). |
