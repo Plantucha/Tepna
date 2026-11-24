@@ -121,6 +121,7 @@ import { cpus, tmpdir } from 'node:os';
 /* Node-only handles for the `tools · wt-done · self-match` gate: it drives `usersOfPath`
    against a SYNTHETIC /proc, so it needs real fs/os/path plus the tool. The browser lane
    skips the group rather than receiving these. */
+import * as _nodeCrypto from 'node:crypto';
 import * as _nodeFs from 'node:fs';
 import * as _nodeOs from 'node:os';
 import * as _nodePath from 'node:path';
@@ -804,6 +805,11 @@ function readSources() {
        lane that reads its TEXT and the lane that EXECUTES it are both load-bearing: the parity group
        below runs the module, and the source scans read it for the absence rule. */
     'eegdex-stage-features.js',
+    /* EEGDex's stage-formula EVALUATOR, listed in BOTH lanes with the file itself, for the same
+       reason as the feature block above: it reads the fit's coefficients out of a data file, so the
+       lane that EXECUTES it holds the posteriors against the committed vector, and the lane that
+       reads its TEXT holds its absence rule. */
+    'eegdex-stage-model.js',
     'hrvdex-app.js',
     'oxydex-app.js',
     'oxydex-render.js',
@@ -3286,6 +3292,10 @@ async function main() {
        of its columns against the committed vector, and a module that only had its text read would
        leave that group skipping and report the skip as a pass. Sets env.EEGFEAT. */
     'eegdex-stage-features.js',
+    /* EEGDex's stage-formula evaluator. Executed for the same reason: the parity group runs the
+       shipped model over the committed night and holds all 4 posterior columns of all 60 epochs,
+       and a module whose text was only read would leave that group skipping. Sets env.EEGSTAGE. */
+    'eegdex-stage-model.js',
     /* The shared raw device frame reader. It must be EXECUTED, not only read: `ingestMuseRaw`
        resolves `global.MuseFrame` at call time and refuses by name without it, so a lane that only
        scanned the text would skip every muse group and report that as a pass. */
@@ -3487,10 +3497,21 @@ async function main() {
       }
     },
     nodeFs: _nodeFs,
+    nodeCrypto: _nodeCrypto, // the stage-formula group digests the model file and holds it against the vector's pin
     nodeOs: _nodeOs,
     nodePath: _nodePath.default || _nodePath,
     wtDone: _wtDone,
     nodeSpawnSync: spawnSync,
+    /* The SHIPPED stage-formula model, read as data. It is not a fixture and not a source: it holds
+       the fit's coefficients, and the parity group evaluates it. A read that fails leaves it null and
+       the group skips, rather than every leg throwing on a missing field. */
+    stageModel: (() => {
+      try {
+        return JSON.parse(_readOpt('eeg-stage-model-base-2026-11-17.json'));
+      } catch {
+        return null;
+      }
+    })(),
     repoRoot: ROOT, // the checkout this runner stands in — lets a group re-derive a tool's answer from the files on disk
     /* §timingSource vocabulary gate — the EMITTERS' source, scanned for `timingSource` string
        literals so a value added without a vocabulary entry reds. Source text rather than imports
@@ -3590,6 +3611,7 @@ async function main() {
     ECGUI: ctx.ECGUI,
     MOTIONUI: ctx.MOTIONUI, // §RN: MotionDex's render layer — executed above, so a throw in it reds
     EEGFEAT: ctx.EEGFEAT, // EEGDex's stage-formula feature block — EXECUTED here, so its parity group runs
+    EEGSTAGE: ctx.EEGSTAGE, // EEGDex's stage-formula evaluator — EXECUTED here too, so its parity group runs
     EEGDSP: ctx.EEGDSP, // EEGDex's staging engine — EXECUTED in this realm, so a throw in it reds
     MuseFrame: ctx.MuseFrame, // the shared raw device frame reader — executed in this realm too
     EEGUI: ctx.EEGUI, // EEGDex's render layer — executed above, same reason
