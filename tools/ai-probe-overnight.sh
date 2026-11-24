@@ -47,6 +47,7 @@ echo "  crawl dir $C · per-file limit ${LIMIT:-none} · max passes $MAX_PASSES"
 
 pass=0
 gpu_busy=0
+no_server=0
 declare -A CANARY_REFUSED=()
 prev_jlines=-1
 while [ "$pass" -lt "$MAX_PASSES" ]; do
@@ -77,6 +78,8 @@ while [ "$pass" -lt "$MAX_PASSES" ]; do
     # Exit 4: a GPU job held the card for the probe's whole wait. The pass is not finished, so it must
     # not read as a pass that learned nothing (the fixed point below would print CONVERGED).
     if [ "$rc" -eq 4 ]; then gpu_busy=1; break 2; fi
+    # Exit 5: the model server gave no answer twice in a row. The next file would get none either.
+    if [ "$rc" -eq 5 ]; then no_server=1; break 2; fi
     # A canary refusal (exit 2) or lock refusal (exit 3) is a per-file verdict, not a driver error.
     [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ] && [ "$rc" -ne 3 ] && echo "!! $f exited $rc — journal retains everything answered so far"
     if [ "$rc" -eq 2 ]; then CANARY_REFUSED["$f"]=1; else unset 'CANARY_REFUSED[$f]'; fi
@@ -101,6 +104,10 @@ done
 if [ "$gpu_busy" -eq 1 ]; then
   echo "⏸ DEFERRED: a GPU job holds the card. No draft ran; the journals keep every answer, and the next run resumes."
   exit 4
+fi
+if [ "$no_server" -eq 1 ]; then
+  echo "⏹ NO SERVER: the local model gave no answer. No draft ran; the journals keep every answer, and the next run resumes."
+  exit 5
 fi
 
 echo "########## DRAFTING  $(date '+%F %T') ##########"
