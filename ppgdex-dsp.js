@@ -1219,6 +1219,85 @@
     return rec;
   }
 
+  /* THE RING'S RAW FILE (`_PPG2W.txt`) CARRIES NO DEVICE COUNTER, so its time is the arrival of each reply.
+     The box asks the ring about twice a second and the ring answers about 100 rows. The writer spreads the
+     rows of one reply evenly back from the arrival stamp, so only a reply's LAST stamp was measured.
+     `hostMs` holds one stamp per row. The answer is seconds after `hostMs[0]`, one per row, or a refusal.
+
+     A reply ends where the row spacing changes by `RAW_SPLIT_MS` or more. The spacing is compared with the
+     spacing of the SAME reply, because a late answer is spread wider than a prompt one.
+     The offset of each reply end from a constant-rate grid is smoothed by a running median, the rule of
+     Clock Contract §7. A jump of that offset over `RAW_LOSS_MS` is a loss of rows: the axis steps at the
+     reply boundary, so the gap stays a gap. The step keeps its own size.
+
+     Measured 2026-11-23 on ten nights (2026-11-12 to 2026-11-22, 2026-11-21 excluded) against the same
+     wearer's chest ECG, in matched 5-minute windows: the pulse intervals of this file read an rMSSD of
+     -0.4 to +1.5 %. The 125 Hz pleth of the same ring reads +7 to +38 %. */
+  const RAW_SPLIT_MS = 3;
+  const RAW_LOSS_MS = 100;
+  const RAW_SMOOTH = 30; // replies each side of the running median, about 30 s in total
+  const RAW_RATE_STEP = 120; // replies per local rate, about 60 s
+  const RAW_MIN_REPLIES = 2 * RAW_SMOOTH + 1;
+  /** @typedef {{ ok: true, reason: null, relSec: Float64Array, fs: number, replies: number, losses: number, lostMs: number }} RingRawAxis */
+  /** @param {number[]} hostMs @returns {RingRawAxis | { ok: false, reason: string }} */
+  function ringRawAxis(hostMs) {
+    const n = hostMs.length;
+    const endI = [];
+    let step = null;
+    for (let i = 1; i < n; i++) {
+      const d = hostMs[i] - hostMs[i - 1];
+      if (step !== null && Math.abs(d - step) >= RAW_SPLIT_MS) {
+        endI.push(i - 1);
+        step = null;
+      } else step = d;
+    }
+    if (n) endI.push(n - 1);
+    const m = endI.length;
+    if (m < RAW_MIN_REPLIES) return { ok: false, reason: m + ' replies, below the ' + RAW_MIN_REPLIES + ' a running median needs' };
+    const rates = [];
+    const stride = Math.min(RAW_RATE_STEP, m - 1);
+    for (let k = 0; k + stride < m; k += stride) {
+      const dt = hostMs[endI[k + stride]] - hostMs[endI[k]];
+      if (dt > 0) rates.push((1000 * (endI[k + stride] - endI[k])) / dt);
+    }
+    const fs = rates.length ? median(rates) : 0;
+    if (!(fs > 0)) return { ok: false, reason: 'the reply arrivals span no time' };
+    const off = endI.map((i) => hostMs[i] - hostMs[0] - (1000 * i) / fs);
+    const smooth = (k, lo, hi) => median(off.slice(Math.max(lo, k - RAW_SMOOTH), Math.min(hi, k + RAW_SMOOTH + 1)));
+    const pass = off.map((_, k) => smooth(k, 0, m));
+    // Beside a loss the first pass reads the edge of the arrival spread, not its middle, so the second
+    // pass smooths each stretch between two losses on its own.
+    const cuts = [0];
+    for (let c = 1; c < m; c++) if (pass[c] - pass[c - 1] > RAW_LOSS_MS) cuts.push(c);
+    const isCut = new Uint8Array(m);
+    for (let c = 1; c < cuts.length; c++) isCut[cuts[c]] = 1;
+    const sm = [];
+    cuts.forEach((lo, c) => {
+      const hi = c + 1 < cuts.length ? cuts[c + 1] : m;
+      for (let j = lo; j < hi; j++) sm.push(smooth(j, lo, hi));
+    });
+    const relSec = new Float64Array(n);
+    let lost = 0,
+      lostMs = 0,
+      k = 0;
+    for (let j = 0; j < n; j++) {
+      while (k + 1 < m && endI[k] < j) k++;
+      // reply `k` holds row j; its rows start after endI[k - 1]
+      let o = sm[k];
+      if (k > 0) {
+        const jump = sm[k] - sm[k - 1];
+        if (!isCut[k]) o = sm[k - 1] + (jump * (j - endI[k - 1])) / (endI[k] - endI[k - 1]);
+        else if (j === endI[k - 1] + 1) {
+          lost++;
+          lostMs += jump;
+        }
+      }
+      const t = ((1000 * j) / fs + o) / 1000;
+      relSec[j] = j > 0 && t < relSec[j - 1] ? relSec[j - 1] : t;
+    }
+    return { ok: true, reason: null, relSec, fs: Math.round(fs * 100) / 100, replies: m, losses: lost, lostMs: Math.round(lostMs) };
+  }
+
   function parsePPG(text, opts) {
     opts = opts || {};
     const lines = text.split(/\r?\n/);
@@ -1243,6 +1322,9 @@
       ch2 = [],
       amb = [];
     const nsArr = []; // BigInt deltas avoided — store as Number of (ns - ns0)/1 via BigInt math
+    const rawHostMs = []; // one host stamp per row, kept for the ring's raw file alone (`ringRawAxis`)
+    let rawSec = '',
+      rawSecMs = NaN;
     const axisAnchors = []; // { devMs, hostMs } — host-disciplined axis, see PPG_AXIS_EVERY
     let ns0 = null,
       t0Ms = null,
@@ -1380,6 +1462,18 @@
       if (pc.chIdx.length >= 2) ch1.push(v1);
       if (pc.chIdx.length === 3) ch2.push(v2);
       amb.push(va);
+      if (dual && rawHostMs.length === ch0.length - 1) {
+        // an absent counter is an empty field, or the 0 an older writer put there
+        const cell = (p[pcols && pcols.ns >= 0 ? pcols.ns : 1] || '').trim();
+        const sec = p[0].slice(0, 19);
+        if (sec !== rawSec) {
+          const at = parseTimestamp(sec);
+          rawSec = sec;
+          rawSecMs = at ? at.tMs : NaN;
+        }
+        const frac = p[0].length === 19 ? 0 : p[0].charCodeAt(19) === 46 ? Number('0' + p[0].slice(19)) * 1000 : NaN;
+        if ((cell === '' || cell === '0') && isFinite(rawSecMs + frac)) rawHostMs.push(rawSecMs + frac);
+      }
       // sensor ns → relative seconds (BigInt: values exceed Number safe range)
       let relNs = 0;
       try {
@@ -1615,7 +1709,9 @@
       _lastTsMemo = t;
       return t;
     };
-    if (deltas.length) {
+    const rawAx = dual && rawHostMs.length === n ? ringRawAxis(rawHostMs) : null;
+    if (rawAx && rawAx.ok) fs = rawAx.fs;
+    else if (deltas.length) {
       const md = median(deltas);
       if (md > 0) fs = 1e9 / md;
       /* TWO QUESTIONS, TWO FLOORS. The RATE needs one delta; the delta CONCENTRATION is a share over a
@@ -1798,7 +1894,8 @@
     // anchors resolved, `ok:false` and the raw device axis is kept — an uncorrected axis is honest,
     // a fabricated correction is not.
     let relSec = new Float64Array(n);
-    if (deltas.length > 20) {
+    if (rawAx && rawAx.ok) relSec = rawAx.relSec;
+    else if (deltas.length > 20) {
       for (let i = 0; i < n; i++) {
         if (!isFinite(nsArr[i])) {
           relSec[i] = i / fs;
@@ -1940,7 +2037,8 @@
          stratum-1 embed from this fallback instead of inheriting a verdict neither clock earned. */
     const explicitTimebase = opts.timebase === 'device-crystal' || opts.timebase === 'host-disciplined';
     const wantTimebase = explicitTimebase ? opts.timebase : embeddedTimebase || 'host-disciplined';
-    let timebase = site === 'finger' ? wantTimebase : null;
+    // the 125 Hz crystal grid is the pleth's; the raw file runs at 200 rows a second
+    let timebase = site === 'finger' ? (dual ? 'host-disciplined' : wantTimebase) : null;
     const timebaseSource = site === 'finger' ? (explicitTimebase ? 'caller' : embeddedTimebase ? 'embedded' : 'default') : null;
     if (timebase === 'device-crystal' && site === 'finger' && n > 0) {
       const gapMask = sent ? sent.gap : null;
@@ -2017,6 +2115,8 @@
       fsRaw: fsBeforeCorrection,
       fsRateApplied: rateAppliedToFs,
       fsRateReason,
+      // the ring's raw file only: how its reply-arrival axis was built, and what it lost
+      rawAxis: rawAx ? (rawAx.ok ? { ok: true, reason: null, replies: rawAx.replies, losses: rawAx.losses, lostMs: rawAx.lostMs } : { ok: false, reason: rawAx.reason }) : undefined,
       n,
       /* PRESENT ONLY WHEN IT HAPPENED, so every clean stream keeps today's bytes and no clean fixture
          moves (the `anchorsDroppedPreResync` discipline ECGDex uses, and MotionDex's `_clockResyncs`).
@@ -2344,7 +2444,7 @@
           }
         : {
             ok: false,
-            reason: hostAx.reason || 'no host anchors',
+            reason: rawAx && rawAx.ok ? 'the raw ring file carries no device counter; its axis is the reply arrivals on the host clock' : hostAx.reason || 'no host anchors',
             drawn: axisSynthetic,
             deviceDrawn: axisSynthetic,
             quantizedShare,
@@ -2352,7 +2452,7 @@
             /* Same rule, and here the floor really is `'none'`: no host anchors resolved AND the
                device concentration was never measured, so there is no timing to spend. `pat-gate.js`
                refuses on exactly this value. */
-            timingSource: axisSynthetic !== false ? 'none' : 'device'
+            timingSource: rawAx && rawAx.ok ? 'host' : axisSynthetic !== false ? 'none' : 'device'
           }
     };
     /* `opts.seamsText` is the `…_PPGSEAMS.txt` companion's bytes when the caller paired one. LAST and

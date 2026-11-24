@@ -206,6 +206,37 @@
     return 'ecg'; // default — a bare waveform is the ECG
   }
 
+  // The O2Ring's raw two-channel file (`…_PPG2W.txt`). The same session also has a 125 Hz `…_PPG.txt` pleth.
+  var RING_RAW = /_PPG2W\.[^.]*$/i;
+  // The raw file is 1.54 to 1.64 times the pleth's size in all 23 non-empty pairs of 2026-11-12 to
+  // 2026-11-23, and the two files of each full night cover the same span. Below this ratio the raw file covers less of the session than the pleth.
+  var RING_RAW_MIN_RATIO = 1.4;
+  /* One ring session, two files: keep the one that PpgDex must analyze. The raw file wins when it covers
+     the session; else the pleth does. `files` carry `name` and `size`, so the caller decides BEFORE it
+     reads the bytes. Every other file passes through in order. → { kept, dropped } */
+  function pickRingWave(files) {
+    var by = {};
+    (files || []).forEach(function (f) {
+      by[f.name] = f;
+    });
+    var drop = {};
+    Object.keys(by).forEach(function (nm) {
+      if (!RING_RAW.test(nm)) return;
+      var pleth = by[nm.replace(/_PPG2W(\.[^.]*)$/i, '_PPG$1')];
+      if (!pleth) return;
+      var covers = by[nm].size > 0 && by[nm].size >= RING_RAW_MIN_RATIO * pleth.size;
+      drop[covers ? pleth.name : nm] = 1;
+    });
+    return {
+      kept: (files || []).filter(function (f) {
+        return !drop[f.name];
+      }),
+      dropped: (files || []).filter(function (f) {
+        return drop[f.name];
+      })
+    };
+  }
+
   // PpgDex ingest routing. The Polar Verity Sense `*_PPG.txt` optical waveform is the PRIMARY;
   // `*_ACC/_GYRO/_MAGN/_PPI` + `MARKER_*` are companions; device `*_HR` is ignored-with-note;
   // raw `*_ECG` (→ ECGDex) and any foreign-vendor signal → 'skip'. NOTE the asymmetry to ECG: PPG's
@@ -217,6 +248,10 @@
        Claimed FIRST: `_PPG\b` does not match it (no boundary before RUNS), and without this line it
        fell through to the bare-name default and was queued as a PPG PRIMARY (measured 2026-09-25). */
     if (/_PPGRUNS\b|_PPGRUNS\./.test(u)) return 'runs';
+    /* The O2Ring's raw two-channel stream and its own RUNS sidecar. `_PPG\b` cannot match `_PPG2W`, so
+       the vendor test set the raw file aside although `parsePPG` reads it. */
+    if (/_PPG2WRUNS\b|_PPG2WRUNS\./.test(u)) return 'runs';
+    if (RING_RAW.test(u)) return 'ppg';
     /* The clock-seam sidecar (`…_PPGSEAMS.txt`, capture-host `writers.py` `_SeamSidecar`, which every
        device-clocked writer builds) is PpgDex's 'seams' companion, exactly as `_ECGSEAMS.txt` is
        ECGDex's one classifier up. Claimed HERE on the same reasoning as `_PPGRUNS`: `_PPG\b` does not
@@ -603,6 +638,10 @@
         elig = {};
       COMPANION.forEach(function (k) {
         elig[k] = comp[k].filter(function (c) {
+          /* The raw ring file takes its own session's sidecar alone, and no other primary takes that one.
+             The ring's name carries no device key, so the eligibility test below would pass every file. */
+          if (RING_RAW.test(pf.name)) return c.name.toUpperCase() === pf.name.toUpperCase().replace(/_PPG2W\./, '_PPG2WRUNS.');
+          if (/_PPG2WRUNS\b/i.test(c.name)) return false;
           return _isDeviceEligible(c.name, pfDev);
         });
       });
@@ -620,6 +659,7 @@
     foreignVendor: foreignVendor,
     ecgKind: ecgKind,
     ppgKind: ppgKind,
+    pickRingWave: pickRingWave,
     foreignKind: foreignKind,
     sniffFirstLine: sniffFirstLine,
     planIngest: planIngest,
