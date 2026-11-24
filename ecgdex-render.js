@@ -588,8 +588,24 @@ window.evBadge = evBadge;
   </svg>`;
   }
 
-  // hypnogram — stepped sleep stages
-  function hypnogram(stages) {
+  /* THE GRID THE EPOCH LIST ITSELF STATES, as the fallback when the caller names no width: the
+     smallest positive step between two stated epochs. §∅ — `epochEngine` (ecgdex-dsp.js) refuses a
+     window and `continue`s without pushing it, so the epoch list that reaches this renderer carries
+     HOLES. A hole puts the NEXT epoch's `tMin` a long way off, and the band below is clamped to one
+     epoch so a measured stage never paints across minutes nothing measured. The derived step is a
+     fallback, not a measurement: with every pair holey it reads too wide, which is why the app
+     passes the real width. */
+  function _gridStepMin(stages) {
+    let step = Infinity;
+    for (let i = 1; i < stages.length; i++) {
+      const d = stages[i].tMin - stages[i - 1].tMin;
+      if (d > 0 && d < step) step = d;
+    }
+    return Number.isFinite(step) ? step : 5;
+  }
+
+  // hypnogram — stepped sleep stages. `epochMin` is the real epoch width in minutes; omit it to derive one.
+  function hypnogram(stages, epochMin) {
     const W = 680,
       H = 160,
       P = { l: 54, r: 14, t: 14, b: 24 };
@@ -598,7 +614,8 @@ window.evBadge = evBadge;
     const lvls = ['Deep', 'Light', 'REM', 'Wake'];
     const yOf = { Deep: 0, Light: 1, REM: 2, Wake: 3 };
     const colOf = { Deep: C.blue, Light: C.teal, REM: C.purple, Wake: C.amber };
-    const xmx = stages[n - 1].tMin + 5,
+    const step = Number.isFinite(epochMin) && epochMin > 0 ? epochMin : _gridStepMin(stages);
+    const xmx = stages[n - 1].tMin + step,
       xmn = 0;
     const sx = (x) => P.l + ((x - xmn) / (xmx - xmn)) * (W - P.l - P.r);
     const sy = (l) => H - P.b - (l / 3) * (H - P.t - P.b);
@@ -614,12 +631,17 @@ window.evBadge = evBadge;
         penDown = false;
         continue;
       }
-      const x0 = sx(stages[i].tMin),
-        x1 = sx(i < n - 1 ? stages[i + 1].tMin : xmx),
+      const t0 = stages[i].tMin;
+      const tNext = i < n - 1 ? stages[i + 1].tMin : t0 + step;
+      const t1 = Math.min(tNext, t0 + step);
+      const x0 = sx(t0),
+        x1 = sx(t1),
         y = sy(yOf[stages[i].stage]);
       segs += `<rect x="${x0.toFixed(1)}" y="${(y - 3).toFixed(1)}" width="${Math.max(0.6, x1 - x0).toFixed(1)}" height="6" fill="${colOf[stages[i].stage]}" opacity=".85"/>`;
       path += (penDown ? 'L' : 'M') + x0.toFixed(1) + ' ' + y.toFixed(1) + ' L' + x1.toFixed(1) + ' ' + y.toFixed(1) + ' ';
-      penDown = true;
+      // The pen stays down only onto an ABUTTING epoch. Across a refused window it lifts, so the
+      // line never spans minutes the staging code declined to stage.
+      penDown = i < n - 1 && tNext - t0 <= step + 1e-9;
     }
     return `<svg viewBox="0 0 ${W} ${H}" role="img" style="width:100%;height:auto">
     ${lvls.map((l, i) => `<text x="${P.l - 8}" y="${(sy(i) + 3).toFixed(1)}" fill="${C.dim}" font-size="9.5" text-anchor="end" font-family="IBM Plex Mono,monospace">${l}</text><line x1="${P.l}" y1="${sy(i).toFixed(1)}" x2="${W - P.r}" y2="${sy(i).toFixed(1)}" stroke="${C.grid}"/>`).join('')}
