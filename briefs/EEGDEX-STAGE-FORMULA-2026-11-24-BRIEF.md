@@ -6,8 +6,9 @@
 
 The owner ordered the base version on 2026-11-23, and the hand-off on 2026-11-24. @kestrel assigned
 it to @magpie in board #8464, and the claim is `eegdex-stage-formula` in board #8466. The hand-off
-folder is `~/stagetest/handoff/eeg-poly-2026-11-24/` on the rig, and `SPEC.md` inside it is the
-source of every acceptance item below. I verified the 9 hashes of `SHA256SUMS`: 9 of 9 OK.
+folder is @finch's, it sits outside this repository, and board #8463 names it. `SPEC.md` inside that
+folder is the source of every acceptance item below. I verified the 9 hashes of `SHA256SUMS`: 9 of
+9 OK.
 
 Nothing in the folder is a recording. The model file holds fitted coefficients, and the test vectors
 come from a seeded synthetic generator.
