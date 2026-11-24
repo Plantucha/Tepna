@@ -40,6 +40,7 @@ import functools
 import os
 import re
 import struct
+import time
 
 import journal_logging
 import localstamp
@@ -1068,7 +1069,16 @@ def rearm_needed(
     return False
 
 
-def run(packets, collector: Collector, open_writer, flush_every: int = 64, rearm=None) -> dict:
+#: Seconds to wait before each retry of a re-arm that could not be SENT; the last value repeats. The short
+#: start covers the measured race: Open Index and the reset's Command Complete both arrive before the
+#: kernel marks the adapter up, so a command sent on them can answer `Network is down`.
+REARM_RETRY_S = (0.25, 0.5, 1.0, 2.0, 5.0, 15.0, 60.0)
+
+#: The adapter is going away. A pending retry ends here; the packet that brings it back re-arms afresh.
+_MONITOR_OPCODES_GONE = (MONITOR_OPCODE_DEL_INDEX, MONITOR_OPCODE_CLOSE_INDEX)
+
+
+def run(packets, collector: Collector, open_writer, flush_every: int = 64, rearm=None, clock=time.monotonic) -> dict:
     """Drive `collector` over an iterable of monitor packets, writing rows through `open_writer`.
 
     `open_writer(address) -> SidecarWriter`, called once per device and cached by the caller — a device
@@ -1083,6 +1093,12 @@ def run(packets, collector: Collector, open_writer, flush_every: int = 64, rearm
     again, so the new file lands in the new date's folder. The date is the row's own `Phone timestamp`,
     in the run's civil frame, so the roll and the stamps agree.
 
+    🔴 A RE-ARM THAT RETURNS `False` IS RETRIED, on `REARM_RETRY_S`. Measured on vigil at the 2026-11-23
+    boot: both triggers arrived while the adapter was still down, both sends failed, no later packet
+    qualified as a trigger, and the service recorded rows with no anchor until a restart. The retry rides
+    on the next monitor packet of any kind rather than on a timer: an adapter that carries a connection
+    produces packets, and one that does not has no anchor to lose. It ends when the adapter goes away.
+
     Returns the run's telemetry. `missed_anchors` is reported, never interpolated.
     """
     writers_by_device: dict[str, SidecarWriter] = {}
@@ -1092,16 +1108,28 @@ def run(packets, collector: Collector, open_writer, flush_every: int = 64, rearm
     day_by_device: dict[str, str] = {}  # the `YYYY-MM-DD` of the open file's first row, per device
     written = 0
     rearmed = 0
+    rearm_retries = 0
+    #: `(sends that failed since the last trigger, when the next one is owed)`; None when none is owed.
+    rearm_owed: tuple[int, float] | None = None
     rolled = 0
     try:
         for opcode, index, payload, host_ns in packets:
             # BEFORE feeding: an adapter that just came up has no anchors enabled, so the sooner the
             # command goes out the fewer connection events are missed.
-            if rearm is not None and rearm_needed(
-                opcode, index, payload, collector.adapter_index, collector.adapter_address
-            ):
-                rearmed += 1
-                rearm()
+            if rearm is not None:
+                now = clock()
+                if rearm_needed(opcode, index, payload, collector.adapter_index, collector.adapter_address):
+                    rearmed += 1
+                    rearm_owed = (0, now)
+                elif opcode in _MONITOR_OPCODES_GONE and index == collector.adapter_index:
+                    rearm_owed = None
+                if rearm_owed is not None and now >= rearm_owed[1]:
+                    tries = rearm_owed[0]
+                    rearm_owed = None
+                    if tries:
+                        rearm_retries += 1
+                    if rearm() is False:
+                        rearm_owed = (tries + 1, now + REARM_RETRY_S[min(tries, len(REARM_RETRY_S) - 1)])
             row = collector.feed(opcode, index, payload, host_ns)
             if row is None:
                 continue
@@ -1130,6 +1158,8 @@ def run(packets, collector: Collector, open_writer, flush_every: int = 64, rearm
         "missed_anchors": collector.missed_anchors,
         "offset_samples": collector.offsets.n,
         "rearmed": rearmed,
+        #: Sends beyond the first per trigger. Above zero means a re-arm lost the race with the adapter.
+        "rearm_retries": rearm_retries,
         #: Files closed at a local midnight and reopened in the new date's folder.
         "rolled": rolled,
         #: Per reason, how many rows carry no device stamp. A resumed pre-change file cannot hold the
@@ -1434,7 +1464,12 @@ def decide(cfg: dict, sysfs: str = SYSFS_BLUETOOTH, probe=probe_controller):
 
 
 def main(
-    argv: list[str], sysfs: str = SYSFS_BLUETOOTH, probe=probe_controller, socket_module=None, packets=None
+    argv: list[str],
+    sysfs: str = SYSFS_BLUETOOTH,
+    probe=probe_controller,
+    socket_module=None,
+    packets=None,
+    clock=time.monotonic,
 ) -> int:
     """`radioclock.py --config config.yaml` — the collector's entry point.
 
@@ -1469,10 +1504,9 @@ def main(
         return 0
 
     root = cfg.get("root") or "/srv/tepna"
-    rc_cfg = (cfg or {}).get("radio_clock") or {}
-    address = rc_cfg.get("adapter") or cfg.get("adapter")
+    address = cfg["radio_clock"].get("adapter") or cfg.get("adapter")  # `decide` refuses an absent block
     collector = Collector(index, devices, adapter_address=address)
-    if packets is None:  # pragma: no cover — the socket path, exercised on the box
+    if packets is None:
         packets = read_monitor(open_monitor_socket(socket_module))
 
     import datetime as _dt
@@ -1486,9 +1520,12 @@ def main(
         stamp = _dt.datetime.now().strftime("%Y%m%dT%H%M%S")
         return SidecarWriter(os.path.join(night, sidecar_name(stamp, address)))
 
-    def _rearm() -> None:
+    def _rearm() -> bool:
         """Re-send the enable after the adapter came up or was reset. Reported, never silent: the
-        whole point is that a cleared flag is otherwise invisible, so a FAILED re-arm must not be."""
+        whole point is that a cleared flag is otherwise invisible, so a FAILED re-arm must not be.
+
+        `False` means the command could not be SENT, which a later send can repair, so `run` retries. An
+        absent adapter or an answer from the controller is final until the next trigger."""
         # 🔴 RE-RESOLVE THE INDEX FROM THE ADDRESS. Never re-arm a remembered integer: `hciN` is
         # assigned at enumeration and reorders across precisely this event, so a cached index can send
         # a vendor command to a DIFFERENT adapter than the one we were pointed at — the neighbour
@@ -1496,7 +1533,7 @@ def main(
         now_index = adapter_index(address, sysfs)
         if now_index is None:
             log.warning("radio clock: %s is not present after the reset — nothing to re-arm", address)
-            return
+            return True
         if now_index != collector.adapter_index:
             log.info(
                 "radio clock: %s moved hci%d → hci%d; following the address, not the index",
@@ -1509,21 +1546,23 @@ def main(
             _m, status, error = probe(now_index)
         except RadioClockUnavailable as exc:
             log.warning("radio clock: re-arm failed on the adapter that just came up: %s", exc)
-            return
+            return False
         outcome = describe_enable(status, error)
         if outcome == ENABLE_ENABLED:
             log.info("radio clock: anchors re-enabled after an adapter reset")
         else:
             log.warning("radio clock: anchors NOT re-enabled after an adapter reset: %s", outcome)
+        return True
 
-    got = run(packets, collector, open_writer, rearm=_rearm)
+    got = run(packets, collector, open_writer, rearm=_rearm, clock=clock)
     log.info(
-        "radio clock: %d row(s) for %s, %d anchor(s) missed (discardable by design), %d offset sample(s), %d re-arm(s)",
+        "radio clock: %d row(s) for %s, %d anchor(s) missed (discardable by design), %d offset sample(s), %d re-arm(s), %d retried",
         got["rows"],
         ", ".join(got["devices"]) or "no device",
         got["missed_anchors"],
         got["offset_samples"],
         got["rearmed"],
+        got["rearm_retries"],
     )
     return 0
 
