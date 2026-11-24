@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="5950e4771ae6" data-compute-hash="b4b39673d795">
+<html lang="en" data-manifest-hash="9a0c4608a4e9" data-compute-hash="7c16b0cc100d">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-GGXFnzeUENyO3vafEDqc+1hg15ipvB0UcyQDHIUJu8I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-VsbrNGunRHTbFcl7GnyAOA6eETSInRqHomlK3GsLQPY=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-csoYuQTC7Oifl4DXdjZQTi/R1rLzeEQyG2MFYNR64tg=' 'sha256-iqPNvfgaOLLxsrqf67NdcyYbCf6pshw6DVlOebr7HSE=' 'sha256-nINCo0TXagqAfjMc8qrTo7HJKrwLN81EsTVzWJvJer8=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-xTEOdzIo65DCwYDwq3ExFTyEZBZs8omMaQMmgHO4VTo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-GGXFnzeUENyO3vafEDqc+1hg15ipvB0UcyQDHIUJu8I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-Ufuo3XWfw5KuifELM478X55zMXyyTvs2+W+103k5ZlQ=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-csoYuQTC7Oifl4DXdjZQTi/R1rLzeEQyG2MFYNR64tg=' 'sha256-iqPNvfgaOLLxsrqf67NdcyYbCf6pshw6DVlOebr7HSE=' 'sha256-nINCo0TXagqAfjMc8qrTo7HJKrwLN81EsTVzWJvJer8=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-xTEOdzIo65DCwYDwq3ExFTyEZBZs8omMaQMmgHO4VTo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.36.0</title>
@@ -17635,9 +17635,23 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     // clock keeps the Clock-Contract floating wall-clock while removing the arrival jitter — the same
     // device-clock-preferred rule MotionDex/PpgDex already apply via relSecOf(). Falls back to the
     // per-row phone stamp when the ns column is absent or sparse.
+    /* ── `isFinite` IS THE WRONG READER FOR THIS FIELD, AND THIS FUNCTION WRITES THE VALUE IT ADMITS ──
+       `tsMs` above is `null` for a row whose phone column refuses `parseTimestamp`, which is what §∅
+       requires absence to be written as. The GLOBAL `isFinite` coerces its argument, so `isFinite(null)`
+       reads TRUE and such a row passes this guard and the three below it. The consequences are a
+       Clock-Contract matter: this row can become the absolute-time anchor for every sample, and it can
+       enter `accAnchors` as `{ devMs, hostMs: null }`, which `DexClock.hostAxis` spends on the RATE.
+       `Number.isFinite` rejects `null` and keeps a real `0`, and it is already the reader two blocks
+       below, where #5562 fixed the rate median for the same reason.
+       ⚠️ THIS IS NOT THE MECHANICAL SWEEP that row `2026-09-28-bare-isfinite-admits-the-null-that-
+       absence-is-null-requires` recommends against. That sweep is wrong because a bare `isFinite` call
+       site may legitimately receive a numeric string, and only the call site knows. Here the producer
+       is eleven lines above and it is `parseTimestamp`, which returns a number or `null` and never a
+       string, so no legitimate input changes behaviour at these four sites. `relNs` keeps the bare
+       reader: it is written as `NaN` or as a `Number`, and both readers agree on those. */
     var anchor = -1;
     for (var a = 0; a < out.length; a++) {
-      if (isFinite(out[a].tsMs) && isFinite(out[a].relNs)) {
+      if (Number.isFinite(out[a].tsMs) && isFinite(out[a].relNs)) {
         anchor = a;
         break;
       }
@@ -17672,7 +17686,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     for (var s1 = 1; s1 < out.length; s1++) {
       var pr = out[s1 - 1],
         cu = out[s1];
-      if (!(isFinite(pr.relNs) && isFinite(cu.relNs) && isFinite(pr.tsMs) && isFinite(cu.tsMs))) continue;
+      if (!(isFinite(pr.relNs) && isFinite(cu.relNs) && Number.isFinite(pr.tsMs) && Number.isFinite(cu.tsMs))) continue;
       var disagree = Math.abs((cu.relNs - pr.relNs) / 1e6 - (cu.tsMs - pr.tsMs));
       if (disagree > ECG_RESYNC_BOUND_MS) {
         accClockSteps++;
@@ -17715,7 +17729,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       accAnchorsDroppedPreStep = 0,
       accLastEligible = -1;
     for (var q1 = 0; q1 < out.length; q1++) {
-      if (!(isFinite(out[q1].tsMs) && isFinite(out[q1].relNs))) continue;
+      if (!(Number.isFinite(out[q1].tsMs) && isFinite(out[q1].relNs))) continue;
       if (q1 < accLastStepIdx) {
         accAnchorsDroppedPreStep++;
         continue;
@@ -17728,7 +17742,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       _accSeen = 0,
       _accLastPushed = -1;
     for (var q2 = 0; q2 < out.length; q2++) {
-      if (!(isFinite(out[q2].tsMs) && isFinite(out[q2].relNs)) || q2 < accLastStepIdx) continue;
+      if (!(Number.isFinite(out[q2].tsMs) && isFinite(out[q2].relNs)) || q2 < accLastStepIdx) continue;
       if (_accSeen++ % accStride) continue;
       accAnchors.push({ devMs: out[q2].relNs / 1e6, hostMs: out[q2].tsMs });
       _accLastPushed = q2;
