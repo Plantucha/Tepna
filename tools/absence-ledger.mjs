@@ -1203,6 +1203,27 @@ export const SEEDS = [
     state: 'accepted-with-reason',
     reason:
       'hand-read 2026-11-24 (Heron): the priors age 42, 80 kg and 178 cm are what COMPUTE runs on, and `getProfile` carries `_origins` beside them, so no reader takes a prior for an entered value. `ageEnteredIn` gates every age-relative surface, and `renderHero` says `No age entered, so this card shows no age-relative HRV comparison` rather than grading against 42. The group `ECGDex grades against the age entered, not the population prior behind it` pins both halves. The substitution stays; the claim does not.'
+  },
+  {
+    at: 'ecgdex-dsp.js:2111',
+    state: 'fixed',
+    note: 'THIS PR. The RSA efficiency ratio answered a flat 1.00 whenever the expiratory HR floor was not positive, and an absent mean HR took the same branch because `mean` over a non-finite series is not finite. Both 1.00 and 0 bpm are legal measured values, so no reader could separate a record with no RSA from one nothing measured. The ratio and the amplitude now answer null under two named reasons, and `couplingStrength` refuses rather than publishing the RSA half alone under the coupling name. The app KPI, the gang pill, the swing pill, both severity cells and the full-metrics row read the null. Plant: tests/dex-tests.js, group `ECGDex ∅ — a fabricated rate, a defaulted RSA ratio and a defaulted correlation`, legs B. Five legs red on origin/main (measured 2026-11-24, Heron).'
+  },
+  {
+    at: 'ecgdex-dsp.js:4453',
+    state: 'fixed',
+    note: 'THIS PR. The RRacc-vs-EDR correlation answered a literal 0 whenever either side carried zero variance, and 0 is a legal r: the two rates do not track each other. The app card read that 0 for its strong and moderate verdicts and printed it as a Pearson r. The correlation now answers null beside `rReason`, the card prints an em dash with the reason under the limits of agreement, and the narrow-LOA note no longer fires on a null that coerces below 0.65. Plant: tests/dex-tests.js, group `ECGDex ∅ — a fabricated rate, a defaulted RSA ratio and a defaulted correlation`, legs C. Two legs red on origin/main (measured 2026-11-24, Heron).'
+  },
+  {
+    at: 'ecgdex-dsp.js:5568',
+    state: 'fixed',
+    note: 'THIS PR. `ecgCoverage` wrote the H10 nominal 130 Hz over a rec that reached it with no rate. The fallback branch converts sample counts to ms, so the segment EDGES came out fabricated, and `integrator-dsp.js` extends its envelope from exactly those edges. Fabricated edges are a discontinuity, not reduced coverage, so the fallback now refuses under the owner ruling of 2026-09-17. The exact branch never reads the rate and stays as it was. Plant: tests/dex-tests.js, group `ECGDex ∅ — a fabricated rate, a defaulted RSA ratio and a defaulted correlation`, legs A. Two legs red on origin/main (measured 2026-11-24, Heron).'
+  },
+  {
+    at: 'ecgdex-dsp.js:2827',
+    state: 'accepted-with-reason',
+    reason:
+      'hand-read 2026-11-24 (Heron): `beatConfidence` empties its map only when the peak series spans under one second, which `detectPeaks` cannot produce, so `analyze` never reads the `: 1` arm. Measured over `genSynthetic` at 120 s and at 300 s: every published `nnConf` entry comes from a scored second, and the fix changed nothing. The uncalibrated arms FILL the map with explicit 1s and publish `calibrated`, `axis` and `reason` as own properties on it, which is the out-of-band channel §∅ asks for. Trust 1 stays the admission weight for a beat nobody examined, the ruling the sibling `_maskedBeats` site already states. Carrying that calibration verdict into the record and the export is a separate unit, because it moves the node-export shape.'
   }
 ];
 

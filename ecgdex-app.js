@@ -730,7 +730,12 @@ self.onmessage = async (e) => {
       { l: 'Resp Rate', v: r.respRate || '—', sub: 'br/min · EDR', s: 'neutral' },
       ...(r.crc
         ? [
-            { l: 'RSA Efficiency', v: r.crc.rsaEfficiencyRatio, sub: 'insp:exp HR', s: r.crc.rsaEfficiencyRatio >= 1.08 ? 'ok' : r.crc.rsaEfficiencyRatio >= 1.04 ? 'warn' : 'neutral' },
+            {
+              l: 'RSA Efficiency',
+              v: r.crc.rsaEfficiencyRatio,
+              sub: r.crc.rsaEfficiencyRatio == null ? 'insp:exp HR · not computable' : 'insp:exp HR',
+              s: r.crc.rsaEfficiencyRatio == null ? 'neutral' : r.crc.rsaEfficiencyRatio >= 1.08 ? 'ok' : r.crc.rsaEfficiencyRatio >= 1.04 ? 'warn' : 'neutral'
+            },
             { l: 'CR Coupling', v: r.crc.crcPLV, sub: 'PLV · RR↔resp', s: r.crc.crcPLV >= 0.5 ? 'ok' : r.crc.crcPLV >= 0.3 ? 'warn' : 'bad' }
           ]
         : []),
@@ -943,7 +948,7 @@ self.onmessage = async (e) => {
         pts.push({ x: ((rep * NB + i) / NB) * 360, y: curve[i] });
       }
     }
-    const ratioSev = c.rsaEfficiencyRatio >= 1.08 ? 'good' : c.rsaEfficiencyRatio >= 1.04 ? 'warn' : 'neutral';
+    const ratioSev = c.rsaEfficiencyRatio == null ? 'neutral' : c.rsaEfficiencyRatio >= 1.08 ? 'good' : c.rsaEfficiencyRatio >= 1.04 ? 'warn' : 'neutral';
     /* ∅ A refused PLV grades `neutral`, never `bad` — `null >= 0.5` and `null >= 0.3` are both
        false, and the red disc would be a judgement over a number no one measured. */
     const plvSev = c.crcPLV == null ? 'neutral' : c.crcPLV >= 0.5 ? 'good' : c.crcPLV >= 0.3 ? 'warn' : 'bad';
@@ -976,8 +981,8 @@ self.onmessage = async (e) => {
         ? UI.lineChart(pts, ratioCol, { W: 680, H: 150, xfmt: (x) => x.toFixed(0) + '°', yfmt: (y) => y.toFixed(0) + ' bpm' })
         : `<div class="q-note" style="padding:18px 8px;text-align:center">RSA phase curve unavailable — too few clean respiratory cycles.</div>`) +
       `<div class="gang-summary" style="margin-top:10px">
-         <div class="gang-pill" style="border-color:${ratioCol};color:${ratioCol}"><b>RSA efficiency ${c.rsaEfficiencyRatio}</b> insp:exp HR · higher = stronger</div>
-         <div class="gang-pill">RSA swing <b>${c.rsaAmplitudeBpm}</b> bpm</div>
+         <div class="gang-pill" style="border-color:${ratioCol};color:${ratioCol}">${c.rsaEfficiencyRatio != null ? `<b>RSA efficiency ${c.rsaEfficiencyRatio}</b> insp:exp HR · higher = stronger` : 'RSA efficiency — <b>no estimate</b>'}</div>
+         <div class="gang-pill">${c.rsaAmplitudeBpm != null ? `RSA swing <b>${c.rsaAmplitudeBpm}</b> bpm` : 'RSA swing — <b>no estimate</b>'}</div>
          <div class="gang-pill" style="border-color:${plvCol};color:${plvCol}">${c.crcPLV != null ? `<b>CRC PLV ${c.crcPLV}</b> · phase-lock` : 'CRC PLV — <b>no estimate</b>'}</div>
          <div class="gang-pill">${c.couplingStrength != null ? `coupling strength <b>${c.couplingStrength}</b>/1` : 'coupling strength — <b>no estimate</b>'}</div>
          <div class="gang-pill">${c.respFromEDR != null ? `EDR resp <b>${c.respFromEDR}</b> br/min` : 'EDR resp — <b>no estimate</b>'}</div>
@@ -1484,8 +1489,13 @@ self.onmessage = async (e) => {
     if (!ag) {
       body = `<div class="q-note"><span class="pill pill-gray">No EDR available</span> Needs both ECG-derived respiration (EDR) epochs and confident RRacc epochs to compare.</div>`;
     } else {
-      const strong = ag.r >= 0.85 || (ag.mae <= 1.5 && Math.abs(ag.meanDelta) <= 1.5);
-      const moderate = !strong && (ag.r >= 0.65 || ag.mae <= 3.0);
+      /* ∅ A refused r grades on the Bland–Altman half alone. `null >= 0.85` and `null >= 0.65` are
+         both false and `null < 0.65` is TRUE, so the old expressions read a measured low correlation:
+         the card printed "Poor — check sensor contact" and the note below explained a low r that
+         does not exist. The mean Δ and the limits are measured, so they still grade. */
+      const _rKnown = ag.r != null && isFinite(ag.r);
+      const strong = (_rKnown && ag.r >= 0.85) || (ag.mae <= 1.5 && Math.abs(ag.meanDelta) <= 1.5);
+      const moderate = !strong && ((_rKnown && ag.r >= 0.65) || ag.mae <= 3.0);
       const pill = strong
         ? '<span class="pill pill-green">Strong agreement</span>'
         : moderate
@@ -1498,23 +1508,26 @@ self.onmessage = async (e) => {
          The gate is the span itself now, held against this card's own disagreement threshold
          (|Δ| > 3 br/min, so a 6 br/min span), and each branch states the span it measured. */
       const loaSpan = ag.loa ? +(ag.loa[1] - ag.loa[0]).toFixed(1) : null;
-      const narrowNote = !(ag.r < 0.65 && loaSpan != null)
+      const narrowNote = !(_rKnown && ag.r < 0.65 && loaSpan != null)
         ? ''
         : loaSpan <= 6
           ? `<div class="q-note" style="margin-top:6px;color:var(--text2)">Low Pearson r here reflects the <b>narrow EDR range</b> across the night, not poor tracking — MAE ${ag.mae.toFixed(1)} br/min, and the 95% limits of agreement span <b>${loaSpan}</b> br/min (${ag.loa[0]} … +${ag.loa[1]}), inside this card's own 3 br/min disagreement threshold (Bland–Altman governs over correlation when the spread is small).</div>`
           : `<div class="q-note" style="margin-top:6px;color:var(--text2)">Low Pearson r here reflects the <b>narrow EDR range</b> across the night, not poor tracking. The 95% limits of agreement span <b>${loaSpan}</b> br/min (${ag.loa[0]} … +${ag.loa[1]}), wider than this card's own 3 br/min disagreement threshold, so this card makes no close-agreement claim (Bland–Altman governs over correlation when the spread is small).</div>`;
+      const rAbsentNote = _rKnown
+        ? ''
+        : `<div class="q-note" style="margin-top:6px;color:var(--text2)">No Pearson r for this night: ${ag.rReason || 'the correlation was not computable from these pairs'}. Judge agreement by the mean Δ and the limits of agreement.</div>`;
       const evg = (lbl) => {
         const b = evBadge(lbl);
         return b ? '<span style="margin-right:5px">' + b + '</span>' : '';
       };
       body = `<div class="acc-stat-row">
-        <div class="acc-stat"><div class="acc-stat-v">${ag.r.toFixed(2)}</div><div class="acc-stat-l">${evg('Pearson r')}Pearson r</div></div>
+        <div class="acc-stat"><div class="acc-stat-v">${_rKnown ? ag.r.toFixed(2) : '—'}</div><div class="acc-stat-l">${evg('Pearson r')}Pearson r</div></div>
         <div class="acc-stat"><div class="acc-stat-v">${ag.mae.toFixed(1)}</div><div class="acc-stat-l">${evg('MAE br/min')}MAE br/min</div></div>
         <div class="acc-stat"><div class="acc-stat-v">${ag.disagreeRate}%</div><div class="acc-stat-l">${evg('Disagreement')}Disagreement</div></div>
         <div class="acc-stat"><div class="acc-stat-v">${ag.meanDelta > 0 ? '+' : ''}${ag.meanDelta.toFixed(1)}</div><div class="acc-stat-l">${evg('Mean Δ (bias)')}Mean Δ (bias)</div></div>
       </div>
       <div style="margin:8px 0 2px">${pill} <span class="acc-pill-note">${ag.n} paired 5-min epochs · |Δ| &gt; 3 br/min flagged as disagreement</span></div>
-      ${narrowNote}
+      ${narrowNote}${rAbsentNote}
       ${_rrNightChart(ex, r)}
       ${_blandAltman(ag)}`;
     }
@@ -1874,7 +1887,7 @@ self.onmessage = async (e) => {
               r.crc.rsaEfficiencyRatio,
               'ratio',
               '≥1.05',
-              r.crc.rsaEfficiencyRatio >= 1.08 ? 'ok' : r.crc.rsaEfficiencyRatio >= 1.04 ? 'warn' : 'neutral',
+              r.crc.rsaEfficiencyRatio == null ? 'neutral' : r.crc.rsaEfficiencyRatio >= 1.08 ? 'ok' : r.crc.rsaEfficiencyRatio >= 1.04 ? 'warn' : 'neutral',
               'Insp:exp HR ratio — higher = stronger RSA (Border 2025; 1.5 = theoretical optimum)'
             ],
             ['RSA amplitude', r.crc.rsaAmplitudeBpm, 'bpm', '—', 'neutral', 'Peak-to-trough HR swing across the respiratory cycle'],
