@@ -50170,6 +50170,50 @@
       CN.reset();
     });
 
+    group('CPAPDex co-import ∅ — a peer whose end was never measured reports no overlap', 'cpapdex-coimport · _overlapPct · ABSENCE-SURVEY', function (T) {
+      var CN = env.CpapCoimport;
+      if (!CN || typeof CN.crossNode !== 'function' || typeof CN.ingest !== 'function') {
+        T.skip('CpapCoimport crossNode/ingest reachable', 'cpapdex-coimport.js not co-loaded into env');
+        return;
+      }
+      var H = 3600000,
+        T0 = Date.UTC(2026, 0, 10, 22, 0);
+      var oxy = function (startMs, durMin) {
+        var st = { meanSpo2: 94, minSpo2: 86, t90pct: 3 };
+        if (durMin != null) st.durationMin = durMin;
+        return { schema: { node: 'OxyDex' }, nights: [{ t0Ms: startMs, date: '2026-01-11', stats: st, odi4: { rate: 4 } }] };
+      };
+      var night = function () {
+        return { t0Ms: T0, endMs: T0 + 8 * H, therapyHours: 8, metrics: { residualAHI: 4 }, sessions: [{ t0Ms: T0, endMs: T0 + 8 * H, events: [] }] };
+      };
+      var run = function (startMs, durMin) {
+        CN.reset();
+        CN.ingest(oxy(startMs, durMin), 'OxyDex_2026-01-11_odi.json');
+        return CN.crossNode(night());
+      };
+      /* The peer starts one hour into the night and carries no duration, so `normalizeOxy` writes
+         `endMs` null. Pre-fix `_overlapPct` read that peer as a zero-length point and published a
+         measured-looking 0 %, which the note and the card then quoted as a share of the night. */
+      var noEnd = run(T0 + 1 * H, null);
+      var pr = CN.peers().oxy[0] || null;
+      T.ok('∅ · a peer with no duration still pairs (the 4 h tolerance is intentional)', !!(noEnd && noEnd.oximetry), noEnd ? 'oximetry present' : 'null');
+      T.eq('∅ · the normalizer left its end absent, so nothing measured the span', pr ? pr.endMs : 'no peer', null);
+      T.eq('∅ · overlapPct is null, never a measured 0 %', noEnd && noEnd.oximetry ? noEnd.oximetry.overlapPct : 'no record', null);
+      T.ok('∅ · the note names the absent span', !!(noEnd && /no measured span with/.test(noEnd.concordanceNote || '')), noEnd && noEnd.concordanceNote);
+      T.ok('∅ · …and it quotes no share of the night', !(noEnd && /% of/.test(noEnd.concordanceNote || '')), noEnd && noEnd.concordanceNote);
+      T.eq('∅ · no AHI ↔ ODI verdict over an unmeasured span', noEnd && noEnd.concordance, null);
+      /* CONTROL · the same peer, same start, WITH a measured duration. The refusal is keyed to the
+         absence alone, so this night still measures its overlap and still reaches its verdict. */
+      var withEnd = run(T0 + 1 * H, 480);
+      T.ok(
+        'control · a measured peer still reports its overlap',
+        !!(withEnd && withEnd.oximetry && withEnd.oximetry.overlapPct >= 60),
+        withEnd && withEnd.oximetry ? withEnd.oximetry.overlapPct + ' %' : 'null'
+      );
+      T.eq('control · …and its verdict is unchanged (AHI 4 vs ODI 4)', withEnd && withEnd.concordance, 'concordant');
+      CN.reset();
+    });
+
     group('PSL column resolution is header-driven, not positional (both layouts)', 'motiondex-dsp · ppgdex-dsp', function (T) {
       var M = env.MOTIONDSP,
         P = env.PPGDSP;

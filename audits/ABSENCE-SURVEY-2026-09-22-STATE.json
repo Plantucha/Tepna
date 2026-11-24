@@ -25,9 +25,9 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 91,
-  "fixed": 192,
-  "accepted-with-reason": 7
+  "open": 89,
+  "fixed": 193,
+  "accepted-with-reason": 8
  },
  "consumerCensus": {
   "_note": "A LOWER BOUND read out of the survey's own `consumer` prose. The state above is keyed to the PRODUCING line, so a consumer site that is not itself a finding carries no state and no ratchet.",
@@ -1054,7 +1054,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 216,
-   "state": "open"
+   "state": "fixed",
+   "note": "The peer overlap share refused an unmeasured end. normalizeOxy and normalizeEcg write endMs null when the export carried no duration, and substituting t0Ms made the peer a zero-length point, so _overlapPct published a measured-looking 0 percent. crossNode worded that as shares 0 percent of this night and cpapdex-render.js printed 0 percent overlap. Both consumers already carried the honest null branch. Plant group CPAPDex co-import so a peer whose end was never measured reports no overlap. Three of eight legs red on origin/main (measured 2026-11-24, Heron)."
   },
   {
    "key": "e7e4ba8f4267",
@@ -2399,7 +2400,8 @@
    "severity": "low",
    "occurrence": 0,
    "surveyLine": 198,
-   "state": "open"
+   "state": "accepted-with-reason",
+   "reason": "The same substitution inside _bestOverlap feeds only an internal pairing score. An absent endMs makes the candidate a point, so it can never score positive overlap and falls to the gap branch, where the gap is its true start distance. A peer with a measured overlapping span always outscores it, and the score never leaves the function. The published span comes from _overlapPct, which now refuses an unmeasured end. Read 2026-11-24 by Heron."
   },
   {
    "key": "4ea5523335ad",
