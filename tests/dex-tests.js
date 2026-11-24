@@ -14414,6 +14414,112 @@
       );
     });
 
+    group('ECGDex ∅ — a fabricated rate, a defaulted RSA ratio and a defaulted correlation', 'ecgdex-dsp · absence · fabricated-absence', function (T) {
+      var D = env.ECGDSP,
+        X = env.ECGDex;
+      if (!(D && typeof D.cardiorespCoupling === 'function' && typeof D.accExtras === 'function' && X && typeof X.coverage === 'function')) {
+        T.skip('ECGDSP.cardiorespCoupling + accExtras + ECGDex.coverage available', 'ecgdex-dsp not wired in this lane');
+        return;
+      }
+      /* ── A · ecgCoverage over a rec that carries NO sample rate (survey ecgdex-dsp.js:5568) ──
+         The fallback branch converts SAMPLE COUNTS to ms. A nominal 130 Hz written over a rec that
+         reached us without a rate makes fabricated segment EDGES, and `integrator-dsp.js` reads
+         those edges to extend its envelope. Fabricated edges are a discontinuity, not reduced
+         coverage, so the branch refuses (owner ruling 2026-09-17). */
+      var CT0 = Date.UTC(2026, 5, 21, 22, 0, 0);
+      var _mkRec = function (fsVal) {
+        var r = { t0Ms: CT0, gaps: [{ idx: 1300, ms: 4000 }], int16: { length: 3900 } };
+        if (fsVal !== null) r.fs = fsVal;
+        return r;
+      };
+      T.eq('a rec handed to coverage with NO fs refuses, never a nominal 130 Hz', X.coverage(_mkRec(null)), null);
+      T.eq('…and an fs of 0 is a non-rate, not a rate', X.coverage(_mkRec(0)), null);
+      var _cov = X.coverage(_mkRec(130));
+      T.eq('BACK-COMPAT · a rec that CARRIES its rate still declares its two segments', _cov && _cov.n, 2);
+
+      /* ── B · the RSA efficiency ratio over an absent floor (survey ecgdex-dsp.js:2111) ────────
+         `: 1` stated "inspiratory HR equals expiratory HR" for a record whose RSA swing exceeds
+         twice its mean HR. A 1.00 is a legal measured ratio, so the reader could not separate the
+         two. Each series below is SIZED FROM A MEASUREMENT, never invented: 90 beats whose every
+         fifth interval is 200 ms and whose rest are 3000 ms swing 124.3 bpm. */
+      var _beats = function (pattern, n) {
+        var nn = [],
+          tt = [],
+          ref = [],
+          t = 0,
+          idx = 0,
+          i16 = new Int16Array(n * 900 + 32);
+        for (var b = 0; b < n; b++) {
+          var rr = pattern(b);
+          nn.push(rr);
+          tt.push(t);
+          ref.push(idx);
+          i16[idx] = 900 + (b % 5) * 40;
+          t += rr / 1000;
+          idx += Math.max(4, Math.round(rr * 0.13));
+        }
+        return { nn: nn, tt: tt, ref: ref, i16: i16.subarray(0, idx + 8) };
+      };
+      var _couple = function (bs) {
+        return D.cardiorespCoupling(bs.nn, bs.tt, bs.i16, bs.ref, 130, null, []);
+      };
+      var wide = _couple(
+        _beats(function (b) {
+          return b % 5 === 0 ? 200 : 3000;
+        }, 90)
+      );
+      T.eq('a non-positive expiratory floor refuses the ratio, never a flat 1.00', wide && wide.rsaEfficiencyRatio, null);
+      T.ok('…and names its own window', !!(wide && /expiratory HR floor/.test(wide.rsaEfficiencyRatioReason || '')), wide && String(wide.rsaEfficiencyRatioReason));
+      T.approx('…while the amplitude it DID measure survives', wide && wide.rsaAmplitudeBpm, 124.3, 1);
+      var zero = _couple(
+        _beats(function (b) {
+          return b === 5 ? 0 : 800;
+        }, 90)
+      );
+      T.eq('one RR of 0 ms makes the mean HR non-finite ⇒ the ratio refuses', zero && zero.rsaEfficiencyRatio, null);
+      T.eq('…and the amplitude refuses with it, never a flat 0 bpm and never a NaN', zero && zero.rsaAmplitudeBpm, null);
+      T.ok('…under its own reason, not the floor one', !!(zero && /no finite mean HR/.test(zero.rsaEfficiencyRatioReason || '')), zero && String(zero.rsaEfficiencyRatioReason));
+      var flat = _couple(
+        _beats(function () {
+          return 800;
+        }, 200)
+      );
+      T.eq('BACK-COMPAT · a flat record still MEASURES a ratio of 1.00', flat && flat.rsaEfficiencyRatio, 1);
+      T.eq('BACK-COMPAT · …and a flat amplitude of 0 bpm, which it did measure', flat && flat.rsaAmplitudeBpm, 0);
+      T.ok('BACK-COMPAT · …so it names no reason', !!flat && flat.rsaEfficiencyRatioReason == null, flat && String(flat.rsaEfficiencyRatioReason));
+
+      /* ── C · the RRacc-vs-EDR correlation over zero variance (survey ecgdex-dsp.js:4453) ──────
+         `: 0` stated "the two rates do not track each other" for a pairing no r came out of. The
+         app card reads `ag.r` for its strong and moderate verdicts and prints it as a Pearson r. */
+      var AFS = 4,
+        AMIN = 40,
+        AN = AFS * 60 * AMIN;
+      var _acc = function (rates) {
+        var a = [],
+          ph = 0;
+        for (var i = 0; i < AN; i++) {
+          var tSec = i / AFS;
+          ph += (2 * Math.PI * (rates[Math.min(rates.length - 1, Math.floor(tSec / 300))] / 60)) / AFS;
+          var j = Math.sin(ph) * 0.03;
+          a.push({ x: 1 + j, y: j * 0.5, z: j * 0.25, tsMs: CT0 + tSec * 1000 });
+        }
+        return a;
+      };
+      var _eps = function (vals) {
+        var e = [];
+        for (var k = 0; k < vals.length; k++) e.push({ tMin: k * 5, resp: vals[k] });
+        return e;
+      };
+      var RATES = [12, 15, 18, 21, 13, 16, 19, 22];
+      var flatEdr = D.accExtras(_acc(RATES), AFS, CT0, AMIN * 60, _eps([15, 15, 15, 15, 15, 15, 15, 15]), []);
+      T.eq('zero variance on the EDR side refuses the correlation, never a measured 0', flatEdr.agreement && flatEdr.agreement.r, null);
+      T.ok('…and names the pairing it refused', !!(flatEdr.agreement && /zero variance/.test(flatEdr.agreement.rReason || '')), flatEdr.agreement && String(flatEdr.agreement.rReason));
+      T.eq('…while the paired count stays measured beside it', flatEdr.agreement && flatEdr.agreement.n, 8);
+      var bothVary = D.accExtras(_acc(RATES), AFS, CT0, AMIN * 60, _eps(RATES), []);
+      T.eq('BACK-COMPAT · two varying sides still MEASURE the correlation', bothVary.agreement && bothVary.agreement.r, 1);
+      T.ok('BACK-COMPAT · …and name no reason for it', !!bothVary.agreement && bothVary.agreement.rReason == null, bothVary.agreement && String(bothVary.agreement.rReason));
+    });
+
     group('ECGDex staging consensus — an abstention is not an agreement (§6.1)', 'ecgdex-dsp · consensus · fabricated-absence', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.accExtras === 'function')) {
@@ -80772,9 +80878,12 @@
         /* residue 2026-11-11: the narrow-EDR-range note called the limits of agreement tight and
            said the two methods agreed, behind an `ag.mae <= 2.0` gate that never reads the interval
            it printed. A night with limits of −5.1 … +4.6 br/min, a span of 9.7, passed it. The gate
-           is the span now, against this card's own |Δ| > 3 br/min disagreement threshold. */
+           is the span now, against this card's own |Δ| > 3 br/min disagreement threshold.
+           ∅ 2026-11-24: `ag.r` reads null when one side carried no variance, so the gate asks
+           `_rKnown` first. A null r never reaches the `< 0.65` comparison, which reads TRUE over
+           null. The pin below names the guarded form. */
         T.eq('the note no longer gates on the MAE', appsrc.split('ag.r < 0.65 && ag.mae <= 2.0').length - 1, 0);
-        T.ok('the gate is the span being present, not the MAE being small', appsrc.indexOf('!(ag.r < 0.65 && loaSpan != null)') !== -1);
+        T.ok('the gate is the span being present, not the MAE being small', appsrc.indexOf('!(_rKnown && ag.r < 0.65 && loaSpan != null)') !== -1);
         T.ok('the note computes the span of the limits', appsrc.indexOf('const loaSpan = ag.loa ? +(ag.loa[1] - ag.loa[0]).toFixed(1) : null;') !== -1);
         T.ok("the span is held against the card's own 3 br/min threshold", appsrc.indexOf('loaSpan <= 6') !== -1);
         T.eq('both branches state the span they measured', appsrc.split('limits of agreement span <b>${loaSpan}</b>').length - 1, 2);

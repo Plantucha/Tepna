@@ -2302,12 +2302,29 @@
     // drift- and polarity-proof. Efficiency ratio = inspiratory:expiratory HR (Border 2025).
     const meanHRabs = mean(Array.from(hrAbsU));
     const hrBarr = Array.from(hrB);
-    const rsaAmp = Math.max(0, quant(hrBarr, 0.92) - quant(hrBarr, 0.08));
-    const rsaRatio = meanHRabs - rsaAmp / 2 > 0 ? (meanHRabs + rsaAmp / 2) / (meanHRabs - rsaAmp / 2) : 1;
-    const rsaAmpNorm = Math.min(1, rsaAmp / (0.1 * meanHRabs || 1));
+    /* ∅ ABSENCE IS NULL. Two absences reached the reader here as measured numbers.
+       First, a non-finite mean absolute HR. One RR of 0 ms makes `hrAbs` infinite, so `mean`
+       answers Infinity and the old comparison read false. Second, a non-positive expiratory floor.
+       An RSA swing wider than twice the mean HR leaves no ratio at all. Both fell to `: 1`, which
+       states "inspiratory HR equals expiratory HR". A 1.00 is a LEGAL measured ratio, so no
+       consumer can separate the two cases. Measurement, 2026-11-24: a 90-beat series whose every
+       fifth interval is 200 ms and whose rest are 3000 ms makes main publish ratio 1.00 beside
+       amplitude 124.3 bpm. The length test holds a third case. `quant` answers null over an empty
+       grid, so `null - null` is 0 and `Math.max(0, 0)` would publish a flat amplitude. Each reason
+       names its own window, never a borrowed one. */
+    const _rsaMeasured = hrBarr.length > 0 && Number.isFinite(meanHRabs);
+    const rsaAmp = _rsaMeasured ? Math.max(0, quant(hrBarr, 0.92) - quant(hrBarr, 0.08)) : null;
+    const _rsaDen = rsaAmp == null ? null : meanHRabs - rsaAmp / 2;
+    const rsaRatio = rsaAmp != null && _rsaDen != null && _rsaDen > 0 ? (meanHRabs + rsaAmp / 2) / _rsaDen : null;
+    const rsaRatioReason = !_rsaMeasured
+      ? 'no finite mean HR over the resp-band grid — RSA amplitude and efficiency not computable'
+      : rsaRatio == null
+        ? 'expiratory HR floor not positive — inspiratory:expiratory ratio not computable'
+        : null;
+    const rsaAmpNorm = rsaAmp == null ? null : Math.min(1, rsaAmp / (0.1 * meanHRabs || 1));
     /* 65 % of this number IS the PLV, so an absent PLV leaves no coupling strength to publish.
        `0.65 * null` is 0, which would have published the RSA half alone under the coupling name. */
-    const couplingStrength = plv == null ? null : Math.max(0, Math.min(1, 0.65 * plv + 0.35 * rsaAmpNorm));
+    const couplingStrength = plv == null || rsaAmpNorm == null ? null : Math.max(0, Math.min(1, 0.65 * plv + 0.35 * rsaAmpNorm));
     // phase-averaged HR over the BEST-coherence 60 s window (a clean RSA loop for the chart)
     const NB = 16;
     const binSum = new Float64Array(NB),
@@ -2358,8 +2375,9 @@
       respFromEDRReason,
       nGridGap: _gapCells,
       gridGapFrac,
-      rsaEfficiencyRatio: +rsaRatio.toFixed(2),
-      rsaAmplitudeBpm: +rsaAmp.toFixed(1),
+      rsaEfficiencyRatio: _rmOrNull(rsaRatio, 2),
+      rsaEfficiencyRatioReason: rsaRatioReason,
+      rsaAmplitudeBpm: _rmOrNull(rsaAmp, 1),
       crcPLV: _rmOrNull(plv, 3),
       crcPLVReason: plvReason,
       couplingStrength: _rmOrNull(couplingStrength, 3),
@@ -5359,14 +5377,20 @@
           da += va * va;
           de += ve * ve;
         }
-        const r = da > 0 && de > 0 ? num / Math.sqrt(da * de) : 0,
+        /* ∅ ABSENCE IS NULL. Zero variance on one side leaves no correlation to compute, and 0 is
+           a LEGAL r — "the two rates do not track each other". The card reads `ag.r` for its strong
+           and moderate verdicts and prints it as a Pearson r, so the old 0 published a measured
+           disagreement over a pairing no correlation came out of. */
+        const _rOk = da > 0 && de > 0;
+        const r = _rOk ? num / Math.sqrt(da * de) : null,
           disagree = deltas.filter((x) => Math.abs(x) > 3).length;
         agreement = {
           n: pairs.length,
           meanDelta: +md.toFixed(2),
           sdDelta: +sdd.toFixed(2),
           mae: +mae.toFixed(2),
-          r: +r.toFixed(2),
+          r: _rmOrNull(r, 2),
+          rReason: _rOk ? null : 'zero variance on one side of the RRacc and EDR pairing — no correlation computable',
           disagreeRate: Math.round((disagree / pairs.length) * 100),
           loa: [+(md - 1.96 * sdd).toFixed(1), +(md + 1.96 * sdd).toFixed(1)],
           ba: pairs.map((p) => ({ mean: +((p.acc + p.edr) / 2).toFixed(1), diff: +(p.acc - p.edr).toFixed(1) }))
@@ -7046,7 +7070,12 @@
     if (!rec || rec.t0Ms == null || !isFinite(rec.t0Ms)) return null;
     var gaps = rec.gaps;
     if (!Array.isArray(gaps) || !gaps.length) return null; // contiguous ⇒ no claim (DexExport contract)
-    var fs = rec.fs > 0 ? rec.fs : 130;
+    /* ∅ ABSENCE IS NULL. The old `: 130` wrote the H10's nominal rate over a rec that reached us
+       without one. The EXACT branch below never reads `fs`; the FALLBACK branch converts SAMPLE
+       COUNTS to ms with it, so a fabricated rate makes fabricated segment EDGES, and the Integrator
+       reads those edges to extend its envelope. Fabricated edges are a discontinuity, not reduced
+       coverage, so the fallback refuses (owner ruling 2026-09-17). */
+    var fs = rec.fs > 0 ? rec.fs : null;
     var nSamp = rec.int16 && rec.int16.length != null ? rec.int16.length : null;
     var t0 = rec.t0Ms,
       segs = [];
@@ -7065,7 +7094,7 @@
       }
       var endOff = rec.lastRelMs - base;
       if (endOff > cur) segs.push([t0 + cur, t0 + endOff]);
-    } else if (nSamp) {
+    } else if (nSamp && fs != null) {
       /* ── FALLBACK: `{idx, ms}` only. A sample index is DATA time, not wall-clock time — after one
          dropout, sample k sits at k/fs PLUS every gap before it, so reading `idx/fs` as a clock
          position under-states every boundary by the accumulated silence. Walk instead: consume the
