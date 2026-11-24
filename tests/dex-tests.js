@@ -33824,6 +33824,146 @@
       return buf;
     }
 
+    /* ════ THE STAGE-FORMULA FEATURE BLOCK REPRODUCES THE NUMBERS THE FIT SAW ════
+       `eegdex-stage-features.js` is a PORT. Its coefficients live in a separate model file, and they
+       describe these 35 columns and no others, so the only thing that makes the port correct is that
+       it reproduces the fitting code's own output cell for cell. Nothing else in this suite can see a
+       drift here: a wrong constant or a reordered operation still gives 35 finite columns, still
+       stages a night, and still passes every other group — it just answers a different question than
+       the coefficients were fitted on. That is why the vector is COMMITTED rather than regenerated:
+       `tests/vectors/eegdex-stage-features.json` holds the fitting code's output over a seeded
+       synthetic signal (no recording of any person is involved — the generator is reproduced below),
+       and regenerating it from this port would compare the port with itself. */
+    group('EEGDex stage formula — the 35 feature columns match the fit, cell for cell', 'eegdex · stage-formula · parity · absence', function (T) {
+      T.ok('env.EEGFEAT is published by the lane', !!env.EEGFEAT, 'eegdex-stage-features.js did not load — both loaders report that as a console line only');
+      var V = (env.stageVectors || {})['eegdex-stage-features'];
+      T.ok('the committed parity vector was read', !!(V && V.features && V.names), 'tests/vectors/eegdex-stage-features.json absent or unparsed');
+      if (!env.EEGFEAT || !V || !V.features || !V.names) return;
+      var F = env.EEGFEAT;
+
+      /* The vector's own generator, reproduced verbatim so the port is fed the SAME signal. A seeded
+         mulberry32 and a sum of twelve uniforms: low-passed noise, slow waves in epochs 20–34, one
+         13 Hz burst every 6 s in epochs 10–19, a 10 Hz rhythm in 45–49, broadband activity in 50–54,
+         and three spans that were not measured — epochs 40 and 41 whole, then the first 20 s of 42. */
+      function synth(fs, nEpochs, seed) {
+        var a = seed >>> 0;
+        var rnd = function () {
+          a = (a + 0x6d2b79f5) >>> 0;
+          var t = a;
+          t = Math.imul(t ^ (t >>> 15), t | 1);
+          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+        var gauss = function () {
+          var u = 0;
+          for (var k = 0; k < 12; k++) u += rnd();
+          return u - 6;
+        };
+        var N = fs * 30 * nEpochs,
+          x = new Float32Array(N),
+          lp = 0,
+          i;
+        for (i = 0; i < N; i++) {
+          var t = i / fs,
+            ep = Math.floor(t / 30),
+            v;
+          lp = 0.97 * lp + gauss();
+          v = 8 * lp + 3 * gauss();
+          if (ep >= 20 && ep < 35) v += 60 * Math.sin(2 * Math.PI * 1.0 * t);
+          if (ep >= 10 && ep < 20 && t % 6 < 1) v += 25 * Math.sin(2 * Math.PI * 13 * t) * Math.sin(Math.PI * (t % 6));
+          if (ep >= 45 && ep < 50) v += 20 * Math.sin(2 * Math.PI * 10 * t);
+          if (ep >= 50 && ep < 55) v += 15 * gauss();
+          x[i] = v;
+        }
+        for (i = fs * 30 * 40; i < fs * 30 * 42; i++) x[i] = NaN;
+        for (i = fs * 30 * 42; i < fs * 30 * 42 + fs * 20; i++) x[i] = NaN;
+        return x;
+      }
+
+      var fs = V.fs,
+        n = V.nEpochs,
+        x = synth(fs, n, V.seed),
+        got = F.eegBlockExtract({ nEpochs: n, signals: { eeg: { data: x, fs: fs } } });
+
+      T.eq('35 columns, in the order the coefficients name', String(got.names), String(V.names));
+      T.eq('…and that order is the module’s own EEG_NAMES', String(got.names), String(F.EEG_NAMES));
+
+      /* ONE PASS, FOUR POPULATIONS. `absent` counts the cells this layer calls NOT MEASURED, `zero`
+         the cells that hold a MEASURED 0, and `worst` the largest relative difference over the rest.
+         The three are reported separately because they fail for different reasons, and because a 0
+         and an absence are the pair §∅ exists to keep apart: the vector writes absence as JSON `null`
+         and a measured 0 as `0`, and this comparison reads finiteness, never truthiness. */
+      var absentGot = 0,
+        absentWant = 0,
+        disagree = [],
+        zero = 0,
+        worst = 0,
+        worstAt = '',
+        e,
+        j;
+      for (e = 0; e < n; e++)
+        for (j = 0; j < V.names.length; j++) {
+          var g = got.cols[j][e],
+            w = V.features[e][j],
+            gAbsent = !isFinite(g),
+            wAbsent = w === null;
+          if (gAbsent) absentGot++;
+          if (wAbsent) absentWant++;
+          if (gAbsent !== wAbsent) {
+            if (disagree.length < 4) disagree.push(V.names[j] + ' epoch ' + e + ': port ' + g + ', fit ' + w);
+            continue;
+          }
+          if (gAbsent) continue;
+          if (w === 0 && g === 0) zero++;
+          var rel = Math.abs(g - w) / Math.max(1e-12, Math.abs(w));
+          if (rel > worst) {
+            worst = rel;
+            worstAt = V.names[j] + ' epoch ' + e;
+          }
+        }
+
+      T.eq('every absence falls in the same cell on both sides', disagree.join(' · '), '');
+      T.eq('…and there are as many of them as the fit recorded', absentGot, absentWant);
+      T.ok('the vector actually carries absence to compare', absentWant > 0, absentWant + ' absent cells');
+      T.ok('…and a MEASURED zero is present and compared, not read as absence', zero > 0, zero + ' cells hold an exact 0 on both sides');
+      T.ok('every measured cell agrees within 1e-9 relative', worst <= 1e-9, 'worst ' + worst.toExponential(3) + (worstAt ? ' at ' + worstAt : ''));
+
+      /* THE UNIT CANNOT ENTER A COLUMN. The device's µV scale is not verified, so the whole point of
+         the three means the module's header names — shares, night-median-subtracted log powers, and
+         the per-night amplitude form of the event detectors — is that a night multiplied by any
+         constant gives the same row. This is the one assertion here that the vector cannot make: it
+         fixes the port against a SECOND signal rather than against the fit. A scale that leaked into
+         one column would move it and nothing else. */
+      var scaled = new Float32Array(x.length),
+        k;
+      for (k = 0; k < x.length; k++) scaled[k] = x[k] * 3.7;
+      var sc = F.eegBlockExtract({ nEpochs: n, signals: { eeg: { data: scaled, fs: fs } } }),
+        drifted = [],
+        worstScale = 0;
+      for (j = 0; j < V.names.length; j++)
+        for (e = 0; e < n; e++) {
+          var b = got.cols[j][e],
+            s = sc.cols[j][e];
+          if (!isFinite(b) !== !isFinite(s)) {
+            if (drifted.length < 4) drifted.push(V.names[j] + ' epoch ' + e + ': absence changed');
+            continue;
+          }
+          if (!isFinite(b)) continue;
+          var r2 = Math.abs(s - b) / Math.max(1e-9, Math.abs(b));
+          if (r2 > worstScale) worstScale = r2;
+          if (r2 > 1e-4 && drifted.length < 4) drifted.push(V.names[j] + ' epoch ' + e + ': ' + b + ' → ' + s);
+        }
+      T.eq('a night multiplied by 3.7 gives the same row', drifted.join(' · '), '');
+      T.ok('…and the comparison examined finite cells', worstScale >= 0 && absentWant < n * V.names.length, 'worst ' + worstScale.toExponential(3));
+
+      /* A NIGHT WITH NO SIGNAL IS 35 ABSENT COLUMNS, never 35 zeros. The block's first guard. */
+      var none = F.eegBlockExtract({ nEpochs: 4, signals: {} }),
+        noneFinite = 0;
+      for (j = 0; j < none.cols.length; j++) for (e = 0; e < 4; e++) if (isFinite(none.cols[j][e])) noneFinite++;
+      T.eq('a night with no EEG signal reports every column absent', noneFinite, 0);
+      T.eq('…and still reports all 35 column names', none.names.length, 35);
+    });
+
     group('The EEGDex modules are executed by this lane, not only read', 'eegdex · wiring · availability', function (T) {
       T.ok('env.EEGDSP is published by the lane', !!env.EEGDSP, 'eegdex-dsp.js did not load — both loaders report that as a console line only');
       T.ok('env.EEGUI is published by the lane', !!env.EEGUI, 'eegdex-render.js did not load — both loaders report that as a console line only');
