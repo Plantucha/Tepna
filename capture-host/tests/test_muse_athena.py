@@ -224,8 +224,21 @@ def test_tick_clock_reads_half_a_wrap_as_a_step_back_and_less_than_half_as_forwa
     assert c.feed(1_342_177) == 134_217_700  # just short of 2^27 ns reads as forward
     c = M.TickClock()
     c.feed(0)
-    # 2^25 ticks is 2^27 + 12 * 2^28 ns: EXACTLY half a fold after the modulus, which reads as a step back
-    assert c.feed(1 << 25) == -(M.WRAP_NS // 2)
+    # -2^25 ticks is -13 * 2^28 + 2^27 ns: EXACTLY half a fold after the modulus, which reads as a step back
+    assert c.feed(-(1 << 25)) == -(M.WRAP_NS // 2)
+
+
+def test_a_tick_just_under_2_to_the_24_is_a_small_negative_time():
+    """A record that starts just before a fold carries a negative tick. The steps of one EEG record
+    period (78 125 ticks) into it and out of it are both 1/128 s, through the clock and the function."""
+    neg = 0x1000000 - 20_000
+    ticks = (2_586_230, neg, 58_125)  # 2^28 ns is 2 684 354.56 ticks, so -20 000 is 2 664 354.56
+    assert [M.signed_tick(t) for t in (0, 0x7FFFFF, 0x800000, 0xFFFFFF)] == [0, 0x7FFFFF, -0x800000, -1]
+    c = M.TickClock()
+    got = [c.ns(t) for t in ticks]
+    assert got[1] - got[0] == 7_812_456 and got[2] - got[1] == 7_812_500
+    assert M.tick_seconds(ticks[0], ticks[1]) == 0.007812456
+    assert M.tick_seconds(ticks[1], ticks[2]) == 0.0078125
 
 
 def test_battery_reads_two_bytes_only():

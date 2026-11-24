@@ -34050,8 +34050,21 @@
       T.eq('a one-tick step backwards reads as -100 ns, not as the fold', ck2.feed(top), top * 100 - M.WRAP_NS);
       var ck3 = new M.TickClock();
       ck3.feed(0);
-      /* 2^25 ticks is 2^27 + 12 * 2^28 ns: EXACTLY half a fold past the modulus, which reads as a step back. */
-      T.eq('exactly half a fold forward reads as a step back', ck3.feed(33554432), -M.WRAP_NS / 2);
+      /* -2^25 ticks is -13 * 2^28 + 2^27 ns: EXACTLY half a fold past the modulus, which reads as a step back. */
+      T.eq('exactly half a fold forward reads as a step back', ck3.feed(-33554432), -M.WRAP_NS / 2);
+      /* A record that starts just before a fold carries a small NEGATIVE tick, just under 2^24 as the
+         unsigned field. One EEG record period into it and out of it, through the clock and the function. */
+      var ck4 = new M.TickClock(),
+        negTicks = [2586230, 0x1000000 - 20000, 58125],
+        negNs = negTicks.map(function (t) {
+          return ck4.ns(t);
+        });
+      T.eq('the step into a negative tick is one record', negNs[1] - negNs[0], 7812456);
+      T.eq('the step out of a negative tick is one record', negNs[2] - negNs[1], 7812500);
+      T.eq('tickSeconds reads the same two steps', M.tickSeconds(negTicks[0], negTicks[1]) + ',' + M.tickSeconds(negTicks[1], negTicks[2]), '0.007812456,0.0078125');
+      var ck5 = new M.TickClock(),
+        ck6 = new M.TickClock();
+      T.eq('the sign bit is bit 23', ck5.feed(0x7fffff) + ',' + ck6.feed(0x800000), 0x7fffff * 100 + ',' + -0x800000 * 100);
 
       /* Every tokenise refusal is NAMED. A packet that cannot be read is never a packet with no
          records: the first would hide a framing bug behind an empty answer. */
