@@ -54418,6 +54418,51 @@
       T.eq('cp1 delta is +3', cps[1].delta, 3);
     });
 
+    /* ∅ ABSENCE-SURVEY — `compareChannel` refuses an unmeasured rate and an absent start stamp.
+       MEASURED on `origin/main`: 8 of the 12 legs below red there, because both halves returned
+       `ok: true` or a borrowed reason rather than a refusal. `fs` fell to 1 Hz and converted every
+       sample count this comparator reports. `t0Ms` fell to epoch 0, and `clockOffsetSec` IS the
+       comparator's headline finding, so an absent stamp manufactured a disagreement that the overlap
+       refusal then worded as an EdfSink UTC-vs-local-civil clock defect. */
+    group('CPAPDex ∅ — the comparator refuses an unmeasured rate and an absent start stamp', 'cpapdex-cross · compareChannel · ABSENCE-SURVEY', function (T) {
+      var CX = env.CPAPCross;
+      if (!CX || typeof CX.compareChannel !== 'function') {
+        T.skip('env.CPAPCross.compareChannel available', 'cpapdex-cross not wired in this lane');
+        return;
+      }
+      var nz = 2500,
+        V = [];
+      for (var zi = 0; zi < nz; zi++) V.push(Math.sin(zi / 40));
+      var mk = function (fsv, t0) {
+        return { t0Ms: t0, fs: fsv, values: V };
+      };
+      // 1 · NEITHER header carries a rate. On main `fs` became 1 Hz and the pair compared.
+      var noFs = CX.compareChannel(mk(null, 1000000), mk(0, 1000000));
+      T.ok('no rate in either header refuses', noFs.ok === false, 'ok=' + noFs.ok);
+      T.ok('and the refusal names the rate', /sample rate/.test(noFs.reason || ''), 'reason=' + noFs.reason);
+      T.eq('a refusal publishes no overlap minutes', noFs.overlapMin === undefined, true);
+      // a measured rate on EITHER side is enough — this refusal is narrow
+      var oneFs = CX.compareChannel(mk(25, 1000000), mk(null, 1000000));
+      T.ok('one measured rate still compares', oneFs.ok === true, 'ok=' + oneFs.ok);
+      T.ok('and the overlap reads at the measured 25 Hz', oneFs.ok && Math.abs(oneFs.overlapMin - nz / 25 / 60) < 0.05, 'overlapMin=' + (oneFs.ok && oneFs.overlapMin));
+      // 2 · A start stamp absent on ONE side. On main this read epoch 0 under a borrowed reason.
+      var noT0 = CX.compareChannel(mk(25, null), mk(25, 1000000));
+      T.ok('an absent live start stamp refuses', noT0.ok === false, 'ok=' + noT0.ok);
+      T.eq('clockOffsetSec is null, never a fabricated disagreement', noT0.clockOffsetSec, null);
+      T.ok('the reason names the absent stamp and the side', /no recording start stamp on the live side/.test(noT0.reason || ''), 'reason=' + noT0.reason);
+      T.ok('and it does NOT borrow the EdfSink clock-defect wording', !/EdfSink/.test(noT0.reason || ''));
+      var noT0b = CX.compareChannel(mk(25, 1000000), mk(25, undefined));
+      T.ok('an absent SD start stamp names the SD side', noT0b.ok === false && /on the SD side/.test(noT0b.reason || ''), 'reason=' + noT0b.reason);
+      var noT0both = CX.compareChannel(mk(25, null), mk(25, null));
+      T.ok(
+        'absent on both sides refuses, never a perfect 0 s agreement',
+        noT0both.ok === false && noT0both.clockOffsetSec === null && /live and SD/.test(noT0both.reason || ''),
+        'reason=' + noT0both.reason
+      );
+      // 3 · the measured pair is untouched
+      var goodPair = CX.compareChannel(mk(25, 1000000), mk(25, 1000000));
+      T.ok('a measured pair compares and reports a 0 s header offset', goodPair.ok === true && goodPair.clockOffsetSec === 0, 'ok=' + goodPair.ok);
+    });
     // The live-vs-SD comparator (CPAPDEX-LIVE-SD-COMPARATOR). Agreement is scale/offset + Bland-Altman,
     // never Pearson r; refusal-first; the alignment offset is a first-class finding. A large clock delta
     // between a live capture and its SD twin is a DEFECT (the EdfSink bug class) — the comparator refuses

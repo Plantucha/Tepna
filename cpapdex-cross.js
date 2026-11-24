@@ -708,12 +708,36 @@
     if (!a || !b || !a.values || !b.values || !a.values.length || !b.values.length) {
       return { ok: false, reason: 'a channel is absent in one file — nothing to compare' };
     }
-    var fs = a.fs || b.fs || 1;
+    /* ∅ A FABRICATED RATE AND A FABRICATED EPOCH ARE BOTH REFUSALS HERE, never defaults. `fs` converts
+       every sample count this comparator reports into time — `endMs`, `ai0`, `bi0`, `overlapN`, the
+       fine lag, the ~10-min window `fs * 600`, and the published `overlapMin`, `appliedLagSec` and
+       `scaleOverTime[].startMin`. A 1 Hz stand-in for a rate no EDF header carried makes every one of
+       them read as a measurement. And `clockOffsetSec` IS this comparator's headline finding, so an
+       epoch-0 stand-in for an absent start stamp manufactures a ~57-year disagreement, which the
+       overlap refusal below then words as an EdfSink UTC-vs-local-civil clock defect — a borrowed
+       reason for a different cause. Absent on BOTH sides it reads a perfect 0 s agreement instead.
+       Each refusal names its own absence. CPAPDex carries no `clock.js`, so `DexClock` is undefined
+       here and the arithmetic stays local. */
+    var fs = Number.isFinite(a.fs) && a.fs > 0 ? a.fs : Number.isFinite(b.fs) && b.fs > 0 ? b.fs : null;
+    if (fs == null) {
+      return {
+        ok: false,
+        reason: 'no sample rate in either EDF header — every span, lag and window this comparator reports converts sample counts at that rate'
+      };
+    }
+    if (!Number.isFinite(a.t0Ms) || !Number.isFinite(b.t0Ms)) {
+      var _noT0 = Number.isFinite(a.t0Ms) ? 'SD' : Number.isFinite(b.t0Ms) ? 'live' : 'live and SD';
+      return {
+        ok: false,
+        clockOffsetSec: null,
+        reason: 'no recording start stamp on the ' + _noT0 + ' side — the header clock disagreement IS the finding here, so it cannot read an assumed epoch'
+      };
+    }
     // The header-clock disagreement — the FINDING. Positive => the live header starts LATER than the SD.
-    var clockOffsetSec = ((a.t0Ms || 0) - (b.t0Ms || 0)) / 1000;
+    var clockOffsetSec = (a.t0Ms - b.t0Ms) / 1000;
     // Align on the device clock: the overlapping device-time window.
-    var startMs = Math.max(a.t0Ms || 0, b.t0Ms || 0);
-    var endMs = Math.min((a.t0Ms || 0) + (a.values.length / fs) * 1000, (b.t0Ms || 0) + (b.values.length / fs) * 1000);
+    var startMs = Math.max(a.t0Ms, b.t0Ms);
+    var endMs = Math.min(a.t0Ms + (a.values.length / fs) * 1000, b.t0Ms + (b.values.length / fs) * 1000);
     if (endMs - startMs < 1000) {
       // A large delta between a live capture and its SD twin is defect DETECTION, not an alignment
       // problem — the comparator is the instrument that screams when the EdfSink clock-bug class
@@ -730,8 +754,8 @@
           'large delta is a clock defect (EdfSink UTC-vs-local-civil class), not a different night.'
       };
     }
-    var ai0 = Math.round(((startMs - (a.t0Ms || 0)) / 1000) * fs);
-    var bi0 = Math.round(((startMs - (b.t0Ms || 0)) / 1000) * fs);
+    var ai0 = Math.round(((startMs - a.t0Ms) / 1000) * fs);
+    var bi0 = Math.round(((startMs - b.t0Ms) / 1000) * fs);
     var overlapN = Math.floor(((endMs - startMs) / 1000) * fs);
     // Fine lag: correlate the clock-aligned overlap at 1 Hz; apply it on top of the clock alignment.
     var lagSamp = _fineLag(a.values, ai0, b.values, bi0, overlapN, Math.round(maxLagSec * fs));
