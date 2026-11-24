@@ -26215,7 +26215,11 @@
         return;
       }
       T.ok('the app export carries NO hardcoded device string', !/device:\s*'Polar Sense'/.test(app), "device:'Polar Sense' is back — an O2Ring finger night would export as a wrist Verity");
-      T.ok('…the device follows the optical layout the DSP read', /device:\s*r\.site === 'finger'/.test(app), 'device no longer derived from r.site');
+      T.ok(
+        '…the device follows the instrument the ingest named, then the optical layout the DSP read',
+        /device:\s*r\.opticalDevice === 'Muse' \? '[^']*Muse[^']*' : r\.site === 'finger'/.test(app),
+        'device no longer derived from r.opticalDevice then r.site'
+      );
       /* The site pair is the honesty carrier: 'device-default' = inferred from the layout,
          'declared' = the wearer said so. Emitting the device without them restates an inference
          as a fact. */
@@ -33941,6 +33945,161 @@
       var blank = M.parseRawRow('a;;;4;00000000');
       T.eq('an absent device stamp and counter come through as null, not as zero', JSON.stringify([blank.row.devNs, blank.row.counter]), JSON.stringify([null, null]));
       T.eq('a blank line is not a row and not a fault', JSON.stringify(M.parseRawRows('\n\n')), JSON.stringify({ rows: [], refused: {} }));
+    });
+
+    group('The headband optical records become the PPG recording PpgDex already reads', 'ppgdex · ingest · muse-optics', function (T) {
+      var M = env.MuseFrame,
+        P = env.PPGDSP,
+        K = env.DexClock;
+      if (!M || !K) {
+        T.skip('env.MuseFrame and env.DexClock available', 'muse-frame.js or clock.js is not executed by this lane');
+        return;
+      }
+      var REC = 46875000, // ns: three samples at 64 Hz
+        T0 = Date.UTC(2026, 10, 18, 22, 0, 0, 0),
+        hostMs = function (x) {
+          var k = K.parseTimestamp(x, {});
+          return k ? k.tMs : null;
+        };
+      /* 12 x 20-bit fields, LSB first, from the reader's own constants. `t` is the device time in ns;
+         `neg` writes it as the two's-complement time left to the next fold, as the device does. */
+      function record(ix, t, neg, value) {
+        var rec = new Uint8Array(M.RECORD_SIZE[M.TAG_34]),
+          pos = ((t % M.WRAP_NS) + M.WRAP_NS) % M.WRAP_NS,
+          tk = Math.round((neg ? pos - M.WRAP_NS : pos) / M.NS_PER_TICK),
+          j,
+          b,
+          k,
+          v;
+        if (tk < 0) tk += 0x1000000;
+        rec[0] = M.TAG_34;
+        rec[1] = ix & 0xff;
+        rec[2] = tk & 0xff;
+        rec[3] = (tk >> 8) & 0xff;
+        rec[4] = (tk >> 16) & 0xff;
+        for (j = 0; j < 12; j++) {
+          v = value(j);
+          for (b = 0; b < 20; b++)
+            if (Math.floor(v / Math.pow(2, b)) % 2) {
+              k = j * 20 + b;
+              rec[M.RECORD_HEAD + (k >> 3)] |= 1 << (k & 7);
+            }
+        }
+        return rec;
+      }
+      function row(rec, hostAt) {
+        var pkt = new Uint8Array(M.HEADER_LEN + rec.length),
+          hex = '',
+          j;
+        pkt[0] = pkt.length;
+        pkt.set(rec, M.HEADER_LEN);
+        for (j = 0; j < pkt.length; j++) hex += (pkt[j] < 16 ? '0' : '') + pkt[j].toString(16);
+        return new Date(hostAt).toISOString().slice(0, 23) + ';1;0;' + pkt.length + ';' + hex + '\n';
+      }
+      /* `plan` answers, per record: how many records the link lost before it, the added silence in ns
+         (a device restart), whether the tick is written signed, and how many times it is delivered. */
+      function file(n, plan) {
+        var out = '',
+          ix = 0,
+          dev = 0,
+          host = T0,
+          i,
+          c,
+          d;
+        for (i = 0; i < n; i++) {
+          c = (plan && plan(i)) || {};
+          ix += c.lost || 0;
+          dev += (c.lost || 0) * REC + (c.restart ? 100000000 : 0);
+          host += ((c.lost || 0) * REC) / 1e6 + (c.restart ? c.restart / 1e6 : 0);
+          for (d = 0; d < (c.times || 1); d++)
+            out += row(
+              record(ix, dev, !!c.neg, (j) => 100000 + i * 12 + j),
+              Math.round(host)
+            );
+          ix++;
+          dev += REC;
+          host += REC / 1e6;
+        }
+        return out;
+      }
+      function convert(text, cut) {
+        var o = new M.OpticsPpg({ hostMs: hostMs }),
+          i;
+        for (i = 0; i < text.length; i += cut || text.length) o.push(text.slice(i, i + (cut || text.length)));
+        return o.finish();
+      }
+      function steps(r) {
+        var ns = r.text
+            .trim()
+            .split('\n')
+            .slice(1)
+            .map((l) => Number(l.split(';')[1])),
+          out = [],
+          i;
+        for (i = 1; i < ns.length; i++) out.push(ns[i] - ns[i - 1]);
+        return out;
+      }
+      var even = (r) => steps(r).filter((x) => Math.abs(x - 15625000) > 200).length;
+      var tally = (r) => JSON.stringify([r.info.records, r.info.lostRecords, r.info.reanchors, r.info.repeats]);
+
+      var clean = convert(file(60));
+      var lines = clean.text.trim().split('\n');
+      T.eq('three samples per record, under one header', lines.length, 181);
+      T.eq('the first sample carries the four channels of the first sample in the record', lines[1].split(';').slice(2).join(), '100000,100001,100002,100003');
+      T.eq('the second sample carries the next four', lines[2].split(';').slice(2).join(), '100004,100005,100006,100007');
+      T.eq('the host stamp passes through as text', lines[1].split(';')[0], '2026-11-18T22:00:00.000');
+      T.eq('every step is one sample across 10 folds of the tick', even(clean), 0);
+      T.eq('nothing lost, no re-anchor, no repeat', tally(clean), '[60,0,0,0]');
+      T.eq('an optical record of the other size answers no sample', M.optics4({ tag: M.TAG_OPTICS, data: new Uint8Array(40) }), null);
+
+      /* The device writes a record that starts just before a fold as a NEGATIVE time. Read unsigned, the
+         step into it is 67.1 ms too long and the next one 67.1 ms too short. */
+      var signed = convert(file(60, (i) => ({ neg: i % 7 === 3 })));
+      T.eq('a tick written as a negative time is the same instant', JSON.stringify([even(signed), tally(signed)]), JSON.stringify([0, '[60,0,0,0]']));
+      var ns = (r) =>
+        r.text
+          .trim()
+          .split('\n')
+          .slice(1)
+          .map((l) => Number(l.split(';')[1]));
+      var cleanNs = ns(clean);
+      T.ok(
+        'and every sample sits within two ticks of the unsigned recording',
+        ns(signed).every((x, i) => Math.abs(x - cleanNs[i]) <= 200)
+      );
+
+      var lost = convert(file(60, (i) => ({ lost: i === 20 ? 5 : 0 })));
+      T.eq('five lost records are counted and their time is kept', JSON.stringify([tally(lost), Math.round(steps(lost)[59] / 1000)]), JSON.stringify(['[60,5,0,0]', 15625 + (5 * REC) / 1000]));
+      var wrap = convert(file(60, (i) => ({ lost: i === 20 ? 300 : 0 })));
+      T.eq(
+        'a loss longer than the 256-record index takes its cycles from the host stamp',
+        JSON.stringify([tally(wrap), Math.round(steps(wrap)[59] / 1000)]),
+        JSON.stringify(['[60,300,0,0]', 15625 + (300 * REC) / 1000])
+      );
+      var silent = convert(file(60, (i) => ({ restart: i === 20 ? 3e9 : 0 })));
+      T.eq(
+        'a silence the tick does not confirm takes the host gap and is counted',
+        JSON.stringify([tally(silent), Math.abs(steps(silent)[59] - (15625000 + 3e9)) < 2e6]),
+        JSON.stringify(['[60,0,1,0]', true])
+      );
+      var twice = convert(file(60, (i) => ({ times: i === 20 ? 2 : 1 })));
+      T.eq('a record the link delivered twice is read once', JSON.stringify([tally(twice), twice.text === clean.text]), JSON.stringify(['[60,0,0,1]', true]));
+      T.ok('a file cut at any byte converts to the same bytes', convert(file(60), 37).text === clean.text);
+      T.ok('a last row without a newline is still read', convert(file(60).trim()).text === clean.text);
+
+      T.eq('a file with no row refuses by name', JSON.stringify([convert('').text, convert('').reason]), JSON.stringify([null, 'no-row']));
+      var eegOnly = convert(buildMuseRawText({ records: 40, gapLen: 0 }));
+      T.eq('a file of other records refuses by name', JSON.stringify([eegOnly.text, eegOnly.reason, eegOnly.info.rows]), JSON.stringify([null, 'no-optical-record', 40]));
+      var bad = convert('a;b\n' + file(3));
+      T.eq('a refused row is tallied by reason', JSON.stringify(bad.info.refusedRows), '{"column-count":1}');
+
+      if (!P || typeof P.parsePPG !== 'function') {
+        T.skip('PPGDSP.parsePPG available', 'ppgdex-dsp.js is not executed by this lane');
+        return;
+      }
+      var rec = P.parsePPG(convert(file(700)).text);
+      T.eq('the PPG reader takes it as three channels at 64 Hz', JSON.stringify([rec.ch.length, Math.round(rec.fs), rec.ch[0].length]), '[3,64,2100]');
+      T.eq('and reads the first channel of the record', rec.ch[0][0] - rec.ch[0][1], -4);
     });
 
     group('EEGDex reads an EEG channel out of raw device frames and writes NaN where frames were lost', 'eegdex · ingest · muse-frames', function (T) {
@@ -99057,6 +99216,8 @@
         var rFinger = clone(r);
         rFinger.site = 'finger';
         T.eq('PLANT · site finger → sourceChannel O2Ring:ppg', PD.buildMeasurementBlocks(rFinger, { code: CODE }).rmssd.sourceChannel, 'O2Ring:ppg');
+        var rBand = Object.assign({}, rFinger, { site: 'forehead', opticalDevice: 'Muse' });
+        T.eq('PLANT · the headband → sourceChannel Muse:ppg, never the arm sensor', PD.buildMeasurementBlocks(rBand, { code: CODE }).rmssd.sourceChannel, 'Muse:ppg');
       }
     );
 

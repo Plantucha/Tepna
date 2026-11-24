@@ -7859,7 +7859,7 @@
       analyzablePct: r.analyzablePct != null ? r.analyzablePct : null,
       coveragePct: r.coveragePct != null ? r.coveragePct : null
     };
-    var channel = (r.site === 'finger' ? 'O2Ring' : 'Verity') + ':ppg'; // the optical site the export already declares
+    var channel = (r.opticalDevice || (r.site === 'finger' ? 'O2Ring' : 'Verity')) + ':ppg'; // the optical site the export already declares
     var mk = function (metricId, value) {
       if (value == null || typeof value !== 'number' || !isFinite(value)) return null; // unmeasured ⇒ no block
       var b = {

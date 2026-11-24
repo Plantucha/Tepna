@@ -329,7 +329,7 @@
     wrap.innerHTML =
       `<div class="readiness-hero" style="--readiness-color:${css}">` +
       `<div class="readiness-hero-label">ANS Readiness</div>` +
-      `<div class="readiness-date-badge">wrist PPG · ${r.durMin >= 90 ? (r.durSec / 3600).toFixed(1) + ' h' : r.durMin + ' min'}</div>` +
+      `<div class="readiness-date-badge">${r.opticalDevice === 'Muse' ? 'forehead' : 'wrist'} PPG · ${r.durMin >= 90 ? (r.durSec / 3600).toFixed(1) + ' h' : r.durMin + ' min'}</div>` +
       `<div class="readiness-score" style="color:${css}">${score == null ? '—' : score}</div>` +
       `<div class="readiness-tier">${tier}</div>` +
       (subsHtml ? `<div class="readiness-scores-grid">${subsHtml}</div>` : '') +

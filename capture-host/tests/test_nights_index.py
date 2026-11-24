@@ -128,6 +128,23 @@ def test_a_muse_raw_frame_file_fills_the_eeg_cell_and_its_sidecars_stay_out(tmp_
     assert e["EEGDex"]["loadable"] is False
 
 
+def test_the_PPGDex_click_carries_the_muse_frame_file_beside_the_verity_and_the_ring(tmp_path):
+    """PpgDex reads the headband's optical channels out of the frame file, so the night's PPGDex list holds
+    it with the Verity and the ring (owner, 2026-11-23). The cell's own figures stay the Verity's, and the
+    RUNS and SEAMS sidecars stay out."""
+    root = str(tmp_path)
+    d = _night(root)
+    before = ni.night_entry(os.path.join(root, "captures"), d)["PPGDex"]
+    base = os.path.join(d, "Muse_S-Athena_TEST0001_20260919220000_RAW")
+    _w(base + ".txt", "Phone timestamp;sensor timestamp [ns];counter;bytes;hex\n2026-09-19T22:00:00.000;0;1;9;09\n")
+    _w(base + "RUNS.txt", "# stream=muse rule=counter-gap\n")
+    _w(base + "SEAMS.txt", "# stream=muse rule=clock-seam\n")
+    e = ni.night_entry(os.path.join(root, "captures"), d)["PPGDex"]
+    muse = "2026-09-19/Muse_S-Athena_TEST0001_20260919220000_RAW.txt"
+    assert set(e["files"]) - set(before["files"]) == {muse} and set(before["files"]) < set(e["files"])
+    assert e["loadable"] is True and e["hours"] == before["hours"]
+
+
 # ── the entry ────────────────────────────────────────────────────────────────────────────────────
 def test_a_full_trio_night_fills_every_column_from_its_own_files(tmp_path):
     root = str(tmp_path)

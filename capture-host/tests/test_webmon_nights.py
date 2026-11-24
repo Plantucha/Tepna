@@ -1266,7 +1266,11 @@ def test_a_per_device_chip_opens_its_own_devices_files_only():
     v_frag = d + "Polar_VeritySense_SN02_20261105044900_PPG.txt"
     r_ppg = d + "Wellue_O2Ring-S_SN01_20261104213810_PPG.txt"
     r_p2w = d + "Wellue_O2Ring-S_SN01_20261104213810_PPG2W.txt"
-    night = {"night": "2026-11-04", "PPGDex": {"files": [v_ppg, v_ppi, v_frag, r_ppg, r_p2w], "loadable": True}}
+    muse = d + "Muse_S-Athena_TEST0001_20261104220000_RAW.txt"
+    night = {
+        "night": "2026-11-04",
+        "PPGDex": {"files": [v_ppg, v_ppi, v_frag, r_ppg, r_p2w, muse], "loadable": True},
+    }
     cases = [["verity"], ["ring"], ["h10"], ["nosuch"], [None]]
     prog = (
         "const NIGHT_DERIVED = ['3 corner hat','PAT','PAT fused'];\n"
@@ -1277,18 +1281,20 @@ def test_a_per_device_chip_opens_its_own_devices_files_only():
         + json.dumps(night)
         + ";\nconsole.log(JSON.stringify("
         + json.dumps(cases)
-        + ".map(([dev]) => nightFiles(n, 'PPGDex', null, dev || undefined))));"
+        + ".map(([dev]) => nightFiles(n, 'PPGDex', null, dev || undefined)).concat(nightFiles(n, '3 corner hat'))));"
     )
     r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
     assert r.returncode == 0, r.stderr
-    verity, ring, h10, nosuch, cell = json.loads(r.stdout)
+    verity, ring, h10, nosuch, cell, hat = json.loads(r.stdout)
     assert verity["files"] == [v_ppg, v_ppi, v_frag], verity
     assert verity["reason"] is None, verity
     assert ring["files"] == [r_ppg, r_p2w], ring
     assert h10["files"] == [] and "H10" in h10["reason"], h10
     assert nosuch["files"] == [] and "nosuch" in nosuch["reason"], nosuch
     # CONTROL: the cell's node-wide click is untouched, and it is the only reading that spans devices
-    assert cell["files"] == [v_ppg, v_ppi, v_frag, r_ppg, r_p2w], cell
+    assert cell["files"] == [v_ppg, v_ppi, v_frag, r_ppg, r_p2w, muse], cell
+    # the hat's three corners are the chest, the arm and the finger: the headband file never reaches it
+    assert hat["files"] == [v_ppg, v_ppi, v_frag, r_ppg, r_p2w], hat
     assert "f.dataset.dev" in html, "the click drops the device the chip carried"
 
 

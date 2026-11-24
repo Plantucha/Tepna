@@ -1016,7 +1016,7 @@ tr.nflash td{animation:nflash 1.4s ease-out;}
         <div class="section-title" id="nightsTitle">Every night</div>
         <p class="nwhy" id="nightsWhy"></p>
         <div class="nights-wrap"><table class="nights" id="nightsTable"></table></div>
-        <div class="hint" id="nightsHint">Each device cell is that device's main stream on disk for the night: the hours it spans, how many contiguous <b>fragments</b> it holds, and the share of the span lost to holes (a link that drops and reconnects keeps its span and loses coverage). The bar is the coverage. Click a cell to open its analyzer with every file that analyzer reads for the night, loaded and processed (PPGDex gets the Verity and the O2Ring PPG together); click the date for each device's solid-night result and every analyzer that reads it. "…" = still counting fragments for that stream (the page keeps asking). Integrator opens OverDex with the night's raw files: OverDex runs each analyzer and fuses the results with the Integrator's engine.</div>
+        <div class="hint" id="nightsHint">Each device cell is that device's main stream on disk for the night: the hours it spans, how many contiguous <b>fragments</b> it holds, and the share of the span lost to holes (a link that drops and reconnects keeps its span and loses coverage). The bar is the coverage. Click a cell to open its analyzer with every file that analyzer reads for the night, loaded and processed (PPGDex gets the Verity, the O2Ring and the Muse PPG together); click the date for each device's solid-night result and every analyzer that reads it. "…" = still counting fragments for that stream (the page keeps asking). Integrator opens OverDex with the night's raw files: OverDex runs each analyzer and fuses the results with the Integrator's engine.</div>
       </div>
     </section>
 
@@ -1846,7 +1846,7 @@ function nightShape(v){
 }
 function nightFiles(n, node, rec, dev){
   const ARR = n2 => (rec ? (Array.isArray(rec.arrival) ? rec.arrival : []) : (Array.isArray(n2 && n2.arrival) ? n2.arrival : []));
-  if(node==='3 corner hat') return { files: [...nodeFileList(n,'ECGDex',rec), ...nodeFileList(n,'PPGDex',rec), ...nodeFileList(n,'OxyDex',rec)], reason: null };
+  if(node==='3 corner hat') return { files: [...nodeFileList(n,'ECGDex',rec), ...nodeFileList(n,'PPGDex',rec).filter(f=>!/Muse_/.test(f)), ...nodeFileList(n,'OxyDex',rec)], reason: null };
   if(node==='PAT') return { files: [...nodeFileList(n,'ECGDex',rec).filter(f=>f.endsWith('_ECG.txt')), ...nodeFileList(n,'PPGDex',rec).filter(f=>/(VeritySense|O2Ring).*_PPG\.txt$/.test(f)),
     ...nodeFileList(n,'MotionDex',rec).filter(f=>/Polar_(H10|VeritySense).*_ACC\.txt$/.test(f)),
     ...ARR(n)], reason: null };
@@ -1877,7 +1877,7 @@ function nightFiles(n, node, rec, dev){
        three ACC streams) — and those three are exactly the chips that could promise one device and open
        another. ECGDex, OxyDex and CPAPDex each glob one device, so the scope changes nothing there.
        The device CELL keeps the whole node list on purpose: its own hint reads "every file that analyzer
-       reads for the night", and PPGDex taking the Verity and the ring PPG together is the deliberate
+       reads for the night", and PPGDex taking the Verity, ring and Muse PPG together is the deliberate
        reading. One rendering per promise, and each now keeps its own.
        ⚠️ THE NIGHT'S BOUNDARY IS NOT A DEFECT HERE. A 04:49 stamp belongs to the previous evening under
        the owner's noon-to-noon ruling of 2026-10-13 (`nightqc.night_key_band`), so a next-morning

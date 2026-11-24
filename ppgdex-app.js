@@ -68,6 +68,34 @@ import { PPGUI } from './ppgdex-render.js';
     return null;
   }
 
+  // ── the Muse S Athena headband ────────────────────────────────────────────
+  // Its recorder writes one `_RAW.txt` of device frames, and the optical samples exist only inside them.
+  // `MuseFrame.OpticsPpg` answers the per-sample PPG layout `parsePPG` already takes. The file is STREAMED:
+  // a full night passes the longest string the browser can hold.
+  const MUSE_RAW_RE = /^Muse_.*_RAW\.txt$/i;
+  const MUSE_REASON = { 'no-row': 'the file is empty', 'no-optical-record': 'it holds no optical record in the layout this app reads' };
+  const isMuse = (name) => /^Muse_/i.test(String(name == null ? '' : name));
+  // POLARITY. The headband reports received light, which FALLS at systole, so its pulse is inverted on
+  // every unit of the model. `orientByRise` picks the other sign on the low-perfusion forehead waveform.
+  // Measured 2026-11-23 on 2 nights against the same wearer's arm sensor: the automatic sign reads a
+  // night rMSSD of 169 and 119 ms, -1 reads 66 and 53, and the arm sensor reads 43 and 31. The heart
+  // rate agrees within 1 bpm on either sign.
+  const MUSE_SIGN = -1;
+  async function readMuseOptics(f) {
+    const reader = f.stream().pipeThrough(new TextDecoderStream()).getReader();
+    const ppg = new window.MuseFrame.OpticsPpg({
+      hostMs: (s) => {
+        const ts = DSP.parseTimestamp(s);
+        return ts ? ts.tMs : null;
+      }
+    });
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return ppg.finish();
+      ppg.push(value);
+    }
+  }
+
   // ── multi-part split files ────────────────────────────────────────────────
   // Polar Sensor Logger writes long streams as `…_PPG_part01of15.txt` … `…of15`.
   // Each part repeats the header line; without merging, PpgDex would treat every
@@ -83,8 +111,23 @@ import { PPGUI } from './ppgdex-render.js';
     const files = Array.from(fileList || []);
     if (!files.length) return;
     progress(6, 'Reading ' + files.length + ' file' + (files.length > 1 ? 's' : '') + '…');
-    Promise.all(files.map((f) => f.text().then((text) => ({ name: f.name, text, kind: classify(f.name), stampMs: fnameStampMs(f.name) }))))
+    const museRefused = []; // a Muse recording that answered no PPG, named in the result line
+    const readPlain = (f) => f.text().then((text) => ({ name: f.name, text, kind: classify(f.name), stampMs: fnameStampMs(f.name) }));
+    Promise.all(files.filter((f) => !MUSE_RAW_RE.test(f.name)).map(readPlain))
       .then(async (parsed) => {
+        // One Muse recording at a time: each is up to 400 MB of text, and only its optical rows are kept.
+        for (const f of files.filter((x) => MUSE_RAW_RE.test(x.name))) {
+          progress(10, 'Reading the Muse optical channels · ' + f.name + '…');
+          const got = await readMuseOptics(f);
+          const name = f.name.replace(/_RAW\.txt$/i, '_PPG.txt');
+          if (got.text) parsed.push({ name, text: got.text, kind: classify(name), stampMs: fnameStampMs(name) });
+          else museRefused.push(f.name + ' (' + (MUSE_REASON[got.reason] || got.reason) + ')');
+        }
+        if (!parsed.length && museRefused.length) {
+          showErr('No PPG in ' + museRefused.join(', ') + '.');
+          progress(0, '');
+          return;
+        }
         // SELF-INGEST: a PpgDex OWN ganglior.node-export among the drop → review mode (a faithful VIEW of the
         // stored hrv/quality summary, no recompute). Foreign JSON falls through to the normal classify/skip path.
         try {
@@ -141,11 +184,11 @@ import { PPGUI } from './ppgdex-render.js';
           // SAMPLE-VALIDITY-ENVELOPE §3.2 — the `…_PPGRUNS.txt` validity sidecar is picked BEFORE the parse
           // (its text must reach parsePPG itself), so the nearest pick uses the FILENAME stamp, not the
           // parsed rec.t0Ms the other companions use below. Absent → the exact single-argument call as before.
-          const runsF = ING.pickNearestByStamp((plan.eligibleByPrimary[pf.name] || {}).runs || [], pf.stampMs);
+          const runsF = isMuse(pf.name) ? null : ING.pickNearestByStamp((plan.eligibleByPrimary[pf.name] || {}).runs || [], pf.stampMs);
           // SEAM-SIDECAR-CONSUMPTION §4 — the `…_PPGSEAMS.txt` clock-seam sidecar is picked the same way and
           // for the same reason: parsePPG itself reads it, so the pick cannot wait for the parsed rec.t0Ms.
           // Absent → `_ppgSeamState` reads seams UNKNOWN (never zero), per the owner's 2026-11-05 ruling.
-          const seamsF = ING.pickNearestByStamp((plan.eligibleByPrimary[pf.name] || {}).seams || [], pf.stampMs);
+          const seamsF = isMuse(pf.name) ? null : ING.pickNearestByStamp((plan.eligibleByPrimary[pf.name] || {}).seams || [], pf.stampMs);
           let rec;
           try {
             // Both sidecars ride in ONE options object, as the two adapters pass them: a `null` member is
@@ -161,12 +204,16 @@ import { PPGUI } from './ppgdex-render.js';
           }
           rec.source = 'file';
           rec.fname = pf.name;
+          const muse = isMuse(pf.name);
+          if (muse) rec.site = 'forehead'; // the headband fixes the limb; a strap does not
           // §1 (ECG-INGEST-FOLLOWUPS-III): device ELIGIBILITY (only SAME-device sidecars are candidates for
           // this `_PPG` — a Verity-Sense arm session dropped alongside an H10 session no longer cross-pairs an
           // H10 `_ACC`) is now decided by planIngestPpg; plan.eligibleByPrimary already device-filtered this
           // primary's candidates per kind. The nearest-stamp pick stays HERE because it needs the PARSED
           // rec.t0Ms a NAME-only planner can't see (a bare / non-Polar candidate stayed eligible → nearest).
-          const elig = plan.eligibleByPrimary[pf.name] || {};
+          // The headband's name carries no device id the planner reads, so every Polar companion in the drop
+          // stays eligible for it. None is its own, so it takes none.
+          const elig = (!muse && plan.eligibleByPrimary[pf.name]) || {};
           // §1 (ECG-INGEST-FOLLOWUPS-IV): the nearest-stamp PICK over the device-eligible candidates is now
           // the shared headless DexIngest.pickNearestByStamp (gate-backed); the parsed rec.t0Ms (else the
           // filename stamp) is the reference a NAME-only planner can't see, so it is still resolved HERE.
@@ -206,8 +253,9 @@ import { PPGUI } from './ppgdex-render.js';
             // §2b: detect the 3 optical channels concurrently in the Worker pool (byte-identical
             // serial fallback when Worker is unavailable — the headless/gated path); analyze() then
             // reuses rec._preChannels for the consensus merge + HRV on the main thread.
-            rec._preChannels = await DSP.detectChannelsAsync(rec);
+            rec._preChannels = muse ? rec.ch.map((c) => DSP.detectChannel(c, rec.fs, MUSE_SIGN)) : await DSP.detectChannelsAsync(rec);
             r = DSP.analyze(rec, progress);
+            if (muse) r.opticalDevice = 'Muse';
           } catch (e) {
             showErr(e.message || String(e));
             continue;
@@ -223,7 +271,13 @@ import { PPGUI } from './ppgdex-render.js';
              its next-morning fragment parsed the 3-min fragment last, so the overnight recording sat
              behind a chip and the headline read a few pulses (audit 2026-11-11, night 2026-11-04). */
           let best = lastKey;
+          const isBand = (k) => !!(allSessions[k] && allSessions[k].opticalDevice === 'Muse');
           for (const k of addedKeys) {
+            /* The headband is the second opinion: it leads only a drop that holds nothing else. */
+            if (isBand(k) !== isBand(best)) {
+              if (isBand(best)) best = k;
+              continue;
+            }
             const d = allSessions[k] && allSessions[k].durSec;
             const bd = allSessions[best] && allSessions[best].durSec;
             if (Number.isFinite(d) && !(Number.isFinite(bd) && bd >= d)) best = k;
@@ -242,6 +296,7 @@ import { PPGUI } from './ppgdex-render.js';
             if (dups) bits.push(dups + ' duplicate' + (dups > 1 ? 's' : ''));
             msg += ' Ignored ' + bits.join(' + ') + '.';
           }
+          if (museRefused.length) msg += ' No PPG in ' + museRefused.join(', ') + '.';
           showOK(msg);
         }
         setTimeout(() => {
@@ -312,7 +367,7 @@ import { PPGUI } from './ppgdex-render.js';
     $('exportBar').classList.add('show');
     $('sidebarDataCard').style.display = 'block';
     $('sidebarDataInfo').innerHTML =
-      'Wrist PPG · ' +
+      (r.opticalDevice === 'Muse' ? 'Forehead PPG · ' : 'Wrist PPG · ') +
       r.fs +
       ' Hz<br>' +
       r.nPulses.toLocaleString() +
@@ -433,7 +488,7 @@ import { PPGUI } from './ppgdex-render.js';
     // The finger site is device-determined (a 1-column pleth IS an O2Ring ring) — nothing to
     // declare there. `!== 'finger'` rather than `=== 'wrist'` so a record already stamped 'ankle'
     // on a previous render still resolves its declaration instead of falling back to the default.
-    if (!r || r.site === 'finger') return null;
+    if (!r || r.site === 'finger' || r.opticalDevice === 'Muse') return null;
     const scope = siteScope(r);
     if (!scope) return null;
     const v = siteDeclStore()[scope];
@@ -465,6 +520,8 @@ import { PPGUI } from './ppgdex-render.js';
   function siteControlHtml(r) {
     // Same `!== 'finger'` test as declaredSite: once a declaration has stamped r.site to 'ankle',
     // a `=== 'wrist'` gate here would make the control vanish and the choice unchangeable.
+    if (r && r.opticalDevice === 'Muse')
+      return '<div class="ctx-note">Optical site: forehead (Muse headband, 3 of its 4 optical channels). The pulse rate agrees with an arm sensor. The beat-to-beat spread (rMSSD, SDNN, pNN50) reads higher here than on the arm.</div>';
     if (!r || r.site === 'finger') return '';
     const cur = declaredSite(r);
     const opts = SITE_CHOICES.map((c) => `<option value="${c.v}"${cur === c.v ? ' selected' : ''}>${c.l}</option>`).join('');
@@ -1029,6 +1086,11 @@ import { PPGUI } from './ppgdex-render.js';
   function sessionsSorted() {
     return Object.values(allSessions).sort((a, b) => (a.t0Ms || 0) - (b.t0Ms || 0));
   }
+  /* Three sensors of one night start within minutes of each other, so a start time does not tell them apart. */
+  function sensorTag(s) {
+    const name = s.opticalDevice || (s.site === 'finger' ? 'O2Ring' : /VeritySense/i.test(s.fname || '') ? 'Verity' : '');
+    return name ? ' · ' + name : '';
+  }
   function renderSwitcher() {
     const list = sessionsSorted();
     const wrap = $('sessionSwitcher');
@@ -1045,7 +1107,7 @@ import { PPGUI } from './ppgdex-render.js';
           const active = key === activeKey;
           const q = pctCls(s.analyzablePct, 90, 75);
           return `<button class="sess-item ${active ? 'active' : ''}" data-key="${key}">
-      <div class="si-top"><span class="si-date">${DSP.fmtDateTime(s.t0Ms)}</span><span class="si-q ${q}">${pctTxt(s.analyzablePct)}</span></div>
+      <div class="si-top"><span class="si-date">${DSP.fmtDateTime(s.t0Ms)}${sensorTag(s)}</span><span class="si-q ${q}">${pctTxt(s.analyzablePct)}</span></div>
       <div class="si-sub">${numTxt(s.durMin)} min · ${numTxt(s.dispHr)} bpm · rMSSD ${numTxt(s.rmssd)}</div></button>`;
         })
         .join('');
@@ -1228,7 +1290,7 @@ import { PPGUI } from './ppgdex-render.js';
            read — and `siteSource` beside it says how strong that evidence is ('device-default' =
            inferred from the layout, 'declared' = the wearer said so). No new inference is invented
            here; the lie is simply removed. */
-        device: r.site === 'finger' ? 'O2Ring-class single-channel finger pleth' : 'Polar Verity Sense (3-LED)',
+        device: r.opticalDevice === 'Muse' ? 'Muse S Athena headband (3 of 4 optical channels)' : r.site === 'finger' ? 'O2Ring-class single-channel finger pleth' : 'Polar Verity Sense (3-LED)',
         /* Emitted by the DSP's builder since #626 and missing from this one — the sibling-divergence
            class again: two builders for one export, and only one of them told you where the signal
            was taken from. Verbatim from hrvBuildNodeExport's siblings so the app and compute() agree. */
