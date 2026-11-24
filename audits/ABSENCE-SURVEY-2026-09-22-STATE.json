@@ -25,9 +25,9 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 81,
+  "open": 80,
   "fixed": 201,
-  "accepted-with-reason": 8
+  "accepted-with-reason": 9
  },
  "consumerCensus": {
   "_note": "A LOWER BOUND read out of the survey's own `consumer` prose. The state above is keyed to the PRODUCING line, so a consumer site that is not itself a finding carries no state and no ratchet.",
@@ -1250,7 +1250,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 507,
-   "state": "open"
+   "state": "accepted-with-reason",
+   "reason": "The fabricated experimental disc STAYS. A label with no registry entry must fail VISIBLY, and that is the ratified forcing function for badge coverage (owner, 2026-08-16), so the remedy is the label population rather than the fallback. Heron measured the population on 2026-11-24 over the four ECGDex surfaces: 113 labels, ONE fallthrough. That one was Intervals (QRS/QT/PR), the withheld-notice row that stands in for three interval metrics when no median beat was built and carries no number at all. It now sits in _META_DENY, so the row prints its reason with no disc. A new group in tests/dex-tests.js harvests the population on every run and reds on the next fallthrough."
   },
   {
    "key": "736d5c1d03f8",

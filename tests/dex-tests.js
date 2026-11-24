@@ -111219,6 +111219,95 @@
       }
     });
 
+    /* ════ ∅ · NO ECGDEX LABEL EARNS A FABRICATED `experimental` DISC ═══════════════════
+       ABSENCE-SURVEY key 794ba2af33dd. `badgeForLabel` (ecgdex-registry.js) mints an `experimental`
+       disc for a label it cannot resolve, and `evBadge` (ecgdex-render.js:20) hands it
+       `fallback = true` from every surface — so an unresolvable label publishes a tier nothing
+       measured. THE FALLBACK IS NOT THE DEFECT: a label with no registry entry must fail VISIBLY
+       rather than silently (owner, 2026-08-16), which is what forces the coverage. The defect is a
+       label that falls through, so this group pins the POPULATION instead of softening the fallback.
+
+       It harvests the labels the four ECGDex surfaces hand to a badge helper, then asserts each one
+       resolves to a registry id or sits in `_META_DENY`. The harvest is a documented heuristic, not
+       a parser: a DOM id (`$('…')`) and a bare lowercase token (`acc`, `hr`, `rr`) are dropped,
+       because both reach these patterns as keys and never reach a reader. The population floor is
+       what makes a pattern that stopped matching RED instead of examining nothing (CLAUDE.md §4b).
+       A new helper whose first argument is not a label will red here; rename the helper or narrow
+       the pattern — do not drop the leg.
+
+       A SIBLING gate covers the other half of this class and shares the offender condition: the
+       eight-node literal-token scan reads `evBadge('…')` out of the live `UI` function bodies, so it
+       sees every node and only the LITERAL calls. This group sees one node and the dynamic label
+       paths too — the helpers, the KPI fields and the summary rows the literal scan cannot reach.
+
+       Measured 2026-11-24 on main: 113 labels, ONE fallthrough — `Intervals (QRS/QT/PR)`, the
+       withheld-notice row of the summary table, which stands in for three metrics when no median
+       beat was built and carries no number. It is denied now, so the row prints its reason with no
+       disc. */
+    group('∅ every label an ECGDex surface badges resolves — no fabricated experimental disc', 'ecgdex-registry · evidence · badges · ∅', function (T) {
+      var E = env.EcgRegistry;
+      if (!(E && typeof E.idForLabel === 'function' && typeof E.badgeForLabel === 'function')) {
+        T.skip('env.EcgRegistry exposes idForLabel + badgeForLabel', 'the registry is co-loaded in this lane, so an absence here means it stopped publishing them');
+        return;
+      }
+      var src = env.sources || {};
+      var FILES = ['ecgdex-app.js', 'ecgdex-render.js', 'ecgdex-profile.js', 'ecgdex-cross.js'];
+      // Each pattern is a LABEL POSITION: the direct call, the five one-line badge helpers these
+      // files define, the KPI/table label fields, and the summary-row array whose fifth cell is a
+      // severity word (that last guard is what keeps a loader array out of the population).
+      var PATS = [
+        /evBadge\(\s*'([^']+)'/g,
+        /\bevg\(\s*'([^']+)'/g,
+        /\beb\(\s*'([^']+)'/g,
+        /\bcell\(\s*'([^']+)'/g,
+        /\bst\(\s*'([^']+)'/g,
+        /\bf\(\s*'([^']+)'/g,
+        /\{\s*l:\s*'([^']+)'/g,
+        /\blabel:\s*'([^']+)'/g,
+        /\[\s*'([^']+)',[\s\S]{0,600}?'(?:ok|warn|bad|neutral)',/g
+      ];
+      var seen = {},
+        read = [];
+      FILES.forEach(function (f) {
+        var t = src[f];
+        if (t == null) {
+          T.skip('∅ · ' + f + ' available for the label harvest', f + ' not in env.sources');
+          return;
+        }
+        read.push(f);
+        var domIds = {},
+          dre = /\$\(\s*'([^']+)'\s*\)/g,
+          dm = dre.exec(t);
+        while (dm) {
+          domIds[dm[1]] = 1;
+          dm = dre.exec(t);
+        }
+        PATS.forEach(function (p) {
+          p.lastIndex = 0;
+          var m = p.exec(t);
+          while (m) {
+            var l = m[1];
+            var key = !/[A-Z]/.test(l) && !/\s/.test(l) && !/[^\u0000-\u007f]/.test(l);
+            if (!domIds[l] && !key && !seen[l]) seen[l] = f;
+            m = p.exec(t);
+          }
+        });
+      });
+      var labels = Object.keys(seen);
+      T.ok('∅ · the harvest found the population it claims to judge', labels.length >= 100, labels.length + ' label(s) over ' + read.length + ' file(s)');
+      var fell = labels.filter(function (l) {
+        return !E.idForLabel(l) && E.badgeForLabel(l, true) !== '';
+      });
+      T.eq('∅ · no harvested label mints a fabricated experimental disc', fell.sort().join(' · '), '');
+      T.eq('∅ · the withheld intervals row carries NO disc at all', E.badgeForLabel('Intervals (QRS/QT/PR)', true), '');
+      // Controls. The first proves the detector can SEE the disc it forbids; without it a registry
+      // that resolved everything to one id would read as a pass.
+      var probe = 'zz never a metric label';
+      T.ok('∅ · control · an unresolvable label DOES mint the forbidden disc', E.idForLabel(probe) === null && E.badgeForLabel(probe, true) !== '', 'the detector must be able to see the defect');
+      T.ok('∅ · control · the deny list swallows no real metric', /ev-measured/.test(E.badgeForLabel('Mean HR', true)), E.badgeForLabel('Mean HR', true));
+      T.eq('∅ · control · a denied label is denied even with fallback off', E.badgeForLabel('Intervals (QRS/QT/PR)', false), '');
+    });
+
     /* DEEP-AUDIT-III §5.2 — LF/HF is a PER-SEGMENT quantity, so a night is the MEDIAN OF THE RATIOS.
        PulseDex took the ratio of the band MEDIANS while ECGDex and PpgDex took the median of the
        per-epoch ratios; by Jensen those differ whenever the per-epoch distribution is skewed — which

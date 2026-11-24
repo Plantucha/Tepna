@@ -641,8 +641,29 @@
     return _labelIdx[k] || null;
   }
 
-  /* Pure metadata labels (not metrics) — never badge these even with fallback. */
-  var _META_DENY = { date: 1, start: 1, end: 1, source: 1, 'sample rate': 1, recording: 1, 'active flags': 1, tier: 1, duration: 1, scenario: 1, metric: 1, 'vo₂max gt': 1, 'vo2max gt': 1 };
+  /* Pure metadata labels (not metrics) — never badge these even with fallback. A WITHHELD-NOTICE
+     row belongs here too. `Intervals (QRS/QT/PR)` stands in for three metrics when no median beat
+     was built, so the row carries the word `withheld` and no number at all. A disc there grades an
+     ABSENCE (∅), and the fallback disc graded it `experimental` — a tier for a measurement that
+     does not exist. The fallback itself stays: a label with no entry must fail VISIBLY (owner,
+     2026-08-16). ABSENCE-SURVEY key 794ba2af33dd; the label population is pinned in
+     tests/dex-tests.js. */
+  var _META_DENY = {
+    date: 1,
+    start: 1,
+    end: 1,
+    source: 1,
+    'sample rate': 1,
+    recording: 1,
+    'active flags': 1,
+    tier: 1,
+    duration: 1,
+    scenario: 1,
+    metric: 1,
+    'vo₂max gt': 1,
+    'vo2max gt': 1,
+    'intervals (qrs/qt/pr)': 1
+  };
 
   /* badgeForLabel(label, fallback) → '<span class="ev …">' | '' — resolves a label
    to its registry id → evidence → MetricRegistry.badge, to place an evidence dot

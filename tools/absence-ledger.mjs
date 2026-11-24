@@ -1305,6 +1305,12 @@ export const SEEDS = [
     at: 'ecgdex-dsp.js:3325',
     state: 'fixed',
     note: 'BOOKKEEPING. Already fixed on main and hand-read 2026-11-24 by Heron against origin/main b459f6896. The Malik correction of the device series keeps the measured value and flags it, rather than writing a hardcoded 1000 ms where the plus or minus 5 beat neighbourhood held nothing. validateRR also refuses an all-absent device series instead of publishing a panel of zeros. Read by content, never by a snippet match.'
+  },
+  {
+    at: 'ecgdex-registry.js:507',
+    state: 'accepted-with-reason',
+    reason:
+      'The fabricated experimental disc STAYS. A label with no registry entry must fail VISIBLY, and that is the ratified forcing function for badge coverage (owner, 2026-08-16), so the remedy is the label population rather than the fallback. Heron measured the population on 2026-11-24 over the four ECGDex surfaces: 113 labels, ONE fallthrough. That one was Intervals (QRS/QT/PR), the withheld-notice row that stands in for three interval metrics when no median beat was built and carries no number at all. It now sits in _META_DENY, so the row prints its reason with no disc. A new group in tests/dex-tests.js harvests the population on every run and reds on the next fallthrough.'
   }
 ];
 
