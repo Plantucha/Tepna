@@ -798,6 +798,11 @@ function readSources() {
        buys: a source-mirror assertion about the node read nothing anywhere and passed VACUOUSLY. */
     'eegdex-render.js',
     'eegdex-app.js',
+    /* EEGDex's stage-formula FEATURE BLOCK, listed in BOTH lanes with the file itself. It is a port
+       whose only guarantee is that it reproduces the numbers the coefficients were fitted on, so the
+       lane that reads its TEXT and the lane that EXECUTES it are both load-bearing: the parity group
+       below runs the module, and the source scans read it for the absence rule. */
+    'eegdex-stage-features.js',
     'hrvdex-app.js',
     'oxydex-app.js',
     'oxydex-render.js',
@@ -1304,6 +1309,28 @@ function readFixtures() {
     } catch (e) {
       out[f.replace(/\.json$/, '')] = null;
       console.error(paint('  ! fixture parse error: ' + f + ' — ' + e.message, C.yellow));
+    }
+  }
+  return out;
+}
+
+/* The stage-formula parity vectors. A directory of its own rather than tests/fixtures/, because the
+   two membership gates over that directory read every file in it as an EXPORT to validate, and this
+   is neither an export nor a golden any regenerator in this repo owns: it holds the numbers the
+   coefficients were FITTED on. Regenerating it from this repo's port would make the parity group
+   compare the port with itself, so the file is read and never written here. */
+function readStageVectors() {
+  const dir = join(__dirname, 'vectors');
+  const out = {};
+  if (!existsSync(dir)) return out;
+  for (const f of readdirSync(dir)) {
+    if (!f.endsWith('.json')) continue;
+    const k = f.replace(/\.json$/, '');
+    try {
+      out[k] = JSON.parse(readFileSync(join(dir, f), 'utf8'));
+    } catch (e) {
+      out[k] = null;
+      console.error(paint('  ! stage vector parse error: ' + f + ' — ' + e.message, C.yellow));
     }
   }
   return out;
@@ -3226,6 +3253,10 @@ async function main() {
        reads what a file SAYS; an executed module answers what it DOES. Sets env.EEGDSP, which the
        eegdex groups assert on directly. */
     'eegdex-dsp.js',
+    /* EEGDex's stage-formula feature block. Executed, not only scanned: the parity group holds all 35
+       of its columns against the committed vector, and a module that only had its text read would
+       leave that group skipping and report the skip as a pass. Sets env.EEGFEAT. */
+    'eegdex-stage-features.js',
     /* The shared raw device frame reader. It must be EXECUTED, not only read: `ingestMuseRaw`
        resolves `global.MuseFrame` at call time and refuses by name without it, so a lane that only
        scanned the text would skip every muse group and report that as a pass. */
@@ -3529,6 +3560,7 @@ async function main() {
     // node lane can pin the tick spacing and the label text without a canvas shim.
     ECGUI: ctx.ECGUI,
     MOTIONUI: ctx.MOTIONUI, // §RN: MotionDex's render layer — executed above, so a throw in it reds
+    EEGFEAT: ctx.EEGFEAT, // EEGDex's stage-formula feature block — EXECUTED here, so its parity group runs
     EEGDSP: ctx.EEGDSP, // EEGDex's staging engine — EXECUTED in this realm, so a throw in it reds
     MuseFrame: ctx.MuseFrame, // the shared raw device frame reader — executed in this realm too
     EEGUI: ctx.EEGUI, // EEGDex's render layer — executed above, same reason
@@ -4267,6 +4299,7 @@ async function main() {
     ['trioNights', readTrioNights], // row 2026-10-25 — the produced trio population, committed + live
     ['trioEra', readTrioEra], // row 2026-10-12 — which trio exports carry a recorded code era, committed + live
     ['fixtures', readFixtures],
+    ['stageVectors', readStageVectors], // the stage-formula parity vectors (tests/vectors/)
     ['equiv', readEquiv],
     ['odiPilot', readOdiPilot],
     ['hosts', readHosts],
