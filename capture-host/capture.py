@@ -10280,6 +10280,7 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
     dock_since: dict[str, float] = {}
     dock_stream_alerted: set[str] = set()
     not_worn_alerted: set[str] = set()
+    returned_unworn: set[str] = set()  # came back from a gap unworn: the next worn poll begins an episode
     down_since: dict[str, float] = {}
     alerted: set[str] = set()
     paged: set[str] = set()  # episodes whose absence has already earned (and used) its one PAGE
@@ -10419,7 +10420,7 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 if (
                     first is not None
                     and name not in ended_noted
-                    and alerts.worth_a_night_note(first, _LAST_DATA.get(name))
+                    and alerts.worth_a_night_note(first, _LAST_DATA.get(name), _now().hour)
                 ):
                     delivered = await notifier.send(*alerts.dock_night_text(name))
                     if delivered or not notifier.enabled:
@@ -10465,8 +10466,20 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 # then popped that episode, so at 08:33 the silence had an unknown span and the box sent
                 # "night ended" again. Only a worn stream (or one of unknown wear) begins an episode,
                 # begins a night, or re-arms the night note.
-                if worn_since is None:
-                    if name in down_since or name not in stream_since:
+                #
+                # THE RING STATES ITS WEAR IN `worn`, NOT IN `_WORN_SINCE`, which only a Polar writes. Read
+                # both. Measured on the capture box 2026-11-23: the ring came back at 20:12:29 with "no
+                # finger contact", 1 s after its pull. The poller read its wear as unknown, began an
+                # episode and a night, and the pull no longer licensed the silence. The box sent two
+                # offline alerts for the ring (20:20, 20:45) and one for the Sense (20:16), all false.
+                if worn_since is not None or dst.get("worn") is False:
+                    # A return the device reports as unworn. The wear that may follow has no gap of its
+                    # own, so remember the gap: the first worn poll then begins the episode.
+                    if name in down_since:
+                        returned_unworn.add(name)
+                else:
+                    if name in down_since or name in returned_unworn or name not in stream_since:
+                        returned_unworn.discard(name)
                         stream_since[name] = now  # a new episode starts here
                         # A WORN device in the evening begins a night; a device on a desk does not.
                         # Measured on the capture box 2026-11-07: a Sense judged not worn since 17:41
@@ -10537,9 +10550,10 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                             name,
                         )
                     if name not in ended_noted:
-                        if not alerts.worth_a_night_note(stream_since.get(name), _LAST_DATA.get(name)):
-                            # A short wear: the pull licenses the silence, and no note goes out.
-                            log.info("%s: a short wear ended after a completed pull — no night note", name)
+                        if not alerts.worth_a_night_note(stream_since.get(name), _LAST_DATA.get(name), _now().hour):
+                            # A short wear, or a span a restart erased outside the morning: the pull
+                            # licenses the silence, and no note goes out.
+                            log.info("%s: the stream that ended was not a known night — no night note", name)
                             ended_noted.add(name)
                             ended_at[name] = now
                             continue
