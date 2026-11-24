@@ -34,6 +34,21 @@
     sdnn: { label: 'SDNN', unit: 'ms', goodDirection: 'up', depth: 'basic', evidence: 'validated', cite: 'SDNN — overall HRV (Task Force 1996)' },
     lfhf: { label: 'LF/HF', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'validated', cite: 'LF:HF — sympatho-vagal balance (Task Force 1996)' },
     hfnu: { label: 'HF n.u.', unit: '%', goodDirection: 'up', depth: 'research', evidence: 'validated', cite: 'Normalised HF power — parasympathetic (Task Force 1996)' },
+    /* THE BAND WAS GRADED EVERYWHERE BUT HERE. `d_vlf_pct` reaches the reader in the metrics table
+       (`hrvdex-render.js:1572`) and now in an alert row, and no entry held it, so `badgeForLabel`'s
+       fallback drew a FABRICATED experimental disc — the under-grade the registry's own note at §2.8
+       warns about. The grade is not mine to invent: the same band is `validated` under Task Force
+       1996 in both sibling nodes that measure it (`ecgdex-registry.js:324`, `pulsedex-registry.js:67`),
+       and a normalised share of total power takes the same grade as the normalised units beside it
+       (`hfnu` above). `research` depth matches the siblings' VLF rows. */
+    vlfPct: {
+      label: 'VLF%',
+      unit: '%',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'validated',
+      cite: 'VLF share of total power (Task Force 1996) — graded as ECGDex vlf and PulseDex vlf grade the same band'
+    },
     sd1sd2: {
       /* RENDERED AS `d_sd1_sd2` — the `d_` convention does not derive this key from the id.
          Confirmed by LABEL, not by name: registry 'SD1/SD2' ≡ render 'SD1/SD2'. */
