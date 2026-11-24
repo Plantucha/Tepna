@@ -5,7 +5,7 @@
   Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
-**Status:** IN-PROGRESS — 2026-10-12 · ⚠️ **API-LANE TRIAGE 2026-11-04 — RE-VERIFIED BY MAGPIE, NOT TAKEN ON ITS WORD.** The managed-agent lane read this brief at `4ca6b91cc` and reported five acceptance items: four met, one open, none blocked. Two of the four MET checks name a path outside this repo, so I resolved those two myself. The builder's cited command reads `tasks: 0` against a fresh `--out`, because the proof cache lives in the output file. Pointed at a copy of the committed ledger it reads `tasks: 97`, `unproven: 0`, `dev: 45`, `heldout: 52` and `pendingProof: 209` at `86a168284`, which reproduces the lane's figures. Every committed task carries `proof.ok` and a `failToPass` pair, and the builder reports `excluded: 855` by reason. The solver selftest reads all twenty-seven passed. **The baseline control run stays UNVERIFIED here**: its cited form names another user and tree, and re-running it locally is a ninety-seven-task git and pytest sweep. **The OPEN and BLOCKED verdicts stay the lane's self-report, unverified here.** The remainder the lane reports is one item, which its own batch file lists. · **Created:** 2026-10-12
+**Status:** IN-PROGRESS — 2026-10-12 · ⚠️ **API-LANE TRIAGE 2026-11-04 — RE-VERIFIED BY MAGPIE, NOT TAKEN ON ITS WORD.** The managed-agent lane read this brief at `4ca6b91cc` and reported five acceptance items: four met, one open, none blocked. Two of the four MET checks name a path outside this repo, so I resolved those two myself. The builder's cited command reads `tasks: 0` against a fresh `--out`, because the proof cache lives in the output file. Pointed at a copy of the committed ledger it reads `tasks: 97`, `unproven: 0`, `dev: 45`, `heldout: 52` and `pendingProof: 209` at `86a168284`, which reproduces the lane's figures. Every committed task carries `proof.ok` and a `failToPass` pair, and the builder reports `excluded: 855` by reason. The solver selftest reads all twenty-seven passed. **The baseline control run stays UNVERIFIED here**: its cited form names another user and tree, and re-running it locally is a ninety-seven-task git and pytest sweep. **The OPEN and BLOCKED verdicts stay the lane's self-report, unverified here.** The remainder the lane reports is one item, which its own batch file lists. **Kestrel, 2026-11-24:** item 4 is met, and the Claude runs of 2026-11-09 (board #5084) are recorded below. Item 5 stays unverified, so this brief stays open. · **Created:** 2026-10-12
 
 # A frozen benchmark of past defects
 
@@ -130,7 +130,19 @@ pass at the fix commit, so the no-agent baseline scores 100 % correct on every i
 property of the inclusion rule, and it is worth naming as one — it measures that the oracle works, not
 that anything solved anything.
 
-Acceptance item 4 is not built. No solver has run, so there is no configuration to score.
+Acceptance item 4 was not built when this section was written. `tools/defect-bench-solve.mjs` is the
+solver since then. The table gives the Claude runs of 2026-11-09 (board #5084) over bench
+`c2bf40dbdc24`. The runs used mode `defs` and all 97 tasks. The model had no tools. A scratch copy of
+the solver made the calls, and that copy is not in the repo.
+
+| model | pass / scored | dev | held out | excluded | unparseable | API-equivalent cost |
+|---|---|---|---|---|---|---|
+| claude-fable-5-2 | 14 / 72 | 6 / 35 | 8 / 37 | 25 | 7 | $21.23 |
+| claude-opus-5-5 | 9 / 72 | 5 / 35 | 4 / 37 | 25 | 12 | $7.35 |
+| claude-sonnet-5-5 | 6 / 72 | 5 / 35 | 1 / 37 | 25 | 9 | $3.03 |
+
+The pass sets nest: each Sonnet pass is an Opus pass, and each Opus pass is a Fable pass. The board post
+is the only record of these runs. Do not buy the same baseline again.
 
 Two extensions stay unbuilt and named. Eight of the 38 `file-not-green-at-fix` tasks collect at the fix
 commit and fail only on background, so taking the fix's passing ids as the oracle would recover them.
@@ -148,4 +160,7 @@ a git repository.
    set, so a changed hash rule reds instead of re-cutting the halves. Proven: swapping the rule reds
    the selftest on `8162fb3dc`, and the pinned set passes with the fix.
 4. A scorer emits one verdict object per configuration, with the held-out half reported apart.
+   ✅ **met, verified 2026-11-24 (Kestrel)** — `tools/defect-bench-solve.mjs` emits one
+   `tepna.verdict/1` object per run, and its summary reports the held-out half apart. I ran `--selftest`
+   and `--verdict-sample`. I did not run the solver again.
 5. One baseline run with no agent completes: the fix commit itself, which must score 100 % correct.
