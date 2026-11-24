@@ -54186,7 +54186,9 @@
               return mg ? (v * 1000).toFixed(0) : v.toFixed(4);
             };
             rows +=
-              d.toISOString().replace('Z', '').slice(0, 23) +
+              /* the UNPARSED-HOST arm: a phone column `parseTimestamp` refuses, beside a device
+                 counter that parses. That is the shape the four `Number.isFinite` guards exist for. */
+              (o.badHostAt === i ? '--' : d.toISOString().replace('Z', '').slice(0, 23)) +
               ';' +
               (o.noNs || o.noNsAt === i || (o.nsOnly && o.nsOnly.indexOf(i) < 0) ? '' : (ns + jump + BigInt(i) * BigInt(step) + BigInt(dj) * BigInt(1000000)).toString()) +
               ';' +
@@ -54292,6 +54294,26 @@
         var n3 = D.parseDeviceACC(accText({ n: 60, nsOnly: [4, 30, 57] })).accTiming;
         T.eq('three eligible rows are three anchors', n3.anchorsEligible, 3);
         T.ok('…and three is enough for the tau0 floor, which is the axis own refusal bound', n3.hostJitterPpm != null, 'floor=' + n3.hostJitterPpm + ' anchors=' + n3.anchors);
+        /* ── THE MIRROR OF THE `noNsAt` LEG, AND THE ONE THE GLOBAL `isFinite` LET THROUGH ───────────
+           `parseDeviceACC` writes `tsMs: null` for a row whose phone column refuses `parseTimestamp`,
+           which is what §∅ requires. `isFinite(null)` reads TRUE, so that row passed all four anchor
+           guards: it counted as eligible, it could enter `accAnchors` as `{ devMs, hostMs: null }`
+           that `DexClock.hostAxis` then spends on the RATE, and at index 0 it became the absolute-time
+           anchor for every sample in the file. `Number.isFinite` rejects it and keeps a real `0`.
+           Row `2026-11-24-ecgdex-acc-anchor-guards-admit-a-null-host-stamp` measured the producer
+           shape: `capture-host/writers.py` `_phone_ts` always writes a full stamp, so no night in
+           hand carries this row, and a Polar Sensor Logger export or a later writer can. */
+        var bh = D.parseDeviceACC(accText({ n: 400, badHostAt: 7 })).accTiming;
+        T.eq('a row with a device counter and an UNPARSED host stamp is NOT an anchor', bh.anchorsEligible, 399);
+        T.eq('CONTROL · the same stream with every host stamp parseable keeps all 400', D.parseDeviceACC(accText({ n: 400 })).accTiming.anchorsEligible, 400);
+        var bh0 = D.parseDeviceACC(accText({ n: 400, badHostAt: 0 }));
+        var bt0 = (bh0.acc || []).map
+          ? bh0.acc.map(function (r) {
+              return r.tMs != null ? r.tMs : r.tsMs;
+            })
+          : [];
+        T.ok('…and a null host stamp at row 0 never becomes the absolute-time anchor', bt0.length > 0 && bt0[0] > Date.UTC(2020, 0, 1), 'first=' + bt0[0]);
+        T.eq('…so the file still anchors on a real stamp, one sample step in', bh0.accTiming.anchorsEligible, 399);
 
         // ── waveform: read from the samples alone, with no beat anywhere in it ──
         var qg = two.accQuality,
