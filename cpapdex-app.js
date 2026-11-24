@@ -21,6 +21,44 @@ import { CpapRender } from './cpapdex-render.js';
 (function (global) {
   'use strict';
 
+  /* §∅ AN ABSENT STAMP IS NOT 1970. Every sort below keyed on an or-zero stamp, so a night or session
+     with no parsed stamp took the FIRST place and read as the oldest one the user owns. A record with no
+     finite stamp now sorts AFTER every dated one and keeps its insertion order; a measured stamp of 0 is
+     still a stamp. `desc` flips the order of the DATED records only — absence stays last either way,
+     because a list that reads newest-first still does not know when an unstamped night happened.
+     The helper stays LOCAL and pure: tests/dex-tests.js slices it out of this source and runs it, and a
+     shared spine module would move `manifestHash` on all nine app bundles for a ten-line comparator.
+     Twin of `_byStamp` in ecgdex-app.js and the five sibling sites of #5574. */
+  /* §∅ board #8298. `(last.t0Ms || 0) - (first.t0Ms || 0)` read the span off the ENDS of the list. The
+     list now sorts absence last, so one undated night made the span about −20,417 days. The span reads
+     between the first and the last FINITE stamp, and it is `null` when fewer than two nights carry one:
+     a span over one dated night is not a shorter span, it is an unmeasurable one. */
+  function _cpSpanDays(list) {
+    var dated = (list || []).filter(function (n) {
+      return n && typeof n.t0Ms === 'number' && isFinite(n.t0Ms);
+    });
+    if (dated.length < 2) return null;
+    var lo = dated[0].t0Ms,
+      hi = dated[0].t0Ms;
+    for (var i = 1; i < dated.length; i++) {
+      if (dated[i].t0Ms < lo) lo = dated[i].t0Ms;
+      if (dated[i].t0Ms > hi) hi = dated[i].t0Ms;
+    }
+    return Math.round((hi - lo) / 864e5);
+  }
+  function _cpByStamp(key, desc) {
+    return function (a, b) {
+      const x = a ? a[key] : undefined,
+        y = b ? b[key] : undefined;
+      const fx = typeof x === 'number' && isFinite(x),
+        fy = typeof y === 'number' && isFinite(y);
+      if (fx && fy) return desc ? y - x : x - y;
+      if (fx) return -1;
+      if (fy) return 1;
+      return 0;
+    };
+  }
+
   var FILE_TYPES = ['BRP', 'PLD', 'SA2', 'EVE', 'CSL'];
   var NIGHT_GAP_MS = 12 * 60 * 60 * 1000; // clusters >12 h apart belong to DIFFERENT nights
   /* THE SCRUB DEFAULT IS ON since 2026-11-09 — see the same block in `oxydex-app.js`. It sits at module
@@ -131,10 +169,19 @@ import { CpapRender } from './cpapdex-render.js';
     } catch (_r) {}
     var R = CpapRender,
       D = CpapDsp;
-    LOADED_NIGHTS.sort(function (a, b) {
-      return (a.t0Ms || 0) - (b.t0Ms || 0);
-    });
-    CURRENT = LOADED_NIGHTS[LOADED_NIGHTS.length - 1] || null; // latest night = detail focus
+    LOADED_NIGHTS.sort(_cpByStamp('t0Ms'));
+    /* §∅ board decision #8297. The list now sorts absence LAST, so `[length - 1]` would hand the detail
+       focus of the whole view to a night with no parsed stamp. The focus reads the last night that
+       carries a finite `t0Ms`, and falls back to the last element only when NO night carries one, which
+       is what a single undated drop shows today. */
+    CURRENT = null;
+    for (var _ci = LOADED_NIGHTS.length - 1; _ci >= 0; _ci--) {
+      if (typeof LOADED_NIGHTS[_ci].t0Ms === 'number' && isFinite(LOADED_NIGHTS[_ci].t0Ms)) {
+        CURRENT = LOADED_NIGHTS[_ci];
+        break;
+      }
+    }
+    if (!CURRENT) CURRENT = LOADED_NIGHTS[LOADED_NIGHTS.length - 1] || null; // no night is dated
     if (!CURRENT) return;
     var history = LOADED_NIGHTS.length >= 2 && R.renderHistory ? R.renderHistory(LOADED_NIGHTS) : '';
     // Phase C: the acquisition envelope for THIS night, when one was paired. Empty string when absent,
@@ -279,16 +326,19 @@ import { CpapRender } from './cpapdex-render.js';
       }
     });
     if (!sessions.length) throw new Error('no therapy session could be built (missing PLD/BRP pressure channel?)');
-    sessions.sort(function (a, b) {
-      return (a.t0Ms || 0) - (b.t0Ms || 0);
-    });
+    sessions.sort(_cpByStamp('t0Ms'));
     // split sessions into nights on a >12 h gap
     var groups = [],
       cur = null;
     sessions.forEach(function (s) {
       // a session with no wall span (`endMs: null`) ends where it starts, as cpapdex-coimport.js reads it
       var end = s.endMs != null ? s.endMs : s.t0Ms;
-      if (!cur || s.t0Ms - cur._lastEnd > NIGHT_GAP_MS) {
+      /* §∅ board decision #8297. `null - cur._lastEnd` is a large NEGATIVE number, so the gap test was
+         false and an undated session joined the group before it. Until the sort above moved to
+         absence-last it sorted FIRST and opened a group by accident; now it would merge into the last
+         dated night. A session with no stamp belongs to no dated night, so it always starts a new one. */
+      var _undated = !(typeof s.t0Ms === 'number' && isFinite(s.t0Ms));
+      if (!cur || _undated || s.t0Ms - cur._lastEnd > NIGHT_GAP_MS) {
         cur = { ss: [], _lastEnd: end };
         groups.push(cur);
       }
@@ -331,9 +381,7 @@ import { CpapRender } from './cpapdex-render.js';
       });
       if (!dup) LOADED_NIGHTS.push(nn);
     });
-    LOADED_NIGHTS.sort(function (a, b) {
-      return (a.t0Ms || 0) - (b.t0Ms || 0);
-    });
+    LOADED_NIGHTS.sort(_cpByStamp('t0Ms'));
     return LOADED_NIGHTS;
   }
 
@@ -771,9 +819,7 @@ import { CpapRender } from './cpapdex-render.js';
     if (!LOADED_NIGHTS.length || !global.CpapFusion) return;
     var payload, fname;
     if (LOADED_NIGHTS.length >= 3 && global.CPAPCross && global.CrossNightEnvelope) {
-      var chrono = LOADED_NIGHTS.slice().sort(function (a, b) {
-        return (a.t0Ms || 0) - (b.t0Ms || 0);
-      });
+      var chrono = LOADED_NIGHTS.slice().sort(_cpByStamp('t0Ms'));
       // CPAPDEX-PHASE9-FOLLOWUPS-IV §2: the multi-night envelope is now the shared
       // CpapFusion.cpapBuildMultiNightExport (lifted beside cpapBuildExport) so the gate
       // exercises the SAME builder the app runs (the -III in-test reconstruction + 4-assert
@@ -786,7 +832,7 @@ import { CpapRender } from './cpapdex-render.js';
         t0Ms: chrono[0] && chrono[0].t0Ms,
         kind: 'series',
         ext: 'json',
-        spanDays: chrono.length > 1 ? Math.round(((chrono[chrono.length - 1].t0Ms || 0) - (chrono[0].t0Ms || 0)) / 864e5) : null
+        spanDays: _cpSpanDays(chrono)
       });
     } else {
       payload = global.CpapFusion.cpapBuildExport(CURRENT);
@@ -834,9 +880,7 @@ import { CpapRender } from './cpapdex-render.js';
    metric is blank, never a fabricated 0. Oximetry columns come from the night's first
    SpO₂-bearing session and stay blank on nights with no oximeter connected. */
   function exportCSV() {
-    var nights = (LOADED_NIGHTS || []).slice().sort(function (a, b) {
-      return (a.t0Ms || 0) - (b.t0Ms || 0);
-    });
+    var nights = (LOADED_NIGHTS || []).slice().sort(_cpByStamp('t0Ms'));
     if (!nights.length) return;
     var D = CpapDsp;
     var head = [
@@ -888,7 +932,7 @@ import { CpapRender } from './cpapdex-render.js';
       t0Ms: nights[0] && nights[0].t0Ms,
       kind: 'summary',
       ext: 'csv',
-      spanDays: nights.length > 1 ? Math.round(((nights[nights.length - 1].t0Ms || 0) - (nights[0].t0Ms || 0)) / 864e5) : null
+      spanDays: _cpSpanDays(nights)
     });
     document.body.appendChild(a);
     a.click();

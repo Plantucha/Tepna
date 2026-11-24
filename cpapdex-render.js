@@ -21,6 +21,27 @@ import { CpapDsp } from './cpapdex-dsp.js';
 (function (global) {
   'use strict';
 
+  /* §∅ AN ABSENT STAMP IS NOT 1970. Every sort below keyed on an or-zero stamp, so a night
+     with no parsed stamp took the FIRST place and read as the oldest one the user owns. A record with no
+     finite stamp now sorts AFTER every dated one and keeps its insertion order; a measured stamp of 0 is
+     still a stamp. `desc` flips the order of the DATED records only — absence stays last either way,
+     because a list that reads newest-first still does not know when an unstamped night happened.
+     The helper stays LOCAL and pure: tests/dex-tests.js slices it out of this source and runs it, and a
+     shared spine module would move `manifestHash` on all nine app bundles for a ten-line comparator.
+     Twin of `_byStamp` in ecgdex-app.js and the five sibling sites of #5574. */
+  function _crByStamp(key, desc) {
+    return function (a, b) {
+      const x = a ? a[key] : undefined,
+        y = b ? b[key] : undefined;
+      const fx = typeof x === 'number' && isFinite(x),
+        fy = typeof y === 'number' && isFinite(y);
+      if (fx && fy) return desc ? y - x : x - y;
+      if (fx) return -1;
+      if (fy) return 1;
+      return 0;
+    };
+  }
+
   var D = CpapDsp;
   var REG = global.CpapRegistry;
   var MR = global.MetricRegistry;
@@ -709,9 +730,15 @@ import { CpapDsp } from './cpapdex-dsp.js';
     if (!cv || !global.CPAPCross) return;
     var def = global.CPAPCross.CPAP_DEFS[id];
     if (!def) return;
-    var chrono = nights.slice().sort(function (a, b) {
-      return (a.t0Ms || 0) - (b.t0Ms || 0);
-    });
+    /* §∅ board #8298. This sparkline plots by INDEX and takes its colour from the first and the last
+       value, so under absence-last an undated night became the last value and set the colour. A night
+       with no stamp has no place on a time axis at all, so it is left out here. The per-night table
+       below keeps it, at the end of the list. */
+    var chrono = nights
+      .filter(function (nn) {
+        return nn && typeof nn.t0Ms === 'number' && isFinite(nn.t0Ms);
+      })
+      .sort(_crByStamp('t0Ms'));
     var vals = chrono.map(def.get).map(function (v) {
       return v == null || !isFinite(v) ? null : v;
     });
@@ -879,9 +906,7 @@ import { CpapDsp } from './cpapdex-dsp.js';
     // per-night table (newest first)
     var rows = nights
       .slice()
-      .sort(function (a, b) {
-        return (b.t0Ms || 0) - (a.t0Ms || 0);
-      })
+      .sort(_crByStamp('t0Ms', true))
       .map(function (n) {
         var nm = n.metrics || {};
         return (
