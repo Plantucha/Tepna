@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="ade88e6e46c5" data-compute-hash="79e55c54447f">
+<html lang="en" data-manifest-hash="17c66b65c158" data-compute-hash="b5955afb9346">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BND6RE6OP7KJNES0zGV0kDUXdIOxJqc2QUkiELbELoE=' 'sha256-ETqZPnyEOMCJ7vZgS1XxfM5eP45arYHcZc+vUSdnVMY=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-JumuG+yAWVBa9X3Q3ZuOvmOJbRvQursNce7UaYxa9Ug=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-iqPNvfgaOLLxsrqf67NdcyYbCf6pshw6DVlOebr7HSE=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-va9iMScWxEdN7cjNjYXiSv9RdPWnx5fnCHzd3Fx9doY=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BND6RE6OP7KJNES0zGV0kDUXdIOxJqc2QUkiELbELoE=' 'sha256-ETqZPnyEOMCJ7vZgS1XxfM5eP45arYHcZc+vUSdnVMY=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-iqPNvfgaOLLxsrqf67NdcyYbCf6pshw6DVlOebr7HSE=' 'sha256-jXCcccdrNQGiQxKLg1YLoK8qJnx1KvldxWDfC9EfOq0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-va9iMScWxEdN7cjNjYXiSv9RdPWnx5fnCHzd3Fx9doY=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.36.0</title>
@@ -14067,6 +14067,14 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
          moved it needs the number it moved FROM, and the comment on `hostAxis` at :3425 records
          what this reshape costs a field it does not name. */
       fsRaw: rec.fsRaw != null ? rec.fsRaw : null,
+      /* §∅ — AND WHERE THAT RATE CAME FROM. Both producers already label it: the text parser writes
+         `fsSource` in `ecgTimingResolve` and the canonical-frame branch of `compute` writes its own
+         (`caller` or `assumed`). This reshape then dropped the label, so it reached no consumer and
+         no export — an ASSUMED 130 and a measured 130 arrived at every reader as the same number.
+         ABSENCE-SURVEY findings ca2996627891 (text) and c2a261aa410f (frame) are exactly that gap.
+         Carried like `fsRaw` above, and `null` when a caller hands analyze a hand-built rec: an
+         unlabelled rate has no provenance to report, and a default here would invent one. */
+      fsSource: rec.fsSource != null ? rec.fsSource : null,
       durSec,
       // Carry the parsed clock end through analyze — like `offsetMin`, it is a property of the
       // RECORDING, not of the analysis, so analyze must pass it rather than re-derive it. Note the
@@ -18724,6 +18732,13 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         maxStepMs: ax && ax.maxStepMs !== undefined ? ax.maxStepMs : null,
         resyncs: Array.isArray(r.clockResyncs) ? r.clockResyncs.length : null,
         fsRaw: r.fsRaw != null ? r.fsRaw : null,
+        /* THE RATE'S PROVENANCE, BESIDE THE RATE. `ns-counter`, `ms-step` and `ms-delta` are
+           measurements; `caller` means a canonical frame carried the rate; `assumed` means nothing
+           in the file measured it and the cell is publishing the H10 nominal 130. This cell already
+           qualifies the AXIS four ways and said nothing about where the RATE came from, so a file
+           that measured 130 Hz and a file that measured nothing published one identical number.
+           `null` when the rec carried no label, which is not a claim that the rate was measured. */
+        fsSource: r.fsSource != null ? r.fsSource : null,
         fs: r.fs != null ? r.fs : null
       }
     );
