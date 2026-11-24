@@ -32,6 +32,27 @@
 (function (root) {
   'use strict';
 
+  /* §∅ AN ABSENT STAMP IS NOT 1970. Every sort below keyed on an or-zero stamp, so a session
+     with no parsed stamp took the FIRST place and read as the oldest one the user owns. A record with no
+     finite stamp now sorts AFTER every dated one and keeps its insertion order; a measured stamp of 0 is
+     still a stamp. `desc` flips the order of the DATED records only — absence stays last either way,
+     because a list that reads newest-first still does not know when an unstamped session happened.
+     The helper stays LOCAL and pure: tests/dex-tests.js slices it out of this source and runs it, and a
+     shared spine module would move `manifestHash` on all nine app bundles for a ten-line comparator.
+     Twin of `_byStamp` in ecgdex-app.js and the five sibling sites of #5574. */
+  function _cdByStamp(key, desc) {
+    return function (a, b) {
+      const x = a ? a[key] : undefined,
+        y = b ? b[key] : undefined;
+      const fx = typeof x === 'number' && isFinite(x),
+        fy = typeof y === 'number' && isFinite(y);
+      if (fx && fy) return desc ? y - x : x - y;
+      if (fx) return -1;
+      if (fy) return 1;
+      return 0;
+    };
+  }
+
   // Side-effect load only — the reader is reached via CpapEdf/`set.*`, never through this
   // binding, so it is underscore-prefixed to say "intentionally unused" (Biome lint floor).
   var _EDF = typeof require !== 'undefined' ? /** @type {any} */ (require)('./cpapdex-edf.js') : root && root.CpapEdf;
@@ -452,13 +473,14 @@
   }
 
   function buildNight(sessions) {
-    var s = sessions.slice().sort(function (a, b) {
-      return (a.t0Ms || 0) - (b.t0Ms || 0);
-    });
+    var s = sessions.slice().sort(_cdByStamp('t0Ms'));
     var gaps = [];
     for (var i = 1; i < s.length; i++) {
       // ∅ a session with no wall span has no end, so the gap after it is absent, never t0Ms − 0
-      var gapMs = s[i - 1].endMs == null ? null : s[i].t0Ms - s[i - 1].endMs; // off-mask gap (monotonic; no 24h jump)
+      /* §∅ board #8298. An undated session makes `s[i].t0Ms - endMs` a large NEGATIVE number, so the
+         gap before it needs the same refusal the absent end already gets. */
+      var _st = typeof s[i].t0Ms === 'number' && isFinite(s[i].t0Ms);
+      var gapMs = s[i - 1].endMs == null || !_st ? null : s[i].t0Ms - s[i - 1].endMs; // off-mask gap (monotonic; no 24h jump)
       gaps.push({ afterIdx: i - 1, afterSession: i - 1, gapMin: gapMs == null ? null : +(gapMs / 60000).toFixed(1) });
     }
     // night-level metrics = therapy-hour-weighted recompute over pooled mask-on time
@@ -473,7 +495,10 @@
         }, 0);
     return {
       t0Ms: s.length ? s[0].t0Ms : null, // night anchor = first session
-      dateAnchorMs: s.length ? Date.UTC(new Date(s[0].t0Ms).getUTCFullYear(), new Date(s[0].t0Ms).getUTCMonth(), new Date(s[0].t0Ms).getUTCDate()) : null,
+      /* §∅ board #8298. `new Date(null)` is 1970-01-01, so a night built from undated sessions reported
+         `dateAnchorMs: 0` beside its own `t0Ms: null`. Clock Contract §4: an anchor is never fabricated. */
+      dateAnchorMs:
+        s.length && typeof s[0].t0Ms === 'number' && isFinite(s[0].t0Ms) ? Date.UTC(new Date(s[0].t0Ms).getUTCFullYear(), new Date(s[0].t0Ms).getUTCMonth(), new Date(s[0].t0Ms).getUTCDate()) : null,
       offsetMin: null,
       sessions: s,
       offMaskGaps: gaps,

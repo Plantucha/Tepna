@@ -45636,6 +45636,124 @@
         T.ok(site.file + ': no sort reads an or-zero stamp key', !/\((?:a|b)\.t0Ms \|\| 0\)\s*-/.test(src), 'an or-zero stamp sort key is back in ' + site.file);
       });
     });
+    group('CPAPDex and MotionDex sorts — an undated night sorts last, never as 1970 (§∅)', 'sources', function (T) {
+      /* Nine more sort sites read the same or-zero stamp key. Each of the four files attaches its
+         comparator to no global, so each one is cut from its own source and run. CPAPDex also needed two
+         behaviour edits that no pure comparator can carry (board decision #8297), and those two are
+         pinned against the source below, which is the weaker check and says so. */
+      var SITES = [
+        { file: 'cpapdex-app.js', fn: '_cpByStamp' },
+        { file: 'cpapdex-dsp.js', fn: '_cdByStamp' },
+        { file: 'cpapdex-render.js', fn: '_crByStamp' },
+        { file: 'motiondex-app.js', fn: '_mdByStamp' }
+      ];
+      var ids = function (list) {
+        return list
+          .map(function (r) {
+            return r.id;
+          })
+          .join(',');
+      };
+      SITES.forEach(function (site) {
+        var src = env.sources && env.sources[site.file];
+        T.ok(site.file + ' is readable in this lane', !!src, site.file + ' not in env.sources');
+        if (!src) return;
+        var head = '  function ' + site.fn + '(key, desc) {';
+        var a = src.indexOf(head);
+        var b = a >= 0 ? src.indexOf('\n  }\n', a) : -1;
+        T.ok('the ' + site.file + ' comparator is sliceable out', a >= 0 && b > a, 'the slice markers moved — update this group with them');
+        if (!(a >= 0 && b > a)) return;
+        var by = null;
+        try {
+          by = new Function(src.slice(a, b + 5) + '\nreturn ' + site.fn + ';')();
+        } catch (_e) {
+          by = null;
+        }
+        T.ok('the ' + site.file + ' comparator evaluates on its own', typeof by === 'function', 'the comparator now depends on module state — keep it pure');
+        if (typeof by !== 'function') return;
+        var recs = [{ id: 'u1', t0Ms: null }, { id: 'd5', t0Ms: 5000 }, { id: 'u2' }, { id: 'd2', t0Ms: 2000 }, { id: 'nan', t0Ms: NaN }];
+        T.eq(site.file + ': dated records sort by stamp, then undated ones keep insertion order', ids(recs.slice().sort(by('t0Ms'))), 'd2,d5,u1,u2,nan');
+        T.eq(site.file + ': newest-first still sorts every undated record last', ids(recs.slice().sort(by('t0Ms', true))), 'd5,d2,u1,u2,nan');
+        T.eq(
+          site.file + ': a measured stamp of 0 is a stamp and sorts first (control)',
+          ids(
+            [
+              { id: 'd1', t0Ms: 1 },
+              { id: 'z', t0Ms: 0 }
+            ].sort(by('t0Ms'))
+          ),
+          'z,d1'
+        );
+        T.eq(site.file + ': an all-undated list keeps its order', ids([{ id: 'x' }, { id: 'y', t0Ms: null }].sort(by('t0Ms'))), 'x,y');
+        T.ok(site.file + ': no sort reads an or-zero stamp key', !/\((?:a|b)\.t0Ms \|\| 0\)\s*-/.test(src), 'an or-zero stamp sort key is back in ' + site.file);
+      });
+      /* `_cpSpanDays` IS pure, so it runs rather than reading as a pin (board #8298 item 1). */
+      var appSrc = env.sources && env.sources['cpapdex-app.js'];
+      if (appSrc) {
+        var ha = appSrc.indexOf('  function _cpSpanDays(list) {');
+        var hb = ha >= 0 ? appSrc.indexOf('\n  }\n', ha) : -1;
+        T.ok('the span helper is sliceable out', ha >= 0 && hb > ha, 'the slice markers moved — update this group with them');
+        if (ha >= 0 && hb > ha) {
+          var span = null;
+          try {
+            span = new Function(appSrc.slice(ha, hb + 5) + '\nreturn _cpSpanDays;')();
+          } catch (_e2) {
+            span = null;
+          }
+          T.ok('the span helper evaluates on its own', typeof span === 'function', 'keep it pure');
+          if (typeof span === 'function') {
+            var D0 = 1764000000000;
+            T.eq('the span reads between the first and the last DATED night', span([{ t0Ms: D0 }, { t0Ms: D0 + 4 * 864e5 }, { t0Ms: null }]), 4);
+            T.eq('one dated night gives no span, never a 20,417-day one', span([{ t0Ms: D0 }, { t0Ms: null }]), null);
+            T.eq('an all-undated list gives no span', span([{ t0Ms: null }, {}]), null);
+            T.eq('a measured stamp of 0 is a stamp and bounds the span', span([{ t0Ms: 0 }, { t0Ms: 864e5 }]), 1);
+          }
+        }
+      }
+      /* The two CPAPDex behaviour edits of #8297. Both sit inline in `renderResults` and in the night
+         grouping loop, so neither can be sliced and run — these are SOURCE PINS, not executions. */
+      var app = env.sources && env.sources['cpapdex-app.js'];
+      if (app) {
+        T.ok(
+          'the detail focus scans back for the last DATED night (#8297)',
+          /CURRENT = null;[\s\S]{0,400}isFinite\(LOADED_NIGHTS\[_ci\]\.t0Ms\)[\s\S]{0,400}CURRENT = LOADED_NIGHTS\[LOADED_NIGHTS\.length - 1\] \|\| null/.test(app),
+          'the focus reads the last element again — an undated night would become the detail focus'
+        );
+        T.ok(
+          'an undated session always starts a new night group (#8297)',
+          /var _undated = !\(typeof s\.t0Ms === 'number' && isFinite\(s\.t0Ms\)\);\s*\n\s*if \(!cur \|\| _undated \|\|/.test(app),
+          'the grouping branch is gone — an undated session would merge into the last dated night'
+        );
+        T.ok(
+          'two undated sessions each start their own night group (#8298 item 3)',
+          /var _undated = !\(typeof s\.t0Ms === 'number' && isFinite\(s\.t0Ms\)\);/.test(app),
+          'Math.max(null, null) is 0, so both sessions shared one night before this branch'
+        );
+      }
+      /* Three more source pins for board #8298. The sparkline filter, the null anchor and the null gap
+         sit inside render and DSP functions that need a canvas or a full session set to run. */
+      var rnd = env.sources && env.sources['cpapdex-render.js'];
+      if (rnd) {
+        T.ok(
+          'the night sparkline leaves an undated night out (#8298)',
+          /var chrono = nights\s*\n\s*\.filter\(function \(nn\) \{\s*\n\s*return nn && typeof nn\.t0Ms === 'number' && isFinite\(nn\.t0Ms\);/.test(rnd),
+          'the filter is gone — an undated night would set the trend colour from the last position'
+        );
+      }
+      var dsp = env.sources && env.sources['cpapdex-dsp.js'];
+      if (dsp) {
+        T.ok(
+          'a night built from undated sessions reports no date anchor (#8298)',
+          /dateAnchorMs:\s*\n\s*s\.length && typeof s\[0\]\.t0Ms === 'number' && isFinite\(s\[0\]\.t0Ms\)/.test(dsp),
+          'new Date(null) is 1970-01-01 — the anchor would read 0 beside a null t0Ms'
+        );
+        T.ok(
+          'the gap before an undated session is absent, not negative (#8298)',
+          /var gapMs = s\[i - 1\]\.endMs == null \|\| !_st \? null :/.test(dsp),
+          'the gap guard is gone — null minus an end is a large negative number'
+        );
+      }
+    });
     group('ECGDex stampless events — null clock + determinism (Clock §2.6)', 'ecgdex-dsp', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function')) {
