@@ -1112,6 +1112,26 @@ export const SEEDS = [
     at: 'cpapdex-render.js:1139',
     state: 'fixed',
     note: 'fixed #5274: `cpapEventTimeline` sorts an unplaceable event LAST in arrival order, never to 1970. CPAPDex carries no `clock.js`, so this node cannot rebuild a date-less stamp. Plant: tests/dex-tests.js section 4 of the CPAPDex quality group, with the former key beside it as the anti-vacuity leg (2026-11-18, Heron)'
+  },
+  {
+    at: 'ecgdex-dsp.js:5838',
+    state: 'fixed',
+    note: 'the ACC parser now states the rate it used: `accFsSource` reads `ms-delta` when the median stamp delta measured it, and `assumed` when under six rows carried a parseable stamp. It rides on the stream itself as `_accFsSource`, so it survives `planCompanionGraft`, which moves the array and not the scalars. The three consumers that spend the rate as a TIMEBASE refuse on `assumed`: `epochMotion`, `stampEpochPositions` with the new reason `acc-rate-assumed`, and `accAnalyze`, whose card `renderACCComparison` already hides on null. The loader line names the assumption instead of printing 4 Hz as a measurement. Measured over the corpus 2026-11-24: of 1958 `_ACC` files 1410 measure the rate, 510 fall under the 120-sample floor and were refused there already, 38 are empty, and NONE both clear the floor and lack stamps, so the refusal drops no night in hand. Plant: tests/dex-tests.js, the ECGDex device-twin block leg `parseDeviceACC states an assumed rate as assumed`, the three refusal legs, and an 800-row measured control that must still answer (2026-11-24, Heron)'
+  },
+  {
+    at: 'ecgdex-dsp.js:5853',
+    state: 'fixed',
+    note: 'a stampless file no longer receives a synthesised per-sample axis at all. The synthesis now runs only on a measured rate and records that rate in `_relBaseSource`; an assumed rate leaves `tsMs` absent and names `_relBaseReason: acc-rate-assumed`. The branch was also unreachable for the file it serves: its test used the global `isFinite`, which is true for null, so a null-stamped row read as a measured 0. It now reads `Number.isFinite`, which also keeps absent stamps out of the rate median. Plant: the stampless twin in tests/dex-tests.js asserts no `_relBase` plus the named reason, and a first-row-only gap still rebuilds the axis under `ms-delta`.'
+  },
+  {
+    at: 'ecgdex-dsp.js:2350',
+    state: 'fixed',
+    note: 'fixed #5157 (906193003): the ACC-to-ECG placement is a named function that returns `offSec: null` with its own reason when no measurement supports it, and `epochMotion` refuses on that null rather than aligning at 0 s. The `baseOffset … : 0` clamp this finding names is gone from the file. Hand-read against origin/main 2026-11-24 (Heron); not credited by content, and not credited to this PR.'
+  },
+  {
+    at: 'ecgdex-dsp.js:2635',
+    state: 'fixed',
+    note: 'fixed #5088 (d7d7f0d0a): the gait fields initialise from `accPresent`, so `steps`, `briskPct` and `cadencePresentPct` are null when the record carried no usable ACC and 0 only when a stream was there to measure. `sustainedGait`, both sub-scores and `ambulatory` all guard on `!= null`. Hand-read against origin/main 2026-11-24 (Heron); not credited by content, and not credited to this PR.'
   }
 ];
 
