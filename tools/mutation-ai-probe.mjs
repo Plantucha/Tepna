@@ -48,7 +48,7 @@ import { execFileSync } from 'node:child_process';
 import vm from 'node:vm';
 import { loadRealm, isRealmArtefact } from './mutation-crawl.mjs';
 import { isCliEntry } from './argv-guard.mjs';
-import { EXIT_BUSY, gpuState, unload, waitForGpu } from './gpu-gate.mjs';
+import { EXIT_BUSY, EXIT_NO_SERVER, gpuState, unload, waitForGpu } from './gpu-gate.mjs';
 import { boundedFetch } from './net-bound.mjs';
 
 const argv = process.argv.slice(2);
@@ -555,9 +555,19 @@ export function doneKeys(journalText) {
     } catch {
       continue; // a torn last line from a kill is EXPECTED — skipped, never repaired
     }
-    if (o && o.k) done.set(o.k, o);
+    if (!o?.k) continue;
+    if (o.v === 'UNASKED') done.delete(o.k);
+    else done.set(o.k, o);
   }
   return done;
+}
+
+/** What the journal holds for a mutant whose ask got no answer: its earlier verdict again, else UNASKED,
+ * which no resume reads as answered. `TRYING` alone would, so the mutant would never be asked. */
+export function unaskedRecord(prev) {
+  if (!prev) return { v: 'UNASKED' };
+  const { k: _k, ...rest } = prev;
+  return rest;
 }
 
 /**
@@ -789,6 +799,12 @@ function selftest() {
   ck('…and a NONE that exhausted the ladder cannot loop forever', startTierFor({ v: 'NONE', tier: 99 }), SAMPLING_TIERS - 1);
   ck('there are as many sampling tiers as the ladder claims', SAMPLING_TIERS >= 3, true);
 
+  console.log('\nan ask with no answer is not an answer');
+  const jl = (...rows) => rows.map((r) => JSON.stringify(r)).join('\n');
+  ck('a mutant that was tried and not asked is asked again', doneKeys(jl({ k: 'a', v: 'TRYING' }, { k: 'a', v: 'UNASKED' })).has('a'), false);
+  ck('CONTROL: a mutant that took the process down stays answered', doneKeys(jl({ k: 'a', v: 'TRYING' })).has('a'), true);
+  ck('an earlier verdict survives a failed ask with its tier', JSON.stringify(unaskedRecord({ k: 'a', v: 'NONE', tier: 2 })), JSON.stringify({ v: 'NONE', tier: 2 }));
+  ck('…and no earlier verdict reads UNASKED', unaskedRecord(undefined).v, 'UNASKED');
   console.log('\njournalVerdict — a KILL is a KILL however it was found');
   /* The regression this pins: a SEED-POOL kill sets `hit` but spends no tier, so `lastN` stays 0. The
      old guard tested `!lastN` first and journalled it NOPROPOSAL — 1271 kills discarded in one run
@@ -1035,10 +1051,12 @@ async function main() {
     log('  seed pool: ' + pool.length + ' known-killing input(s), ' + (ranked ? ranked + ' embedded for bge-m3 ranking' : 'NOT embedded — bge unreachable, trying in insertion order'));
   }
   let poolKills = 0;
-  const GPU_CHECK_EVERY = 10;
+  /* Two asks in a row with no answer end the run; one slow ask does not. */
+  const ASK_FAIL_MAX = 2;
   const GPU_WAIT_MIN = Number(opt('--gpu-wait-min', '45'));
-  let asked = 0;
   let gpuBusy = null;
+  let askFails = 0;
+  let serverDown = null;
 
   const t0 = Date.now();
   const found = [];
@@ -1084,19 +1102,19 @@ async function main() {
 
     /* A GPU job that holds the card spills the model, and a spilled model answers at 2 to 28 tok/s and
        slows the GPU job too (2026-11-24). Wait for the card before an ask, never record an answer that
-       was not asked, and leave with EXIT_BUSY so the driver does not read a waiting pass as converged. */
-    if (asked++ % GPU_CHECK_EVERY === 0) {
-      let g = { ok: true };
-      try {
-        g = await waitForGpu({ state: () => gpuState(MODEL, HOST), drop: () => unload(MODEL, HOST), waitMin: GPU_WAIT_MIN, log });
-      } catch {
-        /* an unreachable server is the ask's own refusal below, not a busy card */
-      }
-      if (!g.ok) {
-        gpuBusy = g.why;
-        log('⏸ GPU BUSY: ' + g.why + '. Stopping; the journal keeps every answer.');
-        break;
-      }
+       was not asked, and leave with EXIT_BUSY so the driver does not read a waiting pass as converged.
+       The check reads one directory and two loopback pages, so it runs before EVERY mutant: at one in
+       ten, a spilled model on the CPU kept the probe from its next check for most of an hour. */
+    let g = { ok: true };
+    try {
+      g = await waitForGpu({ state: () => gpuState(MODEL, HOST), drop: () => unload(MODEL, HOST), waitMin: GPU_WAIT_MIN, log });
+    } catch {
+      /* an unreachable server is the ask's own refusal below, not a busy card */
+    }
+    if (!g.ok) {
+      gpuBusy = g.why;
+      log('⏸ GPU BUSY: ' + g.why + '. Stopping; the journal keeps every answer.');
+      break;
     }
 
     /* CRASH-LOOP BELT: record the ATTEMPT before executing anything. The vm timeout stops ordinary
@@ -1188,14 +1206,18 @@ async function main() {
        --retry-none starts ABOVE it rather than repeating the same draws. */
     let tier = startTierFor(prev);
     let lastN = 0;
+    let askError = null;
     const tierStop = Math.min(SAMPLING_TIERS, tier + TIERS_PER_RUN);
     for (; tier < tierStop && !hit; tier++) {
       hb = { at: Date.now(), what: 'asking [tier ' + tier + '] about ' + t.call + ' [' + t.op + ']', i: i + 1 };
       let inputs = [];
       try {
         inputs = parseProposedInputs(await ask(promptFor(t.fn, fnSrc, t.before, t.after, t.op), tier), Number(opt('--per-mutant', '8')));
-      } catch {
-        log('✗ local model unreachable at ' + HOST + ' — stopping (a refusal, not an empty result)');
+        askFails = 0;
+      } catch (e) {
+        askError = e?.message || String(e);
+        askFails++;
+        log('✗ no answer from the local model at ' + HOST + ': ' + askError + ' (a refusal, not an empty result)');
         break;
       }
       if (!inputs.length) continue;
@@ -1205,6 +1227,16 @@ async function main() {
       if (!hit && VERBOSE) for (const a2 of inputs.slice(0, 2)) log('          tier ' + tier + ' tried ' + JSON.stringify(a2).slice(0, 86));
     }
 
+    if (askError && !hit && !lastN) {
+      const { v, ...extra } = unaskedRecord(prev);
+      record(key, v, extra);
+      if (askFails >= ASK_FAIL_MAX) {
+        serverDown = askError;
+        log('⏹ ' + askFails + ' asks in a row got no answer. Stopping; the journal keeps every answer.');
+        break;
+      }
+      continue;
+    }
     const jv = journalVerdict({ lastN, hit, poolHit, tier });
     if (jv.v === 'NOPROPOSAL') {
       noProposal++;
@@ -1288,6 +1320,7 @@ async function main() {
   // the first time somebody follows the advice.
   log('  → ' + outPath + '   (feed to: node tools/mutation-suite.mjs --draft ' + file + ' --crawl-dir ' + crawlDir + ')');
   if (gpuBusy) process.exitCode = EXIT_BUSY;
+  else if (serverDown) process.exitCode = EXIT_NO_SERVER;
 }
 
 /**
