@@ -41,7 +41,7 @@
     TAG_53 = 0x53, // meaning unresolved
     TAG_BATTERY = 0x88, // battery in the first two data bytes; the other 18 unresolved
     TAG_11 = 0x11, // layout INFERRED from the size only: kept raw
-    TAG_34 = 0x34, // layout INFERRED from the size only: kept raw
+    TAG_34 = 0x34, // 3 samples x 4 optical channels (`optics4`, measured 2026-11-15)
     TAG_35 = 0x35; // layout INFERRED from the size only: kept raw
 
   /* Whole record size per tag, head included. Solved from the capture: with these five
@@ -72,6 +72,13 @@
   /* The four electrodes pinned by the owner's events in the worn capture (§6.5). Channels
      4-7 are NOT identified, so they keep their wire number and no name. */
   var EEG_ELECTRODES = ['left-ear', 'left-forehead', 'right-forehead', 'right-ear'];
+  /* THE 0x34 RECORD: 3 samples x 4 optical channels, 20-bit LSB-first, sample after sample, at 64 Hz.
+     The measurement (13 537 records of one worn test) sits beside the Python twin,
+     `muse_athena.OPTICS4_CHANNELS`. All four channels pulse, so none is an ambient channel. Which LED
+     or photodiode each one is stays unmeasured, so a channel has a wire number and no name. */
+  var OPTICS4_CHANNELS = 4,
+    OPTICS4_SAMPLES = 3,
+    OPTICS4_HZ = 64;
   var OPTICS_CHANNELS = 16, // 20-bit, LSB-first, one sample per record
     OPTICS_WIDTH = 20;
   var MOTION_CHANNELS = 6, // int16 little-endian, sample-major
@@ -247,6 +254,16 @@
     return out;
   }
 
+  /* The three samples of four raw 20-bit values in one 0x34 record. Raw counts, no unit. */
+  function optics4(rec) {
+    if (!rec || rec.tag !== TAG_34 || rec.data.length !== dataLen(TAG_34)) return null;
+    var v = unpackLsb(rec.data, OPTICS_WIDTH, false),
+      out = [],
+      s;
+    for (s = 0; s < OPTICS4_SAMPLES; s++) out.push(v.slice(s * OPTICS4_CHANNELS, (s + 1) * OPTICS4_CHANNELS));
+    return out;
+  }
+
   /* Battery percent from a 0x88 record: the first two data bytes, little-endian, over
      256. Held against the device's own `bp` reply in 18 presets, largest difference 0.09
      points (brief §6.4). */
@@ -316,6 +333,141 @@
     return { rows: rows, refused: refused };
   }
 
+  /* ── THE OPTICAL STREAM AS A PPG RECORDING ────────────────────────────────────────
+     The recorder writes no `_PPG.txt` for this device: its optical samples exist only inside the
+     frames. `OpticsPpg` takes a `<base>_RAW.txt` ONE LINE AT A TIME, so a 370 MB night never has to
+     sit in memory as rows, and answers the per-sample layout a PPG reader already takes:
+
+         Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;optic 4
+
+     THE FOURTH CHANNEL TRAVELS UNDER ITS OWN NAME. The reader's consensus takes three channels, and the
+     name `ambient` would claim a LEDs-off slot this device does not send. `optic 4` is neither, so the
+     column is kept and no reader spends it.
+
+     THE DEVICE COLUMN. A step is read off the 24-bit tick, which folds every 0.268 s, so the tick
+     alone cannot measure a silence. Three witnesses answer together: the per-tag record index counts
+     the lost records modulo 256, the host stamp picks the multiple of 256, and the tick confirms the
+     sum to the fold and gives the fine structure. When the tick does not confirm it, the device clock
+     or its counter restarted, so the host gap is the only measurement left and `reanchors` counts it.
+     `hostMs` is the caller's stamp reader (`DexClock.parseTimestamp`): this file parses no stamp. */
+  var REC34_NS = (OPTICS4_SAMPLES / OPTICS4_HZ) * 1e9,
+    CYCLE34_NS = 256 * REC34_NS,
+    REANCHOR_NS = 5e8; // a host gap this far past the counted records is a silence, not delivery jitter
+  function OpticsPpg(opts) {
+    this.hostMs = opts && typeof opts.hostMs === 'function' ? opts.hostMs : null;
+    this.chunks = [];
+    this.buf = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;optic 4'];
+    this.tail = '';
+    this.rows = 0;
+    this.records = 0;
+    this.lostRecords = 0;
+    this.reanchors = 0;
+    this.repeats = 0;
+    this.refusedRows = {};
+    this.unparsable = {};
+    this.ns = null;
+    this.tickNs = null;
+    this.index = null;
+    this.host = null;
+  }
+  /* Signed distance between two positions on the 2^28 ns fold, in [-half, +half). */
+  function foldDiff(a, b) {
+    var d = (((a - b) % WRAP_NS) + WRAP_NS) % WRAP_NS;
+    return 2 * d >= WRAP_NS ? d - WRAP_NS : d;
+  }
+  /* The 24-bit tick as a signed number. A record that starts just before a fold carries a small NEGATIVE
+     time, which the unsigned field shows as a value just under 2^24. Read unsigned, the step into that
+     record is 67 ms too long and the step out of it is 67 ms too short (263 such steps in one night). */
+  function signedTick(t) {
+    return t >= 0x800000 ? t - 0x1000000 : t;
+  }
+  OpticsPpg.prototype.step = function (rec, host) {
+    var tickNs = signedTick(rec.tick) * NS_PER_TICK;
+    if (this.ns === null) {
+      this.ns = tickNs;
+    } else {
+      var missed = lostBetween(this.index, rec.index),
+        gapNs = host !== null && this.host !== null ? (host - this.host) * 1e6 : null,
+        elapsed = (missed + 1) * REC34_NS,
+        off;
+      if (gapNs !== null && gapNs > elapsed) elapsed += Math.round((gapNs - elapsed) / CYCLE34_NS) * CYCLE34_NS;
+      off = foldDiff(tickNs - this.tickNs, elapsed);
+      if (2 * Math.abs(off) <= REC34_NS) {
+        this.lostRecords += Math.round(elapsed / REC34_NS) - 1;
+        elapsed += off;
+      } else if (gapNs !== null) {
+        this.reanchors++;
+        elapsed = gapNs > REC34_NS + REANCHOR_NS ? gapNs : REC34_NS; // a silence, or one jittered record
+      }
+      this.ns += elapsed;
+    }
+    this.tickNs = tickNs;
+    this.index = rec.index;
+    this.host = host;
+  };
+  /* A chunk of the file's text, cut anywhere. The tail after the last newline waits for the next chunk. */
+  OpticsPpg.prototype.push = function (chunk) {
+    var parts = (this.tail + chunk).split('\n'),
+      i;
+    this.tail = parts.pop();
+    for (i = 0; i < parts.length; i++) this.line(parts[i]);
+  };
+  OpticsPpg.prototype.line = function (line) {
+    if (line.trim() === '') return;
+    this.rows++;
+    var r = parseRawRow(line);
+    if (r.row === null) {
+      this.refusedRows[r.reason] = (this.refusedRows[r.reason] || 0) + 1; // absence-ok: a count of refused lines starts at zero
+      return;
+    }
+    var pkt = tokenise(r.row.bytes);
+    if (pkt.packet === null) {
+      this.unparsable[pkt.reason] = (this.unparsable[pkt.reason] || 0) + 1; // absence-ok: a count of refused lines starts at zero
+      return;
+    }
+    var host = null,
+      seen = false,
+      i,
+      s,
+      smp,
+      rec;
+    for (i = 0; i < pkt.packet.records.length; i++) {
+      rec = pkt.packet.records[i];
+      smp = optics4(rec);
+      if (smp === null) continue;
+      if (rec.index === this.index && signedTick(rec.tick) * NS_PER_TICK === this.tickNs) {
+        this.repeats++; // the link delivered one record twice
+        continue;
+      }
+      if (!seen && this.hostMs !== null) host = this.hostMs(r.row.hostRaw);
+      seen = true;
+      this.step(rec, host);
+      this.records++;
+      for (s = 0; s < smp.length; s++) this.buf.push(r.row.hostRaw + ';' + Math.round(this.ns + (s / OPTICS4_HZ) * 1e9) + ';' + smp[s][0] + ';' + smp[s][1] + ';' + smp[s][2] + ';' + smp[s][3]);
+    }
+    if (this.buf.length > 20000) {
+      this.chunks.push(this.buf.join('\n'));
+      this.buf = [];
+    }
+  };
+  /* The recording, or a named refusal: a file that held no optical record is never an empty success. */
+  OpticsPpg.prototype.finish = function () {
+    if (this.tail !== '') this.push('\n');
+    var info = {
+      rows: this.rows,
+      records: this.records,
+      lostRecords: this.lostRecords,
+      reanchors: this.reanchors,
+      repeats: this.repeats,
+      refusedRows: this.refusedRows,
+      unparsable: this.unparsable
+    };
+    if (this.rows === 0) return { text: null, reason: 'no-row', info: info };
+    if (this.records === 0) return { text: null, reason: 'no-optical-record', info: info };
+    if (this.buf.length) this.chunks.push(this.buf.join('\n'));
+    return { text: this.chunks.join('\n') + '\n', reason: null, info: info };
+  };
+
   global.MuseFrame = {
     HEADER_LEN: HEADER_LEN,
     RECORD_HEAD: RECORD_HEAD,
@@ -331,6 +483,10 @@
     EEG_CHANNELS: EEG_CHANNELS,
     EEG_SAMPLES: EEG_SAMPLES,
     EEG_ELECTRODES: EEG_ELECTRODES,
+    TAG_34: TAG_34,
+    OPTICS4_CHANNELS: OPTICS4_CHANNELS,
+    OPTICS4_SAMPLES: OPTICS4_SAMPLES,
+    OPTICS4_HZ: OPTICS4_HZ,
     OPTICS_CHANNELS: OPTICS_CHANNELS,
     OPTICS_WIDTH: OPTICS_WIDTH,
     MOTION_CHANNELS: MOTION_CHANNELS,
@@ -341,6 +497,8 @@
     lostBetween: lostBetween,
     tickSeconds: tickSeconds,
     TickClock: TickClock,
+    OpticsPpg: OpticsPpg,
+    optics4: optics4,
     eegFields: eegFields,
     eegSamples: eegSamples,
     optics: optics,
