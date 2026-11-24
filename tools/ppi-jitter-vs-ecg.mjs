@@ -49,6 +49,7 @@
  *   node tools/ppi-jitter-vs-ecg.mjs --dir <captures> [--min-epochs 3] [--max-nights 20]
  *   node tools/ppi-jitter-vs-ecg.mjs --selftest
  *   node tools/ppi-jitter-vs-ecg.mjs --dir <captures> --sqi   # §3.4's within-night SQI AUC + its verdict
+ *   node tools/ppi-jitter-vs-ecg.mjs --dir <captures> --pooling   # the pooling paper's Table 1, both analyses
  *   node tools/ppi-jitter-vs-ecg.mjs --verdict-sample   # the population verdict the adoption gate reads
  * ════════════════════════════════════════════════════════════════════════════════════════════════ */
 import vm from 'node:vm';
@@ -119,6 +120,12 @@ const FIDUCIAL = has('--fiducial');
 /* §3.4'S PER-EPOCH SQI ARM. Its figures print on every run that scores epochs; `--sqi` additionally
    emits the arm's verdict and makes the exit code the arm's, which is how `--fiducial` behaves. */
 const SQI_ARM = has('--sqi');
+/* §POOLING'S ARM. `papers/ppg-quality-gate-pooling.html` Table 1 holds three gates under two
+   analyses, and the paper's own claim is that THE ORDER REVERSES between them. So this arm prints
+   both columns or neither: a run that produced only the pooled half would reproduce the analysis the
+   paper exists to warn about. It also needs the per-beat LED channel, so it is the one arm that runs
+   the finger node in the PUBLICATION-PATCHED realm below. */
+const POOLING = has('--pooling');
 
 /* NOCTURNAL MILLISECONDS of one span, on the floating wall clock (CLAUDE.md §5: every hour here comes
    from getUTC*, so the figure does not depend on the reader's zone). The windows are
@@ -269,6 +276,32 @@ export function sqiPublishedFor(device) {
 const SQI_PUBLISHED = sqiPublishedFor(DEVICE);
 const SQI_PUBLISHED_AUC = SQI_PUBLISHED ? SQI_PUBLISHED.auc : null;
 const SQI_REPRO_BAND = 0.05;
+/* THE POOLING ARM'S PRE-STATED FIGURES AND GATE DECLARATIONS LIVE HERE, beside §3.4's, and
+   not beside the report that reads them: a `const` initialises in source order, and the
+   selftest runs before the arm. The same reason the status decision above is pure. */
+const POOL_PUBLISHED_BY_DEVICE = {
+  verity: {
+    paper: 'papers/ppg-quality-gate-pooling.html',
+    epochs: 1488,
+    nights: 10,
+    gates: {
+      sqi: { pooledAuc: 0.556, pooledP: 0.011, clusteredAuc: 0.763, iqr: '0.645–0.791', above: '9/10', clusteredP: 0.014 },
+      led: { pooledAuc: 0.642, pooledP: 8e-10, clusteredAuc: 0.7, iqr: '0.610–0.760', above: '10/10', clusteredP: 0.002 },
+      cov: { pooledAuc: 0.737, pooledP: 7e-23, clusteredAuc: 0.629, iqr: '0.561–0.729', above: '8/10', clusteredP: 0.106 }
+    }
+  }
+};
+const POOL_PUBLISHED = POOL_PUBLISHED_BY_DEVICE[DEVICE] || null;
+/* The same band §3.4 pre-states, and for the same reason: it is a band around a PRIOR claim. */
+const POOL_REPRO_BAND = SQI_REPRO_BAND;
+/* The gate names, their labels and the DIRECTION of each score. Every gate is negated, because a
+   catastrophic epoch is the one with WORSE quality — low SQI, low agreement, low coverage. A gate
+   that ranked the other way about would read as an AUC under 0.5 rather than as a reversed order. */
+const POOL_GATES = [
+  { key: 'sqi', label: 'mean SQI (shipped)', field: 'sqiMean' },
+  { key: 'led', label: 'LED agreement', field: 'ledMean' },
+  { key: 'cov', label: 'beat coverage', field: 'covRatio' }
+];
 /* The STATUS decision, pure and separate from the emitter, because the emitter exits the process and
    cannot be called from a selftest. NOT_RUN outranks everything (nothing was examined); then an absent
    published figure, which is a statement about the REFERENCE and not about power; then the test's own
@@ -538,6 +571,58 @@ export function epochSqi(s, t0, t1) {
   return { ok: true, mean: sum / n, cleanShare: clean / n, n };
 }
 
+/* ═══════════════════ §POOLING'S TWO FURTHER GATES, UNDER epochSqi's DISCIPLINE ═══════════════════
+ * `papers/ppg-quality-gate-pooling.html` Table 1 scores THREE gates over one epoch population, and
+ * only the first of them had a producer. Each of these reads the SAME covering session, the SAME
+ * window and the SAME beat floor as `epochSqi`, so the three gates are scored on identical seconds
+ * and a gate's ranking cannot come from a population of its own.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* GATE 2 — the epoch's mean LED agreement. The paper defines it as the epoch mean of the fraction of
+   the three optical channels that agreed on each beat, which is the node's own per-beat `agree`. ∅ —
+   a beat the node left unscored is skipped, never counted as nought agreement, and an epoch under the
+   beat floor is NAMED rather than scored over two beats. */
+export function epochLed(s, t0, t1) {
+  if (!s || !s.led || !s.beatMs || !s.led.length || !s.beatMs.length) return { ok: false, reason: 'no-led-channel' };
+  let sum = 0,
+    n = 0;
+  const lim = Math.min(s.beatMs.length, s.led.length);
+  for (let i = 0; i < lim; i++) {
+    const t = s.beatMs[i];
+    if (!(t >= t0 && t < t1)) continue;
+    const a = s.led[i];
+    if (!Number.isFinite(a)) continue;
+    sum += a;
+    n++;
+  }
+  if (n < SQI_MIN_BEATS) return { ok: false, reason: n === 0 ? 'no-scored-beat' : 'thin-led-epoch' };
+  return { ok: true, mean: sum / n, n };
+}
+
+/* GATE 3 — the epoch's beat coverage, and it is NOT the node's clean-beat share. The paper's own
+   methods list defines it as detected beats × median interval ÷ epoch duration, so it is computed
+   here from the published beat times alone. `ppgdex-dsp.js:7232` publishes `coveragePct` as
+   `cleanBeatPct`, a DIFFERENT quantity, and substituting it would reproduce the paper's row with
+   another measurement wearing its name.
+   ∅ — the median interval needs two beats inside the window; one beat gives a count and no interval,
+   so the epoch is named rather than assigned a coverage of its own duration. */
+export function epochCoverage(s, t0, t1) {
+  if (!s || !s.beatMs || !s.beatMs.length) return { ok: false, reason: 'no-beat-channel' };
+  const inWin = [];
+  for (let i = 0; i < s.beatMs.length; i++) {
+    const t = s.beatMs[i];
+    if (t >= t0 && t < t1) inWin.push(t);
+  }
+  if (inWin.length < SQI_MIN_BEATS) return { ok: false, reason: inWin.length === 0 ? 'no-beat' : 'thin-coverage-epoch' };
+  const d = [];
+  for (let i = 1; i < inWin.length; i++) d.push(inWin[i] - inWin[i - 1]);
+  const med = median(d);
+  if (!(med > 0)) return { ok: false, reason: 'no-median-interval' };
+  const dur = t1 - t0;
+  if (!(dur > 0)) return { ok: false, reason: 'no-epoch-duration' };
+  return { ok: true, ratio: (inWin.length * med) / dur, n: inWin.length, medIntervalMs: med };
+}
+
 /* THE AUC AS A RANK STATISTIC with MID-RANKS, so a tied pair counts half — which is what an AUC means
    and what a threshold sweep over a tied score would also give. ∅ — an AUC over one class is not
    chance, it is undefined, so this returns null rather than 0.5. */
@@ -646,6 +731,84 @@ export function nightAucs(rows, biasPct, pick) {
   return { nights, excluded };
 }
 
+/* ══════════════════════ THE POOLED TEST, AND WHY IT IS A SEPARATE STATISTIC ══════════════════════
+ * The paper's pooled column treats all 1,488 epochs as one sample, which is the analysis its own
+ * night-clustered column exists to contradict. Reproducing the contradiction needs BOTH, so this is
+ * the pooled half: a Mann-Whitney U over the concatenated epochs, the exact statistic the paper names.
+ *
+ * TIES ARE CORRECTED, because they are not rare here — a gate like beat coverage saturates at one and
+ * an uncorrected variance would inflate every z on that gate alone. U itself comes from `aucMidRank`,
+ * so the AUC and the test cannot disagree about the same ranks.
+ *
+ * THE TAIL IS COMPUTED, NOT APPROXIMATED TO SEVEN DIGITS. The published p values reach 7e-23, and the
+ * textbook erf approximation carries an ABSOLUTE error near 1.5e-7, which says nothing at all about a
+ * tail that small. So this uses the series below 1 and the Mills-ratio continued fraction above it,
+ * both accurate in double precision, and the object names the method rather than leaving a reader to
+ * assume one. A p value is reported BESIDE the criterion here and is never the criterion itself: a
+ * band around 7e-23 would be a band around a number no corpus can land on twice.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* The upper standard-normal tail, Q(z) = P(Z > z), for z >= 0. */
+export function normalTailQ(z) {
+  if (!Number.isFinite(z)) return null;
+  const x = Math.abs(z);
+  const pdf = Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
+  if (x <= 1) {
+    /* erf by its Taylor series, which converges fast well inside this range. */
+    let term = x,
+      sum = x,
+      n = 0;
+    while (Math.abs(term) > 1e-18 && n < 200) {
+      n++;
+      term *= (-1 * x * x) / n;
+      sum += term / (2 * n + 1);
+    }
+    const erf = (2 / Math.sqrt(Math.PI)) * sum;
+    const q = 0.5 * (1 - erf);
+    return z >= 0 ? q : 1 - q;
+  }
+  let f = 0;
+  for (let n = 240; n >= 1; n--) f = n / (x + f);
+  const q = pdf / (x + f);
+  return z >= 0 ? q : 1 - q;
+}
+
+/* MANN-WHITNEY U over two independent samples, two-sided, tie-corrected, with a continuity
+   correction. ∅ — a test over one class is not a null result, so it returns null. */
+export function mannWhitneyU(pos, neg) {
+  const P2 = (pos || []).filter(Number.isFinite),
+    N2 = (neg || []).filter(Number.isFinite);
+  if (!P2.length || !N2.length) return null;
+  const auc = aucMidRank(P2, N2);
+  if (auc == null) return null;
+  const nP = P2.length,
+    nN = N2.length,
+    N = nP + nN;
+  const u = auc * nP * nN;
+  const all = P2.concat(N2)
+    .slice()
+    .sort((a, b) => a - b);
+  let tieTerm = 0,
+    i = 0,
+    tiedGroups = 0;
+  while (i < N) {
+    let j = i;
+    while (j + 1 < N && all[j + 1] === all[i]) j++;
+    const t = j - i + 1;
+    if (t > 1) {
+      tieTerm += t * t * t - t;
+      tiedGroups++;
+    }
+    i = j + 1;
+  }
+  const varU = N > 1 ? ((nP * nN) / 12) * (N + 1 - tieTerm / (N * (N - 1))) : 0;
+  if (!(varU > 0)) return { u, auc, nPos: nP, nNeg: nN, tiedGroups, z: null, p: null, reason: 'zero-variance' };
+  const muU = (nP * nN) / 2;
+  const cc = Math.max(0, Math.abs(u - muU) - 0.5);
+  const z = cc / Math.sqrt(varU);
+  return { u, auc, nPos: nP, nNeg: nN, tiedGroups, z: (u >= muU ? 1 : -1) * z, p: Math.min(1, 2 * normalTailQ(z)), method: 'normal-approximation-tie-corrected' };
+}
+
 /* ════════════════════════════════════════ SELFTEST ════════════════════════════════════════ */
 /* ══════ THE FIDUCIAL SUBSTITUTION, AS SOURCE ══════
  * §4 of the paper reports that substituting the middle-amplitude fiducial the tilt-table literature
@@ -657,6 +820,32 @@ export function nightAucs(rows, biasPct, pick) {
  * SHARED by both arms and the only difference between the two numbers is which point on the upstroke
  * the foot sits at. The replacement mirrors `familiesForBeat`'s `pct50`
  * (`tools/pat-fiducial-jitter.mjs`) so the two readings of "middle amplitude" cannot drift apart. */
+/* ══════════════════ THE PUBLICATION-ONLY PATCH, AND WHY IT IS NOT A COUNTERFACTUAL ══════════════════
+ * `consensusBeats` already computes one LED-agreement value per consensus beat, and `analyze` keeps it
+ * local: `epochs[].ledAgreementPct` is the epoch MEAN on the NODE's own grid, and the per-beat array
+ * never leaves the function. This arm scores every gate on a COMMON ABSOLUTE grid, so the epoch mean
+ * on another grid cannot serve — the two grids differ by a per-night phase and can overlap by as
+ * little as 150 s of 300 s (see the per-epoch arm's header).
+ *
+ * SO THIS PATCH ADDS A FIELD TO A RETURN AND CHANGES NO COMPUTATION. It is the opposite of
+ * `FOOT_PATCH`, which deliberately substitutes a fiducial: here the shipped code runs with its own
+ * wiring, and the only difference is that a value it already computed becomes readable. The ALTERNATIVE
+ * was to publish the array from `ppgdex-dsp.js` itself, which is right architecturally and moves
+ * `manifestHash` and `computeHash` on every carrying bundle, and so owes a re-verification of every
+ * corpus-backed fixture for a figure in one paper (board #8169, #8170).
+ *
+ * THE DISCIPLINE THAT KEEPS IT HONEST, and it is three things: `applyFootPatch` refuses unless the
+ * anchor matches EXACTLY ONCE, so a silent no-op patch cannot ship; the selftest asserts that every
+ * field the shipped realm publishes reads identically in the patched one; and the corpus loop drops a
+ * night whose agreement array does not share the beat times' length, under its own name, rather than
+ * scoring a misaligned index.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════ */
+export const AGREE_PATCH = {
+  file: 'ppgdex-dsp.js',
+  find: '\n      epochs,\n',
+  replace: '\n      epochs,\n      consAgree: cons.agree,\n'
+};
+
 export const FOOT_PATCH = {
   file: 'ppgdex-dsp.js',
   find: '      let foot = mi;\n' + '      if (msv > 1e-9) {\n' + '        const cross = ms - (bp[ms] - mv) / msv;\n' + '        foot = Math.max(lo, Math.min(p, cross));\n' + '      }\n',
@@ -695,7 +884,7 @@ export function applyFootPatch(src, patch = FOOT_PATCH) {
    the flag is IN the tool and unreachable by anyone who did not read the source. */
 const USAGE =
   'usage: node tools/ppi-jitter-vs-ecg.mjs --dir <captures> [--device o2ring|verity] ' +
-  '[--min-epochs N] [--max-nights N] [--sleep-only] [--no-merge] [--epoch-dump <path outside the repo>] [--fiducial] [--sqi]  |  --selftest  |  --verdict-sample';
+  '[--min-epochs N] [--max-nights N] [--sleep-only] [--no-merge] [--epoch-dump <path outside the repo>] [--fiducial] [--sqi] [--pooling]  |  --selftest  |  --verdict-sample';
 
 function selftest() {
   let fail = 0;
@@ -784,6 +973,117 @@ function selftest() {
   ok('a non-consecutive pair contributes no jitter sample (too few ⇒ null)', gj === null, JSON.stringify(gj));
   ok('sd is the SAMPLE sd (÷ n−1)', Math.abs(sd([800, 900]) - Math.sqrt(5000)) < 1e-9);
   ok('quantile interpolates — IQR is not a nearest-rank approximation', quantile([1, 2, 3, 4], 0.25) === 1.75, String(quantile([1, 2, 3, 4], 0.25)));
+  /* ══ §POOLING'S LEGS. The tail is asserted against VALUES, not against itself, because the whole
+     reason it exists is that the textbook approximation reads nought in the range the paper quotes. */
+  const qRef = [
+    [0, 0.5],
+    [1.96, 2.49978951e-2],
+    [3, 1.34989803e-3],
+    [6, 9.86587645e-10],
+    [9.85, 3.42719879e-23]
+  ];
+  const qBad = qRef.filter(([z, want]) => Math.abs(normalTailQ(z) / want - 1) > 1e-6);
+  ok('the normal tail holds to 1e-6 RELATIVE from the centre out to 3e-23', qBad.length === 0, JSON.stringify(qBad));
+  ok('the tail is symmetric — Q(-z) = 1 − Q(z)', Math.abs(normalTailQ(-1.96) - (1 - 2.49978951e-2)) < 1e-9, String(normalTailQ(-1.96)));
+  /* A HAND-CHECKABLE U: two samples that do not overlap give AUC 1 and U = nP·nN. */
+  const mw = mannWhitneyU([3, 4], [1, 2]);
+  ok('U over separated samples reads AUC 1 and U = nP·nN', mw && mw.auc === 1 && mw.u === 4, JSON.stringify(mw));
+  ok('the pooled p is two-sided — it is 2·Q(z)', mw && Math.abs(mw.p - 2 * normalTailQ(mw.z)) < 1e-12, String(mw && mw.p));
+  /* THE TIE CORRECTION MUST BITE, and a fully tied sample is where it bites hardest: every rank is the
+     same mid-rank, so there is no information and the variance term collapses. */
+  const mwT = mannWhitneyU([1, 1, 1], [1, 1, 1]);
+  ok('a fully tied sample has no discriminating variance and names it', mwT && mwT.p === null && mwT.reason === 'zero-variance', JSON.stringify(mwT));
+  ok('a one-class pooled test is null, never chance (§∅)', mannWhitneyU([1, 2], []) === null);
+  /* THE TWO FURTHER GATES. A perfectly regular train fills its window exactly, which is the one
+     coverage value a reader can check by hand. */
+  const beats = Array.from({ length: 60 }, (_, i) => 1000 + i * 1000);
+  const sCov = { beatMs: beats, sqi: null, led: null };
+  const cov = epochCoverage(sCov, 1000, 61000);
+  ok('beat coverage is beats × median interval ÷ duration — a full minute of 1 Hz beats reads 1.0', cov.ok && Math.abs(cov.ratio - 1) < 1e-12, JSON.stringify(cov));
+  ok(
+    'a half-populated window reads about half',
+    (() => {
+      const c = epochCoverage({ beatMs: beats.slice(0, 30) }, 1000, 61000);
+      return c.ok && Math.abs(c.ratio - 0.5) < 1e-9;
+    })()
+  );
+  ok('one beat gives no median interval, so the epoch is NAMED not scored (§∅)', epochCoverage({ beatMs: [1000] }, 0, 300000).reason === 'thin-coverage-epoch');
+  ok('an epoch with no beat is named separately from a thin one', epochCoverage({ beatMs: [9e9] }, 0, 300000).reason === 'no-beat');
+  /* LED AGREEMENT reads the node's own per-beat array on the SAME index as the beat times, and an
+     unscored beat is skipped rather than read as total disagreement. */
+  const sLed = { beatMs: [1000, 2000, 3000, 4000, 5000, 6000], led: [1, 1, 1, 2 / 3, 2 / 3, null] };
+  const led = epochLed(sLed, 0, 300000);
+  ok(
+    'LED agreement is the mean over SCORED beats only — a null beat leaves the mean alone',
+    led.ok && led.n === 5 && Math.abs(led.mean - (1 + 1 + 1 + 2 / 3 + 2 / 3) / 5) < 1e-12,
+    JSON.stringify(led)
+  );
+  ok('a single-channel record has no LED channel and says so', epochLed({ beatMs: [1, 2], led: null }, 0, 300000).reason === 'no-led-channel');
+  ok('an epoch under the beat floor is named, never scored over two beats', epochLed({ beatMs: [1000, 2000], led: [1, 1] }, 0, 300000).reason === 'thin-led-epoch');
+  /* THE DEFECT THE REAL CORPUS FOUND, now a leg. The first two-night run reached NOT_RUN — the two
+     earliest Verity nights predate the tri-device window and carry no paired H10 — and the emitter
+     attached a result to it, so `Verdict.validate` refused the whole object and the run exited 2
+     having measured nothing it could report. No pure leg could have caught it while the result was
+     built inside the emitter, which is why the build is a function of its own now. */
+  ok(
+    'an empty run is NOT_RUN — no epoch carried a bias label, so no gate was ranked',
+    poolingVerdictStatus(poolingReport([])) === 'NOT_RUN' || !POOL_PUBLISHED,
+    poolingVerdictStatus(poolingReport([]))
+  );
+  ok('…and NOT_RUN carries NO result, because nothing was examined', poolingResultOf(poolingReport([]), 'NOT_RUN', [], null) === null);
+  ok('…nor does NOT_APPLICABLE, where the criterion does not bind', poolingResultOf(poolingReport([]), 'NOT_APPLICABLE', [], null) === null);
+  ok(
+    'the arm reads the result rule from the CONTRACT helper, not from a list of its own',
+    ['NOT_RUN', 'NOT_APPLICABLE'].every((st) => poolingResultOf({}, st, [], null) === null)
+  );
+  /* TABLE 1'S HEADLINE, ASSERTED RATHER THAN COMPUTED. The paper's claim is not three AUC values, it
+     is that the ORDER of the three gates reverses between the pooled column and the night-clustered
+     one. So the legs below plant a set that must reverse, one that must not, and one that cannot
+     decide — because a reversal detector that only ever says YES proves nothing about the night it
+     reads. The planted set is Simpson's arrangement, built from the two mechanisms separately:
+     coverage is CONSTANT within each night and differs BETWEEN them while the catastrophic epochs sit
+     mostly in one night, so pooling reads the night label and a within-night AUC reads nothing; SQI
+     separates strongly WITHIN each night and its level runs opposite to where the catastrophes are,
+     so pooling cancels what every night sees. */
+  const poolRows = [];
+  const pr = (night, bias, sqiMean, ledMean, covRatio) => poolRows.push({ night, rmBiasPct: bias, sqiMean, ledMean, covRatio });
+  pr('A', 40, 0.45, 0.7, 0.95);
+  for (const l of [0.8, 0.8, 0.8, 0.6, 0.6]) pr('A', 5, 0.55, l, 0.95);
+  for (const l of [0.7, 0.7, 0.7, 0.7, 0.8]) pr('B', 40, 0.8, l, 0.6);
+  pr('B', 5, 0.9, 0.75, 0.6);
+  const PR1 = poolingReport(poolRows);
+  ok(
+    'the planted epochs are all offered, and each gate scores every one of them',
+    PR1.epochs === 12 && POOL_GATES.every((g) => PR1.gates[g.key].scored === 12 && PR1.gates[g.key].nCat === 6),
+    JSON.stringify(POOL_GATES.map((g) => PR1.gates[g.key].scored))
+  );
+  ok('coverage discriminates POOLED because pooling reads the night label (5/6 of the between-night pairs)', Math.abs(PR1.gates.cov.pooled.auc - 30 / 36) < 1e-12, String(PR1.gates.cov.pooled.auc));
+  ok('…and within a night it is constant, so every night-AUC is exactly chance on mid-ranks', PR1.gates.cov.A.length === 2 && PR1.gates.cov.A.every((x) => x === 0.5), JSON.stringify(PR1.gates.cov.A));
+  ok('SQI separates PERFECTLY within each night', PR1.gates.sqi.A.length === 2 && PR1.gates.sqi.A.every((x) => x === 1), JSON.stringify(PR1.gates.sqi.A));
+  ok('…and pooling destroys it, below chance, because the level runs against the catastrophes', Math.abs(PR1.gates.sqi.pooled.auc - 11 / 36) < 1e-12, String(PR1.gates.sqi.pooled.auc));
+  ok(
+    'the two columns put the gates in opposite orders',
+    PR1.pooledOrder.join('>') === 'cov>led>sqi' && PR1.clusteredOrder.join('>') === 'sqi>led>cov',
+    PR1.pooledOrder.join('>') + ' vs ' + PR1.clusteredOrder.join('>')
+  );
+  ok('…which the arm reports as the reversal the paper claims', PR1.reversed === true && PR1.nightsEvaluable === 2, JSON.stringify({ reversed: PR1.reversed, nights: PR1.nightsEvaluable }));
+  /* THE NEGATIVE. One field changed — coverage no longer differs between the nights — and the two
+     orders no longer mirror. A detector that still said YES here would be reading the gate names. */
+  const PR2 = poolingReport(poolRows.map((r) => ({ ...r, covRatio: 0.95 })));
+  ok('with the between-night coverage step removed the orders no longer mirror', PR2.reversed === false, PR2.pooledOrder.join('>') + ' vs ' + PR2.clusteredOrder.join('>'));
+  /* THE UNDECIDABLE CASE (§∅). Two gates absent is not a reversal that failed: one ranked gate cannot
+     order anything, so this is null and the verdict reads UNDERPOWERED rather than FAIL. */
+  const PR3 = poolingReport(poolRows.map((r) => ({ night: r.night, rmBiasPct: r.rmBiasPct, sqiMean: r.sqiMean })));
+  ok(
+    'one ranked gate cannot show an order at all, so the reversal is NULL, never false',
+    PR3.reversed === null && PR3.gates.led.scored === 0 && PR3.gates.cov.scored === 0,
+    JSON.stringify({ reversed: PR3.reversed, pooled: PR3.pooledOrder })
+  );
+  ok('…and that run is UNDERPOWERED, not a failed reproduction', !POOL_PUBLISHED || poolingVerdictStatus(PR3) === 'UNDERPOWERED', poolingVerdictStatus(PR3));
+  ok(
+    'an epoch with no bias label is not an epoch this arm can score, and is not counted',
+    poolingReport(poolRows.concat([{ night: 'C', rmBiasPct: null, sqiMean: 0.5, ledMean: 0.5, covRatio: 0.5 }])).epochs === 12
+  );
   /* THE HARMONIC LEG (row `2026-10-19-the-ppi-jitter-endpoint-cannot-see-a-2x-harmonic`). A detector
      firing twice per beat is the failure this endpoint gated nine punch-list items against, and it
      could not see one: the extra beats pair with nothing, no two matched pairs stay consecutive, and
@@ -1334,6 +1634,12 @@ function realm(files, patch) {
 /* ONE list, read by both fiducial arms below, so the second arm cannot drift onto another spine. */
 const PPG_REALM = ['clock.js', 'kernel-constants.js', 'metric-registry.js', 'ppgdex-registry.js', 'ppgdex-morph.js', 'ppgdex-dsp.js'];
 const P = realm(PPG_REALM).PPGDSP;
+/* The pooling arm's realm, built ONLY when that arm runs — a second co-load of the spine costs real
+   seconds and holds a second copy of it, and no other arm reads the per-beat agreement. */
+const PAGREE = POOLING ? realm(PPG_REALM, AGREE_PATCH).PPGDSP : null;
+/* ONE name for "the finger node this run analyses with", so the pooling arm cannot read the patched
+   realm for one quantity and the shipped realm for another. */
+const PFIN = PAGREE || P;
 const E = realm(['clock.js', 'kernel-constants.js', 'metric-registry.js', 'ecgdex-registry.js', 'ecgdex-morph.js', 'ecgdex-dsp.js']).ECGDSP;
 
 /* ═══════════════════════ THE PER-EPOCH ARM — THE HALF THAT CALLS THE NODES ══════════════════════
@@ -1359,6 +1665,12 @@ function fingerSession(rec, res) {
        so the pair shares an index. The times come from `relSec` through the node, never from
        index/fs — the Clock Contract §7 rule that a node does not hand-roll a rate. */
     sqi: res.sqi && res.sqi.length ? res.sqi : null,
+    /* THE PER-BEAT LED AGREEMENT, published by the POOLING REALM's patch and null in the shipped
+       realm. It is indexed on `det.peaks` exactly as `sqi` is — `consensusBeats` returns one `agree`
+       entry per consensus peak — so the three arrays share one index and one membership rule. A
+       single-channel record has no consensus to agree about and the node publishes nulls, which the
+       epoch scorer skips rather than reading as disagreement (§∅). */
+    led: res.consAgree && res.consAgree.length ? res.consAgree : null,
     beatMs: (() => {
       const bt = res.beatTimes || [];
       const out = new Float64Array(bt.length);
@@ -1587,6 +1899,219 @@ function emitSqiVerdict(R) {
   console.log('\n' + JSON.stringify(v));
   process.exit(status === 'NOT_RUN' || status === 'UNDERPOWERED' ? 2 : 0);
 }
+/* ════════════════════════ §POOLING — TABLE 1, BOTH ANALYSES, ONE POPULATION ════════════════════════
+ * `papers/ppg-quality-gate-pooling.html` Table 1 scores three gates against the same
+ * |ΔrMSSD| > 25 % label over the same epochs, once POOLED and once WITHIN nights, and its headline
+ * claim is that THE ORDER REVERSES. The pooled column ranks beat coverage best and the shipped SQI
+ * worst; the night-clustered column ranks them the other way about.
+ *
+ * SO THE REVERSAL IS THE CRITERION, and the six AUC cells are the measurement under it. Pre-stating
+ * a band around a p of 7e-23 would state a criterion no corpus can satisfy twice, so the p values
+ * ride beside the cells and decide nothing.
+ *
+ * ONE POPULATION, THREE GATES. Every gate reads the same rows, so a gate that scored fewer epochs is
+ * visible as its own `scored` count rather than as a quietly different denominator.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* 🔴 DEVICE-KEYED, for the reason §3.4's arm carries in its own block: Table 1 was measured on the
+   Verity + H10 corpus, so for any other device the reproduction criterion DOES NOT BIND and this arm
+   reports its measurement under NOT_APPLICABLE. A label travels with the number it labels. */
+
+/* THE ORDER A COLUMN PUTS THE GATES IN, best first. Ties keep the declared order, so a reversal is
+   never read off two gates that scored the same. */
+function poolOrder(byKey) {
+  return POOL_GATES.map((g) => g.key)
+    .filter((k) => Number.isFinite(byKey[k]))
+    .sort((a, b) => byKey[b] - byKey[a]);
+}
+
+function poolingReport(eps) {
+  const rows = (eps || []).filter((e) => e && Number.isFinite(e.rmBiasPct));
+  const neg = (k) => (e) => (Number.isFinite(e[k]) ? -e[k] : Number.NaN);
+  const gates = {};
+  for (const g of POOL_GATES) {
+    const pick = neg(g.field);
+    const scored = rows.filter((r) => Number.isFinite(pick(r)));
+    const pos = scored.filter((r) => Math.abs(r.rmBiasPct) > CAT_BIAS_PCT).map(pick);
+    const nonCat = scored.filter((r) => Math.abs(r.rmBiasPct) <= CAT_BIAS_PCT).map(pick);
+    const pooled = mannWhitneyU(pos, nonCat);
+    const nights = nightAucs(rows, CAT_BIAS_PCT, pick);
+    const A = nights.nights.map((n) => n.auc).filter(Number.isFinite);
+    gates[g.key] = {
+      key: g.key,
+      label: g.label,
+      scored: scored.length,
+      nCat: pos.length,
+      nNonCat: nonCat.length,
+      pooled,
+      nights,
+      A,
+      above: A.filter((x) => x > 0.5).length,
+      clusteredAuc: A.length ? median(A) : null,
+      w: A.length ? wilcoxonSignedRank(A, 0.5) : null
+    };
+  }
+  const pooledBy = {},
+    clusteredBy = {};
+  for (const g of POOL_GATES) {
+    pooledBy[g.key] = gates[g.key].pooled ? gates[g.key].pooled.auc : Number.NaN;
+    clusteredBy[g.key] = gates[g.key].clusteredAuc == null ? Number.NaN : gates[g.key].clusteredAuc;
+  }
+  const pooledOrder = poolOrder(pooledBy),
+    clusteredOrder = poolOrder(clusteredBy);
+  /* THE REVERSAL, stated exactly: the two orders are the reverse of one another over the gates both
+     columns ranked. A partial run that ranked two gates can still show it, and one that ranked fewer
+     than two cannot show anything, which the null below says rather than guesses. */
+  const common = pooledOrder.filter((k) => clusteredOrder.includes(k));
+  const reversed =
+    common.length < 2
+      ? null
+      : common.join('>') ===
+        clusteredOrder
+          .filter((k) => common.includes(k))
+          .slice()
+          .reverse()
+          .join('>');
+  return {
+    epochs: rows.length,
+    gates,
+    pooledOrder,
+    clusteredOrder,
+    reversed,
+    nightsEvaluable: Math.max(...POOL_GATES.map((g) => gates[g.key].A.length), 0)
+  };
+}
+function poolingLines(R) {
+  const cell = (x, d = 3) => (x == null || !Number.isFinite(x) ? '—' : x.toFixed(d));
+  const out = [`  Table 1 (§pooling)        three gates, one label (|ΔrMSSD| > ${CAT_BIAS_PCT} %), POOLED and WITHIN ${UNIT_WORD}`];
+  out.push('                            gate                pooled AUC   pooled p      clustered AUC (median, IQR)    above 0.5   clustered p');
+  for (const g of POOL_GATES) {
+    const G = R.gates[g.key];
+    const iqr = G.A.length ? `${cell(quantile(G.A, 0.25))}–${cell(quantile(G.A, 0.75))}` : '—';
+    const wp = G.w && G.w.p != null ? fmtExactP(G.w.p) : '—';
+    const pp = G.pooled && G.pooled.p != null ? fmtExactP(G.pooled.p) : '—';
+    out.push(
+      `                            ${g.label.padEnd(20)}${cell(G.pooled ? G.pooled.auc : null).padEnd(13)}${String(pp).padEnd(14)}${cell(G.clusteredAuc).padEnd(8)}[${iqr}]`.padEnd(133) +
+        `${G.above} of ${G.A.length}`.padEnd(12) +
+        wp
+    );
+  }
+  /* THE CLAIM, PRINTED AS A CLAIM. The orders are what the paper's headline says reverses, so a reader
+     sees both orders rather than inferring them from six numbers. */
+  out.push(`                            pooled order      ${R.pooledOrder.join(' > ') || '—'}`);
+  out.push(`                            clustered order   ${R.clusteredOrder.join(' > ') || '—'}`);
+  out.push(`                            the order reverses: ${R.reversed == null ? 'UNDECIDED — fewer than two gates ranked in both columns' : R.reversed ? 'YES' : 'NO'}`);
+  out.push(
+    POOL_PUBLISHED
+      ? `                            the paper's own cells: ${POOL_GATES.map((g) => `${g.key} ${POOL_PUBLISHED.gates[g.key].pooledAuc}/${POOL_PUBLISHED.gates[g.key].clusteredAuc}`).join(' · ')}   [pooled/clustered, over ${POOL_PUBLISHED.epochs} epochs and ${POOL_PUBLISHED.nights} nights]`
+      : `                            no published Table 1 for the ${DEVICE.toUpperCase()}: the cells are VERITY figures, so this run makes no reproduction claim`
+  );
+  out.push(`                            epochs offered    ${R.epochs}   ·   LED unscored: ${sqiTally(ledDrops)}   ·   coverage unscored: ${sqiTally(covDrops)}`);
+  if (agreeMisaligned.length) out.push(`                            MISALIGNED agreement array, session excluded: ${agreeMisaligned.join(' · ')}`);
+  return out.join('\n');
+}
+
+/* THE ARM'S VERDICT. The CRITERION IS THE PAPER'S OWN CLAIM — that the order reverses — and the six
+   AUC cells are measured under it. A p value never enters the criterion: a band around 7e-23 would
+   be a band no corpus can land on twice. */
+function poolingVerdictStatus(R) {
+  if (!POOL_PUBLISHED) return 'NOT_APPLICABLE';
+  if (!R.epochs) return 'NOT_RUN';
+  if (R.reversed == null || R.nightsEvaluable < SQI_MIN_NIGHTS) return 'UNDERPOWERED';
+  const dev = poolingDeviations(R);
+  if (!dev.length) return 'UNDERPOWERED';
+  const worst = Math.max(...dev.map((d) => d.dev));
+  if (!R.reversed) return 'FAIL';
+  return worst <= POOL_REPRO_BAND ? 'PASS' : 'SHORTFALL';
+}
+
+/* EVERY CELL THE RUN CAN COMPARE, and a cell the run could not measure is ABSENT rather than scored
+   as a deviation of nought. */
+function poolingDeviations(R) {
+  if (!POOL_PUBLISHED) return [];
+  const out = [];
+  for (const g of POOL_GATES) {
+    const G = R.gates[g.key],
+      pub = POOL_PUBLISHED.gates[g.key];
+    if (G.pooled && Number.isFinite(G.pooled.auc)) out.push({ cell: g.key + '.pooled', got: G.pooled.auc, published: pub.pooledAuc, dev: Math.abs(G.pooled.auc - pub.pooledAuc) });
+    if (Number.isFinite(G.clusteredAuc)) out.push({ cell: g.key + '.clustered', got: G.clusteredAuc, published: pub.clusteredAuc, dev: Math.abs(G.clusteredAuc - pub.clusteredAuc) });
+  }
+  return out;
+}
+
+/* THE RESULT, BUILT ONLY WHERE A RESULT MAY EXIST. The contract decides that, not this arm — and
+   the real corpus found the arm deciding it wrongly. The first two-night run reached NOT_RUN, the
+   emitter attached a result anyway, and `Verdict.validate` refused the object: "NOT_RUN must carry
+   result: null". A measurement cannot ride a status that says nothing was examined. §3.4 routes its
+   result through the same helper; this arm did not, and no selftest leg could see it because the
+   emitter exits the process. So the build is pure and the refusal comes first. */
+function poolingResultOf(R, status, dev, worst) {
+  if (!sqiStatusCarriesResult(status)) return null;
+  return {
+    orderReverses: R.reversed,
+    pooledOrder: R.pooledOrder,
+    clusteredOrder: R.clusteredOrder,
+    nightsEvaluable: R.nightsEvaluable,
+    worstCell: worst,
+    cells: dev,
+    gates: POOL_GATES.map((g) => ({
+      gate: g.key,
+      scored: R.gates[g.key].scored,
+      nCatastrophic: R.gates[g.key].nCat,
+      pooledAuc: R.gates[g.key].pooled ? R.gates[g.key].pooled.auc : null,
+      pooledP: R.gates[g.key].pooled ? R.gates[g.key].pooled.p : null,
+      pooledMethod: R.gates[g.key].pooled ? R.gates[g.key].pooled.method || R.gates[g.key].pooled.reason : null,
+      clusteredAuc: R.gates[g.key].clusteredAuc,
+      nightsAboveChance: R.gates[g.key].above,
+      nights: R.gates[g.key].A.length,
+      clusteredP: R.gates[g.key].w ? R.gates[g.key].w.p : null,
+      nightsExcluded: R.gates[g.key].nights.excluded
+    })),
+    ledUnscored: { ...ledDrops },
+    coverageUnscored: { ...covDrops },
+    sessionsWithMisalignedAgreement: agreeMisaligned.slice(),
+    device: DEVICE
+  };
+}
+function emitPoolingVerdict(R) {
+  const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
+  const status = poolingVerdictStatus(R);
+  const dev = poolingDeviations(R);
+  const worst = dev.length ? dev.reduce((a, b) => (b.dev > a.dev ? b : a)) : null;
+  /* THE POPULATION IS EPOCHS, because the pooled half's denominator is epochs and `checked` must be
+     the thing the criterion ranked. A gate that scored fewer is visible as its own count below. */
+  const checked = Math.min(...POOL_GATES.map((g) => R.gates[g.key].scored));
+  const reason =
+    status === 'NOT_APPLICABLE'
+      ? `Table 1 was measured on the Verity armband corpus and no Table 1 exists for the ${DEVICE.toUpperCase()}, so the reproduction criterion does not bind; the measurement is reported beside it`
+      : status === 'NOT_RUN'
+        ? 'no epoch carried a per-epoch rMSSD bias, so no gate was ever ranked'
+        : status === 'UNDERPOWERED'
+          ? `${R.nightsEvaluable} evaluable night(s) and ${R.reversed == null ? 'fewer than two gates ranked in both columns' : 'the floor is ' + SQI_MIN_NIGHTS}, so this run could not decide the reversal`
+          : status === 'FAIL'
+            ? `the order does NOT reverse here: pooled ${R.pooledOrder.join('>')} against clustered ${R.clusteredOrder.join('>')}`
+            : status === 'SHORTFALL'
+              ? `the order reverses as published, and the worst cell misses its published value by ${worst.dev.toFixed(3)} (${worst.cell}: ${worst.got.toFixed(3)} against ${worst.published})`
+              : null;
+  const v = Verdict.make({
+    gate: 'pooling-paper-table1',
+    status,
+    population: { checked, eligible: R.epochs, excluded: R.epochs - checked },
+    criterion: { name: 'table1_order_reversal_with_six_auc_cells_in_band', threshold: POOL_REPRO_BAND, unit: 'auc', direction: 'lte' },
+    result: poolingResultOf(R, status, dev, worst),
+    evidence: POOL_PUBLISHED ? ['tools/ppi-jitter-vs-ecg.mjs', POOL_PUBLISHED.paper] : ['tools/ppi-jitter-vs-ecg.mjs'],
+    reason,
+    producedBy: { tool: 'tools/ppi-jitter-vs-ecg.mjs', commit: commitOf.commit, commitReason: commitOf.commit ? null : commitOf.reason }
+  });
+  const bad = Verdict.validate(v);
+  if (bad && bad.ok === false) {
+    console.error('the pooling verdict does not validate: ' + JSON.stringify(bad.errors || bad));
+    process.exit(2);
+  }
+  console.log('\n' + JSON.stringify(v));
+  process.exit(status === 'NOT_RUN' || status === 'UNDERPOWERED' ? 2 : 0);
+}
+
 /* ── THE CAP IS NAMED FOR NIGHTS, SO IT SELECTS NIGHTS ────────────────────────────────────────────
    Row 2026-11-04-max-nights-caps-the-largest-files-not-the-nights. The cap, the 12 h night shift and
    the head probe now live in `corpus-scope-core.mjs`, which carries the measurements that chose each
@@ -1678,10 +2203,14 @@ function buildUnits(files) {
     try {
       const txt = readFileSync(f.p, 'utf8');
       const runsText = runsOf(f.p, 'PPG');
-      const rec = runsText ? P.parsePPG(txt, { runsText }) : P.parsePPG(txt);
+      const rec = runsText ? PFIN.parsePPG(txt, { runsText }) : PFIN.parsePPG(txt);
       if (rec.t0Ms == null) continue;
-      const res = P.analyze(rec);
+      const res = PFIN.analyze(rec);
       if (!res || !res.beatTimes) continue;
+      if (POOLING && res.consAgree && res.consAgree.length !== res.beatTimes.length) {
+        agreeMisaligned.push(f.p.split('/').pop());
+        continue;
+      }
       parsed.push({ f, rec, res, beats: (res.footSec || []).map((x) => rec.t0Ms + x * 1000), sess: fingerSession(rec, res) });
     } catch (_e) {}
   }
@@ -2064,6 +2593,19 @@ const sqiDrops = {};
 const sqiDrop = (r) => {
   sqiDrops[r] = (sqiDrops[r] || 0) + 1;
 };
+/* §POOLING's two further gates keep their OWN tallies. A gate that scored fewer epochs than another
+   gate scored a different population, and one shared counter would hide exactly that. */
+const ledDrops = {},
+  covDrops = {};
+const ledDrop = (r) => {
+  ledDrops[r] = (ledDrops[r] || 0) + 1; // absence-ok: a tally of unscored epochs by reason; a reason not yet seen counts from 0
+};
+const covDrop = (r) => {
+  covDrops[r] = (covDrops[r] || 0) + 1; // absence-ok: a tally of unscored epochs by reason; a reason not yet seen counts from 0
+};
+/* A session whose agreement array does not share the beat times' length is NAMED and excluded: an
+   index that no longer lines up would score one beat's agreement against another beat's window. */
+const agreeMisaligned = [];
 /* ∅ — a night the sleep test COULD NOT DECIDE is not a night it rejected. Named in the population
    block below, because a count of silent exclusions names nothing to chase. */
 const sleepUndecided = [];
@@ -2191,6 +2733,12 @@ for (const unit of buildUnits(fingerFiles)) {
       else {
         const sq = epochSqi(fS, t, t + EPOCH_MS);
         if (!sq.ok) sqiDrop(sq.reason);
+        /* §POOLING's gates 2 and 3, on the SAME window and the SAME covering session as the pair
+           above, so Table 1's three gates cannot be scored over three populations. */
+        const ld = POOLING ? epochLed(fS, t, t + EPOCH_MS) : null;
+        const cv = POOLING ? epochCoverage(fS, t, t + EPOCH_MS) : null;
+        if (ld && !ld.ok) ledDrop(ld.reason);
+        if (cv && !cv.ok) covDrop(cv.reason);
         const row = {
           night: unit.name,
           t,
@@ -2206,7 +2754,11 @@ for (const unit of buildUnits(fingerFiles)) {
           /* §3.4's two scores, from the SAME window and the SAME covering session as the rMSSD pair. */
           sqiMean: sq.ok ? sq.mean : null,
           sqiClean: sq.ok ? sq.cleanShare : null,
-          sqiBeats: sq.ok ? sq.n : null
+          sqiBeats: sq.ok ? sq.n : null,
+          ledMean: ld && ld.ok ? ld.mean : null,
+          ledBeats: ld && ld.ok ? ld.n : null,
+          covRatio: cv && cv.ok ? cv.ratio : null,
+          covBeats: cv && cv.ok ? cv.n : null
         };
         eph.push(row);
         allEp.push(row);
@@ -2365,6 +2917,7 @@ if (!nights.length) {
   console.log(`\nno ${UNIT_WORD} produced ≥${MIN_EPOCHS} comparable epochs — nothing to report.`);
   printPopulation();
   if (SQI_ARM) emitSqiVerdict(sqiReport(allEp));
+  if (POOLING) emitPoolingVerdict(poolingReport(allEp));
   process.exit(0);
 }
 const J = nights.map((n) => n.jitter);
@@ -2553,6 +3106,7 @@ if (!epNights.length) {
         `                            jitter median ${split.jitIn == null ? '—' : split.jitIn.toFixed(1)} ms inside vs ${split.jitOut == null ? '—' : split.jitOut.toFixed(1)} ms outside · above ${JIT_BAND_MS} ms: ${split.aboveIn == null ? '—' : (split.aboveIn * 100).toFixed(0)} % vs ${split.aboveOut == null ? '—' : (split.aboveOut * 100).toFixed(0)} %`
     );
   console.log(sqiLines(sqiReport(allEp)));
+  if (POOLING) console.log(poolingLines(poolingReport(allEp)));
   /* THE BUDGET IS A FRACTION OF SOMETHING, so the something is MEASURED and printed with it. The
      reference is the corpus median per-epoch ECG rMSSD — the quantity the bias is a percentage of.
      Quoting a σ budget without it publishes a number nobody can check, and a budget read against an
@@ -2604,3 +3158,6 @@ if (!epNights.length) {
 
 printPopulation();
 if (SQI_ARM) emitSqiVerdict(sqiReport(allEp));
+/* §POOLING's verdict is LAST, so a run that asked for both arms still gets §3.4's exit code first —
+   the same order `--fiducial` and `--sqi` already keep. */
+if (POOLING) emitPoolingVerdict(poolingReport(allEp));
