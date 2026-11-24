@@ -184,7 +184,7 @@ export function selftest() {
       'git status': { status: 0, stdout: '' },
       'gh pr list': { status: 0, stdout: '[]' },
       'git fetch': { status: 0, stdout: '' },
-      compliance: { status: 0, stdout: 'PASS' },
+      compliance: { status: 0, stdout: 'clean' },
       secrets: { status: 0, stdout: '' },
       'git push': { status: 0, stdout: '' },
       'gh pr create': { status: 0, stdout: 'https://github.com/o/r/pull/77\n' },
@@ -225,8 +225,8 @@ export function selftest() {
     ['an unreadable PR list', { 'gh pr list': { status: 1, stdout: '' } }],
     ['a PR list that is not JSON', { 'gh pr list': { status: 0, stdout: 'oops' } }],
     ['a failed fetch', { 'git fetch': { status: 1, stdout: '' } }],
-    ['a body the gate refuses', { compliance: { status: 1, stdout: '', stderr: 'FAIL no Rule 0' } }],
-    ['a secret in the diff', { secrets: { status: 1, stdout: 'FAIL' } }],
+    ['a body the gate refuses', { compliance: { status: 1, stdout: '', stderr: 'red: no Rule 0' } }],
+    ['a secret in the diff', { secrets: { status: 1, stdout: 'red' } }],
     ['a note with findings', { lint: () => ({ ok: false, report: 'R' }) }]
   ]) {
     const d = drive(over, opts);

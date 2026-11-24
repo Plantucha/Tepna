@@ -93,6 +93,7 @@ for c in 'grep -n "gh pr create" CLAUDE.md' "git log --grep='gh pr ready'" 'echo
   bash_use_raw "$c" > "$T/q.jsonl"
   check "a command that only NAMES a finish owes nothing: $c" "" "$(stop false "$T/q.jsonl" | bash "$HOOK" finish)"
 done
+# shellcheck disable=SC2016  # the $( ) is the literal text of a command, not an expansion here
 for c in 'cd /x && gh pr create --draft' 'URL=$(gh pr create --draft)' 'GH_TOKEN=x timeout 60 gh pr ready 3' 'if gh pr create; then :; fi' 'git push; gh pr create' $'git push\ngh pr create' 'node /abs/tools/wt-done.mjs ../wt-x' 'tools/wt-done.mjs ../wt-x'; do
   bash_use_raw "$c" > "$T/q.jsonl"
   check "CONTROL: a finish that runs still owes the post: $c" "block" "$(stop false "$T/q.jsonl" | bash "$HOOK" finish | jq -r .decision)"
