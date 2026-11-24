@@ -109186,6 +109186,80 @@
       }
     });
 
+    /* ── §∅ AN UNREPORTED SEE IS NOT ZERO, AND THE RANGE MUST AGREE WITH IT ──────────────────────────
+       Both VO₂max cards printed an or-zero `see`, so a result carrying none read "±0 SEE" — no
+       uncertainty at all — beside a range that is ±10.8 wide. The two numbers contradicted each other
+       in one sentence. `oxydex-profile.js` reaches that state on every profile edit of a night with no
+       earlier `vo2est`: it creates the object, writes `vo2Low` and `vo2High` from a literal, and never
+       wrote `see`. The render helper is sliced out of the source and RUN; the producer half is pinned. */
+    group('OxyDex §∅ — an unreported SEE names itself, and the range is built from the same number', 'oxydex-render · oxydex-profile · absence · extract-and-run', function (T) {
+      var R = String((env.sources || {})['oxydex-render.js'] || ''),
+        P = String((env.sources || {})['oxydex-profile.js'] || '');
+      T.ok('oxydex-render.js is in env.sources (' + R.length + ' bytes)', R.length > 20000, 'an unread source reads exactly like a clean one');
+      T.ok('oxydex-profile.js is in env.sources (' + P.length + ' bytes)', P.length > 5000, 'an unread source reads exactly like a clean one');
+
+      /* ── the render helper, sliced and RUN ── */
+      var fn = null;
+      if (R) {
+        var a = R.indexOf('function _vo2RangeHtml(v) {');
+        var b = a < 0 ? -1 : R.indexOf('\n}', a);
+        if (a >= 0 && b > a) {
+          try {
+            fn = new Function(R.slice(a, b + 2) + '\nreturn _vo2RangeHtml;')();
+          } catch (_e) {
+            fn = null;
+          }
+        }
+      }
+      if (typeof fn === 'function') {
+        T.ok('a finite SEE prints as the measured width', fn({ vo2Low: 31.2, vo2High: 52.8, see: 10.8 }).indexOf('(±10.8 SEE)') > 0);
+        T.ok('…and the range still reads both ends', fn({ vo2Low: 31.2, vo2High: 52.8, see: 10.8 }).indexOf('31.2 – 52.8 ml/kg/min') > 0);
+        T.ok('a trained-athlete SEE of 5.4 prints as itself', fn({ vo2Low: 36.6, vo2High: 47.4, see: 5.4 }).indexOf('(±5.4 SEE)') > 0);
+        T.ok('a MEASURED SEE of 0 still prints — the test is finiteness, never truthiness', fn({ vo2Low: 42, vo2High: 42, see: 0 }).indexOf('(±0 SEE)') > 0);
+        ['absent key', 'null', 'undefined', 'NaN', 'string'].forEach(function (lab, k) {
+          var v = { vo2Low: 31.2, vo2High: 52.8 };
+          if (k === 1) v.see = null;
+          if (k === 2) v.see = undefined;
+          if (k === 3) v.see = NaN;
+          if (k === 4) v.see = '10.8';
+          var h = fn(v);
+          T.ok('an unreported SEE (' + lab + ') names itself', h.indexOf('(SEE not reported)') > 0);
+          T.ok('…and never reads as ±0 (' + lab + ')', h.indexOf('±0') < 0);
+        });
+        T.eq('no range at all renders nothing', fn({ vo2Low: null, vo2High: 52.8 }), '');
+        T.eq('…either end absent renders nothing', fn({ vo2Low: 31.2, vo2High: null }), '');
+        T.eq('an absent result renders nothing', fn(null), '');
+      } else T.skip('_vo2RangeHtml could not be sliced out of oxydex-render.js');
+
+      /* ── both cards read ONE body, and no or-zero SEE survives ── */
+      function blank(s) {
+        return s.replace(/[^\n]/g, '');
+      }
+      function code(t) {
+        return String(t || '')
+          .replace(/\/\*[\s\S]*?\*\//g, blank)
+          .replace(/(^|[^:'"\\])\/\/.*$/gm, '$1');
+      }
+      var rc = code(R),
+        pc = code(P);
+      T.eq('no or-zero SEE is left in oxydex-render.js', (rc.match(/\.see \|\| 0/g) || []).length, 0);
+      T.eq('both VO₂max cards call the one helper', (rc.match(/html \+= _vo2RangeHtml\(/g) || []).length, 2);
+      /* `proj-range` is a shared class — four other cards draw their own range with it — so the
+         subject here is the VO₂max range itself. Only the helper names `vo2Low` now: the guard and
+         the markup, two mentions in the comment-stripped source and no third. */
+      T.eq('…and only the helper builds the VO₂max range', (rc.match(/vo2Low/g) || []).length, 2);
+
+      /* ── the producer half: the profile writes the SEE it builds the range from ── */
+      T.ok(
+        'the profile reads an existing SEE before it falls back',
+        /_see = typeof n\.vo2est\.see === 'number' && isFinite\(n\.vo2est\.see\) \? n\.vo2est\.see : 10\.8/.test(pc),
+        'a bare literal would discard a trained-athlete 5.4'
+      );
+      T.ok('…writes it back onto the result', /n\.vo2est\.see = _see;/.test(pc), 'an unwritten SEE is what the card printed as 0');
+      T.eq('…and builds BOTH ends from that same number', (pc.match(/_newVo2 [-+] _see\)\.toFixed\(1\)/g) || []).length, 2);
+      T.eq('no literal 10.8 is left in the range arithmetic', (pc.match(/_newVo2 [-+] 10\.8/g) || []).length, 0);
+    });
+
     group('OxyDex B2 · a score or a verdict over an unmeasured input is no score', 'oxydex-dsp · score · absence', function (T) {
       var B = env.OxyDex && env.OxyDex._bare;
       if (!B || typeof B.computeSleepStabilityScore !== 'function') {

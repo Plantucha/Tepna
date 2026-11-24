@@ -2367,7 +2367,7 @@ function renderSmartSummary(n) {
       '</span>' +
       '</div>';
     html += '<div class="proj-main"><div class="proj-value proj-val-' + _vc + '">' + _v.vo2est + '</div><div class="proj-unit">ml/kg/min</div></div>';
-    if (_v.vo2Low != null && _v.vo2High != null) html += '<div class="proj-range">Range: ' + _v.vo2Low + ' – ' + _v.vo2High + ' ml/kg/min (±' + (_v.see || 0) + ' SEE)</div>';
+    html += _vo2RangeHtml(_v);
     html += '<div class="ss-kpi-grid">';
     var _hrRestSrc = UP.hrRestOverride && UP.hrRestOverride > 30 ? 'manual' : 'p5';
     html += ssKPI('HR Rest', '<span class="cv-neutral">' + _v.hrRest + ' bpm</span>', 'neutral', _hrRestSrc);
@@ -2382,6 +2382,18 @@ function renderSmartSummary(n) {
   return html;
 }
 
+/* §∅ AN UNREPORTED STANDARD ERROR IS NOT ZERO. Both VO₂max cards printed `(±' + (v.see || 0) + ' SEE)`,
+   so a result carrying no `see` read "±0 SEE" — a perfect estimate — beside a range that is ±10.8 wide.
+   The two lines contradicted each other in the same sentence. `oxydex-profile.js` reaches that state on
+   every profile edit of a night with no earlier `vo2est`: it creates the object, writes `vo2Low` and
+   `vo2High`, and never wrote `see`. The SEE clause now appears only for a finite `see`, and names the
+   absence otherwise. A measured SEE of 0 still prints, because the test is finiteness, not truthiness.
+   ONE body for both cards, local and pure: `tests/dex-tests.js` slices it out of this source and runs it. */
+function _vo2RangeHtml(v) {
+  if (!v || v.vo2Low == null || v.vo2High == null) return '';
+  var see = typeof v.see === 'number' && isFinite(v.see) ? '(±' + v.see + ' SEE)' : '(SEE not reported)';
+  return '<div class="proj-range">Range: ' + v.vo2Low + ' – ' + v.vo2High + ' ml/kg/min ' + see + '</div>';
+}
 function ssKPI(label, valHtml, cls, sublabel) {
   return (
     '<div class="ss-kpi ' +
@@ -2764,7 +2776,7 @@ function renderProjectionCards(n) {
       (v.vo2Category || '—') +
       '</span></div>';
     html += '<div class="proj-main"><div class="proj-value proj-val-' + vc + '">' + v.vo2est + '</div><div class="proj-unit">ml/kg/min</div></div>';
-    if (v.vo2Low != null && v.vo2High != null) html += '<div class="proj-range">Range: ' + v.vo2Low + ' – ' + v.vo2High + ' ml/kg/min (±' + (v.see || 0) + ' SEE)</div>';
+    html += _vo2RangeHtml(v);
     html += '<div class="proj-waterfall">';
     var hrRestSrc = UP.hrRestOverride && UP.hrRestOverride > 30 ? 'manual entry' : 'nocturnal p5';
     html += '<div class="proj-factor"><span>HR Rest (' + hrRestSrc + ')</span><span class="pf-val">' + v.hrRest + ' bpm</span></div>';
