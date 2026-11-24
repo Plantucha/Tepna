@@ -222,3 +222,54 @@ Offline result over captured candidate pools, the same index, one day:
 Kestrel set the three-note count after reading its holdout. The holdout is 264 queries that the pool capture
 reached after the choice of the lane, and it scores 0.708. A slot inside the five costs repo hits, so the notes
 come after the five.
+
+## 11 · The note promotion: L hit@5 passes the floor
+
+Owner, 2026-11-24: "especially raise 0.45". The order now puts at most two memory notes into the five
+answers. A note takes the place of the lowest hit from outside the repo (a board post or a state file). A
+displaced hit prints after the five, and a repo document keeps its place.
+
+Kestrel stated the criterion before the study: live L hit@5 at least 0.55, each half at least 0.53, and at
+least 47 of the 52 repo queries. Kestrel chose the order on the tune half and read the hold half once. The
+study replayed captured candidate pools of the same 422 L queries.
+
+| run | L hit@1 | L hit@5 | L printed | L refused | median output |
+|---|---|---|---|---|---|
+| shipped order, live 2026-11-24 | 56 | 192 (0.455) | 292 (0.69) | 4 | 3,897 B |
+| note promotion, offline (tune 129/212, hold 123/210) | not scored | 252 (0.597) | not scored | not scored | not scored |
+| note promotion, live 2026-11-24 | 72 | 252 (0.597) | 294 (0.70) | 3 | 3,953 B |
+
+**Verdict: PASS** on the criterion of section 8, L hit@5 not lower than 0.55. S hit@5 stays at 1 of 501 by design.
+
+The repo queries do not pay for it. Over the 52 queries of `audits/XERJ-BENCH-QUERIES.json`, two runs of each
+order gave 49 and 48 (shipped), 48 and 49 (promotion). The vector search is not deterministic between runs,
+so one query moves either way. The refusal floor passes: 39 of 40 off-topic queries refused, and no correct
+answer refused.
+
+Limits:
+
+- The truth of stratum L is what a session read after the old engine answered. It favours the old order.
+- The gain comes from places that board posts and state files held. Their hits print after the five.
+- `doc2query` (questions generated per note, $6.63) gave no gain. Kestrel did not ship it.
+
+One defect of the instrument: `tools/xerj-bench.mjs` read the semantic lane with a command that now answers
+from the hybrid lane. Its `bge` row scored 0 of 52 with no error, so the acceptance line passed over nothing.
+It now asks for the semantic lane, and an engine that does not answer makes the result `UNKNOWN`. A new `answer`
+row scores the answer that doc-search prints.
+
+## 12 · Second currency pass: the test
+
+The first pass left 1,777 claims at "cannot tell", because the excerpts did not show the code. The second pass
+finds excerpts by a search on each claim. A second model call then tries to overturn each outdated mark.
+
+| test | notes | confirmed marks | right by hand | bar | result |
+|---|---|---|---|---|---|
+| first sample, no second call | 60 | 12 | 10 (0.83) | 0.85 | FAIL |
+| second call, on the first sample | 60 | 8 | 8, and it dropped 2 of 10 right marks | keep 9 | FAIL |
+| new sample with the second call | 120 | 16 | 15 (0.94) | 0.85, n at least 12 | PASS |
+
+The third row is a new test on unseen notes, with its criterion stated before the pack. It is not a pass of the
+first one. Its cost was $0.05 a note (bar 0.06) and 0.13 marks a note (bar 0.08). Two of the 15 right marks were
+close calls. With both counted wrong, the result is 13 of 16 (0.81), below the bar.
+
+Because of that, the full pass over the remaining notes applies no mark without a hand check.
