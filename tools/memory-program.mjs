@@ -23,8 +23,8 @@
  * the convention and the resolver of tools/gemini-review.mjs. The key is never printed; every line
  * written to disk passes `scrub`.
  *
- * Text is redacted before it leaves the rig: private addresses, push/ping URLs, password fields and
- * long mixed tokens become placeholders. A file with an unredacted match after the pass is skipped.
+ * Text is redacted before it leaves the rig: private and tailnet addresses, push/ping URLs, password
+ * fields and long mixed tokens become placeholders. A file with an unredacted match after the pass is skipped.
  */
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -63,7 +63,7 @@ const HEADERS = (key) => ({ 'x-api-key': key, 'anthropic-version': '2023-06-01',
 
 /* ── redaction ─────────────────────────────────────────────────────────────── */
 export const REDACTIONS = [
-  [/\b(?:(?:10|127)(?:\.\d{1,3}){3}|(?:192\.168|172\.(?:1[6-9]|2\d|3[01]))(?:\.\d{1,3}){2})\b/g, '<private-ip>'],
+  [/\b(?:(?:10|127)(?:\.\d{1,3}){3}|(?:192\.168|172\.(?:1[6-9]|2\d|3[01])|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7]))(?:\.\d{1,3}){2})\b/g, '<private-ip>'],
   [/https?:\/\/[^\s)>\]'"`]*(?:ntfy|hc-ping|healthchecks|webhook|hooks\.)[^\s)>\]'"`]*/gi, '<private-url>'],
   [/\b(auth_pass|password|passwd|secret|token|api[_-]?key)(\s*[:=]\s*)\S+/gi, '$1$2<redacted>'],
   /* a long token; see isToken for what counts */
