@@ -29863,6 +29863,68 @@
       T.ok('…and text that only CONTAINS null is left alone', _out.indexOf('"note null"') >= 0 && _out.indexOf('nullable') >= 0, JSON.stringify(_out));
     });
 
+    group('§∅ · OxyDex CSV — a night with a hole declares its coverage, a contiguous one exports as before', 'oxydex-app · absence', function (T) {
+      var app = (env.sources || {})['oxydex-app.js'] || '';
+      var util = (env.sources || {})['oxydex-util.js'] || '';
+      /* SOURCE-MIRROR for the same reason the group above states: `exportCSV()` reads the module-level
+         `allNights` and takes no argument, so the Node lane cannot call it. These legs do not stop at
+         the text though — they LIFT the coverage block and `csvNum` out of the source and RUN both, so
+         a block that compiles but fabricates a number reds here. */
+      T.ok('oxydex-app.js is readable', app.length > 0, 'env.sources entry absent');
+      T.ok('oxydex-util.js is readable', util.length > 0, 'env.sources entry absent');
+      // ── 1 · the declaration reaches the CSV at all ──
+      T.ok(
+        'the night summary names a Coverage row',
+        app.indexOf("'Coverage,' + (_cov.kind != null ? _cov.kind : '')") >= 0,
+        'exportCSV published ODI, T-index and burden rates over the MEASURED seconds and named no coverage'
+      );
+      T.ok(
+        '…with the recorded minutes beside the span',
+        app.indexOf("'Recorded (min),' + csvNum(") >= 0 && app.indexOf("'Span (min),' + csvNum(") >= 0,
+        'the amount of the absence must travel with the declaration'
+      );
+      T.ok('…and the segment count for its shape', app.indexOf("'Recorded Segments,' + csvNum(_cov.segments.length)") >= 0, 'one hole and dust over the night are different readings of one number');
+      // ── 2 · CONDITIONAL, and spliced under RECORDING ──
+      T.ok('the rows sit behind the coverage guard', /var _covRows = \[\];\n\s*if \(_cov\) \{/.test(app), 'an unconditional row would annotate a night that holds no hole');
+      T.ok('…and splice into the RECORDING block, not after the T-INDEX header', app.indexOf('], _covRows, [') >= 0, 'the concat must carry the rows as its second argument');
+      // ── 3 · LIFT the block and RUN it ──
+      var _blk = app.match(/var _cov = n\.coverage;[\s\S]*?(?=\n\s*lines = lines\.concat\()/);
+      T.ok('the coverage block lifts out of the source', !!_blk, 'no `var _cov = n.coverage;` block to run');
+      var _cnM = util.match(/function csvNum\(([\s\S]*?)\n\}/);
+      T.ok('csvNum lifts out of the util source', !!_cnM, 'no csvNum body to run');
+      /* Every leg below REPORTS, on a tree that carries the block and on one that does not: `_rows`
+         answers the sentinel `NO-BLOCK` instead of skipping the assertion, because a leg that never
+         ran is not a leg that passed. */
+      var _cn = null,
+        _run = null;
+      try {
+        _cn = _cnM ? new Function('v', 'return (function csvNum(' + _cnM[1] + '\n})(v);') : null;
+        _run = _blk && _cn ? new Function('n', 'csvNum', _blk[0] + '\n      return _covRows;') : null;
+      } catch (_e) {
+        _run = null;
+      }
+      function _rows(c) {
+        if (!_run) return 'NO-BLOCK';
+        try {
+          return _run({ coverage: c }, _cn).join(' | ');
+        } catch (_e2) {
+          return 'THREW: ' + _e2;
+        }
+      }
+      T.eq(
+        'a 6 h recording over an 8 h span declares both, in minutes',
+        _rows({ kind: 'sparse', recordedSec: 21600, spanSec: 28800, segments: [1, 2] }),
+        'Coverage,sparse | Recorded (min),360 | Span (min),480 | Recorded Segments,2'
+      );
+      /* The contiguous night. `coverageFromSegments` answers null under two segments, so this is the
+         ordinary case and the CSV must not grow a row. */
+      T.eq('a contiguous night adds no row', _rows(null), '');
+      /* ∅ · a coverage block that carried no second count must not earn minutes. Nobody measured the
+         span, so the two minute rows stay absent rather than reading 0. */
+      T.eq('a coverage block with no seconds declares the kind alone', _rows({ kind: 'sparse' }), 'Coverage,sparse');
+      T.eq('…and a kind nobody wrote reads as an empty cell', _rows({ segments: [1, 2] }), 'Coverage, | Recorded Segments,2');
+    });
+
     group('Cohesion single-source — evidence badges', 'cohesion-badges · cpapdex-registry · glucodex-registry · hrvdex-registry', function (T) {
       var M = env.MetricRegistry,
         docs = env.docs || {};

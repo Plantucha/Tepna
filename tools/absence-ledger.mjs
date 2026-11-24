@@ -1265,6 +1265,16 @@ export const SEEDS = [
     state: 'accepted-with-reason',
     reason:
       'The same substitution inside _bestOverlap feeds only an internal pairing score. An absent endMs makes the candidate a point, so it can never score positive overlap and falls to the gap branch, where the gap is its true start distance. A peer with a measured overlapping span always outscores it, and the score never leaves the function. The published span comes from _overlapPct, which now refuses an unmeasured end. Read 2026-11-24 by Heron.'
+  },
+  {
+    at: 'oxydex-app.js:266',
+    state: 'fixed',
+    note: 'The night-summary CSV now declares its coverage. exportCSV printed Duration (min) as the SPAN, while every rate below it, the T-index percentages and both ODI rates and the hypoxic burden, is over the MEASURED seconds. The file named no coverage anywhere. A conditional block now prints Coverage and Recorded (min) and Span (min) and Recorded Segments from recording.coverage, which is non-null only when coverageFromSegments merged two or more segments, so a contiguous night exports unchanged. Plant group OxyDex CSV so a night with a hole declares its coverage. Ten of twelve legs red on origin/main ac70318c9 (measured 2026-11-24, Heron).'
+  },
+  {
+    at: 'oxydex-app.js:284',
+    state: 'fixed',
+    note: 'BOOKKEEPING. Already fixed on main and hand-read 2026-11-24 by Heron against origin/main ac70318c9. The T-INDEX row no longer writes _td.pct or 0; it writes csvNum(_td.pct) and routes the seconds through a measured flag. tests/dex-tests.js already carries the leg under SITE 1, the exportCSV T-INDEX row. Read by content, never by a snippet match.'
   }
 ];
 
