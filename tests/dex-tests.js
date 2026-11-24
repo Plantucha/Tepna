@@ -42509,6 +42509,12 @@
              mutant, not a behavioural one, and the assertion has no contract behind it. ── */
       var out = B.altVO2Factor(1);
       T.eq('B.altVO2Factor(1 m) → "1" (at or below 1500 m there is NO altitude penalty — exactly 1, not merely near it)', JSON.stringify(out), '1');
+      /* ∅ — the ROUND 2 note above refused to pin `altVO2Factor(null)`, because the drafted 0.55
+         contradicted the guard and the real answer was a measured-looking 1. The guard now
+         refuses, so the three legs below pin the investigation the bank asked for. */
+      T.eq('B.altVO2Factor(null) → null (an absent elevation is not a measured sea level)', JSON.stringify(B.altVO2Factor(null)), 'null');
+      T.eq('…and an undefined elevation refuses the same way', JSON.stringify(B.altVO2Factor(undefined)), 'null');
+      T.eq('…while 0 m stays a LEGAL measured elevation at factor 1 (this is the pair the old code could not tell apart)', B.altVO2Factor(0), 1);
       out = B.sampEn([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 2, 1);
       T.eq('B.sampEn(ramp,2,1) → "0" (pins the MAXN decimation bound: MAXN=0 would truncate the series)', JSON.stringify(out), '0');
       T.eq('B.sampEn(ramp,2,1) is NOT null (pins the A===0/B===0 refusal: === → !== makes a valid series refuse)', JSON.stringify(out !== null), 'true');
@@ -51605,15 +51611,30 @@
         (app.match(/const elev = _pp\.elev[^;]*;/) || ['no site'])[0]
       );
       T.ok(
-        'the compute road names the no-correction case, so the factor is not read as a measured x1',
-        /const altFactor = elev == null \? 1 : altVO2Factor\(elev\);/.test(app),
+        'the compute road PUBLISHES the null, so the factor is not read as a measured x1',
+        /const altFactor = elev == null \? null : altVO2Factor\(elev\);/.test(app),
         (app.match(/const altFactor = elev[^;]*;/) || ['no site'])[0]
+      );
+      T.ok(
+        '…and a SECOND local carries the neutral 1 into the VO2 math, so no correction is applied either',
+        /const altApplied = altFactor == null \? 1 : altFactor;/.test(app) && /vo2Base\(rhrEff, hrmaxEff\) \* altApplied/.test(app),
+        (app.match(/const altApplied = altFactor[^;]*;/) || ['no site'])[0]
+      );
+      T.ok(
+        '…and the export writes that null rather than 1.000 (the defect row 2026-11-24-pulsedex-publishes-a-neutral-altfactor-with-no-elevation)',
+        /altFactor: altFactor == null \? null : \+altFactor\.toFixed\(3\),/.test(app),
+        (app.match(/altFactor: altFactor[^,]*,/) || ['no site'])[0]
       );
       T.ok('the re-render road keeps the null', /r\.elev = _pp\.elev == null \|\| !isFinite\(_pp\.elev\) \? null : \+_pp\.elev;/.test(rnd), (rnd.match(/r\.elev = _pp\.elev[^;]*;/) || ['no site'])[0]);
       T.ok(
-        'the re-render road names the no-correction case',
-        /r\.altFactor = r\.elev == null \? 1 : \+altVO2Factor\(r\.elev\)\.toFixed\(3\);/.test(rnd),
+        'the re-render road publishes the null too',
+        /r\.altFactor = r\.elev == null \? null : \+altVO2Factor\(r\.elev\)\.toFixed\(3\);/.test(rnd),
         (rnd.match(/r\.altFactor = r\.elev[^;]*;/) || ['no site'])[0]
+      );
+      T.ok(
+        '…over the same two-local shape, so the re-render VO2 base keeps the neutral 1',
+        /const altApplied = r\.altFactor == null \? 1 : r\.altFactor;/.test(rnd) && /vo2Base\(r\.rhrEff, r\.hrmaxEff\) \* altApplied/.test(rnd),
+        (rnd.match(/const altApplied = r\.altFactor[^;]*;/) || ['no site'])[0]
       );
       T.ok('neither road restores the `|| 0` spelling on an elevation', !/elev \|\| 0/.test(app + rnd), 'a `|| 0` on an elevation is back');
       T.ok('the result object still publishes that same local', /^\s+elev,$/m.test(app), 'the published field and the null arm have parted ways');

@@ -917,10 +917,13 @@ function calculate() {
   /* §∅ — absent ≠ sea level. `|| 0` published a coast night for an empty profile, and the
 altitude factor then sat at 1 without saying whether a height was entered at all. */
   const elev = _pp.elev == null || !isFinite(_pp.elev) ? null : +_pp.elev;
-  const altFactor = elev == null ? 1 : altVO2Factor(elev); // ≤1 above 1500 m; 1 with no elevation entered (no correction)
+  /* ∅ — the factor PUBLISHES the null; `altApplied` carries the neutral 1 into the math only.
+     A single local could not say both things, and the one it said was the measured-looking one. */
+  const altFactor = elev == null ? null : altVO2Factor(elev); // ≤1 above 1500 m; null with no elevation entered
+  const altApplied = altFactor == null ? 1 : altFactor; // no elevation entered ⇒ no correction
   /* §∅ — `(15.3 * null) / 60` is 0, not NaN, so an absent HRmax would publish VO₂ base 0.0 ml/kg/min:
      an in-band figure on a research surface. The estimate refuses instead. */
-  const vo2b = hrmaxEff == null ? null : +(vo2Base(rhrEff, hrmaxEff) * altFactor).toFixed(1);
+  const vo2b = hrmaxEff == null ? null : +(vo2Base(rhrEff, hrmaxEff) * altApplied).toFixed(1);
   const vo2a = lnrm == null || vo2b == null ? null : +vo2Adj(vo2b, lnrm).toFixed(1);
   const efc = _hrvRefused ? null : +efcIdx(energy, focus, coh).toFixed(1);
   const crs = _r1(crsIdx(coh, cRm, cPn, stress), 4);
@@ -1036,7 +1039,7 @@ altitude factor then sat at 1 without saying whether a height was entered at all
     tanaka,
     hrmaxRejected,
     elev,
-    altFactor: +altFactor.toFixed(3),
+    altFactor: altFactor == null ? null : +altFactor.toFixed(3),
     pb,
     efc,
     crs,
