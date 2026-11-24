@@ -18823,7 +18823,10 @@
           'distinct night key(s)',
           'epochs within a night are not independent',
           'per-night records',
-          "the paper's own cells"
+          "the paper's own cells",
+          /* §RETENTION's title line. The gates run within each night by construction, and the line
+             states the METHOD rather than counting a unit this read produced. */
+          'applied WITHIN each night'
         ]
       };
       /* THE CLOSED REMAINDER: `ppi-jitter-vs-ecg.mjs` lines that still write `night` where the unit
@@ -18858,7 +18861,7 @@
         UNIT_TOOLS.map(function (t) {
           return t.replace('.mjs', '') + '=' + nightClaims(TT['tools/' + t]).length;
         }).join(' '),
-        'ppg-foot-consensus-e1=1 resp-cardiac-suppression-e8=1 ppg-fusion-e3=1 ppi-jitter-vs-ecg=22'
+        'ppg-foot-consensus-e1=1 resp-cardiac-suppression-e8=1 ppg-fusion-e3=1 ppi-jitter-vs-ecg=24'
       );
       T.eq(
         'no tool prints a night it cannot see — every printed night matches a declared, named source',
