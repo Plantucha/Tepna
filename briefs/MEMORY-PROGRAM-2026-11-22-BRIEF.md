@@ -302,8 +302,22 @@ differs from the merge base. CI, `land.mjs` and `inbox.mjs` run the check.
 - A changed note adds no finding to its count at the base.
 - An untouched note is exempt. On 2026-11-24, 197 of 819 notes passed and 622 did not.
 
-Kestrel rejected a rewrite of those 622 notes. A rewrite can change a measured lesson. No measurement here shows
-that STE text is easier for a model, so the rule rests on the owner's order of 2026-10-11 and not on a result.
+A pilot tested edits of the flagged sentences in the old notes. Kestrel stated the criterion before the first call.
+
+| item | value |
+|---|---|
+| notes, findings | 40 of 622, 201 |
+| findings gone after the guard and a second model call | 111 (0.55), bar 0.70 |
+| edits applied, edits the second call refused | 104, 8 |
+| cost | $1.71, or $0.043 a note (bar $0.08) |
+
+**Verdict: FAIL** on the first bar, so no old note changed. One session log held 52 of the 90 findings left. Without
+that note the share is 102 of 140 (0.73), but the criterion did not exclude it. Kestrel read 50 random edits. At
+least 1 changed a state into a present event, and several only avoid the passive form and read worse.
+
+No measurement here shows that STE text is easier for a model. The rule rests on the owner's order of 2026-10-11 and
+not on a result. The pilot also found a defect of the linter: it read a retired term inside a `[[note-name]]`.
+The repair removes 96 of the 2,351 findings, and 614 notes fail after it.
 
 ## 15 · Acceptance, checked 2026-11-24
 
