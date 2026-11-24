@@ -181,9 +181,16 @@
     return (((cur - prev - 1) % 256) + 256) % 256;
   }
 
+  /* The 24-bit tick as a signed number. A record that starts just before a fold carries a small NEGATIVE
+     time, which the unsigned field shows as a value just under 2^24. Read unsigned, the step into that
+     record is 67 ms too long and the step out of it is 67 ms too short (263 such steps in one night). */
+  function signedTick(t) {
+    return t >= 0x800000 ? t - 0x1000000 : t;
+  }
+
   /* Device time from one tick to a later one, in seconds, across at most one 2^28 ns fold. */
   function tickSeconds(prev, cur) {
-    return (((((cur - prev) * NS_PER_TICK) % WRAP_NS) + WRAP_NS) % WRAP_NS) / 1e9;
+    return (((((signedTick(cur) - signedTick(prev)) * NS_PER_TICK) % WRAP_NS) + WRAP_NS) % WRAP_NS) / 1e9;
   }
 
   /* The device tick unwrapped into a running device time in NANOSECONDS. The tick field folds at
@@ -198,7 +205,7 @@
   }
   /* The unwrapped device time of `tick` in ns, exact to within the 100 ns of one tick. */
   TickClock.prototype.feed = function (tick) {
-    var v = tick * NS_PER_TICK;
+    var v = signedTick(tick) * NS_PER_TICK;
     if (this.nsNow == null) this.nsNow = v;
     else {
       var step = (((v - this.nsNow) % WRAP_NS) + WRAP_NS) % WRAP_NS;
@@ -374,12 +381,6 @@
   function foldDiff(a, b) {
     var d = (((a - b) % WRAP_NS) + WRAP_NS) % WRAP_NS;
     return 2 * d >= WRAP_NS ? d - WRAP_NS : d;
-  }
-  /* The 24-bit tick as a signed number. A record that starts just before a fold carries a small NEGATIVE
-     time, which the unsigned field shows as a value just under 2^24. Read unsigned, the step into that
-     record is 67 ms too long and the step out of it is 67 ms too short (263 such steps in one night). */
-  function signedTick(t) {
-    return t >= 0x800000 ? t - 0x1000000 : t;
   }
   OpticsPpg.prototype.step = function (rec, host) {
     var tickNs = signedTick(rec.tick) * NS_PER_TICK;
