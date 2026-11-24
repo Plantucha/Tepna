@@ -234,8 +234,18 @@
        Both consumers already carry the honest null branch ("no measured span with", "paired"), and
        the concordance gate refuses on either value. Report the absence, never a zero. */
     if (p.endMs == null) return null;
+    /* ∅ THE SAME SUBSTITUTION, ON THIS SIDE OF THE PAIR. `_nightWindow` answers
+       `{ a: t0Ms, b: t0Ms }` when no session carries an `endMs` and `therapyHours` reads absent or
+       zero, so THIS night becomes the point. Every intersection with a peer is then empty, so
+       `overlap` reads 0, and the old `Math.max(nw.b - nw.a, 1)` divisor hid the degenerate span
+       behind a 1 ms stand-in. The share therefore published a measured-looking `0`, which
+       `crossNode` words as "shares 0 % of this night" — the wording the peer branch above refuses
+       for the mirror case. A night whose own span nobody measured carries no denominator, so it
+       reports the absence instead. Row
+       2026-11-24-cpapdex-overlap-share-divides-by-a-point-night. */
+    if (!(nw.b > nw.a)) return null;
     var overlap = Math.max(0, Math.min(nw.b, p.endMs) - Math.max(nw.a, p.t0Ms));
-    var span = Math.max(nw.b - nw.a, 1);
+    var span = nw.b - nw.a;
     return +(Math.min(1, overlap / span) * 100).toFixed(0);
   }
   function oxyForNight(night) {
