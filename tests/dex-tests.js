@@ -50280,6 +50280,57 @@
       CN.reset();
     });
 
+    group('CPAPDex co-import ∅ — a night with no measured end reports no overlap share', 'cpapdex-coimport · _overlapPct · ABSENCE-SURVEY', function (T) {
+      var CN = env.CpapCoimport;
+      if (!CN || typeof CN.crossNode !== 'function' || typeof CN.ingest !== 'function') {
+        T.skip('CpapCoimport crossNode/ingest reachable', 'cpapdex-coimport.js not co-loaded into env');
+        return;
+      }
+      var H2 = 3600000,
+        TP = Date.UTC(2026, 0, 10, 22, 0);
+      var oxyFull = {
+        schema: { node: 'OxyDex' },
+        nights: [
+          {
+            t0Ms: TP,
+            date: '2026-01-11',
+            stats: { meanSpo2: 94, minSpo2: 86, t90pct: 3, durationMin: 480 },
+            odi4: { rate: 4 }
+          }
+        ]
+      };
+      /* ∅ The absence sits on THIS side of the pair. No session carries an `endMs` and the summary
+         carried no `therapyHours`, so `_nightWindow` collapses to the point `{ a: TP, b: TP }`. The
+         peer is fully measured, so a published share could only describe the night. Pre-fix the
+         1 ms stand-in divisor made it a measured-looking 0 %. */
+      var runWith = function (night) {
+        CN.reset();
+        CN.ingest(oxyFull, 'OxyDex_2026-01-11_odi.json');
+        return CN.crossNode(night);
+      };
+      var pt = runWith({ t0Ms: TP, metrics: { residualAHI: 4 }, sessions: [{ t0Ms: TP, events: [] }] });
+      T.ok('∅ · the point night still pairs its peer (pairing reads start distance, not overlap)', !!(pt && pt.oximetry), pt ? 'oximetry present' : 'null');
+      T.eq('∅ · overlapPct is null, never a measured 0 %', pt && pt.oximetry ? pt.oximetry.overlapPct : 'no record', null);
+      T.ok('∅ · the note names the absent span', !!(pt && /no measured span with/.test(pt.concordanceNote || '')), pt && pt.concordanceNote);
+      T.ok('∅ · …and it quotes no share of the night', !(pt && /% of/.test(pt.concordanceNote || '')), pt && pt.concordanceNote);
+      T.eq('∅ · no AHI ↔ ODI verdict over an unmeasured night span', pt && pt.concordance, null);
+      /* CONTROL · the same peer against a night whose own span IS measured. The refusal keys on the
+         degenerate window alone, so this night keeps its share and its verdict. */
+      var sp = runWith({
+        t0Ms: TP,
+        therapyHours: 8,
+        metrics: { residualAHI: 4 },
+        sessions: [{ t0Ms: TP, endMs: TP + 8 * H2, events: [] }]
+      });
+      T.ok('control · a measured night still reports its overlap', !!(sp && sp.oximetry && sp.oximetry.overlapPct >= 60), sp && sp.oximetry ? sp.oximetry.overlapPct + ' %' : 'null');
+      T.eq('control · …and its verdict is unchanged (AHI 4 vs ODI 4)', sp && sp.concordance, 'concordant');
+      /* CONTROL · `therapyHours` measures the end on its own, so a night with no session end still
+         carries a denominator. The refusal must not take that night's share away. */
+      var th = runWith({ t0Ms: TP, therapyHours: 8, metrics: { residualAHI: 4 }, sessions: [{ t0Ms: TP, events: [] }] });
+      T.ok('control · therapyHours alone measures the window', !!(th && th.oximetry && th.oximetry.overlapPct != null), th && th.oximetry ? th.oximetry.overlapPct + ' %' : 'null');
+      CN.reset();
+    });
+
     group('PSL column resolution is header-driven, not positional (both layouts)', 'motiondex-dsp · ppgdex-dsp', function (T) {
       var M = env.MOTIONDSP,
         P = env.PPGDSP;

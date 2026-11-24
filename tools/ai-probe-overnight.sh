@@ -46,6 +46,7 @@ echo "OVERNIGHT AI PROBE — ${#FILES[@]} file(s): ${FILES[*]}"
 echo "  crawl dir $C · per-file limit ${LIMIT:-none} · max passes $MAX_PASSES"
 
 pass=0
+gpu_busy=0
 declare -A CANARY_REFUSED=()
 prev_jlines=-1
 while [ "$pass" -lt "$MAX_PASSES" ]; do
@@ -73,6 +74,9 @@ while [ "$pass" -lt "$MAX_PASSES" ]; do
     out="$(timeout 5400 node tools/mutation-ai-probe.mjs --file "$f" --retry-none "${LIM[@]}" --crawl-dir "$C" 2>&1)"
     rc=$?
     printf '%s\n' "$out" | grep -vE "$LOG_FILTER"
+    # Exit 4: a GPU job held the card for the probe's whole wait. The pass is not finished, so it must
+    # not read as a pass that learned nothing (the fixed point below would print CONVERGED).
+    if [ "$rc" -eq 4 ]; then gpu_busy=1; break 2; fi
     # A canary refusal (exit 2) or lock refusal (exit 3) is a per-file verdict, not a driver error.
     [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ] && [ "$rc" -ne 3 ] && echo "!! $f exited $rc — journal retains everything answered so far"
     if [ "$rc" -eq 2 ]; then CANARY_REFUSED["$f"]=1; else unset 'CANARY_REFUSED[$f]'; fi
@@ -93,6 +97,11 @@ while [ "$pass" -lt "$MAX_PASSES" ]; do
     break
   fi
 done
+
+if [ "$gpu_busy" -eq 1 ]; then
+  echo "⏸ DEFERRED: a GPU job holds the card. No draft ran; the journals keep every answer, and the next run resumes."
+  exit 4
+fi
 
 echo "########## DRAFTING  $(date '+%F %T') ##########"
 # Every killable — crawl-found and probe-found — becomes a proposed assertion in a review file.
