@@ -37,6 +37,12 @@
  *              (disk-watch on 2026-10-31: `OnUnitActiveSec` with no next elapse since 10-18.)
  *   never    — an enabled timer that has no last trigger and whose unit has been loaded for over a day.
  *
+ * THE FLEET MEMORY rides in the same set (2026-11-24). The memory repo is private and holds its own
+ * `tools/health.mjs`, which judges the green pull request that nobody lands, the note that waits unsent
+ * and the state head over its cap. This tool runs it when the checkout is there and adds its findings,
+ * with units that start `memory:`. A rig without that checkout adds nothing. An answer that cannot be
+ * read is a finding of kind `unread`, never a silent pass. The timer population does not count them.
+ *
  * PROVENANCE OF THE RUN'S OWN CODE. A timer runs this tool out of whatever checkout its unit names, so
  * a finding can predate its own fix. On 2026-11-10 the shared checkout read `tepna-unit-health.timer`
  * as stopped from code that did not carry the `SubState=running` guard beside it (board #5401, #5527).
@@ -101,6 +107,28 @@ export function diffFindings(prev, cur) {
 /** Findings for failed units that no LOADED timer names — a service whose timer is disabled or gone
  *  (corpus-tier on 2026-10-31: timer disabled, service failed since 10-20). Transient scopes are noise,
  *  counted apart. Pure. */
+/* The findings of the memory repo's `health.mjs --json`. It exits 1 when it has findings, so the exit
+   code is not the verdict: the JSON is. */
+export function memoryFindings(stdout, why = '') {
+  try {
+    const d = JSON.parse(stdout);
+    if (!Array.isArray(d.findings)) throw new Error('no findings list');
+    return d.findings.map(({ unit, kind, detail }) => {
+      if (!unit || !kind) throw new Error('a finding without a unit or a kind');
+      return { unit, kind, detail: detail || '' };
+    });
+  } catch (e) {
+    return [{ unit: 'memory:health', kind: 'unread', detail: `the memory health check gave no readable answer (${(why || e.message).slice(0, 120)})` }];
+  }
+}
+
+function readMemory() {
+  const tool = process.env.TEPNA_MEMORY_HEALTH || join(process.env.HOME || '', 'Tepna-memory/tools/health.mjs');
+  if (!existsSync(tool)) return [];
+  const r = spawnSync(process.execPath, [tool, '--json'], { encoding: 'utf8', timeout: 60000 });
+  return memoryFindings(r.stdout || '', r.error ? r.error.message : '');
+}
+
 export function orphanFailures(failedUnits, findings) {
   const named = new Set(findings.map((f) => f.unit));
   return failedUnits.filter((u) => !isTransient(u) && !named.has(u)).map((u) => ({ unit: u, kind: 'failed', detail: `${u} is in the failed state, and no loaded timer activates it` }));
@@ -189,6 +217,18 @@ export function selftest() {
   ok(isTransient('run-p1596859-i223774905.scope') && !isTransient('qwen-idle.service') && !isTransient('tepna-run.service'), 'only run-* transients count apart');
   const orph = orphanFailures(['a.service', 'run-p1-i2.scope', 'b.service'], [{ unit: 'a.service', kind: 'failed' }]);
   ok(orph.length === 1 && orph[0].unit === 'b.service', 'a failed service no timer names is a finding, once; a transient is not');
+  const mem = memoryFindings(JSON.stringify({ findings: [{ unit: 'memory:pr-9', kind: 'open', detail: 'd', extra: 1 }], checked: 4 }));
+  ok(mem.length === 1 && mem[0].unit === 'memory:pr-9' && mem[0].extra === undefined, 'a memory finding joins the set with the three shared fields');
+  ok(memoryFindings('{"findings":[],"checked":4}').length === 0, 'a clean memory answer adds nothing');
+  ok(
+    ['', 'not json', '{}', '{"findings":[{"kind":"x"}]}'].every(
+      (t) =>
+        memoryFindings(t)
+          .map((f) => f.kind)
+          .join() === 'unread'
+    ),
+    'an empty, malformed or shapeless memory answer is one unread finding, never a pass'
+  );
   const P = (o) => provenanceOf({ commit: 'abc1234', commitReason: null, behind: 3, drifted: [], refReadable: true, ...o });
   const v = verdictOf({ status: 'NOT_RUN', findings: [], checked: 0, transient: 0, reason: 'no user systemd', prov: P({}) });
   ok(Verdict.validate(v).ok && v.result === null, 'a NOT_RUN verdict validates and carries no result');
@@ -332,10 +372,16 @@ async function main() {
   }
   const now = Date.now() * 1000;
   const timerFindings = sys.rows.map(({ t, s }) => judgeTimer(t, s, now)).filter(Boolean);
-  const findings = [...timerFindings, ...orphanFailures(sys.failedUnits, timerFindings)];
+  const jobFindings = [...timerFindings, ...orphanFailures(sys.failedUnits, timerFindings)];
+  const findings = [...jobFindings, ...readMemory()];
   const checked = sys.rows.length;
   const status = checked === 0 ? 'NOT_APPLICABLE' : findings.length ? 'FAIL' : 'PASS';
-  const reason = checked === 0 ? 'no user timer is loaded' : findings.length ? `${findings.length} timer job(s) failed, stopped, overdue or never ran` : null;
+  const reason =
+    checked === 0
+      ? 'no user timer is loaded'
+      : findings.length
+        ? `${jobFindings.length} timer job(s) failed, stopped, overdue or never ran, and ${findings.length - jobFindings.length} fleet memory finding(s)`
+        : null;
   if (argv.includes('--post')) {
     const p = statePath();
     let prev = [];
@@ -354,7 +400,7 @@ async function main() {
   if (asJson) process.stdout.write(`${JSON.stringify(v, null, 1)}\n`);
   else {
     console.log(`unit-health · ${checked} timer(s) read · ${findings.length} finding(s) · ${sys.transient} failed transient scope(s) counted apart`);
-    for (const f of findings) console.log(`  ✕ ${f.kind.padEnd(7)} ${f.detail}`);
+    for (const f of findings) console.log(`  ✕ ${f.kind.padEnd(8)} ${f.unit.startsWith('memory:') ? `${f.unit} ` : ''}${f.detail}`);
     console.log(prov.note);
   }
   process.exit(findings.length ? 1 : 0);

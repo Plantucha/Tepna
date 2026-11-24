@@ -5,15 +5,13 @@
 #
 # trim-output.test.sh — self-test for trim-output.sh.
 #
-# It drives the hook exactly as the harness does: the tool-call JSON on stdin. Every
-# WRAP is paired with a PASS-THROUGH that differs in ONE property, so a rule that fires
-# on everything scores as loudly as a rule that fires on nothing. That is the discipline
-# guard-format.test.sh established, and it is the whole value of this file: a rewriter
-# that wrapped every command would pass a test that only asserted wrapping.
+# It drives the hook exactly as the harness does: the PostToolUse JSON on stdin, with the
+# tool's own result in `tool_response`. Every TRIM is paired with a PASS that differs in
+# ONE property, so a rule that fires on everything scores as loudly as a rule that fires
+# on nothing. That is the discipline guard-format.test.sh established.
 #
-# It also RUNS the rewritten command. A rewriter whose output text looks right and whose
-# exit code is wrong would corrupt every verdict this repo reads, so the exit code gets
-# its own leg.
+# It also reads the replaced output back. A hook whose counting line is wrong, or whose
+# file does not hold the whole output, would lose the middle of every long result.
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
 
@@ -58,12 +56,12 @@ trap 'rm -rf "$TMP"' EXIT
 # (CLAUDE.md §4b). guard-trailer.test.sh measured and documented this first; this file
 # read the pipeline's code until 2026-10-12 and carried an intermittent red because of
 # it. The hook's own stdin contract is asserted separately, by `writer_rc` below.
-hook() { # hook <json> — runs the hook, echoes WRAP, PASS or EXITn
+hook() { # hook <json> — runs the hook, echoes TRIM, PASS or EXITn
   local out rc
   printf '%s' "$1" > "$TMP/payload.json"
   out="$(bash "$H" < "$TMP/payload.json" 2>/dev/null)"; rc=$?
   if [ "$rc" -ne 0 ]; then echo "EXIT$rc"; return; fi
-  if [ -n "$out" ]; then echo WRAP; else echo PASS; fi
+  if [ -n "$out" ]; then echo TRIM; else echo PASS; fi
 }
 
 # writer_rc keeps the pipe ON PURPOSE, and reports the WRITER's fate rather than the
@@ -95,222 +93,149 @@ writer_rc() { # writer_rc <payload-file> <trials> — the worst exit code of the
   printf '%s' "$worst"
 }
 
-payload() { jq -nc --arg c "$1" '{tool_name:"Bash",tool_input:{command:$c}}'; }
-# payloadf takes a FILE, not the text: past one argv slot (MAX_ARG_STRLEN, 128 KB on
-# Linux) `jq --arg` dies with "Argument list too long" and leaves payload() empty — and a
-# leg fed an empty payload passes without examining anything. Measured: it survives 70 KB
-# and fails at 300 KB. --rawfile reads the file, so there is no argv to overflow and the
-# helper is safe at any size.
-payloadf() { jq -nc --rawfile c "$1" '{tool_name:"Bash",tool_input:{command:$c}}'; }
-expect() { # expect <want> <label> <command>
-  local got; got="$(hook "$(payload "$3")")"
-  if [ "$got" = "$1" ]; then printf '  ok    %-56s %s\n' "$2" "$got"
-  else printf '  FAIL  %-56s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1)); fi
+# response <command> <stdout> [extra jq over the whole payload] — the text travels in a FILE:
+# past one argv slot (MAX_ARG_STRLEN, 128 KB) `jq --arg` dies and leaves an empty payload,
+# and a leg fed an empty payload passes without examining anything.
+response() {
+  printf '%s' "$2" > "$TMP/stdout.txt"
+  jq -nc --arg c "$1" --rawfile o "$TMP/stdout.txt" --arg d "$TMP" \
+    '{session_id:"s",hook_event_name:"PostToolUse",scratchpad_dir:$d,tool_name:"Bash",tool_input:{command:$c,description:"d"},tool_response:{stdout:$o,stderr:"",interrupted:false,isImage:false,noOutputExpected:false}} | '"${3:-.}"
 }
-expectj() { # expectj <want> <label> <json>
+expect() { # expect <want> <label> <json>
   local got; got="$(hook "$3")"
   if [ "$got" = "$1" ]; then printf '  ok    %-56s %s\n' "$2" "$got"
   else printf '  FAIL  %-56s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1)); fi
 }
+L500="$(seq 1 500)"; L200="$(seq 1 200)"; L201="$(seq 1 201)"
+NL=$'\n'
 
-printf 'a\nb\na\n' > "$TMP/f"
+echo "── the size test · each TRIM paired with a PASS ─────────────────────────"
+expect TRIM 'an output of 500 lines'                    "$(response 'seq 1 500' "$L500")"
+expect PASS 'an empty output'                           "$(response 'true' '')"
+expect PASS '200 lines stay whole'                      "$(response 'seq 1 200' "$L200")"
+expect PASS '…and 200 lines with a last newline too'    "$(response 'seq 1 200' "$L200$NL")"
+expect TRIM '…but 201 lines are trimmed'                "$(response 'seq 1 201' "$L201")"
+expect TRIM 'a long stderr counts as well'              "$(response 'x' 'a' '.tool_response.stderr = ([range(300)|tostring]|join("\n"))')"
+expect PASS '…and a short one does not'                 "$(response 'x' 'a' '.tool_response.stderr = "one"')"
 
-echo "── the plain case ───────────────────────────────────────────────────────"
-expect WRAP 'an unbounded command'                      'seq 1 500'
-expect PASS 'an empty command'                          ''
-
-echo "── bounded already · each PASS paired with a WRAP ───────────────────────"
-expect PASS 'ends in head'                              'seq 1 500 | head -20'
-expect PASS 'ends in tail'                              'seq 1 500 | tail -5'
-expect PASS 'ends in wc'                                'seq 1 500 | wc -l'
-expect WRAP '…but head in a MIDDLE stage is not the end' 'seq 1 500 | head -400 | sort'
-expect PASS 'ends in grep -c'                           "grep -c a $TMP/f"
-expect WRAP '…but grep with no -c counts nothing'       "grep -i a $TMP/f"
-expect PASS 'ends in sort | uniq -c'                    "sort $TMP/f | uniq -c"
-expect WRAP '…but uniq with no -c is unbounded'         "sort $TMP/f | uniq"
-
-echo "── writes to a file ─────────────────────────────────────────────────────"
-expect PASS 'redirects stdout to a file'                "seq 1 500 > $TMP/o"
-expect PASS 'appends to a file'                         "seq 1 500 >> $TMP/o"
-expect WRAP '…but 2>&1 is not a file write'             'seq 1 500 2>&1'
-expect WRAP '…and &> alone is not a file write'         'seq 1 500 2>&1 | sort'
-
-echo "── shapes the wrapper must not touch ────────────────────────────────────"
-expect PASS 'a heredoc'                                 'cat <<EOF
-x
-EOF'
-expect PASS 'a background command'                      'seq 1 500 &'
-expect WRAP '…but && is not backgrounding'              'true && seq 1 500'
-expect PASS 'contains a bare exit'                      'seq 1 500; exit 1'
-expect PASS 'contains exec'                             'exec seq 1 500'
-expect WRAP '…but the word "exited" is not exit'        'echo exited; seq 1 500'
-# shellcheck disable=SC2016  # the literal must NOT expand: the hook matches the text
-expect PASS 'is already wrapped'                        'x=$__trim_out; seq 1 500'
+echo "── results this hook must not touch ─────────────────────────────────────"
+expect PASS 'a tool that is not Bash'                   "$(response 'x' "$L500" '.tool_name = "Read"')"
+expect PASS 'an image'                                  "$(response 'x' "$L500" '.tool_response.isImage = true')"
+expect PASS 'a result the harness already put in a file' "$(response 'x' "$L500" '.tool_response.persistedOutputPath = "/x"')"
+expect PASS 'a background task'                         "$(response 'x' "$L500" '.tool_response.backgroundTaskId = "b1"')"
+expect PASS 'a background flag on the input'            "$(response 'x' "$L500" '.tool_input.run_in_background = true')"
+expect TRIM '…and the same input in the foreground'     "$(response 'x' "$L500" '.tool_input.run_in_background = false')"
+expect PASS 'a tool_response that is text'              "$(response 'x' "$L500" '.tool_response = .tool_response.stdout')"
+expect PASS 'no tool_response (a PreToolUse payload)'   "$(response 'x' "$L500" 'del(.tool_response)')"
+expect PASS 'a payload that is not JSON'                'not json'
 
 echo "── the hatch ────────────────────────────────────────────────────────────"
-got="$(CLAUDE_ALLOW_UNTRIMMED=1 hook "$(payload 'seq 1 500')")"
+got="$(CLAUDE_ALLOW_UNTRIMMED=1 hook "$(response 'seq 1 500' "$L500")")"
 if [ "$got" = PASS ]; then echo "  ok    CLAUDE_ALLOW_UNTRIMMED=1 in the environment       PASS"
 else echo "  FAIL  the environment hatch did not release the hook: $got"; fail=$((fail+1)); fi
-# The INLINE hatch, and the stack. The pattern read only the first assignment after a separator, so a
-# hatch behind another one had no spelling. Pre-fix the stacked leg read WRAP.
-expect PASS 'the inline hatch in command position'      'CLAUDE_ALLOW_UNTRIMMED=1 seq 1 500'
-expect PASS 'the hatch STACKED behind another'          'CLAUDE_ALLOW_BLANKET_GIT=1 CLAUDE_ALLOW_UNTRIMMED=1 seq 1 500'
-expect WRAP 'the hatch merely NAMED is data'            'echo CLAUDE_ALLOW_UNTRIMMED=1; seq 1 500'
+expect PASS 'the inline hatch in command position'      "$(response 'CLAUDE_ALLOW_UNTRIMMED=1 seq 1 500' "$L500")"
+expect PASS 'the hatch STACKED behind another'          "$(response 'CLAUDE_ALLOW_BLANKET_GIT=1 CLAUDE_ALLOW_UNTRIMMED=1 seq 1 500' "$L500")"
+expect TRIM 'the hatch merely NAMED is data'            "$(response 'echo CLAUDE_ALLOW_UNTRIMMED=1; seq 1 500' "$L500")"
 
-# ⚠ THE HOOK MUST DRAIN STDIN BEFORE IT EXITS, AND THE HATCH IS THE PATH THAT DID NOT.
-# The hatch sat above the read, so it exited on a payload it had never consumed and left
-# the writer — the harness, in production — holding a closed pipe. At ~70 bytes the write
-# fits the 64 KB pipe buffer and completes, so the leg above passes either way; a payload past
-# `fs.pipe-max-size` cannot be absorbed, so the writer blocks and takes SIGPIPE. Pre-fix this read
-# 141 in 5 runs out of 5 at 70 KB; post-fix 0. The blob is never executed, only measured for size.
+# ⚠ THE HOOK MUST DRAIN STDIN BEFORE IT EXITS, AND THE HATCH IS THE EARLIEST EXIT. A payload past
+# `fs.pipe-max-size` cannot be absorbed, so a hook that exits unread leaves the writer on SIGPIPE.
+# The blob is ONE line, so the working path reads it all and then has nothing to trim.
 head -c "$_PROBE_BYTES" /dev/zero | tr '\0' x > "$TMP/big"
 [ "$(wc -c < "$TMP/big")" = "$_PROBE_BYTES" ] || { echo "  FAIL  the derived payload was not built"; fail=$((fail+1)); }
-payloadf "$TMP/big" > "$TMP/big.json"
+jq -nc --rawfile o "$TMP/big" '{tool_name:"Bash",tool_input:{command:"x"},tool_response:{stdout:$o,stderr:"",isImage:false}}' > "$TMP/big.json"
 got="$(CLAUDE_ALLOW_UNTRIMMED=1 writer_rc "$TMP/big.json" 5)"
 if [ "$got" = 0 ]; then echo "  ok    the hatch drains a payload past pipe-max   rc=0"
 else echo "  FAIL  the writer into the hatched hook exited $got (141 = SIGPIPE, the hook never read it)"; fail=$((fail+1)); fi
-# The pair: the fix must not have moved the stall onto the path that does the work. One
-# trial, not five — that path always reads to the end, so there is no race to repeat, and
-# it is the expensive one (see the cost note below).
 got="$(writer_rc "$TMP/big.json" 1)"
-if [ "$got" = 0 ]; then echo "  ok    …and so does the rewriting path                  rc=0"
-else echo "  FAIL  the writer into the rewriting hook exited $got"; fail=$((fail+1)); fi
-# The same payload by redirect asks the other question: what the hook DECIDED.
-got="$(CLAUDE_ALLOW_UNTRIMMED=1 hook "$(cat "$TMP/big.json")")"
-if [ "$got" = PASS ]; then echo "  ok    …and the hatch still releases it                PASS"
-else echo "  FAIL  the hatch over the derived payload: $got, want PASS"; fail=$((fail+1)); fi
-
-# ⚠ A COMMAND TOO LONG FOR ONE ARGV SLOT PASSES THROUGH, QUIETLY AND ON PURPOSE. The final
-# `jq --arg c "$wrapped"` cannot take a string over MAX_ARG_STRLEN (128 KB on Linux): jq
-# died, the hook printed jq's error on stderr and emitted nothing — rc 0, so the command
-# ran untrimmed, but with 75 bytes of noise and, before the cost fix, 25 s of rescanning
-# first. The hook now declares a ceiling (TRIM_MAX_CMD) and passes a longer command through
-# before doing any work. The three legs: just under the ceiling still REWRITES (so the
-# ceiling is not "everything big passes"), just over and 300 KB give NOTHING on stdout AND
-# NOTHING on stderr, exit 0. The text is `echo a | echo a | …| cat`: it holds pipes, so
-# the quadratic `${cmd##*|}` the cost fix removed cannot make this leg slow on any hook.
-max="$(sed -n 's/^TRIM_MAX_CMD=\([0-9][0-9]*\).*/\1/p' "$H")"
-if [ -n "$max" ] && [ "$max" -lt 131072 ]; then printf '  ok    the hook declares TRIM_MAX_CMD=%s, under MAX_ARG_STRLEN\n' "$max"
-else echo "  FAIL  the hook declares no TRIM_MAX_CMD under 131072 (got '${max}') — the legs below cannot be sized"; fail=$((fail+1)); max=126000; fi
-long_cmd() { # long_cmd <bytes> <file> — a pipe-rich command of about that length, ending in `| cat`
-  yes 'echo a | ' 2>/dev/null | tr -d '\n' | head -c "$1" > "$2"; printf 'cat' >> "$2"
-}
-long_leg() { # long_leg <bytes> <want WRAP|PASS> <label>
-  local n="$1" want="$2" label="$3" rc out err
-  long_cmd "$n" "$TMP/long"; payloadf "$TMP/long" > "$TMP/long.json"
-  bash "$H" < "$TMP/long.json" > "$TMP/long.out" 2> "$TMP/long.err"; rc=$?
-  out="$(wc -c < "$TMP/long.out")"; err="$(wc -c < "$TMP/long.err")"
-  if [ "$want" = WRAP ] && [ "$rc" = 0 ] && [ "$out" -gt 0 ] && [ "$err" = 0 ]; then
-    printf '  ok    %-56s WRAP\n' "$label"
-  elif [ "$want" = PASS ] && [ "$rc" = 0 ] && [ "$out" = 0 ] && [ "$err" = 0 ]; then
-    printf '  ok    %-56s PASS, stderr empty\n' "$label"
-  else
-    printf '  FAIL  %-56s rc=%s stdout=%s bytes stderr=%s bytes, want %s with both empty-handed\n' "$label" "$rc" "$out" "$err" "$want"; fail=$((fail+1))
-  fi
-}
-long_leg $((max - 1000)) WRAP 'a command just under the ceiling is still rewritten'
-long_leg $((max + 1000)) PASS '…and one just over it passes through, silently'
-long_leg 300000          PASS '…and so does one of 300 KB (no jq error on stderr)'
-# ⚠ THE REWRITING PATH IS LINEAR IN THE LENGTH OF THE COMMAND — measured, with the cause. The
-# cost sat in ONE expansion, `last="${cmd##*|}"` (the last pipeline stage), which bash 5.2
-# evaluates in quadratic time when the command holds no `|`, spaces or not. The sed and grep
-# passes are cheap (measured: 5 ms each at 70 KB). So the leg feeds ONE 120 KB command, under 128 KB so
-# the final `jq --arg` still fits, and gives the hook a hard budget with `timeout`. The
-# budget is generous on purpose (fixed: milliseconds; before the fix: 5.8 s at 100 KB and
-# 8+ s at 120 KB on a slow box, 1.6 s at 100 KB on rig-x870), so a loaded runner cannot
-# turn it red but the quadratic cannot hide under it. It also asserts the hook still
-# REWROTE the command, so a hook that merely gave up early cannot pass.
-head -c 120000 /dev/zero | tr '\0' x > "$TMP/blob"
-payloadf "$TMP/blob" > "$TMP/blob.json"
-timeout 3 bash "$H" < "$TMP/blob.json" > "$TMP/blob.out" 2>/dev/null; rc=$?
-if [ "$rc" = 124 ]; then echo "  FAIL  a 120 KB unbroken command took over 3 s — the rewriting path is superlinear"; fail=$((fail+1))
-elif [ "$rc" = 0 ] && [ -s "$TMP/blob.out" ]; then echo "  ok    a 120 KB unbroken command is rewritten inside 3 s     rc=0"
-else echo "  FAIL  the 120 KB unbroken command: rc=$rc, output $(wc -c < "$TMP/blob.out") bytes"; fail=$((fail+1)); fi
-
-echo "── the other input fields ───────────────────────────────────────────────"
-expectj PASS 'a background flag on the input'  "$(jq -nc '{tool_name:"Bash",tool_input:{command:"seq 1 500",run_in_background:true}}')"
-expectj WRAP '…and the same input foregrounded' "$(jq -nc '{tool_name:"Bash",tool_input:{command:"seq 1 500",run_in_background:false}}')"
-expectj PASS 'a non-Bash tool is never rewritten' "$(jq -nc '{tool_name:"Edit",tool_input:{command:"seq 1 500"}}')"
+if [ "$got" = 0 ]; then echo "  ok    …and so does the working path                    rc=0"
+else echo "  FAIL  the writer into the working hook exited $got"; fail=$((fail+1)); fi
+# A result over one argv slot (128 KB) still trims, quietly and inside a budget: the payload
+# travels on stdin alone. The budget is generous, so a loaded runner cannot turn it red.
+seq 1 100000 > "$TMP/wide"
+jq -nc --rawfile o "$TMP/wide" '{tool_name:"Bash",tool_input:{command:"x"},tool_response:{stdout:$o,stderr:"",isImage:false}}' > "$TMP/wide.json"
+TMPDIR="$TMP" timeout 20 bash "$H" < "$TMP/wide.json" > "$TMP/wide.out" 2> "$TMP/wide.err"; rc=$?
+n="$(jq -r '.hookSpecificOutput.updatedToolOutput.stdout | split("\n") | length' "$TMP/wide.out" 2>/dev/null)"
+if [ "$rc" = 0 ] && [ "$n" = 101 ] && [ ! -s "$TMP/wide.err" ]; then echo "  ok    589 KB of output trims to 101 lines, stderr empty"
+else echo "  FAIL  the wide output: rc=$rc lines=$n stderr=$(wc -c < "$TMP/wide.err") bytes"; fail=$((fail+1)); fi
 
 echo "── the emitted JSON ─────────────────────────────────────────────────────"
-out="$(printf '%s' "$(jq -nc '{tool_name:"Bash",scratchpad_dir:"/nonexistent-xyz",tool_input:{command:"seq 1 500",description:"d",timeout:1234}}')" | bash "$H")"
+response 'seq 1 500' "$L500" '.tool_response.gitOperation = {a:1}' > "$TMP/payload.json"
+out="$(bash "$H" < "$TMP/payload.json")"
+if says updatedToolOutput "$out"; then echo "  ok    the emitted JSON is the text the absence legs read"
+else echo "  FAIL  UNEXAMINED: the emitted JSON holds no updatedToolOutput, so an absence below is not evidence"; fail=$((fail+1)); fi
 k="$(printf '%s' "$out" | jq -r '.hookSpecificOutput|keys|join(",")')"
-# Two legs below PASS on an absence in $out, so an empty capture would print as two passes.
-if says updatedInput "$out"; then echo "  ok    the emitted JSON is the text the absence legs read"
-else echo "  FAIL  UNEXAMINED: the emitted JSON holds no updatedInput, so an absence below is not evidence"; fail=$((fail+1)); fi
-if [ "$k" = "hookEventName,updatedInput" ]; then echo "  ok    hookSpecificOutput holds ONLY hookEventName and updatedInput"
+if [ "$k" = "hookEventName,updatedToolOutput" ]; then echo "  ok    hookSpecificOutput holds ONLY hookEventName and updatedToolOutput"
 else echo "  FAIL  hookSpecificOutput keys are '$k'"; fail=$((fail+1)); fi
-# The one field this hook must never send. permissionDecision:"allow" would approve the
-# call with no prompt and would step past the owner's permission mode.
-if says permissionDecision "$out"; then
-  echo "  FAIL  the hook sent permissionDecision — that bypasses the permission mode"; fail=$((fail+1))
-else echo "  ok    no permissionDecision in the output"; fi
-if [ "$(printf '%s' "$out" | jq -r '.hookSpecificOutput.hookEventName')" = PreToolUse ]; then
-  echo "  ok    hookEventName is PreToolUse"
-else echo "  FAIL  wrong hookEventName"; fail=$((fail+1)); fi
-# updatedInput REPLACES the input object, so every other field must survive the copy.
-for f in description timeout; do
-  if [ "$(printf '%s' "$out" | jq -r ".hookSpecificOutput.updatedInput.$f // \"\"")" != "" ]; then
-    printf '  ok    updatedInput keeps %-38s\n' "$f"
-  else printf '  FAIL  updatedInput dropped %s\n' "$f"; fail=$((fail+1)); fi
+for no in permissionDecision updatedInput '"decision"'; do
+  if says "$no" "$out"; then echo "  FAIL  the hook sent $no"; fail=$((fail+1))
+  else echo "  ok    no $no in the output"; fi
 done
-# An absent scratchpad directory must not become the scratch path.
-if says /nonexistent-xyz "$out"; then
-  echo "  FAIL  used a scratchpad_dir that does not exist"; fail=$((fail+1))
-else echo "  ok    an absent scratchpad_dir falls back to TMPDIR"; fi
+if [ "$(printf '%s' "$out" | jq -r '.hookSpecificOutput.hookEventName')" = PostToolUse ]; then echo "  ok    hookEventName is PostToolUse"
+else echo "  FAIL  wrong hookEventName"; fail=$((fail+1)); fi
+# The harness ignores a result of another shape, so every field but the text must come back equal.
+want="$(jq -S 'del(.tool_response.stdout)|.tool_response' "$TMP/payload.json")"
+have="$(printf '%s' "$out" | jq -S '.hookSpecificOutput.updatedToolOutput|del(.stdout)')"
+if [ "$want" = "$have" ]; then echo "  ok    every other field of the result survives"
+else echo "  FAIL  the result shape moved: $have"; fail=$((fail+1)); fi
 
-echo "── run the rewritten command ────────────────────────────────────────────"
-rewrite() { payload "$1" | bash "$H" | jq -r '.hookSpecificOutput.updatedInput.command'; }
-o="$(eval "$(rewrite 'seq 1 500')")"; rc=$?
-n="$(printf '%s\n' "$o" | wc -l)"
-if [ "$n" = 101 ] && [ "$rc" = 0 ]; then echo "  ok    500 lines print as 101 (60 + 1 + 40), exit 0"
-else echo "  FAIL  500 lines printed $n lines, exit $rc"; fail=$((fail+1)); fi
-if printf '%s' "$o" | grep -qF '400 lines omitted, full output: '; then
-  echo "  ok    the omitted count is 400, and the path is named"
-else echo "  FAIL  the omitted-count line is wrong: $(printf '%s' "$o" | grep omitted)"; fail=$((fail+1)); fi
-# The boundary. 200 lines must survive whole, 201 must not.
-if [ "$(eval "$(rewrite 'seq 1 200')" | wc -l)" = 200 ]; then echo "  ok    200 lines print whole"
-else echo "  FAIL  200 lines were trimmed"; fail=$((fail+1)); fi
-if [ "$(eval "$(rewrite 'seq 1 201')" | wc -l)" = 101 ]; then echo "  ok    201 lines are trimmed"
-else echo "  FAIL  201 lines were not trimmed"; fail=$((fail+1)); fi
-# The exit code is the command's, never the wrapper's.
-eval "$(rewrite 'seq 1 500; false')" >/dev/null 2>&1; rc=$?
-if [ "$rc" = 1 ]; then echo "  ok    a failing command still exits 1"
-else echo "  FAIL  the wrapper swallowed a non-zero exit code"; fail=$((fail+1)); fi
-eval "$(rewrite 'seq 1 500 1>&2')" >/dev/null 2>&1; rc=$?
-if [ "$rc" = 0 ]; then echo "  ok    stderr is captured too, exit unchanged"
-else echo "  FAIL  a stderr-only command changed its exit code"; fail=$((fail+1)); fi
-# `cd` must persist, which is why the command runs in a brace group and not a subshell.
-if ( cd "$TMP" && eval "$(rewrite 'cd / ; seq 1 300')" >/dev/null 2>&1 && [ "$PWD" = / ] ); then
-  echo "  ok    cd inside the wrapper persists"
-else echo "  FAIL  the wrapper ran the command in a subshell"; fail=$((fail+1)); fi
+echo "── the replaced text ────────────────────────────────────────────────────"
+txt="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.updatedToolOutput.stdout')"
+n="$(printf '%s\n' "$txt" | wc -l)"
+if [ "$n" = 101 ]; then echo "  ok    500 lines print as 101 (60 + 1 + 40)"
+else echo "  FAIL  500 lines printed $n lines"; fail=$((fail+1)); fi
+if [ "$(sed -n 60p <<<"$txt")" = 60 ] && [ "$(sed -n 62p <<<"$txt")" = 461 ] && [ "$(tail -n1 <<<"$txt")" = 500 ]; then
+  echo "  ok    the head ends at 60 and the tail is 461 to 500"
+else echo "  FAIL  the kept lines are wrong: $(sed -n '60p;62p' <<<"$txt")"; fail=$((fail+1)); fi
+f="$(sed -n '61s/^… 400 lines omitted, full output: //p' <<<"$txt")"
+if [ -n "$f" ] && [ "$(cat "$f" 2>/dev/null)" = "$L500" ]; then echo "  ok    the counting line says 400 and its file holds all 500 lines"
+else echo "  FAIL  the file '$f' does not hold the whole output"; fail=$((fail+1)); fi
+case "$f" in "$TMP"/trim-*.log) echo "  ok    the file is in the session scratchpad" ;;
+  *) echo "  FAIL  the file is not in the scratchpad: $f"; fail=$((fail+1)) ;; esac
+# stderr is trimmed by its own count and joins the same file.
+response x "$L500" '.tool_response.stderr = ([range(300)|"e\(.)"]|join("\n"))' > "$TMP/payload.json"
+out="$(bash "$H" < "$TMP/payload.json")"
+n="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.updatedToolOutput.stderr | split("\n") | length')"
+f="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.updatedToolOutput.stderr' | sed -n 's/^… 200 lines omitted, full output: //p')"
+if [ "$n" = 101 ] && grep -qx 'e150' "$f" && grep -qx '250' "$f"; then echo "  ok    a long stderr trims too, and the file holds both streams"
+else echo "  FAIL  stderr: $n lines, file '$f'"; fail=$((fail+1)); fi
+# An absent scratchpad falls back to TMPDIR; no writable place means the output stays whole.
+response x "$L500" '.scratchpad_dir = "/nonexistent-xyz"' > "$TMP/payload.json"
+mkdir -p "$TMP/alt"; out="$(TMPDIR="$TMP/alt" bash "$H" < "$TMP/payload.json")"
+if says "full output: $TMP/alt/trim-" "$out"; then echo "  ok    an absent scratchpad_dir falls back to TMPDIR"
+else echo "  FAIL  the fallback directory was not used"; fail=$((fail+1)); fi
+out="$(TMPDIR=/nonexistent-xyz bash "$H" < "$TMP/payload.json")"; rc=$?
+if [ "$rc" = 0 ] && [ -z "$out" ]; then echo "  ok    no writable scratch means no trim, exit 0"
+else echo "  FAIL  with no scratch: rc=$rc, $(wc -c <<<"$out") bytes"; fail=$((fail+1)); fi
 
 echo "── structural ───────────────────────────────────────────────────────────"
-# This hook is a rewriter, so it must NEVER deny. exit 2 is the deny code.
-for c in 'seq 1 500' '' 'rm -rf /' 'git commit -m x'; do
-  printf '%s' "$(payload "$c")" | bash "$H" >/dev/null 2>&1; rc=$?
-  if [ "$rc" = 2 ]; then echo "  FAIL  the hook denied: $c"; fail=$((fail+1)); fi
+# exit 2 from a PostToolUse hook reports an error to the session. This hook never does that.
+bad=0
+for j in "$(response 'seq 1 500' "$L500")" "$(response '' '')" 'not json' '' '{}'; do
+  printf '%s' "$j" > "$TMP/payload.json"
+  bash "$H" < "$TMP/payload.json" >/dev/null 2>&1; rc=$?
+  if [ "$rc" != 0 ]; then echo "  FAIL  the hook exited $rc"; fail=$((fail+1)); bad=1; fi
 done
-echo "  ok    the hook never exits 2 — it rewrites or it passes through"
-# The terminal `exit 0` is correct here, because the hook's last act is to emit the JSON.
-# An UNCONDITIONAL `exit 0` above it would make every leg below it dead code, which is the
-# defect guard-ruff.test.sh pins. The test is zero-indent only, and that is a heuristic:
-# bash does not read indentation, so an indented `exit 0` inside an `if` block is the
-# legitimate shape and this hook has four of them. The real detector of that defect is the
-# first leg of this file — insert a bare `exit 0` anywhere above and `seq 1 500` reads PASS.
+[ "$bad" = 0 ] && echo "  ok    the hook always exits 0"
+# An UNCONDITIONAL `exit 0` above the last line would make every leg below it dead code.
 last="$(tail -n1 "$H")"
 if [ "$last" = "exit 0" ]; then echo "  ok    the terminal statement is exit 0"
 else echo "  FAIL  the last line is '$last'"; fail=$((fail+1)); fi
 n=$(head -n -1 "$H" | grep -cE '^exit 0[[:space:]]*$')
 if [ "$n" -eq 0 ]; then echo "  ok    no top-level early exit above it"
 else echo "  FAIL  $n top-level 'exit 0' above the last line — dead code below"; fail=$((fail+1)); fi
-# The three numbers live in the hook, and the legs above read 60, 40 and 200.
 for want in 'TRIM_HEAD=60' 'TRIM_TAIL=40' 'TRIM_THRESHOLD=200'; do
   if grep -qF "$want" "$H"; then printf '  ok    the hook declares %-42s\n' "$want"
   else printf '  FAIL  the hook no longer declares %s — this test is now lying\n' "$want"; fail=$((fail+1)); fi
 done
 if grep -qF 'CLAUDE_ALLOW_UNTRIMMED=1' "$H"; then echo "  ok    the hatch is named in the hook"
 else echo "  FAIL  the hatch is undocumented"; fail=$((fail+1)); fi
+# The wiring is the half a hook test usually cannot see: on PreToolUse this hook reads a payload
+# with no result and does nothing, silently.
+SET="$(dirname "$H")/../settings.json"
+pre="$(jq '[.hooks.PreToolUse[].hooks[].command|select(contains("trim-output"))]|length' "$SET")"
+post="$(jq '[.hooks.PostToolUse[]|select(.matcher=="Bash").hooks[].command|select(contains("trim-output"))]|length' "$SET")"
+if [ "$pre/$post" = 0/1 ]; then echo "  ok    settings.json wires it on PostToolUse(Bash) alone"
+else echo "  FAIL  settings.json wires it PreToolUse=$pre PostToolUse=$post"; fail=$((fail+1)); fi
 
 [ "$fail" -eq 0 ] && echo "  all trim-output checks passed" || echo "  $fail FAILED"
 exit $((fail > 0))

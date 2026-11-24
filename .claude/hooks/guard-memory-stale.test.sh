@@ -38,6 +38,11 @@ _PROBE_TOOL="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/tools/hook-cont
 _PROBE_BYTES="$(node "$_PROBE_TOOL" --probe-bytes 2>/dev/null)"
 case "$_PROBE_BYTES" in ''|*[!0-9]*) printf '  REFUSE  the writer-fate payload size could not be derived (%s --probe-bytes)\n' "$_PROBE_TOOL" >&2; exit 2 ;; esac
 
+_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/tools/hook-test-lib.sh"
+if [ ! -r "$_LIB" ]; then printf '  REFUSE  the needle readers are unreadable at %s\n' "$_LIB" >&2; exit 2; fi
+# shellcheck source=../../tools/hook-test-lib.sh disable=SC1091
+. "$_LIB"
+
 fail=0
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -182,6 +187,26 @@ ok ALLOW "$(runb "true" post)"               'post-Bash · …and reported ONCE:
 ok ALLOW "$(run Read "$F2")"                 'a Read records the post-write state'
 sleep 1; printf 'again\n' > "$F2"
 ok DENY  "$(runb "true" post)"               'post-Bash · a LATER move after that read is reported again'
+
+# 8d2 · THE REPORT IS LONG ONCE A SESSION AND SHORT AFTER, and the short one still names every file
+#       and still exits 2. A quieter report that lost a file or its exit code would be a weaker guard.
+say_post() { # say_post <session> — the post arm's stderr, then its exit code on the last line
+  jq -nc --arg s "$1" '{session_id:$s,tool_name:"Bash",tool_input:{command:"true"}}' > "$TMP/told.json"
+  env -u CLAUDE_CODE_SESSION_ID bash "$H" post < "$TMP/told.json" 2>&1 >/dev/null; printf 'rc=%s' "$?"
+}
+say_post told-1 >/dev/null
+sleep 1; printf 'm1\n' >> "$F2"; first_say="$(say_post told-1)"
+sleep 1; printf 'm2\n' >> "$F2"; later_say="$(say_post told-1)"
+other="$(say_post told-2)"; sleep 1; printf 'm3\n' >> "$F2"; other="$(say_post told-2)"
+for pair in "first:$first_say" "later:$later_say" "another session:$other"; do
+  who="${pair%%:*}"; txt="${pair#*:}"
+  if says "$F2" "$txt" && says "rc=2" "$txt"; then echo "  ✓ post-Bash · the $who report names the file and exits 2"
+  else echo "  ✗ post-Bash · the $who report lost the file or the exit code: $txt"; fail=$((fail+1)); fi
+done
+if says "DETECTION, not attribution" "$first_say" && says "DETECTION, not attribution" "$other"; then echo "  ✓ post-Bash · a session's first report carries the full advice"
+else echo "  ✗ post-Bash · a first report dropped the advice"; fail=$((fail+1)); fi
+if says "DETECTION, not attribution" "$later_say"; then echo "  ✗ post-Bash · a later report repeats the advice"; fail=$((fail+1))
+else echo "  ✓ post-Bash · …and a later one does not repeat it"; fi
 
 # 8e · SECOND PROJECT SLUG — "in scope by construction" is an argument; this is the evidence.
 PROJ2="$TMP/.claude/projects/-opt-tepna"; MEM2="$PROJ2/memory"

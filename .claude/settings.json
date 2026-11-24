@@ -65,12 +65,6 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-doc-search.sh\"",
             "timeout": 10,
             "statusMessage": "checking a doc-search ran this session before this commit"
-          },
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/trim-output.sh\"",
-            "timeout": 10,
-            "statusMessage": "trimming a command's output before it enters context"
           }
         ]
       },
@@ -168,6 +162,12 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-memory-stale.sh\" post",
             "timeout": 10,
             "statusMessage": "checking whether a memory file moved during that command"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/trim-output.sh\"",
+            "timeout": 10,
+            "statusMessage": "trimming a long command output before it enters context"
           }
         ]
       },

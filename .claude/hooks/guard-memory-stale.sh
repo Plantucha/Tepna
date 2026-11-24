@@ -284,15 +284,29 @@ EOF4
         if [ -n "$moved" ]; then
           mkdir -p "$proj/.memory-guard" 2>/dev/null && printf '%s\n' "$cur" > "$snap" 2>/dev/null
           first="$(printf '%s' "$moved" | head -1 | awk '{print $1}')"
+          # THE FULL TEXT ONCE A SESSION, THEN ONE LINE EACH (owner, 2026-11-24). The report fired 276
+          # times in 48 h across the rig transcripts, and the same 600 bytes of advice each time is
+          # context that a session pays for on every later turn. What is CUT is the advice alone: every
+          # moved file is still named, and the exit code is still 2, on every firing.
+          told="$proj/.memory-guard/$sid.told"
+          if [ -f "$told" ]; then
+            cat >&2 <<EOF7
+⚠ A MEMORY FILE MOVED, unread by this session (Read it before you edit it):
+$moved
+EOF7
+            exit 2
+          fi
+          : > "$told" 2>/dev/null
           cat >&2 <<EOF5
 ⚠ A MEMORY FILE MOVED during that command, and this session had not read it:
 
 $moved
 
-The memory directory is shared by every fleet session as one unix user and is NOT in git, so an
+The memory directory is a shared copy that every fleet session writes as one unix user, so an
 overwrite there leaves no conflict, no gate and no symptom. This is DETECTION, not attribution: the
-file changed while your command ran and you had not read it — another session may have written it in
-the same instant. If it was your command, Read the file and check the other author's text survived.
+file changed while your command ran and you had not read it — another session, or the memory repo's
+own install, may have written it in the same instant. If it was your command, Read the file and check
+the other author's text survived. Later reports in this session name the files alone.
 
     Read  $first
 EOF5
