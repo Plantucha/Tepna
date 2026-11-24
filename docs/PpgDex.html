@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="82ad02fd86ce" data-compute-hash="8313cd1cd1f6">
+<html lang="en" data-manifest-hash="5ca75ed0d1ac" data-compute-hash="19b014a11db2">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1XduIrB7hx/x+Rcr5iaDyCYX6xx+hpvHrK1aShDcW8g=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3QOLYKBsffbmLXFalO1pSufl+HcbSk6JP025X/WpQs=' 'sha256-FN+9mZF/E31+1lM1aatPWdf//6LjIOCvdeIgtCSciLw=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-KeJzV06KpB1W/uB68ud97C1ybcYjHMCUII3MkG6vqtg=' 'sha256-LRa7VQaZD1GO9QtTgm/NOp9niJoNbsRPsWXzCbrnE10=' 'sha256-Lg3Qjt79FZt7ayKj+1c1xlLwbUAcBsRrVpSwb7dXDOk=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UiJdLIejK5YCW72lJMbSpQm6oU3PbLlrDpblXzUyWAg=' 'sha256-WLSf6RDbro32fr9V499zIXx05PeWHrSytiNLDT0boh4=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-E3QOLYKBsffbmLXFalO1pSufl+HcbSk6JP025X/WpQs=' 'sha256-FN+9mZF/E31+1lM1aatPWdf//6LjIOCvdeIgtCSciLw=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LRa7VQaZD1GO9QtTgm/NOp9niJoNbsRPsWXzCbrnE10=' 'sha256-Lg3Qjt79FZt7ayKj+1c1xlLwbUAcBsRrVpSwb7dXDOk=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UiJdLIejK5YCW72lJMbSpQm6oU3PbLlrDpblXzUyWAg=' 'sha256-WB5Nu9o8/IUbJu5Tu2LeQmspeIHPqucn5z1ENIYT6M4=' 'sha256-WLSf6RDbro32fr9V499zIXx05PeWHrSytiNLDT0boh4=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sYHaJdpNdlMIGDZgnrzyT9ldxVS4u6wkh+Hm8oQE644='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.36.0</title>
@@ -10578,6 +10578,85 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     return rec;
   }
 
+  /* THE RING'S RAW FILE (`_PPG2W.txt`) CARRIES NO DEVICE COUNTER, so its time is the arrival of each reply.
+     The box asks the ring about twice a second and the ring answers about 100 rows. The writer spreads the
+     rows of one reply evenly back from the arrival stamp, so only a reply's LAST stamp was measured.
+     `hostMs` holds one stamp per row. The answer is seconds after `hostMs[0]`, one per row, or a refusal.
+
+     A reply ends where the row spacing changes by `RAW_SPLIT_MS` or more. The spacing is compared with the
+     spacing of the SAME reply, because a late answer is spread wider than a prompt one.
+     The offset of each reply end from a constant-rate grid is smoothed by a running median, the rule of
+     Clock Contract §7. A jump of that offset over `RAW_LOSS_MS` is a loss of rows: the axis steps at the
+     reply boundary, so the gap stays a gap. The step keeps its own size.
+
+     Measured 2026-11-23 on ten nights (2026-11-12 to 2026-11-22, 2026-11-21 excluded) against the same
+     wearer's chest ECG, in matched 5-minute windows: the pulse intervals of this file read an rMSSD of
+     -0.4 to +1.5 %. The 125 Hz pleth of the same ring reads +7 to +38 %. */
+  const RAW_SPLIT_MS = 3;
+  const RAW_LOSS_MS = 100;
+  const RAW_SMOOTH = 30; // replies each side of the running median, about 30 s in total
+  const RAW_RATE_STEP = 120; // replies per local rate, about 60 s
+  const RAW_MIN_REPLIES = 2 * RAW_SMOOTH + 1;
+  /** @typedef {{ ok: true, reason: null, relSec: Float64Array, fs: number, replies: number, losses: number, lostMs: number }} RingRawAxis */
+  /** @param {number[]} hostMs @returns {RingRawAxis | { ok: false, reason: string }} */
+  function ringRawAxis(hostMs) {
+    const n = hostMs.length;
+    const endI = [];
+    let step = null;
+    for (let i = 1; i < n; i++) {
+      const d = hostMs[i] - hostMs[i - 1];
+      if (step !== null && Math.abs(d - step) >= RAW_SPLIT_MS) {
+        endI.push(i - 1);
+        step = null;
+      } else step = d;
+    }
+    if (n) endI.push(n - 1);
+    const m = endI.length;
+    if (m < RAW_MIN_REPLIES) return { ok: false, reason: m + ' replies, below the ' + RAW_MIN_REPLIES + ' a running median needs' };
+    const rates = [];
+    const stride = Math.min(RAW_RATE_STEP, m - 1);
+    for (let k = 0; k + stride < m; k += stride) {
+      const dt = hostMs[endI[k + stride]] - hostMs[endI[k]];
+      if (dt > 0) rates.push((1000 * (endI[k + stride] - endI[k])) / dt);
+    }
+    const fs = rates.length ? median(rates) : 0;
+    if (!(fs > 0)) return { ok: false, reason: 'the reply arrivals span no time' };
+    const off = endI.map((i) => hostMs[i] - hostMs[0] - (1000 * i) / fs);
+    const smooth = (k, lo, hi) => median(off.slice(Math.max(lo, k - RAW_SMOOTH), Math.min(hi, k + RAW_SMOOTH + 1)));
+    const pass = off.map((_, k) => smooth(k, 0, m));
+    // Beside a loss the first pass reads the edge of the arrival spread, not its middle, so the second
+    // pass smooths each stretch between two losses on its own.
+    const cuts = [0];
+    for (let c = 1; c < m; c++) if (pass[c] - pass[c - 1] > RAW_LOSS_MS) cuts.push(c);
+    const isCut = new Uint8Array(m);
+    for (let c = 1; c < cuts.length; c++) isCut[cuts[c]] = 1;
+    const sm = [];
+    cuts.forEach((lo, c) => {
+      const hi = c + 1 < cuts.length ? cuts[c + 1] : m;
+      for (let j = lo; j < hi; j++) sm.push(smooth(j, lo, hi));
+    });
+    const relSec = new Float64Array(n);
+    let lost = 0,
+      lostMs = 0,
+      k = 0;
+    for (let j = 0; j < n; j++) {
+      while (k + 1 < m && endI[k] < j) k++;
+      // reply `k` holds row j; its rows start after endI[k - 1]
+      let o = sm[k];
+      if (k > 0) {
+        const jump = sm[k] - sm[k - 1];
+        if (!isCut[k]) o = sm[k - 1] + (jump * (j - endI[k - 1])) / (endI[k] - endI[k - 1]);
+        else if (j === endI[k - 1] + 1) {
+          lost++;
+          lostMs += jump;
+        }
+      }
+      const t = ((1000 * j) / fs + o) / 1000;
+      relSec[j] = j > 0 && t < relSec[j - 1] ? relSec[j - 1] : t;
+    }
+    return { ok: true, reason: null, relSec, fs: Math.round(fs * 100) / 100, replies: m, losses: lost, lostMs: Math.round(lostMs) };
+  }
+
   function parsePPG(text, opts) {
     opts = opts || {};
     const lines = text.split(/\r?\n/);
@@ -10602,6 +10681,9 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       ch2 = [],
       amb = [];
     const nsArr = []; // BigInt deltas avoided — store as Number of (ns - ns0)/1 via BigInt math
+    const rawHostMs = []; // one host stamp per row, kept for the ring's raw file alone (`ringRawAxis`)
+    let rawSec = '',
+      rawSecMs = NaN;
     const axisAnchors = []; // { devMs, hostMs } — host-disciplined axis, see PPG_AXIS_EVERY
     let ns0 = null,
       t0Ms = null,
@@ -10739,6 +10821,18 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       if (pc.chIdx.length >= 2) ch1.push(v1);
       if (pc.chIdx.length === 3) ch2.push(v2);
       amb.push(va);
+      if (dual && rawHostMs.length === ch0.length - 1) {
+        // an absent counter is an empty field, or the 0 an older writer put there
+        const cell = (p[pcols && pcols.ns >= 0 ? pcols.ns : 1] || '').trim();
+        const sec = p[0].slice(0, 19);
+        if (sec !== rawSec) {
+          const at = parseTimestamp(sec);
+          rawSec = sec;
+          rawSecMs = at ? at.tMs : NaN;
+        }
+        const frac = p[0].length === 19 ? 0 : p[0].charCodeAt(19) === 46 ? Number('0' + p[0].slice(19)) * 1000 : NaN;
+        if ((cell === '' || cell === '0') && isFinite(rawSecMs + frac)) rawHostMs.push(rawSecMs + frac);
+      }
       // sensor ns → relative seconds (BigInt: values exceed Number safe range)
       let relNs = 0;
       try {
@@ -10974,7 +11068,9 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       _lastTsMemo = t;
       return t;
     };
-    if (deltas.length) {
+    const rawAx = dual && rawHostMs.length === n ? ringRawAxis(rawHostMs) : null;
+    if (rawAx && rawAx.ok) fs = rawAx.fs;
+    else if (deltas.length) {
       const md = median(deltas);
       if (md > 0) fs = 1e9 / md;
       /* TWO QUESTIONS, TWO FLOORS. The RATE needs one delta; the delta CONCENTRATION is a share over a
@@ -11157,7 +11253,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     // anchors resolved, `ok:false` and the raw device axis is kept — an uncorrected axis is honest,
     // a fabricated correction is not.
     let relSec = new Float64Array(n);
-    if (deltas.length > 20) {
+    if (rawAx && rawAx.ok) relSec = rawAx.relSec;
+    else if (deltas.length > 20) {
       for (let i = 0; i < n; i++) {
         if (!isFinite(nsArr[i])) {
           relSec[i] = i / fs;
@@ -11299,7 +11396,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
          stratum-1 embed from this fallback instead of inheriting a verdict neither clock earned. */
     const explicitTimebase = opts.timebase === 'device-crystal' || opts.timebase === 'host-disciplined';
     const wantTimebase = explicitTimebase ? opts.timebase : embeddedTimebase || 'host-disciplined';
-    let timebase = site === 'finger' ? wantTimebase : null;
+    // the 125 Hz crystal grid is the pleth's; the raw file runs at 200 rows a second
+    let timebase = site === 'finger' ? (dual ? 'host-disciplined' : wantTimebase) : null;
     const timebaseSource = site === 'finger' ? (explicitTimebase ? 'caller' : embeddedTimebase ? 'embedded' : 'default') : null;
     if (timebase === 'device-crystal' && site === 'finger' && n > 0) {
       const gapMask = sent ? sent.gap : null;
@@ -11376,6 +11474,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       fsRaw: fsBeforeCorrection,
       fsRateApplied: rateAppliedToFs,
       fsRateReason,
+      // the ring's raw file only: how its reply-arrival axis was built, and what it lost
+      rawAxis: rawAx ? (rawAx.ok ? { ok: true, reason: null, replies: rawAx.replies, losses: rawAx.losses, lostMs: rawAx.lostMs } : { ok: false, reason: rawAx.reason }) : undefined,
       n,
       /* PRESENT ONLY WHEN IT HAPPENED, so every clean stream keeps today's bytes and no clean fixture
          moves (the `anchorsDroppedPreResync` discipline ECGDex uses, and MotionDex's `_clockResyncs`).
@@ -11703,7 +11803,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
           }
         : {
             ok: false,
-            reason: hostAx.reason || 'no host anchors',
+            reason: rawAx && rawAx.ok ? 'the raw ring file carries no device counter; its axis is the reply arrivals on the host clock' : hostAx.reason || 'no host anchors',
             drawn: axisSynthetic,
             deviceDrawn: axisSynthetic,
             quantizedShare,
@@ -11711,7 +11811,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
             /* Same rule, and here the floor really is `'none'`: no host anchors resolved AND the
                device concentration was never measured, so there is no timing to spend. `pat-gate.js`
                refuses on exactly this value. */
-            timingSource: axisSynthetic !== false ? 'none' : 'device'
+            timingSource: rawAx && rawAx.ok ? 'host' : axisSynthetic !== false ? 'none' : 'device'
           }
     };
     /* `opts.seamsText` is the `…_PPGSEAMS.txt` companion's bytes when the caller paired one. LAST and
@@ -22198,6 +22298,37 @@ __exports.PPGUI = window.PPGUI;
     return 'ecg'; // default — a bare waveform is the ECG
   }
 
+  // The O2Ring's raw two-channel file (`…_PPG2W.txt`). The same session also has a 125 Hz `…_PPG.txt` pleth.
+  var RING_RAW = /_PPG2W\.[^.]*$/i;
+  // The raw file is 1.54 to 1.64 times the pleth's size in all 23 non-empty pairs of 2026-11-12 to
+  // 2026-11-23, and the two files of each full night cover the same span. Below this ratio the raw file covers less of the session than the pleth.
+  var RING_RAW_MIN_RATIO = 1.4;
+  /* One ring session, two files: keep the one that PpgDex must analyze. The raw file wins when it covers
+     the session; else the pleth does. `files` carry `name` and `size`, so the caller decides BEFORE it
+     reads the bytes. Every other file passes through in order. → { kept, dropped } */
+  function pickRingWave(files) {
+    var by = {};
+    (files || []).forEach(function (f) {
+      by[f.name] = f;
+    });
+    var drop = {};
+    Object.keys(by).forEach(function (nm) {
+      if (!RING_RAW.test(nm)) return;
+      var pleth = by[nm.replace(/_PPG2W(\.[^.]*)$/i, '_PPG$1')];
+      if (!pleth) return;
+      var covers = by[nm].size > 0 && by[nm].size >= RING_RAW_MIN_RATIO * pleth.size;
+      drop[covers ? pleth.name : nm] = 1;
+    });
+    return {
+      kept: (files || []).filter(function (f) {
+        return !drop[f.name];
+      }),
+      dropped: (files || []).filter(function (f) {
+        return drop[f.name];
+      })
+    };
+  }
+
   // PpgDex ingest routing. The Polar Verity Sense `*_PPG.txt` optical waveform is the PRIMARY;
   // `*_ACC/_GYRO/_MAGN/_PPI` + `MARKER_*` are companions; device `*_HR` is ignored-with-note;
   // raw `*_ECG` (→ ECGDex) and any foreign-vendor signal → 'skip'. NOTE the asymmetry to ECG: PPG's
@@ -22209,6 +22340,10 @@ __exports.PPGUI = window.PPGUI;
        Claimed FIRST: `_PPG\b` does not match it (no boundary before RUNS), and without this line it
        fell through to the bare-name default and was queued as a PPG PRIMARY (measured 2026-09-25). */
     if (/_PPGRUNS\b|_PPGRUNS\./.test(u)) return 'runs';
+    /* The O2Ring's raw two-channel stream and its own RUNS sidecar. `_PPG\b` cannot match `_PPG2W`, so
+       the vendor test set the raw file aside although `parsePPG` reads it. */
+    if (/_PPG2WRUNS\b|_PPG2WRUNS\./.test(u)) return 'runs';
+    if (RING_RAW.test(u)) return 'ppg';
     /* The clock-seam sidecar (`…_PPGSEAMS.txt`, capture-host `writers.py` `_SeamSidecar`, which every
        device-clocked writer builds) is PpgDex's 'seams' companion, exactly as `_ECGSEAMS.txt` is
        ECGDex's one classifier up. Claimed HERE on the same reasoning as `_PPGRUNS`: `_PPG\b` does not
@@ -22595,6 +22730,10 @@ __exports.PPGUI = window.PPGUI;
         elig = {};
       COMPANION.forEach(function (k) {
         elig[k] = comp[k].filter(function (c) {
+          /* The raw ring file takes its own session's sidecar alone, and no other primary takes that one.
+             The ring's name carries no device key, so the eligibility test below would pass every file. */
+          if (RING_RAW.test(pf.name)) return c.name.toUpperCase() === pf.name.toUpperCase().replace(/_PPG2W\./, '_PPG2WRUNS.');
+          if (/_PPG2WRUNS\b/i.test(c.name)) return false;
           return _isDeviceEligible(c.name, pfDev);
         });
       });
@@ -22612,6 +22751,7 @@ __exports.PPGUI = window.PPGUI;
     foreignVendor: foreignVendor,
     ecgKind: ecgKind,
     ppgKind: ppgKind,
+    pickRingWave: pickRingWave,
     foreignKind: foreignKind,
     sniffFirstLine: sniffFirstLine,
     planIngest: planIngest,
@@ -22731,7 +22871,8 @@ const { PPGUI } = __require('ppgdex-render.js');
   //  INGEST — accept a FileList; group PPG sessions + attach companions
   // ════════════════════════════════════════════════════════════════════════
   function loadFiles(fileList) {
-    const files = Array.from(fileList || []);
+    const picked = ING.pickRingWave(Array.from(fileList || []));
+    const files = picked.kept;
     if (!files.length) return;
     progress(6, 'Reading ' + files.length + ' file' + (files.length > 1 ? 's' : '') + '…');
     const museRefused = []; // a Muse recording that answered no PPG, named in the result line
@@ -22789,7 +22930,8 @@ const { PPGUI } = __require('ppgdex-render.js');
           }
         });
         const plan = ING.planIngestPpg(parsed, { sniffedForeign });
-        const skipped = plan.skipped; // foreign + sniff-foreign + duplicate-session (set aside, reported)
+        // the ring file of each session that the other ring file replaces
+        const skipped = plan.skipped.concat(picked.dropped.map((f) => ({ name: f.name, kind: 'duplicate' }))); // foreign + sniff-foreign + duplicate-session (set aside, reported)
         let ppgFiles = plan.ppgPrimaries; // deduped real PPG primaries, drop order
         if (plan.hr.length)
           showOK('Ignored ' + plan.hr.length + ' Polar `*_HR.txt` device-HR file' + (plan.hr.length > 1 ? 's' : '') + ' — PpgDex analyzes the raw PPG waveform; drop the matching `*_PPG.txt`.');
@@ -22879,6 +23021,7 @@ const { PPGUI } = __require('ppgdex-render.js');
             rec._preChannels = muse ? rec.ch.map((c) => DSP.detectChannel(c, rec.fs, MUSE_SIGN)) : await DSP.detectChannelsAsync(rec);
             r = DSP.analyze(rec, progress);
             if (muse) r.opticalDevice = 'Muse';
+            r.ringRaw = !!rec.rawAxis; // the O2Ring's two-channel file, not its 125 Hz pleth
           } catch (e) {
             showErr(e.message || String(e));
             continue;
@@ -23913,7 +24056,14 @@ const { PPGUI } = __require('ppgdex-render.js');
            read — and `siteSource` beside it says how strong that evidence is ('device-default' =
            inferred from the layout, 'declared' = the wearer said so). No new inference is invented
            here; the lie is simply removed. */
-        device: r.opticalDevice === 'Muse' ? 'Muse S Athena headband (3 of 4 optical channels)' : r.site === 'finger' ? 'O2Ring-class single-channel finger pleth' : 'Polar Verity Sense (3-LED)',
+        device:
+          r.opticalDevice === 'Muse'
+            ? 'Muse S Athena headband (3 of 4 optical channels)'
+            : r.ringRaw
+              ? 'O2Ring raw two-wavelength finger PPG'
+              : r.site === 'finger'
+                ? 'O2Ring-class single-channel finger pleth'
+                : 'Polar Verity Sense (3-LED)',
         /* Emitted by the DSP's builder since #626 and missing from this one — the sibling-divergence
            class again: two builders for one export, and only one of them told you where the signal
            was taken from. Verbatim from hrvBuildNodeExport's siblings so the app and compute() agree. */

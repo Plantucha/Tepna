@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="bdcbdc2c33d9" data-compute-hash="c31c013d7974">
+<html lang="en" data-manifest-hash="ade88e6e46c5" data-compute-hash="79e55c54447f">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BND6RE6OP7KJNES0zGV0kDUXdIOxJqc2QUkiELbELoE=' 'sha256-ETqZPnyEOMCJ7vZgS1XxfM5eP45arYHcZc+vUSdnVMY=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-JumuG+yAWVBa9X3Q3ZuOvmOJbRvQursNce7UaYxa9Ug=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-iqPNvfgaOLLxsrqf67NdcyYbCf6pshw6DVlOebr7HSE=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-va9iMScWxEdN7cjNjYXiSv9RdPWnx5fnCHzd3Fx9doY=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BND6RE6OP7KJNES0zGV0kDUXdIOxJqc2QUkiELbELoE=' 'sha256-ETqZPnyEOMCJ7vZgS1XxfM5eP45arYHcZc+vUSdnVMY=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-JumuG+yAWVBa9X3Q3ZuOvmOJbRvQursNce7UaYxa9Ug=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-iqPNvfgaOLLxsrqf67NdcyYbCf6pshw6DVlOebr7HSE=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-va9iMScWxEdN7cjNjYXiSv9RdPWnx5fnCHzd3Fx9doY=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.36.0</title>
@@ -23850,6 +23850,37 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
     return 'ecg'; // default — a bare waveform is the ECG
   }
 
+  // The O2Ring's raw two-channel file (`…_PPG2W.txt`). The same session also has a 125 Hz `…_PPG.txt` pleth.
+  var RING_RAW = /_PPG2W\.[^.]*$/i;
+  // The raw file is 1.54 to 1.64 times the pleth's size in all 23 non-empty pairs of 2026-11-12 to
+  // 2026-11-23, and the two files of each full night cover the same span. Below this ratio the raw file covers less of the session than the pleth.
+  var RING_RAW_MIN_RATIO = 1.4;
+  /* One ring session, two files: keep the one that PpgDex must analyze. The raw file wins when it covers
+     the session; else the pleth does. `files` carry `name` and `size`, so the caller decides BEFORE it
+     reads the bytes. Every other file passes through in order. → { kept, dropped } */
+  function pickRingWave(files) {
+    var by = {};
+    (files || []).forEach(function (f) {
+      by[f.name] = f;
+    });
+    var drop = {};
+    Object.keys(by).forEach(function (nm) {
+      if (!RING_RAW.test(nm)) return;
+      var pleth = by[nm.replace(/_PPG2W(\.[^.]*)$/i, '_PPG$1')];
+      if (!pleth) return;
+      var covers = by[nm].size > 0 && by[nm].size >= RING_RAW_MIN_RATIO * pleth.size;
+      drop[covers ? pleth.name : nm] = 1;
+    });
+    return {
+      kept: (files || []).filter(function (f) {
+        return !drop[f.name];
+      }),
+      dropped: (files || []).filter(function (f) {
+        return drop[f.name];
+      })
+    };
+  }
+
   // PpgDex ingest routing. The Polar Verity Sense `*_PPG.txt` optical waveform is the PRIMARY;
   // `*_ACC/_GYRO/_MAGN/_PPI` + `MARKER_*` are companions; device `*_HR` is ignored-with-note;
   // raw `*_ECG` (→ ECGDex) and any foreign-vendor signal → 'skip'. NOTE the asymmetry to ECG: PPG's
@@ -23861,6 +23892,10 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
        Claimed FIRST: `_PPG\b` does not match it (no boundary before RUNS), and without this line it
        fell through to the bare-name default and was queued as a PPG PRIMARY (measured 2026-09-25). */
     if (/_PPGRUNS\b|_PPGRUNS\./.test(u)) return 'runs';
+    /* The O2Ring's raw two-channel stream and its own RUNS sidecar. `_PPG\b` cannot match `_PPG2W`, so
+       the vendor test set the raw file aside although `parsePPG` reads it. */
+    if (/_PPG2WRUNS\b|_PPG2WRUNS\./.test(u)) return 'runs';
+    if (RING_RAW.test(u)) return 'ppg';
     /* The clock-seam sidecar (`…_PPGSEAMS.txt`, capture-host `writers.py` `_SeamSidecar`, which every
        device-clocked writer builds) is PpgDex's 'seams' companion, exactly as `_ECGSEAMS.txt` is
        ECGDex's one classifier up. Claimed HERE on the same reasoning as `_PPGRUNS`: `_PPG\b` does not
@@ -24247,6 +24282,10 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
         elig = {};
       COMPANION.forEach(function (k) {
         elig[k] = comp[k].filter(function (c) {
+          /* The raw ring file takes its own session's sidecar alone, and no other primary takes that one.
+             The ring's name carries no device key, so the eligibility test below would pass every file. */
+          if (RING_RAW.test(pf.name)) return c.name.toUpperCase() === pf.name.toUpperCase().replace(/_PPG2W\./, '_PPG2WRUNS.');
+          if (/_PPG2WRUNS\b/i.test(c.name)) return false;
           return _isDeviceEligible(c.name, pfDev);
         });
       });
@@ -24264,6 +24303,7 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
     foreignVendor: foreignVendor,
     ecgKind: ecgKind,
     ppgKind: ppgKind,
+    pickRingWave: pickRingWave,
     foreignKind: foreignKind,
     sniffFirstLine: sniffFirstLine,
     planIngest: planIngest,
