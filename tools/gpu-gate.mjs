@@ -80,8 +80,10 @@ export async function waitForGpu({ state, drop, waitMin, log = () => {}, sleep =
 
 async function selftest() {
   let bad = 0;
+  let n = 0;
   const ck = (name, got, want) => {
     const ok = JSON.stringify(got) === JSON.stringify(want);
+    n++;
     if (!ok) bad++;
     console.log(`${ok ? '✓' : '✗'} ${name}${ok ? '' : `: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`}`);
   };
@@ -136,7 +138,7 @@ async function selftest() {
     [true, 2, 1]
   );
   ck('the wait ends', (await run([{ ok: false, why: 'x' }], 3)).slice(0, 2), [false, 4]);
-  console.log(bad ? `gpu-gate selftest: ${bad} FAILED` : 'gpu-gate selftest: all passed');
+  console.log(bad ? `gpu-gate selftest: ${bad} FAILED` : `all ${n} selftests passed`);
   return bad ? 1 : 0;
 }
 

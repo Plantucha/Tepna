@@ -5,4 +5,4 @@ type: fixed
 nodes: [suite]
 brief: none
 ---
-Make the mutation AI probe wait for the GPU when a job holds the card, and keep a waiting pass from reading as converged.
+The mutation AI probe waits for the GPU when a job holds the card, and a waiting pass no longer reads as converged.
