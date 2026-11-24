@@ -36,7 +36,8 @@ A file gets no line when the map omits it, or when its bytes changed after the m
 The search counts every line it holds back and names the reason.
 `node tools/repo-map.mjs --write` writes the map. `--brief` keeps the line, `--no-map` drops it.
 
-The fused order ranks the hits. The reranker scores the top 20 and never changes that order.
+The fused order and the reranker order, fused again, rank the hits. The printed score is the fused one.
+Up to two memory notes print after the five hits. They take no slot from a repo file.
 
 ## Read a refusal
 
@@ -48,6 +49,6 @@ The fused order ranks the hits. The reranker scores the top 20 and never changes
 
 - Hybrid lane: a right file in the top 5 for 49 of 52 real Rule-0 queries. Semantic lane: 43.
 - The reranker floor refused 40 of 40 off-topic queries and 20 of 20 hold-out ones. The cosine and BM25 floor refused 38 and 18.
-- A reranked order lost 2 of 52 answers, so the fused order stays.
+- The same 52 queries on 2026-11-23: fused order 45, reranker order 47, blend of the two 49.
 
 Setup and outages: `docs/HYBRID-SEARCH-SETUP.md`. Memory: `semantic-search-before-building`.
