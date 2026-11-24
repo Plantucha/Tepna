@@ -25727,7 +25727,11 @@
        claim in `ppgKind` would attach a companion to a primary PpgDex never ingests. That is the
        `guard-exists-other-side-defeats-it` shape, and it is why the pairing lives in OxyDex's own drop
        handler, where `_PPG2W.txt` is actually stashed. */
-    /* ════ §3.2 row `ppg2w` — THE `ppgdex-dsp.js` DUAL PATH IS UNREACHABLE, AND THIS IS THE TRIPWIRE ══
+    /* ════ §3.2 row `ppg2w` — ONE ROUTE REACHES THE `ppgdex-dsp.js` DUAL PATH: THE PPGDEX DROP ══
+       🔴 2026-11-23: the PpgDex drop now loads `_PPG2W` with its `_PPG2WRUNS` sidecar, because its pulse
+       intervals match a chest ECG and the 125 Hz pleth's do not. The adapter and Unifier routes below
+       stay closed, and their assertions did not move. The text that follows describes the older state.
+
        The row named two entry points; only one exists in practice. `ppgdex-dsp.js parsePPG` really does
        accept two channels ("TWO channels are accepted ONLY as the O2Ring's raw dual-wavelength
        `_PPG2W.txt`"), so the CODE is there — nothing routes a file to it, because every router matches the
@@ -25740,7 +25744,7 @@
        for everything (a broken harness) cannot read as a closed route — the failure mode that would make
        this whole group vacuous. The day a route DOES open, the matching line reds and names the row, and
        whichever route opened owes the sidecar. */
-    group('SAMPLE-VALIDITY-ENVELOPE §3.2 — no route reaches the ppgdex-dsp dual path with a _PPG2W (tripwire)', 'dex-ingest · signal-adapters · signal-orchestrate · §3.2', function (T) {
+    group('SAMPLE-VALIDITY-ENVELOPE §3.2 — only the PpgDex drop reaches the ppgdex-dsp dual path with a _PPG2W (tripwire)', 'dex-ingest · signal-adapters · signal-orchestrate · §3.2', function (T) {
       var DI = env.DexIngest,
         SA = env.SignalAdapters,
         SO = env.SignalOrchestrate;
@@ -25753,7 +25757,8 @@
       }
       /* ── the PpgDex app drop + planner ── */
       T.eq('control · `…_PPG.txt` IS a ppg primary (the classifier works)', DI.ppgKind(W), 'ppg');
-      T.eq('ppgKind · `…_PPG2W.txt` is SET ASIDE — it never becomes a PpgDex primary', DI.ppgKind(W2), 'skip');
+      T.eq('ppgKind · `…_PPG2W.txt` IS a PpgDex primary', DI.ppgKind(W2), 'ppg');
+      T.eq('ppgKind · its RUNS sidecar is a runs companion', DI.ppgKind(W2.replace('_PPG2W.', '_PPG2WRUNS.')), 'runs');
       T.eq('foreignKind · …and is labelled `spo2`, not `ppg`', DI.foreignKind(W2), 'spo2');
       if (typeof DI.planIngestPpg === 'function') {
         var plan = DI.planIngestPpg([
@@ -25763,7 +25768,27 @@
         var prim = (plan.ppgPrimaries || []).map(function (x) {
           return (x.file || x).name || x;
         });
-        T.eq('planIngestPpg · the control is the ONLY primary; the dual-wavelength file is not one', JSON.stringify(prim), JSON.stringify([W]));
+        T.eq('planIngestPpg · both ring files can be a primary; the app picks one per session first', JSON.stringify(prim), JSON.stringify([W2, W]));
+        var R2 = W2.replace('_PPG2W.', '_PPG2WRUNS.'),
+          R1 = W.replace('_PPG.', '_PPGRUNS.'),
+          ACC = 'Polar_Sense_TEST0001_20260905_223000_ACC.txt',
+          other = 'Wellue_O2Ring_S8AW2100_20260905_233000_PPG2WRUNS.txt';
+        var pl = DI.planIngestPpg(
+          [W2, W, R2, R1, ACC, other].map(function (n) {
+            return { name: n, text: HEAD };
+          })
+        );
+        var names = function (p) {
+          return [].concat
+            .apply([], Object.values(pl.eligibleByPrimary[p] || {}))
+            .map(function (c) {
+              return c.name;
+            })
+            .sort();
+        };
+        T.eq('the raw primary takes its OWN sidecar and nothing else', JSON.stringify(names(W2)), JSON.stringify([R2]));
+        T.ok('the pleth primary never takes a raw sidecar', names(W).indexOf(R2) < 0 && names(W).indexOf(other) < 0, JSON.stringify(names(W)));
+        T.ok('control · the pleth primary still takes its own sidecar', names(W).indexOf(R1) >= 0, JSON.stringify(names(W)));
       } else T.ok('DexIngest.planIngestPpg reachable', false);
       /* ── every adapter that could carry it into ppgdex-dsp ── */
       if (SA && typeof SA.route === 'function') {
@@ -25833,10 +25858,125 @@
       var pSrc = (env.sources || {})['ppgdex-dsp.js'] || '';
       if (pSrc)
         T.ok(
-          'ppgdex-dsp.js still carries the two-channel `_PPG2W` acceptance (the code is live, the ROUTE is dead)',
+          'ppgdex-dsp.js still carries the two-channel `_PPG2W` acceptance',
           /TWO channels are accepted ONLY as the O2Ring's raw dual-wavelength/.test(pSrc),
           'the dual path was removed — retire this group with it'
         );
+    });
+
+    group('PpgDex picks ONE ring file per session — raw when it covers the session, else the pleth', 'dex-ingest · pickRingWave', function (T) {
+      var DI = env.DexIngest;
+      if (!DI || typeof DI.pickRingWave !== 'function') {
+        T.ok('DexIngest.pickRingWave reachable', false);
+        return;
+      }
+      var base = 'Wellue_O2Ring-S_TEST0001_20260905_223000_',
+        oth = { name: 'Polar_Sense_TEST0001_20260905_223000_PPG.txt', size: 5 };
+      var run = function (raw, pleth) {
+        var fl = [oth];
+        if (pleth != null) fl.push({ name: base + 'PPG.txt', size: pleth });
+        if (raw != null) fl.push({ name: base + 'PPG2W.txt', size: raw });
+        var o = DI.pickRingWave(fl);
+        var nm = function (a) {
+          return a
+            .map(function (f) {
+              return f.name.replace(base, '');
+            })
+            .join(',');
+        };
+        return nm(o.kept) + ' | ' + nm(o.dropped);
+      };
+      T.eq('raw covers the session → raw kept, pleth set aside', run(160, 100), oth.name + ',PPG2W.txt | PPG.txt');
+      T.eq('raw at exactly the ratio counts as covering', run(140, 100), oth.name + ',PPG2W.txt | PPG.txt');
+      T.eq('raw covers LESS of the session → pleth kept', run(139, 100), oth.name + ',PPG.txt | PPG2W.txt');
+      T.eq('an empty raw file never wins, even beside an empty pleth', run(0, 0), oth.name + ',PPG.txt | PPG2W.txt');
+      T.eq('raw alone passes through', run(160, null), oth.name + ',PPG2W.txt | ');
+      T.eq('pleth alone passes through', run(null, 100), oth.name + ',PPG.txt | ');
+      T.eq('no list → two empty lists', JSON.stringify(DI.pickRingWave(null)), '{"kept":[],"dropped":[]}');
+      var two = DI.pickRingWave([
+        { name: base + 'PPG2W.txt', size: 160 },
+        { name: 'Wellue_O2Ring-S_TEST0001_20260906_223000_PPG.txt', size: 100 }
+      ]);
+      T.eq('two DIFFERENT sessions never displace each other', two.kept.length + '/' + two.dropped.length, '2/0');
+    });
+
+    group('the ring raw file — its axis is the reply arrivals, and a loss of rows stays a gap', 'ppgdex-dsp · rawAxis', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.parsePPG !== 'function') {
+        T.skip('PPGDSP.parsePPG available', 'not loaded');
+        return;
+      }
+      // Replies of 100 rows at 200 Hz. A reply arrives late by a repeating jitter, and the writer spreads
+      // its rows evenly between the previous arrival and this one, as the capture host does.
+      var JIT = [0, 22, -14, 35, -30, 12, 40, -8, 18, -25, 6];
+      var T0 = Date.UTC(2026, 8, 5, 22, 30, 0);
+      function raw(nRep, o) {
+        o = o || {};
+        var out = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n',
+          s = 0;
+        for (var k = 0; k < nRep; k++) {
+          var lost = o.lossAt != null && k >= o.lossAt ? o.lossMs : 0;
+          var jit = JIT[k % JIT.length] * (o.jit || 1);
+          var end = 500 * (k + 1) + lost + jit;
+          var step = (500 + jit / 2) / 100;
+          for (var j = 0; j < 100; j++, s++) {
+            var at = new Date(T0 + Math.round(end - (99 - j) * step));
+            var stamp = at.toISOString().slice(0, o.noFrac ? 19 : 23);
+            var v = Math.sin((2 * Math.PI * (s + lost / 5)) / 200);
+            out += stamp.replace('T', o.space ? ' ' : 'T') + ';' + (o.ns || '') + ';' + (90000 - Math.round(3000 * v)) + ';' + (15000 - Math.round(900 * v)) + ';0\n';
+          }
+        }
+        return out;
+      }
+      var N = 400;
+      var a = P.parsePPG(raw(N));
+      T.ok('the axis is built', !!(a.rawAxis && a.rawAxis.ok), JSON.stringify(a.rawAxis));
+      T.ok('the rate is the arrival rate, 200 Hz', Math.abs(a.fs - 200) < 0.3, String(a.fs));
+      T.eq('a clean file loses nothing', a.rawAxis.losses + '/' + a.rawAxis.lostMs, '0/0');
+      T.ok('replies are counted', Math.abs(a.rawAxis.replies - N) <= N * 0.1, String(a.rawAxis.replies));
+      T.eq('channels, rows and site', a.ch.length + ' ' + a.n + ' ' + a.site, '2 ' + N * 100 + ' finger');
+      T.eq('the 125 Hz crystal grid does not apply', a.timebase, 'host-disciplined');
+      T.eq('…even when the caller asks for it', P.parsePPG(raw(N), { timebase: 'device-crystal' }).timebase, 'host-disciplined');
+      T.eq('the timing comes from the host', a.hostAxis.timingSource, 'host');
+      T.ok('the refusal names the reply axis', /reply arrivals/.test(a.hostAxis.reason), a.hostAxis.reason);
+      var worst = 0,
+        back = 0;
+      for (var i = 1; i < a.n; i++) {
+        worst = Math.max(worst, Math.abs(a.relSec[i] - a.relSec[i - 1] - 0.005));
+        if (a.relSec[i] < a.relSec[i - 1]) back++;
+      }
+      T.eq('the axis never steps back', back, 0);
+      T.ok('arrival jitter of 40 ms does not reach the row spacing', worst < 0.002, String(worst));
+      var b = P.parsePPG(raw(N, { lossAt: 200, lossMs: 5000 }));
+      T.eq('one loss of rows is one loss', b.rawAxis.losses, 1);
+      T.ok('…of about its own size', Math.abs(b.rawAxis.lostMs - 5000) < 25, String(b.rawAxis.lostMs));
+      var big = [];
+      for (var q = 1; q < b.n; q++) if (b.relSec[q] - b.relSec[q - 1] > 0.05) big.push(q);
+      T.eq('the gap is ONE step, at the reply boundary', JSON.stringify(big), '[20000]');
+      T.ok('the rate is not diluted by the gap', Math.abs(b.fs - 200) < 0.3, String(b.fs));
+      T.ok('rows after the gap sit at their own time', Math.abs(b.relSec[b.n - 1] - b.relSec[0] - (N * 0.5 + 5)) < 0.1, String(b.relSec[b.n - 1] - b.relSec[0]));
+      var small = P.parsePPG(raw(N, { lossAt: 200, lossMs: 60, jit: 0.25 }));
+      T.eq('a 60 ms step is arrival noise, not a loss', small.rawAxis.losses, 0);
+      var z = P.parsePPG(raw(N, { ns: '0' }));
+      T.eq('an older file with a 0 counter reads the same axis', z.relSec[z.n - 1], a.relSec[a.n - 1]);
+      var sp = P.parsePPG(raw(N, { space: true }));
+      T.eq('a space in the stamp reads the same axis', sp.relSec[sp.n - 1], a.relSec[a.n - 1]);
+      var few = P.parsePPG(raw(40));
+      T.ok('too few replies → refused with a reason', few.rawAxis && few.rawAxis.ok === false && /replies/.test(few.rawAxis.reason), JSON.stringify(few.rawAxis));
+      T.eq('…and no loss count is invented', few.rawAxis.lostMs, undefined);
+      var dev = P.parsePPG(raw(N, { ns: '123456789' }));
+      T.eq('a file that carries a counter does not take the reply axis', dev.rawAxis, undefined);
+      var whole = P.parsePPG(raw(N, { noFrac: true }));
+      T.ok('whole-second stamps still parse (the fraction is optional)', whole.n === N * 100);
+      var plain = 'Phone timestamp;sensor timestamp [ns];channel 0\n';
+      for (var m = 0; m < 600; m++) plain += new Date(T0 + m * 8).toISOString().slice(0, 23) + ';' + m * 8000000 + ';' + (100 + Math.round(20 * Math.sin(m / 9))) + '\n';
+      var pl = null;
+      try {
+        pl = P.parsePPG(plain);
+      } catch (_e) {
+        pl = null;
+      }
+      if (pl) T.eq('a pleth file does not carry the block', pl.rawAxis, undefined);
     });
 
     group('SAMPLE-VALIDITY-ENVELOPE §3.2 — the _PPG2WRUNS sidecar reaches OxyDex and REFUSES the bins it meets', 'oxydex-dsp · spo2w · §∅', function (T) {
@@ -26218,7 +26358,7 @@
       T.ok('the app export carries NO hardcoded device string', !/device:\s*'Polar Sense'/.test(app), "device:'Polar Sense' is back — an O2Ring finger night would export as a wrist Verity");
       T.ok(
         '…the device follows the instrument the ingest named, then the optical layout the DSP read',
-        /device:\s*r\.opticalDevice === 'Muse' \? '[^']*Muse[^']*' : r\.site === 'finger'/.test(app),
+        /device:\s*r\.opticalDevice === 'Muse' \? '[^']*Muse[^']*' : r\.ringRaw \? '[^']*two-wavelength[^']*' : r\.site === 'finger'/.test(app.replace(/\s+/g, ' ')),
         'device no longer derived from r.opticalDevice then r.site'
       );
       /* The site pair is the honesty carrier: 'device-default' = inferred from the layout,
