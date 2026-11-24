@@ -163,6 +163,9 @@ export function scan(src) {
     let text = raw
       .replace(/`[^`]*`/g, 'CODE')
       .replace(/https?:\/\/\S+/g, 'URL')
+      /* A `[[note-name]]` is a name, like code. Measured 2026-11-24 over 819 memory notes: 96 of 2,351 findings
+         sat inside one, so a note that linked `…-not-a-proxy` failed on a name that it cannot change. */
+      .replace(/\[\[[^\]]*\]\]/g, 'LINK')
       .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
     if (!text.trim()) {
       excluded += 1;
@@ -396,6 +399,8 @@ if (DIRECT && process.argv.includes('--selftest')) {
   ck('a verb-noun is reported', rules('The stamping of the fixture failed.').includes('verb-noun'), true);
   ck('a technical name ending in -ing is NOT a verb-noun', rules('The oxydex reading is null.', G).includes('verb-noun'), false);
   ck('a retired term is reported with its approved form', findings('It is a proxy for the truth.', G).find((x) => x.rule === 'retired-term').detail, '"proxy" → "measured value"');
+  ck('a retired term inside a [[note-name]] is a name, not a use', rules('See [[measure-it-not-a-proxy]] first.', G), []);
+  ck('…and the same word beside the link is still reported', rules('See [[x]], a proxy for it.', G), ['retired-term']);
   /* 🔴 THE FALSE POSITIVES, measured over the 767 tracked Markdown files on 2026-10-12. Each word had
      its own count; each has its own case, and a real passive and a real verb-noun stay reported. */
   for (const w of ['green', 'open', 'then', 'often', 'even']) ck(`"is ${w}" is not passive`, rules(`The check is ${w} now.`).includes('passive'), false);
