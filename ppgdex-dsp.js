@@ -6576,10 +6576,23 @@
             ? 'sqi-absent'
             : 'sqi-flat';
     const _t0 = rec.t0Ms || 0;
+    /* ∅ ONE SECOND, SPELLED ONE WAY. `beatConfidence` keys every beat through `secAbs` —
+       `floor((t0 + (round(sec·fs)/fs)·1000) / 1000)` over the pseudo-sample indices this call hands
+       it — and this reader spelled the same second from the UNROUNDED `sec`. The two spellings
+       differ by up to `500/fs` ms, so a beat within half a sample of a second boundary reads the
+       NEIGHBOURING second's trust, and a beat whose key rounds past the map's own span reads no
+       entry at all. That miss used to publish `1`, the top of the scale, for a beat the statistic
+       never weighed — and `ppiConfReason` / `ppiConfCue` cover the WHOLE map, so no field beside it
+       recorded the per-beat state. The reader now derives the key the way the map wrote it, and a
+       key the map does not carry answers `null`. `parsePPG` throws `no-sample-rate` on a
+       non-positive `fs` (:1735), so the rounding here always divides by a measured rate.
+       `integrator-dsp.js:181` already refuses a non-finite `conf`, and the rich export copies the
+       array verbatim (:8895). */
+    const _confKey = (sec) => Math.floor((_t0 + (Math.round(sec * rec.fs) / rec.fs) * 1000) / 1000);
     const ppiConf = _pConfMap
       ? corr.tt.map((s) => {
-          const c = _pConfMap.get(Math.floor((_t0 + s * 1000) / 1000));
-          return Number.isFinite(c) ? +c.toFixed(3) : 1;
+          const c = _pConfMap.get(_confKey(s));
+          return Number.isFinite(c) ? +c.toFixed(3) : null;
         })
       : null;
     // §4: per-interval CLEAN-adjacency mask — interval i (between beat i & i+1) is clean when it

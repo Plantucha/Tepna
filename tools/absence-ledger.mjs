@@ -1224,6 +1224,26 @@ export const SEEDS = [
     state: 'accepted-with-reason',
     reason:
       'hand-read 2026-11-24 (Heron): `beatConfidence` empties its map only when the peak series spans under one second, which `detectPeaks` cannot produce, so `analyze` never reads the `: 1` arm. Measured over `genSynthetic` at 120 s and at 300 s: every published `nnConf` entry comes from a scored second, and the fix changed nothing. The uncalibrated arms FILL the map with explicit 1s and publish `calibrated`, `axis` and `reason` as own properties on it, which is the out-of-band channel §∅ asks for. Trust 1 stays the admission weight for a beat nobody examined, the ruling the sibling `_maskedBeats` site already states. Carrying that calibration verdict into the record and the export is a separate unit, because it moves the node-export shape.'
+  },
+  {
+    at: 'ppgdex-dsp.js:4499',
+    state: 'fixed',
+    note: 'THIS PR. `beatConfidence` keys each beat through `secAbs` over the pseudo-sample indices `analyze` hands it, so a key reads `floor((t0 + (round(sec*fs)/fs)*1000) / 1000)`. The reader spelled the same second from the UNROUNDED `sec`, and the two spellings differ by up to 500/fs ms. A beat inside that margin of a second boundary asked for a key the map never wrote, and the miss published 1, the TOP of the trust scale, for a beat the statistic never weighed. `ppiConfReason` and `ppiConfCue` both describe the whole map, so no field beside the element carried its state. The reader now derives the key the way the map wrote it, and a key the map does not carry answers null. A crossing needs `t0Ms % 1000 !== 0`, because with an integer `fs` and a t0 on the second the boundary falls on a sample index. Measured: ZERO crossings over six inputs, one real Verity stream plus the five committed synthetics, 521 corrected beats, so the defect is latent and the corpus holds no instance. Plant: tests/dex-tests.js, group `PpgDex ∅ — the per-beat trust reader spells the second the way the map wrote it`. Three of ten legs red on origin/main (measured 2026-11-24, Heron).'
+  },
+  {
+    at: 'ppgdex-dsp.js:4449',
+    state: 'fixed',
+    note: '`ppiAgreement` answers null when either spine yields no usable median, landed by #5168 at 6426563f4. Hand-read 2026-11-24 (Heron) against origin/main: the ternary reads `: null` at ppgdex-dsp.js:6502, the export guards it as `ppiAgreement == null ? null : Math.round(100 * ppiAgreement)` at :7402, and ppgdex-app.js:638 draws the KPI only when `r.ppiAgreementPct != null`. Read by content, never by a snippet match.'
+  },
+  {
+    at: 'ppgdex-dsp.js:4674',
+    state: 'fixed',
+    note: '`correctionRate` answers null over an empty interval series, landed by #5168 at 6426563f4. Hand-read 2026-11-24 (Heron) against origin/main: the ternary reads `: null` at ppgdex-dsp.js:6895, and ppgdex-app.js:622-624 renders an em dash with a neutral band and the sub-label `no intervals`. The ARBITER keeps its 100 sentinel deliberately, which the comment at :6484 states. Read by content, never by a snippet match.'
+  },
+  {
+    at: 'ppgdex-dsp.js:6267',
+    state: 'fixed',
+    note: 'The re-ingest event sort no longer coerces an absent `tMs` to 0, landed by #5574. Hand-read 2026-11-24 (Heron) against origin/main: ppgdex-dsp.js:9058 calls `DexClock.sortEventsByClock(json.ganglior_events, _evAnchor(json))`, and the consumer `ppgReviewTimeline` at ppgdex-app.js:1686 calls the same shared key, which sorts an unplaceable event last. Both halves of the row are closed. Read by content, never by a snippet match.'
   }
 ];
 
