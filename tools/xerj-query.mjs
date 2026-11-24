@@ -89,6 +89,36 @@ const MEMORY_DEPTH = 400;
 const MEMORY_PASSAGE_CHARS = 200;
 export const isMemoryNote = (path) => String(path ?? '').startsWith(MEMREPO_PREFIX);
 
+/**
+ * THE PROMOTED NOTES. Up to two notes of the lane enter the answer. Each one takes the place of the
+ * lowest hit that comes from OUTSIDE the repo and is not a note: a board post or a state file. A repo
+ * document never gives up its place. The hit that lost its place prints after the answer, and the lane
+ * then prints that many notes fewer, so the count of printed lines does not change.
+ *
+ * MEASURED 2026-11-24 over the pools of the 422 queries of stratum L, criterion pre-stated, reranker
+ * on. A note that its session then read is in the five: 195 of 422 before, 252 after. The variant was
+ * chosen on the even queries (99 of 212 before, 129 after). The odd queries were read once (96 of 210
+ * before, 123 after). The 52 Rule-0 queries kept 49. Any variant that let a repo document give up its
+ * place hit more notes and lost 1 to 8 of those 52.
+ *
+ * Limit: the truth of stratum L is a note the session read, which favours the lane of that day.
+ */
+export const MEMORY_PROMOTE = 2;
+const isOutsideHit = (path) => String(path ?? '').startsWith('ext:') && !isMemoryNote(path);
+
+/** `{hits, displaced}`: the notes that enter `hits`, and the hits that gave up a place, best first. */
+export function promoteNotes(hits, notes, n = MEMORY_PROMOTE) {
+  const out = [...(hits || [])];
+  const displaced = [];
+  for (const note of memoryLane(notes, out, n)) {
+    const at = out.findLastIndex((h) => isOutsideHit(h.path));
+    if (at < 0) break;
+    displaced.unshift(...out.splice(at, 1));
+    out.push(note);
+  }
+  return { hits: out, displaced };
+}
+
 /** The best `n` notes of `list` that `hits` does not already show. Order is kept. */
 export function memoryLane(list, hits, n = MEMORY_SLOTS) {
   const shown = new Set((hits || []).map((h) => h.path));
@@ -468,6 +498,7 @@ export async function hybridSearch({
   cap = true,
   superseded = true,
   memorySlots = MEMORY_SLOTS,
+  promote = MEMORY_PROMOTE,
   readFn = readCorpusFile
 }) {
   if (!isLoopback(url)) throw new Error(`${url} is not loopback — this tool is dev-only`);
@@ -506,16 +537,18 @@ export async function hybridSearch({
      still has something to backfill from; running it second would let the cap spend both board slots
      on replaced posts before anything read the mark. */
   let notes = [];
-  const take = (list) => {
+  const take = (list, hybrid = true) => {
     const d = superseded ? deferSuperseded(list, topK, { readFn }) : { hits: list || [], supersededHeld: 0, supersededBy: [], unreadable: [] };
     const c = cap ? capSourceShare(d.hits, topK) : { hits: d.hits.slice(0, topK), held: 0, max: null };
     const live = superseded ? deferSuperseded(notes, notes.length, { readFn }) : { hits: notes, supersededHeld: 0 };
-    return { ...c, notes: memoryLane(live.hits, c.hits, memorySlots), supersededHeld: d.supersededHeld, supersededBy: d.supersededBy, supersededUnreadable: d.unreadable };
+    const p = promoteNotes(c.hits, live.hits, Math.min(promote, memorySlots, hybrid ? topK : 0));
+    const lane = memoryLane(live.hits, p.hits, memorySlots - p.displaced.length);
+    return { ...c, ...p, notes: lane, supersededHeld: d.supersededHeld, supersededBy: d.supersededBy, supersededUnreadable: d.unreadable };
   };
   const { top: lex, notes: lexNotes } = await ask(null);
   notes = lexNotes;
   const bm25 = lex[0]?.score ?? null;
-  if (!vector) return { ...take(lex), degraded, hybrid: false, signals: { cos: null, bm25 }, refused: false };
+  if (!vector) return { ...take(lex, false), degraded, hybrid: false, signals: { cos: null, bm25 }, refused: false };
   const { top: sem, notes: semNotes } = await ask(vector);
   notes = fuseRRF([lexNotes, semNotes], MEMORY_DEPTH);
   const signals = { cos: sem[0]?.score ?? null, bm25 };
@@ -683,6 +716,47 @@ export async function selftest() {
   ok(lane.notes.length === 1 && render(lane, 'q').includes('memory notes, best outside') && render(lane, 'q').includes('late.md'), 'a crowded-out note still prints');
   ok(!render(hi, 'q').includes('memory notes'), 'CONTROL: no note, no section');
   ok((await hybridSearch({ query: 'q', fetchFn: crowd, embedFn: emb, memorySlots: 0 })).notes.length === 0, 'the lane can be off');
+  const P = (n, sc) => ({ path: `ext:agent-board/7/${n}.md`, score: sc, where: '', text: 'post' });
+  const R = (n, sc) => ({ path: `briefs/${n}.md`, score: sc, where: '', text: 'brief' });
+  const N = [mn('n1', 0.3), mn('n2', 0.2), mn('n3', 0.1)];
+  const five = [P(1, 9), R('a', 8), P(2, 7), R('b', 6), R('c', 5)];
+  const pr = promoteNotes(five, N);
+  ok(joinPaths(pr.hits) === joinPaths([R('a'), R('b'), R('c'), N[0], N[1]]), 'two notes take the two outside places and print last, and every repo document keeps its order');
+  ok(joinPaths(pr.displaced) === joinPaths([P(1), P(2)]), 'the hits that gave up a place come back, best first');
+  ok(joinPaths(promoteNotes([P(1), P(2), P(3), R('a'), R('b')], N).displaced) === joinPaths([P(2), P(3)]), 'the LOWEST outside hits give up their place, never the first');
+  ok(joinPaths(promoteNotes([R('a'), P(1), R('b')], N).hits) === joinPaths([R('a'), R('b'), N[0]]), 'one outside hit gives one place');
+  ok(joinPaths(promoteNotes([R('a'), R('b')], N).hits) === joinPaths([R('a'), R('b')]), 'CONTROL: with repo documents alone no note enters');
+  ok(joinPaths(promoteNotes([N[0], P(1), P(2)], N).hits) === joinPaths([N[0], N[1], N[2]]), 'a note already shown is not shown twice, and a promoted note never displaces a note');
+  ok(promoteNotes(five, []).displaced.length === 0 && joinPaths(promoteNotes(five, []).hits) === joinPaths(five), 'CONTROL: no memory corpus changes nothing');
+  ok(
+    joinPaths(promoteNotes(five, N, 0).hits) === joinPaths(five) && joinPaths(five) === joinPaths([P(1), R('a'), P(2), R('b'), R('c')]),
+    'the promotion can be off, and the input list is not changed'
+  );
+  const mixed = async (u, o) => {
+    const b = JSON.parse(o.body);
+    const rows = [doc('ext:agent-board/7/1.md', 50), doc('briefs/1.md', 49), doc('ext:mem-state/x.md', 48), doc('briefs/2.md', 47), doc('briefs/3.md', 46)].concat(
+      [1, 2, 3, 4].map((i) => doc(`${MEMREPO_PREFIX}lane/p${i}.md`, 5 - i))
+    );
+    return { ok: true, json: async () => ({ hits: { hits: rows.slice(0, b.size) } }) };
+  };
+  const prom = await hybridSearch({ query: 'q', fetchFn: mixed, embedFn: emb });
+  const pr8 = [...prom.hits, ...prom.displaced, ...prom.notes].map((h) => h.path);
+  ok(prom.hits.length === 5 && prom.displaced.length === 2 && prom.notes.length === 1, 'the answer stays five, and the lane gives up one line for each displaced hit');
+  ok(new Set(pr8).size === 8 && pr8.every((x) => render(prom, 'q').includes(x)), 'all eight paths print once, so a displaced hit is not lost');
+  ok(render(prom, 'q').includes('displaced by a memory note') && !render(lane, 'q').includes('displaced by'), 'the section names the cause, and prints only when a hit lost its place');
+  ok((await hybridSearch({ query: 'q', fetchFn: mixed, embedFn: emb, promote: 0 })).displaced.length === 0, 'CONTROL: promote 0 is the order before');
+  ok(
+    (
+      await hybridSearch({
+        query: 'q',
+        fetchFn: mixed,
+        embedFn: async () => {
+          throw new Error('down');
+        }
+      })
+    ).displaced.length === 0,
+    'BM25 alone promotes nothing: nobody measured it there'
+  );
   const gone = await hybridSearch({ query: 'q', fetchFn: fake([NaN, 1]), embedFn: emb, rerank: true });
   ok(Number.isFinite(gone.signals.rerank), 'one absent logit does not remove the floor');
 
@@ -931,6 +1005,14 @@ export function render(out, query, { brief = false } = {}) {
     lines.push(`  ${h.score.toFixed(3)}  ${h.path}${h.where}`);
     if (brief) continue;
     lines.push(`        ${capPassage(h.text)}`);
+    lines.push('');
+  }
+  if (out.displaced?.length) {
+    lines.push('  displaced by a memory note above:');
+    for (const h of out.displaced) {
+      lines.push(`  ${h.score.toFixed(3)}  ${h.path}${h.where}`);
+      if (!brief) lines.push(`        ${capPassage(h.text, MEMORY_PASSAGE_CHARS)}`);
+    }
     lines.push('');
   }
   if (out.notes?.length) {

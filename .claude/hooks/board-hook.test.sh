@@ -89,6 +89,19 @@ check "a board-note chained onto the finish in one call: no block" "" "$got"
 { bash_use "node tools/board-note.mjs --as magpie n.md"; bash_use "gh pr ready 1"; } > "$T/c2.jsonl"
 got="$(stop false "$T/c2.jsonl" | bash "$HOOK" finish | jq -r .decision)"
 check "a board-note BEFORE a later finish still owes the post" "block" "$got"
+for c in 'grep -n "gh pr create" CLAUDE.md' "git log --grep='gh pr ready'" 'echo run tools/wt-done.mjs later' "sed -n '/gh pr create/p' f"; do
+  bash_use_raw "$c" > "$T/q.jsonl"
+  check "a command that only NAMES a finish owes nothing: $c" "" "$(stop false "$T/q.jsonl" | bash "$HOOK" finish)"
+done
+# shellcheck disable=SC2016  # the $( ) is the literal text of a command, not an expansion here
+for c in 'cd /x && gh pr create --draft' 'URL=$(gh pr create --draft)' 'GH_TOKEN=x timeout 60 gh pr ready 3' 'if gh pr create; then :; fi' 'git push; gh pr create' $'git push\ngh pr create' 'node /abs/tools/wt-done.mjs ../wt-x' 'tools/wt-done.mjs ../wt-x'; do
+  bash_use_raw "$c" > "$T/q.jsonl"
+  check "CONTROL: a finish that runs still owes the post: $c" "block" "$(stop false "$T/q.jsonl" | bash "$HOOK" finish | jq -r .decision)"
+done
+{ bash_use "gh pr ready 1"; bash_use "node tools/pr-open.mjs --as magpie --title T b.md"; } > "$T/o.jsonl"
+check "pr-open posts, so it pays an earlier finish" "" "$(stop false "$T/o.jsonl" | bash "$HOOK" finish)"
+{ bash_use "gh pr ready 1"; bash_use "node tools/pr-open.mjs --dry-run --as magpie --title T b.md"; } > "$T/o.jsonl"
+check "CONTROL: pr-open --dry-run posts nothing, so the post is still owed" "block" "$(stop false "$T/o.jsonl" | bash "$HOOK" finish | jq -r .decision)"
 bash_use "git push origin x" > "$T/p.jsonl"
 got="$(stop false "$T/p.jsonl" | bash "$HOOK" finish)"
 check "a plain push is not a finish" "" "$got"
