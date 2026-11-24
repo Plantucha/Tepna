@@ -10289,6 +10289,7 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
     # span to the last sample says how long the device recorded. `ended_noted` latches one note per
     # episode, on the delivery, the same discipline as `alerted`.
     stream_since: dict[str, float] = {}
+    spans: dict[str, tuple[float, float]] = {}  # the night span: it crosses short gaps and restarts
     ended_noted: set[str] = set()
     # Devices seen connected at least once this session. An `optional: true` device that never joined is
     # not something capture is "missing" (alerts.offline_alert_suppressed holds the reasoning); one that
@@ -10309,6 +10310,7 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
             _LAST_PULL_OK.setdefault(n, t)
         ended_at.update(ended)
         ended_noted.update(ended)
+        spans.update(alerts.spans_restored(saved, _time.monotonic(), _time.time()))
         if pull_ok or ended:
             log.info(
                 "alert: restored the quiet state of %d device(s) from %s", len(set(pull_ok) | set(ended)), quiet_path
@@ -10414,20 +10416,21 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 down_since.pop(name, None)
                 not_worn_alerted.discard(name)
                 docked_at = dock_since.setdefault(name, now)
-                first = stream_since.pop(name, None)  # the next wear starts a new episode
+                stream_since.pop(name, None)  # the next wear starts a new episode
+                span = spans.pop(name, None)
                 # A NIGHT THAT ENDS ON THE DOCK (see `alerts.dock_night_text`): the device stays linked,
                 # so the silent-after-a-pull path below never sees this night end.
                 if (
-                    first is not None
+                    span is not None
                     and name not in ended_noted
-                    and alerts.worth_a_night_note(first, _LAST_DATA.get(name), _now().hour)
+                    and alerts.worth_a_night_note(span[0], alerts.span_last(span, _LAST_DATA.get(name)), _now().hour)
                 ):
                     delivered = await notifier.send(*alerts.dock_night_text(name))
                     if delivered or not notifier.enabled:
                         ended_noted.add(name)
                         ended_at[name] = now
                     else:
-                        stream_since[name] = first  # a failed send retries on the next poll
+                        spans[name] = span  # a failed send retries on the next poll
                 if alerts.streams_on_charger(_LAST_DATA.get(name), docked_at, now, data_grace):
                     if name not in dock_stream_alerted:
                         log.warning("alert: %s sends samples on its charger", name)
@@ -10478,7 +10481,8 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                     if name in down_since:
                         returned_unworn.add(name)
                 else:
-                    if name in down_since or name in returned_unworn or name not in stream_since:
+                    after_gap = name in down_since or name in returned_unworn or name not in stream_since
+                    if after_gap:
                         returned_unworn.discard(name)
                         stream_since[name] = now  # a new episode starts here
                         # A WORN device in the evening begins a night; a device on a desk does not.
@@ -10487,6 +10491,9 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                         # licence of the ring and the strap, and both sent "offline for ~5 min" at 18:12.
                         if alerts.begins_a_night(_now().hour):
                             night_began = now
+                    spans[name] = alerts.night_span(
+                        spans.get(name), _LAST_DATA[name], after_gap=after_gap, reported=name in ended_noted
+                    )
                     ended_noted.discard(name)
                     ended_at.pop(name, None)
                     _IDLE_TIMER_NAMED.discard(name)  # re-worn: the next power-off is a new event
@@ -10503,6 +10510,9 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                     )
             else:
                 down_since.setdefault(name, now)
+                span = spans.get(name)
+                first = None if span is None else span[0]
+                last = alerts.span_last(span, _LAST_DATA.get(name))
                 if alerts.offline_alert_suppressed(d.get("optional"), name in ever_connected):
                     continue  # never showed up; not a thing we are missing
                 # A SILENCE THE BOX ITSELF CAUSED IS NOT THE DEVICE'S IDLE TIMER. Read BEFORE the
@@ -10550,8 +10560,8 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                             name,
                         )
                     if name not in ended_noted:
-                        if not alerts.worth_a_night_note(stream_since.get(name), _LAST_DATA.get(name), _now().hour):
-                            # A short wear, or a span a restart erased outside the morning: the pull
+                        if not alerts.worth_a_night_note(first, last, _now().hour):
+                            # A short wear, or a span the box does not know outside the morning: the pull
                             # licenses the silence, and no note goes out.
                             log.info("%s: the stream that ended was not a known night — no night note", name)
                             ended_noted.add(name)
@@ -10565,31 +10575,31 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                             ended_noted.add(name)
                             ended_at[name] = now
                     continue
-                last = _LAST_DATA.get(name)
-                first = stream_since.get(name)
-                if not connected and last is not None and first is not None:
+                # ONCE REPORTED, THE NIGHT-ENDED LICENCE BELOW ANSWERS, because it ends when the next night
+                # begins. This clause has no such end: it kept a device left off quiet the whole next night.
+                if not connected and name not in ended_noted and last is not None and first is not None:
                     stop = _dt.datetime.now() - _dt.timedelta(seconds=now - last)
                     if alerts.stream_ended_in_the_morning(last - first, stop.hour):
                         if not alerts.stream_end_settled(last, now):
                             continue  # a doff pull may still complete; the pulled-night note wins then
-                        if name not in ended_noted:
-                            mins = int((last - first) / 60)
-                            log.info("%s: live stream ended at %s after %d min", name, stop.strftime("%H:%M"), mins)
-                            delivered = await notifier.send(
-                                f"Tepna: {name} night ended",
-                                f"{name} streamed for {mins // 60} h {mins % 60:02d} min and stopped at "
-                                f"{stop.strftime('%H:%M')}. The live record on the box runs up to that minute. "
-                                "No pull completed for this device, so anything it stored stays on it for "
-                                "the charger pull. If it is still worn, check it.",
-                            )
-                            if delivered or not notifier.enabled:
-                                ended_noted.add(name)
-                                ended_at[name] = now
+                        mins = int((last - first) / 60)
+                        log.info("%s: live stream ended at %s after %d min", name, stop.strftime("%H:%M"), mins)
+                        delivered = await notifier.send(
+                            f"Tepna: {name} night ended",
+                            f"{name} streamed for {mins // 60} h {mins % 60:02d} min and stopped at "
+                            f"{stop.strftime('%H:%M')}. The live record on the box runs up to that minute. "
+                            "No pull completed for this device, so anything it stored stays on it for "
+                            "the charger pull. If it is still worn, check it.",
+                        )
+                        if delivered or not notifier.enabled:
+                            ended_noted.add(name)
+                            ended_at[name] = now
                         continue
                 # A NIGHT ALREADY REPORTED AS ENDED STAYS QUIET until the device records again or the next
-                # night begins. After a restart this stamp is the only witness: `stream_since` and
-                # `_LAST_DATA` start empty. When a night began, the alarm counts from its start, so it
-                # says how long this night has been missing the device, not how long the device was off.
+                # night begins. After a restart this stamp is the only witness of an older end,
+                # because a span older than `alerts.SPAN_GAP_S` is not restored. When a night began, the
+                # alarm counts from its start, so it says how long this night has been missing the device,
+                # not how long the device was off.
                 stamp = ended_at.get(name)
                 if alerts.quiet_licence_holds(stamp, night_began):
                     if not connected:
@@ -10708,10 +10718,10 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                         if delivered or not notifier.enabled:
                             paged.add(name)
         # Save only on a change, so an idle box does not rewrite the file every poll.
-        key = (dict(_LAST_PULL_OK), dict(ended_at), night_began)
+        key = (dict(_LAST_PULL_OK), dict(ended_at), night_began, dict(spans))
         if quiet_path and key != saved_key:
             _write_quiet_state(
-                quiet_path, alerts.quiet_state_to_save(_LAST_PULL_OK, ended_at, now, _time.time(), night_began)
+                quiet_path, alerts.quiet_state_to_save(_LAST_PULL_OK, ended_at, now, _time.time(), night_began, spans)
             )
             saved_key = key
 
