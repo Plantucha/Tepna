@@ -863,6 +863,17 @@ function blockCI(hh, vv, oo, B) {
   }
   return out;
 }
+/* §∅ AN ABSENT RECORDING START IS NOT 1970. Every HR map below anchored its per-second grid on an
+   or-zero `rec.t0Ms`, so a record whose stamp never parsed got the epoch and its whole night landed
+   on the 1970 grid — next to no other corner, and the trio join then read no agreement for a reason
+   it could not name. A finite start is the only start: anything else answers null and the caller
+   refuses with a named reason. A measured start of 0 is still a start, so the test is finiteness and
+   never truthiness. The helper is LOCAL and pure, because `tests/dex-tests.js` slices it out of this
+   source and runs it. */
+function _trioT0(rec) {
+  var v = rec ? rec.t0Ms : undefined;
+  return typeof v === 'number' && isFinite(v) ? v : null;
+}
 // PRODUCTION Verity HR — raw PPG → real PpgDex detector (parsePPG → 3-LED consensus
 // feet → buildPPI → Malik correctRR) → per-second HR on the absolute floating-ms grid.
 // PRODUCTION H10 HR — raw ECG → ECGDSP Pan–Tompkins QRS (parseECG → bandpass → detectPeaks)
@@ -895,9 +906,15 @@ function ecgHrMap(text, onPhase, runsText) {
       return null;
     }
     var fs = rec.fs,
-      t0 = rec.t0Ms || 0,
+      t0 = _trioT0(rec),
       pairs = [],
       i;
+    /* §∅ The host axis places a beat without the start stamp, so the gold corner refuses only when
+       BOTH are absent — which is the state in which `t0 + k/fs` below would have read 1970. */
+    if (t0 === null && typeof rec.tMsAt !== 'function') {
+      self.__ecgErr = 'no t0Ms and no host axis — the beat clock has no anchor';
+      return null;
+    }
     /* The spans are the box's own, in sample indices; an interval [prev, cur] that overlaps one is
        dropped, which also drops a peak the detector found INSIDE a blanked run. */
     var spans = Array.isArray(rec.blankingSpans) ? rec.blankingSpans : null;
@@ -1057,9 +1074,15 @@ function ppgHrMapReal(text, onPhase, runsText) {
     var corr = PPGDSP.correctRR(b.rr, b.tt),
       nn = corr.nn,
       tt = corr.tt,
-      t0 = rec.t0Ms || 0,
+      t0 = _trioT0(rec),
       pairs = [],
       i;
+    /* §∅ This corner has no second clock: `tt` is seconds from the recording start, so with no start
+       there is no absolute second to key. The corner says so rather than keying on 1970. */
+    if (t0 === null) {
+      self.__ppgErr = 'no t0Ms — the per-second HR grid has no anchor';
+      return null;
+    }
     for (i = 0; i < nn.length; i++) {
       var hr = 60000 / nn[i];
       if (!(hr >= HR_MIN && hr <= HR_MAX)) continue;
@@ -1130,9 +1153,13 @@ function o2MarkerHrMap(text, runsText) {
     var b = PPGDSP.buildPPI(Array.from(ms));
     if (!b || !b.rr || b.rr.length < 20) return null;
     var corr = PPGDSP.correctRR(b.rr, b.tt),
-      t0 = rec.t0Ms || 0,
+      t0 = _trioT0(rec),
       pairs = [],
       i;
+    /* §∅ The marker times are seconds from the recording start too, so the ring's own-beat corner
+       refuses the night with no start rather than publishing one keyed on 1970. This function has no
+       error channel of its own, so the refusal is the null every other refusal here returns. */
+    if (t0 === null) return null;
     for (i = 0; i < corr.nn.length; i++) {
       var hr = 60000 / corr.nn[i];
       if (hr >= HR_MIN && hr <= HR_MAX) pairs.push([secFloor(t0 + corr.tt[i] * 1000), hr]);

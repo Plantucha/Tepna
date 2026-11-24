@@ -65671,6 +65671,107 @@
       });
     });
 
+    /* ── §∅ THE FOUR TRIO START STAMPS — AN ABSENT START IS NOT 1970 ─────────────────────────────────
+       Three HR maps in `sensor-trio-worker.js` and the device reference axis in `trio-reference.js`
+       anchored a per-second grid on an or-zero start. A record whose stamp never parsed got the epoch,
+       so its whole night keyed on the 1970 grid — beside no other corner. The trio join then read no
+       agreement, and nothing in the result said why. Per the §∅ ruling an axis with no anchor is a
+       DISCONTINUITY and refuses; it does not annotate. The two helpers are sliced OUT OF THE SOURCE
+       and RUN here, so these are behaviour assertions and not a reading of the prose beside them. */
+    group('§∅ the trio start stamps — an absent t0Ms refuses, it never reads as 1970', 'sensor-trio · trio-reference · §∅ · clock · regression', function (T) {
+      function blank(s) {
+        return s.replace(/[^\n]/g, '');
+      }
+      function code(t) {
+        return String(t || '')
+          .replace(/\/\*[\s\S]*?\*\//g, blank)
+          .replace(/(^|[^:'"\\])\/\/.*$/gm, '$1');
+      }
+      var src = env.sources || {};
+      var wk = src['sensor-trio-worker.js'] || '',
+        rf = src['trio-reference.js'] || '';
+      T.ok('sensor-trio-worker.js is in env.sources (' + wk.length + ' bytes)', wk.length > 20000, 'an unread source reads exactly like a clean one');
+      T.ok('trio-reference.js is in env.sources (' + rf.length + ' bytes)', rf.length > 10000, 'an unread source reads exactly like a clean one');
+
+      /* ── (1) `_trioT0` sliced out of the worker and RUN ── */
+      var t0fn = null;
+      if (wk) {
+        var a = wk.indexOf('function _trioT0(rec) {');
+        var b = a < 0 ? -1 : wk.indexOf('\n}', a);
+        if (a >= 0 && b > a) {
+          try {
+            t0fn = new Function(wk.slice(a, b + 2) + '\nreturn _trioT0;')();
+          } catch (_e) {
+            t0fn = null;
+          }
+        }
+      }
+      if (typeof t0fn === 'function') {
+        T.eq('_trioT0 reads a finite start', t0fn({ t0Ms: 1764000000000 }), 1764000000000);
+        T.eq('_trioT0 keeps a MEASURED start of 0 — the test is finiteness, never truthiness', t0fn({ t0Ms: 0 }), 0);
+        T.eq('_trioT0 nulls an absent key', t0fn({}), null);
+        T.eq('_trioT0 nulls an explicit null', t0fn({ t0Ms: null }), null);
+        T.eq('_trioT0 nulls undefined', t0fn({ t0Ms: undefined }), null);
+        T.eq('_trioT0 nulls NaN — a parse that failed answers NaN, not 1970', t0fn({ t0Ms: NaN }), null);
+        T.eq('_trioT0 nulls Infinity', t0fn({ t0Ms: Infinity }), null);
+        T.eq('_trioT0 nulls a numeric STRING — `+` on it would concatenate, not add', t0fn({ t0Ms: '1764000000000' }), null);
+        T.eq('_trioT0 nulls a Date — the contract stores floating ms, never a Date', t0fn({ t0Ms: new Date(0) }), null);
+        T.eq('_trioT0 nulls a missing record', t0fn(null), null);
+        T.eq('_trioT0 nulls an undefined record', t0fn(undefined), null);
+      } else T.skip('_trioT0 could not be sliced out of sensor-trio-worker.js');
+
+      /* ── (2) `_refT0` sliced out of the reference and RUN ── */
+      var refFn = null;
+      if (rf) {
+        var c = rf.indexOf('function _refT0(r, rec) {');
+        var d = c < 0 ? -1 : rf.indexOf('\n  }', c);
+        if (c >= 0 && d > c) {
+          try {
+            refFn = new Function(rf.slice(c, d + 4) + '\nreturn _refT0;')();
+          } catch (_e) {
+            refFn = null;
+          }
+        }
+      }
+      if (typeof refFn === 'function') {
+        T.eq('_refT0 prefers the RESULT start', refFn({ t0Ms: 111 }, { t0Ms: 222 }), 111);
+        T.eq('_refT0 prefers a result start of 0 over the record — the or-chain did the opposite', refFn({ t0Ms: 0 }, { t0Ms: 222 }), 0);
+        T.eq('_refT0 falls through to the RECORD when the result carries none', refFn({}, { t0Ms: 222 }), 222);
+        T.eq('_refT0 falls through past a non-finite result start', refFn({ t0Ms: NaN }, { t0Ms: 222 }), 222);
+        T.eq('_refT0 nulls when neither carries one', refFn({}, {}), null);
+        T.eq('_refT0 nulls on two nulls', refFn({ t0Ms: null }, { t0Ms: null }), null);
+        T.eq('_refT0 nulls on two absent objects', refFn(null, null), null);
+        T.eq('_refT0 nulls a numeric string on either side', refFn({ t0Ms: '5' }, { t0Ms: '6' }), null);
+      } else T.skip('_refT0 could not be sliced out of trio-reference.js');
+
+      /* ── (3) the four call sites read the helper, and no or-zero start survives ── */
+      var wc = code(wk),
+        rc = code(rf);
+      T.ok(
+        'the comment strip is load-bearing — both repairs name `t0Ms` in prose too',
+        (wk.match(/t0Ms/g) || []).length > (wc.match(/t0Ms/g) || []).length,
+        'if the counts match, the scans below could be passing on a comment'
+      );
+      T.eq('no or-zero `rec.t0Ms` is left in sensor-trio-worker.js', (wc.match(/rec\.t0Ms\s*\|\|\s*0/g) || []).length, 0);
+      T.eq('the worker reads the helper at all three HR maps', (wc.match(/t0 = _trioT0\(rec\)/g) || []).length, 3);
+      T.eq('the gold corner refuses only when the host axis is absent too', (wc.match(/t0 === null && typeof rec\.tMsAt !== 'function'/g) || []).length, 1);
+      T.ok('…and it names the reason on its own error channel', /__ecgErr = 'no t0Ms and no host axis/.test(wc), 'a silent null is unreadable one hop later');
+      T.ok('the Verity corner names its reason too', /__ppgErr = 'no t0Ms/.test(wc), 'the PPG map has an error channel, so it uses it');
+      T.eq('two of the three maps refuse on a bare null start', (wc.match(/if \(t0 === null\)/g) || []).length, 2);
+      T.eq('no or-zero start chain is left in trio-reference.js', (rc.match(/t0Ms\)\s*\|\|\s*0/g) || []).length, 0);
+      T.ok('the reference reads the helper', /t0 = _refT0\(r, rec\)/.test(rc), 'the precedence belongs in one pure body');
+      T.ok(
+        'the device axis refuses a night it cannot place, with a named reason',
+        /if \(t0 === null\)[\s\S]{0,400}?reason: 'the device reference axis needs a finite t0Ms/.test(rc),
+        'the corrected branch already refuses one it cannot place; the device branch now matches it'
+      );
+      T.ok(
+        '…and the refusal sits BEFORE the beat loop, so no beat is placed from 0',
+        rc.indexOf("reason: 'the device reference axis needs a finite t0Ms") < rc.indexOf('ms.push(t0 + tt[i] * 1000)'),
+        'a check after the loop would publish the 1970 beats and then refuse them'
+      );
+    });
+
     /* ── SAMPLE-VALIDITY-ENVELOPE done-when 4 — A RATCHET ON THE CALLERS THAT READ NO VALIDITY ────────────
        Six sample parsers accept the box's `…RUNS.txt` validity sidecar as `opts.runsText`: `parseECG` /
        `parseECGText` (ecgdex-dsp), `parseDeviceACC` (ecgdex-dsp), `parsePPG` (ppgdex-dsp), `parsePPG2W`

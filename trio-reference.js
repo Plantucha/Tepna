@@ -230,12 +230,24 @@
    other label, which is the very confusion this option exists to end. `applied` reports
    `rec.tMsCorrected`, so a reader can tell "placed on the corrected axis" from "the correction was
    live", which are different gates (`ecgdex-dsp.js:5612`). */
+  /* §∅ A FINITE START, OR NONE. The or-zero chain below read a start of 0 as no start, and no start
+     as the epoch, so the device-axis branch placed a whole night's beats on the 1970 grid instead of
+     saying it could not place them — the same refusal the corrected branch already makes a few lines
+     down. The result's own start wins over the record's, which is the precedence the chain had.
+     LOCAL and pure: `tests/dex-tests.js` slices it out of this source and runs it. */
+  function _refT0(r, rec) {
+    var a = r ? r.t0Ms : undefined,
+      b = rec ? rec.t0Ms : undefined;
+    if (typeof a === 'number' && isFinite(a)) return a;
+    if (typeof b === 'number' && isFinite(b)) return b;
+    return null;
+  }
   function referenceBeatTimes(rec, r, refAxis) {
     const axis = refAxis || REF_AXIS_DEFAULT;
     if (REFERENCE_AXES.indexOf(axis) < 0) throw new Error('unknown reference axis "' + axis + '" — one of ' + REFERENCE_AXES.join('|'));
     const nn = (r && r.nn) || [],
       tt = (r && r.tt) || [],
-      t0 = (r && r.t0Ms) || (rec && rec.t0Ms) || 0,
+      t0 = _refT0(r, rec),
       ms = [],
       vals = [],
       inBand = (x) => Number.isFinite(x) && x >= 200 && x <= 3000;
@@ -328,6 +340,18 @@
         };
       return { ms, nn: vals, axis, applied: !!rec.tMsCorrected, dropped, matched: ms.length, reason: null };
     }
+    /* §∅ `tt` is seconds from the recording start, so the device axis cannot place one beat without
+       that start. It refuses the night, the way the corrected branch above refuses one it cannot place. */
+    if (t0 === null)
+      return {
+        ms: null,
+        nn: null,
+        axis,
+        applied: null,
+        dropped: null,
+        matched: null,
+        reason: 'the device reference axis needs a finite t0Ms on the result or the record — a beat offset from 0 would sit in 1970, not on this night'
+      };
     for (let i = 0; i < nn.length; i++) if (inBand(nn[i]) && Number.isFinite(tt[i])) ms.push(t0 + tt[i] * 1000), vals.push(nn[i]);
     return { ms, nn: vals, axis, applied: false, dropped: 0, matched: ms.length, reason: null };
   }
