@@ -20,6 +20,25 @@
    ════════════════════════════════════════════════════════════════════════ */
 (function (global) {
   'use strict';
+  /* §∅ AN ABSENT STAMP IS NOT 1970. The legacy fallback below once sorted on `(a.t0Ms || 0)`, so a
+     recording with no parsed stamp took the FIRST place in the list and read as the oldest one. A
+     record with no finite stamp now sorts AFTER every dated one and keeps its insertion order; a
+     measured stamp of 0 is still a stamp. The helper stays LOCAL and pure for two reasons: the arm
+     that holds it runs only when `CrossNightEnvelope` is ABSENT, so it cannot borrow a comparator
+     from that module, and tests/dex-tests.js slices it out of this source and runs it. Twin of
+     `_byStamp` in ecgdex-app.js. */
+  function _byStamp(key) {
+    return function (a, b) {
+      const x = a ? a[key] : undefined,
+        y = b ? b[key] : undefined;
+      const fx = typeof x === 'number' && isFinite(x),
+        fy = typeof y === 'number' && isFinite(y);
+      if (fx && fy) return x - y;
+      if (fx) return -1;
+      if (fy) return 1;
+      return 0;
+    };
+  }
   const r1 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 10) / 10);
   const r2 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 100) / 100);
   const r3 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 1000) / 1000);
@@ -367,7 +386,7 @@
       });
     }
     // ── legacy fallback (pre-envelope shape) ──
-    const sorted = [...list].sort((a, b) => (a.t0Ms || 0) - (b.t0Ms || 0));
+    const sorted = [...list].sort(_byStamp('t0Ms'));
     /* §∅ — The fallback arm cannot answer `null`: `crossNight` reads `p.w != null ? p.w : 1`, so a
        null weight becomes a FULL recording one layer down. So an absence keeps the floor COEFFICIENT
        and travels on a flag beside the number, in the envelope's own vocabulary. */
