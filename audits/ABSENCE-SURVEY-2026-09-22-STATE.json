@@ -25,8 +25,8 @@
  ],
  "counts": {
   "findings": 290,
-  "open": 89,
-  "fixed": 193,
+  "open": 87,
+  "fixed": 195,
   "accepted-with-reason": 8
  },
  "consumerCensus": {
@@ -1539,7 +1539,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 266,
-   "state": "open"
+   "state": "fixed",
+   "note": "The night-summary CSV now declares its coverage. exportCSV printed Duration (min) as the SPAN, while every rate below it, the T-index percentages and both ODI rates and the hypoxic burden, is over the MEASURED seconds. The file named no coverage anywhere. A conditional block now prints Coverage and Recorded (min) and Span (min) and Recorded Segments from recording.coverage, which is non-null only when coverageFromSegments merged two or more segments, so a contiguous night exports unchanged. Plant group OxyDex CSV so a night with a hole declares its coverage. Ten of twelve legs red on origin/main ac70318c9 (measured 2026-11-24, Heron)."
   },
   {
    "key": "a559e22dfcaa",
@@ -1548,7 +1549,8 @@
    "severity": "medium",
    "occurrence": 0,
    "surveyLine": 284,
-   "state": "open"
+   "state": "fixed",
+   "note": "BOOKKEEPING. Already fixed on main and hand-read 2026-11-24 by Heron against origin/main ac70318c9. The T-INDEX row no longer writes _td.pct or 0; it writes csvNum(_td.pct) and routes the seconds through a measured flag. tests/dex-tests.js already carries the leg under SITE 1, the exportCSV T-INDEX row. Read by content, never by a snippet match."
   },
   {
    "key": "e5f3917fddde",

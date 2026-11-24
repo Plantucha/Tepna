@@ -242,15 +242,27 @@ function exportCSV() {
   var lines = [];
   nights.forEach(function (n) {
     var s = n.stats;
-    lines = lines.concat([
-      'OxyDex Night Summary',
-      'Source,' + csvSafe(n.fname),
-      'Date,' + n.date,
-      '',
-      'RECORDING',
-      'Duration (min),' + s.durationMin,
-      'Start,' + s.start,
-      'End,' + s.end,
+    /* ∅ COVERAGE BESIDE THE AGGREGATES (CLAUDE.md §∅; owner ruling 2026-09-17: a discontinuity
+       refuses, reduced coverage annotates). Every rate below this block — the T-index percentages,
+       both ODI rates, the hypoxic burden — is over the MEASURED seconds, while `Duration (min)`
+       states the SPAN. A reader of the CSV alone cannot tell the two apart, because `exportCSV`
+       named no coverage anywhere (absence survey 2026-09-22, `oxydex-app.js:266`, medium).
+       `recording.coverage` is non-null only when `DexExport.coverageFromSegments` merged two or more
+       segments, so these rows reach a night that holds a hole and no other night. A contiguous
+       recording exports exactly as it did before. The SHAPE travels beside the amount for the reason
+       the FFT block states: the same absent minutes are one hole or dust over the whole night. */
+    var _cov = n.coverage;
+    var _covRows = [];
+    if (_cov) {
+      _covRows.push('Coverage,' + (_cov.kind != null ? _cov.kind : ''));
+      if (typeof _cov.recordedSec === 'number' && typeof _cov.spanSec === 'number') {
+        _covRows.push('Recorded (min),' + csvNum(+(_cov.recordedSec / 60).toFixed(1)), 'Span (min),' + csvNum(+(_cov.spanSec / 60).toFixed(1)));
+      }
+      if (Array.isArray(_cov.segments)) {
+        _covRows.push('Recorded Segments,' + csvNum(_cov.segments.length));
+      }
+    }
+    lines = lines.concat(['OxyDex Night Summary', 'Source,' + csvSafe(n.fname), 'Date,' + n.date, '', 'RECORDING', 'Duration (min),' + s.durationMin, 'Start,' + s.start, 'End,' + s.end], _covRows, [
       '',
       'SPO2',
       'Mean SpO2 (%),' + s.meanSpo2,
