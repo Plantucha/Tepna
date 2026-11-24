@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** IN-PROGRESS — 2026-11-22 · **Created:** 2026-11-06 · **Interlocks:** `PPGDEX-ALGORITHM-DEEP-DIVE.md` §6.3 (the shipped consensus) · `PARTIAL-ADOPTION-DETECTION-2026-09-20-BRIEF.md` (count a freeze, never assume it)
+**Status:** IN-PROGRESS — 2026-11-24 · **Created:** 2026-11-06 · **Interlocks:** `PPGDEX-ALGORITHM-DEEP-DIVE.md` §6.3 (the shipped consensus) · `PARTIAL-ADOPTION-DETECTION-2026-09-20-BRIEF.md` (count a freeze, never assume it)
 
 # CONSENSUS-REFPICK-FOLLOWUPS — the reference pick is named everywhere; it is still not the same rule
 
@@ -82,7 +82,7 @@ Osprey decided this under CLAUDE.md §7 and the owner may overrule it.
     Every doc-cited leg now reads the shipped rule, except the browser worker. Decision #7993
     holds that leg open, so this box stays open.
 - [x] `refpickOf` grows a second rule only with a parity leg against the code it replaces. `snr-pick-guarded` delegates to the shipped pick, and 17 parity assertions hold it against `analyze`.
-- [ ] A doc that cites a PAT figure states the pick rule behind it. Count the FIGURES, not the surfaces.
+- [x] A doc that cites a PAT figure states the pick rule behind it. Count the FIGURES, not the surfaces.
   - Population: every reader-facing surface under `papers/` and `docs/papers/`, plus every brief
     that pins a figure a PAT leg produced. The app bundles name a PAT tool as a code reference,
     never a figure. So the box does not bind there. Thirty further briefs name a PAT leg and pin
@@ -122,7 +122,30 @@ Osprey decided this under CLAUDE.md §7 and the owner may overrule it.
 
     DECISION (§7, Heron, 2026-11-23): the brief KEEPS the Rayleigh column and labels it. No
     reader-facing surface cites it, and a delete would destroy a one-session measurement, so I
-    rejected the delete. The box still owes a figure census over the docs, so it stays unticked.
+    rejected the delete.
+
+    A census closes this box on 2026-11-24, and no hand count does.
+    `tools/refpick-figure-census.mjs` declares every surface in the population, and every figure
+    inside it. It reads **9 figures over 12 declared surfaces**, and each figure states its rule
+    within a declared distance of its own anchor. The criterion sits at 0 defects, pre-stated. Two
+    defects red it: a figure whose rule statement went away or drifted, and a surface that cites a
+    PAT figure while no row declares it. The second arm is the tripwire. A new paper quoting
+    `47.7 ppm` reds until somebody states which rule produced the number.
+
+    The census found two figures with no rule, and this PR states both.
+    `papers/RERUN-RESULTS.md` named the shipped `snr-pick-guarded` rule for its chance control
+    alone. A reader could carry that rule onto the closure columns beside it. Those columns come
+    from the peak-count argmax, and the entry now says so. `papers/null-calibration.html` Table 3
+    stated no rule anywhere, and it reads the §3.2 table of the drift paper. Its caption now names
+    the leg and both rules. The earlier tick missed both figures, because it counted each surface
+    once.
+
+    Four surfaces hold correction prose, and the census declares each one with its reason. Wall 2.7
+    of `dead-ends.html`, the `papers.html` index card and two brief record rows quote a refuted
+    number beside its refutation. A reader compares nothing across rules there, so a stamp would
+    add noise. Two figures carry no attribution, and the verdict publishes both beside the PASS:
+    the identifiability row in `INTEGRATOR-PAT-VASCULAR`, whose 11 of 21 counts another quantity,
+    and the `PAT-COMPENDIUM` Rayleigh column, which names no producer.
 - [x] The census still reads every converted site as `named`, and `byRead` still answers for every examined site.
   - I measured the live tree on 2026-11-23 at `6e76825c7`. The census reads 13 call sites, 8 named and
     5 inferred, with 0 undeclared and 0 diverged. The two read counts sum to the examined population.
