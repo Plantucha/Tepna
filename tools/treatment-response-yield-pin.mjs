@@ -858,8 +858,13 @@ function selftest() {
   const blAbsent = cap(() => main(['--blame', '--pin', tmpPin]));
   ok('blame ANTI-VACUITY · an absent pin answers 2 and prints no report, because it examined nothing', blAbsent.rc === 2 && blAbsent.lines.length === 0, JSON.stringify(blAbsent));
   /* …and the dispatch reaches the walk. A ref git does not know makes every side unresolved, which no
-     other mode prints, and it costs one failed `git log` rather than a hash of every revision. */
-  const blNoRef = cap(() => main(['--blame', '--ref', 'refs/tepna/no-such-ref']));
+     other mode prints, and it costs one failed `git log` rather than a hash of every revision. The pin
+     here is SYNTHETIC since 2026-11-24: the record on disk now explains every pair it carries, so the
+     live chain is clean and holds no gap for the walk to leave unresolved. A leg that reads the live
+     record would pass only while the record was incomplete. */
+  writeFileSync(tmpPin, pinWith({ date: '2026-11-01', file: 'oxydex-profile.js', old: 'aaaaaaaaaaaa', new: 'bbbbbbbbbbbb', reason: 'r' }));
+  const blNoRef = cap(() => main(['--blame', '--pin', tmpPin, '--ref', 'refs/tepna/no-such-ref']));
+  rmSync(tmpPin, { force: true });
   ok(
     'blame ANTI-VACUITY · the CLI dispatches --blame, and a ref git does not know resolves nothing',
     blNoRef.rc === 0 && blNoRef.lines.some((l) => l.includes('walked refs/tepna/no-such-ref')) && blNoRef.lines.some((l) => l.includes('UNRESOLVED')),
