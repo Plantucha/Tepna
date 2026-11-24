@@ -439,7 +439,14 @@
     vo2adj: { label: 'VO₂max adj', unit: 'ml/kg/min', goodDirection: 'up', depth: 'research', evidence: 'heuristic', cite: 'HRV-adjusted VO₂max estimate — population proxy, not CPET' },
     totSleep: { label: 'Total sleep', unit: 'min', goodDirection: 'up', depth: 'research', evidence: 'heuristic', cite: 'Cardiorespiratory sleep estimate — not EEG-validated staging' },
     deepMin: { label: 'Deep', unit: 'min', goodDirection: 'up', depth: 'research', evidence: 'heuristic', cite: 'Estimated deep-sleep minutes — HR-pattern heuristic, not EEG' },
-    remMin: { label: 'REM', unit: 'min', goodDirection: 'up', depth: 'research', evidence: 'heuristic', cite: 'Estimated REM minutes — HR-pattern heuristic, not EEG' }
+    remMin: { label: 'REM', unit: 'min', goodDirection: 'up', depth: 'research', evidence: 'heuristic', cite: 'Estimated REM minutes — HR-pattern heuristic, not EEG' },
+    /* The sleep-stats chips surface FOUR stage minute counts, and only Deep and REM carried an
+       entry. The other two therefore fell through `badgeForLabel`, which grades an unresolvable
+       label `experimental` on purpose (owner, 2026-08-16) — a tier the staging never earned. Both
+       come off the same HR-pattern epoch engine as Deep and REM, so they carry that engine's
+       grade. Row 2026-11-24-ecgdex-stage-chips-surface-minutes-with-no-badge. */
+    lightMin: { label: 'Light', unit: 'min', goodDirection: 'neutral', depth: 'research', evidence: 'heuristic', cite: 'Estimated light-sleep minutes — HR-pattern heuristic, not EEG' },
+    wakeMin: { label: 'Wake', unit: 'min', goodDirection: 'down', depth: 'research', evidence: 'heuristic', cite: 'Estimated wake minutes inside the staged span — HR-pattern heuristic, not EEG' }
   };
 
   /* ── Alias map: UI label (as rendered today) → registry id ───────────────── */
