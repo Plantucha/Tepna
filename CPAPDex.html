@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="3ae6e8610bb5" data-compute-hash="194e82964b01">
+<html lang="en" data-manifest-hash="fdf4b7298467" data-compute-hash="c24e35ac7596">
 <head>
 <!--
   CPAPDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QmZ2yxDX7qSUQ2sCc1lCwMb+fJq6j4RCTmMQR+ooYtw=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-gsfxF3U9fQYY6VBcjkxdisltp5OpMvk7xGo0quyFZm8=' 'sha256-lHdzqkO8gBEYxuhqJ6Td1ND6NheTWM2QYHMdLI4LcUw=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-s41CycwyiCT6gQhoTqIj65i/D7aofAzkTO7gTPG8lD8=' 'sha256-tNA+Z0bcxEDDSAtStUUWR6iaE5gbxxPZMmCJPSWoD0o=' 'sha256-uHCIYK0VFoAHUV7O0Tf+ty3eYxF8sNy3/yyfQM29B7Y=' 'sha256-ur82nUGPVPha/7IWhxjsmWK+geUy/OKEu3oJ1vtGciw='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-JPE1u9zxYngv0wKNpNjoO4qzm9YgEOwtVnEfSLeUBa4=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QmZ2yxDX7qSUQ2sCc1lCwMb+fJq6j4RCTmMQR+ooYtw=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-gsfxF3U9fQYY6VBcjkxdisltp5OpMvk7xGo0quyFZm8=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-s41CycwyiCT6gQhoTqIj65i/D7aofAzkTO7gTPG8lD8=' 'sha256-tNA+Z0bcxEDDSAtStUUWR6iaE5gbxxPZMmCJPSWoD0o=' 'sha256-uHCIYK0VFoAHUV7O0Tf+ty3eYxF8sNy3/yyfQM29B7Y=' 'sha256-ur82nUGPVPha/7IWhxjsmWK+geUy/OKEu3oJ1vtGciw='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.36.0</title>
@@ -10244,12 +10244,36 @@ __exports.CPAPDex = window.CPAPDex;
     if (!a || !b || !a.values || !b.values || !a.values.length || !b.values.length) {
       return { ok: false, reason: 'a channel is absent in one file — nothing to compare' };
     }
-    var fs = a.fs || b.fs || 1;
+    /* ∅ A FABRICATED RATE AND A FABRICATED EPOCH ARE BOTH REFUSALS HERE, never defaults. `fs` converts
+       every sample count this comparator reports into time — `endMs`, `ai0`, `bi0`, `overlapN`, the
+       fine lag, the ~10-min window `fs * 600`, and the published `overlapMin`, `appliedLagSec` and
+       `scaleOverTime[].startMin`. A 1 Hz stand-in for a rate no EDF header carried makes every one of
+       them read as a measurement. And `clockOffsetSec` IS this comparator's headline finding, so an
+       epoch-0 stand-in for an absent start stamp manufactures a ~57-year disagreement, which the
+       overlap refusal below then words as an EdfSink UTC-vs-local-civil clock defect — a borrowed
+       reason for a different cause. Absent on BOTH sides it reads a perfect 0 s agreement instead.
+       Each refusal names its own absence. CPAPDex carries no `clock.js`, so `DexClock` is undefined
+       here and the arithmetic stays local. */
+    var fs = Number.isFinite(a.fs) && a.fs > 0 ? a.fs : Number.isFinite(b.fs) && b.fs > 0 ? b.fs : null;
+    if (fs == null) {
+      return {
+        ok: false,
+        reason: 'no sample rate in either EDF header — every span, lag and window this comparator reports converts sample counts at that rate'
+      };
+    }
+    if (!Number.isFinite(a.t0Ms) || !Number.isFinite(b.t0Ms)) {
+      var _noT0 = Number.isFinite(a.t0Ms) ? 'SD' : Number.isFinite(b.t0Ms) ? 'live' : 'live and SD';
+      return {
+        ok: false,
+        clockOffsetSec: null,
+        reason: 'no recording start stamp on the ' + _noT0 + ' side — the header clock disagreement IS the finding here, so it cannot read an assumed epoch'
+      };
+    }
     // The header-clock disagreement — the FINDING. Positive => the live header starts LATER than the SD.
-    var clockOffsetSec = ((a.t0Ms || 0) - (b.t0Ms || 0)) / 1000;
+    var clockOffsetSec = (a.t0Ms - b.t0Ms) / 1000;
     // Align on the device clock: the overlapping device-time window.
-    var startMs = Math.max(a.t0Ms || 0, b.t0Ms || 0);
-    var endMs = Math.min((a.t0Ms || 0) + (a.values.length / fs) * 1000, (b.t0Ms || 0) + (b.values.length / fs) * 1000);
+    var startMs = Math.max(a.t0Ms, b.t0Ms);
+    var endMs = Math.min(a.t0Ms + (a.values.length / fs) * 1000, b.t0Ms + (b.values.length / fs) * 1000);
     if (endMs - startMs < 1000) {
       // A large delta between a live capture and its SD twin is defect DETECTION, not an alignment
       // problem — the comparator is the instrument that screams when the EdfSink clock-bug class
@@ -10266,8 +10290,8 @@ __exports.CPAPDex = window.CPAPDex;
           'large delta is a clock defect (EdfSink UTC-vs-local-civil class), not a different night.'
       };
     }
-    var ai0 = Math.round(((startMs - (a.t0Ms || 0)) / 1000) * fs);
-    var bi0 = Math.round(((startMs - (b.t0Ms || 0)) / 1000) * fs);
+    var ai0 = Math.round(((startMs - a.t0Ms) / 1000) * fs);
+    var bi0 = Math.round(((startMs - b.t0Ms) / 1000) * fs);
     var overlapN = Math.floor(((endMs - startMs) / 1000) * fs);
     // Fine lag: correlate the clock-aligned overlap at 1 Hz; apply it on top of the clock alignment.
     var lagSamp = _fineLag(a.values, ai0, b.values, bi0, overlapN, Math.round(maxLagSec * fs));
