@@ -2598,10 +2598,10 @@ const sqiDrop = (r) => {
 const ledDrops = {},
   covDrops = {};
 const ledDrop = (r) => {
-  ledDrops[r] = (ledDrops[r] || 0) + 1;
+  ledDrops[r] = (ledDrops[r] || 0) + 1; // absence-ok: a tally of unscored epochs by reason; a reason not yet seen counts from 0
 };
 const covDrop = (r) => {
-  covDrops[r] = (covDrops[r] || 0) + 1;
+  covDrops[r] = (covDrops[r] || 0) + 1; // absence-ok: a tally of unscored epochs by reason; a reason not yet seen counts from 0
 };
 /* A session whose agreement array does not share the beat times' length is NAMED and excluded: an
    index that no longer lines up would score one beat's agreement against another beat's window. */
