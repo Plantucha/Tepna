@@ -32,7 +32,7 @@
       "kernel-constants.js": "0050ad3f9dc7",
       "clock.js": "1c56de0b671c",
       "clock-seam.js": "3820c4fb6529",
-      "pulsedex-dsp.js": "7be9ae41b8db"
+      "pulsedex-dsp.js": "a0520d639e49"
     }
   },
   "yield": {
@@ -396,11 +396,18 @@
       "old": "7f65bccefb87",
       "new": "9a35c718b8cf",
       "reason": "The profile VO₂max override wrote vo2Low and vo2High from a literal 10.8 and never wrote `see`, so the card printed a ±10.8 range beside \"±0 SEE\". The override now reads the result's own `see` where the DSP wrote one, writes that number back, and builds both range ends from it. The edit moves the VO₂max profile override alone. `measureFromResults` selects on the ODI and rMSSD series, which no profile field feeds, so no detector output moves for a fully measured night. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped."
+    },
+    {
+      "date": "2026-11-24",
+      "file": "pulsedex-dsp.js",
+      "old": "7be9ae41b8db",
+      "new": "a0520d639e49",
+      "reason": "`altVO2Factor` had no absence guard, and `null <= 1500` is true, so an absent elevation returned the same flat 1 a coast night measures (residue 2026-11-24-pulsedex-publishes-a-neutral-altfactor-with-no-elevation). The guard now returns null for a null or non-finite elevation, and 0 m still returns 1 because sea level is a legal measurement. The edit touches that one function. `measureFromResults` selects on the ODI and rMSSD series, which no altitude term feeds, and the two PulseDex callers already refused a null before they called, so the guard is unreachable from both roads. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped."
     }
   ],
-  "measuredAt": "2026-11-24T15:24:20.155Z",
+  "measuredAt": "2026-11-24T21:43:35.630Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "28db0e7fb"
+    "commit": "06d3eb60b"
   }
 }
