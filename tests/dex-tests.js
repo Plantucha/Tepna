@@ -49156,6 +49156,107 @@
 
     /* The two nodes cannot share a constant (no common spine), so the mirror is gated instead — the
        same shape as `gap-cut-parity` for GAP_S / PPG_CVHR_GAP_S. */
+    /* ════ ∅ NaN IS NOT `== null`, SO THE ROUND-OR-NULL HELPER PASSED IT ═════════════════
+       Row 2026-11-24-rmornull-passes-nan-into-the-crcplv-surfaces. `_rmOrNull` guards the absence
+       helpers of `ecgdex-dsp.js` over 21 call sites, and it read `v == null` alone. NaN walks
+       through that test, and `+NaN.toFixed(3)` stays NaN, so `crcPLV` published NaN with
+       `crcPLVReason` null. Four render surfaces then read it as a present value.
+
+       REACHABILITY, measured here rather than assumed: one beat interval of 0 ms makes `hrAbs`
+       infinite, the detrended 4 Hz grid NaN, and every phase difference NaN. `plvCnt` still counts
+       real windows, so the empty-window refusal never fires. The group plants exactly that series
+       and reads the published field.
+
+       The per-epoch series carries the same window with no helper at all, and the surge split
+       averages it with `mean`. So one NaN epoch made `plvDuringSurges` and `plvBaseline` NaN too,
+       and a null there would have read as 0 through the sum. An unmeasured epoch therefore joins
+       no series and no mean. */
+    group('∅ a non-finite phase estimate refuses — crcPLV, its reason, and the per-epoch series', 'ecgdex-dsp · absence-is-null · crc-plv', function (T) {
+      var D = env.ECGDSP || env.EcgDsp;
+      if (!D || typeof D.cardiorespCoupling !== 'function') {
+        T.skip('env.ECGDSP.cardiorespCoupling available', 'ecgdex-dsp is not wired in this lane, so an absence here is a lane fault');
+        return;
+      }
+      var FS_ECG = 130;
+      // 400 beats around 60 bpm with a 0.25 Hz respiratory swing, so the coupling path locks on.
+      // `zeroAt` plants ONE 0 ms interval, which is the only difference between the two reads.
+      var build = function (zeroAt) {
+        var nn = [],
+          tt = [],
+          ref = [],
+          t = 0;
+        for (var k = 0; k < 400; k++) {
+          var rr = zeroAt != null && k === zeroAt ? 0 : 1000 + 60 * Math.sin((2 * Math.PI * t) / 4);
+          nn.push(rr);
+          t += rr / 1000;
+          tt.push(t);
+          ref.push(Math.round(t * FS_ECG));
+        }
+        var i16 = new Int16Array(ref[ref.length - 1] + 10);
+        for (var i = 0; i < i16.length; i++) i16[i] = Math.round(500 * Math.sin((2 * Math.PI * i) / (FS_ECG * 4)) + 1000);
+        var eps = [];
+        for (var m = 0; m * 300 < t; m++) eps.push({ tMin: m * 5 });
+        return { nn: nn, tt: tt, i16: i16, ref: ref, eps: eps };
+      };
+      var run = function (zeroAt) {
+        var b = build(zeroAt);
+        return D.cardiorespCoupling(b.nn, b.tt, b.i16, b.ref, FS_ECG, 15, b.eps);
+      };
+      var clean = run(null),
+        holed = run(200);
+      T.ok('∅ · both reads returned a result, so the span guard did not swallow the plant', !!clean && !!holed, 'cardiorespCoupling refused one of the two series');
+      if (!clean || !holed) return;
+      // CONTROL · the clean series publishes a real number, so the legs below judge the plant alone.
+      T.ok('∅ · control · the clean series publishes a finite PLV', Number.isFinite(clean.crcPLV) && clean.crcPLV > 0, 'crcPLV=' + String(clean.crcPLV));
+      T.eq('∅ · control · …and carries no reason beside it', clean.crcPLVReason, null);
+      T.ok(
+        '∅ · control · …and its per-epoch series is populated and finite',
+        clean.epochCRC.length >= 2 &&
+          clean.epochCRC.every(function (e) {
+            return Number.isFinite(e.plv);
+          }),
+        clean.epochCRC.length + ' epoch(s)'
+      );
+      // THE PLANT. `String()` reads the value, because `JSON.stringify` writes NaN as null.
+      T.eq('∅ · one 0 ms interval makes the PLV unmeasurable, so the field is null', String(holed.crcPLV), 'null');
+      T.ok('∅ · …and the reason names THIS cause, never the empty-window one', /not finite/.test(String(holed.crcPLVReason)), String(holed.crcPLVReason));
+      T.ok(
+        '∅ · …and no per-epoch point carries a non-finite PLV',
+        holed.epochCRC.every(function (e) {
+          return Number.isFinite(e.plv);
+        }),
+        holed.epochCRC
+          .map(function (e) {
+            return String(e.plv);
+          })
+          .join(' · ')
+      );
+      T.ok('∅ · …and the measured epochs still ship, so the series is not emptied', holed.epochCRC.length >= 1, holed.epochCRC.length + ' epoch(s)');
+      // The OTHER arm of the helper's guard: a null must stay null, never a rounded 0.
+      var wide = (function () {
+        var nn = [],
+          tt = [],
+          ref = [],
+          t = 0;
+        for (var k = 0; k < 90; k++) {
+          var rr = k % 5 === 0 ? 200 : 3000;
+          nn.push(rr);
+          tt.push(t);
+          ref.push(Math.round(t * FS_ECG));
+          t += rr / 1000;
+        }
+        var i16 = new Int16Array(ref[ref.length - 1] + 10);
+        for (var i = 0; i < i16.length; i++) i16[i] = 900 + (i % 5) * 40;
+        return D.cardiorespCoupling(nn, tt, i16, ref, FS_ECG, null, []);
+      })();
+      if (wide) {
+        T.eq('∅ · the null arm holds — an absent efficiency ratio stays null, never 0', String(wide.rsaEfficiencyRatio), 'null');
+        T.ok('∅ · …and that read names its own reason', /not computable/.test(String(wide.rsaEfficiencyRatioReason)), String(wide.rsaEfficiencyRatioReason));
+      } else {
+        T.skip('∅ · the 90-beat swing series returned a result', 'the span guard refused it, so the null arm has no read here');
+      }
+    });
+
     group('One grid-flag vocabulary, two nodes — ECGDex GRID_FLAG mirrors GlucoDex FLAG', 'ecgdex-dsp · glucodex-dsp · grid-flag-parity', function (T) {
       var S = env.sources || {};
       var e = S['ecgdex-dsp.js'],
