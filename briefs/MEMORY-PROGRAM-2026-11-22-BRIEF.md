@@ -46,6 +46,7 @@ current and versioned memory. A bird reviews each proposal before anything moves
 - [ ] **C · Rules to skills.** Fold each promotion candidate into an existing or new skill under
       `.claude/skills/`, one PR at a time. First unit 2026-11-23: `memory-append`,
       `handoff-at-a-unit-boundary`, `worktree-to-pr` and `land-through-the-queue`.
+      Second unit 2026-11-23: the new skill `kill-a-mutant` carries five mutation rules.
 - [ ] **D · Re-measure** with the step A question set. Report the before and after.
 
 ## 4 · Acceptance
