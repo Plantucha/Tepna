@@ -110,6 +110,14 @@ export const DETECTORS = [
   { file: 'glucodex-dsp.js', name: 'detectSessions', why: 'CGM session segmentation over the glucose series' },
   { file: 'glucodex-dsp.js', name: 'detectClampSaturation', why: 'sensor-clamp detection over the glucose series' },
   { file: 'eegdex-dsp.js', name: 'detectSpindles', why: 'sleep-spindle detection over the 11-16 Hz envelope inside staged NREM epochs' },
+  /* The stage formula's feature block (PR 1 of EEGDEX-STAGE-FORMULA-2026-11-24). These three are
+     PORTED, and their whole correctness is that they reproduce the numbers the formula's coefficients
+     were fitted on. So an edit to one of them is worse than a behaviour change: it silently makes the
+     coefficients describe a different quantity. The parity group holds all 35 columns against the
+     committed vector, and a census entry here is what puts a reader in front of that fact. */
+  { file: 'eegdex-stage-features.js', name: 'detectSlowWaves', why: 'slow-oscillation detection by zero crossing over the 0.1-4 Hz EEG, feeding two of the 35 formula columns' },
+  { file: 'eegdex-stage-features.js', name: 'detectSpindles', why: 'the four-feature sleep-spindle detector over the raw EEG, separate from the eegdex-dsp.js envelope detector above' },
+  { file: 'eegdex-stage-features.js', name: 'detectEyeMovements', why: 'rapid-eye-movement detection as a holding step on the same EEG derivation' },
   { file: 'integrator-dsp.js', name: 'detectClockSkew', why: 'clock-skew detection across node recordings' },
   { file: 'resp-acc-analysis.js', name: 'detectBreaths', why: 'breath detection over an accelerometer-derived flow series' },
   { file: 'treatment-response-analysis.js', name: 'detect', why: 'the three change-point detectors this study compares' },

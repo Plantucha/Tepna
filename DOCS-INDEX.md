@@ -589,6 +589,7 @@ first — this index maps the ~60 *markdown* docs; the block below surfaces the 
 | [`CPAPDEX-KICKOFF.md`](briefs/CPAPDEX-KICKOFF.md) | CPAPDex — ordered handoff kickoff script | Brief *(DONE 2026-06-28)* |
 | [`CPAPDEX-CODEGEN-HANDOFF.md`](briefs/CPAPDEX-CODEGEN-HANDOFF.md) | CPAPDex — codegen scaffold handoff | Brief *(DONE 2026-08-03)* |
 | [`EEGDEX-BUILD-BRIEF.md`](briefs/EEGDEX-BUILD-BRIEF.md) | EEGDex (Muse, planned) — build brief | Brief *(PROPOSED 2026-09-20)* |
+| [`EEGDEX-STAGE-FORMULA-2026-11-24-BRIEF.md`](briefs/EEGDEX-STAGE-FORMULA-2026-11-24-BRIEF.md) | EEGDex — the EEG stage formula, three PRs | Brief *(IN-PROGRESS 2026-11-24)* |
 | [`INTEGRATOR-BUILD-BRIEF.md`](briefs/INTEGRATOR-BUILD-BRIEF.md) | The Integrator (cross-node fusion layer) — build brief | Brief *(DONE 2026-08-03)* |
 | [`INTEGRATOR-THREE-CORNERED-HAT-2026-07-02-BRIEF.md`](briefs/INTEGRATOR-THREE-CORNERED-HAT-2026-07-02-BRIEF.md) | Integrator — reference-free per-sensor error via correlated three-cornered-hat over ECG/PPG/Oxy → inverse-variance fusion weight + outlier attribution (extends … | Brief *(DONE 2026-07-03)* |
 | [`INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-2026-07-03-BRIEF.md`](briefs/INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-2026-07-03-BRIEF.md) | Integrator TCH residue — (§1) consumer-side common-mode ρ estimate (needs a per-epoch motion series on ≥2 triplet nodes; only PpgDex emits one today), (§2) making TCH … | Brief *(DONE 2026-07-06)* |

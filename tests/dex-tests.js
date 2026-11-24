@@ -13846,7 +13846,11 @@
       var src = env.sources || {};
       var UNDECLARED = {
         cpapdex: '',
-        ecgdex: 'accPosture cpcHfc deepMin edrDisagree edrResp remMin rraccRate rsaAmplitude sigmaLnRmssd stageConsensus varLnRmssd',
+        /* `deepMin` and `remMin` LEFT this baseline on 2026-11-24, and `lightMin` and `wakeMin`
+           never joined it: the sleep-stage chips in ecgdex-app.js now badge through a
+           `stageEvId` map that names all four ids as strings, which is route 1. The set
+           ratchets DOWN only. */
+        ecgdex: 'accPosture cpcHfc edrDisagree edrResp rraccRate rsaAmplitude sigmaLnRmssd stageConsensus varLnRmssd',
         /* `timeAbove` and `timeBelow` LEFT this baseline on 2026-11-11: glucodex-cross.js gave
            GlucoDex a *_DEFS table, and both ids are keys in it with a get: accessor naming the
            real per-day key (`tar`, `tbr`) — route 2. The set ratchets DOWN only. */
@@ -33823,6 +33827,146 @@
       }
       return buf;
     }
+
+    /* ════ THE STAGE-FORMULA FEATURE BLOCK REPRODUCES THE NUMBERS THE FIT SAW ════
+       `eegdex-stage-features.js` is a PORT. Its coefficients live in a separate model file, and they
+       describe these 35 columns and no others, so the only thing that makes the port correct is that
+       it reproduces the fitting code's own output cell for cell. Nothing else in this suite can see a
+       drift here: a wrong constant or a reordered operation still gives 35 finite columns, still
+       stages a night, and still passes every other group — it just answers a different question than
+       the coefficients were fitted on. That is why the vector is COMMITTED rather than regenerated:
+       `tests/vectors/eegdex-stage-features.json` holds the fitting code's output over a seeded
+       synthetic signal (no recording of any person is involved — the generator is reproduced below),
+       and regenerating it from this port would compare the port with itself. */
+    group('EEGDex stage formula — the 35 feature columns match the fit, cell for cell', 'eegdex · stage-formula · parity · absence', function (T) {
+      T.ok('env.EEGFEAT is published by the lane', !!env.EEGFEAT, 'eegdex-stage-features.js did not load — both loaders report that as a console line only');
+      var V = (env.stageVectors || {})['eegdex-stage-features'];
+      T.ok('the committed parity vector was read', !!(V && V.features && V.names), 'tests/vectors/eegdex-stage-features.json absent or unparsed');
+      if (!env.EEGFEAT || !V || !V.features || !V.names) return;
+      var F = env.EEGFEAT;
+
+      /* The vector's own generator, reproduced verbatim so the port is fed the SAME signal. A seeded
+         mulberry32 and a sum of twelve uniforms: low-passed noise, slow waves in epochs 20–34, one
+         13 Hz burst every 6 s in epochs 10–19, a 10 Hz rhythm in 45–49, broadband activity in 50–54,
+         and three spans that were not measured — epochs 40 and 41 whole, then the first 20 s of 42. */
+      function synth(fs, nEpochs, seed) {
+        var a = seed >>> 0;
+        var rnd = function () {
+          a = (a + 0x6d2b79f5) >>> 0;
+          var t = a;
+          t = Math.imul(t ^ (t >>> 15), t | 1);
+          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+        var gauss = function () {
+          var u = 0;
+          for (var k = 0; k < 12; k++) u += rnd();
+          return u - 6;
+        };
+        var N = fs * 30 * nEpochs,
+          x = new Float32Array(N),
+          lp = 0,
+          i;
+        for (i = 0; i < N; i++) {
+          var t = i / fs,
+            ep = Math.floor(t / 30),
+            v;
+          lp = 0.97 * lp + gauss();
+          v = 8 * lp + 3 * gauss();
+          if (ep >= 20 && ep < 35) v += 60 * Math.sin(2 * Math.PI * 1.0 * t);
+          if (ep >= 10 && ep < 20 && t % 6 < 1) v += 25 * Math.sin(2 * Math.PI * 13 * t) * Math.sin(Math.PI * (t % 6));
+          if (ep >= 45 && ep < 50) v += 20 * Math.sin(2 * Math.PI * 10 * t);
+          if (ep >= 50 && ep < 55) v += 15 * gauss();
+          x[i] = v;
+        }
+        for (i = fs * 30 * 40; i < fs * 30 * 42; i++) x[i] = NaN;
+        for (i = fs * 30 * 42; i < fs * 30 * 42 + fs * 20; i++) x[i] = NaN;
+        return x;
+      }
+
+      var fs = V.fs,
+        n = V.nEpochs,
+        x = synth(fs, n, V.seed),
+        got = F.eegBlockExtract({ nEpochs: n, signals: { eeg: { data: x, fs: fs } } });
+
+      T.eq('35 columns, in the order the coefficients name', String(got.names), String(V.names));
+      T.eq('…and that order is the module’s own EEG_NAMES', String(got.names), String(F.EEG_NAMES));
+
+      /* ONE PASS, FOUR POPULATIONS. `absent` counts the cells this layer calls NOT MEASURED, `zero`
+         the cells that hold a MEASURED 0, and `worst` the largest relative difference over the rest.
+         The three are reported separately because they fail for different reasons, and because a 0
+         and an absence are the pair §∅ exists to keep apart: the vector writes absence as JSON `null`
+         and a measured 0 as `0`, and this comparison reads finiteness, never truthiness. */
+      var absentGot = 0,
+        absentWant = 0,
+        disagree = [],
+        zero = 0,
+        worst = 0,
+        worstAt = '',
+        e,
+        j;
+      for (e = 0; e < n; e++)
+        for (j = 0; j < V.names.length; j++) {
+          var g = got.cols[j][e],
+            w = V.features[e][j],
+            gAbsent = !isFinite(g),
+            wAbsent = w === null;
+          if (gAbsent) absentGot++;
+          if (wAbsent) absentWant++;
+          if (gAbsent !== wAbsent) {
+            if (disagree.length < 4) disagree.push(V.names[j] + ' epoch ' + e + ': port ' + g + ', fit ' + w);
+            continue;
+          }
+          if (gAbsent) continue;
+          if (w === 0 && g === 0) zero++;
+          var rel = Math.abs(g - w) / Math.max(1e-12, Math.abs(w));
+          if (rel > worst) {
+            worst = rel;
+            worstAt = V.names[j] + ' epoch ' + e;
+          }
+        }
+
+      T.eq('every absence falls in the same cell on both sides', disagree.join(' · '), '');
+      T.eq('…and there are as many of them as the fit recorded', absentGot, absentWant);
+      T.ok('the vector actually carries absence to compare', absentWant > 0, absentWant + ' absent cells');
+      T.ok('…and a MEASURED zero is present and compared, not read as absence', zero > 0, zero + ' cells hold an exact 0 on both sides');
+      T.ok('every measured cell agrees within 1e-9 relative', worst <= 1e-9, 'worst ' + worst.toExponential(3) + (worstAt ? ' at ' + worstAt : ''));
+
+      /* THE UNIT CANNOT ENTER A COLUMN. The device's µV scale is not verified, so the whole point of
+         the three means the module's header names — shares, night-median-subtracted log powers, and
+         the per-night amplitude form of the event detectors — is that a night multiplied by any
+         constant gives the same row. This is the one assertion here that the vector cannot make: it
+         fixes the port against a SECOND signal rather than against the fit. A scale that leaked into
+         one column would move it and nothing else. */
+      var scaled = new Float32Array(x.length),
+        k;
+      for (k = 0; k < x.length; k++) scaled[k] = x[k] * 3.7;
+      var sc = F.eegBlockExtract({ nEpochs: n, signals: { eeg: { data: scaled, fs: fs } } }),
+        drifted = [],
+        worstScale = 0;
+      for (j = 0; j < V.names.length; j++)
+        for (e = 0; e < n; e++) {
+          var b = got.cols[j][e],
+            s = sc.cols[j][e];
+          if (!isFinite(b) !== !isFinite(s)) {
+            if (drifted.length < 4) drifted.push(V.names[j] + ' epoch ' + e + ': absence changed');
+            continue;
+          }
+          if (!isFinite(b)) continue;
+          var r2 = Math.abs(s - b) / Math.max(1e-9, Math.abs(b));
+          if (r2 > worstScale) worstScale = r2;
+          if (r2 > 1e-4 && drifted.length < 4) drifted.push(V.names[j] + ' epoch ' + e + ': ' + b + ' → ' + s);
+        }
+      T.eq('a night multiplied by 3.7 gives the same row', drifted.join(' · '), '');
+      T.ok('…and the comparison examined finite cells', worstScale >= 0 && absentWant < n * V.names.length, 'worst ' + worstScale.toExponential(3));
+
+      /* A NIGHT WITH NO SIGNAL IS 35 ABSENT COLUMNS, never 35 zeros. The block's first guard. */
+      var none = F.eegBlockExtract({ nEpochs: 4, signals: {} }),
+        noneFinite = 0;
+      for (j = 0; j < none.cols.length; j++) for (e = 0; e < 4; e++) if (isFinite(none.cols[j][e])) noneFinite++;
+      T.eq('a night with no EEG signal reports every column absent', noneFinite, 0);
+      T.eq('…and still reports all 35 column names', none.names.length, 35);
+    });
 
     group('The EEGDex modules are executed by this lane, not only read', 'eegdex · wiring · availability', function (T) {
       T.ok('env.EEGDSP is published by the lane', !!env.EEGDSP, 'eegdex-dsp.js did not load — both loaders report that as a console line only');
@@ -111458,6 +111602,107 @@
       T.ok('∅ · control · an unresolvable label DOES mint the forbidden disc', E.idForLabel(probe) === null && E.badgeForLabel(probe, true) !== '', 'the detector must be able to see the defect');
       T.ok('∅ · control · the deny list swallows no real metric', /ev-measured/.test(E.badgeForLabel('Mean HR', true)), E.badgeForLabel('Mean HR', true));
       T.eq('∅ · control · a denied label is denied even with fallback off', E.badgeForLabel('Intervals (QRS/QT/PR)', false), '');
+    });
+
+    /* ════ ∅ · THE FOUR SLEEP-STAGE CHIPS CARRY A BADGE, AND NOT A FABRICATED ONE ═══════════
+       Row 2026-11-24-ecgdex-stage-chips-surface-minutes-with-no-badge. The sleep card prints four
+       stage minute counts as chips, built from one literal array. The template badged none of them,
+       so four graded numbers reached a reader bare (CLAUDE.md §🎫). The sibling group above could not
+       see this surface: it harvests LITERAL `evBadge('…')` arguments, and the chips pass a loop
+       variable.
+
+       Two halves fail together, so this group pins both. The template owes the call. The registry
+       owes an entry for each of the four labels — `Deep` and `REM` already had one through the alias
+       map, while `Light` and `Wake` resolved to nothing and would have minted the `experimental`
+       fallback the sibling group forbids. All four come off the same HR-pattern epoch engine
+       (`ECGDSP.stageSleep`), so all four carry that engine's `heuristic` grade. None is EEG.
+
+       The population comes from the APP SOURCE, not from a list written here: a fifth chip added to
+       that array reds this group instead of slipping past it. */
+    group('∅ the ECGDex sleep-stage chips badge every stage minute count', 'ecgdex-app · ecgdex-registry · evidence · badges · ∅', function (T) {
+      var E = env.EcgRegistry;
+      var src = (env.sources || {})['ecgdex-app.js'];
+      if (!(E && typeof E.idForLabel === 'function' && typeof E.badgeForLabel === 'function')) {
+        T.skip('env.EcgRegistry exposes idForLabel + badgeForLabel', 'the registry is co-loaded in this lane, so an absence here means it stopped publishing them');
+        return;
+      }
+      var tierOf = function (label) {
+        var b = E.badgeForLabel(label, true);
+        var m = /ev-([a-z]+)/.exec(b || '');
+        return m ? m[1] : null;
+      };
+      // 1 · THE CHIP TEMPLATE. The array and the chip markup are read out of the live source, so a
+      // template that stops badging reds here even when the registry stays complete.
+      var chips = [],
+        tpl = '';
+      if (src == null) {
+        T.skip('∅ · ecgdex-app.js available for the chip harvest', 'ecgdex-app.js not in env.sources');
+      } else {
+        var blk = /\$\(\s*'sleepStats'\s*\)\.innerHTML\s*=\s*(\[[^\]]*\])([\s\S]{0,900}?)\.join\(''\)/.exec(src);
+        T.ok('∅ · the chip template was located in the app source', !!blk, 'the sleepStats assignment moved — re-point the harvest, never drop the leg');
+        if (blk) {
+          var lre = /'([^']+)'/g,
+            lm = lre.exec(blk[1]);
+          while (lm) {
+            chips.push(lm[1]);
+            lm = lre.exec(blk[1]);
+          }
+          tpl = blk[2];
+          T.eq('∅ · the harvest found the four stage chips', chips.join(' · '), 'Deep · Light · REM · Wake');
+          T.ok('∅ · the chip markup calls the badge helper on every chip', /evBadge\(\s*stageEvId\[st\]\s*\)/.test(tpl), 'the four stage minute counts render with no disc');
+          T.ok(
+            '∅ · …and the disc sits before the label, which is the dense-text placement',
+            /evBadge\(stageEvId\[st\]\)\}\$\{st\}/.test(tpl),
+            'the badge moved out of the inline position the ladder allows'
+          );
+          // The map is harvested too, so a chip pointed at the wrong registry id reds here.
+          var mre = /const stageEvId = \{([^}]*)\}/.exec(src);
+          T.ok('∅ · the stage id map was located beside the chips', !!mre, 'the chips badge a label again, so Light and Wake lean on the entry-label index');
+          if (mre) {
+            var pairs = [],
+              pre = /(\w+):\s*'([^']+)'/g,
+              pm = pre.exec(mre[1]);
+            while (pm) {
+              pairs.push(pm[1] + '→' + pm[2]);
+              pm = pre.exec(mre[1]);
+            }
+            T.eq('∅ · …and it names one registry id per chip', pairs.join(' · '), 'Deep→deepMin · Light→lightMin · REM→remMin · Wake→wakeMin');
+            var idTiers = pairs.map(function (x) {
+              var id = x.split('→')[1];
+              return id + '=' + tierOf(id);
+            });
+            T.eq('∅ · …and every mapped id grades heuristic through the badge path', idTiers.join(' · '), 'deepMin=heuristic · lightMin=heuristic · remMin=heuristic · wakeMin=heuristic');
+          }
+        }
+      }
+      // 2 · THE REGISTRY. Every harvested chip label must resolve, and must carry the grade of the
+      // engine that produced it.
+      var fell = chips.filter(function (l) {
+        return !E.idForLabel(l);
+      });
+      T.eq('∅ · every chip label resolves to a registry entry', fell.join(' · '), '');
+      var tiers = chips.map(function (l) {
+        return l + '=' + tierOf(l);
+      });
+      T.eq('∅ · …and each one carries the HR-pattern staging grade', tiers.join(' · '), 'Deep=heuristic · Light=heuristic · REM=heuristic · Wake=heuristic');
+      T.eq('∅ · Light resolves to its own entry, not to a neighbour', E.idForLabel('Light'), 'lightMin');
+      T.eq('∅ · Wake resolves to its own entry, not to a neighbour', E.idForLabel('Wake'), 'wakeMin');
+      // 3 · CONTROLS. The first proves the detector can still SEE the fabricated disc it forbids.
+      T.ok(
+        '∅ · control · an unresolvable stage-like label still mints the forbidden disc',
+        E.idForLabel('Stage Zz') === null && /ev-experimental/.test(E.badgeForLabel('Stage Zz', true)),
+        'the detector must be able to see the defect'
+      );
+      T.eq('∅ · control · Deep kept the alias it already resolved through', E.idForLabel('Deep'), 'deepMin');
+      T.eq(
+        '∅ · control · no chip label claims an EEG-grade tier',
+        ['measured', 'validated']
+          .filter(function (x) {
+            return tiers.join(' ').indexOf('=' + x) >= 0;
+          })
+          .join(' · '),
+        ''
+      );
     });
 
     /* DEEP-AUDIT-III §5.2 — LF/HF is a PER-SEGMENT quantity, so a night is the MEDIAN OF THE RATIOS.
