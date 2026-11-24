@@ -14,6 +14,27 @@ import { MOTIONUI } from './motiondex-render.js';
 
 (function () {
   'use strict';
+
+  /* §∅ AN ABSENT STAMP IS NOT 1970. Every sort below keyed on an or-zero stamp, so a session
+     with no parsed stamp took the FIRST place and read as the oldest one the user owns. A record with no
+     finite stamp now sorts AFTER every dated one and keeps its insertion order; a measured stamp of 0 is
+     still a stamp. `desc` flips the order of the DATED records only — absence stays last either way,
+     because a list that reads newest-first still does not know when an unstamped session happened.
+     The helper stays LOCAL and pure: tests/dex-tests.js slices it out of this source and runs it, and a
+     shared spine module would move `manifestHash` on all nine app bundles for a ten-line comparator.
+     Twin of `_byStamp` in ecgdex-app.js and the five sibling sites of #5574. */
+  function _mdByStamp(key, desc) {
+    return function (a, b) {
+      const x = a ? a[key] : undefined,
+        y = b ? b[key] : undefined;
+      const fx = typeof x === 'number' && isFinite(x),
+        fy = typeof y === 'number' && isFinite(y);
+      if (fx && fy) return desc ? y - x : x - y;
+      if (fx) return -1;
+      if (fy) return 1;
+      return 0;
+    };
+  }
   var $ = function (id) {
     return document.getElementById(id);
   };
@@ -33,16 +54,15 @@ import { MOTIONUI } from './motiondex-render.js';
     var k = summary.t0Ms != null && isFinite(summary.t0Ms) ? 't' + summary.t0Ms : 'u' + ++_mxSeq;
     SESSIONS[k] = summary;
   }
-  // ascending by t0Ms — an undated session sorts first and the engine drops its stamp, never places
-  // it at the epoch. Same ordering the five sibling cross files read.
+  // Ascending by t0Ms, absence LAST. The engine already drops an undated session's stamp rather than
+  // placing it at the epoch, but the LIST order still read it as the oldest session the user owns.
+  // Same ordering the five sibling cross files read since #5574.
   function sessionsSorted() {
     return Object.keys(SESSIONS)
       .map(function (k) {
         return SESSIONS[k];
       })
-      .sort(function (a, b) {
-        return (a.t0Ms || 0) - (b.t0Ms || 0);
-      });
+      .sort(_mdByStamp('t0Ms'));
   }
 
   // classify a Polar Sensor Logger filename → which compute() input slot it feeds
