@@ -2696,6 +2696,18 @@
    "status": "exempt",
    "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
   },
+  "tools/refpick-figure-census.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/refpick-figure-census.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "holds every PUBLISHED figure a PAT leg produced to a stated pick rule, counted by figure rather than by surface. Brief CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06 \u00a73 box 4; its 2026-11-23 correction records a hand count that missed a second leg inside an already-ticked surface, which is why the unit is the figure and every surface is DECLARED. Two defects red under one pre-stated criterion: a declared figure whose rule statement went away or drifted past its declared window, and a surface in the population that cites a PAT figure while no row declares it. The second arm is the recurrence tripwire \u2014 a new paper quoting 47.7 ppm reds until somebody states which rule produced it. Population: papers/*.html, papers/*.md and briefs/*.md, which the brief states; docs/papers/ is the served copy build-docs.mjs writes from papers/. A reading stays in the open: correction prose and an unattributable figure carry a declared reason, and the verdict publishes both counts beside the PASS."
+  },
   "tools/release-due.mjs": {
    "bin": "decides",
    "status": "adopted",
