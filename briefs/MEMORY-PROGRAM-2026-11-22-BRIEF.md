@@ -48,6 +48,9 @@ current and versioned memory. A bird reviews each proposal before anything moves
       `handoff-at-a-unit-boundary`, `worktree-to-pr` and `land-through-the-queue`.
       Second unit 2026-11-23: the new skill `kill-a-mutant` carries five mutation rules.
 - [ ] **D · Re-measure** with the step A question set. Report the before and after.
+- [x] **E · Currency.** A model reads each note beside excerpts of `origin/main`. A note that states an
+      outdated fact gets a dated correction line. A note whose claims all hold gets a `last-verified` date.
+      Done 2026-11-23, memory PR 17. Section 9 gives the result.
 
 ## 4 · Acceptance
 
@@ -137,3 +140,28 @@ The criterion of step D is the L rate in the top 5, not lower than 0.55. It was 
 | links between notes | 3,019 | 2,970: 2,891 live, 4 to the archive, 75 to a note nobody wrote |
 
 The drop in kB is mostly the state files, which left the indexed set (step B4).
+
+## 9 · Step E result: 185 notes corrected, 58 notes verified
+
+The tool is `tools/currency.mjs` in the private memory repo. It ran on 2026-11-23 over 807 notes.
+
+| item | value |
+|---|---|
+| notes sent | 750 (47 name no identifier, 3 match no excerpt, 7 are incident notes, left out by type) |
+| notes answered | 750 |
+| claims: current / cannot tell / outdated | 1,962 / 1,777 / 278 |
+| outdated marks after the quote check and the absence rule | 261, in 189 notes |
+| marks rejected by hand | 4 |
+| notes corrected | 185 (257 marks) |
+| notes stamped `last-verified` | 58 |
+| spend of the batch | $30.60 (pilot $1.31) |
+
+The criterion was set before the read: at least 0.85 of a random sample of 40 marks is right. The sample
+(seed 20261123) scored 37 of 40, 0.925. The same session also read all 36 marks on rules and owner notes.
+
+The tool drops a mark without a verbatim quote from an excerpt. It also drops a mark that rests on an
+absent identifier, because at least 10 of 17 such marks were wrong.
+
+**One breach of section 4.** The redaction missed the tailnet range (RFC 6598). The pilot and batch B1 sent
+a few such addresses to the API. `tools/memory-program.mjs` and the memory repo now redact that range. The
+full batch had no sensitive row. Kestrel told the owner on 2026-11-23.
