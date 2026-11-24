@@ -73579,6 +73579,139 @@
       T.eq('forceSign still overrides the automatic rule (-1)', D.detectChannel(train(120, false), fs, -1).sign, -1);
     });
 
+    group('PpgDex timing band — a noisy foot is re-timed below the noise, and nothing else moves', 'ppgdex-dsp · rmssd · timing', function (T) {
+      var D = env.PPGDSP;
+      if (!D || typeof D.timingFeet !== 'function') {
+        T.ok('PPGDSP.timingFeet available', false);
+        return;
+      }
+      var fs = 64,
+        beats = [],
+        t = 1,
+        k = 0;
+      // A slow respiratory RR swing: the true successive differences are small and known.
+      while (t < 299) {
+        beats.push(t);
+        t += 1.0 + 0.04 * Math.sin((2 * Math.PI * k) / 5);
+        k++;
+      }
+      var n = fs * 300;
+      function wave(noise, gain) {
+        var x = new Float32Array(n);
+        for (var b = 0; b < beats.length; b++)
+          for (var i = Math.max(0, Math.floor((beats[b] - 1) * fs)); i < Math.min(n, (beats[b] + 1.2) * fs); i++) {
+            var d = i / fs - beats[b];
+            x[i] += gain * Math.exp(-(d * d) / (2 * (d < 0 ? 0.09 * 0.09 : 0.2 * 0.2)));
+          }
+        // Incommensurate 5.3 + 6.7 Hz: inside 0.5-8 Hz, outside 0.5-3 Hz. Deterministic, no RNG.
+        for (var j = 0; j < n; j++) x[j] += noise * (Math.sin((2 * Math.PI * 5.3 * j) / fs) + Math.sin((2 * Math.PI * 6.7 * j) / fs + 1));
+        return x;
+      }
+      function err(feet) {
+        // SD of (foot interval - true interval), ms; matched on the nearest beat.
+        var d = [];
+        for (var q = 1; q < feet.length; q++) {
+          var i0 = near(feet[q - 1] / fs),
+            i1 = near(feet[q] / fs);
+          if (i1 === i0 + 1) d.push(1000 * ((feet[q] - feet[q - 1]) / fs - (beats[i1] - beats[i0])));
+        }
+        var m =
+          d.reduce(function (s, v) {
+            return s + v;
+          }, 0) / d.length;
+        return {
+          n: d.length,
+          sd: Math.sqrt(
+            d.reduce(function (s, v) {
+              return s + (v - m) * (v - m);
+            }, 0) / d.length
+          )
+        };
+      }
+      function near(sec) {
+        var b = 0;
+        for (var q = 1; q < beats.length; q++) if (Math.abs(beats[q] - 0.2 - sec) < Math.abs(beats[b] - 0.2 - sec)) b = q;
+        return b;
+      }
+      var up = wave(0.12, 1);
+      var det = D.detectChannel(up, fs, 1);
+      var f3 = D.timingFeet(up, 1, det.peaks, fs, 3);
+      var e8 = err(det.feet),
+        e3 = err(f3);
+      T.eq('one foot per voted peak', f3.length, det.peaks.length);
+      T.ok('the population is a real one (> 250 intervals on both sides)', e8.n > 250 && e3.n > 250, e8.n + ' / ' + e3.n);
+      T.ok('the noise moves the 8 Hz foot (the fixture is not vacuous): > 12 ms', e8.sd > 12, 'sd8 ' + e8.sd.toFixed(2));
+      T.ok('the 3 Hz foot carries less than half of that error', e3.sd < 0.5 * e8.sd, 'sd3 ' + e3.sd.toFixed(2) + ' vs sd8 ' + e8.sd.toFixed(2));
+
+      // Polarity: the inverted channel with sign -1 is the SAME waveform, so the feet are identical.
+      var down = new Float32Array(n);
+      for (var i = 0; i < n; i++) down[i] = -up[i];
+      var fd = D.timingFeet(down, -1, det.peaks, fs, 3);
+      T.eq('sign -1 on the inverted channel gives the same feet', JSON.stringify(Array.from(fd)), JSON.stringify(Array.from(f3)));
+      var wrong = D.timingFeet(down, 1, det.peaks, fs, 3);
+      T.ok('…and the wrong sign does not (the sign is read)', JSON.stringify(Array.from(wrong)) !== JSON.stringify(Array.from(f3)));
+
+      // The snap reaches a displaced peak, and it stops at its reach.
+      var clean = wave(0, 1),
+        dc = D.detectChannel(clean, fs, 1);
+      var off = dc.peaks.map(function (p) {
+        return p - 18;
+      }); // 281 ms early: the 200 ms reach carries it past the steepest rise
+      var fOff = D.timingFeet(clean, 1, off, fs, 3),
+        fRef = D.timingFeet(clean, 1, dc.peaks, fs, 3);
+      T.eq('a peak that the reach carries past the steepest rise gives the same foot (interior beats)', JSON.stringify(fOff.slice(2, -2)), JSON.stringify(fRef.slice(2, -2)));
+      var far = dc.peaks.map(function (p) {
+        return p - 26;
+      }); // 406 ms early, outside it
+      var fFar = D.timingFeet(clean, 1, far, fs, 3);
+      T.ok('a peak that stays before it does not', JSON.stringify(fFar.slice(2, -2)) !== JSON.stringify(fRef.slice(2, -2)));
+      var late = dc.peaks.map(function (p) {
+        return p + 10;
+      });
+      T.eq('a late peak gives the same foot', JSON.stringify(D.timingFeet(clean, 1, late, fs, 3).slice(2, -2)), JSON.stringify(fRef.slice(2, -2)));
+      var rising = fRef.length > 250;
+      for (var z = 1; z < fRef.length; z++) if (!(fRef[z] > fRef[z - 1])) rising = false;
+      T.ok('the feet are in order over the whole record', rising);
+
+      // Through analyze: the band is opt-in, and it moves the feet only.
+      function rec(hz) {
+        var rel = new Float64Array(n);
+        for (var q = 0; q < n; q++) rel[q] = q / fs;
+        var c0 = wave(0.12, 1),
+          c1 = wave(0.12, 0.9),
+          c2 = wave(0.1, 1.1);
+        var r = { ch: [c0, c1, c2], fs: fs, n: n, durSec: 300, relSec: rel, t0Ms: Date.UTC(2026, 0, 1), site: 'forehead', int16: new Int16Array(n), acc: null, gyro: null };
+        r._preChannels = r.ch.map(function (c) {
+          return D.detectChannel(c, fs, 1);
+        });
+        if (hz) r.footHiHz = hz;
+        return r;
+      }
+      var a0 = null,
+        a3 = null,
+        why = '';
+      try {
+        a0 = D.analyze(rec(0));
+        a3 = D.analyze(rec(3));
+      } catch (e) {
+        why = String((e && e.message) || e);
+      }
+      T.ok('analyze runs on the synthetic record on both bands', !!(a0 && a3), why);
+      if (a0 && a3) {
+        T.eq('the voted peaks are the same on both bands', JSON.stringify(Array.from(a3.peakSamp)), JSON.stringify(Array.from(a0.peakSamp)));
+        T.ok('the feet move', JSON.stringify(Array.from(a3.footSamp)) !== JSON.stringify(Array.from(a0.footSamp)));
+        var x0 = err(a0.footSamp),
+          x3 = err(a3.footSamp);
+        T.ok('…and the analyzed beat times carry less than half of the error', x3.sd < 0.5 * x0.sd, x3.sd.toFixed(2) + ' vs ' + x0.sd.toFixed(2));
+      }
+      // Wiring: the app sets the band for the headband alone.
+      var app = (env.sources || {})['ppgdex-app.js'] || '';
+      if (app.length) {
+        T.ok('the app sets footHiHz for the Muse only', /if \(muse\) rec\.footHiHz = MUSE_FOOT_HI_HZ;/.test(app));
+        T.eq('…and nowhere else', (app.match(/footHiHz/g) || []).length, 1);
+      } else T.skip('ppgdex-app.js source available', 'not in env.sources');
+    });
+
     group('PpgDex consensus polarity — an inverted channel rejoins the vote (E-5)', 'ppgdex-dsp · consensus · regression', function (T) {
       var D = env.PPGDSP;
       T.ok('PPGDSP.detectChannel + consensusBeats available', !!(D && typeof D.detectChannel === 'function' && typeof D.consensusBeats === 'function'));
