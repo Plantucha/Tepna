@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**361 tools** · 360 with a purpose line · **1 without**
+**362 tools** · 361 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -124,6 +124,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`geometry-passthrough.mjs`](../tools/geometry-passthrough.mjs) | DOES THE ALIGNMENT CHAIN INTRODUCE GEOMETRY THAT WAS NOT IN ITS INPUT? |
 | [`geometry-probe.mjs`](../tools/geometry-probe.mjs) | GEOMETRIC PROBES FOR THE TIMELINE-ALIGNMENT CHAIN (PAT-GEOMETRY-PROBE-2026-08-11). |
 | [`geometry-scan.mjs`](../tools/geometry-scan.mjs) | WALK THE TIMELINE-ALIGNMENT CHAIN AND PROBE EVERY STAGE (PAT-GEOMETRY-PROBE-2026-08-11). |
+| [`gpu-gate.mjs`](../tools/gpu-gate.mjs) | MAY A LOCAL MODEL USE THE CARD NOW? One answer for every unattended qwen job. |
 | [`guarantees.mjs`](../tools/guarantees.mjs) | GUARANTEE CENSUS — find the promises the comments make, and ask which of them nothing checks. |
 | [`guide-anchor-audit.mjs`](../tools/guide-anchor-audit.mjs) | REFERENCE-GUIDE-AUDIT dimension 5, mechanised — the third sibling of `severity-ladder-audit.mjs` (dim 3) and `formula-constant-audit.mjs` (dim 2). |
 | [`guide-directive-audit.mjs`](../tools/guide-directive-audit.mjs) | Dimension 3 asks that every normative band be either (a) a published/consensus target, cited, or (b) explicitly marked relative via `no-norm-note` - no fabricated clinical cut-points. |
