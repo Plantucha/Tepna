@@ -1743,7 +1743,14 @@ self.onmessage = async (e) => {
       /* The rMSSD twin of the row above — the table named only the Rest-HR copy, but this row printed
          `expRmssd` (a prior) under the target "age norm". Same predicate, same disclosure. */
       ['Expected rMSSD', r.ageEntered ? r.expRmssd : '—', 'ms', r.ageEntered ? 'age norm' : '—', 'neutral', r.ageEntered ? 'Age-typical rMSSD for comparison' : 'population default, age not entered'],
-      ['VO₂max base', r.vo2base == null ? '—' : r.vo2base, 'ml/kg/min', '—', 'neutral', 'Uth–Sørensen HRmax/HRrest' + (r.altFactor && r.altFactor < 1 ? ' · alt ×' + r.altFactor : '')],
+      [
+        'VO₂max base',
+        r.vo2base == null ? '—' : r.vo2base,
+        'ml/kg/min',
+        '—',
+        'neutral',
+        'Uth–Sørensen HRmax/HRrest' + (r.altFactor == null ? ' · alt unknown (no elevation entered)' : r.altFactor < 1 ? ' · alt ×' + r.altFactor : '')
+      ],
       ['VO₂max adj', r.vo2adj == null ? '—' : r.vo2adj, 'ml/kg/min', '≥40', r.vo2adj == null ? 'neutral' : r.vo2adj >= 45 ? 'ok' : r.vo2adj >= 38 ? 'warn' : 'bad', 'HRV-adjusted estimate'],
       ...(r.vo2gt ? [['VO₂max GT', r.vo2gt, 'ml/kg/min', 'lab', 'neutral', 'Your entered ground truth']] : []),
       /* 'Apnea risk' + 'Est. AHI' rows retired 2026-07-31 (§10). The target column ('<5', 'Minimal')
@@ -2887,7 +2894,7 @@ self.onmessage = async (e) => {
         vo2maxAdjusted: r.vo2adj ?? null,
         vo2maxGroundTruth: r.vo2gt ?? null,
         altitudeFactor: r.altFactor ?? null,
-        altitudeFactorFormula: 'elev≤1500m → 1; else 1 − 0.0033·(elev−1500)/100',
+        altitudeFactorFormula: 'no elevation entered → null; elev≤1500m → 1; else 1 − 0.0033·(elev−1500)/100',
         vo2maxFormula: 'Uth–Sørensen 15.3·HRmax/HRrest, ×altitudeFactor, then ×(1 + clamp(±0.08, 0.10·(lnRMSSD−3.4)))',
         expectedRMSSDForAge: r.expRmssd ?? null,
         expectedRestHRForAge: r.expRHR ?? null

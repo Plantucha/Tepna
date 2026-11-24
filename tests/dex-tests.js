@@ -94314,6 +94314,74 @@
       T.ok('…so an absent mean HR does not disable the overnight VO₂', o.vo2base != null && o.vo2adj != null, String(o.vo2base) + '/' + String(o.vo2adj));
     });
 
+    /* ∅ AN UNKNOWN ELEVATION IS NOT A MEASURED SEA LEVEL. `altVO2Factor` guarded its range with
+       `elev <= 1500 ? 1 : …`, and `null <= 1500` coerces the null to 0, so an elevation nobody
+       entered earned exactly the factor a coastal night earns. The record then published
+       `altitudeFactor: 1`, the node-export republished it, and the full-metrics row appended
+       nothing, because it annotates only a factor below 1. `dex-profile.js` already resolves an
+       absent elevation to null and its own caption already reads "not set", so this file was the
+       last mile. The VO₂ math keeps applying a neutral 1 — reduced coverage annotates, only a
+       discontinuity refuses (owner ruling 2026-09-17) — and only the PUBLISHED factor changes.
+       The legacy DOM path read an empty elevation box as 0 m through `v('ecgElev', 0)`, the same
+       substitution on the headless road, so it answers null now too. The 2026-08-25 test bank
+       rejected a pin on this very input with the words "something there needs investigating". */
+    group('ECGDex profile · an elevation nobody entered publishes no altitude factor', 'ecgdex-profile · ecgdex-app · absence · altitude', function (T) {
+      var P = env.DexProfile;
+      var ready = !!(env.ECGProfile && P && typeof P._setStore === 'function' && typeof P.setManual === 'function');
+      T.ok('ECGProfile + the DexProfile store are wired into env (both lanes)', ready, 'ECGProfile or DexProfile._setStore missing');
+      if (!ready) return;
+      var mk = function () {
+        var m = {};
+        return {
+          getItem: function (k) {
+            return k in m ? m[k] : null;
+          },
+          setItem: function (k, v) {
+            m[k] = String(v);
+          },
+          removeItem: function (k) {
+            delete m[k];
+          }
+        };
+      };
+      var base = function () {
+        P._setStore(mk());
+        P.setManual('age', 40);
+        P.setManual('sex', 'M');
+        P.setManual('cpap', 'no');
+      };
+      // `personalize` writes its result INTO the record it is handed, so each leg takes its own.
+      var rec = function () {
+        return { hr: 55, longRec: false, dispRm: 40, ambulatory: false };
+      };
+
+      // ── ARM 1 · nobody entered an elevation ───────────────────────────────────────────
+      base();
+      var u = env.ECGProfile.personalize(rec());
+      T.eq('an unset elevation reaches the node as null, not 0 m', u.profile.elev, null);
+      T.eq('…so the published altitude factor is null, not the 1 a measured coastal night earns', u.altFactor, null);
+      T.approx('…while the VO₂ base still applies a neutral 1, because reduced coverage annotates', u.vo2base, 50.1, 0.05);
+      T.approx('…and the HRV-adjusted VO₂ follows that same base', u.vo2adj, 51.5, 0.05);
+
+      // ── ARM 2 · CONTROL · a MEASURED sea level keeps its factor of 1 ──────────────────
+      base();
+      P.setManual('elevation', 0);
+      var s = env.ECGProfile.personalize(rec());
+      T.eq('CONTROL · a MEASURED 0 m still publishes a factor of exactly 1', s.altFactor, 1);
+      T.approx('CONTROL · over the same VO₂ base as the unmeasured road', s.vo2base, 50.1, 0.05);
+
+      // ── ARM 3 · CONTROL · a measured altitude still derates ──────────────────────────
+      base();
+      P.setManual('elevation', 2500);
+      var h = env.ECGProfile.personalize(rec());
+      T.approx('CONTROL · 2500 m still derates the factor to 0.967', h.altFactor, 0.967, 1e-6);
+      T.approx('CONTROL · and the VO₂ base carries that derate', h.vo2base, 48.4, 0.1);
+
+      // `renderTable` builds the row note and is not exported, so the sink is read at the source.
+      var app = (env.sources && env.sources['ecgdex-app.js']) || '';
+      T.ok('the full-metrics row NAMES an unknown elevation rather than omitting its note', /alt unknown \(no elevation entered\)/.test(app), 'no alt-unknown note in ecgdex-app.js');
+    });
+
     /* ════ ResMed EDF session-set grouping — ±60 s window known-answer (deep-scout §AD) ════
        resmed-edf.groupSessionSets is a PURE name-list function (no filesystem): it clusters SD-card streams
        within ±60 s of a set's anchor, opening a new set when a TYPE repeats. The ±60 s window is INCLUSIVE
