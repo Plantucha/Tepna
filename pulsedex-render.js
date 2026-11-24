@@ -156,9 +156,10 @@ function reRender() {
     r.tanaka = tanaka;
     r.hrmaxRejected = hrmaxIn > 0 && !hrmaxValid;
     r.elev = _pp.elev == null || !isFinite(_pp.elev) ? null : +_pp.elev; // §∅ — absent ≠ sea level
-    r.altFactor = r.elev == null ? 1 : +altVO2Factor(r.elev).toFixed(3); // no elevation entered ⇒ no correction
+    r.altFactor = r.elev == null ? null : +altVO2Factor(r.elev).toFixed(3); // §∅ — null with no elevation entered
+    const altApplied = r.altFactor == null ? 1 : r.altFactor; // no elevation entered ⇒ no correction
     // §∅ — an absent HRmax gives no VO₂ estimate; `15.3 * null` is 0, which would read as measured
-    r.vo2base = r.hrmaxEff == null ? null : +(vo2Base(r.rhrEff, r.hrmaxEff) * r.altFactor).toFixed(1);
+    r.vo2base = r.hrmaxEff == null ? null : +(vo2Base(r.rhrEff, r.hrmaxEff) * altApplied).toFixed(1);
     r.vo2adj = r.lnrmssd == null || r.vo2base == null ? null : +vo2Adj(r.vo2base, r.lnrmssd).toFixed(1);
     const gtIn = _pp.vo2gt;
     r.vo2gt = gtIn > 0 ? +Number(gtIn).toFixed(1) : null;
