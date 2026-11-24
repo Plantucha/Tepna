@@ -12985,6 +12985,103 @@
       T.eq('control: an all-clean record has no unassessed beats and rates over every beat', JSON.stringify({ u: rc.beatsUnassessed, a: rc.beatsAssessed }), JSON.stringify({ u: 0, a: allBeats }));
       T.ok('control: …and it still finds the ectopy — the refusal did not blunt the detector', rc.nPVC >= detected, 'nPVC ' + rc.nPVC);
     });
+    group('ECGDex morphology — ∅ a measurement nobody took is not a number', 'ecgdex-morph · absence', function (T) {
+      var M = env.ECGMorph || (env.ECGDex && env.ECGDex.ECGMorph);
+      if (!M || typeof M.classifyBeats !== 'function') {
+        T.skip('ECGMorph.classifyBeats exposed', 'ECGMorph not co-loaded in this runner');
+        return;
+      }
+      /* Three measurements decide every beat type: the local median RR, the energy-median QRS width
+         and the correlation against the normal template. Each one can be ABSENT, and each absence
+         used to arrive as a number that decided the beat. `median([])` answers 0, an empty template
+         accumulator divided by `|| 1`, and an edge beat with no window to correlate was given 1.0.
+         Each plant below removes exactly one of the three and leaves the other two measured. */
+      var fs = 130,
+        n = 40;
+      /* 40 beats at 1 s, each QRS a 5-sample plateau (≈31 ms, inside the 30-200 ms filter).
+         `spike` shrinks the plateau to one sample, so every width falls outside that filter.
+         `trunc` ends the buffer 5 samples past beat 38, which leaves that beat inside the
+         ±70 ms correlation window of the record edge. */
+      function mk(opt) {
+        var o = opt || {};
+        var refIdx = [],
+          rr = [],
+          sqi = [];
+        for (var k = 0; k < n; k++) {
+          refIdx.push(5 * fs + k * fs);
+          rr.push(o.rr ? o.rr(k) : 1000);
+          sqi.push(o.sqi != null ? o.sqi : 0.9);
+        }
+        var len = o.trunc ? refIdx[n - 2] + 5 : refIdx[n - 1] + 5 * fs;
+        var int16 = new Int16Array(len),
+          bp = new Int16Array(len);
+        for (var b = 0; b < n; b++) {
+          var c = refIdx[b],
+            w = o.spike ? 0 : 2;
+          for (var j = -w; j <= w; j++) {
+            if (c + j >= 0 && c + j < len) {
+              int16[c + j] = 900;
+              bp[c + j] = 900;
+            }
+          }
+        }
+        return M.classifyBeats(int16, bp, fs, refIdx, rr, sqi);
+      }
+
+      /* PLANT 1 — no plausible width. Every QRS is one sample wide, so the 30-200 ms filter keeps
+         nothing and `median([])` answered 0 ms. That 0 published as a measured QRS width, and the
+         app rendered it in prose and in `medianQRSWidthMs`. */
+      var a = mk({ spike: true });
+      T.eq('a width no beat produced is null, and the basis is published beside it', JSON.stringify({ m: a.medW, w: a.widthsPlausible }), JSON.stringify({ m: null, w: 0 }));
+      T.eq('and no beat is typed on a width that was never measured', JSON.stringify({ u: a.beatsUnassessed, assessed: a.beatsAssessed }), JSON.stringify({ u: 38, assessed: 2 }));
+
+      /* PLANT 2 — no template. SQI 0.58 clears the 0.55 classify gate and fails the 0.6 template
+         gate, so the accumulator stays empty. The flat template that came out of `|| 1` correlated
+         every beat at 0.0, `lowCorr` read true for all 40, and the 5 premature beats were called
+         PVCs on a correlation nobody computed. */
+      var b2 = mk({
+        sqi: 0.58,
+        rr: function (k) {
+          return k % 8 === 3 ? 700 : 1000;
+        }
+      });
+      T.eq('an empty accumulator is no template, and no correlation rests on it', JSON.stringify({ t: b2.template, c: b2.corrMeasured }), JSON.stringify({ t: null, c: 0 }));
+      T.eq('so no beat is called ectopic on arithmetic', JSON.stringify({ v: b2.nPVC, s: b2.nPAC, u: b2.beatsUnassessed }), JSON.stringify({ v: 0, s: 0, u: 38 }));
+      T.ok(
+        'the width and the local median are still measured here — only the template is absent',
+        b2.medW != null && b2.widthsPlausible === 40,
+        'medW ' + b2.medW + ' over ' + b2.widthsPlausible + ' widths'
+      );
+
+      /* PLANT 3 — no correlation window. Beat 38 sits 5 samples from the end of the record, so the
+         ±70 ms window runs off the buffer. The loop answered 1.0, the single most reassuring value
+         in the range, which made `lowCorr` false and put a PVC on that beat out of reach. */
+      var c3 = mk({ trunc: true });
+      T.eq('a beat with no window to correlate reads null, not a perfect match', JSON.stringify({ e: c3.corr[38], measured: c3.corrMeasured }), JSON.stringify({ e: null, measured: 38 }));
+      T.eq('and it is unassessable rather than normal', c3.types[38], 'U');
+      var c3full = mk({});
+      T.ok(
+        'control: the same beat away from the edge carries a real figure and types normal',
+        c3full.corr[38] != null && c3full.types[38] === 'N',
+        'corr ' + c3full.corr[38] + ' type ' + c3full.types[38]
+      );
+
+      /* PLANT 4 — no local median. Every neighbour of beat 20 within ±8 carries a 2500 ms RR, which
+         the 300-2000 ms plausibility test rejects, so the window is empty. The fallback read the
+         beat's own RR, which makes `prem = rr[k] / lm` exactly 1.0 — an assertion that the beat is
+         on time, over a neighbourhood nothing measured. */
+      var d4 = mk({
+        rr: function (k) {
+          return k >= 12 && k <= 28 && k !== 20 ? 2500 : 1000;
+        }
+      });
+      T.eq('a beat with no plausible neighbour is unassessable, not on time', JSON.stringify({ t: d4.types[20], u: d4.beatsUnassessed }), JSON.stringify({ t: 'U', u: 1 }));
+      T.ok(
+        'control: the same beat among plausible neighbours types normal',
+        c3full.types[20] === 'N' && c3full.beatsUnassessed === 0,
+        'type ' + c3full.types[20] + ' unassessed ' + c3full.beatsUnassessed
+      );
+    });
 
     group('ECGDex ∅ off-body tail — the artifact gate that cleans HRV must reach ectopy too', 'ecgdex-dsp · ecgdex-morph · absence', function (T) {
       var E = env.ECGDSP || (env.ECGDex && env.ECGDex._bare);
