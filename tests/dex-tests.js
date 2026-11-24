@@ -45401,6 +45401,59 @@
         'the caller passes no startEpochMs, which leaves every `t`-only event unplaceable'
       );
     });
+    group('Five more node sorts — an undated record sorts last, never as 1970 (§∅)', 'sources', function (T) {
+      /* The ECGDex group above pinned ONE comparator. The same or-zero stamp key stood in five more
+         node sorts, and each file attaches its comparator to no global, so each one is cut from its
+         own source and run. The two cross files hold theirs inside the legacy fallback arm, which
+         runs only when `CrossNightEnvelope` is ABSENT, so that arm cannot borrow a comparator from
+         the envelope module and the helper has to stay local. */
+      var SITES = [
+        { file: 'pulsedex-app.js', fn: '_pxByStamp', indent: '' },
+        { file: 'ppgdex-app.js', fn: '_pgByStamp', indent: '  ' },
+        { file: 'pulsedex-cross.js', fn: '_byStamp', indent: '  ' },
+        { file: 'ppgdex-cross.js', fn: '_byStamp', indent: '  ' },
+        { file: 'ecgdex-cross.js', fn: '_byStamp', indent: '  ' }
+      ];
+      var ids = function (list) {
+        return list
+          .map(function (r) {
+            return r.id;
+          })
+          .join(',');
+      };
+      SITES.forEach(function (site) {
+        var src = env.sources && env.sources[site.file];
+        T.ok(site.file + ' is readable in this lane', !!src, site.file + ' not in env.sources');
+        if (!src) return;
+        var head = site.indent + 'function ' + site.fn + '(key) {';
+        var a = src.indexOf(head);
+        var b = a >= 0 ? src.indexOf('\n' + site.indent + '}\n', a) : -1;
+        T.ok('the ' + site.file + ' comparator is sliceable out', a >= 0 && b > a, 'the slice markers moved — update this group with them');
+        if (!(a >= 0 && b > a)) return;
+        var by = null;
+        try {
+          by = new Function(src.slice(a, b + site.indent.length + 3) + '\nreturn ' + site.fn + ';')();
+        } catch (_e) {
+          by = null;
+        }
+        T.ok('the ' + site.file + ' comparator evaluates on its own', typeof by === 'function', 'the comparator now depends on module state — keep it pure');
+        if (typeof by !== 'function') return;
+        var recs = [{ id: 'u1', t0Ms: null }, { id: 'd5', t0Ms: 5000 }, { id: 'u2' }, { id: 'd2', t0Ms: 2000 }, { id: 'nan', t0Ms: NaN }];
+        T.eq(site.file + ': dated records sort by stamp, then undated ones keep insertion order', ids(recs.slice().sort(by('t0Ms'))), 'd2,d5,u1,u2,nan');
+        T.eq(
+          site.file + ': a measured stamp of 0 is a stamp and sorts first (control)',
+          ids(
+            [
+              { id: 'd1', t0Ms: 1 },
+              { id: 'z', t0Ms: 0 }
+            ].sort(by('t0Ms'))
+          ),
+          'z,d1'
+        );
+        T.eq(site.file + ': an all-undated list keeps its order', ids([{ id: 'x' }, { id: 'y', t0Ms: null }].sort(by('t0Ms'))), 'x,y');
+        T.ok(site.file + ': no sort reads an or-zero stamp key', !/\((?:a|b)\.t0Ms \|\| 0\)\s*-/.test(src), 'an or-zero stamp sort key is back in ' + site.file);
+      });
+    });
     group('ECGDex stampless events — null clock + determinism (Clock §2.6)', 'ecgdex-dsp', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function')) {

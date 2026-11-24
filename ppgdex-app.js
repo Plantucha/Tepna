@@ -1092,8 +1092,25 @@ import { PPGUI } from './ppgdex-render.js';
   // ════════════════════════════════════════════════════════════════════════
   //  SESSION SWITCHER + CROSS-NIGHT
   // ════════════════════════════════════════════════════════════════════════
+  /* §∅ AN ABSENT STAMP IS NOT 1970. `sessionsSorted` once sorted on `(a.t0Ms || 0)`, so a session
+     with no parsed stamp took the FIRST place in the switcher and read as the oldest one. A record
+     with no finite stamp now sorts AFTER every dated one and keeps its insertion order; a measured
+     stamp of 0 is still a stamp. The helper stays LOCAL and pure so tests/dex-tests.js can slice it
+     out of this source and run it. Twin of `_byStamp` in ecgdex-app.js. */
+  function _pgByStamp(key) {
+    return function (a, b) {
+      const x = a ? a[key] : undefined,
+        y = b ? b[key] : undefined;
+      const fx = typeof x === 'number' && isFinite(x),
+        fy = typeof y === 'number' && isFinite(y);
+      if (fx && fy) return x - y;
+      if (fx) return -1;
+      if (fy) return 1;
+      return 0;
+    };
+  }
   function sessionsSorted() {
-    return Object.values(allSessions).sort((a, b) => (a.t0Ms || 0) - (b.t0Ms || 0));
+    return Object.values(allSessions).sort(_pgByStamp('t0Ms'));
   }
   /* Three sensors of one night start within minutes of each other, so a start time does not tell them apart. */
   function sensorTag(s) {
