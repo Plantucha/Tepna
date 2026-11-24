@@ -1254,6 +1254,17 @@ export const SEEDS = [
     at: 'cpapdex-cross.js:650',
     state: 'fixed',
     note: '`compareChannel` took `(a.t0Ms || 0) - (b.t0Ms || 0)` for `clockOffsetSec`, which is the headline FINDING of this comparator. An absent start stamp on one side therefore manufactured a disagreement against epoch 0, and the overlap refusal below worded it as an EdfSink UTC-vs-local-civil clock defect, a borrowed reason for a different cause. Absent on BOTH sides it read a perfect 0 s agreement instead and compared on. The comparator now refuses, publishes `clockOffsetSec: null` and names which side carries no stamp. The `|| 0` coercions at the overlap window and at `ai0`/`bi0` are gone, so the refusal is the only path. Same plant group as the rate row.'
+  },
+  {
+    at: 'cpapdex-coimport.js:216',
+    state: 'fixed',
+    note: 'The peer overlap share refused an unmeasured end. normalizeOxy and normalizeEcg write endMs null when the export carried no duration, and substituting t0Ms made the peer a zero-length point, so _overlapPct published a measured-looking 0 percent. crossNode worded that as shares 0 percent of this night and cpapdex-render.js printed 0 percent overlap. Both consumers already carried the honest null branch. Plant group CPAPDex co-import so a peer whose end was never measured reports no overlap. Three of eight legs red on origin/main (measured 2026-11-24, Heron).'
+  },
+  {
+    at: 'cpapdex-coimport.js:198',
+    state: 'accepted-with-reason',
+    reason:
+      'The same substitution inside _bestOverlap feeds only an internal pairing score. An absent endMs makes the candidate a point, so it can never score positive overlap and falls to the gap branch, where the gap is its true start distance. A peer with a measured overlapping span always outscores it, and the score never leaves the function. The published span comes from _overlapPct, which now refuses an unmeasured end. Read 2026-11-24 by Heron.'
   }
 ];
 

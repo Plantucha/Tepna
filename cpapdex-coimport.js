@@ -204,6 +204,10 @@
       bestScore = -Infinity;
     list.forEach(function (p) {
       if (p.t0Ms == null) return;
+      /* ∅ accepted here: an absent `endMs` makes this candidate a point, so it can never score
+         positive overlap and falls to the gap branch, where the gap IS its true start distance. A
+         peer with a measured overlapping span always outscores it, and this score never leaves the
+         function — the published span comes from `_overlapPct`, which refuses an unmeasured end. */
       var pb = p.endMs != null ? p.endMs : p.t0Ms;
       var overlap = Math.min(nw.b, pb) - Math.max(nw.a, p.t0Ms);
       var score;
@@ -222,8 +226,15 @@
   }
   function _overlapPct(nw, p) {
     if (!nw || !p || p.t0Ms == null) return null;
-    var pb = p.endMs != null ? p.endMs : p.t0Ms;
-    var overlap = Math.max(0, Math.min(nw.b, pb) - Math.max(nw.a, p.t0Ms));
+    /* ∅ A PEER WHOSE END WAS NEVER MEASURED HAS NO OVERLAP TO REPORT. `endMs` is null whenever the
+       peer export carried no duration — `normalizeOxy` and `normalizeEcg` both write it that way — and
+       substituting `t0Ms` turns that peer into a zero-length point. The ratio then rounds to a
+       measured-looking `0`, which `crossNode` words as "shares 0 % of this night" and
+       `cpapdex-render.js` prints as "0% overlap". That is a measurement of a span nobody measured.
+       Both consumers already carry the honest null branch ("no measured span with", "paired"), and
+       the concordance gate refuses on either value. Report the absence, never a zero. */
+    if (p.endMs == null) return null;
+    var overlap = Math.max(0, Math.min(nw.b, p.endMs) - Math.max(nw.a, p.t0Ms));
     var span = Math.max(nw.b - nw.a, 1);
     return +(Math.min(1, overlap / span) * 100).toFixed(0);
   }
