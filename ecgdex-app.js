@@ -1123,11 +1123,22 @@ self.onmessage = async (e) => {
       $('hypnoBody').innerHTML = UI.hypnogram(r.stages, 300 / 60);
       _hypnoControls($('hypnoBody'), r.t0Ms != null);
       const sm = r.stageMin;
+      /* 🎫 EVERY SURFACED NUMBER CARRIES A BADGE (CLAUDE.md §🎫). These four chips each print a stage
+         minute count, and the template badged none of them. The disc goes inline before the label,
+         which is the dense-text placement the ladder allows. `Light` and `Wake` earned registry
+         entries in the same change, so no chip mints the `experimental` fallback.
+
+         The badge reads the registry ID, not the chip label. Two reasons. The label alias map
+         carries `deep` and `rem` alone, so `Light` and `Wake` would lean on the entry-label index
+         instead. And the id-binding gate counts an id EMITTED by name in a node body as a declared
+         binding, so this map is where all four stage ids stop being unadjudicated.
+         Row 2026-11-24-ecgdex-stage-chips-surface-minutes-with-no-badge. */
+      const stageEvId = { Deep: 'deepMin', Light: 'lightMin', REM: 'remMin', Wake: 'wakeMin' };
       $('sleepStats').innerHTML = ['Deep', 'Light', 'REM', 'Wake']
         .map((st) => {
           const col = { Deep: UI.COLORS.blue, Light: UI.COLORS.teal, REM: UI.COLORS.purple, Wake: UI.COLORS.amber }[st];
           const pct = r.totSleep ? (st === 'Wake' ? '' : ' · ' + ((sm[st] / r.totSleep) * 100).toFixed(0) + '%') : '';
-          return `<div class="sl-stat"><span class="sl-dot" style="background:${col}"></span>${st} <b>${sm[st].toFixed(0)}m</b><span class="sl-pct">${pct}</span></div>`;
+          return `<div class="sl-stat"><span class="sl-dot" style="background:${col}"></span>${evBadge(stageEvId[st])}${st} <b>${sm[st].toFixed(0)}m</b><span class="sl-pct">${pct}</span></div>`;
         })
         .join('');
       /* The four stage chips sum to the staged span, not to the night. An unstaged span used to
