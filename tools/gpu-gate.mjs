@@ -15,11 +15,18 @@
  * A LOADED model is not proof: the server reports a spilled load as loaded. The test is how much of
  * the model file sits on the card (`size_vram` against the file size), never the bare name.
  *
+ * A REGISTERED GPU JOB ALWAYS WINS. `~/bin/gpu-run.sh` (owner, 2026-11-07) keeps qwen off for the
+ * length of the job and writes one `<pid>.pid` file for each running job. It pauses the qwen-idle
+ * timer and knows no other qwen job, so the gate reads the same files. Without this a spilled model
+ * ran on 6 CPU cores beside a GPU job for an hour (2026-11-24).
+ *
  * USAGE
  *   node tools/gpu-gate.mjs --model qwen3-coder:30b [--wait-min 0]   # exit 0 fits · 4 busy
  *   node tools/gpu-gate.mjs --selftest
  */
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { boundedFetch } from './net-bound.mjs';
 
@@ -29,6 +36,41 @@ export const HEADROOM_B = 0.5e9;
 export const WHOLE_SHARE = 0.9;
 /** The exit code of a job that stopped because the card is busy. Its work is not finished. */
 export const EXIT_BUSY = 4;
+/** The exit code of a job that stopped because the model server does not answer. */
+export const EXIT_NO_SERVER = 5;
+
+/** Where `gpu-run.sh` registers its jobs. */
+export const holdDir = (env = process.env) => join(env.XDG_RUNTIME_DIR || `/run/user/${process.getuid()}`, 'gpu-run.d');
+
+const pidAlive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === 'EPERM';
+  }
+};
+
+/** The PIDs of the running GPU jobs. A file of a dead PID is not a holder, and no directory is no holder. */
+export function gpuHolders(dir = holdDir(), alive = pidAlive) {
+  let names;
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  return names
+    .map((n) => /^(\d+)\.pid$/.exec(n)?.[1])
+    .filter(Boolean)
+    .map(Number)
+    .filter((pid) => alive(pid));
+}
+
+/** Pure: a registered GPU job overrides a card that has room, and takes a loaded model off it. */
+export function yieldsTo(holders, loaded, verdict) {
+  if (!holders.length) return verdict;
+  return { ok: false, unload: Boolean(loaded), why: `a gpu-run job holds the card (pid ${holders.join(', ')})` };
+}
 
 /** Pure: may the model run now? A whole loaded model may; a spilled one may not; else the card needs its size plus headroom. */
 export function vramAllows({ loaded, sizeB, sizeVram = null, total, used }) {
@@ -55,7 +97,8 @@ export async function gpuState(model, host) {
     // unreadable counters refuse in vramAllows
   }
   const sizeB = (tags.models || []).find((m) => m.name === model)?.size ?? null;
-  return vramAllows({ loaded: Boolean(row), sizeB, sizeVram: row?.size_vram ?? null, total: v?.total ?? null, used: v?.used ?? null });
+  const fit = vramAllows({ loaded: Boolean(row), sizeB, sizeVram: row?.size_vram ?? null, total: v?.total ?? null, used: v?.used ?? null });
+  return yieldsTo(gpuHolders(), Boolean(row), fit);
 }
 
 /** Asks the server to unload the model after its current request, so the card goes back to the GPU job. */
@@ -96,6 +139,26 @@ async function selftest() {
   ck('a GPU job refuses the load', vramAllows({ ...m, loaded: false, used: 8e9 }).ok, false);
   ck('a free card allows the load', vramAllows({ ...m, loaded: false, used: 1.5e9 }).ok, true);
   ck('unreadable counters refuse', vramAllows({ loaded: false, sizeB: 1e9, total: null, used: null }).ok, false);
+  const d = mkdtempSync(join(tmpdir(), 'gpu-gate-'));
+  try {
+    for (const f of ['11.pid', '12.pid', '.lock', 'timer-was-on', 'x.pid']) writeFileSync(join(d, f), '');
+    ck(
+      'a live registered job is a holder, a dead one is not',
+      gpuHolders(d, (pid) => pid === 11),
+      [11]
+    );
+    ck('the lock and the marker are not jobs', gpuHolders(d, () => true).sort(), [11, 12]);
+    ck('no directory is no holder', gpuHolders(join(d, 'absent')), []);
+  } finally {
+    rmSync(d, { recursive: true, force: true });
+  }
+  ck('this process reads as alive', pidAlive(process.pid), true);
+  const fits = { ok: true, why: 'model already loaded' };
+  const held = yieldsTo([11], true, fits);
+  ck('a registered job refuses a whole loaded model and unloads it', [held.ok, held.unload], [false, true]);
+  ck('a registered job has nothing to unload from an empty card', yieldsTo([11], false, fits).unload, false);
+  ck('CONTROL: no job leaves the verdict as it was', yieldsTo([], true, fits), fits);
+  ck('the registration directory follows the session', holdDir({ XDG_RUNTIME_DIR: '/run/x' }), '/run/x/gpu-run.d');
   const run = async (answers, waitMin) => {
     let t = 0;
     let i = 0;
