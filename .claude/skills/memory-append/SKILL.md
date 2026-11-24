@@ -34,6 +34,8 @@ at session start, and `headlock.mjs check <bird>` before you write it. A lesson 
 
 - A typed citation (`path:`, `brief:`, `pr:`) that does not resolve on `main`.
 - A private address, a home path, a token, or a note marked `lan-only: true`.
+- A new note with an STE finding, or an amend that adds one (owner, 2026-11-24). Run `node tools/ste-lint.mjs <note>`
+  before you send. An untouched note is exempt.
 
 Write one memory note per unit, at the unit boundary. Convert a relative date to an absolute date.
 Never record what the repo already states.

@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-11-22 · **Created:** 2026-11-22 · **Owner:** "spend it on memory program", 2026-11-22 (API credit that ends 2026-12-01)
+**Status:** DONE — 2026-11-24 · **Created:** 2026-11-22 · **Owner:** "spend it on memory program", 2026-11-22 (API credit that ends 2026-12-01)
 
 # Memory program — measure, consolidate and version the fleet memory
 
@@ -273,3 +273,40 @@ first one. Its cost was $0.05 a note (bar 0.06) and 0.13 marks a note (bar 0.08)
 close calls. With both counted wrong, the result is 13 of 16 (0.81), below the bar.
 
 Because of that, the full pass over the remaining notes applies no mark without a hand check.
+
+## 13 · Second currency pass: the result
+
+The full pass ran on 2026-11-24 over the 410 remaining notes, with 1,131 "cannot tell" claims. The first
+model call cost $13.07 and the second call cost $8.11.
+
+| step | marks |
+|---|---|
+| the first call marked outdated | 99 |
+| the second call confirmed | 69 |
+| the second call overturned | 27 |
+| the second call answered "unclear" | 3 |
+| Kestrel rejected after the hand check | 4 |
+| applied from the full pass | 65 |
+| applied from the two samples of section 12, right by hand | 25 |
+| applied in total, in 81 notes | 90 |
+
+Of the 69 confirmed marks, 65 were right by hand (0.94). A mark adds a dated line to the note and deletes nothing.
+The same change unlinked 61 names that no note holds.
+
+## 14 · STE holds on each new or changed note
+
+Owner, 2026-11-24: "Should not we enforce it?" The memory repo now runs `tools/ste-lint.mjs` over each note that
+differs from the merge base. CI, `land.mjs` and `inbox.mjs` run the check.
+
+- A new note needs 0 findings.
+- A changed note adds no finding to its count at the base.
+- An untouched note is exempt. On 2026-11-24, 197 of 819 notes passed and 622 did not.
+
+Kestrel rejected a rewrite of those 622 notes. A rewrite can change a measured lesson. No measurement here shows
+that STE text is easier for a model, so the rule rests on the owner's order of 2026-10-11 and not on a result.
+
+## 15 · Acceptance, checked 2026-11-24
+
+- The hit rate is not lower: L hit@5 is 0.597 (252 of 422), and the criterion is 0.55 (section 11).
+- `tools/check.mjs` of the memory repo reds an archive file that no live note supersedes and that states no reason.
+- The same gate reds a secret, a private address and a home path. The secret scan covers this repo.
