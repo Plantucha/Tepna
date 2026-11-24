@@ -103652,8 +103652,10 @@
            `Float32Array` STILL HAS A LENGTH, so a presence test alone published `usable:true` over a
            payload that carries no measurement. Flow is the whole canonical payload of a `cpap` samples
            frame, so this absence is the frame's and the frame refuses.
-           `_mkSig` builds the synthetic channels without a `calibrated` field, so this leg sets the
-           flag the way `readEDF` sets it. BOTH DIRECTIONS: leg 6 above asserts the calibrated set
+           `_mkSig` now writes `calibrated: true` on every synthetic channel (row
+           2026-11-24-synthetic-edf-channels-carry-no-calibrated-field), so this leg flips the flag
+           the way `readEDF` would write it for a degenerate header. The shape-parity group below
+           reaches the same refusal through `opts.uncal` and sets no flag by hand. BOTH DIRECTIONS: leg 6 above asserts the calibrated set
            still yields a usable waveform, so an adapter that always refuses reds there, and one that
            never refuses reds here. The FILE is not refused — `edfSets` still rides. */
         if (CPDSP && typeof CPDSP.chan === 'function') {
@@ -103675,6 +103677,97 @@
           T.ok('  … and the refusing frame is still schema-valid', !!(ufr && SF.validateFrame(ufr).ok), ufr ? SF.validateFrame(ufr).errors.join('; ') : 'no frame');
         }
       }
+    });
+
+    /* ════ ∅ A SYNTHETIC DECODED CHANNEL CARRIES THE SHAPE OF A REAL ONE ══════════════════
+       Row 2026-11-24-synthetic-edf-channels-carry-no-calibrated-field. `readEDF` writes
+       `calibrated` on every non-annotation signal. `_mkSig` wrote `data`, `fs`, `dim` and `_spr`
+       alone, so the field read `undefined` over all eleven synthetic channels, and over the two
+       inline oximeter channels beside them.
+
+       The field had no consumer when the drift opened, and #5623 gave it one: the resmed-edf
+       adapter refuses a `cpap` samples frame whose BRP Flow reads `calibrated:false`. That guard is
+       written `!== false`, so an absent field passed and the drift stayed latent. A later consumer
+       written `=== true` would refuse every synthetic night instead, which is the direction that
+       hides a fault — the synthetic gates would red while real files pass.
+
+       So this group pins the SHAPE, not a value a formula produced. It also pins the reachability
+       the row asked for: `opts.uncal` builds an uncalibrated channel, so the #5623 refusal runs from
+       the node's own set rather than from a hand-set flag. */
+    group('∅ every synthetic EDF channel carries `calibrated`, as a decoded one does', 'cpapdex-dsp · adapters · absence-is-null · shape-parity', function (T) {
+      var CD = env.CpapDsp;
+      var SA2x = env.SignalAdapters;
+      var AD = SA2x && SA2x.byId ? SA2x.byId('resmed-edf') : null;
+      if (!CD || typeof CD._synthEdfSet !== 'function') {
+        T.skip('CpapDsp._synthEdfSet exposed', 'CPAPDex is not co-loaded in this lane, so the scan would read nothing');
+        return;
+      }
+      var chans = function (set) {
+        var out = [];
+        ['PLD', 'BRP', 'SA2'].forEach(function (k) {
+          var sigs = set && set[k] && set[k].signals;
+          if (sigs)
+            Object.keys(sigs).forEach(function (lab) {
+              out.push({ file: k, label: lab, sig: sigs[lab] });
+            });
+        });
+        return out;
+      };
+      var base = chans(CD._synthEdfSet({ oxi: true, cs: true }));
+      // ANTI-VACUITY: a set that built no channel would pass every leg below over an empty list.
+      T.ok('∅ · the synthetic set builds the channels this group judges', base.length >= 13, base.length + ' channel(s)');
+      var absent = base.filter(function (c) {
+        return typeof c.sig.calibrated !== 'boolean';
+      });
+      T.eq('∅ · no channel leaves `calibrated` absent, so the field is never `undefined`', absent.length, 0);
+      if (absent.length)
+        T.ok(
+          '∅ · …the channels that left it absent',
+          false,
+          absent
+            .map(function (c) {
+              return c.file + '/' + c.label;
+            })
+            .join(' · ')
+        );
+      var notTrue = base.filter(function (c) {
+        return c.sig.calibrated !== true;
+      });
+      T.eq('∅ · …and a channel built in physical units reads `true`, which is the truthful value', notTrue.length, 0);
+      // PARITY with the real decoder, read from its own source rather than claimed in prose.
+      var edfSrc = (env.sources || {})['cpapdex-edf.js'] || '';
+      T.ok('∅ · `readEDF` writes the same field, so this is shape parity and not an invention', /calibrated:\s*_cal,/.test(edfSrc), edfSrc ? 'source read' : 'cpapdex-edf.js source not in env');
+      // THE REACHABILITY the row asked for. No leg sets the flag by hand here.
+      var uset = CD._synthEdfSet({ oxi: true, cs: true, uncal: ['Flow.40ms'] });
+      var uch = chans(uset).filter(function (c) {
+        return c.label === 'Flow.40ms';
+      })[0];
+      T.ok('∅ · `opts.uncal` marks the named channel uncalibrated', !!uch && uch.sig.calibrated === false, uch ? String(uch.sig.calibrated) : 'no Flow channel');
+      var others = chans(uset).filter(function (c) {
+        return c.label !== 'Flow.40ms' && c.sig.calibrated !== true;
+      });
+      T.eq('∅ · …and it touches no other channel', others.length, 0);
+      // CONTROL · an unknown label changes nothing, so the option cannot silently blank a set.
+      var unk = chans(CD._synthEdfSet({ oxi: true, uncal: ['NoSuchChannel'] })).filter(function (c) {
+        return c.sig.calibrated !== true;
+      });
+      T.eq('∅ · control · an unknown label leaves every channel calibrated', unk.length, 0);
+      if (!AD || typeof AD.parse !== 'function') {
+        T.skip('the resmed-edf adapter is registered', 'adapters/resmed-edf.js is not co-loaded, so the refusal has no reader here');
+        return;
+      }
+      // BOTH DIRECTIONS at the consumer. An adapter that never refuses reds on the first leg, and
+      // one that always refuses reds on the control below it.
+      var ufr = AD.parse('', { edfSets: [uset] });
+      T.ok("∅ · the #5623 refusal now runs from the node's own set", !!ufr && ufr.usable === false, ufr ? String(ufr.usable) : 'no frame');
+      T.ok('∅ · …and the reason names the calibration, never an absent channel', !!(ufr && /UNCALIBRATED/.test(ufr.reason || '')), ufr && ufr.reason);
+      T.ok(
+        '∅ · …and the decoded sets still ride `frame.edfSets`, so the FILE is not refused',
+        !!(ufr && Array.isArray(ufr.edfSets) && ufr.edfSets.length === 1),
+        ufr && ufr.edfSets ? ufr.edfSets.length : 'none'
+      );
+      var gfr = AD.parse('', { edfSets: [CD._synthEdfSet({ oxi: true, cs: true })] });
+      T.ok('∅ · control · the calibrated set still yields a usable frame', !!gfr && gfr.usable === true, gfr ? String(gfr.usable) : 'no frame');
     });
 
     /* ── event-coupling.js — the shuffled-null cross-node coupling primitive ──────────────
