@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="eb97303693a2" data-compute-hash="5b3e34f7bb54">
+<html lang="en" data-manifest-hash="5950e4771ae6" data-compute-hash="b4b39673d795">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-GGXFnzeUENyO3vafEDqc+1hg15ipvB0UcyQDHIUJu8I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-csoYuQTC7Oifl4DXdjZQTi/R1rLzeEQyG2MFYNR64tg=' 'sha256-iqPNvfgaOLLxsrqf67NdcyYbCf6pshw6DVlOebr7HSE=' 'sha256-jXCcccdrNQGiQxKLg1YLoK8qJnx1KvldxWDfC9EfOq0=' 'sha256-nINCo0TXagqAfjMc8qrTo7HJKrwLN81EsTVzWJvJer8=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-pcZ6GBB3TWPH0GzY1aqx1kD5FSyR/eNGlnglW9DY+oI=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-GGXFnzeUENyO3vafEDqc+1hg15ipvB0UcyQDHIUJu8I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-VsbrNGunRHTbFcl7GnyAOA6eETSInRqHomlK3GsLQPY=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-csoYuQTC7Oifl4DXdjZQTi/R1rLzeEQyG2MFYNR64tg=' 'sha256-iqPNvfgaOLLxsrqf67NdcyYbCf6pshw6DVlOebr7HSE=' 'sha256-nINCo0TXagqAfjMc8qrTo7HJKrwLN81EsTVzWJvJer8=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-xTEOdzIo65DCwYDwq3ExFTyEZBZs8omMaQMmgHO4VTo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.36.0</title>
@@ -12608,12 +12608,29 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     // drift- and polarity-proof. Efficiency ratio = inspiratory:expiratory HR (Border 2025).
     const meanHRabs = mean(Array.from(hrAbsU));
     const hrBarr = Array.from(hrB);
-    const rsaAmp = Math.max(0, quant(hrBarr, 0.92) - quant(hrBarr, 0.08));
-    const rsaRatio = meanHRabs - rsaAmp / 2 > 0 ? (meanHRabs + rsaAmp / 2) / (meanHRabs - rsaAmp / 2) : 1;
-    const rsaAmpNorm = Math.min(1, rsaAmp / (0.1 * meanHRabs || 1));
+    /* ∅ ABSENCE IS NULL. Two absences reached the reader here as measured numbers.
+       First, a non-finite mean absolute HR. One RR of 0 ms makes `hrAbs` infinite, so `mean`
+       answers Infinity and the old comparison read false. Second, a non-positive expiratory floor.
+       An RSA swing wider than twice the mean HR leaves no ratio at all. Both fell to `: 1`, which
+       states "inspiratory HR equals expiratory HR". A 1.00 is a LEGAL measured ratio, so no
+       consumer can separate the two cases. Measurement, 2026-11-24: a 90-beat series whose every
+       fifth interval is 200 ms and whose rest are 3000 ms makes main publish ratio 1.00 beside
+       amplitude 124.3 bpm. The length test holds a third case. `quant` answers null over an empty
+       grid, so `null - null` is 0 and `Math.max(0, 0)` would publish a flat amplitude. Each reason
+       names its own window, never a borrowed one. */
+    const _rsaMeasured = hrBarr.length > 0 && Number.isFinite(meanHRabs);
+    const rsaAmp = _rsaMeasured ? Math.max(0, quant(hrBarr, 0.92) - quant(hrBarr, 0.08)) : null;
+    const _rsaDen = rsaAmp == null ? null : meanHRabs - rsaAmp / 2;
+    const rsaRatio = rsaAmp != null && _rsaDen != null && _rsaDen > 0 ? (meanHRabs + rsaAmp / 2) / _rsaDen : null;
+    const rsaRatioReason = !_rsaMeasured
+      ? 'no finite mean HR over the resp-band grid — RSA amplitude and efficiency not computable'
+      : rsaRatio == null
+        ? 'expiratory HR floor not positive — inspiratory:expiratory ratio not computable'
+        : null;
+    const rsaAmpNorm = rsaAmp == null ? null : Math.min(1, rsaAmp / (0.1 * meanHRabs || 1));
     /* 65 % of this number IS the PLV, so an absent PLV leaves no coupling strength to publish.
        `0.65 * null` is 0, which would have published the RSA half alone under the coupling name. */
-    const couplingStrength = plv == null ? null : Math.max(0, Math.min(1, 0.65 * plv + 0.35 * rsaAmpNorm));
+    const couplingStrength = plv == null || rsaAmpNorm == null ? null : Math.max(0, Math.min(1, 0.65 * plv + 0.35 * rsaAmpNorm));
     // phase-averaged HR over the BEST-coherence 60 s window (a clean RSA loop for the chart)
     const NB = 16;
     const binSum = new Float64Array(NB),
@@ -12664,8 +12681,9 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       respFromEDRReason,
       nGridGap: _gapCells,
       gridGapFrac,
-      rsaEfficiencyRatio: +rsaRatio.toFixed(2),
-      rsaAmplitudeBpm: +rsaAmp.toFixed(1),
+      rsaEfficiencyRatio: _rmOrNull(rsaRatio, 2),
+      rsaEfficiencyRatioReason: rsaRatioReason,
+      rsaAmplitudeBpm: _rmOrNull(rsaAmp, 1),
       crcPLV: _rmOrNull(plv, 3),
       crcPLVReason: plvReason,
       couplingStrength: _rmOrNull(couplingStrength, 3),
@@ -15665,14 +15683,20 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
           da += va * va;
           de += ve * ve;
         }
-        const r = da > 0 && de > 0 ? num / Math.sqrt(da * de) : 0,
+        /* ∅ ABSENCE IS NULL. Zero variance on one side leaves no correlation to compute, and 0 is
+           a LEGAL r — "the two rates do not track each other". The card reads `ag.r` for its strong
+           and moderate verdicts and prints it as a Pearson r, so the old 0 published a measured
+           disagreement over a pairing no correlation came out of. */
+        const _rOk = da > 0 && de > 0;
+        const r = _rOk ? num / Math.sqrt(da * de) : null,
           disagree = deltas.filter((x) => Math.abs(x) > 3).length;
         agreement = {
           n: pairs.length,
           meanDelta: +md.toFixed(2),
           sdDelta: +sdd.toFixed(2),
           mae: +mae.toFixed(2),
-          r: +r.toFixed(2),
+          r: _rmOrNull(r, 2),
+          rReason: _rOk ? null : 'zero variance on one side of the RRacc and EDR pairing — no correlation computable',
           disagreeRate: Math.round((disagree / pairs.length) * 100),
           loa: [+(md - 1.96 * sdd).toFixed(1), +(md + 1.96 * sdd).toFixed(1)],
           ba: pairs.map((p) => ({ mean: +((p.acc + p.edr) / 2).toFixed(1), diff: +(p.acc - p.edr).toFixed(1) }))
@@ -17352,7 +17376,12 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     if (!rec || rec.t0Ms == null || !isFinite(rec.t0Ms)) return null;
     var gaps = rec.gaps;
     if (!Array.isArray(gaps) || !gaps.length) return null; // contiguous ⇒ no claim (DexExport contract)
-    var fs = rec.fs > 0 ? rec.fs : 130;
+    /* ∅ ABSENCE IS NULL. The old `: 130` wrote the H10's nominal rate over a rec that reached us
+       without one. The EXACT branch below never reads `fs`; the FALLBACK branch converts SAMPLE
+       COUNTS to ms with it, so a fabricated rate makes fabricated segment EDGES, and the Integrator
+       reads those edges to extend its envelope. Fabricated edges are a discontinuity, not reduced
+       coverage, so the fallback refuses (owner ruling 2026-09-17). */
+    var fs = rec.fs > 0 ? rec.fs : null;
     var nSamp = rec.int16 && rec.int16.length != null ? rec.int16.length : null;
     var t0 = rec.t0Ms,
       segs = [];
@@ -17371,7 +17400,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       }
       var endOff = rec.lastRelMs - base;
       if (endOff > cur) segs.push([t0 + cur, t0 + endOff]);
-    } else if (nSamp) {
+    } else if (nSamp && fs != null) {
       /* ── FALLBACK: `{idx, ms}` only. A sample index is DATA time, not wall-clock time — after one
          dropout, sample k sits at k/fs PLUS every gap before it, so reading `idx/fs` as a clock
          position under-states every boundary by the accumulated silence. Walk instead: consume the
@@ -25123,7 +25152,12 @@ self.onmessage = async (e) => {
       { l: 'Resp Rate', v: r.respRate || '—', sub: 'br/min · EDR', s: 'neutral' },
       ...(r.crc
         ? [
-            { l: 'RSA Efficiency', v: r.crc.rsaEfficiencyRatio, sub: 'insp:exp HR', s: r.crc.rsaEfficiencyRatio >= 1.08 ? 'ok' : r.crc.rsaEfficiencyRatio >= 1.04 ? 'warn' : 'neutral' },
+            {
+              l: 'RSA Efficiency',
+              v: r.crc.rsaEfficiencyRatio,
+              sub: r.crc.rsaEfficiencyRatio == null ? 'insp:exp HR · not computable' : 'insp:exp HR',
+              s: r.crc.rsaEfficiencyRatio == null ? 'neutral' : r.crc.rsaEfficiencyRatio >= 1.08 ? 'ok' : r.crc.rsaEfficiencyRatio >= 1.04 ? 'warn' : 'neutral'
+            },
             { l: 'CR Coupling', v: r.crc.crcPLV, sub: 'PLV · RR↔resp', s: r.crc.crcPLV >= 0.5 ? 'ok' : r.crc.crcPLV >= 0.3 ? 'warn' : 'bad' }
           ]
         : []),
@@ -25336,7 +25370,7 @@ self.onmessage = async (e) => {
         pts.push({ x: ((rep * NB + i) / NB) * 360, y: curve[i] });
       }
     }
-    const ratioSev = c.rsaEfficiencyRatio >= 1.08 ? 'good' : c.rsaEfficiencyRatio >= 1.04 ? 'warn' : 'neutral';
+    const ratioSev = c.rsaEfficiencyRatio == null ? 'neutral' : c.rsaEfficiencyRatio >= 1.08 ? 'good' : c.rsaEfficiencyRatio >= 1.04 ? 'warn' : 'neutral';
     /* ∅ A refused PLV grades `neutral`, never `bad` — `null >= 0.5` and `null >= 0.3` are both
        false, and the red disc would be a judgement over a number no one measured. */
     const plvSev = c.crcPLV == null ? 'neutral' : c.crcPLV >= 0.5 ? 'good' : c.crcPLV >= 0.3 ? 'warn' : 'bad';
@@ -25369,8 +25403,8 @@ self.onmessage = async (e) => {
         ? UI.lineChart(pts, ratioCol, { W: 680, H: 150, xfmt: (x) => x.toFixed(0) + '°', yfmt: (y) => y.toFixed(0) + ' bpm' })
         : `<div class="q-note" style="padding:18px 8px;text-align:center">RSA phase curve unavailable — too few clean respiratory cycles.</div>`) +
       `<div class="gang-summary" style="margin-top:10px">
-         <div class="gang-pill" style="border-color:${ratioCol};color:${ratioCol}"><b>RSA efficiency ${c.rsaEfficiencyRatio}</b> insp:exp HR · higher = stronger</div>
-         <div class="gang-pill">RSA swing <b>${c.rsaAmplitudeBpm}</b> bpm</div>
+         <div class="gang-pill" style="border-color:${ratioCol};color:${ratioCol}">${c.rsaEfficiencyRatio != null ? `<b>RSA efficiency ${c.rsaEfficiencyRatio}</b> insp:exp HR · higher = stronger` : 'RSA efficiency — <b>no estimate</b>'}</div>
+         <div class="gang-pill">${c.rsaAmplitudeBpm != null ? `RSA swing <b>${c.rsaAmplitudeBpm}</b> bpm` : 'RSA swing — <b>no estimate</b>'}</div>
          <div class="gang-pill" style="border-color:${plvCol};color:${plvCol}">${c.crcPLV != null ? `<b>CRC PLV ${c.crcPLV}</b> · phase-lock` : 'CRC PLV — <b>no estimate</b>'}</div>
          <div class="gang-pill">${c.couplingStrength != null ? `coupling strength <b>${c.couplingStrength}</b>/1` : 'coupling strength — <b>no estimate</b>'}</div>
          <div class="gang-pill">${c.respFromEDR != null ? `EDR resp <b>${c.respFromEDR}</b> br/min` : 'EDR resp — <b>no estimate</b>'}</div>
@@ -25877,8 +25911,13 @@ self.onmessage = async (e) => {
     if (!ag) {
       body = `<div class="q-note"><span class="pill pill-gray">No EDR available</span> Needs both ECG-derived respiration (EDR) epochs and confident RRacc epochs to compare.</div>`;
     } else {
-      const strong = ag.r >= 0.85 || (ag.mae <= 1.5 && Math.abs(ag.meanDelta) <= 1.5);
-      const moderate = !strong && (ag.r >= 0.65 || ag.mae <= 3.0);
+      /* ∅ A refused r grades on the Bland–Altman half alone. `null >= 0.85` and `null >= 0.65` are
+         both false and `null < 0.65` is TRUE, so the old expressions read a measured low correlation:
+         the card printed "Poor — check sensor contact" and the note below explained a low r that
+         does not exist. The mean Δ and the limits are measured, so they still grade. */
+      const _rKnown = ag.r != null && isFinite(ag.r);
+      const strong = (_rKnown && ag.r >= 0.85) || (ag.mae <= 1.5 && Math.abs(ag.meanDelta) <= 1.5);
+      const moderate = !strong && ((_rKnown && ag.r >= 0.65) || ag.mae <= 3.0);
       const pill = strong
         ? '<span class="pill pill-green">Strong agreement</span>'
         : moderate
@@ -25891,23 +25930,26 @@ self.onmessage = async (e) => {
          The gate is the span itself now, held against this card's own disagreement threshold
          (|Δ| > 3 br/min, so a 6 br/min span), and each branch states the span it measured. */
       const loaSpan = ag.loa ? +(ag.loa[1] - ag.loa[0]).toFixed(1) : null;
-      const narrowNote = !(ag.r < 0.65 && loaSpan != null)
+      const narrowNote = !(_rKnown && ag.r < 0.65 && loaSpan != null)
         ? ''
         : loaSpan <= 6
           ? `<div class="q-note" style="margin-top:6px;color:var(--text2)">Low Pearson r here reflects the <b>narrow EDR range</b> across the night, not poor tracking — MAE ${ag.mae.toFixed(1)} br/min, and the 95% limits of agreement span <b>${loaSpan}</b> br/min (${ag.loa[0]} … +${ag.loa[1]}), inside this card's own 3 br/min disagreement threshold (Bland–Altman governs over correlation when the spread is small).</div>`
           : `<div class="q-note" style="margin-top:6px;color:var(--text2)">Low Pearson r here reflects the <b>narrow EDR range</b> across the night, not poor tracking. The 95% limits of agreement span <b>${loaSpan}</b> br/min (${ag.loa[0]} … +${ag.loa[1]}), wider than this card's own 3 br/min disagreement threshold, so this card makes no close-agreement claim (Bland–Altman governs over correlation when the spread is small).</div>`;
+      const rAbsentNote = _rKnown
+        ? ''
+        : `<div class="q-note" style="margin-top:6px;color:var(--text2)">No Pearson r for this night: ${ag.rReason || 'the correlation was not computable from these pairs'}. Judge agreement by the mean Δ and the limits of agreement.</div>`;
       const evg = (lbl) => {
         const b = evBadge(lbl);
         return b ? '<span style="margin-right:5px">' + b + '</span>' : '';
       };
       body = `<div class="acc-stat-row">
-        <div class="acc-stat"><div class="acc-stat-v">${ag.r.toFixed(2)}</div><div class="acc-stat-l">${evg('Pearson r')}Pearson r</div></div>
+        <div class="acc-stat"><div class="acc-stat-v">${_rKnown ? ag.r.toFixed(2) : '—'}</div><div class="acc-stat-l">${evg('Pearson r')}Pearson r</div></div>
         <div class="acc-stat"><div class="acc-stat-v">${ag.mae.toFixed(1)}</div><div class="acc-stat-l">${evg('MAE br/min')}MAE br/min</div></div>
         <div class="acc-stat"><div class="acc-stat-v">${ag.disagreeRate}%</div><div class="acc-stat-l">${evg('Disagreement')}Disagreement</div></div>
         <div class="acc-stat"><div class="acc-stat-v">${ag.meanDelta > 0 ? '+' : ''}${ag.meanDelta.toFixed(1)}</div><div class="acc-stat-l">${evg('Mean Δ (bias)')}Mean Δ (bias)</div></div>
       </div>
       <div style="margin:8px 0 2px">${pill} <span class="acc-pill-note">${ag.n} paired 5-min epochs · |Δ| &gt; 3 br/min flagged as disagreement</span></div>
-      ${narrowNote}
+      ${narrowNote}${rAbsentNote}
       ${_rrNightChart(ex, r)}
       ${_blandAltman(ag)}`;
     }
@@ -26267,7 +26309,7 @@ self.onmessage = async (e) => {
               r.crc.rsaEfficiencyRatio,
               'ratio',
               '≥1.05',
-              r.crc.rsaEfficiencyRatio >= 1.08 ? 'ok' : r.crc.rsaEfficiencyRatio >= 1.04 ? 'warn' : 'neutral',
+              r.crc.rsaEfficiencyRatio == null ? 'neutral' : r.crc.rsaEfficiencyRatio >= 1.08 ? 'ok' : r.crc.rsaEfficiencyRatio >= 1.04 ? 'warn' : 'neutral',
               'Insp:exp HR ratio — higher = stronger RSA (Border 2025; 1.5 = theoretical optimum)'
             ],
             ['RSA amplitude', r.crc.rsaAmplitudeBpm, 'bpm', '—', 'neutral', 'Peak-to-trough HR swing across the respiratory cycle'],

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="10f15849ea31" data-compute-hash="832b64597d72"><head>
+<html lang="en" data-manifest-hash="261ed04383f5" data-compute-hash="a7d249937b94"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FV/TB0GWLAawcNhCICx6Shvm9lLfECci1wUypQlaWW0=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-JXvOiNWxxEpaIqPVZaw5jBzxRZM+d44OZqhZ1oEInTc=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gsfxF3U9fQYY6VBcjkxdisltp5OpMvk7xGo0quyFZm8=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jXCcccdrNQGiQxKLg1YLoK8qJnx1KvldxWDfC9EfOq0=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lcwniptgITPs+FLPgVCGUNs9+szpkudWXzvniEIjTUA=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FV/TB0GWLAawcNhCICx6Shvm9lLfECci1wUypQlaWW0=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-JXvOiNWxxEpaIqPVZaw5jBzxRZM+d44OZqhZ1oEInTc=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-VsbrNGunRHTbFcl7GnyAOA6eETSInRqHomlK3GsLQPY=' 'sha256-gsfxF3U9fQYY6VBcjkxdisltp5OpMvk7xGo0quyFZm8=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lcwniptgITPs+FLPgVCGUNs9+szpkudWXzvniEIjTUA=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -46101,12 +46101,29 @@ __exports.PpgDex = window.PpgDex;
     // drift- and polarity-proof. Efficiency ratio = inspiratory:expiratory HR (Border 2025).
     const meanHRabs = mean(Array.from(hrAbsU));
     const hrBarr = Array.from(hrB);
-    const rsaAmp = Math.max(0, quant(hrBarr, 0.92) - quant(hrBarr, 0.08));
-    const rsaRatio = meanHRabs - rsaAmp / 2 > 0 ? (meanHRabs + rsaAmp / 2) / (meanHRabs - rsaAmp / 2) : 1;
-    const rsaAmpNorm = Math.min(1, rsaAmp / (0.1 * meanHRabs || 1));
+    /* ∅ ABSENCE IS NULL. Two absences reached the reader here as measured numbers.
+       First, a non-finite mean absolute HR. One RR of 0 ms makes `hrAbs` infinite, so `mean`
+       answers Infinity and the old comparison read false. Second, a non-positive expiratory floor.
+       An RSA swing wider than twice the mean HR leaves no ratio at all. Both fell to `: 1`, which
+       states "inspiratory HR equals expiratory HR". A 1.00 is a LEGAL measured ratio, so no
+       consumer can separate the two cases. Measurement, 2026-11-24: a 90-beat series whose every
+       fifth interval is 200 ms and whose rest are 3000 ms makes main publish ratio 1.00 beside
+       amplitude 124.3 bpm. The length test holds a third case. `quant` answers null over an empty
+       grid, so `null - null` is 0 and `Math.max(0, 0)` would publish a flat amplitude. Each reason
+       names its own window, never a borrowed one. */
+    const _rsaMeasured = hrBarr.length > 0 && Number.isFinite(meanHRabs);
+    const rsaAmp = _rsaMeasured ? Math.max(0, quant(hrBarr, 0.92) - quant(hrBarr, 0.08)) : null;
+    const _rsaDen = rsaAmp == null ? null : meanHRabs - rsaAmp / 2;
+    const rsaRatio = rsaAmp != null && _rsaDen != null && _rsaDen > 0 ? (meanHRabs + rsaAmp / 2) / _rsaDen : null;
+    const rsaRatioReason = !_rsaMeasured
+      ? 'no finite mean HR over the resp-band grid — RSA amplitude and efficiency not computable'
+      : rsaRatio == null
+        ? 'expiratory HR floor not positive — inspiratory:expiratory ratio not computable'
+        : null;
+    const rsaAmpNorm = rsaAmp == null ? null : Math.min(1, rsaAmp / (0.1 * meanHRabs || 1));
     /* 65 % of this number IS the PLV, so an absent PLV leaves no coupling strength to publish.
        `0.65 * null` is 0, which would have published the RSA half alone under the coupling name. */
-    const couplingStrength = plv == null ? null : Math.max(0, Math.min(1, 0.65 * plv + 0.35 * rsaAmpNorm));
+    const couplingStrength = plv == null || rsaAmpNorm == null ? null : Math.max(0, Math.min(1, 0.65 * plv + 0.35 * rsaAmpNorm));
     // phase-averaged HR over the BEST-coherence 60 s window (a clean RSA loop for the chart)
     const NB = 16;
     const binSum = new Float64Array(NB),
@@ -46157,8 +46174,9 @@ __exports.PpgDex = window.PpgDex;
       respFromEDRReason,
       nGridGap: _gapCells,
       gridGapFrac,
-      rsaEfficiencyRatio: +rsaRatio.toFixed(2),
-      rsaAmplitudeBpm: +rsaAmp.toFixed(1),
+      rsaEfficiencyRatio: _rmOrNull(rsaRatio, 2),
+      rsaEfficiencyRatioReason: rsaRatioReason,
+      rsaAmplitudeBpm: _rmOrNull(rsaAmp, 1),
       crcPLV: _rmOrNull(plv, 3),
       crcPLVReason: plvReason,
       couplingStrength: _rmOrNull(couplingStrength, 3),
@@ -49158,14 +49176,20 @@ __exports.PpgDex = window.PpgDex;
           da += va * va;
           de += ve * ve;
         }
-        const r = da > 0 && de > 0 ? num / Math.sqrt(da * de) : 0,
+        /* ∅ ABSENCE IS NULL. Zero variance on one side leaves no correlation to compute, and 0 is
+           a LEGAL r — "the two rates do not track each other". The card reads `ag.r` for its strong
+           and moderate verdicts and prints it as a Pearson r, so the old 0 published a measured
+           disagreement over a pairing no correlation came out of. */
+        const _rOk = da > 0 && de > 0;
+        const r = _rOk ? num / Math.sqrt(da * de) : null,
           disagree = deltas.filter((x) => Math.abs(x) > 3).length;
         agreement = {
           n: pairs.length,
           meanDelta: +md.toFixed(2),
           sdDelta: +sdd.toFixed(2),
           mae: +mae.toFixed(2),
-          r: +r.toFixed(2),
+          r: _rmOrNull(r, 2),
+          rReason: _rOk ? null : 'zero variance on one side of the RRacc and EDR pairing — no correlation computable',
           disagreeRate: Math.round((disagree / pairs.length) * 100),
           loa: [+(md - 1.96 * sdd).toFixed(1), +(md + 1.96 * sdd).toFixed(1)],
           ba: pairs.map((p) => ({ mean: +((p.acc + p.edr) / 2).toFixed(1), diff: +(p.acc - p.edr).toFixed(1) }))
@@ -50845,7 +50869,12 @@ __exports.PpgDex = window.PpgDex;
     if (!rec || rec.t0Ms == null || !isFinite(rec.t0Ms)) return null;
     var gaps = rec.gaps;
     if (!Array.isArray(gaps) || !gaps.length) return null; // contiguous ⇒ no claim (DexExport contract)
-    var fs = rec.fs > 0 ? rec.fs : 130;
+    /* ∅ ABSENCE IS NULL. The old `: 130` wrote the H10's nominal rate over a rec that reached us
+       without one. The EXACT branch below never reads `fs`; the FALLBACK branch converts SAMPLE
+       COUNTS to ms with it, so a fabricated rate makes fabricated segment EDGES, and the Integrator
+       reads those edges to extend its envelope. Fabricated edges are a discontinuity, not reduced
+       coverage, so the fallback refuses (owner ruling 2026-09-17). */
+    var fs = rec.fs > 0 ? rec.fs : null;
     var nSamp = rec.int16 && rec.int16.length != null ? rec.int16.length : null;
     var t0 = rec.t0Ms,
       segs = [];
@@ -50864,7 +50893,7 @@ __exports.PpgDex = window.PpgDex;
       }
       var endOff = rec.lastRelMs - base;
       if (endOff > cur) segs.push([t0 + cur, t0 + endOff]);
-    } else if (nSamp) {
+    } else if (nSamp && fs != null) {
       /* ── FALLBACK: `{idx, ms}` only. A sample index is DATA time, not wall-clock time — after one
          dropout, sample k sits at k/fs PLUS every gap before it, so reading `idx/fs` as a clock
          position under-states every boundary by the accumulated silence. Walk instead: consume the
