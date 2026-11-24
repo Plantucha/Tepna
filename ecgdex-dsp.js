@@ -1323,17 +1323,43 @@
   //  peaks: sample indices · sqi: per-beat SQI (from computeSQI) · fs · t0Ms: recording start (floating).
   //  Returns Map(absoluteSecond → confidence) aligned to the per-second HR the hat consumes.
   // ════════════════════════════════════════════════════════════════════════
-  function beatConfidence(peaks, sqi, fs, t0Ms, winSec) {
+  function beatConfidence(peaks, sqi, fs, t0Ms, winSec, beatMs) {
     winSec = winSec || 60;
     const n = peaks.length;
     /* The out-of-band marks the §∅ note below describes are OWN PROPERTIES on the returned Map, so
        the per-second weights and the calibration verdict travel together without a wrapper object
        that every caller would have to unpack. The cast states them; the Map itself is unchanged. */
-    const out = /** @type {Map<number, any> & { nBeats: number, nSqi: number, nQBelow: number, sqiMedian: number|null, sqiSource: string|null, calibrated: boolean, reason: string|null }} */ (
-      new Map()
-    );
+    const out =
+      /** @type {Map<number, any> & { nBeats: number, nSqi: number, nQBelow: number, sqiMedian: number|null, sqiSource: string|null, calibrated: boolean, axis: string|null, reason: string|null }} */ (
+        new Map()
+      );
     const t0 = t0Ms || 0;
-    const secAbs = (k) => Math.floor((t0 + (peaks[k] / fs) * 1000) / 1000);
+    /* ∅ ONE AXIS, OR A REFUSAL — NEVER A SILENT PER-BEAT FALLBACK. `beatMs` carries the caller's
+       absolute wall-clock ms for every beat, so a consumer that keys its own per-second series on
+       the host-disciplined axis (CLAUDE.md §🔒.7, `DexClock.hostAxis`) hands that axis in and
+       these keys match it. Omit it and the keys ride the device clock, which is what every earlier
+       caller already received. A `beatMs` of the wrong length, or one carrying a single non-finite
+       entry, REFUSES with an empty map: a per-beat fallback to `peaks[k] / fs` would mix two clocks
+       inside one key set, and a consumer cannot tell a mixed key set from a matching one. `axis`
+       reports which clock the keys ride, out of band, beside the other marks. */
+    let _bmOK = beatMs != null && beatMs.length === n;
+    if (_bmOK) {
+      for (let k = 0; k < n; k++) {
+        if (!Number.isFinite(beatMs[k])) _bmOK = false;
+      }
+    }
+    const _bm = _bmOK ? beatMs : null;
+    if (beatMs != null && !_bmOK) {
+      out.nBeats = n;
+      out.nSqi = 0;
+      out.sqiMedian = null;
+      out.sqiSource = null;
+      out.calibrated = false;
+      out.axis = 'refused';
+      out.reason = 'the per-beat time axis is absent or non-finite — these keys would mix two clocks, so the map refuses';
+      return out;
+    }
+    const secAbs = (k) => Math.floor((_bm ? _bm[k] : t0 + (peaks[k] / fs) * 1000) / 1000);
     /* ∅ A TRUST OF 1 IS A MEASUREMENT, AND THESE THREE ARMS NEVER MEASURED IT. The statistic
        calibrates against the RECORD'S OWN medians, so it reports perfect trust in three cases that
        look identical to a clean record from the outside: under 20 beats (no calibration at all), no
@@ -1351,6 +1377,7 @@
       out.sqiMedian = null;
       out.sqiSource = null;
       out.calibrated = false;
+      out.axis = _bm ? 'host' : 'device';
       out.reason = 'fewer than 20 beats — the trust statistic was never calibrated, so every second reads 1 by default';
       return out;
     } // too short to calibrate — trust all
@@ -1363,6 +1390,7 @@
       out.sqiMedian = null;
       out.sqiSource = null;
       out.calibrated = false;
+      out.axis = _bm ? 'host' : 'device';
       out.reason = 'the peak series spans under one second — there is no window to calibrate over';
       return out;
     }
@@ -1456,6 +1484,7 @@
     out.sqiMedian = nSqi ? qMed : null;
     out.sqiSource = nSqi === 0 ? 'absent' : nSqi < n ? 'partial' : 'per-beat';
     out.calibrated = nSqi > 0 && nQBelow > 0;
+    out.axis = _bm ? 'host' : 'device';
     out.reason = out.calibrated
       ? null
       : nSqi === 0
@@ -1467,13 +1496,13 @@
   // Convenience: raw ECG (int16 + its bandpass + the A-peaks) → per-second confidence Map, running
   // detector B + per-beat SQI + beatConfidence internally. The fused-hat consumer (worker ecgHrMap)
   // calls this after detectPeaks. peaks: A-peak sample indices · t0Ms: recording start (floating).
-  function hrConfidence(int16, bp, peaks, fs, t0Ms) {
+  function hrConfidence(int16, bp, peaks, fs, t0Ms, beatMs) {
     if (!peaks || peaks.length < 20) return new Map();
     const B = detectPeaksB(bp, fs);
     const times = new Float64Array(peaks.length);
     for (let k = 0; k < peaks.length; k++) times[k] = peaks[k] / fs; // seconds (computeSQI RR-plausibility)
     const q = computeSQI(int16, fs, peaks, times, B);
-    return beatConfidence(peaks, q.sqi, fs, t0Ms);
+    return beatConfidence(peaks, q.sqi, fs, t0Ms, undefined, beatMs);
   }
 
   // ════════════════════════════════════════════════════════════════════════
