@@ -10774,7 +10774,7 @@ def test_alert_poller_saves_the_quiet_state_in_wall_clock_seconds(tmp_path, monk
         _quiet_teardown(nm)
     assert sent == ["Tepna: " + nm + " night ended"], sent
     saved = json.loads((tmp_path / "captures" / alerts.QUIET_STATE_NAME).read_text())
-    assert saved == {"pull_ok": {nm: _WALL - 60}, "ended": {nm: _WALL}, "night_began": None}
+    assert saved == {"pull_ok": {nm: _WALL - 60}, "ended": {nm: _WALL}, "night_began": None, "spans": {}}
     assert not (tmp_path / "captures" / (alerts.QUIET_STATE_NAME + ".tmp")).exists()
 
 

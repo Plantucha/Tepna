@@ -1148,6 +1148,36 @@ def stream_ended_in_the_morning(streamed_sec: float | None, stop_hour: int) -> b
     return streamed_sec is not None and streamed_sec >= STREAM_NIGHT_MIN_S and stop_hour in STREAM_MORNING_HOURS
 
 
+# A SHORT GAP DOES NOT SPLIT A NIGHT, AND A RESTART DOES NOT ERASE ONE. Measured on the capture box from
+# 2026-11-16 to 2026-11-24: the headband drops its link about every 3 h and is back within 3 min. Each
+# return started the span again, so the last piece (30 min to 2 h 49 min) was never a night. The box sent
+# a false "offline" alert for the headband on 7 of those 9 mornings, and paged on three. A daemon restart
+# erased the span of a Polar the same way (2026-11-08, 2026-11-19, 2026-11-23, 2026-11-24). On 11-24 one
+# strap taken off at 05:01 drew four alerts, one for each restart that followed.
+#
+# So the night span is kept apart from `stream_since`, crosses a gap of up to `SPAN_GAP_S`, and is saved
+# in the quiet state. `stream_since` still starts again at every gap, because a pull must follow the
+# stream it collected (`powered_off_after_pull`).
+SPAN_GAP_S = 1800.0
+
+
+def night_span(
+    prev: tuple[float, float] | None, data: float, *, after_gap: bool, reported: bool
+) -> tuple[float, float]:
+    """PURE: the `(first, last)` sample times of the night span, extended by a sample at `data`.
+
+    `after_gap`: the stream comes back from a silence. `reported`: the night-ended note of `prev` went
+    out, so a wear after it is a new span, however soon it follows."""
+    if prev is None or (after_gap and (reported or data - prev[1] > SPAN_GAP_S)):
+        return (data, data)
+    return (prev[0], data)
+
+
+def span_last(span: tuple[float, float] | None, last_data: float | None) -> float | None:
+    """PURE: the last sample known, from this process or from the span an earlier process saved."""
+    return last_data if last_data is not None else span[1] if span is not None else None
+
+
 # A DOCKED DEVICE IS NEITHER RECORDING NOR MISSING. Measured on the capture box 2026-11-01: the ring on
 # its charger kept a link and sent PPG samples, so at 07:21:45 the box sent "is recording again" while the
 # ring logged that it was on its charger and not recording. At 08:09:52 the ring and the Sense, both
@@ -1327,10 +1357,16 @@ def quiet_licence_holds(stamp: float | None, night_began: float | None) -> bool:
 
 
 def quiet_state_to_save(
-    pull_ok: dict, ended_at: dict, mono_now: float, wall_now: float, night_began: float | None = None
+    pull_ok: dict,
+    ended_at: dict,
+    mono_now: float,
+    wall_now: float,
+    night_began: float | None = None,
+    spans: dict | None = None,
 ) -> dict:
     """PURE: the monotonic stamps as wall-clock epoch seconds, for the file a restart reads back."""
     return {
+        "spans": {n: [wall_now - (mono_now - t) for t in s] for n, s in sorted((spans or {}).items())},
         "pull_ok": {n: wall_now - (mono_now - t) for n, t in sorted(pull_ok.items())},
         "ended": {n: wall_now - (mono_now - t) for n, t in sorted(ended_at.items())},
         "night_began": None if night_began is None else wall_now - (mono_now - night_began),
@@ -1352,6 +1388,22 @@ def night_began_restored(saved, mono_now: float, wall_now: float) -> float | Non
     if not isinstance(saved, dict):
         return None
     return _restored_stamp(saved.get("night_began"), mono_now, wall_now, None)
+
+
+def spans_restored(saved, mono_now: float, wall_now: float) -> dict[str, tuple[float, float]]:
+    """PURE: `{name: (first, last)}`, the saved night spans as monotonic stamps.
+
+    A span whose last sample is older than `SPAN_GAP_S` is dropped: the next sample begins a new one."""
+    rows = saved.get("spans") if isinstance(saved, dict) else None
+    out: dict[str, tuple[float, float]] = {}
+    for name, pair in rows.items() if isinstance(rows, dict) else ():
+        if not isinstance(pair, list) or len(pair) != 2:
+            continue
+        first = _restored_stamp(pair[0], mono_now, wall_now, None)
+        last = _restored_stamp(pair[1], mono_now, wall_now, SPAN_GAP_S)
+        if first is not None and last is not None and first <= last:
+            out[name] = (first, last)
+    return out
 
 
 def quiet_state_restored(
