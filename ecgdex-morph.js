@@ -41,7 +41,11 @@
     for (let j = Math.max(1, k - half); j <= Math.min(rr.length - 1, k + half); j++) {
       if (j !== k && rr[j] >= 300 && rr[j] <= 2000) seg.push(rr[j]);
     }
-    return seg.length ? median(seg) : rr[k] || 900;
+    /* §∅ — NO NEIGHBOUR IS NO LOCAL MEDIAN. `median([])` answers 0, so this line used to fall back
+       to the beat's own RR and then to a flat 900 ms. Both arms are claims. `rr[k]` makes
+       `prem = rr[k] / lm` exactly 1, which asserts the beat is on time; 900 asserts a 67 bpm
+       neighbourhood nothing measured. The caller now reads `null` and declines to type the beat. */
+    return seg.length ? median(seg) : null;
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -79,7 +83,13 @@
       }
       qrsW[k] = ((hi - lo) / fs) * 1000;
     }
-    const medW = median(Array.from(qrsW).filter((w) => w > 30 && w < 200));
+    /* §∅ — A WIDTH NO BEAT PRODUCED IS NOT 0 ms. The 30-200 ms filter can reject every beat (a flat
+       or saturated stretch), and `median([])` answers 0. That 0 then propagated three ways: the
+       template filter below excluded every beat because `qrsW[k] > 0` holds, `wide` read TRUE for
+       every beat, and the return published `medW: 0` as a measured QRS width. The app renders it in
+       prose and in `medianQRSWidthMs`. `widthsPlausible` publishes what the median rests on. */
+    const wPlausible = Array.from(qrsW).filter((w) => w > 30 && w < 200);
+    const medW = wPlausible.length ? median(wPlausible) : null;
 
     // normal template (raw, baseline-removed) from beats with rr≈median & high SQI & normal width
     const tHalf = Math.round(0.07 * fs),
@@ -90,7 +100,7 @@
     for (let k = 2; k < n - 2; k++) {
       if (sqi[k] < 0.6) continue;
       if (rr[k] < 0.88 * medRR || rr[k] > 1.12 * medRR) continue;
-      if (qrsW[k] > medW * 1.25) continue;
+      if (medW != null && qrsW[k] > medW * 1.25) continue;
       const i = peakI[k];
       if (i - tHalf < 0 || i + tHalf >= int16.length) continue;
       const b = int16[i - tHalf];
@@ -98,21 +108,27 @@
       nAcc++;
       if (nAcc >= 400) break;
     }
+    /* §∅ — `nAcc === 0` MEANS NO TEMPLATE WAS MEASURED. The `|| 1` divisor turned an empty
+       accumulator into a flat zero template, `std` then fell back to its own `|| 1`, and every beat
+       was correlated against a line. The correlations that came out were arithmetic, not
+       measurements. `haveTmpl` carries that absence to the correlation loop and to `template`. */
+    const haveTmpl = nAcc > 0;
     const tmpl = new Float64Array(tLen);
-    for (let j = 0; j < tLen; j++) tmpl[j] = acc[j] / (nAcc || 1);
+    if (haveTmpl) for (let j = 0; j < tLen; j++) tmpl[j] = acc[j] / nAcc;
     // normalize template
     let tm = mean(Array.from(tmpl)),
       ts = std(Array.from(tmpl)) || 1;
     const tN = tmpl.map((v) => (v - tm) / ts);
 
-    // correlation per beat
-    const corr = new Float32Array(n);
+    /* §∅ — A CORRELATION NOBODY COMPUTED IS NOT 1.0. A beat within `tHalf` of either record edge has
+       no window to correlate, and this loop answered a PERFECT match, the single most reassuring
+       value in the range. `lowCorr` then read false and the beat could never be called a PVC on
+       morphology. A plain array holds `null`, which a `Float32Array` cannot. `corrMeasured` below
+       publishes how many beats carry a real figure. */
+    const corr = new Array(n).fill(null);
     for (let k = 0; k < n; k++) {
       const i = peakI[k];
-      if (i - tHalf < 0 || i + tHalf >= int16.length) {
-        corr[k] = 1;
-        continue;
-      }
+      if (!haveTmpl || i - tHalf < 0 || i + tHalf >= int16.length) continue;
       let s = 0,
         ss = 0;
       const win = new Float64Array(tLen);
@@ -143,6 +159,16 @@
         continue;
       }
       const lm = localMedRR(rr, k, 8);
+      /* ∅ — AND NEITHER IS AN UNMEASURED MORPHOLOGY. Every test below rests on three measurements:
+         the local median RR, the energy-median width and the template correlation. Each one can be
+         absent, and each absence used to arrive as a number that decided the beat: no neighbour read
+         as on-time, no plausible width read as wide, no template read as a perfect match. A beat the
+         three cannot describe is UNASSESSABLE, which is what 'U' already means here, and
+         `beatsAssessed` already annotates the coverage it costs. */
+      if (lm == null || medW == null || corr[k] == null) {
+        types[k] = 'U';
+        continue;
+      }
       const prem = rr[k] / lm;
       const wide = qrsW[k] > medW * 1.6;
       const lowCorr = corr[k] < 0.6;
@@ -198,7 +224,9 @@
       types,
       qrsW,
       corr,
-      medW: +medW.toFixed(0),
+      medW: medW != null ? +medW.toFixed(0) : null,
+      widthsPlausible: wPlausible.length,
+      corrMeasured: corr.reduce((c, v) => c + (v != null ? 1 : 0), 0),
       nPVC: nV,
       nPAC: nS,
       /* ∅ A burden is a rate over the beats that were ASSESSED. Dividing by every beat counted the
@@ -215,7 +243,7 @@
       longestRun,
       runsGE3,
       bigeminyCycles: bigemCycles,
-      template: Array.from(tmpl),
+      template: haveTmpl ? Array.from(tmpl) : null,
       tHalf,
       nTemplate: nAcc
     };

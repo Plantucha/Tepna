@@ -1152,6 +1152,36 @@ export const SEEDS = [
     at: 'ecgdex-dsp.js:6484',
     state: 'fixed',
     note: 'the canonical-frame branch of `compute` has labelled an fs-less frame `assumed`, and a frame that carried a rate `caller`, since #2962 (aacb85ffb). That label reached no surface until THIS PR: `compute` returns the node export, and `rec.fsSource` never entered it, so the frame path published no provenance a consumer could read and the finding was not plantable at all. The carry in `analyze` plus the clock cell makes both arms observable. Plant: tests/dex-tests.js, the fs-provenance group, leg `a frame that carried NO rate is labelled assumed` beside the `caller` control. Both legs red on origin/main (measured 2026-11-24, Heron).'
+  },
+  {
+    at: 'ecgdex-morph.js:44',
+    state: 'fixed',
+    note: '`localMedRR` fell back to `rr[k] || 900` when no neighbour inside plus-or-minus 8 beats carried a plausible RR. `rr[k]` makes `prem = rr[k] / lm` exactly 1.0, which asserts the beat is on time; 900 asserts a 67 bpm neighbourhood nothing measured. The caller now reads `null` and types the beat `U`.'
+  },
+  {
+    at: 'ecgdex-morph.js:102',
+    state: 'fixed',
+    note: 'an empty template accumulator was divided by `nAcc || 1`, so a record where no beat cleared the 0.6 SQI gate correlated every beat against a flat line. `std` then fell back to its own `|| 1` and every correlation came out arithmetic. `haveTmpl` now carries the absence to `corr` and to `template`, and `corrMeasured` publishes the count.'
+  },
+  {
+    at: 'ecgdex-morph.js:113',
+    state: 'fixed',
+    note: 'a beat within plus-or-minus 70 ms of either record edge has no window to correlate, and the loop wrote `corr[k] = 1` — the most reassuring value in the range. `lowCorr` then read false, so a PVC on that beat was out of reach. A plain array now holds the `null` a `Float32Array` cannot.'
+  },
+  {
+    at: 'ecgdex-morph.js:136',
+    state: 'fixed',
+    note: 'hand-read 2026-11-24: already fixed on main. A beat under the 0.55 SQI gate is typed `U`, and `beatsAssessed` plus `beatsUnassessed` publish the coverage. The burdens divide by the assessed count and read `null` when nothing was assessable.'
+  },
+  {
+    at: 'ecgdex-morph.js:191',
+    state: 'fixed',
+    note: 'the 30-200 ms width filter can reject every beat, and `median([])` answers 0. That 0 published as `medW: 0` — a measured QRS width the app renders in prose and in `medianQRSWidthMs` — and it also made `wide` read true for every beat. `medW` is now `null` and `widthsPlausible` publishes what the median rests on.'
+  },
+  {
+    at: 'ecgdex-morph.js:656',
+    state: 'fixed',
+    note: 'hand-read 2026-11-24: already fixed on main. `afScreen` returns `verdict: insufficient` with every metric `null` when no window held enough usable beats, so a scoreless screen never reads as `no-af`.'
   }
 ];
 
