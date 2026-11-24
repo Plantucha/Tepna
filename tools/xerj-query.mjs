@@ -56,8 +56,10 @@ export const REFUSE_BM25 = 27;
  * THE RERANKER FLOOR (`--rerank`, opt-in). bge-reranker-v2-m3 reads the query and each passage
  * together and returns one relevance logit; its sigmoid is an ABSOLUTE score, where the cosine and the
  * BM25 above are relative to this index. The reranker scores the fused top 20; the best score below
- * the floor refuses. It never reorders the hits: on the 52 Rule-0 queries a reranked order put a
- * truth file in the top 5 for 40, the fused order for 42.
+ * the floor refuses. Its order alone does not replace the fused order: on the 52 Rule-0 queries of
+ * 2026-10-12 a reranked order put a truth file in the top 5 for 40, the fused order for 42. The two
+ * orders fused again by reciprocal rank do (`blendRerank`): on 2026-11-23 the same 52 queries hit 49
+ * with the blend, 47 with the reranker alone and 45 with the fused order.
  *
  * MEASURED 2026-10-12, same sets and same rule as the floor above (fit on even i, refuse no answerable
  * query, refuse the most off-topic ones, ties to the lower floor). The fit half's highest off-topic
@@ -71,6 +73,38 @@ export const REFUSE_RERANK = 0.105;
 const RERANK_POOL = 20;
 export const belowRerankFloor = (score) => score < REFUSE_RERANK;
 const RERANK_TIMEOUT_MS = 5000;
+
+/**
+ * THE MEMORY LANE. A lesson note competes with every code, brief and board chunk for five slots. On
+ * 2026-11-23 the index gained two large files (#5548), and `briefs/RESIDUE.md` took the first slot of
+ * 52 of 422 past memory queries. The best notes outside the five answers now print after them. They
+ * take no slot from a repo document, and an index without the memory corpus prints none.
+ *
+ * MEASURED 2026-11-23 over the 422 queries of stratum L (memory program, step D). A query counts when
+ * a note that its session then read is printed: five answers alone 196, with three notes 296. On the
+ * 264 of them that came after the lane was chosen: 120 and 187.
+ */
+export const MEMORY_SLOTS = 3;
+const MEMORY_DEPTH = 400;
+const MEMORY_PASSAGE_CHARS = 200;
+export const isMemoryNote = (path) => String(path ?? '').startsWith(MEMREPO_PREFIX);
+
+/** The best `n` notes of `list` that `hits` does not already show. Order is kept. */
+export function memoryLane(list, hits, n = MEMORY_SLOTS) {
+  const shown = new Set((hits || []).map((h) => h.path));
+  return (list || []).filter((h) => isMemoryNote(h.path) && !shown.has(h.path)).slice(0, n);
+}
+
+/**
+ * The fused order and the reranker order, fused by reciprocal rank. A hit without a logit keeps its
+ * place in the fused order and ranks last in the other. `score` stays the fused one.
+ */
+export function blendRerank(fused, logits, k = 60) {
+  const l = (h) => (Number.isFinite(logits[fused.indexOf(h)]) ? logits[fused.indexOf(h)] : -Infinity);
+  const byLogit = [...fused].sort((a, b) => (l(a) === l(b) ? 0 : l(b) - l(a)));
+  const s = new Map(fused.map((h, i) => [h, 1 / (k + i + 1) + 1 / (k + byLogit.indexOf(h) + 1)]));
+  return [...fused].sort((a, b) => s.get(b) - s.get(a));
+}
 
 /** Both halves weak ⇒ refuse. A missing half (no vector) cannot be judged, so it never refuses. */
 export function belowFloor({ cos, bm25 }) {
@@ -403,8 +437,9 @@ export async function embedQuery(query, fetchFn = fetch) {
   return v;
 }
 
-/** Best sigmoid relevance over `hits`, or throw. Loopback only: the passages are repo text. */
-export async function rerankTop(query, hits, { url = RERANK_URL, fetchFn = fetch, timeoutMs = RERANK_TIMEOUT_MS } = {}) {
+/** One relevance logit for each hit, in order, or null where the server gave none. Throws when it gave
+ * none at all. Loopback only: the passages are repo text. */
+export async function rerankLogits(query, hits, { url = RERANK_URL, fetchFn = fetch, timeoutMs = RERANK_TIMEOUT_MS } = {}) {
   if (!isLoopback(url)) throw new Error(`${url} is not loopback`);
   const res = await fetchFn(`${url}/v1/rerank`, {
     method: 'POST',
@@ -413,10 +448,14 @@ export async function rerankTop(query, hits, { url = RERANK_URL, fetchFn = fetch
     signal: AbortSignal.timeout(timeoutMs)
   });
   if (!res.ok) throw new Error(`reranker HTTP ${res.status}`);
-  const logits = ((await res.json())?.results ?? []).map((r) => r.relevance_score).filter(Number.isFinite);
-  if (!logits.length) throw new Error('reranker returned no score');
-  return 1 / (1 + Math.exp(-Math.max(...logits)));
+  const logits = hits.map(() => null);
+  for (const r of (await res.json())?.results ?? []) if (r.index in logits && Number.isFinite(r.relevance_score)) logits[r.index] = r.relevance_score;
+  if (!logits.some(Number.isFinite)) throw new Error('reranker returned no score');
+  return logits;
 }
+
+/** Best sigmoid relevance: the absolute score the floor reads. */
+export const bestRelevance = (logits) => 1 / (1 + Math.exp(-Math.max(...logits.filter(Number.isFinite))));
 
 export async function hybridSearch({
   query,
@@ -428,6 +467,7 @@ export async function hybridSearch({
   rerank = false,
   cap = true,
   superseded = true,
+  memorySlots = MEMORY_SLOTS,
   readFn = readCorpusFile
 }) {
   if (!isLoopback(url)) throw new Error(`${url} is not loopback — this tool is dev-only`);
@@ -446,14 +486,18 @@ export async function hybridSearch({
     const res = await fetchFn(`${url}/${index}/_search`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(searchBody(query, vec, size))
+      body: JSON.stringify(searchBody(query, vec, Math.max(size, memorySlots ? MEMORY_DEPTH : 0)))
     });
     if (!res.ok) throw new Error(`xerj HTTP ${res.status} — is the index loaded? (node tools/xerj-load.mjs)`);
     const j = await res.json();
-    return collapseByPath(
-      (j?.hits?.hits ?? []).map((h) => formatHit(h)),
-      pool
-    );
+    const hits = (j?.hits?.hits ?? []).map((h) => formatHit(h));
+    return {
+      top: collapseByPath(hits.slice(0, size), pool),
+      notes: collapseByPath(
+        hits.filter((h) => isMemoryNote(h.path)),
+        MEMORY_DEPTH
+      )
+    };
   };
   /* The capped list and the uncapped one are taken from the same ranked pool, so `--board-all` is
      the SAME search with the cap off, never a second ranking.
@@ -461,22 +505,27 @@ export async function hybridSearch({
      THE DE-RANK RUNS FIRST, AND ON THE WHOLE POOL. It re-orders without slicing, so the cap after it
      still has something to backfill from; running it second would let the cap spend both board slots
      on replaced posts before anything read the mark. */
+  let notes = [];
   const take = (list) => {
     const d = superseded ? deferSuperseded(list, topK, { readFn }) : { hits: list || [], supersededHeld: 0, supersededBy: [], unreadable: [] };
     const c = cap ? capSourceShare(d.hits, topK) : { hits: d.hits.slice(0, topK), held: 0, max: null };
-    return { ...c, supersededHeld: d.supersededHeld, supersededBy: d.supersededBy, supersededUnreadable: d.unreadable };
+    const live = superseded ? deferSuperseded(notes, notes.length, { readFn }) : { hits: notes, supersededHeld: 0 };
+    return { ...c, notes: memoryLane(live.hits, c.hits, memorySlots), supersededHeld: d.supersededHeld, supersededBy: d.supersededBy, supersededUnreadable: d.unreadable };
   };
-  const lex = await ask(null);
+  const { top: lex, notes: lexNotes } = await ask(null);
+  notes = lexNotes;
   const bm25 = lex[0]?.score ?? null;
   if (!vector) return { ...take(lex), degraded, hybrid: false, signals: { cos: null, bm25 }, refused: false };
-  const sem = await ask(vector);
+  const { top: sem, notes: semNotes } = await ask(vector);
+  notes = fuseRRF([lexNotes, semNotes], MEMORY_DEPTH);
   const signals = { cos: sem[0]?.score ?? null, bm25 };
   const base = { degraded, hybrid: true, lexTop: lex[0]?.path ?? null, semTop: sem[0]?.path ?? null, signals };
   if (!rerank) return { ...base, ...take(fuseRRF([lex, sem], Math.max(topK, RERANK_POOL))), refused: belowFloor(signals) };
   const fused = fuseRRF([lex, sem], RERANK_POOL);
   try {
-    signals.rerank = await rerankTop(query, fused, { fetchFn });
-    return { ...base, ...take(fused), refused: belowRerankFloor(signals.rerank) };
+    const logits = await rerankLogits(query, fused, { fetchFn });
+    signals.rerank = bestRelevance(logits);
+    return { ...base, ...take(blendRerank(fused, logits)), refused: belowRerankFloor(signals.rerank) };
   } catch (e) {
     const note = `no reranker (${e.message}) — the cosine and BM25 floor decides`;
     return { ...base, degraded: degraded ? `${degraded}; ${note}` : note, ...take(fused), refused: belowFloor(signals) };
@@ -580,7 +629,7 @@ export async function selftest() {
   ok(isLoopback('http://127.0.0.1:9200'), 'loopback is accepted');
   ok(!isLoopback('http://10.1.2.3:9200'), 'a non-loopback host is refused');
 
-  /* 7 · THE RERANKER FLOOR refuses on the best score, keeps the fused order, and a dead server falls
+  /* 7 · THE RERANKER FLOOR refuses on the best score, blends its order with the fused one, and a dead server falls
          back to the cosine and BM25 floor with a note. Fakes only: no index, no reranker. */
   const doc = (p, sc) => ({ _score: sc, _source: { path: p, chunk_index: 0, chunk_count: 1, text: `text of ${p}` } });
   const fake = (logits) => async (u, o) => {
@@ -595,7 +644,7 @@ export async function selftest() {
   const hi = await hybridSearch({ query: 'q', fetchFn: fake([-3, 2]), embedFn: emb, rerank: true });
   ok(!hi.refused && Math.abs(hi.signals.rerank - 1 / (1 + Math.exp(-2))) < 1e-9, 'the reranker floor reads the BEST score of the pool');
   const plain = await hybridSearch({ query: 'q', fetchFn: fake(null), embedFn: emb });
-  ok(hi.hits.map((h) => h.path).join() === plain.hits.map((h) => h.path).join(), '…and never reorders the fused hits');
+  ok(hi.hits.map((h) => h.path).join() === plain.hits.map((h) => h.path).join(), '…and a blend of two opposite orders keeps the fused one');
   const lo = await hybridSearch({ query: 'q', fetchFn: fake([-3, -2.3]), embedFn: emb, rerank: true });
   ok(lo.refused && render(lo, 'q').includes('below the floor 0.105'), 'a best score under the floor refuses and names the reranker');
   ok(!belowRerankFloor(REFUSE_RERANK) && belowRerankFloor(REFUSE_RERANK - 1e-6), 'a score AT the reranker floor answers — the floor is strict');
@@ -605,11 +654,37 @@ export async function selftest() {
   ok(render(hi, 'q').includes('reranker best score 0.881') && !render(plain, 'q').includes('reranker'), 'an answer prints the absolute score; a plain search does not');
   let threw = false;
   try {
-    await rerankTop('q', [{ text: 't' }], { url: 'http://10.1.2.3:8091', fetchFn: fake([1]) });
+    await rerankLogits('q', [{ text: 't' }], { url: 'http://192.0.2.1:8091', fetchFn: fake([1]) });
   } catch {
     threw = true;
   }
   ok(threw, 'a non-loopback reranker is refused — the passages are repo text');
+
+  /* 7b · THE BLEND AND THE MEMORY LANE. Both re-order or append; neither invents a hit. */
+  const fl = ['a', 'b', 'c', 'd'].map((x, i) => ({ path: x, score: 1 - i / 10 }));
+  const joinPaths = (l) => l.map((h) => h.path).join('');
+  ok(joinPaths(blendRerank(fl, [0, 1, 9, 8])) === 'cabd', 'a hit the reranker puts first rises over a hit that only the fused order puts first');
+  ok(joinPaths(blendRerank(fl, [4, 3, 2, 1])) === 'abcd', 'CONTROL: two equal orders change nothing');
+  ok(joinPaths(blendRerank(fl, [null, 3, 2, 1])) === 'bacd', 'a hit without a logit ranks last in the reranker order, and is never dropped');
+  ok(joinPaths(fl) === 'abcd' && blendRerank([], []).length === 0, 'the blend does not change its input, and an empty list stays empty');
+  const mn = (n, sc) => ({ path: `${MEMREPO_PREFIX}lane/${n}.md`, score: sc, where: '', text: 'note '.repeat(100) });
+  ok(joinPaths(memoryLane([mn('x', 3), fl[0], mn('y', 2), mn('z', 1)], [mn('x', 3)])) === `${mn('y').path}${mn('z').path}`, 'the lane shows notes only, and never a note the answer already shows');
+  ok(memoryLane([mn('w', 1), mn('x', 1), mn('y', 1), mn('z', 1)], []).length === MEMORY_SLOTS, 'the lane is bounded');
+  ok(memoryLane([fl[0]], []).length === 0 && memoryLane(null, null).length === 0, 'CONTROL: no memory corpus gives an empty lane');
+  ok(!isMemoryNote(`${MEMARCHIVE_PREFIX}old.md`) && !isMemoryNote(null), 'an archived note is not in the lane');
+  const crowd = async (u, o) => {
+    if (u.endsWith('/v1/rerank')) return { ok: true, json: async () => ({ results: JSON.parse(o.body).documents.map((_, index) => ({ index, relevance_score: 5 - index })) }) };
+    const b = JSON.parse(o.body);
+    const rows = [1, 2, 3, 4, 5, 6].map((i) => doc(`briefs/${i}.md`, 50 - i)).concat([doc(`${MEMREPO_PREFIX}lane/late.md`, 1)]);
+    return { ok: true, json: async () => ({ hits: { hits: rows.slice(0, b.size) } }) };
+  };
+  const lane = await hybridSearch({ query: 'q', fetchFn: crowd, embedFn: emb, rerank: true });
+  ok(lane.hits.length === 5 && lane.hits.every((h) => h.path.startsWith('briefs/')), 'the lane takes no slot from a repo document');
+  ok(lane.notes.length === 1 && render(lane, 'q').includes('memory notes, best outside') && render(lane, 'q').includes('late.md'), 'a crowded-out note still prints');
+  ok(!render(hi, 'q').includes('memory notes'), 'CONTROL: no note, no section');
+  ok((await hybridSearch({ query: 'q', fetchFn: crowd, embedFn: emb, memorySlots: 0 })).notes.length === 0, 'the lane can be off');
+  const gone = await hybridSearch({ query: 'q', fetchFn: fake([NaN, 1]), embedFn: emb, rerank: true });
+  ok(Number.isFinite(gone.signals.rerank), 'one absent logit does not remove the floor');
 
   /* 8 · SYMBOLS print after the line range; an untagged hit prints none. */
   const symHit = formatHit({ _source: { path: 'a.js', line_start: 5, line_end: 9, symbols: ['inner', 'outer'], text: 'x' } });
@@ -843,7 +918,7 @@ export function render(out, query, { brief = false } = {}) {
       );
     return lines.join('\n');
   }
-  if (Number.isFinite(out.signals?.rerank)) lines.push(`  reranker best score ${out.signals.rerank.toFixed(3)} (floor ${REFUSE_RERANK}; the order below is the fused one)`, '');
+  if (Number.isFinite(out.signals?.rerank)) lines.push(`  reranker best score ${out.signals.rerank.toFixed(3)} (floor ${REFUSE_RERANK}; the order below blends it with the fused one)`, '');
   /* Withheld is not absent: the reader is told the posts exist and how to see them. */
   if (out.held > 0)
     lines.push(`  ⚠ ${out.held} board post(s) held below the share cap (at most ${capMax(out.hits.length || 5)} of ${out.hits.length || 5}) — \`--board-all\` ranks them with everything else`, '');
@@ -856,6 +931,14 @@ export function render(out, query, { brief = false } = {}) {
     lines.push(`  ${h.score.toFixed(3)}  ${h.path}${h.where}`);
     if (brief) continue;
     lines.push(`        ${capPassage(h.text)}`);
+    lines.push('');
+  }
+  if (out.notes?.length) {
+    lines.push('  memory notes, best outside the list above:');
+    for (const h of out.notes) {
+      lines.push(`  ${h.score.toFixed(3)}  ${h.path}${h.where}`);
+      if (!brief) lines.push(`        ${capPassage(h.text, MEMORY_PASSAGE_CHARS)}`);
+    }
     lines.push('');
   }
   return lines.join('\n');

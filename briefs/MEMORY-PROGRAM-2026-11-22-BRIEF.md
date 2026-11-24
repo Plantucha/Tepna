@@ -43,11 +43,16 @@ current and versioned memory. A bird reviews each proposal before anything moves
       "historical, no successor".
 - [ ] **B4 · State files.** Roll each state file into a short head plus an archive.
       Done on 2026-11-23 for Kestrel, Heron, Osprey and Magpie. Wren and Finch are not switched.
-- [ ] **C · Rules to skills.** Fold each promotion candidate into an existing or new skill under
+      Memory PR 18 adds `live.mjs remote`, the switch for a host without the memory repo (board #8239).
+- [x] **C · Rules to skills.** Fold each promotion candidate into an existing or new skill under
       `.claude/skills/`, one PR at a time. First unit 2026-11-23: `memory-append`,
       `handoff-at-a-unit-boundary`, `worktree-to-pr` and `land-through-the-queue`.
       Second unit 2026-11-23: the new skill `kill-a-mutant` carries five mutation rules.
-- [ ] **D · Re-measure** with the step A question set. Report the before and after.
+      Closed 2026-11-23. The 43 loaded rules are not procedures. Memory PR 19 retypes 11 notes that were
+      not rules: 10 decisions and one reference.
+- [x] **D · Re-measure** with the step A question set. Report the before and after.
+      Done 2026-11-23. The criterion FAILS: L hit@5 is 0.45 and the floor is 0.55. Section 10 gives the cause
+      and the search change.
 - [x] **E · Currency.** A model reads each note beside excerpts of `origin/main`. A note that states an
       outdated fact gets a dated correction line. A note whose claims all hold gets a `last-verified` date.
       Done 2026-11-23, memory PR 17. Section 9 gives the result.
@@ -165,3 +170,55 @@ absent identifier, because at least 10 of 17 such marks were wrong.
 **One breach of section 4.** The redaction missed the tailnet range (RFC 6598). The pilot and batch B1 sent
 a few such addresses to the API. `tools/memory-program.mjs` and the memory repo now redact that range. The
 full batch had no sensitive row. Kestrel told the owner on 2026-11-23.
+
+## 10 · Step D result: the criterion fails, the search now prints more notes
+
+`tools/baseline.mjs score` in the memory repo ran the same 422 L queries and 501 S queries three times on
+2026-11-23. "Printed" counts every note that doc-search printed. The before and after runs printed five.
+
+| run | L hit@1 | L hit@5 | L printed | L refused | median output |
+|---|---|---|---|---|---|
+| before the switch | 71 | 232 (0.55) | 232 (0.55) | 14 | 2,944 B |
+| after the switch | 49 | 190 (0.45) | 190 (0.45) | 4 | 2,959 B |
+| after, with the search change | 56 | 192 (0.455) | 292 (0.69) | 4 | 3,897 B |
+
+**Verdict: FAIL** on the criterion that section 8 set, L hit@5 not lower than 0.55. The search change does not
+turn that into a pass, because hit@5 stays at 0.45. Section 4 asks that the step A hit rate is not lower,
+and section 8 defines a hit as a printed note. On that measure the result is 0.69 against 0.55. The measure
+changed from five printed hits to eight, so it is not the same test.
+
+S hit@5 fell from 66 to 1 of 501. This is by design: step B4 moved the state files out of the index.
+
+The change of L between the first two runs:
+
+| transition | queries |
+|---|---|
+| hit before, hit after | 169 |
+| hit before, miss after | 63 |
+| miss before, hit after | 21 |
+| miss before, miss after | 169 |
+
+Of the 63 losses, 17 hits are now in `ext:mem-state`, which the score does not credit. Five have no live
+target. 41 have a live note that doc-search did not print. The main confound is #5548, which merged
+between the two runs and embeds large files. `briefs/RESIDUE.md` then took rank 1 on 52 of the 422 queries
+and `tests/dex-tests.js` took rank 1 on 17. The truth also favours the old order, because a session read
+what the old engine printed first.
+
+The search change in `tools/xerj-query.mjs`:
+
+1. The order is a reciprocal-rank blend of the fused order and the reranker order.
+2. After the five hits, doc-search prints at most three memory notes that are not among the five.
+
+Offline result over captured candidate pools, the same index, one day:
+
+| order | repo queries hit@5 (of 52) | L queries hit (of 422) |
+|---|---|---|
+| fused, five hits | 45 | 195 (0.462) |
+| reranker alone, five hits | 47 | not scored |
+| blend, five hits | 49 | 196 (0.464) |
+| two note slots inside the five | 44 | 258 (0.611) |
+| blend, five hits and three notes | 49 | 296 (0.701) |
+
+Kestrel set the three-note count after reading its holdout. The holdout is 264 queries that the pool capture
+reached after the choice of the lane, and it scores 0.708. A slot inside the five costs repo hits, so the notes
+come after the five.
