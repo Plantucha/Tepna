@@ -97,11 +97,25 @@
       "reason": "residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read: the whole diff for this file is one added `// biome-ignore` comment line above the `var PulseDex = typeof PulseDex …` namespace idiom, which arming `correctness/noInvalidUseBeforeDeclaration` needs. No statement moved, so the 233/239 yield is re-stamped and not re-cut."
     },
     {
+      "date": "2026-11-06",
+      "file": "pulsedex-dsp.js",
+      "old": "d5e923c8081e",
+      "new": "3c1c1529d982",
+      "reason": "Retroactive note, written 2026-11-24 from git by `--blame` over `origin/main`. Four revisions sit between the two digests: 832174264 (#4106), 93f3f3243 (#4112), 6760a24e7 (#4125) and 4cc9f3fe2 (#4456), which read the capture-host _PPISEAMS and _HRSEAMS clock-seam sidecars in PulseDex. The digest 3c1c1529d982 is the file as #4456 left it. #4112 and #4125 each re-cut at paper scale and returned 233 tx / 239 flat. #4106 re-stamped on the committed counts under a reachability argument. #4456 states nothing about the pin at all, so the LAST state in this window is the one state the record cannot back with a measurement."
+    },
+    {
       "date": "2026-10-28",
       "file": "oxydex-dsp.js",
       "old": "92cec4912b7f",
       "new": "017b1384b659",
       "reason": "residue 2026-09-20-oxydex-resprate-pair-is-owner-blocked: the retracted respiration rate ships as a null with a named reason, `proxy-uninformative`, in place of a bare null. A statement moved, so the yield was RE-CUT at paper scale, not re-stamped: 233 tx / 239 flat, unchanged."
+    },
+    {
+      "date": "2026-10-30",
+      "file": "oxydex-dsp.js",
+      "old": "017b1384b659",
+      "new": "f87d8a04d882",
+      "reason": "Retroactive note, written 2026-11-24 from git by `--blame` over `origin/main`. Three revisions of this file sit between the two digests, and the chain records none of them: 832174264 (#4106) put one shared timing block on every node-export, 93f3f3243 (#4112) added a mid-file clock-seam tripwire for OxyDex and PulseDex, and 6760a24e7 (#4125) made each timing count its own measurement. The digest f87d8a04d882 is the file as #4125 left it. #4112 re-cut the pinned yield at paper scale in 17 m 06 s and returned 233 tx / 239 flat; #4125 re-cut and returned the same counts. #4106 re-stamped on the committed 233 / 239 under a reachability argument, and it measured nothing. So two of the three states in this window carry a measurement, and the counts held across both."
     },
     {
       "date": "2026-11-06",
@@ -118,6 +132,13 @@
       "reason": "residue 2026-11-06-the-pulsedex-app-road-publishes-whole-record-variability-over-a-seam: the Poincare pair refuses with the whole-record trio, so `sd2` no longer publishes 0 beside a real `sd1`. A statement moved, so the yield was RE-CUT at paper scale, not re-stamped: 233 tx / 239 flat, unchanged."
     },
     {
+      "date": "2026-11-08",
+      "file": "pulsedex-dsp.js",
+      "old": "410ccd8abf45",
+      "new": "f25accb7ea4c",
+      "reason": "Retroactive note, written 2026-11-24 from git by `--blame` over `origin/main`. Two revisions sit between the two digests: 629fe0717 (#4501) stated the device axis a seam sidecar declared, and e44bedcc5 (#4634) published a per-epoch series from the PulseDex export. The digest f25accb7ea4c is the file as #4634 left it. #4501 re-cut 1800 patients in 15 m 38 s and held the yield at 233 tx and 239 flat, with selection at 900 of 900 from 18291 seeds; #4634 re-measured at paper scale and the counts held at 233 intervention and 239 flat control. Both states in this window carry a measurement."
+    },
+    {
       "date": "2026-11-06",
       "file": "oxydex-dsp.js",
       "old": "f87d8a04d882",
@@ -125,11 +146,25 @@
       "reason": "SEAM-SIDECAR-NODE-COVERAGE 6.1: every OxyDex export now states its seam-sidecar channel as UNKNOWN under `no-seam-sidecar`. The export gained keys and no measured value moved, so the yield was RE-CUT at paper scale, not re-stamped on an inertness argument: 233 tx / 239 flat, unchanged. My first re-cut measured nothing: `analysis-rerun.mjs` boots the committed analysis page, which still inlined this node's old DSP, so `build-analysis.mjs` ran first and the re-cut repeated over the rebuilt page."
     },
     {
+      "date": "2026-11-08",
+      "file": "oxydex-dsp.js",
+      "old": "efd4441e8ece",
+      "new": "2635f078d01e",
+      "reason": "Retroactive note, written 2026-11-24 from git by `--blame` over `origin/main`. Two revisions sit between the two digests: 842429e4d (#4562) refused four OxyDex metrics that read an absent second as a number, and 947567b84 (#4624) read an O2Ring CSV with no pulse column as absent HR. The digest 2635f078d01e is the file as #4624 left it. #4562 re-cut 1800 subjects at paper scale in 15 m 53 s and answered 233 intervention and 239 flat control; #4624 re-cut and reported the same counts. Both states in this window carry a measurement."
+    },
+    {
       "date": "2026-11-09",
       "file": "oxydex-dsp.js",
       "old": "2635f078d01e",
       "new": "41d2c5601b71",
       "reason": "residue 2026-11-08-the-spo2-spectrum-reads-a-null-sample-as-minus-the-mean: computeSpO2FFT now reads an absent SpO2 sample as absent. The mean, the lag-1 persistence and every DFT bin skip it. A night below 97 % coverage refuses with `coverage-below-floor`. Statements moved, so the yield was RE-CUT at paper scale, not re-stamped: 233 tx / 239 flat, unchanged."
+    },
+    {
+      "date": "2026-11-09",
+      "file": "oxydex-dsp.js",
+      "old": "41d2c5601b71",
+      "new": "9d293fe86dda",
+      "reason": "Retroactive note, written 2026-11-24 from git by `--blame` over `origin/main`. The move resolves to ONE revision: fd40ec718 (#4680), which drops the OxyDex periodic-breathing subscore when its episode count is absent. No further revision of this file sits between the two digests. #4680 reports a paper-scale re-cut at 233 / 239, the same counts as the pin it replaced."
     },
     {
       "date": "2026-11-09",
@@ -155,6 +190,13 @@
     {
       "date": "2026-11-09",
       "file": "oxydex-dsp.js",
+      "old": "1a0df4a4722e",
+      "new": "5e5ffe017b76",
+      "reason": "Retroactive note, written 2026-11-24 from git by `--blame` over `origin/main`. Two revisions sit between the two digests: a0a3699a8 (#4725) refused the OxyDex stability index when the heart rate is absent, and bf3dbef01 (#4724) defaulted the share-scrub to ON so a shared export carries no device serial. The digest 5e5ffe017b76 is the file as #4724 left it. #4725 re-cut the pin because the edit moves the pinned detector closure; #4724 ran the re-cut in 548.9 s and measured 233 tx / 239 flat, which the pin already held. Both states in this window carry a measurement."
+    },
+    {
+      "date": "2026-11-09",
+      "file": "oxydex-dsp.js",
       "old": "5e5ffe017b76",
       "new": "554a264ba4a5",
       "reason": "residue 2026-11-09-mini-nsi-counts-absent-spo2-as-a-desaturated-second and 2026-11-09-the-nsi-motion-null-guard-tests-the-whole-column-only: the mini-NSI below-95 share and motion share now divide by their own measured count, each refuses below 60 measured samples, and the epoch average refuses when any leg refuses. The mini-NSI is not a treatment-response input, and the re-cut measured the SAME 233 tx / 239 flat under the moved closure, so the yield is unchanged and this entry records the move only."
@@ -172,6 +214,13 @@
       "old": "ac96c6845205",
       "new": "180165dc7b5b",
       "reason": "residue 2026-11-09-the-spo2-spectrum-strides-past-an-adjacent-bin: computeSpO2FFT now publishes bandBinsN, the count of bins the band holds, beside bins, the count the run tested. No published value moves and the field is new. The SpO2 spectrum is not a treatment-response input, and the re-cut measured the SAME 233 tx / 239 flat under the moved closure, so this entry records the move only."
+    },
+    {
+      "date": "2026-11-10",
+      "file": "oxydex-dsp.js",
+      "old": "180165dc7b5b",
+      "new": "d77b5ccfc929",
+      "reason": "Retroactive note, written 2026-11-24 from git by `--blame` over `origin/main`. The move resolves to ONE revision: 5cf3c7206 (#4762), which covers every SpO2 band bin with an exact-length transform. No further revision of this file sits between the two digests. #4762 re-cut at paper scale and both yields and both skip counts reproduced, so that run moved the closure digest and nothing else."
     },
     {
       "date": "2026-11-11",
@@ -207,6 +256,13 @@
       "old": "68d39ab77837",
       "new": "410146545439",
       "reason": "residue 2026-11-12-oxydex-profile-span-reads-a-date-string-with-new-date: the measurement-count caption read its span with `new Date` over a raw date string, which Clock Contract rule 4 bans, and it indexed the first and the last entry rather than the earliest and the latest. Measured on the old expression over four date arrays: sorted ISO gave 25 days (the control), one undated night gave NaN, three nights out of order gave 2 days against a true 25, and the DMY pair 10/06/2026 and 05/07/2026 gave 152 days because `new Date` read both as MDY. The span now shape-tests each date, parses it with DexClock.parseTimestamp, and reads the minimum and the maximum of the parsed days. The caption is not a treatment-response input, which selects on the ODI and rMSSD series alone. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped."
+    },
+    {
+      "date": "2026-11-17",
+      "file": "oxydex-profile.js",
+      "old": "410146545439",
+      "new": "7f65bccefb87",
+      "reason": "Retroactive note, written 2026-11-24 from git by `--blame` over `origin/main`. The move resolves to ONE revision: 74170261e (#5240), which refuses BMI, BSA, IBW and BMR when a body weight or height reads 0. No further revision of this file sits between the two digests. #5240 re-cut the cohort at paper scale and the yield came back on the same counts: 233 tx / 239 flat with 667 / 661 skipped."
     },
     {
       "date": "2026-11-15",
