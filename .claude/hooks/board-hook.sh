@@ -90,8 +90,15 @@ finish_post_owed() {
   [ -n "$transcript" ] && [ -r "$transcript" ] || return 0
   owed="$(python3 -I - "$transcript" <<'PY' 2>/dev/null
 import json, re, sys
-FINISH = re.compile(r"\bgh\s+pr\s+(create|ready)\b|tools/wt-done\.mjs")
-POST = re.compile(r"agent-board\b.*\s(post|new)\s|tools/board-note\.mjs\b")
+# A finish counts only at a COMMAND position: the start of a line, or after ; & | ( ` or {, past
+# assignments and a wrapper. `grep -n "gh pr create"` reads a name, and it opened no PR (measured
+# 2026-11-24, one blocked stop). `$(gh pr create …)` starts a command, so it counts.
+FINISH = re.compile(
+    r"(?:^|[;&|(`{]|\b(?:then|do|else|if|while|until)\s)\s*(?:!\s+)?(?:\w+=\S*\s+)*(?:(?:env|timeout|nohup|setsid|command|nice)(?:\s+-\S+|\s+\w+=\S*|\s+\d+\w?)*\s+)*"
+    r"(gh\s+pr\s+(?:create|ready)\b|(?:node\s+)?\S*tools/wt-done\.mjs)",
+    re.M,
+)
+POST = re.compile(r"agent-board\b.*\s(post|new)\s|tools/board-note\.mjs\b|tools/pr-open\.mjs\b(?!.*--(?:dry-run|selftest))")
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 
 
@@ -137,7 +144,7 @@ with open(sys.argv[1], encoding="utf-8", errors="replace") as fh:
                 last_post = i
             m = FINISH.search(cmd)
             if m:
-                last_finish, what = i, m.group(0)
+                last_finish, what = i, m.group(1)
 print(what if last_finish > last_post else "")
 PY
 )"

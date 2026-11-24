@@ -151,6 +151,11 @@ export function selftest() {
   ok(good.holdOut.pos === 1 && good.holdOut.neg === 1, 'the hold-out is the odd-indexed rows only');
   ok(!scoreRefusal([]).pass && !scoreRefusal([rr('pos', 0, false, true)]).pass, 'CONTROL: an empty or one-sided population never passes');
 
+  /* 5 · A QUERY WITH NO ANSWER DECIDES NOTHING. An engine that failed must not lose the comparison. */
+  ok(benchStatus(3, [{ errors: 0 }, { errors: 1 }], true) === 'UNKNOWN', 'one unanswered query leaves a passing comparison undecided');
+  ok(benchStatus(3, [{ errors: 0 }], true) === 'PASS' && benchStatus(3, [{ errors: 0 }], false) === 'SHORTFALL', 'CONTROL: with every answer, the comparison decides');
+  ok(benchStatus(0, [], false) === 'NOT_RUN', 'no query is NOT_RUN');
+
   const line = fail.length ? `xerj-bench selftest · ${fail.length} of ${ran} FAILED` : `all ${ran} selftests passed`;
   return { ok: fail.length === 0, ran, fail, line };
 }
@@ -183,7 +188,12 @@ function harvest() {
 }
 
 async function bgeRank(query) {
-  const out = execFileSync(process.execPath, [join(ROOT, 'tools', 'doc-search.mjs'), '--quiet', query], { encoding: 'utf8', maxBuffer: 1 << 26, cwd: ROOT });
+  /* `--semantic`, because the default lane of doc-search is now the hybrid index. Its lines have
+     another form, so this reader parsed no path from them and scored 0/52 with no error, and the
+     acceptance line passed over it (2026-11-24). The session id is absent, because a repeated query
+     in one session answers with one line. */
+  const { CLAUDE_CODE_SESSION_ID: _sid, ...env } = process.env;
+  const out = execFileSync(process.execPath, [join(ROOT, 'tools', 'doc-search.mjs'), '--semantic', '--quiet', query], { encoding: 'utf8', maxBuffer: 1 << 26, cwd: ROOT, env, timeout: 180000 });
   const paths = [];
   const passages = [];
   for (const line of out.split('\n')) {
@@ -195,7 +205,18 @@ async function bgeRank(query) {
       passages[passages.length - 1].text += line.trim();
     }
   }
+  if (!paths.length) throw new Error('the semantic lane printed no ranked line');
   return { paths, passages, printed: Buffer.byteLength(out, 'utf8') };
+}
+
+/* The answer that doc-search prints: the fused hits after the reranker, the caps and the notes. The
+   `hybrid` row is the fusion alone, so a change to those later steps never moved it. */
+async function answerRank(query) {
+  const xq = await import('./xerj-query.mjs');
+  const out = await xq.hybridSearch({ query, rerank: true });
+  if (out.degraded) throw new Error(out.degraded);
+  const hits = out.hits.slice(0, 5);
+  return { paths: hits.map((h) => h.path), passages: hits.map((h) => ({ path: h.path, text: h.text })), printed: Buffer.byteLength(xq.render(out, query), 'utf8') };
 }
 
 async function xerjRank(query, mode) {
@@ -235,6 +256,9 @@ async function xerjRank(query, mode) {
   const printed = Buffer.byteLength(xq.render({ hits, degraded: null, hybrid: mode === 'hybrid' }, query), 'utf8');
   return { paths: hits.map((h) => h.path), passages: hits.map((h) => ({ path: h.path, text: h.text })), printed };
 }
+
+/* A query that an engine did not answer leaves the comparison undecided. */
+export const benchStatus = (n, rows, pass) => (n === 0 ? 'NOT_RUN' : rows.some((r) => r.errors > 0) ? 'UNKNOWN' : pass ? 'PASS' : 'SHORTFALL');
 
 async function main() {
   const argv = process.argv.slice(2);
@@ -334,11 +358,11 @@ async function main() {
     process.exit(2);
   }
   const set = JSON.parse(readFileSync(QUERY_SET, 'utf8'));
-  /* FOUR engines, because the two halves must be visible SEPARATELY. The first run scored `hybrid`
+  /* FIVE engines, because the two halves must be visible SEPARATELY. The first run scored `hybrid`
      at 9.6 % and the cause was xerj rc.93 failing to fuse two clauses in one request — diagnosable
      only because bm25 and knn could be compared alone. A table that reports the blend without its
      components cannot tell a bad blend from a bad half. */
-  const engines = ['bge', 'xerj-bm25', 'xerj-knn', 'hybrid'];
+  const engines = ['bge', 'xerj-bm25', 'xerj-knn', 'hybrid', 'answer'];
   const tally = Object.fromEntries(engines.map((e) => [e, { hit: 0, ranks: [], printed: 0, open: 0, total: 0, ms: 0, errors: 0 }]));
 
   for (const row of set) {
@@ -346,7 +370,7 @@ async function main() {
       const t0 = Date.now();
       let r = null;
       try {
-        r = e === 'bge' ? await bgeRank(row.query) : await xerjRank(row.query, e);
+        r = e === 'bge' ? await bgeRank(row.query) : e === 'answer' ? await answerRank(row.query) : await xerjRank(row.query, e);
       } catch {
         tally[e].errors += 1;
         continue;
@@ -382,7 +406,7 @@ async function main() {
   const hyb = rows.find((r) => r.engine === 'hybrid');
   /* PRE-STATED, before the numbers existed: hybrid must not lose recall AND must cost fewer bytes. */
   const pass = n > 0 && hyb.hitAt5 >= bge.hitAt5 && hyb.bytesPerQuery < bge.bytesPerQuery;
-  const status = n === 0 ? 'NOT_RUN' : pass ? 'PASS' : 'SHORTFALL';
+  const status = benchStatus(n, rows, pass);
 
   if (asJson) {
     const v = Verdict.make({
@@ -397,7 +421,12 @@ async function main() {
           ? null
           : n === 0
             ? 'no query/truth pairs — nothing was measured'
-            : `hybrid hit@5 ${hyb.hitAt5}/${n} vs bge ${bge.hitAt5}/${n}; bytes ${hyb.bytesPerQuery} vs ${bge.bytesPerQuery}`,
+            : status === 'UNKNOWN'
+              ? `an engine did not answer a query: ${rows
+                  .filter((x) => x.errors)
+                  .map((x) => `${x.engine} ${x.errors}`)
+                  .join(', ')}`
+              : `hybrid hit@5 ${hyb.hitAt5}/${n} vs bge ${bge.hitAt5}/${n}; bytes ${hyb.bytesPerQuery} vs ${bge.bytesPerQuery}`,
       producedBy: {
         tool: 'tools/xerj-bench.mjs',
         commit: (() => {

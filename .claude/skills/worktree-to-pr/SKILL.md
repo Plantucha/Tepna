@@ -20,7 +20,8 @@ Sequence only; rules live in `CLAUDE.md` §👥.1, §👥.2 and §📌.
 4. Commit with `Fleet-Session:` in the last paragraph, beside the other trailers. A blank line between
    them makes git drop it: check with `git show -s --format=%B HEAD | git interpret-trailers --parse`.
 5. Run `node tools/secret-scan.mjs`. Its exit code is the verdict. It is a required check on `main`.
-6. Push, then `gh pr create --draft`. The walker undrafts it. Do not name another project in a title,
+6. Run `node tools/pr-open.mjs --as <bird> --title "<title>" body.md`. It runs step 5 and the body gate, pushes,
+   opens the draft PR and posts the board note. The walker undrafts the PR. Do not name another project in a title,
    a body, a comment or a changeset; describe the behaviour and the measurement. The body needs all four or `tools/pr-compliance.mjs` reds it: a
    `Rule 0: <query> → <top hits>` line (first by convention), the `Fleet-Session: <Name>` trailer,
    a `changes/` changeset when code moved, and **no finding from `node tools/ste-lint.mjs body.md`**
