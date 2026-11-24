@@ -7329,9 +7329,23 @@
     // clock keeps the Clock-Contract floating wall-clock while removing the arrival jitter — the same
     // device-clock-preferred rule MotionDex/PpgDex already apply via relSecOf(). Falls back to the
     // per-row phone stamp when the ns column is absent or sparse.
+    /* ── `isFinite` IS THE WRONG READER FOR THIS FIELD, AND THIS FUNCTION WRITES THE VALUE IT ADMITS ──
+       `tsMs` above is `null` for a row whose phone column refuses `parseTimestamp`, which is what §∅
+       requires absence to be written as. The GLOBAL `isFinite` coerces its argument, so `isFinite(null)`
+       reads TRUE and such a row passes this guard and the three below it. The consequences are a
+       Clock-Contract matter: this row can become the absolute-time anchor for every sample, and it can
+       enter `accAnchors` as `{ devMs, hostMs: null }`, which `DexClock.hostAxis` spends on the RATE.
+       `Number.isFinite` rejects `null` and keeps a real `0`, and it is already the reader two blocks
+       below, where #5562 fixed the rate median for the same reason.
+       ⚠️ THIS IS NOT THE MECHANICAL SWEEP that row `2026-09-28-bare-isfinite-admits-the-null-that-
+       absence-is-null-requires` recommends against. That sweep is wrong because a bare `isFinite` call
+       site may legitimately receive a numeric string, and only the call site knows. Here the producer
+       is eleven lines above and it is `parseTimestamp`, which returns a number or `null` and never a
+       string, so no legitimate input changes behaviour at these four sites. `relNs` keeps the bare
+       reader: it is written as `NaN` or as a `Number`, and both readers agree on those. */
     var anchor = -1;
     for (var a = 0; a < out.length; a++) {
-      if (isFinite(out[a].tsMs) && isFinite(out[a].relNs)) {
+      if (Number.isFinite(out[a].tsMs) && isFinite(out[a].relNs)) {
         anchor = a;
         break;
       }
@@ -7366,7 +7380,7 @@
     for (var s1 = 1; s1 < out.length; s1++) {
       var pr = out[s1 - 1],
         cu = out[s1];
-      if (!(isFinite(pr.relNs) && isFinite(cu.relNs) && isFinite(pr.tsMs) && isFinite(cu.tsMs))) continue;
+      if (!(isFinite(pr.relNs) && isFinite(cu.relNs) && Number.isFinite(pr.tsMs) && Number.isFinite(cu.tsMs))) continue;
       var disagree = Math.abs((cu.relNs - pr.relNs) / 1e6 - (cu.tsMs - pr.tsMs));
       if (disagree > ECG_RESYNC_BOUND_MS) {
         accClockSteps++;
@@ -7409,7 +7423,7 @@
       accAnchorsDroppedPreStep = 0,
       accLastEligible = -1;
     for (var q1 = 0; q1 < out.length; q1++) {
-      if (!(isFinite(out[q1].tsMs) && isFinite(out[q1].relNs))) continue;
+      if (!(Number.isFinite(out[q1].tsMs) && isFinite(out[q1].relNs))) continue;
       if (q1 < accLastStepIdx) {
         accAnchorsDroppedPreStep++;
         continue;
@@ -7422,7 +7436,7 @@
       _accSeen = 0,
       _accLastPushed = -1;
     for (var q2 = 0; q2 < out.length; q2++) {
-      if (!(isFinite(out[q2].tsMs) && isFinite(out[q2].relNs)) || q2 < accLastStepIdx) continue;
+      if (!(Number.isFinite(out[q2].tsMs) && isFinite(out[q2].relNs)) || q2 < accLastStepIdx) continue;
       if (_accSeen++ % accStride) continue;
       accAnchors.push({ devMs: out[q2].relNs / 1e6, hostMs: out[q2].tsMs });
       _accLastPushed = q2;
