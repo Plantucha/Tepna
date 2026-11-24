@@ -88,8 +88,9 @@
  * make (measured 2026-11-22: 300.8 s to `UND_ERR_HEADERS_TIMEOUT`). `DEX_EMBED_TIMEOUT_MS` and
  * `DEX_EMBED_TIMEOUT_PER_INPUT_MS` move both terms, `DEX_NET_CLIENT_TIMEOUT_MS` moves the cap,
  * and a reader who wants the token lane at once sets `DEX_EMBED_TIMEOUT_MS=1` AND
- * `DEX_EMBED_TIMEOUT_PER_INPUT_MS=0`, because the floor alone leaves a 303-chunk file asking
- * 6,040,001 ms and waiting the cap. A deadline cannot
+ * `DEX_EMBED_TIMEOUT_PER_INPUT_MS=0`, because the floor alone leaves a 303-chunk request asking
+ * 6,040,001 ms and waiting the cap. The index embeds a file in requests small enough that the cap
+ * never binds (`embedBatchSize`, 11 inputs on the defaults). A deadline cannot
  * tell dead from slow (CLAUDE.md §4c): this bounds the WAIT and diagnoses no backend.
  *
  *   node tools/doc-search.mjs "has anyone measured the equivalent mutant ceiling?"
@@ -774,7 +775,7 @@ export function embedRequest(model, inputs, cpu = embedOnCpu()) {
    Node's `fetch` abandons a request whose headers do not arrive within 300 s. Measured 2026-11-22
    against the live endpoint: one batch of 2 inputs, no signal of our own, threw at 300.8 s with
    `cause.code = UND_ERR_HEADERS_TIMEOUT`. The arithmetic below crosses 300 s at n = 12, and the
-   real batches are far larger: this tool embeds one request per FILE, so `oxydex-dsp.js` at 303
+   real batches WERE far larger: until 2026-11-23 the tool sent one request per FILE, so `oxydex-dsp.js` at 303
    chunks claimed 6,130,000 ms, about 102 minutes, over a client that was never going to wait past
    five. Every such request died at the client's bound, under the client's own opaque text, and the
    stated bound examined nothing.
@@ -814,6 +815,36 @@ export function embedBoundNote(n, timeoutMs, env = process.env) {
 export function embedFailureReason(err, endpoint = OLLAMA) {
   const reason = netFailureReason(err, endpoint);
   return reason === 'the request failed with no message' ? 'the embedder failed with no message' : reason;
+}
+
+/* The largest request whose STATED bound the client can still honour (11 on the defaults), so a
+   batch this size is never cut short by a cap. `Infinity` when no cap binds at any size. Measured
+   2026-11-23: `heron-state-2026-10-19-drain.md` became one request of 2,315 inputs, no tick from
+   15:11 to 17:29 embedded it, and each failed tick read EMBEDDER DOWN over an embedder that worked. */
+export function embedBatchSize(env = process.env) {
+  const probe = Number.MAX_SAFE_INTEGER / 1e6;
+  if (embedStatedMs(probe, env) <= embedTimeoutMs(probe, env)) return Infinity;
+  let lo = 1;
+  let hi = probe;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (embedStatedMs(mid, env) <= embedTimeoutMs(mid, env)) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+}
+
+/* One file's chunks as requests the client can wait for, in order. A failed request fails the FILE:
+   half a file's vectors would read as a whole one. */
+export async function embedAll(inputs, { size = embedBatchSize(), embedFn = embed } = {}) {
+  const out = [];
+  for (let i = 0; i < inputs.length; i += Math.min(size, inputs.length)) {
+    const part = inputs.slice(i, i + Math.min(size, inputs.length));
+    const vecs = await embedFn(part);
+    if (vecs.length !== part.length) throw new Error(`the embedder returned ${vecs.length} vector(s) for ${part.length} input(s)`);
+    out.push(...vecs);
+  }
+  return out;
 }
 
 async function embed(inputs, { timeoutMs = embedTimeoutMs(inputs.length), fetchImpl = fetch } = {}) {
@@ -981,7 +1012,7 @@ async function buildIndex(quiet, scope = 'all') {
   let embedFailure = null;
   for (const p of pending) {
     try {
-      const vecs = await embed(p.chunks);
+      const vecs = await embedAll(p.chunks);
       cache.entries[p.file] = { h: p.h, vecs, c: CHUNKER };
       p.chunks.forEach((t, i) => entries.push({ file: p.file, text: t, vec: vecs[i] }));
       embedded += p.chunks.length;
@@ -1594,6 +1625,40 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
     );
     ok('a cause that repeats the wrapper text adds no parenthesis', embedFailureReason(Object.assign(new TypeError('fetch failed'), { cause: { message: 'fetch failed' } })) === 'fetch failed');
     ok('a failure with no cause at all keeps its own message', embedFailureReason(new TypeError('fetch failed')) === 'fetch failed');
+    ok('a batch is the largest the client can wait for', embedBatchSize(env) === 11, String(embedBatchSize(env)));
+    ok('…and it follows the declared cap', embedBatchSize({ DEX_NET_CLIENT_TIMEOUT_MS: '900000' }) === 41);
+    ok('…and a declared 0 leaves a file whole', embedBatchSize({ DEX_NET_CLIENT_TIMEOUT_MS: '0' }) === Infinity);
+    ok('…and a floor above the cap still sends one input at a time', embedBatchSize({ DEX_EMBED_TIMEOUT_MS: '400000' }) === 1);
+    const seen = [];
+    const echo = async (part) => {
+      seen.push(part.length);
+      return part.map((x) => [x]);
+    };
+    const many = Array.from({ length: 25 }, (_, i) => i);
+    const vecs = await embedAll(many, { size: 11, embedFn: echo });
+    ok('a large file goes out in batches', seen.join(',') === '11,11,3', seen.join(','));
+    ok('…and its vectors come back in order, none lost', JSON.stringify(vecs) === JSON.stringify(many.map((x) => [x])));
+    seen.length = 0;
+    await embedAll(many, { size: Infinity, embedFn: echo });
+    ok('CONTROL: with no cap the file is one request', seen.join(',') === '25', seen.join(','));
+    ok('no input sends no request', (await embedAll([], { embedFn: echo })).length === 0 && seen.length === 1);
+    let half = null;
+    let calls = 0;
+    await embedAll(many, {
+      size: 11,
+      embedFn: async (part) => {
+        if (++calls === 2) throw new Error('down');
+        return part.map((x) => [x]);
+      }
+    }).catch((e) => {
+      half = e.message;
+    });
+    ok('a failed batch fails the file and stops', half === 'down' && calls === 2);
+    let short = null;
+    await embedAll(many, { size: 11, embedFn: async () => [[1]] }).catch((e) => {
+      short = e.message;
+    });
+    ok('a short answer is refused, never padded', short === 'the embedder returned 1 vector(s) for 11 input(s)', String(short));
     ok('the banner names the stall it degraded on', laneBanner(null, 'http://h did not answer within 20 ms', 'q').includes('TOKEN-FALLBACK (http://h did not answer within 20 ms)'));
     ok('…and keeps the old wording when no reason reached it', laneBanner(null, null, 'q').includes('TOKEN-FALLBACK (embedder unreachable)'));
     ok('…and says nothing about a lane the embedder answered', laneBanner([1], null, 'q').includes('semantic') && !laneBanner([1], null, 'q').includes('FALLBACK'));
