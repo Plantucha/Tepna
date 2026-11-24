@@ -342,18 +342,19 @@ def test_a_raising_extra_email_is_logged_with_its_error_and_not_as_a_rejection(c
 
 class _N:
     def __init__(self, enabled=True, ok=True):
-        self.enabled, self.ok, self.sent = enabled, ok, []
+        self.enabled, self.ok, self.sent, self.texts = enabled, ok, [], []
 
     async def send(self, title, message, **kw):
         self.sent.append((title, kw.get("email", False)))
+        self.texts.append(message)
         return self.ok
 
 
-def _poll(monkeypatch, levels, notifier, name="H10-01"):
+def _poll(monkeypatch, levels, notifier, name="H10-01", **extra):
     """Run alert_poller once per level in `levels`, with the device connected and streaming. The loop
     checks `_STOP` before its sleep, so the last level is polled twice."""
     cfg = {"alerts": {"poll_sec": 1, "offline_sec": 10**9}, "devices": [_dev(name=name)]}
-    st = {"connected": True}
+    st = {"connected": True, **extra}
     capture.STATUS["devices"][name] = st
     capture._LAST_DATA[name] = 1000.0
     seq = list(levels)
@@ -393,6 +394,26 @@ def test_poller_pushes_at_20_and_pushes_plus_emails_at_10(monkeypatch):
     ]
     assert st["battery_alert"]["pct"] == 10 and st["battery_alert"]["threshold"] == C
     assert len(st["battery_alert"]["at"]) == 16
+
+
+@pytest.mark.sets_capture_events  # the poll script sets _STOP as the scenario's end
+def test_poller_adds_the_cell_voltage_of_a_device_that_reports_one(monkeypatch):
+    n = _N()
+    _poll(monkeypatch, [20, 10], n, battery_mv=3606)
+    assert n.texts == [
+        "H10-01 battery reads 20 %. Plan a replacement or a charge. The cell reads 3.61 V.",
+        "H10-01 battery reads 10 %. Replace or charge it before the next night. The cell reads 3.61 V.",
+    ]
+
+
+@pytest.mark.sets_capture_events  # the poll script sets _STOP as the scenario's end
+def test_poller_names_no_voltage_for_a_device_without_one(monkeypatch):
+    n = _N()
+    _poll(monkeypatch, [20, 10], n)
+    assert n.texts == [
+        "H10-01 battery reads 20 %. Plan a replacement or a charge.",
+        "H10-01 battery reads 10 %. Replace or charge it before the next night.",
+    ]
 
 
 @pytest.mark.sets_capture_events  # the poll script sets _STOP as the scenario's end
