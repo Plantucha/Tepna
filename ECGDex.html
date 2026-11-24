@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="17c66b65c158" data-compute-hash="b5955afb9346">
+<html lang="en" data-manifest-hash="67f2133d20e9" data-compute-hash="86e343209bb2">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BND6RE6OP7KJNES0zGV0kDUXdIOxJqc2QUkiELbELoE=' 'sha256-ETqZPnyEOMCJ7vZgS1XxfM5eP45arYHcZc+vUSdnVMY=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-iqPNvfgaOLLxsrqf67NdcyYbCf6pshw6DVlOebr7HSE=' 'sha256-jXCcccdrNQGiQxKLg1YLoK8qJnx1KvldxWDfC9EfOq0=' 'sha256-ndwAaS7rxPDbDdTDUAApFCDBcXWisKUftg+0xzuxsoI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-va9iMScWxEdN7cjNjYXiSv9RdPWnx5fnCHzd3Fx9doY=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-ETqZPnyEOMCJ7vZgS1XxfM5eP45arYHcZc+vUSdnVMY=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-YNMlX/rjSaL+ckpqheIzvXaa5j2vPeUuEZSVF2axjSU=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-csoYuQTC7Oifl4DXdjZQTi/R1rLzeEQyG2MFYNR64tg=' 'sha256-dGsrycTNZcsjv/DOfnpj8GQnU3e4MkxPcrWg2xqKQUQ=' 'sha256-iqPNvfgaOLLxsrqf67NdcyYbCf6pshw6DVlOebr7HSE=' 'sha256-jXCcccdrNQGiQxKLg1YLoK8qJnx1KvldxWDfC9EfOq0=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-va9iMScWxEdN7cjNjYXiSv9RdPWnx5fnCHzd3Fx9doY=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.36.0</title>
@@ -21632,7 +21632,11 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
     for (let j = Math.max(1, k - half); j <= Math.min(rr.length - 1, k + half); j++) {
       if (j !== k && rr[j] >= 300 && rr[j] <= 2000) seg.push(rr[j]);
     }
-    return seg.length ? median(seg) : rr[k] || 900;
+    /* §∅ — NO NEIGHBOUR IS NO LOCAL MEDIAN. `median([])` answers 0, so this line used to fall back
+       to the beat's own RR and then to a flat 900 ms. Both arms are claims. `rr[k]` makes
+       `prem = rr[k] / lm` exactly 1, which asserts the beat is on time; 900 asserts a 67 bpm
+       neighbourhood nothing measured. The caller now reads `null` and declines to type the beat. */
+    return seg.length ? median(seg) : null;
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -21670,7 +21674,13 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
       }
       qrsW[k] = ((hi - lo) / fs) * 1000;
     }
-    const medW = median(Array.from(qrsW).filter((w) => w > 30 && w < 200));
+    /* §∅ — A WIDTH NO BEAT PRODUCED IS NOT 0 ms. The 30-200 ms filter can reject every beat (a flat
+       or saturated stretch), and `median([])` answers 0. That 0 then propagated three ways: the
+       template filter below excluded every beat because `qrsW[k] > 0` holds, `wide` read TRUE for
+       every beat, and the return published `medW: 0` as a measured QRS width. The app renders it in
+       prose and in `medianQRSWidthMs`. `widthsPlausible` publishes what the median rests on. */
+    const wPlausible = Array.from(qrsW).filter((w) => w > 30 && w < 200);
+    const medW = wPlausible.length ? median(wPlausible) : null;
 
     // normal template (raw, baseline-removed) from beats with rr≈median & high SQI & normal width
     const tHalf = Math.round(0.07 * fs),
@@ -21681,7 +21691,7 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
     for (let k = 2; k < n - 2; k++) {
       if (sqi[k] < 0.6) continue;
       if (rr[k] < 0.88 * medRR || rr[k] > 1.12 * medRR) continue;
-      if (qrsW[k] > medW * 1.25) continue;
+      if (medW != null && qrsW[k] > medW * 1.25) continue;
       const i = peakI[k];
       if (i - tHalf < 0 || i + tHalf >= int16.length) continue;
       const b = int16[i - tHalf];
@@ -21689,21 +21699,27 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
       nAcc++;
       if (nAcc >= 400) break;
     }
+    /* §∅ — `nAcc === 0` MEANS NO TEMPLATE WAS MEASURED. The `|| 1` divisor turned an empty
+       accumulator into a flat zero template, `std` then fell back to its own `|| 1`, and every beat
+       was correlated against a line. The correlations that came out were arithmetic, not
+       measurements. `haveTmpl` carries that absence to the correlation loop and to `template`. */
+    const haveTmpl = nAcc > 0;
     const tmpl = new Float64Array(tLen);
-    for (let j = 0; j < tLen; j++) tmpl[j] = acc[j] / (nAcc || 1);
+    if (haveTmpl) for (let j = 0; j < tLen; j++) tmpl[j] = acc[j] / nAcc;
     // normalize template
     let tm = mean(Array.from(tmpl)),
       ts = std(Array.from(tmpl)) || 1;
     const tN = tmpl.map((v) => (v - tm) / ts);
 
-    // correlation per beat
-    const corr = new Float32Array(n);
+    /* §∅ — A CORRELATION NOBODY COMPUTED IS NOT 1.0. A beat within `tHalf` of either record edge has
+       no window to correlate, and this loop answered a PERFECT match, the single most reassuring
+       value in the range. `lowCorr` then read false and the beat could never be called a PVC on
+       morphology. A plain array holds `null`, which a `Float32Array` cannot. `corrMeasured` below
+       publishes how many beats carry a real figure. */
+    const corr = new Array(n).fill(null);
     for (let k = 0; k < n; k++) {
       const i = peakI[k];
-      if (i - tHalf < 0 || i + tHalf >= int16.length) {
-        corr[k] = 1;
-        continue;
-      }
+      if (!haveTmpl || i - tHalf < 0 || i + tHalf >= int16.length) continue;
       let s = 0,
         ss = 0;
       const win = new Float64Array(tLen);
@@ -21734,6 +21750,16 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
         continue;
       }
       const lm = localMedRR(rr, k, 8);
+      /* ∅ — AND NEITHER IS AN UNMEASURED MORPHOLOGY. Every test below rests on three measurements:
+         the local median RR, the energy-median width and the template correlation. Each one can be
+         absent, and each absence used to arrive as a number that decided the beat: no neighbour read
+         as on-time, no plausible width read as wide, no template read as a perfect match. A beat the
+         three cannot describe is UNASSESSABLE, which is what 'U' already means here, and
+         `beatsAssessed` already annotates the coverage it costs. */
+      if (lm == null || medW == null || corr[k] == null) {
+        types[k] = 'U';
+        continue;
+      }
       const prem = rr[k] / lm;
       const wide = qrsW[k] > medW * 1.6;
       const lowCorr = corr[k] < 0.6;
@@ -21789,7 +21815,9 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
       types,
       qrsW,
       corr,
-      medW: +medW.toFixed(0),
+      medW: medW != null ? +medW.toFixed(0) : null,
+      widthsPlausible: wPlausible.length,
+      corrMeasured: corr.reduce((c, v) => c + (v != null ? 1 : 0), 0),
       nPVC: nV,
       nPAC: nS,
       /* ∅ A burden is a rate over the beats that were ASSESSED. Dividing by every beat counted the
@@ -21806,7 +21834,7 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
       longestRun,
       runsGE3,
       bigeminyCycles: bigemCycles,
-      template: Array.from(tmpl),
+      template: haveTmpl ? Array.from(tmpl) : null,
       tHalf,
       nTemplate: nAcc
     };
@@ -25349,7 +25377,7 @@ self.onmessage = async (e) => {
       ${eb('Couplets', m.couplets, m.runsGE3 + ' run(s) ≥3', m.runsGE3 > 0 ? 'bad' : m.couplets > 0 ? 'warn' : 'ok')}
       ${eb('Bigeminy', m.bigeminyCycles, 'N-V cycles', m.bigeminyCycles > 3 ? 'warn' : 'ok')}
     </div>
-    <div class="q-note">Beats classified <b>N / PVC / PAC</b> from prematurity, QRS width (median ${m.medW} ms) &amp; template correlation; ectopic beats are tagged on the waveform above (PVC purple, PAC blue). ${m.runsGE3 > 0 ? '<b style="color:var(--red)">⚠ Ventricular run(s) ≥3 beats detected — review.</b>' : 'No ventricular runs ≥3.'}</div>`;
+    <div class="q-note">Beats classified <b>N / PVC / PAC</b> from prematurity, QRS width (${m.medW != null ? 'median ' + m.medW + ' ms' : 'no plausible width measured'}) &amp; template correlation; ectopic beats are tagged on the waveform above (PVC purple, PAC blue). ${m.runsGE3 > 0 ? '<b style="color:var(--red)">⚠ Ventricular run(s) ≥3 beats detected — review.</b>' : 'No ventricular runs ≥3.'}</div>`;
 
     // intervals + AF
     const cell = (l, v, u, nr, sev, note) =>
