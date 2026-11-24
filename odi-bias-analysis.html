@@ -3039,12 +3039,20 @@ function recomputeFromProfile() {
         var _newBase = +(15.3 * (hrMax / hrRest)).toFixed(1);
         var _newVo2 = _rmssdAdj != null ? +(_newBase + _rmssdAdj).toFixed(1) : _newBase;
         if (!n.vo2est) n.vo2est = {};
+        /* §∅ THE RANGE AND THE SEE COME FROM ONE NUMBER. This block built the range from a literal
+           10.8 and left `see` unwritten, so on a night with no earlier `vo2est` the card printed a
+           ±10.8 range beside "±0 SEE". The width is now read from the result's own `see` where the DSP
+           wrote one, which keeps a trained-athlete 5.4, and falls back to the general-population SEE
+           the DSP cites (Uth 2004) — the same number the old literal used. It is then WRITTEN back, so
+           the printed range and the printed SEE cannot disagree. */
+        var _see = typeof n.vo2est.see === 'number' && isFinite(n.vo2est.see) ? n.vo2est.see : 10.8;
+        n.vo2est.see = _see;
         n.vo2est.hrRest = hrRest;
         n.vo2est.hrMax = hrMax;
         n.vo2est.rmssdAdj = _rmssdAdj;
         n.vo2est.vo2est = _newVo2;
-        n.vo2est.vo2Low = +(_newVo2 - 10.8).toFixed(1);
-        n.vo2est.vo2High = +(_newVo2 + 10.8).toFixed(1);
+        n.vo2est.vo2Low = +(_newVo2 - _see).toFixed(1);
+        n.vo2est.vo2High = +(_newVo2 + _see).toFixed(1);
         var _vc = upVO2category(_newVo2);
         if (_vc) {
           n.vo2est.vo2Category = _vc.cat + ' (' + _vc.pct + ')';
