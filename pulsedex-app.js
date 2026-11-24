@@ -1146,8 +1146,28 @@ function _pxNightSpan(list) {
   const n = Object.keys(keys).length;
   return n + ' noon-to-noon day' + (n === 1 ? '' : 's') + (undated ? ' · ' + undated + ' undated, attributed to no day' : '');
 }
+/* §∅ AN ABSENT STAMP IS NOT 1970. `recordingsSortedPx` once sorted on `(a.t0Ms || 0)`, so a
+   recording with no parsed stamp took the FIRST place in the switcher and read as the oldest one.
+   `_pxNightSpan` above already counts such a recording as `undated, attributed to no day`, so the
+   sort was the one surface that still placed it in 1970. A record with no finite stamp now sorts
+   AFTER every dated one and keeps its insertion order; a measured stamp of 0 is still a stamp. The
+   helper stays LOCAL and pure: `window.PulseCross` is guarded everywhere else in this file, so the
+   switcher must not depend on it, and tests/dex-tests.js slices this out of the source and runs it.
+   Twin of `_byStamp` in ecgdex-app.js. */
+function _pxByStamp(key) {
+  return function (a, b) {
+    const x = a ? a[key] : undefined,
+      y = b ? b[key] : undefined;
+    const fx = typeof x === 'number' && isFinite(x),
+      fy = typeof y === 'number' && isFinite(y);
+    if (fx && fy) return x - y;
+    if (fx) return -1;
+    if (fy) return 1;
+    return 0;
+  };
+}
 function recordingsSortedPx() {
-  return Object.values(allRecordings).sort((a, b) => (a.t0Ms || 0) - (b.t0Ms || 0));
+  return Object.values(allRecordings).sort(_pxByStamp('t0Ms'));
 }
 function _pxFmtDT(ms) {
   if (ms == null) return 'undated';
