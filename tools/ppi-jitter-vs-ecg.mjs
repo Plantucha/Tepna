@@ -50,6 +50,7 @@
  *   node tools/ppi-jitter-vs-ecg.mjs --selftest
  *   node tools/ppi-jitter-vs-ecg.mjs --dir <captures> --sqi   # §3.4's within-night SQI AUC + its verdict
  *   node tools/ppi-jitter-vs-ecg.mjs --dir <captures> --pooling   # the pooling paper's Table 1, both analyses
+ *   node tools/ppi-jitter-vs-ecg.mjs --dir <captures> --retention # the pooling paper's Table 2, gates within nights
  *   node tools/ppi-jitter-vs-ecg.mjs --verdict-sample   # the population verdict the adoption gate reads
  * ════════════════════════════════════════════════════════════════════════════════════════════════ */
 import vm from 'node:vm';
@@ -126,6 +127,19 @@ const SQI_ARM = has('--sqi');
    paper exists to warn about. It also needs the per-beat LED channel, so it is the one arm that runs
    the finger node in the PUBLICATION-PATCHED realm below. */
 const POOLING = has('--pooling');
+/* §3.3'S RETENTION ARM — TABLE 2. It asks a different question from Table 1: not whether a gate
+   RANKS the catastrophes, but what the error distribution looks like after the gate has discarded
+   its share. The paper's own behavioural claim is that mean SQI improves both the median and the
+   tail as it retains less, while beat coverage makes the median WORSE. That claim is the criterion,
+   and the cells ride beside it, exactly as the reversal does for Table 1. The arm reads the same
+   per-beat LED channel, so it runs in the publication-patched realm too. */
+const RETENTION = has('--retention');
+/* ONE ARM'S VERDICT PER RUN, because an emitter exits the process: a run that asked for both would
+   print the first object and drop the second with no sign that it had one. */
+if (POOLING && RETENTION) {
+  console.error('--pooling and --retention each emit one verdict and each ends the run; ask for one arm per run');
+  process.exit(2);
+}
 
 /* NOCTURNAL MILLISECONDS of one span, on the floating wall clock (CLAUDE.md §5: every hour here comes
    from getUTC*, so the figure does not depend on the reader's zone). The windows are
@@ -302,6 +316,33 @@ const POOL_GATES = [
   { key: 'led', label: 'LED agreement', field: 'ledMean' },
   { key: 'cov', label: 'beat coverage', field: 'covRatio' }
 ];
+/* TABLE 2'S PRE-STATED FIGURES, in this block and for the same reason as Table 1's: a `const`
+   initialises in source order and the selftest runs before the arm. Each cell is the median or the
+   p90 of the ABSOLUTE rMSSD error over the epochs a gate retained, and the ungated row is the same
+   population under no gate at all. */
+const T2_PUBLISHED_BY_DEVICE = {
+  verity: {
+    paper: 'papers/ppg-quality-gate-pooling.html',
+    epochs: 1488,
+    nights: 10,
+    ungated: { median: 4.43, p90: 25.8 },
+    gates: {
+      sqi: { 90: { median: 4.22, p90: 22.85 }, 80: { median: 4.09, p90: 22.62 }, 70: { median: 3.92, p90: 21.43 } },
+      led: { 90: { median: 4.15, p90: 25.17 }, 80: { median: 4.03, p90: 23.62 }, 70: { median: 3.95, p90: 23.41 } },
+      cov: { 90: { median: 4.39, p90: 24.79 }, 80: { median: 4.7, p90: 24.56 }, 70: { median: 4.89, p90: 23.44 } }
+    }
+  }
+};
+const T2_PUBLISHED = T2_PUBLISHED_BY_DEVICE[DEVICE] || null;
+/* THE RETENTION PERCENTILES THE PAPER USES, in the order it prints them. */
+const T2_RETENTIONS = [90, 80, 70];
+/* THE TWO GATES SECTION 3.3 MAKES A CLAIM ABOUT. LED agreement carries no such claim there, so no
+   leg of the criterion reads it and its cells only print. */
+const T2_MONOTONIC_GATE = 'sqi';
+const T2_HARMFUL_GATE = 'cov';
+/* A FLOAT TOLERANCE, never a threshold: two cells that differ in the sixteenth digit are the same
+   cell, and "never worse" must not turn on a rounding artefact. */
+const T2_EPS = 1e-12;
 /* The STATUS decision, pure and separate from the emitter, because the emitter exits the process and
    cannot be called from a selftest. NOT_RUN outranks everything (nothing was examined); then an absent
    published figure, which is a statement about the REFERENCE and not about power; then the test's own
@@ -884,7 +925,7 @@ export function applyFootPatch(src, patch = FOOT_PATCH) {
    the flag is IN the tool and unreachable by anyone who did not read the source. */
 const USAGE =
   'usage: node tools/ppi-jitter-vs-ecg.mjs --dir <captures> [--device o2ring|verity] ' +
-  '[--min-epochs N] [--max-nights N] [--sleep-only] [--no-merge] [--epoch-dump <path outside the repo>] [--fiducial] [--sqi] [--pooling]  |  --selftest  |  --verdict-sample';
+  '[--min-epochs N] [--max-nights N] [--sleep-only] [--no-merge] [--epoch-dump <path outside the repo>] [--fiducial] [--sqi] [--pooling] [--retention]  |  --selftest  |  --verdict-sample';
 
 function selftest() {
   let fail = 0;
@@ -1083,6 +1124,51 @@ function selftest() {
   ok(
     'an epoch with no bias label is not an epoch this arm can score, and is not counted',
     poolingReport(poolRows.concat([{ night: 'C', rmBiasPct: null, sqiMean: 0.5, ledMean: 0.5, covRatio: 0.5 }])).epochs === 12
+  );
+  /* ══ §RETENTION'S LEGS. Two planted nights where the shipped gate ranks quality the right way
+     about and beat coverage ranks it backwards, which is the pair of behaviours §3.3 claims. The
+     cells are asserted against VALUES a reader can recompute by hand, never against the arm itself. */
+  /* THE LEGS READ THE VERITY REFERENCE DIRECTLY, never `T2_PUBLISHED`, because the default device
+     carries no Table 2: a leg guarded on an absent reference would pass without testing anything. */
+  const T2REF = T2_PUBLISHED_BY_DEVICE.verity;
+  const t2rows = [];
+  for (const night of ['A', 'B']) for (let i = 0; i < 10; i++) t2rows.push({ night, rmBiasPct: i, sqiMean: 1 - i / 10, ledMean: 1 - i / 10, covRatio: i / 10 });
+  const T2A = retentionReport(t2rows);
+  ok('the ungated row is the whole population under no gate, so twenty epochs of 0–9 read median 4.5', T2A.ungated.n === 20 && T2A.ungated.median === 4.5, String(T2A.ungated.median));
+  ok('a retention of 90 % keeps nine of each ten, within each night and never across them', T2A.gates.sqi.cells[90].n === 18, String(T2A.gates.sqi.cells[90].n));
+  ok('…and the kept epochs are the BEST-scoring ones, so the median falls to 4', T2A.gates.sqi.cells[90].median === 4, String(T2A.gates.sqi.cells[90].median));
+  ok('a gate that ranks quality the right way about improves the median monotonically', T2A.gates.sqi.monoMedian === true);
+  ok('…and the tail with it, which is the other half of the §3.3 claim', T2A.gates.sqi.monoP90 === true);
+  ok("a gate that ranks it backwards makes the median WORSE, which is the paper's coverage claim", T2A.gates.cov.harmsMedian === true);
+  ok('so §3.3 holds on that population and the arm reads PASS', retentionVerdictStatus(T2A, T2REF, 2) === 'PASS', retentionVerdictStatus(T2A, T2REF, 2));
+  ok(
+    'a population where the shipped gate ranks backwards FAILS, and the violation names the leg',
+    (() => {
+      const flipped = retentionReport(t2rows.map((r) => ({ ...r, sqiMean: r.covRatio })));
+      return flipped.violations.some((v) => v.indexOf('sqi: the median') === 0) && retentionVerdictStatus(flipped, T2REF, 2) === 'FAIL';
+    })()
+  );
+  ok('an empty population examined nothing, so it is NOT_RUN and never a PASS over no epochs', retentionVerdictStatus(retentionReport([]), T2REF, 2) === 'NOT_RUN');
+  ok('an absent published Table 2 does not bind, and the arm says so rather than failing', retentionVerdictStatus(T2A, null, 2) === 'NOT_APPLICABLE');
+  ok('…and an absent reference does not mask an empty run, which is still NOT_RUN', retentionVerdictStatus(retentionReport([]), null, 2) === 'NOT_RUN');
+  ok('too few nights is UNDERPOWERED, never a failed reproduction', retentionVerdictStatus(T2A, T2REF, 9) === 'UNDERPOWERED', retentionVerdictStatus(T2A, T2REF, 9));
+  /* ∅ — one gate's absence is one gate's fact. */
+  const T2B = retentionReport(t2rows.map((r, i) => (i % 2 ? { ...r, sqiMean: null } : r)));
+  ok('∅ an epoch the gate did not score is absent: never retained, and never in its denominator', T2B.gates.sqi.scored === 10, String(T2B.gates.sqi.scored));
+  ok('…while the ungated row still reads every epoch, because that absence belongs to one gate', T2B.ungated.n === 20);
+  const T2C = retentionReport([{ night: 'A', rmBiasPct: 1, sqiMean: 0.5, ledMean: 0.5 }]);
+  ok('a gate no epoch scored has NO cell, and the claim over it is UNDECIDED rather than met', T2C.gates.cov.monoMedian === null && T2C.undecided === true);
+  ok('…and an UNDECIDED leg reads UNDERPOWERED, so an unfillable cell never passes', retentionVerdictStatus(T2C, T2REF, 1) === 'UNDERPOWERED', retentionVerdictStatus(T2C, T2REF, 1));
+  ok(
+    'one retained epoch is the floor, so a night of two epochs at 10 % still contributes one',
+    retainWithinNight(
+      [
+        { night: 'A', rmBiasPct: 1, sqiMean: 0.9 },
+        { night: 'A', rmBiasPct: 2, sqiMean: 0.1 }
+      ],
+      (r) => r.sqiMean,
+      10
+    ).length === 1
   );
   /* THE HARMONIC LEG (row `2026-10-19-the-ppi-jitter-endpoint-cannot-see-a-2x-harmonic`). A detector
      firing twice per beat is the failure this endpoint gated nine punch-list items against, and it
@@ -1636,7 +1722,7 @@ const PPG_REALM = ['clock.js', 'kernel-constants.js', 'metric-registry.js', 'ppg
 const P = realm(PPG_REALM).PPGDSP;
 /* The pooling arm's realm, built ONLY when that arm runs — a second co-load of the spine costs real
    seconds and holds a second copy of it, and no other arm reads the per-beat agreement. */
-const PAGREE = POOLING ? realm(PPG_REALM, AGREE_PATCH).PPGDSP : null;
+const PAGREE = POOLING || RETENTION ? realm(PPG_REALM, AGREE_PATCH).PPGDSP : null;
 /* ONE name for "the finger node this run analyses with", so the pooling arm cannot read the patched
    realm for one quantity and the shipped realm for another. */
 const PFIN = PAGREE || P;
@@ -2106,6 +2192,177 @@ function emitPoolingVerdict(R) {
   const bad = Verdict.validate(v);
   if (bad && bad.ok === false) {
     console.error('the pooling verdict does not validate: ' + JSON.stringify(bad.errors || bad));
+    process.exit(2);
+  }
+  console.log('\n' + JSON.stringify(v));
+  process.exit(status === 'NOT_RUN' || status === 'UNDERPOWERED' ? 2 : 0);
+}
+
+/* ══════════════════════ §RETENTION — TABLE 2, GATES APPLIED WITHIN NIGHTS ══════════════════
+ * `papers/ppg-quality-gate-pooling.html` Table 2 applies each gate WITHIN each night at a retention
+ * percentile, pools what survives, and reads the median and the p90 of the absolute rMSSD error.
+ *
+ * WITHIN EACH NIGHT, NEVER POOLED, because a pooled percentile discards whole nights rather than
+ * each night's own worst epochs — which is the confound the companion arm exists to show.
+ *
+ * THE CRITERION IS THE PAPER'S BEHAVIOURAL CLAIM, not its cells. A band around 4.43 % would be a
+ * band around a number that moves with the epoch grid, and this tool's grid is not the paper's. So
+ * the criterion is §3.3 as written — the shipped SQI improves both statistics as it retains less,
+ * and beat coverage makes the median worse — and the cells report beside it.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* THE EPOCHS ONE GATE KEEPS IN ONE NIGHT, best score first. The score is read FORWARD here, not
+   negated as the ranking arm reads it, because a gate retains its BEST epochs.
+   ∅ — an epoch the gate did not score is absent: it is neither retained nor discarded, and the
+   night's kept count reads over the scored epochs only, so one gate cannot borrow another's
+   denominator. The kept count is round(scored × pct/100), at least one epoch, and a tie at the
+   boundary keeps the earlier epoch, so one population always gives one answer. */
+export function retainWithinNight(rows, pick, pct) {
+  const scored = (rows || []).filter((r) => r && Number.isFinite(r.rmBiasPct) && Number.isFinite(pick(r)));
+  if (!scored.length) return [];
+  const keep = Math.max(1, Math.round((scored.length * pct) / 100));
+  return scored
+    .map((r, i) => ({ r, i, s: pick(r) }))
+    .sort((a, b) => b.s - a.s || a.i - b.i)
+    .slice(0, keep)
+    .map((x) => x.r);
+}
+
+/* ONE CELL OF TABLE 2. ∅ — an empty retention has NO cell, never a 0 %. */
+export function retentionCell(rows) {
+  const e = (rows || []).map((r) => Math.abs(r.rmBiasPct)).filter(Number.isFinite);
+  if (!e.length) return null;
+  return { n: e.length, median: median(e), p90: quantile(e, 0.9) };
+}
+
+export function retentionReport(eps) {
+  const rows = (eps || []).filter((e) => e && Number.isFinite(e.rmBiasPct));
+  const byNight = new Map();
+  for (const r of rows) {
+    if (!byNight.has(r.night)) byNight.set(r.night, []);
+    byNight.get(r.night).push(r);
+  }
+  const ungated = retentionCell(rows);
+  const gates = {};
+  for (const g of POOL_GATES) {
+    const pick = (r) => (Number.isFinite(r[g.field]) ? r[g.field] : Number.NaN);
+    const scored = rows.filter((r) => Number.isFinite(pick(r)));
+    const cells = {};
+    for (const pct of T2_RETENTIONS) {
+      const kept = [];
+      for (const [, rs] of byNight) for (const r of retainWithinNight(rs, pick, pct)) kept.push(r);
+      const c = retentionCell(kept);
+      cells[pct] = { n: c ? c.n : 0, median: c ? c.median : null, p90: c ? c.p90 : null, scored: scored.length };
+    }
+    /* MONOTONE means "never worse as it retains less", read against the ungated row first and then
+       against the cell before it. A cell this run could not fill breaks the chain, so the answer is
+       `null` — UNDECIDED — rather than a pass granted by absence. */
+    const chain = T2_RETENTIONS.map((p) => cells[p]);
+    const mono = (key) => (ungated == null || chain.some((c) => c[key] == null) ? null : chain.every((c, i) => c[key] <= (i ? chain[i - 1][key] : ungated[key]) + T2_EPS));
+    const harms = ungated == null || chain.every((c) => c.median == null) ? null : chain.some((c) => c.median != null && c.median > ungated.median + T2_EPS);
+    gates[g.key] = { key: g.key, label: g.label, scored: scored.length, cells, monoMedian: mono('median'), monoP90: mono('p90'), harmsMedian: harms };
+  }
+  /* THE CLAIM, LEG BY LEG. Each violation names the gate and the statistic, because "the claim
+     failed" over three legs tells a reader nothing about which one. */
+  const M = gates[T2_MONOTONIC_GATE],
+    H = gates[T2_HARMFUL_GATE];
+  const violations = [];
+  if (M.monoMedian === false) violations.push(`${T2_MONOTONIC_GATE}: the median does not improve as the gate retains less`);
+  if (M.monoP90 === false) violations.push(`${T2_MONOTONIC_GATE}: the p90 does not improve as the gate retains less`);
+  if (H.harmsMedian === false) violations.push(`${T2_HARMFUL_GATE}: the median never gets worse, so the published harm does not reproduce`);
+  const undecided = [M.monoMedian, M.monoP90, H.harmsMedian].some((x) => x == null);
+  return { epochs: rows.length, nights: byNight.size, ungated, gates, violations, undecided };
+}
+
+/* THE STATUS, PURE AND SEPARATE FROM THE EMITTER, in the order the ranking arm's uses: nothing
+   examined outranks everything, then an absent reference (a statement about the REFERENCE, not about
+   power), then power, and only then the claim. */
+export function retentionVerdictStatus(R, published, minNights) {
+  if (!R || !R.epochs || R.ungated == null) return 'NOT_RUN';
+  if (!published) return 'NOT_APPLICABLE';
+  if (R.undecided || R.nights < minNights) return 'UNDERPOWERED';
+  return R.violations.length ? 'FAIL' : 'PASS';
+}
+
+function retentionLines(R) {
+  const num = (x, d = 2) => (x == null || !Number.isFinite(x) ? '—' : x.toFixed(d));
+  const pc = (x) => (x == null || !Number.isFinite(x) ? '—' : num(x) + ' %');
+  const yn = (x) => (x == null ? 'UNDECIDED — a cell this run could not fill' : x ? 'YES' : 'NO');
+  /* THE TITLE GOES THROUGH push, NOT THE ARRAY LITERAL. The unit-claim scanner in
+     `tests/dex-tests.js` reads print CALLS only, so a label written into an array initialiser is
+     invisible to it — which is the quiet label that rule exists to stop. The scanner reads this file
+     as text, so this note names no print call and writes no unit word: either would read as one. */
+  const out = [];
+  out.push('  Table 2 (§retention)      three gates applied WITHIN each night, each keeping its own best-scoring epochs');
+  out.push('                            gate                retention   kept epochs   median |ΔrMSSD|   p90 |ΔrMSSD|');
+  out.push(
+    `                            ${'none'.padEnd(20)}${'100 %'.padEnd(12)}${String(R.ungated ? R.ungated.n : 0).padEnd(14)}${pc(R.ungated ? R.ungated.median : null).padEnd(18)}${pc(R.ungated ? R.ungated.p90 : null)}`
+  );
+  for (const g of POOL_GATES) {
+    const G = R.gates[g.key];
+    for (const pct of T2_RETENTIONS) {
+      const c = G.cells[pct];
+      out.push(`                            ${(pct === T2_RETENTIONS[0] ? g.label : '').padEnd(20)}${`${pct} %`.padEnd(12)}${String(c.n).padEnd(14)}${pc(c.median).padEnd(18)}${pc(c.p90)}`);
+    }
+  }
+  out.push(`                            §3.3: ${T2_MONOTONIC_GATE} improves the median ${yn(R.gates[T2_MONOTONIC_GATE].monoMedian)}   ·   and the p90 ${yn(R.gates[T2_MONOTONIC_GATE].monoP90)}`);
+  out.push(`                            §3.3: ${T2_HARMFUL_GATE} makes the median worse ${yn(R.gates[T2_HARMFUL_GATE].harmsMedian)}`);
+  for (const v of R.violations) out.push(`                            ✗ ${v}`);
+  out.push(
+    T2_PUBLISHED
+      ? `                            the paper's own cells: ungated ${T2_PUBLISHED.ungated.median}/${T2_PUBLISHED.ungated.p90} · ${POOL_GATES.map((g) => `${g.key} 70 % ${T2_PUBLISHED.gates[g.key][70].median}/${T2_PUBLISHED.gates[g.key][70].p90}`).join(' · ')}   [median/p90, over ${T2_PUBLISHED.epochs} epochs and ${T2_PUBLISHED.nights} nights]`
+      : `                            no published Table 2 for the ${DEVICE.toUpperCase()}: the cells are VERITY figures, so this run makes no reproduction claim`
+  );
+  return out.join('\n');
+}
+
+function emitRetentionVerdict(R) {
+  const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
+  const status = retentionVerdictStatus(R, T2_PUBLISHED, SQI_MIN_NIGHTS);
+  /* THE POPULATION IS EPOCHS, as the ranking arm's is, and `checked` is the smallest number of
+     epochs any gate could score: that is what every leg of the claim actually ran over. */
+  const checked = Math.min(...POOL_GATES.map((g) => R.gates[g.key].scored));
+  const cellsOf = (k) => ({
+    label: R.gates[k].label,
+    scored: R.gates[k].scored,
+    cells: T2_RETENTIONS.map((p) => ({ retentionPct: p, ...R.gates[k].cells[p] })),
+    monoMedian: R.gates[k].monoMedian,
+    monoP90: R.gates[k].monoP90,
+    harmsMedian: R.gates[k].harmsMedian
+  });
+  const reason =
+    status === 'NOT_APPLICABLE'
+      ? `Table 2 was measured on the Verity armband corpus and no Table 2 exists for the ${DEVICE.toUpperCase()}, so the reproduction criterion does not bind; the measurement is reported beside it`
+      : status === 'NOT_RUN'
+        ? 'no epoch carried a per-epoch rMSSD bias, so no gate ever retained anything'
+        : status === 'UNDERPOWERED'
+          ? `${R.nights} night(s) against a floor of ${SQI_MIN_NIGHTS}${R.undecided ? ' and at least one leg of the claim is UNDECIDED' : ''}, so this run could not decide §3.3`
+          : status === 'FAIL'
+            ? `§3.3 does not reproduce here: ${R.violations.join('; ')}`
+            : null;
+  const v = Verdict.make({
+    gate: 'pooling-paper-table2',
+    status,
+    population: { checked, eligible: R.epochs, excluded: R.epochs - checked },
+    criterion: { name: 'table2_sqi_improves_both_statistics_and_coverage_harms_the_median', threshold: 0, unit: 'violations', direction: 'lte' },
+    result:
+      status === 'NOT_RUN' || status === 'NOT_APPLICABLE'
+        ? null
+        : {
+            nights: R.nights,
+            retentions: T2_RETENTIONS,
+            ungated: R.ungated,
+            violations: R.violations,
+            gates: Object.fromEntries(POOL_GATES.map((g) => [g.key, cellsOf(g.key)])),
+            published: T2_PUBLISHED ? T2_PUBLISHED.gates : null
+          },
+    evidence: T2_PUBLISHED ? ['tools/ppi-jitter-vs-ecg.mjs', T2_PUBLISHED.paper] : ['tools/ppi-jitter-vs-ecg.mjs'],
+    reason,
+    producedBy: { tool: 'tools/ppi-jitter-vs-ecg.mjs', commit: commitOf.commit, commitReason: commitOf.commit ? null : commitOf.reason }
+  });
+  const bad = Verdict.validate(v);
+  if (bad && bad.ok === false) {
+    console.error('the retention verdict does not validate: ' + JSON.stringify(bad.errors || bad));
     process.exit(2);
   }
   console.log('\n' + JSON.stringify(v));
@@ -2733,10 +2990,12 @@ for (const unit of buildUnits(fingerFiles)) {
       else {
         const sq = epochSqi(fS, t, t + EPOCH_MS);
         if (!sq.ok) sqiDrop(sq.reason);
-        /* §POOLING's gates 2 and 3, on the SAME window and the SAME covering session as the pair
-           above, so Table 1's three gates cannot be scored over three populations. */
-        const ld = POOLING ? epochLed(fS, t, t + EPOCH_MS) : null;
-        const cv = POOLING ? epochCoverage(fS, t, t + EPOCH_MS) : null;
+        /* GATES 2 AND 3 FOR BOTH ARMS, on the SAME window and the SAME covering session as the pair
+           above, so neither table scores its three gates over three populations. The retention arm
+           needs them as much as the ranking arm does: without this flag it read every LED and
+           coverage cell as absent and reported the claim UNDECIDED over two empty columns. */
+        const ld = POOLING || RETENTION ? epochLed(fS, t, t + EPOCH_MS) : null;
+        const cv = POOLING || RETENTION ? epochCoverage(fS, t, t + EPOCH_MS) : null;
         if (ld && !ld.ok) ledDrop(ld.reason);
         if (cv && !cv.ok) covDrop(cv.reason);
         const row = {
@@ -2918,6 +3177,7 @@ if (!nights.length) {
   printPopulation();
   if (SQI_ARM) emitSqiVerdict(sqiReport(allEp));
   if (POOLING) emitPoolingVerdict(poolingReport(allEp));
+  if (RETENTION) emitRetentionVerdict(retentionReport(allEp));
   process.exit(0);
 }
 const J = nights.map((n) => n.jitter);
@@ -3107,6 +3367,7 @@ if (!epNights.length) {
     );
   console.log(sqiLines(sqiReport(allEp)));
   if (POOLING) console.log(poolingLines(poolingReport(allEp)));
+  if (RETENTION) console.log(retentionLines(retentionReport(allEp)));
   /* THE BUDGET IS A FRACTION OF SOMETHING, so the something is MEASURED and printed with it. The
      reference is the corpus median per-epoch ECG rMSSD — the quantity the bias is a percentage of.
      Quoting a σ budget without it publishes a number nobody can check, and a budget read against an
@@ -3161,3 +3422,4 @@ if (SQI_ARM) emitSqiVerdict(sqiReport(allEp));
 /* §POOLING's verdict is LAST, so a run that asked for both arms still gets §3.4's exit code first —
    the same order `--fiducial` and `--sqi` already keep. */
 if (POOLING) emitPoolingVerdict(poolingReport(allEp));
+if (RETENTION) emitRetentionVerdict(retentionReport(allEp));
