@@ -67,7 +67,7 @@
  * tiered and the marker kept local: the run #2784's byte audit did by hand, as the tool's own check.
  */
 import { createHash } from 'node:crypto';
-import { createReadStream, promises as fs, readFileSync, readdirSync, statSync } from 'node:fs';
+import { createReadStream, promises as fs, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import os from 'node:os';
@@ -310,6 +310,51 @@ async function selftest() {
   memFold(memFolded, { hwmKb: 100, rssKb: 40, swapKb: 3, reason: null });
   memFold(memFolded, { hwmKb: null, rssKb: null, swapKb: null, reason: 'absent' });
 
+  /* ── THE SOURCE MUST NOT BE THE DESTINATION ────────────────────────────────────
+     The plant builds the rig's own shape: the source root is a symlink into the NAS. The control is
+     the planted file's KIND after the run. A run that proceeded would have found a byte-identical
+     twin of every file — itself — and replaced it with a symlink to itself, reporting PASS. */
+  const sameRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'corpus-tier-sametree-'));
+  const sameNas = path.join(sameRoot, 'nas'),
+    sameLink = path.join(sameRoot, 'src');
+  await fs.mkdir(path.join(sameNas, night), { recursive: true });
+  await fs.writeFile(path.join(sameNas, night, 'control.dat'), body);
+  await fs.symlink(sameNas, sameLink);
+  const sameRun = spawnSync(process.execPath, [fileURLToPath(import.meta.url), '--src', sameLink, '--nas', sameNas, '--keep', '0', '--nas-min-files', '1', '--skip-mount-check', '--json'], {
+    encoding: 'utf8'
+  });
+  let sameVerdict = null;
+  try {
+    sameVerdict = JSON.parse(sameRun.stdout.slice(sameRun.stdout.indexOf('{')));
+  } catch {
+    /* judged below */
+  }
+  const sameFileSurvived = await fs.lstat(path.join(sameNas, night, 'control.dat')).then(
+    (st) => st.isFile() && st.size === body.length,
+    () => false
+  );
+  await fs.rm(sameRoot, { recursive: true, force: true });
+
+  /* ── AN EMPTY SOURCE IS NOT A ZERO ─────────────────────────────────────────────
+     The NAS side holds a night, so the mount tests pass and the source alone is bare. Every count a
+     run prints there reads 0, which stands for an unreachable corpus as readily as an empty one. */
+  const emptyRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'corpus-tier-emptysrc-'));
+  const emptySrc = path.join(emptyRoot, 'src'),
+    emptyNas = path.join(emptyRoot, 'nas');
+  await fs.mkdir(emptySrc, { recursive: true });
+  await fs.mkdir(path.join(emptyNas, night), { recursive: true });
+  await fs.writeFile(path.join(emptyNas, night, 'control.dat'), body);
+  const emptyRun = spawnSync(process.execPath, [fileURLToPath(import.meta.url), '--src', emptySrc, '--nas', emptyNas, '--keep', '0', '--nas-min-files', '1', '--skip-mount-check', '--json'], {
+    encoding: 'utf8'
+  });
+  let emptyVerdict = null;
+  try {
+    emptyVerdict = JSON.parse(emptyRun.stdout.slice(emptyRun.stdout.indexOf('{')));
+  } catch {
+    /* judged below */
+  }
+  await fs.rm(emptyRoot, { recursive: true, force: true });
+
   const res = child && child.result ? child.result : {};
   const checks = {
     /* ANTI-VACUITY: an empty stdout AND stderr would make both checks below pass by examining
@@ -323,6 +368,14 @@ async function selftest() {
     corruptNasTwinNotOverwritten: nasPlant,
     zeroByteMarkerKeptLocal: markerLocal && res.zeroByte === 1,
     childExit3: r.status === 3,
+    /* ── ROW 2026-11-18-the-corpus-root-is-one-nfs-symlink-so-nothing-stays-local ──────────
+       ANTI-VACUITY first: an empty stdout AND stderr would pass each refusal leg by examining
+       nothing — the examined-nothing shape, in a plant. */
+    sameTreeChildActuallyRan: !!(String(sameRun.stdout) + String(sameRun.stderr)).trim(),
+    aSourceResolvingIntoTheNasRefuses: !!(sameVerdict && sameVerdict.status === 'NOT_RUN' && /source IS the destination/.test(sameVerdict.reason || '') && sameRun.status === 2),
+    theRefusedRunLeftEveryFileRegular: sameFileSurvived,
+    emptySourceChildActuallyRan: !!(String(emptyRun.stdout) + String(emptyRun.stderr)).trim(),
+    anEmptySourceRefusesRatherThanPassOverZero: !!(emptyVerdict && emptyVerdict.status === 'NOT_RUN' && /offers no entry/.test(emptyVerdict.reason || '') && emptyRun.status === 2),
     /* ANTI-VACUITY: a 96 MiB allocation that did not happen would make the growth leg pass by
        examining nothing. */
     ballastWasActuallyAllocated: ballastBytes === BALLAST_MIB * 1024 * 1024,
@@ -425,6 +478,36 @@ function sha256(file) {
   });
 }
 
+/** Why this run cannot see a corpus to tier, or `null` when it can. The order is forced: the two
+ *  overlap tests below cannot run until both roots resolve. */
+function whyUnseeable() {
+  let realSrc, realNas;
+  try {
+    realSrc = realpathSync(SRC);
+  } catch (e) {
+    return `${SRC} does not resolve to a directory (${e.code ?? 'unresolved'})`;
+  }
+  try {
+    realNas = realpathSync(NAS);
+  } catch (e) {
+    return `${NAS} does not resolve to a directory (${e.code ?? 'unresolved'})`;
+  }
+  if (realSrc === realNas) return `--src and --nas both resolve to ${realSrc}, so the source IS the destination`;
+  if (realSrc.startsWith(realNas + path.sep)) return `--src resolves to ${realSrc}, inside --nas at ${realNas}, so the source IS the destination`;
+  if (realNas.startsWith(realSrc + path.sep)) return `--nas resolves to ${realNas}, inside --src at ${realSrc}, so the destination IS the source`;
+  let seen = 0;
+  try {
+    for (const _ of entriesOf(SRC)) {
+      seen++;
+      break;
+    }
+  } catch (e) {
+    return `${SRC} cannot be walked (${e.code ?? e.message})`;
+  }
+  if (seen === 0) return `${SRC} offers no entry, so this run cannot distinguish an empty corpus from an unreachable one`;
+  return null;
+}
+
 function nasMounted() {
   try {
     execFileSync('findmnt', ['-n', '-t', 'nfs,nfs4', NAS], { stdio: 'pipe' });
@@ -449,6 +532,23 @@ async function main() {
   if (nasCount < NAS_MIN_FILES) {
     console.error(`REFUSING: ${NAS} holds ${nasCount} files (< ${NAS_MIN_FILES}) — looks unmounted or empty; nothing changed`);
     if (JSON_OUT) emitVerdict({ status: 'NOT_RUN', eligible: 0, checked: 0, reason: `${NAS} holds ${nasCount} files (< ${NAS_MIN_FILES}) — looks unmounted or empty; nothing examined` });
+    process.exit(2);
+  }
+
+  /* §refuse — THE SOURCE MUST NOT BE THE DESTINATION, AND AN EMPTY SOURCE IS NOT A ZERO.
+     `path.resolve` is LEXICAL, so `--src` and `--nas` stay textually different while naming ONE
+     tree. That is the rig's state: `/srv/data/tepna-corpus` became a symlink into
+     `/mnt/nas/tepna-corpus` on 2026-10-21, which row
+     2026-11-18-the-corpus-root-is-one-nfs-symlink-so-nothing-stays-local measured. Under it every
+     test in the tier loop reads one inode twice and agrees with itself: `fs.access(remote)` answers
+     `twin exists`, the sizes match, the sha256 matches, and the loop then replaces each real file
+     with a symlink to ITSELF. Nothing reaches `refused` or `syncFailed`, so the verdict reads PASS
+     over the loss. An absent or empty source is the same blindness: the walk offers nothing, every
+     count reads 0, and `PASS` over `checked: 0` claims a corpus this run never saw (§∅, §🧾). */
+  const unseeable = whyUnseeable();
+  if (unseeable) {
+    console.error(`REFUSING: ${unseeable} — nothing changed`);
+    if (JSON_OUT) emitVerdict({ status: 'NOT_RUN', eligible: 0, checked: 0, reason: `${unseeable} — nothing examined, nothing changed` });
     process.exit(2);
   }
 
