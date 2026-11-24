@@ -43191,6 +43191,80 @@
       T.eq('…and with no usable counter the rate is the NOMINAL 130', none.fs, 130);
       T.eq('…labelled ASSUMED, so a consumer can tell it from a measurement', none.fsSource, 'assumed');
       T.ok('…which it could NOT before: the two rates are the same number', none.fs === 130 && ns.fs !== 130);
+
+      /* ── ∅ · AND THE LABEL HAS TO REACH A READER ───────────────────────────────────────────────
+         Both producers wrote `fsSource` and analyze's reshape dropped it, so no export and no cell
+         ever carried it: ABSENCE-SURVEY ca2996627891 (text path) and c2a261aa410f (canonical
+         frame). The legs above read the parser's own rec, which is the PRODUCER side; these read
+         the PUBLISHED clock cell, so a later reshape that drops the field reds here too.
+         `analyze` refuses under 12 R-peaks, so these fixtures carry a real QRS train: 2600 samples
+         at 130 Hz is 20 s and 20 beats, which clears that floor with a small fixture. The table is
+         rich-gated, so each call passes `{ rich: true }` — the surface the orchestrate emitter
+         reaches, and the one a reader sees before the first result card. */
+      var QRS_PER = 130,
+        QRS_N = 2600;
+      function qrsAt(i) {
+        var ph = i % QRS_PER;
+        if (ph === 0) return 900;
+        if (ph === 1) return -320;
+        if (ph === 2) return 140;
+        return Math.round(12 * Math.sin((2 * Math.PI * i) / 65));
+      }
+      function mkQ(nsAt, msAt) {
+        var rows = ['Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]'];
+        for (var i = 0; i < QRS_N; i++) {
+          rows.push(new Date(B0 + Math.round((i * 1000) / 130)).toISOString() + ';' + nsAt(i) + ';' + msAt(i) + ';' + qrsAt(i));
+        }
+        return rows.join('\n');
+      }
+      function timingCell(ex) {
+        var ch = ex && ex.signalQuality && ex.signalQuality.channels ? ex.signalQuality.channels.ecg : null;
+        return ch ? ch.timing : null;
+      }
+      var cellNone = timingCell(
+        D.compute(
+          {
+            text: mkQ(
+              function () {
+                return 0;
+              },
+              function () {
+                return 0;
+              }
+            )
+          },
+          { rich: true }
+        )
+      );
+      T.ok('ANTI-VACUITY · the no-counter file reaches the published quality table', !!cellNone, JSON.stringify(cellNone));
+      T.eq('the published clock cell says the rate was ASSUMED', cellNone && cellNone.fsSource, 'assumed');
+      T.eq('…beside the nominal 130 the cell is publishing', cellNone && cellNone.fs, 130);
+      var cellNs2 = timingCell(
+        D.compute(
+          {
+            text: mkQ(
+              function (i) {
+                return i * 7692308;
+              },
+              function (i) {
+                return Math.round((i * 1000) / 130);
+              }
+            )
+          },
+          { rich: true }
+        )
+      );
+      T.eq('CONTROL · a measured file publishes its MEASUREMENT, never the nominal label', cellNs2 && cellNs2.fsSource, 'ns-counter');
+
+      /* THE CANONICAL-FRAME TWIN. `signal-frame.js` allows `fs: null` on a samples frame, and
+         `compute`'s frame branch rated such a frame at 130 Hz with nothing beside it. */
+      var frameS = new Float32Array(QRS_N);
+      for (var fi = 0; fi < QRS_N; fi++) frameS[fi] = qrsAt(fi);
+      var cellFrame = timingCell(D.compute({ samples: frameS, t0Ms: B0 }, { rich: true }));
+      T.ok('ANTI-VACUITY · an fs-less canonical frame reaches the table', !!cellFrame, JSON.stringify(cellFrame));
+      T.eq('a frame that carried NO rate is labelled assumed', cellFrame && cellFrame.fsSource, 'assumed');
+      var cellFrame2 = timingCell(D.compute({ samples: frameS, fs: 130, t0Ms: B0 }, { rich: true }));
+      T.eq('CONTROL · a frame that DID carry one is labelled caller', cellFrame2 && cellFrame2.fsSource, 'caller');
     });
 
     group('ECGDex fs — a DERIVED host column is not a second clock (Clock §7)', 'ecgdex-dsp · clock-contract', function (T) {
