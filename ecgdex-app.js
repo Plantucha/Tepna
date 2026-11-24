@@ -1117,7 +1117,10 @@ self.onmessage = async (e) => {
       $('sleepStats').innerHTML = '';
       $('hypnoCard').style.display = 'block';
     } else if (r.longRec && r.stages.length) {
-      $('hypnoBody').innerHTML = UI.hypnogram(r.stages);
+      // The epoch width the staging code used, named here rather than derived from the list: a
+      // refused window leaves a hole, and the renderer clamps each band to one epoch (§∅).
+      // The same 300 s grid is stated in `hypnoExport` below.
+      $('hypnoBody').innerHTML = UI.hypnogram(r.stages, 300 / 60);
       _hypnoControls($('hypnoBody'), r.t0Ms != null);
       const sm = r.stageMin;
       $('sleepStats').innerHTML = ['Deep', 'Light', 'REM', 'Wake']

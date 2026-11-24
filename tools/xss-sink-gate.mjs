@@ -230,6 +230,12 @@ export const ALLOW = [
       'the RR tachogram chart, read when this diff gave its y axis a unit. lineChart (ecgdex-render.js) writes text in exactly three places, opts.yfmt(ymx), opts.yfmt(ymn) and opts.xfmt(x), and this call site passes two arrow functions whose whole output is Number.toFixed(0) plus a literal unit string. Everything else the builder emits is a number through toFixed or a C.* colour constant. `tach` holds {x, y} numbers taken from r.tt and r.nn, so no filename and no other input string reaches the call.'
   },
   {
+    file: 'ecgdex-app.js',
+    match: "$('hypnoBody').innerHTML = UI.hypnogram",
+    reason:
+      'the hypnogram card, read when this diff gave the builder its epoch width. hypnogram (ecgdex-render.js) writes text in exactly two places, the four literal level labels and the x-axis hour ticks through Number.toFixed(1). Every other interpolated value is a number through toFixed(1), or a C.* colour constant looked up BY the stage name through colOf, so the stage string itself never reaches the markup. `r.stages` holds {tMin, stage} pairs from stageSleep, so no filename and no other input string reaches the call.'
+  },
+  {
     file: 'eegdex-render.js',
     match: 'el.innerHTML = html',
     reason:

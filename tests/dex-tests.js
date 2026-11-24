@@ -65461,6 +65461,93 @@
       } else T.skip('ecgdex-app.js source unavailable');
     });
 
+    /* ── THE HYPNOGRAM DRAWS ONE EPOCH PER EPOCH ──────────────────────────────────────────────────
+       §∅. `epochEngine` (ecgdex-dsp.js) refuses a window — a clock seam, a blanking run, too few
+       beats — and `continue`s without pushing it, so the epoch list that reaches `stageSleep` and
+       then the renderer carries HOLES. The renderer drew each band to the NEXT epoch's own minute,
+       so one measured 5 min epoch painted its stage across every refused epoch behind it, and the
+       stepped line walked over the gap as though a stage sat there. Both are a measurement
+       manufactured out of an absence. Each leg below fails when the old `sx(stages[i + 1].tMin)`
+       band comes back. */
+    group('§∅ the hypnogram paints one epoch per epoch and lifts the pen across a refused window', 'ecgdex-render · hypnogram · stages · §∅', function (T) {
+      var UI = env.ECGUI;
+      if (!(UI && typeof UI.hypnogram === 'function')) {
+        T.skip('env.ECGUI.hypnogram available', 'ecgdex-render.js is co-loaded in this lane, so an absence here means the module stopped publishing the builder');
+        return;
+      }
+      var widths = function (svg) {
+        var out = [],
+          re = /<rect [^>]*width="([0-9.]+)"/g,
+          m = re.exec(svg);
+        while (m) {
+          out.push(m[1]);
+          m = re.exec(svg);
+        }
+        return out;
+      };
+      var moveTos = function (svg) {
+        var d = /<path d="([^"]*)"/.exec(svg);
+        return d ? (d[1].match(/M/g) || []).length : -1;
+      };
+
+      /* 1 · A HOLE IN THE MIDDLE. Three stated epochs on a 5 min grid at 0, 5 and 20 minutes: the
+         windows at 10 and 15 were refused. The span is 25 min over 612 px, so one epoch is exactly
+         122.4 px and every band is that wide. The old code drew the 5 min epoch 367.2 px wide. */
+      var holed = [
+        { tMin: 0, stage: 'Light' },
+        { tMin: 5, stage: 'Deep' },
+        { tMin: 20, stage: 'REM' }
+      ];
+      var svgHoled = UI.hypnogram(holed, 5);
+      T.eq('each band is one epoch wide, and the hole stays empty', widths(svgHoled).join(','), '122.4,122.4,122.4');
+      T.eq('the pen lifts across the refused windows, so the line spans two strokes', moveTos(svgHoled), 2);
+
+      /* 2 · THE LAST BAND STOPS AT ONE EPOCH PAST THE LAST STATED MINUTE, which is the right edge of
+         the plot, because the axis maximum is that same minute. */
+      T.ok('the last band reaches the right edge and no further', /x="543.6" [^>]*width="122.4"/.test(svgHoled));
+
+      /* 3 · THE CALLER'S WIDTH GOVERNS. With every pair holey the derived step reads 20 min, so the
+         two calls MUST differ. On the old renderer the second argument was ignored and they agreed. */
+      var allHoley = [
+        { tMin: 0, stage: 'Light' },
+        { tMin: 20, stage: 'REM' }
+      ];
+      T.ok('an explicit epoch width is honoured, not derived from a holey list', UI.hypnogram(allHoley, 5) !== UI.hypnogram(allHoley));
+      T.ok('and the builder declares the second parameter', UI.hypnogram.length >= 2);
+
+      /* 4 · AN UNSTAGED EPOCH DRAWS NOTHING, and it draws no `NaN` rect either. */
+      var withNull = [
+        { tMin: 0, stage: 'Light' },
+        { tMin: 5, stage: null },
+        { tMin: 10, stage: 'Deep' }
+      ];
+      var svgNull = UI.hypnogram(withNull, 5);
+      T.eq('an unstaged epoch contributes no band', widths(svgNull).length, 2);
+      T.ok('…and no band carries NaN or undefined', !/NaN|undefined/.test(svgNull));
+      T.eq('…and the pen lifts around it', moveTos(svgNull), 2);
+
+      /* 5 · CONTROL · A CONTIGUOUS LIST IS UNCHANGED. Every epoch abuts the next, so all bands are
+         equal and the line is one stroke. The clamp must cost a complete recording nothing. */
+      var full = [
+        { tMin: 0, stage: 'Deep' },
+        { tMin: 5, stage: 'Light' },
+        { tMin: 10, stage: 'REM' }
+      ];
+      var svgFull = UI.hypnogram(full, 5);
+      var wFull = widths(svgFull);
+      T.eq('CONTROL · a contiguous list draws one band per epoch', wFull.length, 3);
+      T.eq('CONTROL · and every band is the same width', wFull.join(',').replace(/^([^,]+),\1,\1$/, 'equal'), 'equal');
+      T.eq('CONTROL · and the line is one unbroken stroke', moveTos(svgFull), 1);
+      T.eq('CONTROL · an empty list still draws nothing', UI.hypnogram([], 5), '');
+
+      /* 6 · THE CARD PASSES THE REAL WIDTH rather than letting the renderer derive one. The staging
+         grid is 300 s, and the same figure is stated in the hypnogram export beside it. */
+      var aSrc2 = (env.sources && env.sources['ecgdex-app.js']) || '';
+      if (aSrc2) {
+        T.ok('the card names the 300 s staging grid at the call', /UI\.hypnogram\(r\.stages, 300 \/ 60\)/.test(aSrc2));
+      } else T.skip('ecgdex-app.js source unavailable');
+    });
+
     /* done-when 4, the four product-node legs (residue 2026-10-17-sample-parsers-called-without-their-sidecar).
        Each leg fails when the old 1-arg read comes back. PpgDex's ACC parser took no sidecar at all, so
        a held ACC stretch reached the motion grid as stillness. ECGDex compute()'s text path dropped the

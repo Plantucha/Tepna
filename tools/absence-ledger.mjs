@@ -1275,6 +1275,36 @@ export const SEEDS = [
     at: 'oxydex-app.js:284',
     state: 'fixed',
     note: 'BOOKKEEPING. Already fixed on main and hand-read 2026-11-24 by Heron against origin/main ac70318c9. The T-INDEX row no longer writes _td.pct or 0; it writes csvNum(_td.pct) and routes the seconds through a measured flag. tests/dex-tests.js already carries the leg under SITE 1, the exportCSV T-INDEX row. Read by content, never by a snippet match.'
+  },
+  {
+    at: 'ecgdex-render.js:507',
+    state: 'fixed',
+    note: 'The hypnogram now paints one epoch per epoch. epochEngine refuses a window for a clock seam or a blanking run or too few beats, then continues without pushing it, so the epoch list carries holes. The renderer drew each band to the minute of the NEXT epoch, so one measured 5 min epoch painted its stage across every refused epoch behind it, and the stepped line walked over the gap. Each band now ends one epoch after it starts, the pen lifts onto a non-abutting epoch, and ecgdex-app.js names the 300 s staging grid at the call. hypno-export.js already leaves a refused window null, so only the render path manufactured the stage. Plant group the hypnogram paints one epoch per epoch. Five of thirteen legs red on origin/main b459f6896 (measured 2026-11-24, Heron).'
+  },
+  {
+    at: 'ecgdex-dsp.js:48',
+    state: 'fixed',
+    note: 'BOOKKEEPING. Already fixed on main and hand-read 2026-11-24 by Heron against origin/main b459f6896. rmssd returns null for an empty successive-difference population, never 0. The consumer carries it: the ecgdex-app.js HRV table prints an em dash with the reason No successive pair was measured. Read by content, never by a snippet match.'
+  },
+  {
+    at: 'ecgdex-dsp.js:89',
+    state: 'fixed',
+    note: 'BOOKKEEPING. Already fixed on main and hand-read 2026-11-24 by Heron against origin/main b459f6896. pnn50 returns null when the denominator population is empty, never 0. The ecgdex-app.js HRV table prints an em dash with the reason No successive pair entered the population. Read by content, never by a snippet match.'
+  },
+  {
+    at: 'ecgdex-dsp.js:2105',
+    state: 'fixed',
+    note: 'BOOKKEEPING. Already fixed on main and hand-read 2026-11-24 by Heron against origin/main b459f6896. The PLV mean returns null when no 60 s window fitted the grid, and a plvReason string names the absence beside it. Both ecgdex-app.js consumers read crcPLV == null as neutral rather than as a low score. Read by content, never by a snippet match.'
+  },
+  {
+    at: 'ecgdex-dsp.js:2538',
+    state: 'fixed',
+    note: 'BOOKKEEPING. Already fixed on main and hand-read 2026-11-24 by Heron against origin/main b459f6896. The per-instant SQI returns null when no beat sits inside the window and the nearest-beat SQI is itself absent. The in-band 0.5 sentinel survives only inside the section-absence comment that documents it. Read by content, never by a snippet match.'
+  },
+  {
+    at: 'ecgdex-dsp.js:3325',
+    state: 'fixed',
+    note: 'BOOKKEEPING. Already fixed on main and hand-read 2026-11-24 by Heron against origin/main b459f6896. The Malik correction of the device series keeps the measured value and flags it, rather than writing a hardcoded 1000 ms where the plus or minus 5 beat neighbourhood held nothing. validateRR also refuses an all-absent device series instead of publishing a panel of zeros. Read by content, never by a snippet match.'
   }
 ];
 
