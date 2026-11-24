@@ -907,6 +907,13 @@ function ecgHrMap(text, onPhase, runsText) {
     var blanked = function (a0, a1) {
       return spans ? ECGDSP.intersectsRun(spans, a0, a1 - a0) : false;
     };
+    /* TIME, not rate — see pat-feasibility-worker. `rec.tMsAt` rides the host axis where one
+       exists and returns device time where none does; `t0 + k/fs` is the device clock
+       unconditionally. ONE body, because the per-second HR keys and the per-second weight keys below
+       have to ride the SAME clock — two copies of this rule is how they came apart. */
+    var beatTMs = function (k) {
+      return typeof rec.tMsAt === 'function' ? rec.tMsAt(peaks[k]) : t0 + (peaks[k] / fs) * 1000;
+    };
     var dropped = 0;
     for (i = 1; i < peaks.length; i++) {
       if (blanked(peaks[i - 1], peaks[i] + 1)) {
@@ -917,9 +924,7 @@ function ecgHrMap(text, onPhase, runsText) {
       if (!(rr > 250 && rr < 2200)) continue;
       var hr = 60000 / rr;
       if (!(hr >= HR_MIN && hr <= HR_MAX)) continue;
-      // TIME, not rate — see pat-feasibility-worker. `rec.tMsAt` rides the host axis where one exists
-      // and returns device time where none does; `t0 + i/fs` is the device clock unconditionally.
-      pairs.push([secFloor(typeof rec.tMsAt === 'function' ? rec.tMsAt(peaks[i]) : t0 + (peaks[i] / fs) * 1000), hr]);
+      pairs.push([secFloor(beatTMs(i)), hr]);
     }
     if (pairs.length < 30) {
       self.__ecgErr = 'HR beats <30';
@@ -945,7 +950,14 @@ function ecgHrMap(text, onPhase, runsText) {
       return null;
     }
     // fused-hat: per-second artifact confidence for THIS corner (density × SQI, AF-safe) — TCH-FUSED-ROBUST-HAT
-    var conf = ECGDSP.hrConfidence ? ECGDSP.hrConfidence(rec.int16, bp, peaks, fs, t0) : null;
+    /* ∅ THE JOIN READ TWO CLOCKS. `beatConfidence` keyed its seconds on `peaks[k] / fs` alone,
+       which is the device clock, while the HR map above keys on `beatTMs`. On a night the host axis
+       corrects, the two key sets drift apart and the join at the fused hat reads no weight for a
+       second that carries HR. The per-beat axis below is the SAME body the HR keys ride, so the two
+       key sets agree by construction rather than by coincidence — CLAUDE.md §🔒.7. */
+    var beatMs = new Float64Array(peaks.length);
+    for (var _bk = 0; _bk < peaks.length; _bk++) beatMs[_bk] = beatTMs(_bk);
+    var conf = ECGDSP.hrConfidence ? ECGDSP.hrConfidence(rec.int16, bp, peaks, fs, t0, beatMs) : null;
     return { hr: out, conf: conf, blanking: { spans: spans ? spans.length : null, intervalsDropped: dropped }, rec: rec };
   } catch (e) {
     self.__ecgErr = (e && e.message) || '' + e;
