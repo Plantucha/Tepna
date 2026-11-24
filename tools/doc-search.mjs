@@ -352,9 +352,17 @@ export function wantSuperseded(argv) {
 export function withTimeout(promise, ms, label) {
   let t = null;
   const bound = new Promise((_, reject) => {
-    t = setTimeout(() => reject(new Error(`${label} did not answer within ${ms} ms`)), ms);
+    t = setTimeout(() => reject(Object.assign(new Error(`${label} did not answer within ${ms} ms`), { timedOut: true })), ms);
   });
   return Promise.race([promise, bound]).finally(() => clearTimeout(t));
+}
+/* MAY THE FALLBACK EMBED THE FILES THAT WAIT FOR THE INDEX TICK? Not after a timeout. A hybrid lane
+   that is slow means a busy rig, and a bulk embed makes it busier: each refusal started a rebuild of
+   the index on the CPU that the next query then waited for. Measured 2026-11-12 (four at once held an
+   embed past 600 s) and 2026-11-24 (three at once, 59 minutes for one query, rig load 47). A lane that
+   is DOWN costs no CPU, so there the fallback keeps the index current as before. */
+export function fallbackEmbeds(err) {
+  return err?.timedOut !== true;
 }
 /* The lane line, as a pure text so a leg can read it: the banner is the one place a reader learns
    WHICH lane answered, and before this unit it stated `embedder unreachable` over every embed
@@ -362,6 +370,18 @@ export function withTimeout(promise, ms, label) {
 export function laneBanner(semantic, reason, query) {
   const lane = semantic ? 'semantic' : `TOKEN-FALLBACK (${reason || 'embedder unreachable'})`;
   return `\n▸ ${lane} · "${query}"\n`;
+}
+/* The files the fallback did not embed, named rather than dropped: a file that nobody searched must
+   not read as a file with no match. The best three by token score, and only a score above zero. */
+export function waitingLines(waiting, query) {
+  if (!waiting.length) return [];
+  const files = new Set(waiting.map((w) => w.file)).size;
+  const best = rank(null, waiting, query, 3).filter((h) => h.score > 0);
+  return [
+    '',
+    `  ⚠ ${files} changed file(s) wait for the index tick and were searched on tokens alone (the hybrid lane timed out, so this query embeds nothing in bulk)`,
+    ...best.map((h) => `  tok ${h.score.toFixed(3)}  ${h.file}`)
+  ];
 }
 /* The warning both lanes print after their hits — one text, so the two lanes cannot drift apart in
    what they tell a reader a result IS. */
@@ -983,7 +1003,7 @@ export function saveCache(cache, path = CACHE, openFn = openSync, writeFn = writ
   }
 }
 
-async function buildIndex(quiet, scope = 'all') {
+async function buildIndex(quiet, scope = 'all', embedPending = true) {
   const repo = scope === 'ext' ? [] : listDocs(ROOT).map((f) => ({ key: f, abs: join(ROOT, f) }));
   const ext = scope === 'repo' ? [] : listExternalDocs();
   const files = repo.concat(ext);
@@ -1010,7 +1030,12 @@ async function buildIndex(quiet, scope = 'all') {
   let embedded = 0;
   let live = true;
   let embedFailure = null;
+  const waiting = [];
   for (const p of pending) {
+    if (!embedPending) {
+      p.chunks.forEach((t) => waiting.push({ file: p.file, text: t, vec: null }));
+      continue;
+    }
     try {
       const vecs = await embedAll(p.chunks);
       cache.entries[p.file] = { h: p.h, vecs, c: CHUNKER };
@@ -1033,7 +1058,7 @@ async function buildIndex(quiet, scope = 'all') {
     process.stderr.write(
       `  ${files.length} docs (${repo.length} repo · ${ext.length} external) · ${entries.length} chunks · ${embedded} newly embedded${live ? '' : ` · EMBEDDER DOWN (${embedFailure}), token fallback`}\n`
     );
-  return { entries, live, embedFailure };
+  return { entries, live, embedFailure, waiting };
 }
 
 /* 🔴 IDENTITY, NOT FILENAME. This was `process.argv[1].endsWith('doc-search.mjs')`, and a peer
@@ -1565,6 +1590,26 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
       msg = e.message;
     }
     ok('withTimeout rejects a silent answer and names what did not answer', msg === 'hybrid index did not answer within 5 ms');
+    let late = null;
+    await withTimeout(new Promise(() => {}), 5, 'x').catch((e) => {
+      late = e;
+    });
+    ok('a timed-out hybrid lane embeds nothing in bulk', late !== null && fallbackEmbeds(late) === false);
+    ok('CONTROL: a lane that is down still lets the fallback embed', fallbackEmbeds(new TypeError('fetch failed')) === true);
+    ok('…and an index that is not loaded does too', fallbackEmbeds(new Error('xerj HTTP 404 — is the index loaded?')) === true);
+    const w = [
+      { file: 'a.md', text: 'allan deviation curve', vec: null },
+      { file: 'a.md', text: 'second chunk', vec: null },
+      { file: 'b.md', text: 'nothing shared', vec: null }
+    ];
+    const lines = waitingLines(w, 'allan deviation');
+    ok(
+      'the waiting files are counted once each',
+      lines.some((l) => l.includes('2 changed file(s)')),
+      lines.join('|')
+    );
+    ok('…and only a file that shares a word is listed', lines.filter((l) => l.startsWith('  tok')).length === 1 && lines.some((l) => l.includes('a.md')));
+    ok('…and nothing prints when no file waits', waitingLines([], 'q').length === 0);
   })();
   await (async () => {
     /* THE EMBED BOUND. The degrade lane fires on a THROW, and before this unit nothing bounded the
@@ -1693,6 +1738,7 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
       process.exit(0);
     }
   }
+  let embedPending = true;
   if (lane !== 'semantic') {
     const q = stripFlags(process.argv.slice(2)).join(' ').trim();
     if (!q) {
@@ -1718,6 +1764,7 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
         console.error('  The semantic lane is unaffected: re-run without --hybrid.');
         process.exit(2);
       }
+      embedPending = fallbackEmbeds(e);
       console.error(`▸ hybrid lane did not answer (${e.message}) — falling back to the semantic lane\n`);
     }
   }
@@ -1740,7 +1787,7 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
     console.error('  one answer this tool must never fake. Fix the corpus rather than trusting the silence.');
     process.exit(2);
   }
-  const { entries, live, embedFailure } = await buildIndex(process.argv.includes('--quiet'), scope);
+  const { entries, live, embedFailure, waiting } = await buildIndex(process.argv.includes('--quiet'), scope, embedPending);
   let qv = null;
   /* The build's own failure carries forward: when it could not embed, this lane never asks again, so
      without this the banner would name no reason at all for the lane the reader landed in. */
@@ -1756,7 +1803,9 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   /* THE SAME CAP IN THE FALLBACK LANE. A rule that binds only the lane that usually answers is a
      rule a reader cannot state, and this lane is the one a reader lands in when the index is down. */
   const { capSourceShare, capMax, deferSuperseded } = await import('./xerj-query.mjs');
-  const ranked = rank(qv, entries, query, 8);
+  /* A waiting file has no vector, and a token score does not compare with a cosine. So with a query
+     vector the waiting files get a block of their own; with none, every file is scored on tokens. */
+  const ranked = rank(qv, qv ? entries : entries.concat(waiting), query, 8);
   /* The de-rank runs on the whole ranked list and before the cap, the same order the hybrid lane
      uses, so the cap still has something to backfill from and never spends a board slot on a post
      the board replaced. */
@@ -1769,6 +1818,7 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
     console.log(`  ⚠ ${deferred.supersededHeld} replaced source(s) held below their successors (${deferred.supersededBy.join(', ')}) — \`--keep-superseded\` ranks them where they scored\n`);
   if (deferred.unreadable?.length) console.log(`  ⚠ ${deferred.unreadable.length} board post(s) could not be read for a supersession mark, so none was applied to them\n`);
   for (const h of hits) console.log(brief ? `  ${h.score.toFixed(3)}  ${h.file}` : `  ${h.score.toFixed(3)}  ${h.file}\n        ${h.text.slice(0, 110).trim()}…`);
+  if (qv) for (const line of waitingLines(waiting, query)) console.log(line);
   if (readMode) {
     /* --read: the matching CHUNK of the top three hits, inline, so the reader reads them instead of
        the path list. Measured 2026-09-26: twice in one day the top hit was never opened. Capped per

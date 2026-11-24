@@ -123,3 +123,8 @@ restart and returned the right passages — the **vectors** persisted, not merel
 took one query past the 10 s hybrid budget. Each refusal then started a semantic fallback on the same
 CPU. Four of them together held the next embed past 600 s, with the card idle at 19 GB free. The same
 query answered in 1 s with the model on the card at 657 MiB.
+
+**Measured 2026-11-24, the same loop, and what stops it now.** Three fallback queries rebuilt the index
+on the CPU at rig load 47, and one took 59 minutes. After a timeout, `doc-search` now embeds only the
+query. It scores the changed files on tokens and lists them apart. A stalled hybrid lane then answered
+in 24 s. A lane that is down, and `--semantic`, still refresh the index.
