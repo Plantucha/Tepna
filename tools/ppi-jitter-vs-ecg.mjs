@@ -1983,8 +1983,8 @@ function poolingReport(eps) {
 }
 function poolingLines(R) {
   const cell = (x, d = 3) => (x == null || !Number.isFinite(x) ? '—' : x.toFixed(d));
-  const out = [`  Table 1 (§pooling)        three gates, one label (|ΔrMSSD| > ${CAT_BIAS_PCT} %), POOLED and WITHIN nights`];
-  out.push('                            gate                pooled AUC   pooled p      night AUC (median, IQR)        above 0.5   clustered p');
+  const out = [`  Table 1 (§pooling)        three gates, one label (|ΔrMSSD| > ${CAT_BIAS_PCT} %), POOLED and WITHIN ${UNIT_WORD}`];
+  out.push('                            gate                pooled AUC   pooled p      clustered AUC (median, IQR)    above 0.5   clustered p');
   for (const g of POOL_GATES) {
     const G = R.gates[g.key];
     const iqr = G.A.length ? `${cell(quantile(G.A, 0.25))}–${cell(quantile(G.A, 0.75))}` : '—';

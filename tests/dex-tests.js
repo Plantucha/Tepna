@@ -18713,7 +18713,7 @@
         'resp-cardiac-suppression-e8.mjs': ['the --max-nights cap kept'],
         /* This cap ranks files by byte size, and its own line says so. */
         'ppg-fusion-e3.mjs': ['--max-nights cap, which ranks FILES'],
-        /* Night KEYS off the filenames, two cited external figures, and three statements about what
+        /* Night KEYS off the filenames, three cited external figures, and three statements about what
            an epoch is. None of these counts a unit the read produced. */
         'ppi-jitter-vs-ecg.mjs': [
           'the --max-nights cap kept',
@@ -18725,7 +18725,8 @@
           'the sleep test could not decide',
           'distinct night key(s)',
           'epochs within a night are not independent',
-          'per-night records'
+          'per-night records',
+          "the paper's own cells"
         ]
       };
       /* THE CLOSED REMAINDER: `ppi-jitter-vs-ecg.mjs` lines that still write `night` where the unit
@@ -18760,7 +18761,7 @@
         UNIT_TOOLS.map(function (t) {
           return t.replace('.mjs', '') + '=' + nightClaims(TT['tools/' + t]).length;
         }).join(' '),
-        'ppg-foot-consensus-e1=1 resp-cardiac-suppression-e8=1 ppg-fusion-e3=1 ppi-jitter-vs-ecg=21'
+        'ppg-foot-consensus-e1=1 resp-cardiac-suppression-e8=1 ppg-fusion-e3=1 ppi-jitter-vs-ecg=22'
       );
       T.eq(
         'no tool prints a night it cannot see — every printed night matches a declared, named source',
