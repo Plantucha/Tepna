@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="833b0f017611" data-compute-hash="f7d8d20808ba"><head>
+<html lang="en" data-manifest-hash="1c436f5a774d" data-compute-hash="f5d2dc1f8434"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-1XduIrB7hx/x+Rcr5iaDyCYX6xx+hpvHrK1aShDcW8g=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ta4SSWzScIvmhcu07i5iGh2wz4M+PC4p1l5Th3AVSME=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gsfxF3U9fQYY6VBcjkxdisltp5OpMvk7xGo0quyFZm8=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lcwniptgITPs+FLPgVCGUNs9+szpkudWXzvniEIjTUA=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-1XduIrB7hx/x+Rcr5iaDyCYX6xx+hpvHrK1aShDcW8g=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-JumuG+yAWVBa9X3Q3ZuOvmOJbRvQursNce7UaYxa9Ug=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-Lu1blhbeiB1IDSSHWf6zTzpl8QxzoSRHNhHPFG9zH8k=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gsfxF3U9fQYY6VBcjkxdisltp5OpMvk7xGo0quyFZm8=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jAFEzqfRpN9E3tA3sxW8Gx7N93zDDNouP9lxoJE0REk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lcwniptgITPs+FLPgVCGUNs9+szpkudWXzvniEIjTUA=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-ybbsxL0zJN9l66XBgtEtF8PB+xNhknySTh11UDM95yw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -35694,7 +35694,20 @@ __exports.PpgDex = window.PpgDex;
     return { offSec: measured, measuredSec: measured, reason: null };
   }
 
-  function epochMotion(deviceACC, accFs, ecgT0Ms, durSec, epochs) {
+  /* ∅ — the single reader of the ACC rate's provenance. `null` means no producer stated one, which
+     is the back-compatible answer for a synthetic rec, a canonical SignalFrame and every caller that
+     predates the field; only the string 'assumed' is a positive statement that nothing measured it. */
+  function _accRateSrc(acc) {
+    return acc && acc._accFsSource ? acc._accFsSource : null;
+  }
+
+  function epochMotion(deviceACC, accFs, ecgT0Ms, durSec, epochs, accFsSource) {
+    /* ∅ — every window below is seconds-per-sample arithmetic, so this function spends the RATE as a
+       TIMEBASE. A rate the parser assumed is not a timebase: `fs * 30` would read 120 fabricated
+       samples as 30 measured seconds, and each epoch's motion score would carry that guess
+       (ABSENCE-SURVEY bb7e618a8fd9). `null` is this function's established absence answer, and the
+       three refusals below already use it. */
+    if (accFsSource === 'assumed') return null;
     const fs = accFs || 4;
     if (!deviceACC || !epochs || !epochs.length || deviceACC.length < fs * 30) return null;
     const N = deviceACC.length;
@@ -36615,15 +36628,21 @@ __exports.PpgDex = window.PpgDex;
     /* §∅ — the ACC placement is computed ONCE here as well, so the reason behind a refusal reaches the
        reader exactly once beside the four features it withdraws (`_accPlace`). The four producers
        each refuse on their own; this carries the WHY. */
-    const _accPl = rec.deviceACC && rec.accFs && rec.deviceACC.length >= rec.accFs * 30 ? _accPlace(rec.deviceACC, rec.t0Ms, durSec) : null;
-    const _epochMot = rec.deviceACC && rec.accFs && rec.deviceACC.length >= rec.accFs * 30 ? epochMotion(rec.deviceACC, rec.accFs, rec.t0Ms, durSec, epochs) : null;
+    const _accPl = rec.deviceACC && rec.accFs && _accRateSrc(rec.deviceACC) !== 'assumed' && rec.deviceACC.length >= rec.accFs * 30 ? _accPlace(rec.deviceACC, rec.t0Ms, durSec) : null;
+    const _epochMot =
+      rec.deviceACC && rec.accFs && _accRateSrc(rec.deviceACC) !== 'assumed' && rec.deviceACC.length >= rec.accFs * 30
+        ? epochMotion(rec.deviceACC, rec.accFs, rec.t0Ms, durSec, epochs, _accRateSrc(rec.deviceACC))
+        : null;
     const stages = longRec ? stageSleep(epochs, _epochMot) : [];
 
     // ── activity-gated mode (AMBULATORY-MODE-BRIEF §1) ───────────────────────────
     // Consult the activity/gait/ACC evidence ALREADY computed before letting duration/
     // time-of-day unlock sleep-only analyses. accExtras (gait + sleep-stage consensus) is
     // computed once here and cached on the result so the UI/export reuse it (no 2nd pass).
-    const _accEx = rec.deviceACC && rec.accFs && rec.deviceACC.length >= rec.accFs * 30 && accExtras ? accExtras(rec.deviceACC, rec.accFs, rec.t0Ms, durSec, epochs, stages) : null;
+    const _accEx =
+      rec.deviceACC && rec.accFs && _accRateSrc(rec.deviceACC) !== 'assumed' && rec.deviceACC.length >= rec.accFs * 30 && accExtras
+        ? accExtras(rec.deviceACC, rec.accFs, rec.t0Ms, durSec, epochs, stages)
+        : null;
     const modeInfo = classifyMode(durSec, rec.t0Ms, _accEx, longRec);
     const ambulatory = modeInfo.ambulatory;
 
@@ -36715,7 +36734,7 @@ __exports.PpgDex = window.PpgDex;
 
     prog(96, 'Ganglior events…');
     // per-epoch body position from companion ACC (mutates epochs → epoch.position; feeds event meta)
-    const epochPos = stampEpochPositions(epochs, rec.deviceACC, rec.accFs, rec.t0Ms, durSec);
+    const epochPos = stampEpochPositions(epochs, rec.deviceACC, rec.accFs, rec.t0Ms, durSec, _accRateSrc(rec.deviceACC));
     // Clock Contract §2.6: thread the real anchor (or null) — NEVER fabricate now(). A stampless
     // recording yields events with t:null/tMs:null, matching the export's startEpochMs:null.
     const events = gangliorEvents(cvhr, ambulatory ? [] : stages, rec.t0Ms != null ? rec.t0Ms : null, sqi, times, epochPos, _accEx ? _accEx.movementOnsets : null);
@@ -36995,6 +37014,7 @@ __exports.PpgDex = window.PpgDex;
       deviceHR: rec.deviceHR || null,
       deviceACC: rec.deviceACC || null,
       accFs: rec.accFs || null,
+      accFsSource: _accRateSrc(rec.deviceACC),
       /* ∅ A ZERO STAMP IS A STAMP. `|| null` published `startEpochMs: null` for a recording whose
          anchor the caller gave as 0, which is floating 1970-01-01T00:00:00 and a legal `tMs` under
          Clock Contract §1. The sibling stamp in this same reshape already reads
@@ -37673,17 +37693,24 @@ __exports.PpgDex = window.PpgDex;
     return false;
   }
 
-  function stampEpochPositions(epochs, deviceACC, accFs, ecgT0Ms, durSec) {
+  function stampEpochPositions(epochs, deviceACC, accFs, ecgT0Ms, durSec, accFsSource) {
     if (!epochs || !epochs.length) return [];
     const fs = accFs || 4;
-    if (!deviceACC || deviceACC.length < fs * 30) {
+    /* ∅ — `acc-rate-assumed` joins the two absences named below, because posture is read off a
+       seconds axis built from the rate. No parseable stamp means no rate, so every posture this
+       would name rests on a 4 Hz guess (ABSENCE-SURVEY bb7e618a8fd9 / 8e7fbb47bd6f). The reason
+       travels with the epoch, exactly as the other two already do. */
+    const rateAssumed = accFsSource === 'assumed';
+    if (rateAssumed || !deviceACC || deviceACC.length < fs * 30) {
       /* §∅ — TWO ABSENCES, NOT ONE. A night with no companion ACC and a night whose ACC is too
          short to fill one window both stamped 'unknown' and named nothing, so the state a reader
          can act on — load the companion — read exactly like a stream that arrived and fell short.
          `posAt` below promises the distinction in its own comment ("null when no ACC was loaded");
          this return has always handed it a POPULATED list of 'unknown' instead, so the promise was
          never kept for a single epoch. */
-      const why = !deviceACC || !deviceACC.length ? 'no-acc-stream' : 'acc-too-short';
+      let why = 'acc-too-short';
+      if (rateAssumed) why = 'acc-rate-assumed';
+      else if (!deviceACC || !deviceACC.length) why = 'no-acc-stream';
       epochs.forEach((e) => {
         e.position = 'unknown';
         e.positionReason = why;
@@ -37745,7 +37772,12 @@ __exports.PpgDex = window.PpgDex;
     }
     return out;
   }
-  function accAnalyze(deviceACC, accFs, ecgT0Ms, durSec, epochs) {
+  function accAnalyze(deviceACC, accFs, ecgT0Ms, durSec, epochs, accFsSource) {
+    /* ∅ — this function publishes `accFs` in its own return, and the card draws it as
+       "N samples @ F Hz". A rate nothing measured would read there as a measured one, and every
+       window below spends it as a timebase (ABSENCE-SURVEY bb7e618a8fd9). `null` is the answer the
+       card already handles: `renderACCComparison` hides the card on it. */
+    if (accFsSource === 'assumed') return null;
     const fs = accFs || 4;
     if (!deviceACC || deviceACC.length < fs * 30) return null;
     const xs = deviceACC.map((d) => d.x),
@@ -40485,10 +40517,24 @@ __exports.PpgDex = window.PpgDex;
         }
       }
     }
+    /* ∅ F2 — A RATE NOTHING MEASURED IS NOT A RATE. The 4 below is a shape default, so the loops
+       have a number; `accFsSource` says whether anything measured it. An assumed rate and a measured
+       one are the same JS number, which is why the provenance travels BESIDE it — the same remedy
+       `fsSource` already applies to the ECG rate in this file (ABSENCE-SURVEY bb7e618a8fd9). A
+       consumer that spends the rate as a TIMEBASE reads this field and refuses; one that needs only a
+       sample count does not. Measured over the corpus 2026-11-24: of 1958 `_ACC` files, 1410 measure
+       the rate, 510 fall under the 120-sample floor and are refused already, 38 are empty, and NONE
+       both clear the floor and lack stamps — so the refusal below drops no night in hand. */
     var fs = 4,
+      accFsSource = 'assumed',
       ts2 = [];
+    /* ∅ — `Number.isFinite`, never the global: `isFinite(null)` is TRUE, because the global coerces
+       first and `Number(null)` is 0. A stamp-less row therefore entered this median as a measured
+       ZERO. Where every row is stamp-less the median came out 0, which only looked harmless because
+       `md > 0` then left the rate assumed; where SOME rows parse, each absent stamp pulled the median
+       toward 0 and INFLATED the published rate. */
     for (var j = 0; j < out.length; j++) {
-      if (isFinite(out[j].tsMs)) ts2.push(out[j].tsMs);
+      if (Number.isFinite(out[j].tsMs)) ts2.push(out[j].tsMs);
     }
     if (ts2.length > 5) {
       var dt = [];
@@ -40497,12 +40543,30 @@ __exports.PpgDex = window.PpgDex;
         return a - b;
       });
       var md = dt[dt.length >> 1];
-      if (md > 0) fs = Math.max(1, Math.min(200, Math.round(1000 / md)));
+      if (md > 0) {
+        fs = Math.max(1, Math.min(200, Math.round(1000 / md)));
+        accFsSource = 'ms-delta';
+      }
     }
-    if (!isFinite(out[0].tsMs)) {
-      for (var q = 0; q < out.length; q++) out[q].tsMs = Math.round((q / fs) * 1000);
-      /** @type {any} */
-      (out)._relBase = true;
+    if (!Number.isFinite(out[0].tsMs)) {
+      /* ∅ — per-sample time rebuilt FROM THE RATE, which is honest only when something measured the
+         rate. A relative axis spaced by a MEASURED step is a documented design, and the caller re-bases
+         it onto the ECG `t0Ms` (Clock Contract §2.6). The same loop over an ASSUMED 4 Hz manufactures a
+         clock the file never carried, and it read exactly like the measured case
+         (ABSENCE-SURVEY 8e7fbb47bd6f). So the synthesis now runs only on a measured rate and names the
+         step it spent; an assumed rate leaves `tsMs` absent and states the reason. The old test used
+         the global `isFinite`, which is TRUE for null, so this branch could not be reached at all by
+         the stamp-less file it was written for. */
+      if (accFsSource === 'assumed') {
+        /** @type {any} */
+        (out)._relBaseReason = 'acc-rate-assumed';
+      } else {
+        for (var q = 0; q < out.length; q++) out[q].tsMs = Math.round((q / fs) * 1000);
+        /** @type {any} */
+        (out)._relBase = true;
+        /** @type {any} */
+        (out)._relBaseSource = accFsSource;
+      }
     }
     /* `accClockSteps` is the tripwire's whole product: 0 on every clean file, so a consumer that does
        not read it is unaffected, and non-zero says the device axis was NOT spent — the samples carry
@@ -40627,11 +40691,18 @@ __exports.PpgDex = window.PpgDex;
        `deviceACC` — the app's module global, `planCompanionGraft`, the `analyze` reshape — carries
        the motion stream's own timing and waveform facts with it and no signature changes. The two
        fields are ALSO returned below, because a test reads the parser's own result. */
+    /* ∅ — the rate's provenance rides on the STREAM, next to `_accTiming` and `_relBase`, because
+       every holder of the samples holds it: the app keeps the array across a companion graft, and a
+       parallel scalar on the REC would be a second source of truth that drifts on the first graft.
+       The sibling field in this function's return object is the same local, for a caller that reads
+       the return rather than the stream; only this one survives `planCompanionGraft`. */
+    /** @type {any} */ (out)._accFsSource = accFsSource;
     /** @type {any} */ (out)._accTiming = accTiming;
     /** @type {any} */ (out)._accQuality = accQuality;
     return {
       acc: out,
       accFs: fs,
+      accFsSource: accFsSource,
       accClockSteps: accClockSteps,
       accMaxStepMs: accClockSteps ? Math.round(accMaxStepMs) : null,
       accAxis: accClockSteps ? 'host' : 'device',
