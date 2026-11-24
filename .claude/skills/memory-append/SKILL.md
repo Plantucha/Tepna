@@ -1,32 +1,45 @@
 ---
 name: memory-append
-description: Use when recording a lesson, a correction or session state to the shared fleet memory directory — the frontmatter shape, which index file the pointer belongs in, and the read-before-write rule for a directory that has no conflict surface. Use when about to write or overwrite any memory file.
+description: Use when recording a lesson, a correction or session state to the shared fleet memory — the inbox that sends a note as a pull request, the frontmatter, the amend command, the state head and the privacy gate. Use when about to write or change any memory note.
 ---
 
-# Appending to fleet memory
+# Writing to fleet memory
 
-The memory directory is **shared by every fleet session, un-versioned, with no conflict surface** — an
-overwrite leaves no conflict, no gate and no symptom.
+The memory is a private git repo. The head of your loaded `MEMORY.md` names its checkout and your
+inbox. A tool writes `MEMORY.md` and the lane indexes, so never edit them.
+The old flat memory directory is a read-only mirror. A note written there reaches nobody.
 
-1. **Read the file before overwriting it.** Prefer appending a dated section to an existing entry over
-   creating a near-duplicate. Delete a memory only when it is wrong.
-2. Frontmatter: `name` (kebab-case slug matching the filename), `description` (one line, used for
-   recall), `metadata.type` of `user` | `feedback` | `project` | `reference`.
-3. Body: the fact; for `feedback`/`project` follow with why it matters and how to apply it. Link
-   related entries with `[[their-name]]` — liberally; a link to an entry that does not exist yet marks
-   something worth writing.
-4. **The pointer goes in the entry's lane INDEX file**, not in `MEMORY.md` — every session loads that file whole,
-   and the harness cuts it past ~24 KB. Only read-on-resume state belongs there.
-5. Convert relative dates to absolute. Never record what the repo already states.
+## Send a new lesson
+
+1. Search first: `node tools/doc-search.mjs --read "<the lesson>"`. Amend a note that exists.
+2. Write `<inbox>/<bird>/<name>.md`. The name is a kebab-case slug and equals the filename.
+3. Frontmatter: `name`, `description` (one line, used for recall), `type`
+   (`lesson | rule | reference | incident | decision`), `lane`, `last-verified`, `supersedes`, `cites`.
+4. Body: the fact, then why it matters, then how to apply it. Link a related note as `[[its-name]]`.
+5. Run `node <memory repo>/tools/inbox.mjs --as <bird>`. It opens the pull request of the day.
+6. Run `node <memory repo>/tools/land.mjs <PR> --as <bird>` for your own pull request only.
+
+## Change a note
+
+`inbox.mjs --as <bird> --amend <name>` copies the note from `origin/main` into your inbox. Edit that
+copy and send it. The gate refuses an amend that started from an older blob.
+A note that replaces another note names it in `supersedes`. The old note moves to the archive.
+
+## Keep the state head short
+
+Session state goes in your state head, at most 2 kB, outside git. Run `headlock.mjs take <bird>`
+at session start, and `headlock.mjs check <bird>` before you write it. A lesson never goes in the state head.
+
+## What the gate refuses
+
+- A typed citation (`path:`, `brief:`, `pr:`) that does not resolve on `main`.
+- A private address, a home path, a token, or a note marked `lan-only: true`.
+
+Write one memory note per unit, at the unit boundary. Convert a relative date to an absolute date.
+Never record what the repo already states.
 
 ## Measured
 
-The staleness guard fires on any memory file that moved during a command this session had not read —
-it reported a concurrent write roughly a dozen times in one evening on 2026-10-11, which is how often
-two sessions are in that directory at once.
-
-Every session loads `MEMORY.md` in full, so a lesson written there rather than in its lane index
-costs every session tokens forever.
-
-Memory: the lane indexes `INDEX-fleet-ops`, `INDEX-git-and-queue`, `INDEX-code-and-capture`,
-`INDEX-instruments-and-inference`.
+On 2026-11-22 the flat directory held 829 files and 10.1 MB, with no version control. On 2026-11-23
+the repo held 803 live notes and 3.3 MB. The loaded `MEMORY.md` was 5.2 kB.
+Two inbox pull requests of one day conflicted in generated files only. `land.mjs` rebuilds those files.

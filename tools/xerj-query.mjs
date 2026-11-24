@@ -281,6 +281,12 @@ export const pathOfHit = (h) => String(h?.path ?? h?.file ?? '');
    REPORTS which files owe a mark, by joining their cited board posts against the board's own
    supersession map, and a session writes it. */
 export const MEMORY_PREFIX = 'ext:memory/';
+/* The versioned memory (repo `Tepna-memory`) replaced that root on 2026-11-23. A live note there
+   declares itself the same way. A note under `archive/` needs no declaration: the memory gate lets a
+   file into that directory only when a live note supersedes it or it states why it was retired, so
+   the DIRECTORY is the mark, and a declared successor still wins because it names one. */
+export const MEMREPO_PREFIX = 'ext:memrepo/';
+export const MEMARCHIVE_PREFIX = 'ext:memrepo-archive/';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 /* The same per-machine config doc-search indexes the external roots from, read for ONE field. This
    module does not import doc-search: doc-search imports THIS one, and the edge runs that way only. */
@@ -306,6 +312,11 @@ export function memoryMark(text) {
   return name || null;
 }
 
+/** An archived note is replaced whatever it declares; a declared successor names by what. */
+export function archiveMark(text) {
+  return memoryMark(text) ?? 'archived';
+}
+
 /** One external root's absolute path from the config, or `null` when it does not resolve here. */
 export function externalRootPath(name, { configPath = EXTERNAL_CONFIG, readFn = readCorpusFile } = {}) {
   const raw = readFn(configPath);
@@ -321,10 +332,17 @@ export function externalRootPath(name, { configPath = EXTERNAL_CONFIG, readFn = 
 }
 
 /** The corpora that carry a supersession mark, each with its prefix, its root and its own reader. */
-export function defaultCorpora({ boardRoot = BOARD_CORPUS, memoryRoot = externalRootPath('memory') } = {}) {
+export function defaultCorpora({
+  boardRoot = BOARD_CORPUS,
+  memoryRoot = externalRootPath('memory'),
+  memrepoRoot = externalRootPath('memrepo'),
+  archiveRoot = externalRootPath('memrepo-archive')
+} = {}) {
   return [
     { prefix: CAPPED_PREFIX, root: boardRoot, mark: boardMark },
-    { prefix: MEMORY_PREFIX, root: memoryRoot, mark: memoryMark }
+    { prefix: MEMORY_PREFIX, root: memoryRoot, mark: memoryMark },
+    { prefix: MEMREPO_PREFIX, root: memrepoRoot, mark: memoryMark },
+    { prefix: MEMARCHIVE_PREFIX, root: archiveRoot, mark: archiveMark }
   ];
 }
 
@@ -725,6 +743,22 @@ export async function selftest() {
   ok(rowOut.hits.map((h) => h.path).join() === [bpath(2), 'briefs/a.md', mpath('two-open-prs-per-bird')].join(), 'a marked memory file sinks below the current post and the repo document');
   ok(rowOut.supersededHeld === 1 && rowOut.supersededBy.join() === 'one-pr-per-bird', '…and the banner names the lesson that replaced it, with no `#` in front of a name');
   ok(deferSuperseded([{ path: mpath('two-open-prs-per-bird') }], 5, memOpts).hits.length === 1, 'a replaced lesson is the answer when it is the ONLY answer');
+
+  /* THE VERSIONED MEMORY. The archive directory is itself the mark, and a live note is marked only
+     by its own declaration — so the archive rule must not reach a live note. */
+  const REPO = { 'live.md': memFile('', 'current'), 'old.md': memFile('', 'retired'), 'told.md': memFile('superseded-by: live\n', 'retired') };
+  const repoOpts = {
+    readFn: (file) => REPO[(/([a-z]+\.md)$/.exec(String(file)) ?? [])[1]] ?? null,
+    corpora: defaultCorpora({ boardRoot: '/b', memoryRoot: null, memrepoRoot: '/r/memory', archiveRoot: '/r/archive' })
+  };
+  const rm = supersededMarks(['ext:memrepo/lane/live.md', 'ext:memrepo/lane/told.md', 'ext:memrepo-archive/old.md', 'ext:memrepo-archive/told.md'], repoOpts);
+  ok(rm.by.get('ext:memrepo-archive/old.md') === 'archived', 'an archived note with no declaration still sinks: its directory is the mark');
+  ok(rm.by.get('ext:memrepo-archive/told.md') === 'live' && rm.by.get('ext:memrepo/lane/told.md') === 'live', 'a declared successor is named, in either directory');
+  ok(!rm.by.has('ext:memrepo/lane/live.md') && rm.unreadable.length === 0, 'CONTROL: a live note that declares nothing is not marked by the archive rule');
+  ok(
+    deferSuperseded([{ path: 'ext:memrepo-archive/old.md' }, { path: 'ext:memrepo/lane/live.md' }], 1, repoOpts).hits[0].path === 'ext:memrepo/lane/live.md',
+    'a live note outranks an archived note that scored higher'
+  );
 
   const extCfg = JSON.stringify({
     roots: [
