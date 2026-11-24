@@ -213,8 +213,26 @@
         t0 = (first.PLD && first.PLD.clock && first.PLD.clock.t0Ms) != null ? first.PLD.clock.t0Ms : (first.BRP && first.BRP.clock && first.BRP.clock.t0Ms) != null ? first.BRP.clock.t0Ms : null;
       }
 
+      /* ∅ A DEGENERATE CALIBRATION HEADER MAKES EVERY FLOW SAMPLE `NaN`, and an all-NaN payload
+         still has a length. `cpapdex-edf.js` writes `NaN` for an uncalibrated signal rather than
+         rescaling it by a fabricated denominator of 1, and it marks that signal `calibrated:false`.
+         Nothing downstream read the flag, so this adapter tested `samples.length` alone and published
+         `usable:true` over a payload that carries no measurement. Flow is the WHOLE canonical payload
+         of a `cpap` samples frame, so an uncalibrated Flow channel is a FRAME-level absence: the frame
+         refuses with the reason named, which is the shape an ABSENT Flow channel already takes below,
+         and the decoded sets still ride `frame.edfSets`. The FILE is NOT refused — the standing ruling
+         (`tests/dex-tests.js`, CPAPDex synthetic EDF) holds that a degenerate digital range is ONE
+         signal's absence and not the file's, so every other signal of the set survives untouched. */
       var samples = (fl && fl.data) || null;
-      var hasFlow = !!(samples && samples.length);
+      var flowCalibrated = !(fl && fl.calibrated === false);
+      var hasFlow = !!(samples && samples.length && flowCalibrated);
+      var flowReason = hasFlow
+        ? null
+        : !CD
+          ? 'resmed-edf: CPAPDex/CpapDsp not in scope (load cpapdex-dsp.js before this adapter)'
+          : samples && samples.length && !flowCalibrated
+            ? 'resmed-edf: the BRP Flow channel is UNCALIBRATED (degenerate or blank digital range), so every sample reads NaN — the decoded sets still ride frame.edfSets'
+            : 'resmed-edf: no BRP Flow waveform in the set (events/PLD only) — the decoded sets still ride frame.edfSets';
       // `cpap` is a SAMPLES frame (signal-spec.js frameFields: samples/fs/t0Ms), and validateFrame
       // requires the payload when usable — so an EVE-only set (no BRP waveform) cannot ride as a
       // usable samples-frame however analyzable the night is. It comes back usable:false with the
@@ -227,11 +245,7 @@
           fs: (fl && fl.fs) || 25,
           t0Ms: t0,
           usable: hasFlow,
-          reason: hasFlow
-            ? null
-            : CD
-              ? 'resmed-edf: no BRP Flow waveform in the set (events/PLD only) — the decoded sets still ride frame.edfSets'
-              : 'resmed-edf: CPAPDex/CpapDsp not in scope (load cpapdex-dsp.js before this adapter)'
+          reason: flowReason
         },
         prov
       );

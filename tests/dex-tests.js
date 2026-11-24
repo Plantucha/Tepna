@@ -102970,6 +102970,36 @@
           T.ok('an fs-less decoded Flow → frame.fs falls back to the 25 Hz BRP default (a changed default reds this)', !!dfr && dfr.fs === 25, dfr && dfr.fs);
           T.ok('  … and the waveform still surfaces (only the rate was stripped, data intact)', !!(dfr && dfr.samples && dfr.samples.length));
         }
+
+        /* ── 8 · ∅ AN UNCALIBRATED FLOW CHANNEL IS A FRAME-LEVEL ABSENCE ───────────────────
+           `readEDF` writes `NaN` into every sample of a signal whose digital range is degenerate, and
+           it marks that signal `calibrated:false` — the pair is gated by the CPAPDex synthetic-EDF
+           group above ("a degenerate digital range marks THAT SIGNAL uncalibrated"). An all-NaN
+           `Float32Array` STILL HAS A LENGTH, so a presence test alone published `usable:true` over a
+           payload that carries no measurement. Flow is the whole canonical payload of a `cpap` samples
+           frame, so this absence is the frame's and the frame refuses.
+           `_mkSig` builds the synthetic channels without a `calibrated` field, so this leg sets the
+           flag the way `readEDF` sets it. BOTH DIRECTIONS: leg 6 above asserts the calibrated set
+           still yields a usable waveform, so an adapter that always refuses reds there, and one that
+           never refuses reds here. The FILE is not refused — `edfSets` still rides. */
+        if (CPDSP && typeof CPDSP.chan === 'function') {
+          var uset = CD._synthEdfSet({ oxi: true, cs: true });
+          var uch = CPDSP.chan(uset.BRP, 'Flow');
+          T.ok('precondition · the synthetic BRP Flow is not already marked uncalibrated', !!uch && uch.calibrated !== false, uch ? String(uch.calibrated) : 'no Flow channel');
+          if (uch) {
+            uch.calibrated = false;
+            for (var _u = 0; _u < uch.data.length; _u++) uch.data[_u] = NaN; // what readEDF writes for it
+          }
+          var ufr = A.parse('', { edfSets: [uset] });
+          T.ok('an UNCALIBRATED Flow channel → usable:false (an all-NaN payload still has a length)', !!ufr && ufr.usable === false, ufr ? String(ufr.usable) : 'no frame');
+          T.ok('  … and the reason names the CALIBRATION, never the absence of the channel', !!(ufr && /UNCALIBRATED/.test(ufr.reason || '')), ufr && ufr.reason);
+          T.ok(
+            '  … the decoded sets still ride frame.edfSets (the FILE is not refused)',
+            !!(ufr && Array.isArray(ufr.edfSets) && ufr.edfSets.length === 1),
+            ufr && ufr.edfSets ? ufr.edfSets.length : 'none'
+          );
+          T.ok('  … and the refusing frame is still schema-valid', !!(ufr && SF.validateFrame(ufr).ok), ufr ? SF.validateFrame(ufr).errors.join('; ') : 'no frame');
+        }
       }
     });
 
