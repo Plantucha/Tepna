@@ -3060,6 +3060,25 @@
     }
     return feet;
   }
+  /* Beat timing in a NARROWER band than beat detection. `detectChannel` keeps 0.5-8 Hz, and the
+     peaks it votes on, the SQI and the pulse shape stay on that waveform. A forehead band's 8 Hz foot
+     rides high-frequency noise, and rMSSD carries that jitter as variability. Each voted peak moves
+     FORWARD to the low-passed maximum (within `TIMING_SNAP_SEC`), and the foot is the same tangent foot
+     on that waveform. Forward only: a peak that sits late has the same trough and the same steepest
+     rise before it, so it gives the same foot. The reach is below the detector's 0.3 s refractory
+     floor, so a moved peak cannot reach the next one and the feet stay in order. */
+  const TIMING_SNAP_SEC = 0.2;
+  function timingFeet(chan, sign, peaks, fs, hiHz) {
+    const lp0 = bandpass(chan, fs, 0.5, hiHz);
+    const lp = sign === -1 ? negate(lp0) : lp0;
+    const h = Math.round(TIMING_SNAP_SEC * fs);
+    const snapped = peaks.map((p) => {
+      let m = p;
+      for (let j = p + 1; j <= p + h && j < lp.length; j++) if (lp[j] > lp[m]) m = j;
+      return m;
+    });
+    return refineFeet(lp, snapped, Math.round(fs * 0.85));
+  }
   function negate(x) {
     const y = new Float32Array(x.length);
     for (let i = 0; i < x.length; i++) y[i] = -x[i];
@@ -6364,6 +6383,9 @@
     const refIdxUsed = harmonicOutlierRefIdx(refIdx, _chRates, _chSnr);
     const bp = perChannel[refIdxUsed].bp; // reference-channel band-passed waveform
     const cons = consensusBeats(perChannel, refIdxUsed, rec.fs);
+    // A source whose 8 Hz foot is noisy (`rec.footHiHz`, set by the app per device) re-times the same
+    // voted beats in a narrower band. Absent ⇒ the consensus feet stand, byte-identical.
+    if (rec.footHiHz > 0) cons.feet = timingFeet(chIn[keepIdx[refIdxUsed]], perChannel[refIdxUsed].sign, cons.peaks, rec.fs, rec.footHiHz);
     /* PER-CHANNEL DETECTOR AGREEMENT (three-cornered hat). Only meaningful with three genuinely
        distinct channels in the same rows — a deduped 1- or 2-channel record, or a replicated one, has
        no third corner and gets null rather than a two-corner approximation. Runs on the CONSENSUS-
@@ -7813,6 +7835,7 @@
     bandpass,
     detectBeats,
     detectChannel,
+    timingFeet,
     consensusBeats,
     consensusSign,
     /* PPG-FOOT-PLACEMENT §0 — exported so the polarity RULE is directly testable rather than reachable

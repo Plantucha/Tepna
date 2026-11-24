@@ -81,6 +81,11 @@ import { PPGUI } from './ppgdex-render.js';
   // night rMSSD of 169 and 119 ms, -1 reads 66 and 53, and the arm sensor reads 43 and 31. The heart
   // rate agrees within 1 bpm on either sign.
   const MUSE_SIGN = -1;
+  // TIMING BAND. The forehead foot in the 0.5-8 Hz band rides noise, so rMSSD reads high. The voted beats
+  // keep that band and the foot is re-timed in 0.5-3 Hz, the pulse band `cadenceSamples` already uses.
+  // Measured on the 7 recordings of 2026-11-15 to 2026-11-22 that overlap a chest ECG, same beats both
+  // sides, 5-min epochs: rMSSD +5 to +72 percent at 8 Hz, +1 to +18 percent at 3 Hz, against 27 to 39 ms.
+  const MUSE_FOOT_HI_HZ = 3;
   async function readMuseOptics(f) {
     const reader = f.stream().pipeThrough(new TextDecoderStream()).getReader();
     const ppg = new window.MuseFrame.OpticsPpg({
@@ -256,6 +261,7 @@ import { PPGUI } from './ppgdex-render.js';
             // serial fallback when Worker is unavailable — the headless/gated path); analyze() then
             // reuses rec._preChannels for the consensus merge + HRV on the main thread.
             rec._preChannels = muse ? rec.ch.map((c) => DSP.detectChannel(c, rec.fs, MUSE_SIGN)) : await DSP.detectChannelsAsync(rec);
+            if (muse) rec.footHiHz = MUSE_FOOT_HI_HZ;
             r = DSP.analyze(rec, progress);
             if (muse) r.opticalDevice = 'Muse';
             r.ringRaw = !!rec.rawAxis; // the O2Ring's two-channel file, not its 125 Hz pleth
@@ -524,7 +530,7 @@ import { PPGUI } from './ppgdex-render.js';
     // Same `!== 'finger'` test as declaredSite: once a declaration has stamped r.site to 'ankle',
     // a `=== 'wrist'` gate here would make the control vanish and the choice unchangeable.
     if (r && r.opticalDevice === 'Muse')
-      return '<div class="ctx-note">Optical site: forehead (Muse headband, 3 of its 4 optical channels). The pulse rate agrees with an arm sensor. The beat-to-beat spread (rMSSD, SDNN, pNN50) reads higher here than on the arm.</div>';
+      return '<div class="ctx-note">Optical site: forehead (Muse headband, 3 of its 4 optical channels). The pulse rate agrees with an arm sensor. The beat-to-beat spread reads high: on 7 recordings of one wearer, rMSSD read 1 to 18 % above a chest ECG over the same beats.</div>';
     if (!r || r.site === 'finger') return '';
     const cur = declaredSite(r);
     const opts = SITE_CHOICES.map((c) => `<option value="${c.v}"${cur === c.v ? ' selected' : ''}>${c.l}</option>`).join('');
