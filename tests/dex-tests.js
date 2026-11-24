@@ -53146,6 +53146,76 @@
         var noNs = D.parseDeviceACC(build(false, false));
         T.ok('parseDeviceACC without an ns column still parses via the phone stamp', !!(noNs.acc && noNs.acc.length === 40 && noNs.accFs === 25), 'fs=' + noNs.accFs + ' n=' + (noNs.acc || []).length);
 
+        /* ── (2b-∅) A RATE NOTHING MEASURED IS NOT A RATE ──────────────────────────────────
+           ABSENCE-SURVEY bb7e618a8fd9 (high) + 8e7fbb47bd6f. A stampless, counter-less `_ACC` file
+           clears the 120-sample floor and used to hand every consumer a flat 4 Hz that read exactly
+           like a measured rate: posture was stamped off it, epoch motion scored on it, the per-sample
+           axis was synthesised from it, and the card drew "N samples @ 4 Hz". The parser now states
+           the provenance on the stream, and the three consumers that spend the rate as a TIMEBASE
+           refuse. Measured over the corpus 2026-11-24: of 1958 `_ACC` files, 1410 measure the rate,
+           510 fall under the floor and were refused already, 38 are empty, and NONE both clear the
+           floor and lack stamps — so this twin is adversarial by construction.
+           THE CONTROL BELOW IS THE OTHER HALF: a measured 800-row stream must still reach all three,
+           because §∅ refuses a DISCONTINUITY, not every doubt. */
+        var buildBare = function (n) {
+          var rows = HDR;
+          for (var i = 0; i < n; i++) rows += '--;;' + (100 + (i % 7)) + ';86;990\n';
+          return rows;
+        };
+        var buildLong = function (n) {
+          var rows = HDR;
+          for (var i = 0; i < n; i++) {
+            var d = new Date(Date.UTC(2026, 5, 13, 20, 44, 0, 0) + 500 + i * 40);
+            rows += d.toISOString().replace('Z', '').slice(0, 23) + ';;' + (100 + (i % 7)) + ';86;990\n';
+          }
+          return rows;
+        };
+        var epochsOf = function (k) {
+          var e = [];
+          for (var i = 0; i < k; i++) e.push({ tMin: i * 0.5 });
+          return e;
+        };
+        var bare = D.parseDeviceACC(buildBare(130));
+        T.ok('parseDeviceACC parses a stampless ACC file past the 30 s floor', !!(bare.acc && bare.acc.length === 130), 'n=' + (bare.acc || []).length);
+        T.eq('parseDeviceACC states an assumed rate as assumed', bare.accFsSource, 'assumed');
+        T.eq('the assumed rate rides on the stream itself', bare.acc && bare.acc._accFsSource, 'assumed');
+        T.ok('an assumed rate synthesises NO per-sample axis', !(bare.acc && bare.acc._relBase), '_relBase=' + (bare.acc && bare.acc._relBase));
+        T.eq('the refused axis names its reason', bare.acc && bare.acc._relBaseReason, 'acc-rate-assumed');
+        T.ok(
+          'a stamp-less row never enters the rate median as a measured zero',
+          (function () {
+            var head = D.parseDeviceACC(buildBare(3) + buildLong(60).split('\n').slice(1).join('\n'));
+            return head.accFsSource === 'ms-delta' && head.accFs === 25;
+          })(),
+          'a null stamp coerced to 0 would pull the median off 40 ms'
+        );
+        var firstBad = D.parseDeviceACC(HDR + '--;;100;86;990\n' + buildLong(130).split('\n').slice(1).join('\n'));
+        T.eq('a measured rate still rebuilds the relative axis', firstBad.acc && firstBad.acc._relBase, true);
+        T.eq('and names the step it used', firstBad.acc && firstBad.acc._relBaseSource, 'ms-delta');
+        T.eq('a measured rate is stated as measured', D.parseDeviceACC(build(false, false)).accFsSource, 'ms-delta');
+        var posBare = D.stampEpochPositions(epochsOf(2), bare.acc, bare.accFs, 0, 60, bare.accFsSource);
+        T.ok(
+          'stampEpochPositions refuses an assumed rate and names the reason',
+          posBare.length === 2 &&
+            posBare.every(function (q) {
+              return q.position === 'unknown' && q.reason === 'acc-rate-assumed';
+            }),
+          JSON.stringify(posBare.slice(0, 1))
+        );
+        T.ok('epochMotion refuses an assumed rate', D.epochMotion(bare.acc, bare.accFs, 0, 60, epochsOf(2), bare.accFsSource) === null, 'expected null');
+        T.ok('accAnalyze refuses an assumed rate', D.accAnalyze(bare.acc, bare.accFs, 0, 60, epochsOf(2), bare.accFsSource) === null, 'expected null');
+        var meas = D.parseDeviceACC(buildLong(800));
+        T.eq('the 800-row control measures its rate', meas.accFsSource, 'ms-delta');
+        T.ok('accAnalyze still answers over a measured rate', D.accAnalyze(meas.acc, meas.accFs, meas.acc[0].tsMs, 32, epochsOf(1), meas.accFsSource) !== null, 'control refused a measured stream');
+        T.ok(
+          'stampEpochPositions still answers over a measured rate',
+          (function () {
+            var r = D.stampEpochPositions(epochsOf(1), meas.acc, meas.accFs, meas.acc[0].tsMs, 32, meas.accFsSource);
+            return r.length === 1 && r[0].reason !== 'acc-rate-assumed';
+          })(),
+          'control refused a measured stream'
+        );
+
         /* ── (2c) A REBASED COUNTER IS NOT ONE CLOCK (E2E E5) ────────────────────────────────────────
            The rebuild above anchors ONCE and spaces every later sample by the device counter — right,
            and right only while that counter is continuous. The ECG stream of the same recording gets a
