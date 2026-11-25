@@ -380,6 +380,7 @@ function main() {
       '    node tools/build-docs.mjs   # projects v' +
       to +
       ' into the served copies (docs/)\n' +
+      '    npm run timings:refresh     # price every test group, so the untimed share starts the next cycle at 0\n' +
       '    npm run check               # the FULL gate, once, on the final tree\n' +
       '    git add -- <every modified path in git status --porcelain>       # stage by explicit path, never -A / -u;\n' +
       '                                                                    #   the deploy surfaces are the paths build-docs just printed\n' +
