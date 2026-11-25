@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**362 tools** · 361 with a purpose line · **1 without**
+**364 tools** · 363 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -63,6 +63,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`closure-tol-hac.mjs`](../tools/closure-tol-hac.mjs) | derive the 3-source clock-closure tolerance from the legs' own PRECISION instead of their MAGNITUDE. |
 | [`codex-export.mjs`](../tools/codex-export.mjs) | THE SOURCE-ONLY EXPORT AN EXTERNAL READER MAY SEE. Owner ruling 2026-10-04: an external model (Codex) may read SOURCE, never the CORPUS. |
 | [`cohort-fit.mjs`](../tools/cohort-fit.mjs) | DOES THE SYNTHETIC COHORT LOOK LIKE A REAL ONE? — and what would it take to project it onto one. |
+| [`cohort-runner-headless.mjs`](../tools/cohort-runner-headless.mjs) | drive `cohort-runner.html` headlessly and capture its aggregate, so the robustness benchmark re-runs without a person at a browser. |
 | [`commit-shape.mjs`](../tools/commit-shape.mjs) | the AGENT-NEUTRAL half of the shared-tree guards. WHY THIS EXISTS. |
 | [`compute-feeder.mjs`](../tools/compute-feeder.mjs) | KEEP THE FREE COMPUTE FED (owner 2026-11-22: "build some program feeding qwen and shrike … when fleet run out of tokens, there will be 2 days of compute always ready"). |
 | [`consensus-dissent-core.mjs`](../tools/consensus-dissent-core.mjs) | `applyConsensusPolarity` RETURNS THE CHANNELS IT RE-DETECTED, AND TEN CALLERS THREW IT AWAY. |
@@ -299,6 +300,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`rho-overlap-power.mjs`](../tools/rho-overlap-power.mjs) | HOW MUCH OVERLAP DOES rho NEED? — measured, so a minimum-n rule can be DERIVED or REFUSED. |
 | [`ring-offset-census.mjs`](../tools/ring-offset-census.mjs) | THE RING'S OFFSET STEPS, COUNTED OVER THE CORPUS INSTEAD OF FIVE NIGHTS. |
 | [`ring-rate-cause.mjs`](../tools/ring-rate-cause.mjs) | WHY THE RING QUOTES A RATE NO CRYSTAL CAN HOLD, DECOMPOSED PER FRAGMENT. |
+| [`robustness-rerun-ab.mjs`](../tools/robustness-rerun-ab.mjs) | judge the robustness-benchmark A/B against ONE pre-stated prediction: `cohort-gen/2.0` moves the severe stratum and nothing else. |
 | [`run-check.mjs`](../tools/run-check.mjs) | `npm run check` used to be a 16-step `&&` chain. That is fine when a step fails on its merits and useless when one fails for an unrelated reason: the shell stops, npm prints the failure,… |
 | [`run-progress.mjs`](../tools/run-progress.mjs) | SHARED PROGRESS, ETA AND RESUME FOR THE MULTI-HOUR TOOLS Every long-runner here had the same two holes, and both cost real time: |
 | [`run-tests-verdict.mjs`](../tools/run-tests-verdict.mjs) | THE TEST RUNNER'S tepna.verdict/1 OBJECT — VERDICT-CONTRACT §3d, the third and largest runner adopter, through the same `aggregateChildren` as run-check (#2827) and selftest-all (#2828). |
