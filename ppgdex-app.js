@@ -264,7 +264,6 @@ import { PPGUI } from './ppgdex-render.js';
             if (muse) rec.footHiHz = MUSE_FOOT_HI_HZ;
             r = DSP.analyze(rec, progress);
             if (muse) r.opticalDevice = 'Muse';
-            r.ringRaw = !!rec.rawAxis; // the O2Ring's two-channel file, not its 125 Hz pleth
           } catch (e) {
             showErr(e.message || String(e));
             continue;
@@ -1289,333 +1288,14 @@ import { PPGUI } from './ppgdex-render.js';
   function _round(v, d = 2) {
     return v == null || typeof v !== 'number' || !isFinite(v) ? (v == null ? null : v) : +v.toFixed(d);
   }
+  /* ONE ROAD — the payload now lives in `ppgdex-dsp.js ppgBuildSummaryExport`, where a committed
+     fixture reads the bytes. The app hands over only the app-realm globals the builder must not
+     reach for itself. */
   function buildV2(r) {
-    const fq = r.freq || {};
-    const m = r.morph;
-    const epochs = r.epochs.map((e) => ({
-      tMin: e.tMin,
-      beats: e.beats,
-      hr: _round(e.hr, 1),
-      meanRR: _round(e.meanRR, 1),
-      rmssd: _round(e.rmssd, 2),
-      sdnn: _round(e.sdnn, 2),
-      pnn50: _round(e.pnn50, 1),
-      lf: _round(e.lf, 1),
-      hf: _round(e.hf, 1),
-      lfhf: _round(e.lfhf, 3),
-      respRate: _round(e.respRate, 1),
-      pi: _round(e.pi, 1),
-      motionIndex: _round(e.motionIndex, 3),
-      ledAgreementPct: _round(e.ledAgreementPct, 0),
-      position: e.position || 'unknown',
-      positionConf: _round(e.positionConf, 2),
-      headingDeg: _round(e.headingDeg, 1),
-      // §3a: null = no posture datum for this epoch, NOT "the field was clean".
-      magInterference: e.magInterference == null ? null : !!e.magInterference
-    }));
-    return {
-      kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null,
-      schema: {
-        name: 'ganglior.node-export',
-        version: '2.0',
-        node: 'PpgDex',
-        nodeVersion: '1.0',
-        generated: new Date().toISOString(),
-        provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null, // R1: build + input fingerprints
-        doc: 'Single-signal wrist-PPG node. Floating wall-clock tMs (Clock Contract). Single-site → no SpO₂/PTT/BP; 2-site fusion lives in the Integrator.',
-        units: { ppi: 'ms', rmssd: 'ms', sdnn: 'ms', hr: 'bpm', power: 'ms^2', pi: '%', riseTime: 'ms', ai: '%', motionIndex: '0..1', headingDeg: 'deg', positionConf: '0..1' }
-      },
-      recording: {
-        /* EXPORT-SOURCE-KEY-KINDS — this key held the upload filename, while every other node writes a
-           semantic tag here, and so does this node's OWN DSP builder. A consumer cannot tell the two
-           kinds apart: `signal-orchestrate.js` dispatches on `recording.source === 'welltory'`. So a
-           filename here was a value no consumer reads, sitting in a key one consumer routes on.
-           Measured over the committed corpus: 441 of 442 values are tag-shaped, and the single
-           path-shaped value is this builder's. The tag now matches the DSP sibling. The upload
-           filename rides a key that MEANS a filename, and `recording.fname` is undeclared in the
-           export allow-list, so the scrub drops it and names it in the drop report — what the
-           contract already does with every identifier route. */
-        source: 'ppg',
-        fname: r.fname || null,
-        /* EXPORT-PATH-UNREACHABLE-FOLLOWUPS-IV — the device string was HARDCODED to "Polar Sense", so an
-           O2Ring finger recording exported a file claiming it came from a Polar Verity worn on the
-           wrist. Observed on a real night: source "Wellue_O2Ring-S_..._PPG.txt", device "Polar Sense".
-           A provenance field that names the wrong instrument is worse than an absent one.
-           The device now follows the SAME evidence as the site — the optical layout the DSP already
-           read — and `siteSource` beside it says how strong that evidence is ('device-default' =
-           inferred from the layout, 'declared' = the wearer said so). No new inference is invented
-           here; the lie is simply removed. */
-        device:
-          r.opticalDevice === 'Muse'
-            ? 'Muse S Athena headband (3 of 4 optical channels)'
-            : r.ringRaw
-              ? 'O2Ring raw two-wavelength finger PPG'
-              : r.site === 'finger'
-                ? 'O2Ring-class single-channel finger pleth'
-                : 'Polar Verity Sense (3-LED)',
-        /* Emitted by the DSP's builder since #626 and missing from this one — the sibling-divergence
-           class again: two builders for one export, and only one of them told you where the signal
-           was taken from. Verbatim from hrvBuildNodeExport's siblings so the app and compute() agree. */
-        site: r.site || 'wrist',
-        siteSource: r.siteSource || 'device-default',
-        sampleRateHz: r.fs,
-        durationSec: Math.round(r.durSec),
-        durationMin: r.durMin,
-        startEpochMs: r.t0Ms,
-        offsetMin: r.offsetMin,
-        beats: r.nPulses,
-        channel: r.channel,
-        epochs5min: r.epochs.length,
-        tier: r.tier,
-        cpapInUse: r.cpapInUse != null ? r.cpapInUse : r.profile && r.profile.cpap != null ? r.profile.cpap : null
-      },
-      quality: {
-        analyzablePct: r.analyzablePct,
-        cleanBeatPct: r.cleanBeatPct,
-        coveragePct: r.coveragePct,
-        meanSQI: r.meanSQI,
-        meanSQIReason: r.meanSQIReason != null ? r.meanSQIReason : null,
-        motionRejectedPct: r.motionRejectedPct,
-        motionRejectedPctReason: r.motionRejectedPctReason,
-        correctionRatePct: r.correctionRate,
-        ledAgreementPct: r.ledAgreementPct != null ? r.ledAgreementPct : null,
-        ledAgree3of3Pct: r.ledAgree3of3Pct != null ? r.ledAgree3of3Pct : null,
-        droppedBeats: r.nDroppedBeats != null ? r.nDroppedBeats : null,
-        magInterferencePct: r.magInterferencePct != null ? r.magInterferencePct : null,
-        deviceAgreementPct: r.validation && r.validation.usable ? r.validation.deviceAgreementPct : null
-      },
-      hrv: {
-        time: {
-          meanRR: r.meanRR,
-          hr: r.dispHr,
-          sdnn: r.sdnn,
-          rmssd: r.rmssd,
-          pnn50: r.pnn50,
-          lnRMSSD: r.lnRMSSD,
-          triIdx: r.triIdx,
-          sdnnIndex: r.sdnnIndex != null ? r.sdnnIndex : null,
-          sdnnRobust: r.sdnnRobust != null ? r.sdnnRobust : null,
-          sd2Robust: r.sd2Robust != null ? r.sd2Robust : null,
-          window: 'wholeRecord',
-          units: 'ms',
-          lowConfidence: !!r.hrvLowConfidence,
-          lowConfidenceReason: r.hrvLowConfidenceReason || null,
-          windowNote: 'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.',
-          sdnnNote:
-            'whole-record sdnn runs high on optical (SDANN/baseline-wander inflation, ~+26% vs chest ECG). sdnnIndex = mean of per-5-min SDNN (~+18%); sdnnRobust = quality-gated MEDIAN of per-5-min SDNN (~+3.5% vs ECG truth) \u2014 use sdnnRobust for cross-node SDNN comparison.'
-        },
-        poincare: { sd1: r.sd1, sd2: r.sd2, sd1sd2: r.sd1sd2, ellipseArea: r.ellArea },
-        frequency: {
-          vlf: fq.vlf,
-          lf: fq.lf,
-          hf: fq.hf,
-          lfhf: fq.lfhf,
-          lfnu: fq.lfnu,
-          hfnu: fq.hfnu,
-          totalPower: fq.totalPower,
-          method: 'Lomb-Scargle',
-          lowConfidence: !!r.hrvLowConfidence,
-          lfRobust: r.lfRobust != null ? r.lfRobust : null,
-          hfRobust: r.hfRobust != null ? r.hfRobust : null,
-          lfhfRobust: r.lfhfRobust != null ? r.lfhfRobust : null,
-          hfRobustLowMotion: r.hfRobustLowMotion != null ? r.hfRobustLowMotion : null
-        },
-        nonlinear: { dfaAlpha1: r.dfa1, sampEn: r.sampen },
-        confidence: r.hrvConfidence || null
-      },
-      // DEEP-AUDIT §19 — the raw profile shipped the POPULATION DEFAULT (42 y · M · 80 kg · 178 cm) as
-      // though the user had entered it. Split it: `profile` = only what was actually entered/detected,
-      // `assumedDefaults` = the priors COMPUTE ran on. Tolerates a profile with no _origins (legacy).
-      personalization: {
-        profile: (function () {
-          var pr = r.profile || null;
-          if (!pr || typeof pr !== 'object') return pr || null;
-          var o = pr._origins || null;
-          var ent = function (f, v) {
-            return o && (o[f] === 'you' || o[f] === 'detected') ? v : null;
-          };
-          return {
-            age: ent('age', pr.age),
-            sex: ent('sex', pr.sex),
-            weight: ent('weight', pr.weight),
-            height: ent('height', pr.height),
-            elev: ent('elevation', pr.elev),
-            cpap: ent('cpap', pr.cpap),
-            hrmax: pr.hrmax > 0 ? pr.hrmax : null,
-            rhr: pr.rhr > 0 ? pr.rhr : null,
-            vo2gt: pr.vo2gt > 0 ? pr.vo2gt : null,
-            note: 'Only what the user entered/selected, or a node detected. null = left on auto/default.'
-          };
-        })(),
-        assumedDefaults: (function () {
-          var pr = r.profile || null;
-          if (!pr || typeof pr !== 'object') return null;
-          var o = pr._origins || null;
-          var asm = function (f, v) {
-            return o && (o[f] === 'you' || o[f] === 'detected') ? null : v;
-          };
-          return {
-            age: asm('age', pr.age),
-            sex: asm('sex', pr.sex),
-            weight: asm('weight', pr.weight),
-            height: asm('height', pr.height),
-            elev: asm('elevation', pr.elev),
-            source: 'population norm (NHANES age×sex) — the value the analysis ran on',
-            note: 'NOT a measurement of this person.'
-          };
-        })(),
-        ansReadinessScore: r.hrvScore,
-        ansAge: null /* ANS Age REMOVED 2026-06-21 (external-review WP-A); null for node-export back-compat. */,
-        restingHR: r.rhrEff,
-        vo2maxEst: r.vo2adj,
-        expectedRmssd: r.expRmssd
-      },
-      apnea: r.longRec ? { screen: 'CVHR (PPI-derived bradycardia-rebound)', note: 'screen not diagnosis', index: null } : null,
-      /* §∅ — NO MORPHOLOGY IS NOT MORPHOLOGY OF ZERO. This block read its fields off
-         `r.morph || {}`, so a record with no builder shipped `dicroticNotchPresent: false` — a
-         measured-looking "no notch" — beside an empty `perWindow` array. The block now refuses as
-         one, and `morphologyReason` carries the DSP's named cause, so a consumer can separate an
-         absent builder from a pulse that carried no notch. `apnea` above refuses the same way. */
-      morphology: m
-        ? {
-            riseTimeMs: m.riseTimeMs,
-            crestTimeMs: m.crestTimeMs,
-            dicroticNotchPresent: !!m.dicroticNotchPresent,
-            augmentationIndexPct: m.augmentationIndexPct,
-            reflectionIndex: m.reflectionIndex,
-            pulseWidthMs: m.pulseWidthMs,
-            notchTimeMs: m.notchTimeMs,
-            sdppgBA: m.sdppgBA,
-            sdppgAGI: m.sdppgAGI,
-            perfusionIndexPct: m.perfusionIndexPct,
-            medianBeat: m.medianBeat ? { fs: m.medianBeat.fs, pre: m.medianBeat.pre, nUsed: m.medianBeat.nUsed, samples: Array.from(m.medianBeat.beat).map((v) => +v.toFixed(4)) } : null,
-            perWindow: m.perWindow || []
-          }
-        : null,
-      morphologyReason: r.morphReason != null ? r.morphReason : null,
-      /* PER-CHANNEL DETECTOR AGREEMENT (three-cornered hat over the 3 optical channels). Exported so
-         the Integrator can weigh a node's beat timing without a reference, the way it does
-         `validation.stability`. ⚠️ `scope` is part of the payload, not decoration: this is per-channel
-         NOISE and it is structurally blind to any error common to all three channels. The Verity's six
-         LEDs are one wavelength in a ring around a shared front end, so motion, contact and perfusion
-         cancel — and a wrong polarity is agreed by all three (#1200). `polarity`/`polarityFlipped`
-         ship with it so a consumer cannot read the agreement without the orientation behind it. */
-      channelStability: r.channelStability
-        ? {
-            channels: r.channelStability.channels.map((c) => ({ sigmaShortestMs: c.sigmaShortestMs, sigmaLongestMs: c.sigmaLongestMs, slope: c.slope })),
-            beatsTripled: r.channelStability.nTriples,
-            triplePct: r.channelStability.triplePct,
-            tau0Sec: r.channelStability.tau0Sec,
-            negativeVarianceTaus: r.channelStability.negativeVarianceTaus,
-            independent: r.channelStability.independent,
-            polarity: r.channelStability.polarity,
-            polarityFlipped: r.channelStability.polarityFlipped,
-            scope: r.channelStability.scope,
-            method:
-              'three-cornered hat: sigma_i(tau)^2 = 1/2(AVAR(i-j)+AVAR(i-k)-AVAR(j-k)) over the pairwise beat-time differences; reference-free, and a negative split means the channels are not independent at that tau'
-          }
-        : null,
-      validation:
-        r.validation && r.validation.usable
-          ? {
-              deviceAgreementPct: r.validation.deviceAgreementPct,
-              meanAbsDevMs: r.validation.meanAbsDevMs,
-              beatsCompared: r.validation.nSelf,
-              correctedPct: r.correctionRate,
-              // WHICH firmware produced the comparison. A consumer that cannot tell a wrist device's
-              // interval estimate from a finger ring's cannot weigh the result — different sensor,
-              // different site, different detector.
-              source: r.validation.source,
-              // Per-metric deltas, so a reader is not left with a mean-only blend that structurally
-              // cannot see the variability rows.
-              dMeanPct: r.validation.dMean,
-              dRMSSDPct: r.validation.dRMSSD,
-              dSDNNPct: r.validation.dSDNN,
-              /* DETECTOR STABILITY vs AVERAGING TIME — the Allan-deviation leg. Present only for the
-                 marker source, where both detectors sit on ONE axis (see the DSP note). `slope` is the
-                 load-bearing field: −1 means the disagreement is pure jitter that averages away, so a
-                 SUSTAINED divergence is a real fault; 0 would mean a floor averaging cannot remove.
-                 `optimalTauSec` is the averaging window a consumer should actually use for this pair. */
-              stability: r.validation.stability
-                ? {
-                    slope: r.validation.stability.slope,
-                    noise: r.validation.stability.noise,
-                    meaning: r.validation.stability.meaning,
-                    beatsPaired: r.validation.stability.nPaired,
-                    tau0Sec: r.validation.stability.tau0Sec,
-                    atShortestMs: r.validation.stability.atShortestMs,
-                    atLongestMs: r.validation.stability.atLongestMs,
-                    atShortestPpm: r.validation.stability.atShortestPpm,
-                    atLongestPpm: r.validation.stability.atLongestPpm,
-                    tauMaxSec: r.validation.stability.tauMaxSec,
-                    optimalTauSec: r.validation.stability.optimalTauSec,
-                    method: 'overlapping Allan deviation of the two detectors’ beat-time difference (phase); the shared physiology cancels, so the curve is detector noise alone',
-                    /* Recorded rather than discovered later: `noise`/`meaning` come from a strict
-                       threshold on a point estimate, so a slope landing on a category boundary is
-                       named with confidence the fit does not support. `slope` is the trustworthy
-                       field. Today's marker pair is ~90 SEs clear of the nearest boundary; a joint
-                       fix across this and capture-host/allan.py is queued. */
-                    knownLimitation: 'noise/meaning are unreliable when slope sits on a category boundary (±0.75, ±0.25); branch on slope, not on the label'
-                  }
-                : null,
-              note: 'self-PPI vs firmware PPI; both sides artifact-corrected. Validation lane only — PPI not handed to PulseDex'
-            }
-          : { note: 'no usable firmware PPI' },
-      motion:
-        r.motion && r.motion.hasData
-          ? {
-              meanMotionIndex: r.motion.meanMotionIndex,
-              meanMotionIndexReason: r.motion.meanMotionIndexReason,
-              motionRejectedPct: r.motionRejectedPct,
-              motionRejectedPctReason: r.motionRejectedPctReason,
-              source: 'ACC+GYRO',
-              accFs: r.motion.accFs,
-              gyroFs: r.motion.gyroFs,
-              perEpochMotion: r.epochs.map((e) => e.motionIndex),
-              position: r.motion.postureAtSec
-                ? {
-                    source: r.motion.hasMag ? 'limb-acc+mag' : 'limb-acc',
-                    reliability: 'low',
-                    note: 'Per-epoch body position is in epochs[].position (+positionConf, +headingDeg, +magInterference). Derived from the limb-worn ACC gravity vector — Polar Sense sits on the WRIST or ANKLE (site not auto-detected), so this is limb orientation, an approximate body-position proxy. Integrator MUST down-weight vs ECGDex chest-strap posture.',
-                    magnetometer: r.motion.hasMag
-                      ? {
-                          present: true,
-                          headingRef: 'relative',
-                          magFs: r.motion.magFs,
-                          magBaseG: r.motion.magBaseG,
-                          refHeadingDeg: r.motion.refHeadingDeg,
-                          magInterferencePct: r.magInterferencePct,
-                          note: 'Earth-field-scale only (~0.15 µT LSB). Splits merged lateral into lateral_L/lateral_R via tilt-compensated heading offset from a supine/upright datum — L/R labels are RELATIVE (may be mirrored without a calibration gesture). magInterference is an informational artifact flag; it does NOT modify beat SQI/conf here. NOT biomagnetic HR (cardiac field ~3000× below one LSB).'
-                        }
-                      : { present: false },
-                    breakdown: (() => {
-                      const t = {};
-                      r.epochs.forEach((e) => {
-                        if (e.position) {
-                          t[e.position] = (t[e.position] || 0) + 1;
-                        }
-                      });
-                      const tot = r.epochs.length || 1;
-                      return Object.entries(t)
-                        .map(([p, n]) => ({ position: p, pct: Math.round((n / tot) * 100) }))
-                        .sort((a, b) => b.pct - a.pct);
-                    })()
-                  }
-                : { source: 'none', note: 'no ACC — position unavailable' }
-            }
-          : { source: 'none', note: 'no ACC/GYRO loaded' },
-      timeseries: { doc: '5-min epochs — primary cross-node feed', epochs, markers: (r.markers || []).map((mk) => ({ relSec: +mk.relSec.toFixed(2), type: mk.type })) },
-      ganglior_events: r.events.map((e) => ({ t: e.t, tMs: e.tMs, impulse: e.impulse, node: e.node, conf: e.conf, meta: e.meta })),
-      reserved: {
-        doc: 'hooks for the Integrator 2-site fusion',
-        ptt: null,
-        pttSource: 'Integrator',
-        deltaSBP: null,
-        deltaSBPSource: 'Integrator (wrist⟷fingertip PTT)',
-        spo2Correlation: null,
-        spo2Source: 'OxyDex'
-      }
-    };
+    return PPGDSP.buildSummaryExport(r, {
+      kernel: window.DexKernel || null,
+      provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null
+    });
   }
   function exportJSON() {
     const list = sessionsSorted();
@@ -1628,21 +1308,16 @@ import { PPGUI } from './ppgdex-render.js';
     if (list.length === 1) {
       payload = buildV2(list[0]);
     } else {
-      payload = {
-        kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null,
-        schema: {
-          name: 'ganglior.node-export',
-          version: '2.0',
-          node: 'PpgDex',
-          multiSession: true,
-          generated: new Date().toISOString(),
-          provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null
-        },
-        generated: new Date().toISOString(),
-        sessionCount: list.length,
-        crossNight: buildCrossNightEnvelope(list),
-        sessions: list.map(buildV2)
-      };
+      /* ONE ROAD — `ppgdex-dsp.js ppgBuildSeriesExport` builds the envelope and maps the
+         per-session builder over the SAME sorted list. It also reads ONE `generated` stamp, where
+         this road read two, so a call across a millisecond boundary can no longer publish two
+         stamps for one file. `crossNight` stays an app computation: it reads the app's envelope
+         builder, which the DSP realm does not carry. */
+      payload = PPGDSP.buildSeriesExport(list, {
+        kernel: window.DexKernel || null,
+        provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null,
+        crossNight: buildCrossNightEnvelope(list)
+      });
     }
     download(
       JSON.stringify(payload, null, 2),

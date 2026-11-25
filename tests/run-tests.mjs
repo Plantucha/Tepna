@@ -1915,6 +1915,29 @@ function readEquiv() {
     const ecgSummary = ecgFix('synthetic_ecgdex_summary.export.json');
     if (ecgIn && ecgSummary !== undefined) out.ecgdex_summary_export = { inputs: [ecgIn], fixture: ecgSummary, fixtureFile: 'synthetic_ecgdex_summary.export.json' };
   }
+  /* THE PpgDex SUMMARY EXPORT ROAD — the payload the app's JSON button writes, through the headless
+     `ppgBuildSummaryExport`. The input is the SAME committed synthetic Verity stream the clean and
+     rich goldens use, so a skip here is a wiring defect and never an absent recording. `inputs` and
+     not `input`: the one-input CASES diff keys by node and would compare this payload against a
+     node-export. */
+  {
+    const ppgOne = (f) => {
+      const q = join(ROOT, 'uploads', f);
+      return existsSync(q) ? readFileSync(q, 'utf8') : null;
+    };
+    const ppgFix = (f) => {
+      const q = join(ROOT, 'uploads', f);
+      if (!existsSync(q)) return undefined;
+      try {
+        return JSON.parse(readFileSync(q, 'utf8'));
+      } catch {
+        return undefined; // unreadable → the leg self-skips rather than asserting on a parse error
+      }
+    };
+    const ppgIn = ppgOne('synthetic_ppgdex_verity.txt');
+    const ppgSummary = ppgFix('synthetic_ppgdex_summary.export.json');
+    if (ppgIn && ppgSummary !== undefined) out.ppgdex_summary_export = { inputs: [ppgIn], fixture: ppgSummary, fixtureFile: 'synthetic_ppgdex_summary.export.json' };
+  }
   return out;
 }
 
