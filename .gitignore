@@ -95,6 +95,7 @@ uploads/*
 !uploads/synthetic_oxydex_o2ring_longnight.csv
 !uploads/synthetic_oxydex_o2ring_longcycle.csv
 !uploads/synthetic_pulsedex_rr.txt
+!uploads/synthetic_pulsedex_series_n2_rr.txt
 !uploads/synthetic_hrvdex_welltory.csv
 !uploads/synthetic_glucodex_lingo.csv
 !uploads/synthetic_glucodex_lingo_gap.csv
@@ -132,6 +133,8 @@ uploads/*
 !uploads/synthetic_ecg_night.node-export.json
 !uploads/OxyDex_synthetic_ecg_paired_summary.json
 !uploads/synthetic_pulsedex_golden.node-export.json
+!uploads/synthetic_pulsedex_summary.export.json
+!uploads/synthetic_pulsedex_series.export.json
 !uploads/synthetic_hrvdex_golden.node-export.json
 !uploads/synthetic_glucodex_golden.node-export.json
 !uploads/synthetic_glucodex_gap_golden.node-export.json

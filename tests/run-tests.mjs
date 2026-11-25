@@ -1856,6 +1856,33 @@ function readEquiv() {
     const pairRec = readOxyEcgPair();
     if (pairRec) out.oxydex_ecg_pair = pairRec;
   }
+  /* THE SUMMARY/SERIES EXPORT ROAD — what the app's JSON button writes, through the headless
+     `pdBuildSummaryExport`. BOTH inputs are committed, so these legs run everywhere including CI and
+     a skip here is a wiring defect rather than an absent recording.
+     `inputs` and not `input`: the one-input CASES diff keys by node, and it would compare a summary
+     payload (a lastResult object, no envelope) against a node-export. The dynamic leg is the
+     dex-tests.js group that rebuilds both payloads. */
+  {
+    const pdText = (f) => {
+      const q = join(ROOT, 'uploads', f);
+      return existsSync(q) ? readFileSync(q, 'utf8') : null;
+    };
+    const pdFixture = (f) => {
+      const q = join(ROOT, 'uploads', f);
+      if (!existsSync(q)) return undefined;
+      try {
+        return JSON.parse(readFileSync(q, 'utf8'));
+      } catch {
+        return undefined; // unreadable → the leg self-skips rather than asserting on a parse error
+      }
+    };
+    const pdN1 = pdText('synthetic_pulsedex_rr.txt');
+    const pdN2 = pdText('synthetic_pulsedex_series_n2_rr.txt');
+    const pdSummary = pdFixture('synthetic_pulsedex_summary.export.json');
+    const pdSeries = pdFixture('synthetic_pulsedex_series.export.json');
+    if (pdN1 && pdSummary !== undefined) out.pulsedex_summary_export = { inputs: [pdN1], fixture: pdSummary, fixtureFile: 'synthetic_pulsedex_summary.export.json' };
+    if (pdN1 && pdN2 && pdSeries !== undefined) out.pulsedex_series_export = { inputs: [pdN1, pdN2], fixture: pdSeries, fixtureFile: 'synthetic_pulsedex_series.export.json' };
+  }
   return out;
 }
 

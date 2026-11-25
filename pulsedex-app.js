@@ -65,6 +65,7 @@ const {
   windowAnalysis,
   compareIntervalSeries,
   pdBuildNodeExport,
+  pdBuildSummaryExport,
   pulseLoadOwnExport
 } = window.PulseDex._bare;
 // mutable page state: bridge bare window.lastResult ↔ the DSP-owned PulseDex.lastResult (the DSP's own
@@ -1431,27 +1432,24 @@ function exportJSON() {
   if (list.length <= 1) {
     // EXPORT-HYGIENE-FOLLOWUPS-II §1: append the recording's identity-free contentId (set in calculate())
     // so re-exporting the SAME recording yields a stable, disambiguated name. null/absent → no suffix.
-    dl(JSON.stringify(lastResult, null, 2), exportName({ node: 'PulseDex', t0Ms: lastResult.t0Ms, kind: 'summary', ext: 'json', contentId: lastResult.contentId }), 'application/json;charset=utf-8');
+    // The one-recording payload IS that recording's object; it travels through the shared builder
+    // so this road and the fixture cannot diverge (pulsedex-dsp.js pdBuildSummaryExport).
+    dl(
+      JSON.stringify(pdBuildSummaryExport([lastResult]), null, 2),
+      exportName({ node: 'PulseDex', t0Ms: lastResult.t0Ms, kind: 'summary', ext: 'json', contentId: lastResult.contentId }),
+      'application/json;charset=utf-8'
+    );
     return;
   }
-  // ≥2 recordings → wrapper: array of per-recording objects + standardized crossNight envelope
-  const payload = {
-    kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null,
-    schema: {
-      name: 'ganglior.node-export',
-      version: '2.0',
-      node: 'PulseDex',
-      nodeVersion: '1.0',
-      multiRecording: true,
-      generated: new Date().toISOString(),
-      provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null,
-      doc: 'Array of per-recording PulseDex summaries + a ganglior.crossnight v1.0 aggregate header. Each element is the unmodified single-recording object.'
-    },
-    generated: new Date().toISOString(),
-    recordingCount: list.length,
+  // ≥2 recordings → wrapper: array of per-recording objects + standardized crossNight envelope.
+  // The payload is built by the HEADLESS builder in pulsedex-dsp.js, so a committed fixture reads
+  // the same bytes this click writes. The crossNight block is computed from the SAME sorted list.
+  const payload = pdBuildSummaryExport(list, {
+    kernel: window.DexKernel || null,
+    provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null,
     crossNight: window.PulseCross.crossNightBlock(list),
-    recordings: list
-  };
+    generated: new Date().toISOString()
+  });
   // series export (≥2 recordings): anchor on the FIRST night + an explicit day-span (brief §2.4) —
   // recordingsSortedPx() is ascending by t0Ms, so list[0]=earliest, last=latest. NO _multi<N> count (§2.3).
   // NO contentId suffix (EXPORT-HYGIENE-FOLLOWUPS-II §1): contentId digests ONE recording; a multi-recording

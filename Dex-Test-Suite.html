@@ -742,6 +742,22 @@ async function main(){
   ]) {
     try { setEquiv(k, null, await fetchJSON('uploads/' + encodeURIComponent(fxF)), fxF); } catch (e) { /* self-skips */ }
   }
+  /* THE SUMMARY/SERIES EXPORT ROAD — wired in THIS lane too, because the fixture-reproducibility gate
+     builds its registry per lane out of equiv[*].fixtureFile and a leg in one lane leaves the other
+     reading an orphaned code claim. Both inputs are committed, so neither fetch depends on a corpus.
+     Assigned directly rather than through setEquiv: the record carries `inputs` (plural), which keeps
+     the one-input CASES diff from comparing a summary payload against a node-export. */
+  for (const [k, fxF, inF] of [
+    ['pulsedex_summary_export', 'synthetic_pulsedex_summary.export.json', ['synthetic_pulsedex_rr.txt']],
+    ['pulsedex_series_export', 'synthetic_pulsedex_series.export.json', ['synthetic_pulsedex_rr.txt', 'synthetic_pulsedex_series_n2_rr.txt']]
+  ]) {
+    try {
+      const texts = [];
+      for (const f of inF) texts.push(await fetchText('uploads/' + encodeURIComponent(f)));
+      const fixture = await fetchJSON('uploads/' + encodeURIComponent(fxF));
+      if (texts.every((t) => t != null) && fixture != null) equiv[k] = { inputs: texts, fixture: fixture, fixtureFile: fxF };
+    } catch (e) { /* self-skips */ }
+  }
   // doc artifacts for the cohesion-badge single-source group (engine ≡ mirror ≡ reference)
   const docs = {};
   await Promise.all([['dex-badges.css','dex-badges.css'],['OxyDex Reference.html','OxyDex Reference.html'],['ECGDex Reference.html','ECGDex Reference.html'],['PpgDex Reference.html','PpgDex Reference.html'],['CPAPDex Reference.html','CPAPDex Reference.html'],['PulseDex Reference.html','PulseDex Reference.html'],['HRVDex Reference.html','HRVDex Reference.html'],['GlucoDex Reference.html','GlucoDex Reference.html'],['MotionDex Reference.html','MotionDex Reference.html'],['EEGDex Reference.html','EEGDex Reference.html'],['ORIENTATION.md','ORIENTATION.md'],['papers/sensor-trio-nights.html','papers/sensor-trio-nights.html']]
