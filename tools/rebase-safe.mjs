@@ -712,9 +712,11 @@ function rebuild(regenFixtures) {
    modules over each input — so it runs for the recipes that actually conflicted and for no others. A
    rebase with no fixture conflict pays nothing.
 
-   AND IT CHECKS THAT THE RESTORE HAPPENED. The regenerator reports an item it could not reach and
-   exits 0, so the exit code alone would read "restored" over a fixture it skipped. `unrestoredFrom`
-   reads the report; anything unrestored stops the tool with the path named. */
+   AND IT CHECKS THAT THE RESTORE HAPPENED. The regenerator exits 2 when a build THREW, so that half
+   reaches the catch below. An input it could not reach, and a fixture it skipped, still exit 0 — so
+   the exit code alone would read "restored" over them. `unrestoredFrom` reads the report; anything
+   unrestored stops the tool with the path named.
+   Row 2026-11-25-a-write-mode-regen-exits-zero-after-its-own-build-threw moved the throw half. */
 function regenAutoResolved(fixtures) {
   const list = (Array.isArray(fixtures) ? fixtures : []).filter((p) => typeof p === 'string' && p);
   if (!list.length) return;

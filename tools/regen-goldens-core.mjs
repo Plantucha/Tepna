@@ -321,7 +321,22 @@ export function regenExitCode({ check, moved, minted, unchanged, absent, threw, 
       code: 2,
       note: `\u23f1 UNEXAMINED — the count(s) ${bad.join(', ')} did not arrive as numbers, so this run ` + 'cannot report any fixture current'
     };
-  if (!check) return { code: 0, note: null };
+  /* ∅ WRITE MODE REPORTS THE FIXTURE IT COULD NOT WRITE. A regen exists to WRITE, so drift and a
+     mint are its ordinary success and stay 0. A BUILD THAT THREW is not: that fixture still carries
+     its stale output, and a run that crashed on it cannot report it regenerated. §4c asks for exit 2
+     where a run could not look, and a chain step reads an exit 0 as a pass.
+
+     An ABSENT input is deliberately NOT one of these. A worktree holds no corpus, so an absent input
+     is an environment fact the summary already names, and reding it would red every worktree regen.
+     Row 2026-11-25-a-write-mode-regen-exits-zero-after-its-own-build-threw. */
+  if (!check) {
+    if (!th) return { code: 0, note: null };
+    const wrote = un + mv + mn;
+    return {
+      code: 2,
+      note: `\u23f1 UNEXAMINED — ${th} of ${wrote + th} fixture(s) never reached a rebuild (${th} build threw); ` + `this run rebuilt ${wrote} and cannot report those ${th} regenerated`
+    };
+  }
   const examined = un + mv + mn;
   if (mv || mn) return { code: 1, note: null };
   const unreached = ab + th + sk;
