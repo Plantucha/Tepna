@@ -410,8 +410,8 @@ async function main() {
   refuseUnknownArgvOrExit(argv, { valued: ['--limit', '--tree'], boolean: ['--check', '--json', '--selftest', '--verdict-sample'] }, { tool: 'pat-mask-census' });
   if (has('--selftest')) {
     await selftest();
-    // absence-ok: a process exit code, not a measurement. Zero is the success code itself.
-    process.exit(process.exitCode || 0);
+    // Zero is the success code itself, so no measurement reaches this line.
+    process.exit(process.exitCode || 0); // absence-ok: a process exit code, not a measurement
   }
   if (has('--verdict-sample')) {
     /* A walk over a root that cannot exist: it reads no recording, so the one builder above prints
