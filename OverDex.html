@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="5ae3733b0301" data-compute-hash="66c5bdb4e4b5"><head>
+<html lang="en" data-manifest-hash="b11a91e2b8a9" data-compute-hash="ab648d8cb2b2"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FV/TB0GWLAawcNhCICx6Shvm9lLfECci1wUypQlaWW0=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-JOqjyEYQXKY+GdMVYfY11IKXcdrf3/qh7jo0ee3mqbg=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-M3ZOhml+Q710BLZQ/P2i37xtADxczWQXIxaac3VLRj0=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UdJ88eeYm1W9tlVf66iAGR0D63hIgHQ6dBYrVftyKPE=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gsfxF3U9fQYY6VBcjkxdisltp5OpMvk7xGo0quyFZm8=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-rKOLZSmNqgk9sveMIZvZI2xTcv2C6V9ASMx59wAbxvU=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-wktj1Df+isZKJxu0wGtJ0pZLbTfqdObxwLCd2Fo+wQg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FV/TB0GWLAawcNhCICx6Shvm9lLfECci1wUypQlaWW0=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-M3ZOhml+Q710BLZQ/P2i37xtADxczWQXIxaac3VLRj0=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-OxVlAcnI2FhIjQ9PvF5+JY62KvFIGxtzHZRZaBXkhBo=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UdJ88eeYm1W9tlVf66iAGR0D63hIgHQ6dBYrVftyKPE=' 'sha256-XKQFrqQpPPC7kRB+couzlvLcdQFWKGseS/BbyN9tv9s=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-rKOLZSmNqgk9sveMIZvZI2xTcv2C6V9ASMx59wAbxvU=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-wktj1Df+isZKJxu0wGtJ0pZLbTfqdObxwLCd2Fo+wQg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -58675,8 +58675,17 @@ __exports.MotionDex = window.MotionDex;
         }
         j++; // skip 0x14
         var onsetSec = parseFloat(onset);
+        /* ∅ AN ABSENT DURATION FIELD IS NOT A ZERO-SECOND EVENT. EDF+ makes the duration optional:
+           a TAL carries it only after a 0x15 byte, which `dur` records. `duration ? … : 0` answered 0
+           for BOTH an omitted field and a device-written "0", because the string "0" is falsy too. The
+           two are different facts. A written 0 is the marker form a real AirSense uses to open or close
+           a span, and an omitted field states nothing at all. The reader of an event that carries no
+           stated duration must see `null`, so this answers `null` for the omitted field, and keeps a
+           written 0 as the 0 the device wrote. A duration that does not parse is also `null`. */
+        var durSec = dur ? parseFloat(duration) : null;
+        if (durSec != null && !isFinite(durSec)) durSec = null;
         if (text.length && !isNaN(onsetSec)) {
-          out.push({ onsetSec: onsetSec, durSec: duration ? parseFloat(duration) : 0, text: text });
+          out.push({ onsetSec: onsetSec, durSec: durSec, text: text });
         }
         if (j < n && bytes[j] === 0x00) break; // end of this TAL
       }
@@ -60301,7 +60310,11 @@ __exports.MotionDex = window.MotionDex;
         type = eveClassToType(a.class);
       if (!type) continue;
       var timeSec = a.tMs != null ? (a.tMs - sessionT0Ms) / 1000 : a.onsetSec;
-      out.push({ type: type, timeSec: timeSec, durSec: a.durSec || 0, class: a.class, tMs: a.tMs });
+      /* ∅ The parser answers `null` when the TAL carried no duration field (cpapdex-edf.js parseTAL),
+         so `|| 0` here would put the manufactured 0 back and publish a 0-second apnea. Carry the
+         absence. A written 0 stays 0. */
+      var durSec = a.durSec != null && isFinite(a.durSec) ? a.durSec : null;
+      out.push({ type: type, timeSec: timeSec, durSec: durSec, class: a.class, tMs: a.tMs });
     }
     return out;
   }
@@ -60340,7 +60353,12 @@ __exports.MotionDex = window.MotionDex;
     var open = null;
     for (var j = 0; j < pb.length; j++) {
       var a = pb[j],
-        dur = a.durSec || 0;
+        /* Both marker forms land on 0 here, and that is correct for THIS reader: a span-carrying TAL
+           owns its own span, while a TAL that states no duration (a written 0, or no duration field at
+           all, which the parser answers as `null`) opens or closes a pair instead. A `null` never
+           opens a span on its own. The read is explicit, so a later reader does not have to infer
+           which of the two the 0 was. */
+        dur = a.durSec != null && isFinite(a.durSec) ? a.durSec : 0;
       if (dur > 0) {
         out.sec += dur;
         out.spans++;
@@ -62075,7 +62093,10 @@ __exports.CPAPDex = window.CPAPDex;
     // UA = device-scored apnea the firmware could not type — still airflow the device scored,
     // so it carries an apnea-tier floor (below OA/CA, above RERA), NOT the 0.55 RERA default.
     var base = type === 'CA' ? 0.9 : type === 'OA' ? 0.85 : type === 'UA' ? 0.8 : type === 'H' ? 0.7 : 0.55;
-    var durBoost = Math.min(0.1, (durSec || 0) / 300); // +0.1 max at ≥30 s
+    /* An event that states no duration earns no boost, which is the floor for its type and not a
+       claim that the event lasted 0 s. The read is explicit because `durSec` is now `null` when the
+       device stated nothing (cpapdex-edf.js parseTAL). */
+    var durBoost = durSec != null && isFinite(durSec) ? Math.min(0.1, durSec / 300) : 0; // +0.1 max at ≥30 s
     return +Math.min(0.98, base + durBoost).toFixed(2);
   }
   function _impulseFor(type) {
@@ -62113,7 +62134,10 @@ __exports.CPAPDex = window.CPAPDex;
           node: 'CPAPDex',
           conf: _eventConf(ev.type, ev.durSec),
           sqi: sqi2,
-          meta: { class: _classFor(ev.type), durSec: ev.durSec || 0, source: 'device-scored' }
+          /* ∅ `durSec` rides out as the absence it is. `|| 0` published a 0-second apnea for every
+             event whose TAL carried no duration field, and a consumer cannot tell that 0 from a real
+             one. */
+          meta: { class: _classFor(ev.type), durSec: ev.durSec != null ? ev.durSec : null, source: 'device-scored' }
         });
       });
       // ── periodic breathing (CSL spans) — one event marking the night's PB burden ──
