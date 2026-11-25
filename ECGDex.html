@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="8d9ae8a1979c" data-compute-hash="89cdcc170464">
+<html lang="en" data-manifest-hash="0a707c962923" data-compute-hash="287036399583">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-71MDhLQiCe5qnwusZY4WoDt4Biw8gumKJ9HS8zGXW4s=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BAjyVP2UKICMzEcmcHx9Ogcs3pqZH03VDzqcSy6gaLs=' 'sha256-GGXFnzeUENyO3vafEDqc+1hg15ipvB0UcyQDHIUJu8I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-M3ZOhml+Q710BLZQ/P2i37xtADxczWQXIxaac3VLRj0=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-csoYuQTC7Oifl4DXdjZQTi/R1rLzeEQyG2MFYNR64tg=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nINCo0TXagqAfjMc8qrTo7HJKrwLN81EsTVzWJvJer8=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sCBaMmoKT0Ws3VerjCfde5tDT+xro/2PUbFgDCfRX3A=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-71MDhLQiCe5qnwusZY4WoDt4Biw8gumKJ9HS8zGXW4s=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-GGXFnzeUENyO3vafEDqc+1hg15ipvB0UcyQDHIUJu8I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-aA2v5+yC4MnbUqVlDvUpdJ9DdrmPgGrA7kfm37RaOxg=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-csoYuQTC7Oifl4DXdjZQTi/R1rLzeEQyG2MFYNR64tg=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nINCo0TXagqAfjMc8qrTo7HJKrwLN81EsTVzWJvJer8=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-piJPQqTQ1IP+DB0tbyctXlZlRhC4JwaGuRPqPpdWJ9c=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sCBaMmoKT0Ws3VerjCfde5tDT+xro/2PUbFgDCfRX3A=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.37.0</title>
@@ -14467,6 +14467,14 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     refIdx: 'sampleIndexFractional'
   });
 
+  /* SD2 below half the published 0.01 ms step is a zero at the precision this node publishes. */
+  const ECG_SD2_MIN_MS = 0.005;
+  /* One band as a share of HF + LF, in percent. Null when a band is absent or the two hold no power. */
+  function nuOf(band, other) {
+    if (band == null || other == null || !(band + other > 0)) return null;
+    return +((band / (band + other)) * 100).toFixed(1);
+  }
+
   function analyze(rec, onProgress) {
     const prog = onProgress || (() => {});
     const { int16, fs } = rec;
@@ -15231,8 +15239,12 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       /* `sd1v / (sd2v || 1)` is the same fabrication as `hfnu` below: with sd2v null the `|| 1`
          substitutes a denominator that was never measured, and `null / 1` is 0 in JS — so a
          refusal would have surfaced as a ratio of exactly 0.000. Both derived metrics refuse
-         when either axis is absent. */
-      sd1sd2: sd1v == null || sd2v == null ? null : +(sd1v / (sd2v || 1)).toFixed(3),
+         when either axis is absent.
+         ∅ The ratio also refuses below `ECG_SD2_MIN_MS`. The retained `|| 1` divided by an invented
+         1 ms, so a series with no long-axis spread published SD1 itself as the ratio. PpgDex
+         (`PPG_SD2_MIN_MS`) and PulseDex (`PX_SD2_MIN_MS`) refuse at the same floor. `ellArea` keeps
+         its 0: a product over a measured zero width is a measured zero area. */
+      sd1sd2: sd1v == null || sd2v == null || sd2v < ECG_SD2_MIN_MS ? null : +(sd1v / sd2v).toFixed(3),
       ellArea: sd1v == null || sd2v == null ? null : +(Math.PI * sd1v * sd2v).toFixed(0),
       poincareNN,
       poincareRep: longRec && repSeg.length >= 20,
@@ -15253,12 +15265,13 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       /* 🔴 THE `|| 1` WAS THE WHOLE DEFECT, and it is worth naming precisely. With hf and lf both
          absent the expression read `null / (null + null || 1) * 100` — `null + null` is 0, `0 || 1`
          is 1, `null / 1` is 0 — producing a clean `0.0 %` on a `validated`-tier metric from an
-         input that was never transformed. The guard is on the MEASUREMENT, not on the denominator:
-         if either band is absent there are no normalised units to report. A genuinely measured
-         hf + lf === 0 still yields 0 via the retained `|| 1`, which is the case that guard was
-         actually for. */
-      hfnu: spec.hf == null || spec.lf == null ? null : +((spec.hf / (spec.hf + spec.lf || 1)) * 100).toFixed(1),
-      lfnu: spec.hf == null || spec.lf == null ? null : +((spec.lf / (spec.hf + spec.lf || 1)) * 100).toFixed(1),
+         input that was never transformed.
+         ∅ A MEASURED hf + lf === 0 REFUSES TOO (ruling #8826). The two shares partition one total,
+         so they sum to 100. Over no power they published 0.0 and 0.0: a share of nothing is not a
+         share. `hf`, `lf` and `tp` stay published as their measured zeros. `lfhf` guards itself
+         on the unrounded HF. */
+      hfnu: nuOf(spec.hf, spec.lf),
+      lfnu: nuOf(spec.lf, spec.hf),
       // non-linear
       dfa1,
       sampen,
@@ -17533,6 +17546,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     partKey,
     mergeMultipart,
     lombScargle,
+    nuOf,
     /* Exported so their refusal guards are directly assertable. Additive only — no existing caller
        reaches them through this surface, and the internal call sites are unchanged. */
     poincareGeo,
@@ -19051,16 +19065,39 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   // stampEpochPositions(deviceACC) → epochs[].position (posture) + accExtras. Mirrors PpgDex's
   // DSP-resident parseSensorXYZ/parseDevicePPI (companion parsers live in the DSP).
   // `*_RR.txt` (device RR, ms in the last column) → [{tsMs, rr}], 200–3000 ms.
+  /* ∅ A DROPPED ROW IS COUNTED. Both parsers below skip a row they cannot read and a row outside the
+     plausible band, and a file that lost half its rows published the same shape as a file that lost
+     none. The counts ride as own properties on the returned array, because `compute()` rebuilds the
+     recording and passes this array by reference (a sibling key on the recording would be lost there).
+       rowsDropped   every data row that gave no value
+       rowsOutOfBand the part of `rowsDropped` that held a number outside the band
+     A header is not data: the first line with no readable value and no readable stamp, and any exact
+     repeat of it (a multi-part file carries one header per part). */
   function parseDeviceRR(text) {
     var lines = String(text == null ? '' : text).split(/\r?\n/),
-      out = [];
+      out = /** @type {any} */ ([]),
+      hdr = null,
+      first = true;
+    out.rowsDropped = 0;
+    out.rowsOutOfBand = 0;
     for (var i = 0; i < lines.length; i++) {
       var t = lines[i].trim();
-      if (!t) continue;
+      if (!t || t === hdr) continue;
       var p = t.split(/[;\t,]/);
       var rr = parseFloat(p[p.length - 1]);
-      if (!isFinite(rr) || rr < 200 || rr > 3000) continue;
       var ts = parseTimestamp(p[0]);
+      if (first) {
+        first = false;
+        if (!isFinite(rr) && !ts) {
+          hdr = t;
+          continue;
+        }
+      }
+      if (!isFinite(rr) || rr < 200 || rr > 3000) {
+        out.rowsDropped++;
+        if (isFinite(rr)) out.rowsOutOfBand++;
+        continue;
+      }
       out.push({ tsMs: ts && ts.tMs != null ? ts.tMs : null, rr: rr });
     }
     return out;
@@ -19093,17 +19130,22 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   // `*_HR.txt` (device onboard HR) → [{tsMs, hr}], 20–260 bpm.
   function parseDeviceHR(text) {
     var lines = String(text == null ? '' : text).split(/\r?\n/),
-      out = [];
+      out = /** @type {any} */ ([]);
     var cols = null,
-      headerless = false;
+      headerless = false,
+      hdr = null;
+    out.rowsDropped = 0;
+    out.rowsOutOfBand = 0;
     for (var i = 0; i < lines.length; i++) {
       var t = lines[i].trim();
-      if (!t) continue;
+      if (!t || t === hdr) continue;
       var p = t.split(/[;\t,]/);
-      if (cols === null && !headerless) {
+      var first = cols === null && !headerless;
+      if (first) {
         var fromHdr = hrColsFromHeader(t);
         if (fromHdr) {
           cols = fromHdr;
+          hdr = t;
           continue; // the header line is not data
         }
         headerless = true;
@@ -19115,8 +19157,16 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       // milliseconds relabelled as bpm.
       var hrIdx = cols ? cols.hr : p.length === 1 ? 0 : 1;
       var hr = parseFloat(p[hrIdx]);
-      if (!isFinite(hr) || hr < 20 || hr > 260) continue;
       var ts = parseTimestamp(p[0]);
+      if (first && !isFinite(hr) && !ts) {
+        hdr = t; // a header that names no rate column
+        continue;
+      }
+      if (!isFinite(hr) || hr < 20 || hr > 260) {
+        out.rowsDropped++;
+        if (isFinite(hr)) out.rowsOutOfBand++;
+        continue;
+      }
       out.push({ tsMs: ts && ts.tMs != null ? ts.tMs : null, hr: hr }); // null stamp stays null — never fabricated
     }
     return out;
@@ -20867,6 +20917,9 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
              block already applies above, so a measuring night keeps today's bytes. */
           ...(_v.devReason ? { devReason: _v.devReason } : {}),
           ...(_v.nDevAbsent ? { nDeviceAbsent: _v.nDevAbsent } : {}),
+          /* The rows `parseDeviceRR` could not use. Attached only when a row was lost, the same
+             no-null-key discipline as `nDeviceAbsent`, so a clean file keeps its bytes. */
+          ...(r.deviceRR.rowsDropped ? { deviceRowsDropped: r.deviceRR.rowsDropped, deviceRowsOutOfBand: r.deviceRR.rowsOutOfBand } : {}),
           dMeanPct: _v.dMean,
           dRMSSDPct: _v.dRMSSD,
           dSDNNPct: _v.dSDNN,
@@ -25115,7 +25168,11 @@ __exports.SCHEMA = SCHEMA; __exports.STAGE_NAMES = STAGE_NAMES; __exports.VIEWER
       })
     )
       byKind.rr = byKind.rr.filter(function (it) {
-        return !isPPI(it.name);
+        if (!isPPI(it.name)) return true;
+        /* The PPI file is set aside by design and it is still a dropped file, so `skipped` names it.
+           An empty list told the reader that every file was used. */
+        skipped.push({ name: it.name, kind: 'supersededppi' });
+        return false;
       });
     // (7) companion lanes: part-group, then de-dupe a duplicated same-device-session sidecar group
     var companionLanes = {
@@ -25617,6 +25674,11 @@ self.onmessage = async (e) => {
       card.classList.add('loaded');
     }
   }
+  /* ∅ The rows a companion parser could not use, said beside the count it loaded. Empty when none. */
+  function _dropNote(out) {
+    if (!out.rowsDropped) return '';
+    return ' · ' + out.rowsDropped.toLocaleString() + ' row' + (out.rowsDropped > 1 ? 's' : '') + ' dropped' + (out.rowsOutOfBand ? ' (' + out.rowsOutOfBand.toLocaleString() + ' out of range)' : '');
+  }
   // device cross-check loaders ── DEEP-AUDIT 2026-07-01 Finding 2: parse via the Clock-Contract-
   // faithful DSP twins (ECGDSP.parseDeviceRR/parseDeviceHR/parseDeviceACC — regex parseTimestamp,
   // floating wall-clock, a missing stamp stays null). The old app-local parseRows used a locale
@@ -25627,11 +25689,11 @@ self.onmessage = async (e) => {
     fr.onload = (e) => {
       const out = DSP.parseDeviceRR(e.target.result);
       if (!out.length) {
-        showErr('No RR values parsed from file.');
+        showErr('No RR values parsed from file' + _dropNote(out) + '.');
         return;
       }
       DEVICE_RR = out;
-      setLoad('rr', '✅ ' + out.length.toLocaleString() + ' RR beats loaded');
+      setLoad('rr', '✅ ' + out.length.toLocaleString() + ' RR beats loaded' + _dropNote(out));
       if (RESULT) {
         RESULT.deviceRR = DEVICE_RR;
         renderValidation(RESULT);
@@ -25644,11 +25706,11 @@ self.onmessage = async (e) => {
     fr.onload = (e) => {
       const out = DSP.parseDeviceHR(e.target.result); // stampless rows keep tsMs:null — never a fabricated now()
       if (!out.length) {
-        showErr('No HR values parsed from file.');
+        showErr('No HR values parsed from file' + _dropNote(out) + '.');
         return;
       }
       DEVICE_HR = out;
-      setLoad('hr', '✅ ' + out.length.toLocaleString() + ' HR samples loaded');
+      setLoad('hr', '✅ ' + out.length.toLocaleString() + ' HR samples loaded' + _dropNote(out));
       if (RESULT) {
         RESULT.deviceHR = DEVICE_HR;
         renderHRValidation(RESULT);
@@ -27180,6 +27242,9 @@ self.onmessage = async (e) => {
     window.__summaryRows = rows; // structured source for the tidy CSV export (not a DOM scrape)
     $('tblBody').innerHTML = rows
       .map(
+        ([m, v, u, nr, g, n]) => [m, v == null ? '—' : v, u, nr, v == null ? 'neutral' : g, n] // ∅ an absent value prints a dash and takes no grade
+      )
+      .map(
         ([m, v, u, nr, s, n]) => `<tr>
     <td class="ecg-tbl-m" style="color:var(--text2);font-weight:600;font-family:Inter,sans-serif">${evBadge(m)}${m}</td>
     <td class="${s}">${v}</td><td style="color:var(--text3)">${u}</td><td style="color:var(--text3)">${nr}</td>
@@ -27383,6 +27448,7 @@ self.onmessage = async (e) => {
     cgm: 'glucose CGM (→ GlucoDex)',
     otherdevice: 'other-device sensor',
     duplicate: 'duplicate ECG',
+    supersededppi: 'PPI (the firmware RR file is used instead)',
     skip: 'non-ECG stream'
   };
   function _deviceName(key) {
@@ -27731,6 +27797,12 @@ self.onmessage = async (e) => {
   } catch (_rvx) {}
 
   function reportSkipped(foreign, nEcg) {
+    /* A PPI file set aside for the firmware RR beside it is no error: with no ECG in the drop, the RR
+       still loads. It keeps its line in the summary and never decides the message. */
+    if (nEcg === 0 && foreign.every((f) => f.kind === 'supersededppi')) {
+      showOK('Set aside ' + foreign.length + ' PPI file' + (foreign.length > 1 ? 's' : '') + ': the firmware RR file of this drop is used instead.');
+      return;
+    }
     const counts = {};
     foreign.forEach((f) => {
       let l = _FOREIGN_LABEL[f.kind] || 'non-ECG';
@@ -27746,7 +27818,7 @@ self.onmessage = async (e) => {
     }
     // §4: a companions-ONLY drop whose sidecars were ALL set aside as foreign-device — they don't belong
     // to the loaded recording. Report specifically (not the generic "no ECG → use PulseDex / OxyDex").
-    if (RESULT && RESULT.deviceKey && foreign.length && foreign.every((f) => f.kind === 'otherdevice')) {
+    if (RESULT && RESULT.deviceKey && foreign.some((f) => f.kind === 'otherdevice') && foreign.every((f) => f.kind === 'otherdevice' || f.kind === 'supersededppi')) {
       showErr(
         'Set aside ' +
           summary +

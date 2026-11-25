@@ -48862,6 +48862,49 @@
       }
     });
 
+    /* ── §∅ · THE SESSIONS CARD, OVER A WEAR THAT NEVER FIT ──────────────────────────
+       Board #8872, item M17 of the GlucoDex re-read. `glucodex-dsp.js` publishes `driftPerDay: null`
+       for a sensor wear whose regression never fit. The card reduced the set through
+       `Math.abs(s.driftPerDay)` over an or-zero fallback, and `Math.abs(null)` is 0, so the
+       "Largest drift" tile printed a measured 0 /day under an `ok` class and the prose beneath it
+       said nothing. The per-session ROW of the same table already printed an em-dash for that same
+       record, so one card held both answers. The adjacent between-session `spread` fell back the
+       same way when fewer than two wears carried a median.
+
+       `renderSessions` is private to the app IIFE and writes into the DOM, so the two reductions and
+       the three surfaces they feed are pinned as SOURCE TEXT — the lane `oxydex-app.js` uses above.
+       `GluDisp.drift` is EXECUTED, because the repair leans on the refusal it already answered. */
+    group('GlucoDex sessions card NAMES an unfitted drift and a lone median — never a zero (§∅)', 'glucodex-app · glucodex-render · absence · sources', function (T) {
+      var gsrc = (env.sources || {})['glucodex-app.js'] || '';
+      if (!gsrc.trim()) {
+        T.skip('glucodex-app.js in env.sources', 'sources not provided in this runner');
+      } else {
+        /* 1 · the two reductions keep the wears that fit, and publish null over none of them. */
+        T.ok('no reduction reads a session slope through Math.abs any more', !/Math\.abs\(s\.driftPerDay/.test(gsrc), 'the or-zero reduction over `s.driftPerDay` is back');
+        T.eq('the drift reduction keeps only the wears that fit', (gsrc.match(/const drifts = ss\.map\(\(s\) => s\.driftPerDay\)\.filter\(\(d\) => d != null && isFinite\(\+d\)\);/g) || []).length, 1);
+        T.eq('…and publishes null when none of them fit', (gsrc.match(/const maxDrift = drifts\.length \? Math\.max\(\.\.\.drifts\.map\(\(d\) => Math\.abs\(\+d\)\)\) : null;/g) || []).length, 1);
+        T.eq(
+          'the between-session spread publishes null under two medians, never 0',
+          (gsrc.match(/const spread = medians\.length > 1 \? Math\.max\(\.\.\.medians\) - Math\.min\(\.\.\.medians\) : null;/g) || []).length,
+          1
+        );
+
+        /* 2 · the three surfaces each NAME the absence. */
+        T.eq('the drift tile reads ONE GluDisp.drift answer', (gsrc.match(/const maxDriftDisp = window\.GluDisp\.drift\(maxDrift\);/g) || []).length, 1);
+        T.ok('…and prints the em-dash over an absent slope', gsrc.indexOf("maxDriftDisp.display == null ? '—'") >= 0, 'the tile prints the string `null` again');
+        T.ok('…with no unit standing over the em-dash', /maxDriftDisp\.display == null \? 'no wear carries a fitted slope'/.test(gsrc), 'the per-day sub-label stands over no measurement');
+        T.ok('the spread tile prints the em-dash over a lone median', gsrc.indexOf("spread == null ? '—'") >= 0, 'the tile prints the string `null` again');
+        T.ok('…and grades it neutral rather than ok', /spread == null \? 'neutral'/.test(gsrc), 'an unmeasured spread carries a severity colour');
+        T.ok('the prose names the absent drift', gsrc.indexOf('No wear carries a fitted drift slope') >= 0, 'the prose is silent over an absent slope');
+        T.ok('…and the absent spread', gsrc.indexOf('Fewer than two wears carry a median') >= 0, 'the prose claims the medians are close');
+
+        /* 3 · CONTROL · the measured path is untouched. */
+        T.ok('CONTROL · a large spread still reads as a between-sensor step', /spread >= 15 \?/.test(gsrc), 'the measured spread branch went');
+        T.ok('CONTROL · a 7 per-day wear still reads as sensor aging', /maxDrift >= 7 \?/.test(gsrc), 'the measured drift branch went');
+        T.ok('CONTROL · the per-session row keeps its own em-dash', /s\.driftPerDay == null \? '—'/.test(gsrc), 'the table cell lost its refusal');
+      }
+    });
+
     group('GlucoDex applySessionCorrections — levelling and de-drift, signed (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
       var G = env.GLUDSP;
       if (!G || typeof G.analyze !== 'function') {
@@ -92977,6 +93020,12 @@
         T.eq('§5.3 · absent drift is neutral, not a fabricated 0-severity', env.GluDisp.drift(null).sev, 'neutral');
         T.eq('§5.3 · absent drift has no display value', env.GluDisp.drift(null).display, null);
         env.GluDisp.set('mgdl');
+        /* §∅ · board #8872, item M17: the sessions card reduced the per-wear slopes over an or-zero
+           fallback, so an UNFITTED wear reached this helper as a measured 0 and the KPI printed
+           `0 /day` under an `ok` class. The two legs above hold the refusal; these two hold the
+           other side of it, so no later repair may sweep a measured 0 into the absence. */
+        T.eq('§5.3 · CONTROL · a measured 0 mg/dL per day IS a display value', env.GluDisp.drift(0).display, 0);
+        T.eq('§5.3 · CONTROL · …and a measured 0 grades ok, never neutral', env.GluDisp.drift(0).sev, 'ok');
 
         /* ── DEEP-AUDIT-II §2.2 · ONE band set for DesSev, across every site that grades it ──────────
            Mutation-checked 2026-07-29: reverting the CHIP to its old {10,25} reds NOTHING. The chip is
@@ -100868,6 +100917,48 @@
       T.ok('the guard still refuses a null resting HR first', /const _bapOk = bap_full != null &&/.test(src), 'the AP guard dropped its resting-HR term');
       T.ok('the card hint names the absent resting HR', /'no resting HR measured'/.test(src), 'the BAP hint does not name the absence');
       T.ok('CONTROL · the card still cites Baevsky for a real value', /'Baevsky 1984 regression'/.test(src), 'the citation went away with the guard');
+    });
+
+    /* §∅ M7 — the two arms of getProfile() disagreed about an absent elevation. The DXP arm answers
+       `null` and names the rule. The DOM arm answered 0, and 0 m IS a legal elevation, so an empty
+       field and a sea-level measurement read the same. That arm is reachable: it runs whenever the
+       shared profile record is absent. Found by the local sweep over hrvdex-profile.js:302. */
+    group('∅ HRVDex profile — an absent elevation is not sea level (M7)', 'hrvdex-profile · absence · elevation', function (T) {
+      var src = (env.sources && env.sources['hrvdex-profile.js']) || '';
+      T.ok('ANTI-VACUITY · the hrvdex-profile.js source is readable in this lane', src.length > 1000, 'env.sources["hrvdex-profile.js"] absent');
+      if (!src) return;
+
+      T.ok('the DOM arm no longer coerces an empty elevation to 0 m', !/prof_elev'\)\?\.value\) \|\| 0/.test(src), 'the || 0 elevation fallback is back');
+      T.ok('the DOM arm reads the guarded value', /elev: _elevEntered/.test(src), 'the DOM arm writes its own elevation expression again');
+      var g = src.match(/const _elevEntered = ([^;]+);/);
+      T.ok('ANTI-VACUITY · the _elevEntered expression was extracted', !!g, 'the const _elevEntered line moved');
+      if (g) {
+        var elevOf = new Function('_elevRaw', 'return ' + g[1] + ';');
+        T.eq('an empty field parses to NaN and answers null', elevOf(NaN), null);
+        T.eq('CONTROL · an entered 0 m stays 0 m', elevOf(0), 0);
+        T.ok('an absent elevation and an entered sea level are two states', elevOf(NaN) !== elevOf(0), 'absence and 0 m produce one answer');
+        T.eq('CONTROL · an entered 2100 m is kept', elevOf(2100), 2100);
+        T.eq('CONTROL · a below-sea-level elevation is kept', elevOf(-300), -300);
+      }
+      T.ok('CONTROL · the DXP arm still names the rule', /elev: p\.elevation != null && isFinite/.test(src), 'the DXP arm lost its null answer');
+
+      /* Both altitude factors in this file now state the absent case. `null <= 1500` is true as well,
+         so each answered 1 before too — by a coercion of null to 0, not by a rule. These legs pin the
+         rule AND the numbers, because a guard that moved a shipped number would be a different change. */
+      T.eq('both altitude factors in this file state the absent case', (src.match(/\.elev == null \|\| !isFinite\(/g) || []).length, 2);
+      var a = src.match(/const _altF = ([^;]+);/);
+      T.ok('ANTI-VACUITY · the _altF expression was extracted', !!a, 'the const _altF line moved');
+      if (a) {
+        var altOf = new Function('_pp', 'return ' + a[1] + ';');
+        T.eq('an absent elevation corrects nothing, so the factor is 1', altOf({ elev: null }), 1);
+        T.eq('CONTROL · sea level answers 1 as well', altOf({ elev: 0 }), 1);
+        T.eq('CONTROL · 1500 m answers 1', altOf({ elev: 1500 }), 1);
+        T.ok('CONTROL · 2100 m answers a real correction', Math.abs(altOf({ elev: 2100 }) - 0.98) < 0.0005, 'the 2100 m factor moved: ' + altOf({ elev: 2100 }));
+        T.eq('no shipped number moves — null and 0 m answer one factor', altOf({ elev: null }), altOf({ elev: 0 }));
+      }
+      var dsp = String((env.sources || {})['hrvdex-dsp.js'] || '');
+      if (!dsp) T.skip('hrvdex-dsp.js in env.sources', 'not wired in this lane');
+      else T.ok('CONTROL · the node DSP keeps its own absent-elevation guard', /p_prof\.elev == null \|\| !isFinite\(p_prof\.elev\)/.test(dsp), 'the hrvdex-dsp.js _altFR guard moved');
     });
 
     /* §∅ BOOKKEEPING — four HIGH absence-survey rows on hrvdex-profile.js that the CODE already
