@@ -213,7 +213,7 @@ Captured live from each analysis tool's stats.json export after a streaming run.
   - gradient flattened, none NOT inflated, severe undercount ≈halved
 - **Per-event desat recall ~unchanged** (median 0.04→0.04): the fix moved ODI's RATE, not the desat-PROFILE nadir detector (still trailing-mean baseline; documented next step). Rate-level calibration is the faithful measure.
 - Companion arms stable (detectors unchanged; inputs reshuffled by v1.7): rMSSD abs-err median 0.57 ms, CPAP residual-AHI 0.49 /h, GlucoDex nocturnal-hypo recall 0 (single-night-slice caveat).
-- Digest committed **uploads/cohort-robustness-summary-20k-v17-oxyfix.json** (v16 retained as before). PAPER robustness-benchmark.html rewritten (abstract/layman/Table 2 before→after/§3.3/green callout/Fig 1 caption/§3.4/repro pins 1.6→1.7).
+- Digest written to uploads/cohort-robustness-summary-20k-v17-oxyfix.json (v16 retained as before). **Correction 2026-11-24:** git never held either digest; both are now in `analysis/published-numbers/robustness-benchmark-2026-06-20.json`. PAPER robustness-benchmark.html rewritten (abstract/layman/Table 2 before→after/§3.3/green callout/Fig 1 caption/§3.4/repro pins 1.6→1.7).
 - Outstanding: regenerate the Figure 1 raster (middle panel) from the v17 summary — caption currently marks the panel as the pre-fix characterization with the corrected gradient in Table 2.
 
 ## ODI ceiling-baseline fix — OxyDex v22.36 (June 2026)
