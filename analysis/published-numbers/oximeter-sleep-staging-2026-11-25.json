@@ -1,0 +1,450 @@
+{
+  "schema": "tepna.published-number-record/1",
+  "producer": "score46.py, run by read46.sh — the paper's own scorer, outside the repository",
+  "producerCommit": "not applicable: the scorer and the posterior tree are untracked. The record names the scorer sha256 prefix under inputs.",
+  "invocation": "python score46.py <lab-cache> proba-v46-R0 proba-v46-R1 proba-v46-R2 proba-v46-R1a proba-v46-W1 proba-v46-W1a proba-v46-O proba-v46-FEu proba-v46-P1u proba-v46-P0u proba-v46-Fu",
+  "generated": "2026-11-25",
+  "inputs": {
+    "path": "~/stagetest/lab-cache/proba-v46-<arm>/ — one posterior file per night, and the scorer beside it",
+    "committed": false,
+    "scorerSha256Prefix16": "5c6c5adc81af0ec6",
+    "readoutSha256Prefix16": "d4313bd82aa4a83d",
+    "note": "The nine cohorts are governed research data under their own agreements (NSRR DUA and the rest), so the tree is not committed and no night is named here. Only pooled and per-cohort aggregates appear in this record. A re-run can FLAG this record and never CLEAR it in CI."
+  },
+  "deterministic": true,
+  "publishedIn": [
+    "papers/oximeter-sleep-staging.html"
+  ],
+  "population": {
+    "arms": 11,
+    "checked": 11,
+    "eligible": 11,
+    "excluded": 0,
+    "note": "The 11 arms of Table 6, named by read46.sh from lab-cache/v46-winners.txt. The pool arms score out-of-fold; the blind cohorts (challenge, dreamt) are fold-ensembled."
+  },
+  "claims": {
+    "armsReScored": 11,
+    "armsReproducingThePublishedLine": 9,
+    "armsThatNoLongerReproduce": [
+      "W1",
+      "W1a"
+    ],
+    "note": "Every value is the scorer's own output, re-run over the saved posteriors on the date in `generated`. Nine of the eleven arms reproduce the October readout behind Table 6 to every digit it prints, pooled and per cohort. W1 and W1a do NOT: 44 of their 3,008 posterior files are absent from the tree today, all of them in the STAGES STNF clinic, and the pooled kappa reads 0.662 and 0.656 against the published 0.658 and 0.652. The absent nights are reported as a count, and no value here is corrected or filled."
+  },
+  "result": {
+    "arms": {
+      "R0": {
+        "kappa4": 0.622,
+        "accuracy": 0.757,
+        "nights": 15782,
+        "missingNights": 2,
+        "byCohort": {
+          "shhs": {
+            "kappa4": 0.638,
+            "nights": 5130
+          },
+          "mros": {
+            "kappa4": 0.554,
+            "nights": 3921
+          },
+          "shhs2": {
+            "kappa4": 0.644,
+            "nights": 2651
+          },
+          "mesa": {
+            "kappa4": 0.685,
+            "nights": 2055
+          },
+          "challenge": {
+            "kappa4": 0.547,
+            "nights": 992
+          },
+          "cfs": {
+            "kappa4": 0.659,
+            "nights": 725
+          }
+        },
+        "published": {
+          "kappa4": 0.622,
+          "accuracy": 0.757,
+          "nights": 15784
+        },
+        "reproduced": true,
+        "cohortsMoved": [],
+        "nightsLostSincePublished": 2
+      },
+      "R1": {
+        "kappa4": 0.702,
+        "accuracy": 0.806,
+        "nights": 15782,
+        "missingNights": 2,
+        "byCohort": {
+          "shhs": {
+            "kappa4": 0.683,
+            "nights": 5130
+          },
+          "mros": {
+            "kappa4": 0.689,
+            "nights": 3921
+          },
+          "shhs2": {
+            "kappa4": 0.736,
+            "nights": 2651
+          },
+          "mesa": {
+            "kappa4": 0.744,
+            "nights": 2055
+          },
+          "challenge": {
+            "kappa4": 0.574,
+            "nights": 992
+          },
+          "cfs": {
+            "kappa4": 0.727,
+            "nights": 725
+          }
+        },
+        "published": {
+          "kappa4": 0.702,
+          "accuracy": 0.806,
+          "nights": 15784
+        },
+        "reproduced": true,
+        "cohortsMoved": [],
+        "nightsLostSincePublished": 2
+      },
+      "R2": {
+        "kappa4": 0.701,
+        "accuracy": 0.806,
+        "nights": 15782,
+        "missingNights": 2,
+        "byCohort": {
+          "shhs": {
+            "kappa4": 0.683,
+            "nights": 5130
+          },
+          "mros": {
+            "kappa4": 0.684,
+            "nights": 3921
+          },
+          "shhs2": {
+            "kappa4": 0.734,
+            "nights": 2651
+          },
+          "mesa": {
+            "kappa4": 0.744,
+            "nights": 2055
+          },
+          "challenge": {
+            "kappa4": 0.589,
+            "nights": 992
+          },
+          "cfs": {
+            "kappa4": 0.731,
+            "nights": 725
+          }
+        },
+        "published": {
+          "kappa4": 0.701,
+          "accuracy": 0.806,
+          "nights": 15784
+        },
+        "reproduced": true,
+        "cohortsMoved": [],
+        "nightsLostSincePublished": 2
+      },
+      "R1a": {
+        "kappa4": 0.708,
+        "accuracy": 0.81,
+        "nights": 15782,
+        "missingNights": 2,
+        "byCohort": {
+          "shhs": {
+            "kappa4": 0.69,
+            "nights": 5130
+          },
+          "mros": {
+            "kappa4": 0.692,
+            "nights": 3921
+          },
+          "shhs2": {
+            "kappa4": 0.742,
+            "nights": 2651
+          },
+          "mesa": {
+            "kappa4": 0.748,
+            "nights": 2055
+          },
+          "challenge": {
+            "kappa4": 0.586,
+            "nights": 992
+          },
+          "cfs": {
+            "kappa4": 0.733,
+            "nights": 725
+          }
+        },
+        "published": {
+          "kappa4": 0.708,
+          "accuracy": 0.81,
+          "nights": 15784
+        },
+        "reproduced": true,
+        "cohortsMoved": [],
+        "nightsLostSincePublished": 2
+      },
+      "W1": {
+        "kappa4": 0.662,
+        "accuracy": 0.786,
+        "nights": 2964,
+        "missingNights": 44,
+        "byCohort": {
+          "mesa": {
+            "kappa4": 0.709,
+            "nights": 2028
+          },
+          "stnf": {
+            "kappa4": 0.407,
+            "nights": 369
+          },
+          "cfs": {
+            "kappa4": 0.679,
+            "nights": 301
+          },
+          "gsdv": {
+            "kappa4": 0.638,
+            "nights": 98
+          },
+          "dreamt": {
+            "kappa4": 0.409,
+            "nights": 97
+          },
+          "msmi": {
+            "kappa4": 0.585,
+            "nights": 51
+          }
+        },
+        "published": {
+          "kappa4": 0.658,
+          "accuracy": 0.783,
+          "nights": 3008
+        },
+        "reproduced": false,
+        "cohortsMoved": [
+          "stnf"
+        ],
+        "nightsLostSincePublished": 44
+      },
+      "W1a": {
+        "kappa4": 0.656,
+        "accuracy": 0.783,
+        "nights": 2964,
+        "missingNights": 44,
+        "byCohort": {
+          "mesa": {
+            "kappa4": 0.704,
+            "nights": 2028
+          },
+          "stnf": {
+            "kappa4": 0.401,
+            "nights": 369
+          },
+          "cfs": {
+            "kappa4": 0.667,
+            "nights": 301
+          },
+          "gsdv": {
+            "kappa4": 0.627,
+            "nights": 98
+          },
+          "dreamt": {
+            "kappa4": 0.413,
+            "nights": 97
+          },
+          "msmi": {
+            "kappa4": 0.587,
+            "nights": 51
+          }
+        },
+        "published": {
+          "kappa4": 0.652,
+          "accuracy": 0.78,
+          "nights": 3008
+        },
+        "reproduced": false,
+        "cohortsMoved": [
+          "stnf"
+        ],
+        "nightsLostSincePublished": 44
+      },
+      "O": {
+        "kappa4": 0.705,
+        "accuracy": 0.808,
+        "nights": 15777,
+        "missingNights": 0,
+        "byCohort": {
+          "shhs": {
+            "kappa4": 0.677,
+            "nights": 5132
+          },
+          "mros": {
+            "kappa4": 0.725,
+            "nights": 3916
+          },
+          "shhs2": {
+            "kappa4": 0.727,
+            "nights": 2650
+          },
+          "mesa": {
+            "kappa4": 0.735,
+            "nights": 2028
+          },
+          "challenge": {
+            "kappa4": 0.573,
+            "nights": 992
+          },
+          "cfs": {
+            "kappa4": 0.712,
+            "nights": 725
+          }
+        },
+        "published": {
+          "kappa4": 0.705,
+          "accuracy": 0.808,
+          "nights": 15777
+        },
+        "reproduced": true,
+        "cohortsMoved": [],
+        "nightsLostSincePublished": 0
+      },
+      "FEu": {
+        "kappa4": 0.438,
+        "accuracy": 0.65,
+        "nights": 15782,
+        "missingNights": 2,
+        "byCohort": {
+          "shhs": {
+            "kappa4": 0.427,
+            "nights": 5130
+          },
+          "mros": {
+            "kappa4": 0.418,
+            "nights": 3921
+          },
+          "shhs2": {
+            "kappa4": 0.492,
+            "nights": 2651
+          },
+          "mesa": {
+            "kappa4": 0.486,
+            "nights": 2055
+          },
+          "challenge": {
+            "kappa4": 0.252,
+            "nights": 992
+          },
+          "cfs": {
+            "kappa4": 0.424,
+            "nights": 725
+          }
+        },
+        "published": {
+          "kappa4": 0.438,
+          "accuracy": 0.65,
+          "nights": 15784
+        },
+        "reproduced": true,
+        "cohortsMoved": [],
+        "nightsLostSincePublished": 2
+      },
+      "P1u": {
+        "kappa4": 0.535,
+        "accuracy": 0.719,
+        "nights": 2125,
+        "missingNights": 0,
+        "byCohort": {
+          "mesa": {
+            "kappa4": 0.539,
+            "nights": 2028
+          },
+          "dreamt": {
+            "kappa4": 0.276,
+            "nights": 97
+          }
+        },
+        "published": {
+          "kappa4": 0.535,
+          "accuracy": 0.719,
+          "nights": 2125
+        },
+        "reproduced": true,
+        "cohortsMoved": [],
+        "nightsLostSincePublished": 0
+      },
+      "P0u": {
+        "kappa4": 0.488,
+        "accuracy": 0.696,
+        "nights": 2125,
+        "missingNights": 0,
+        "byCohort": {
+          "mesa": {
+            "kappa4": 0.492,
+            "nights": 2028
+          },
+          "dreamt": {
+            "kappa4": 0.216,
+            "nights": 97
+          }
+        },
+        "published": {
+          "kappa4": 0.488,
+          "accuracy": 0.696,
+          "nights": 2125
+        },
+        "reproduced": true,
+        "cohortsMoved": [],
+        "nightsLostSincePublished": 0
+      },
+      "Fu": {
+        "kappa4": 0.581,
+        "accuracy": 0.732,
+        "nights": 15777,
+        "missingNights": 0,
+        "byCohort": {
+          "shhs": {
+            "kappa4": 0.551,
+            "nights": 5132
+          },
+          "mros": {
+            "kappa4": 0.604,
+            "nights": 3916
+          },
+          "shhs2": {
+            "kappa4": 0.61,
+            "nights": 2650
+          },
+          "mesa": {
+            "kappa4": 0.606,
+            "nights": 2028
+          },
+          "challenge": {
+            "kappa4": 0.374,
+            "nights": 992
+          },
+          "cfs": {
+            "kappa4": 0.586,
+            "nights": 725
+          }
+        },
+        "published": {
+          "kappa4": 0.581,
+          "accuracy": 0.732,
+          "nights": 15777
+        },
+        "reproduced": true,
+        "cohortsMoved": [],
+        "nightsLostSincePublished": 0
+      }
+    }
+  }
+}
