@@ -116934,6 +116934,11 @@
       T.ok('<script src> tags parsed', INV.tags > 30, INV.tags + ' tags');
       T.ok('fetchText → eval loads parsed', INV.evals > 10, INV.evals + ' loads');
       T.ok('the fetchText loop list parsed', INV.looped > 0, INV.looped + ' files');
+      /* The FOURTH load form (row 2026-11-25-the-lane-inventory-gate-cannot-see-a-dynamic-import).
+         A dynamic `import()` carries no tag and no eval, so the three parses above read it as
+         nothing. Dex-Test-Suite.html imports ppgdex-render.js that way at ~:904. */
+      T.ok('the dynamic import loads parsed', INV.dyn > 0, INV.dyn + ' imports — wire the import() parse in run-tests.mjs');
+      T.ok('the dynamically imported file reaches the EVALUATED population', INV.evaluated.indexOf('ppgdex-render.js') >= 0, 'evaluated holds ' + INV.evaluated.length + ' file(s)');
       var adapters = (env.DexCoload && env.DexCoload.adapters) || [];
       T.ok('DexCoload.adapters available (the browser concatenates it onto SOURCE_FILES)', adapters.length > 0, adapters.length + ' adapters');
       var listed = {};
@@ -116953,6 +116958,17 @@
         return Object.prototype.hasOwnProperty.call(env.sources, f) && !plantListed[f];
       });
       T.ok('PLANT · unlisting hrvdex-profile.js is detected by name', planted.indexOf('hrvdex-profile.js') >= 0, JSON.stringify(planted));
+      /* PLANT · THE FOURTH FORM. ppgdex-render.js carries no `<script src>` tag and no
+         `fetchText` load, so it reaches `evaluated` through the dynamic import alone. This leg
+         therefore fails the day that parse is dropped, which is the blind spot the row names. */
+      var plantDyn = {};
+      Object.keys(listed).forEach(function (f) {
+        if (f !== 'ppgdex-render.js') plantDyn[f] = true;
+      });
+      var plantedDyn = INV.evaluated.filter(function (f) {
+        return Object.prototype.hasOwnProperty.call(env.sources, f) && !plantDyn[f];
+      });
+      T.ok('PLANT · unlisting the dynamically imported ppgdex-render.js is detected by name', plantedDyn.indexOf('ppgdex-render.js') >= 0, JSON.stringify(plantedDyn));
     });
     /* RESIDUE 2026-10-12-load-bearing-sources-debt-is-six-of-eight-unpaid — five of the six unscannable
        root sources are now listed in BOTH lanes (`readSources()` + `SOURCE_FILES`), "together or
