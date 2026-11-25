@@ -195,6 +195,11 @@
 <!-- Integrator stack (IIFE / clean globals — no realm collision with the plain-global node DSPs, which live in iframes) -->
 <script src="kernel-constants.js"></script>
 <script src="metric-registry.js"></script>
+<!-- clock.js BEFORE integrator-dsp.js: the Integrator delegates parseTimestamp/resolveDMY/tzOffset
+     to DexClock, and an absent alias throws at module evaluation, which leaves IntegratorDSP
+     undefined and every patient's fusion dead. cohort-worker.js's SCRIPTS table already carries
+     it for the worker realms; this page realm was missed. -->
+<script src="clock.js"></script>
 <script src="crossnight-envelope.js"></script>
 <script src="integrator-dsp.js"></script>
 
