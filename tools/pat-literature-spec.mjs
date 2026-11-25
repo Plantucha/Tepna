@@ -254,7 +254,7 @@ function ecgRpeakTimes(text, runsText) {
   };
 }
 /* ── @port-from pat-feasibility-worker.js#ppgFootTimes ─────────────────────────────
-   @port-sha fbd322b786e8
+   @port-sha b4653e88ce84
    RECONCILED 2026-11-25 against that source text, for row
    2026-09-26-pat-finger-feet-detected-on-unmasked-156-rows. The worker gained an optional
    `opts.holdGaps`, which holds the sentinel gaps over before `detectChannel` the way the node's

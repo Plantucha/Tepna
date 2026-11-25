@@ -410,6 +410,7 @@ async function main() {
   refuseUnknownArgvOrExit(argv, { valued: ['--limit', '--tree'], boolean: ['--check', '--json', '--selftest', '--verdict-sample'] }, { tool: 'pat-mask-census' });
   if (has('--selftest')) {
     await selftest();
+    // absence-ok: a process exit code, not a measurement. Zero is the success code itself.
     process.exit(process.exitCode || 0);
   }
   if (has('--verdict-sample')) {

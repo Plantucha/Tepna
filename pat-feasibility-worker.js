@@ -226,9 +226,9 @@ function ecgRpeakTimes(text, runsText) {
    reachable from the corpus search carry the companion, so the refusal reaches 4.7 % of them. Whether
    the shipped default should consume the recompute is NOT decided here — it moves published PAT
    numbers, and the move is what an instrument calling this switch measures. */
-/* ── ZERO-ORDER HOLD OVER THE SENTINEL GAPS ─────────────────────────────────────────────────────
-   @port-from ppgdex-dsp.js#holdOverGaps
+/* ── @port-from ppgdex-dsp.js#holdOverGaps ──────────────────────────────────────────────────────
    @port-sha 2b153c3f2d28
+   ZERO-ORDER HOLD OVER THE SENTINEL GAPS, reconciled 2026-11-25 against that source text.
    The node's hold is PRIVATE to its own closure: `PPGDSP` exports `parsePPG`, `detectChannel` and
    `consensusBeats`, and never the hold. So the switch above cannot call it and carries this copy,
    which `tools/port-parity.mjs` pins to the source text named here.
