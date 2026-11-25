@@ -84,11 +84,11 @@
 
   <!-- MAIN -->
   <main class="main-content">
-    <div class="section-title" id="sec-input">EEG Input <span class="st-note">European Data Format <code>.edf</code> — one EEG channel · parsed &amp; analyzed locally</span></div>
+    <div class="section-title" id="sec-input">EEG Input <span class="st-note">European Data Format <code>.edf</code>, or the Muse <code>_RAW.txt</code> files of one night — one EEG channel · parsed &amp; analyzed locally</span></div>
     <div class="card">
       <label class="eg-zone" id="egZone">
-        <input type="file" id="egInput" accept=".edf,.EDF,.json" hidden>
-        Drop one EDF recording here, or click to choose.
+        <input type="file" id="egInput" accept=".edf,.EDF,.json,.txt" multiple hidden>
+        Drop one EDF recording or the Muse files of one night here, or click to choose.
       </label>
       <div class="controls" style="margin-top:12px">
         <button class="btn" type="button" id="egDemo">▶ Demo</button>
