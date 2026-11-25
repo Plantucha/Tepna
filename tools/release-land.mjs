@@ -78,6 +78,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { escapeRe } from './regex-escape-core.mjs';
+import { gateFailure } from './release.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const STATE_DIR = join(tmpdir(), 'tepna-release-land');
@@ -86,6 +87,17 @@ const LATEST = join(STATE_DIR, 'latest.json');
 /* ── pure core ────────────────────────────────────────────────────────────────────────────────── */
 
 export const STEPS = ['plan', 'worktree', 'stamp', 'build', 'docs', 'gate', 'scan', 'commit', 'push', 'pr', 'merge', 'tag', 'release', 'cleanup'];
+
+/* The record of a failed child. Its STDERR comes first and whole up to the cap, because that is where a
+   refusal names itself; the stdout tail is context and takes what is left. `(err + out).slice(-3000)`
+   kept the end of a long stdout and dropped the one line that named the gate (v2.37.0, 2026-11-24). */
+export function failureText(what, r, logFile = null, cap = 3000) {
+  const how = r.signal ? `killed by ${r.signal}, no verdict` : `exit ${r.code}`;
+  const err = r.err.trim().slice(-cap);
+  const room = cap - err.length;
+  const out = room > 0 ? r.out.trim().slice(-room) : '';
+  return [`${what} ${how}:`, err, out && `--- stdout tail\n${out}`, logFile && `full output: ${logFile}`].filter(Boolean).join('\n');
+}
 
 /* ── transient API failures ─────────────────────────────────────────────────────────────────────
    Measured 2026-11-12: one transient GitHub error at the `pr` step killed the v2.32.0 chain AFTER
@@ -314,7 +326,7 @@ export function missingAssets(wanted, have) {
 
 function sh(cmd, args, opts = {}) {
   const r = spawnSync(cmd, args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, ...opts });
-  return { code: r.status === null ? 1 : r.status, out: r.stdout || '', err: r.stderr || '' };
+  return { code: r.status === null ? 1 : r.status, signal: r.signal || null, out: r.stdout || '', err: r.stderr || '' };
 }
 function must(cmd, args, opts = {}) {
   const r = sh(cmd, args, opts);
@@ -444,9 +456,11 @@ const RUN = {
     log(st, `worktree ready: ${st.worktree} [${st.branch}]`);
   },
   stamp(st) {
+    const logFile = join(STATE_DIR, `v${st.to}-stamp.log`);
     const r = sh('node', ['tools/release.mjs'], { cwd: st.worktree });
+    writeFileSync(logFile, r.out + r.err);
     st.stampOut = r.out.slice(-6000);
-    if (r.code !== 0) throw new Error(`release.mjs exit ${r.code}:\n${(r.err + r.out).slice(-3000)}`);
+    if (r.code !== 0) throw new Error(failureText('release.mjs', r, logFile));
     const v = JSON.parse(readFileSync(join(st.worktree, 'suite.manifest.json'), 'utf8')).version;
     if (v !== st.to) throw new Error(`stamped ${v}, planned ${st.to}`);
     /* README rows release.mjs could NOT check are a human's to read — echoed, never blocking. */
@@ -895,6 +909,23 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   const tr = [];
   mustRetrying('gh', ['x'], {}, { run: h.run, wait: h.wait, onRetry: (a, ms) => tr.push(`${a}/${ms}`) });
   ok(tr.join() === '1/2000,2/4000', 'every retry is reported to the log, because a silent retry reads as a slow step');
+  // the record of a failed stamp
+  const big = 'x'.repeat(9000);
+  ok(
+    failureText('release.mjs', { code: 3, signal: null, out: big, err: 'Gate failed: node a.mjs' }, '/l').includes('Gate failed: node a.mjs'),
+    'a long stdout never pushes the refusal out of the record'
+  );
+  ok(/exit 3:/.test(failureText('release.mjs', { code: 3, signal: null, out: '', err: '' })), 'the record names the exit code');
+  ok(/killed by SIGKILL, no verdict/.test(failureText('release.mjs', { code: 1, signal: 'SIGKILL', out: '', err: '' })), 'a killed child is no verdict, never an exit code');
+  ok(failureText('r', { code: 3, signal: null, out: big, err: big }).length < 3100, 'the record is capped, and a stderr at the cap leaves no stdout tail');
+  ok(failureText('r', { code: 3, signal: null, out: 'o', err: 'e' }, '/l').endsWith('full output: /l'), 'the record names the file that holds everything');
+  // the refusal of the stamp's own gate
+  const red = gateFailure(['node', 'tests/run-tests.mjs'], { status: 1, stdout: `${'  ✓ ok\n'.repeat(500)}  \x1b[31m✕ the red one\x1b[0m\n${'  ✓ ok\n'.repeat(500)}Tepna test suite  ✕ 1 failing\n` });
+  ok(/run-tests\.mjs exited 1/.test(red) && red.includes('✕ the red one'), 'a refusal names the gate and the failing assertion, wherever it stands in the output');
+  ok(red.includes('1 failing') && red.length < 1000, '…and the last lines, and stays short enough for the record');
+  ok(/killed by SIGKILL and gave NO VERDICT/.test(gateFailure(['x'], { status: null, signal: 'SIGKILL', stdout: '' })), 'a gate that a signal ended is never called red');
+  ok(/did not start: ENOENT/.test(gateFailure(['x'], { status: null, error: new Error('ENOENT') })), 'a gate that did not start says so');
+  ok(/first 20/.test(gateFailure(['x'], { status: 1, stdout: '✕ a\n'.repeat(30) })), 'a long list of failures is twenty and the count');
   // every step has a runner, in order
   ok(
     STEPS.every((s) => typeof RUN[s] === 'function'),
