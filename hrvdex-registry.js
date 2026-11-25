@@ -287,7 +287,23 @@
     'vo2 delta gt': 'vo2',
     'vo₂ delta gt': 'vo2',
     'vo2 category': 'vo2',
-    'vo₂ category': 'vo2'
+    'vo₂ category': 'vo2',
+    // Distributions & Patterns tab (hrvdex-render.js PATTERN_METRICS) label drift — that tab names a
+    // metric with its unit inside the label, and no such spelling resolved, so the three pattern stat
+    // lines took the fabricated-`experimental` floor instead of the grade the registry already
+    // declares. Enumerated by running idForLabel over every PATTERN_METRICS label: three validated
+    // metrics (rMSSD, SDNN, HFnu) and two emerging ones (VEI, Spectral Ent) read as an UNDER-grade,
+    // and the heuristic VO₂ family as an OVER-grade. `ln(rMSSD)`, `SD1 (ms)` and `SD2 (ms)` have no
+    // registry entry of their own, so they correctly keep the floor; a grade for them needs an entry
+    // with a citation, which is not this change.
+    'rmssd (ms)': 'rmssd',
+    'sdnn (ms)': 'sdnn',
+    'hfnu (%)': 'hfnu',
+    'vagal efficiency': 'vei',
+    'recovery index': 'recovIndex',
+    'spectral entropy': 'spectralEnt',
+    'vo₂max (hrv-adj)': 'vo2',
+    'vo2max (hrv-adj)': 'vo2'
   };
 
   function _norm(s) {

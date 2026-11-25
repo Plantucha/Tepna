@@ -42750,6 +42750,161 @@
       T.eq('§I · every resolving column badges at its registry grade (no floor override)', mismatch.length, 0, 'graded-mismatch: ' + mismatch.join(' · '));
     });
 
+    /* ════ 🎫 · THREE SURFACES THAT PRINTED A NUMBER WITH NO BADGE (qwen lead triage M3 · M6 · M18) ════
+       One defect in three nodes: a number written into PROSE escapes the badge mandate, because the
+       mandate is wired at the label and prose carries no label. The owner exempts a caption only when
+       a badge sits on every series the card draws, and all three cards draw into a canvas or write a
+       sentence, so none of them carried a badge anywhere.
+         M3  hrvdex-render.js renderHistogram — μ, median, σ and n of the selected metric, plus the two
+             sibling cards of the same shape that the triage did not flag (Correlation Explorer,
+             Day-of-Week). The registry HELD every one of these metrics and graded them; the tab's own
+             label spelling (`rMSSD (ms)`) resolved to nothing, so the fallback would have drawn a
+             fabricated `experimental` disc over three validated metrics. Resolution comes first, the
+             badge second — a badge on an unresolved label is an under-grade that looks like coverage.
+         M6  oxydex-render.js — the control stager's inner-validation κ, inside an escaped provenance
+             string, graded only by the prose "control model — not shipped".
+         M18 pulsedex-render.js renderContext — the elevation, the VO₂max altitude factor, the
+             periodic-breathing index and the mode score, all in banner sentences.
+       Source-parsed (all three are page-scoped) + resolved through the executed registries. */
+    group(
+      '🎫 badges on numbers written into prose — HRVDex patterns · OxyDex stager κ · PulseDex context (M3/M6/M18)',
+      'sources · cohesion-badges · hrvdex-registry · oxydex-render · pulsedex-render',
+      function (T) {
+        var src = env.sources || {};
+        var hRnd = src['hrvdex-render.js'],
+          oRnd = src['oxydex-render.js'],
+          pRnd = src['pulsedex-render.js'];
+        var R = env.HrvRegistry,
+          MR = env.MetricRegistry;
+        if (!hRnd || !oRnd || !pRnd || !R || !MR) {
+          T.ok('the three render sources + HrvRegistry + MetricRegistry are wired', false, 'wire env.sources[hrvdex/oxydex/pulsedex-render.js] + HrvRegistry + MetricRegistry');
+          return;
+        }
+        var LADDER = { measured: 1, validated: 1, emerging: 1, experimental: 1, heuristic: 1 };
+
+        // ── M3·a — PATTERN_METRICS resolution. Parsed from source: the array is page-scoped.
+        var pmStart = hRnd.indexOf('const PATTERN_METRICS = [');
+        var block = hRnd.slice(pmStart, hRnd.indexOf('\n];', pmStart));
+        var pats = [];
+        for (const mm of block.matchAll(/\{\s*key:\s*'([^']*)'\s*,\s*label:\s*'((?:[^'\\]|\\.)*)'/g)) pats.push({ key: mm[1], label: mm[2] });
+        T.ok('M3 · PATTERN_METRICS parsed from source (≥ 19 rows)', pats.length >= 19, pats.length + ' rows');
+
+        /* The three labels the registry holds no entry for. They are transforms of metrics it DOES hold
+         (ln(rMSSD) of rMSSD; SD1 and SD2 of the Poincaré pair it grades as the ratio `sd1sd2`), and a
+         grade for them needs an entry with a citation, which is a different unit. They keep the
+         honest `experimental` floor, and this list is the declaration of that — a new pattern metric
+         that resolves to nothing reds this leg instead of quietly taking the floor. */
+        var NO_ENTRY = { 'ln(rMSSD)': 1, 'SD1 (ms)': 1, 'SD2 (ms)': 1 };
+        var unresolved = [];
+        pats.forEach(function (m) {
+          if (!R.idForLabel(m.label) && !NO_ENTRY[m.label]) unresolved.push(m.label);
+        });
+        T.eq('M3 · every pattern metric either resolves or is a declared registry gap (0 silent gaps)', unresolved.length, 0, 'silent: ' + unresolved.join(' · '));
+        var stillGapped = Object.keys(NO_ENTRY).filter(function (l) {
+          return !R.idForLabel(l);
+        });
+        T.eq(
+          'M3 · the declared gaps are still gaps (the list is not stale)',
+          stillGapped.length,
+          3,
+          'now resolving: ' +
+            Object.keys(NO_ENTRY)
+              .filter(function (l) {
+                return R.idForLabel(l);
+              })
+              .join(' · ')
+        );
+
+        // ── M3·b — the labels whose grade the fallback was getting WRONG now resolve to their true id.
+        [
+          ['rMSSD (ms)', 'rmssd', 'validated'],
+          ['SDNN (ms)', 'sdnn', 'validated'],
+          ['HFnu (%)', 'hfnu', 'validated'],
+          ['Vagal Efficiency', 'vei', 'emerging'],
+          ['Spectral Entropy', 'spectralEnt', 'emerging'],
+          ['Recovery Index', 'recovIndex', 'experimental'],
+          ['VO₂max (HRV-adj)', 'vo2', 'heuristic']
+        ].forEach(function (row) {
+          T.eq('M3 · pattern label resolves: ' + row[0] + ' → ' + row[1], R.idForLabel(row[0]), row[1]);
+          var ent = env.HRV_REGISTRY && env.HRV_REGISTRY[row[1]];
+          T.eq('M3 · and the registry grades it ' + row[2] + ': ' + row[0], ent ? ent.evidence : null, row[2]);
+          T.ok(
+            'M3 · the badge drawn for ' + row[0] + ' carries that grade',
+            (R.badgeForLabel(row[0], true) || '').indexOf('ev-' + row[2]) >= 0,
+            'badge: ' + (R.badgeForLabel(row[0], true) || '(none)')
+          );
+        });
+        var floorOverride = [];
+        pats.forEach(function (m) {
+          var id = R.idForLabel(m.label);
+          if (id && env.HRV_REGISTRY[id] && (R.badgeForLabel(m.label, true) || '').indexOf('ev-' + env.HRV_REGISTRY[id].evidence) < 0) floorOverride.push(m.label);
+        });
+        T.eq('M3 · every resolving pattern metric badges at its registry grade', floorOverride.length, 0, 'floor-override: ' + floorOverride.join(' · '));
+
+        // ── M3·c — each of the three stat lines badges the SERIES it describes. Sliced per function, so a
+        //           badge restored on one card cannot answer for another.
+        var slice = function (txt, from, to) {
+          var a = txt.indexOf(from);
+          var b = a < 0 ? -1 : txt.indexOf(to, a);
+          return a < 0 || b < 0 ? '' : txt.slice(a, b);
+        };
+        var histFn = slice(hRnd, 'function renderHistogram()', 'function renderScatterExplorer()'),
+          corrFn = slice(hRnd, 'function renderScatterExplorer()', 'const PATTERN_WEEKDAYS'),
+          wdFn = slice(hRnd, 'function renderWeekday()', '\nfunction ');
+        T.ok('M3 · the histogram stat line badges its series', /sub\.innerHTML\s*=\s*evBadge\(_patLabel\(key\)\)/.test(histFn), 'histStats carries no evBadge call');
+        T.ok(
+          'M3 · the correlation stat line badges BOTH series',
+          /evBadge\(_patLabel\(kx\)\)/.test(corrFn) && /evBadge\(_patLabel\(ky\)\)/.test(corrFn),
+          'corrStats badges ' + (/evBadge\(_patLabel\(kx\)\)/.test(corrFn) ? 'x only' : /evBadge\(_patLabel\(ky\)\)/.test(corrFn) ? 'y only' : 'neither')
+        );
+        T.ok('M3 · the weekday stat line badges its series', /evBadge\(_patLabel\(key\)\)/.test(wdFn), 'wdStats carries no evBadge call');
+
+        // ── M6 — the stager κ. The badge must sit on the κ, and the κ must leave the escaped blob: escHTML
+        //         over a string holding the badge markup would print the disc as angle-bracket text.
+        var stagerFn = slice(oRnd, "sModel.tag || 'weights'", 'hypnogramSvg');
+        /* The κ must be badged ONCE, where it is printed. A plant that restored the old unbadged
+           provenance string while leaving the badged branch in place satisfied a bare "a badge is in
+           here somewhere", so the κ is counted too: one printing, one badge. */
+        var nKappa = (stagerFn.match(/'inner-val κ '/g) || []).length,
+          nKappaBadge = (stagerFn.match(/_ntBadge\(\s*\n?\s*'experimental'/g) || []).length;
+        T.eq('M6 · the κ is printed exactly once', nKappa, 1, nKappa + ' printings');
+        T.eq('M6 · and it carries exactly one explicit-tier badge', nKappaBadge, nKappa, nKappaBadge + ' badges for ' + nKappa + ' printings');
+        T.ok(
+          'M6 · the κ is built outside the escHTML(sProv) blob',
+          !/var sProv =[\s\S]{0,400}innerValKappa/.test(stagerFn),
+          'innerValKappa is still inside sProv, so the badge markup would be escaped into text'
+        );
+        T.ok('M6 · the fold index and the tag stay bare (metadata, not measurements)', /' · fold ' \+ sModel\.fold/.test(stagerFn), 'the fold token moved');
+
+        // ── M18 — the PulseDex context banner. Four numbers, four badges, and every tier is ladder vocabulary.
+        T.ok(
+          'M18 · pulsedex-render publishes an explicit-tier badge helper over the engine',
+          /function tierBadge\(tier, cite\)[\s\S]{0,220}MetricRegistry\.badge\(tier/.test(pRnd),
+          'tierBadge is absent or does not delegate to MetricRegistry.badge'
+        );
+        var ctxFn = slice(pRnd, 'function renderContext(r)', 'function renderGraphs(r)');
+        /* The banner writes the altitude note TWICE — one sentence above 2500 m and one above 1500 m —
+           and each prints both numbers. A single regex over the function passes while one branch is
+           bare, which a hand plant proved, so both uses of each badge are counted. */
+        var nBare = (ctxFn.match(/r\.elev\.toLocaleString\(\)/g) || []).length,
+          nElev = (ctxFn.match(/elevBadge \+/g) || []).length,
+          nFactor = (ctxFn.match(/factorBadge \+/g) || []).length;
+        T.eq('M18 · both altitude sentences print the elevation', nBare, 2, nBare + ' uses');
+        T.eq('M18 · and both badge it', nElev, nBare, nElev + ' badges for ' + nBare + ' elevations');
+        T.eq('M18 · both badge the altitude correction factor', nFactor, nBare, nFactor + ' badges for ' + nBare + ' sentences');
+        T.ok('M18 · the periodic-breathing index carries a badge', /tierBadge\(\s*'experimental'[\s\S]{0,500}r\.pb\.frac/.test(ctxFn), 'the PB index is still bare');
+        T.ok('M18 · the mode score carries a badge', /tierBadge\(\s*'heuristic'[\s\S]{0,500}r\.modeConf/.test(ctxFn), 'the mode score is still bare');
+        var offLadder = [];
+        for (const mm of ctxFn.matchAll(/tierBadge\(\s*'([a-z]+)'/g)) if (!LADDER[mm[1]]) offLadder.push(mm[1]);
+        T.eq('M18 · every tier the banner states is ladder vocabulary', offLadder.length, 0, 'off-ladder: ' + offLadder.join(' · '));
+        T.ok('M18 · the engine draws the disc, so the banner hardcodes no disc CSS', !/border-radius:\s*50%/.test(ctxFn), 'the banner draws its own disc');
+        // and the engine really does mint a disc for each tier the two surfaces state.
+        ['measured', 'heuristic', 'experimental'].forEach(function (t) {
+          T.ok('M6/M18 · MetricRegistry mints a ' + t + ' disc', (MR.badge(t, '') || '').indexOf('ev-' + t) >= 0, 'badge(' + t + ') minted nothing');
+        });
+      }
+    );
+
     group('Integrator dedup — a finger and a wrist PPG are TWO recordings (I1)', 'integrator-dsp · dedupe · regression', function (T) {
       /* Both export under `schema.node === 'PpgDex'`, and the dedupe key was the node alone, so a
          night carrying the O2Ring's finger pleth AND the Verity armband collapsed to one on the

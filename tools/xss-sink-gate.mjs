@@ -261,6 +261,18 @@ export const ALLOW = [
   },
   {
     file: 'hrvdex-render.js',
+    match: 'sub.innerHTML = evBadge(_patLabel(key)) + _patLabel(key)',
+    reason:
+      "the histogram stat line of the Distributions and Patterns tab, read when this diff gave it the badge the card carried nowhere. Every interpolated value is a number through toFixed(1) or Array.length, except the metric name: _patLabel() looks the key up in PATTERN_METRICS and returns that table's own in-source label, and the key itself comes from the select whose options the page wrote from the same table, so no file name and no parsed cell reaches the markup. The only raw markup is evBadge() output, which is MetricRegistry.badge() over a registry key, and that helper escapes its own attributes."
+  },
+  {
+    file: 'hrvdex-render.js',
+    match: 'sub.innerHTML = evBadge(_patLabel(kx)) + _patShort(kx)',
+    reason:
+      "the correlation stat line of the same tab, and the same population: the two metric names are PATTERN_METRICS labels looked up from select values the page itself wrote, the colour is one of three literal CSS strings, the strength word is one of four literals, and r and n are numbers through toFixed(2) and the Pearson helper's own count. The only raw markup is evBadge() output over a registry key."
+  },
+  {
+    file: 'hrvdex-render.js',
     match: "srbLabel.innerHTML = (score != null ? evBadge('HRV Score') : '')",
     reason:
       "the sidebar readiness chip, read when this diff gave it the badge the hero already carried. `score` is tested against null and its value is never written into the markup. evBadge() returns MetricRegistry.badge() markup over the static registry key 'HRV Score', and that helper escapes its own attributes. The rest of the statement is the literal 'Readiness'."
