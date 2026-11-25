@@ -13862,8 +13862,12 @@
         motiondex: 'activityCounts effortAmp effortPresent',
         oxydex:
           'biCv bluntedArousalFlag breathsPerMin cdiIdx circadianHrAmp ct85 ct88 ct89 decelCap deepProxy dfaAlpha1 episodeRange fftCycleSec hrCv hrMaxKpi hrNadirTiming hrQuartileTrend hrVarSd intraNightNsi karvZone lfHfPower mafHr meanHrPb meanHrRest nadirBin46 nadirBin69 nadirBinGt9 nadirBinLt4 nadirDepth nadirRecov nocDip o2HrEfficiency oscEpisodeCount oscIndex oscPeakCrossings oscWindows pbDivergeCount pbDivergePct pbEpisodes pbTrend periodicBreathing periodicityPattern pnn3Equiv poorNightsPct recoveryCv rmssdProxy scoreTrend sd1sd2 sleepPressureIdx solTrend spo2Autocorr1 spo2HrLag spo2Nadir spo2NadirTiming spo2NightCV spo2wBias spo2wMae spo2wMedian spo2wMin spo2wTrackR spo2wWithin2 ssiIdx stabilityR2 t88 worst10MinSpo2 worst30MinT95 z2win',
+        /* `meanSqi` LEFT this baseline on 2026-11-25: the signal-quality table badges the mean
+           per-beat score through this node's EXISTING id, so `ppgdex-render.js` names the id as a
+           string and route 1 binds it. The table deliberately declares no second id for that one
+           number. The set ratchets DOWN only. */
         ppgdex:
-          'accHz agingIdx agreement analyzable beatLatency beatLatencyMad beatPpiDelta cleanPulses correction detectorStability dicrotic gyroHz ledAgreement meanAbsDev meanPPI meanSqi motionIdx notchTime pulseWidth reflectionIdx',
+          'accHz agingIdx agreement analyzable beatLatency beatLatencyMad beatPpiDelta cleanPulses correction detectorStability dicrotic gyroHz ledAgreement meanAbsDev meanPPI motionIdx notchTime pulseWidth reflectionIdx',
         pulsedex: 'accelCap ansPsns ansSns artifacts decelCap htn maxRR medianRR minRR modeRR mxdmn nBeats recovIndex recovery rsaProxy sdnnZ vagalEff'
       };
       var NODES = Object.keys(UNDECLARED);
@@ -13900,7 +13904,7 @@
         hrvdex: ['hrvdex-dsp.js', 'hrvdex-app.js', 'hrvdex-profile.js'],
         motiondex: ['motiondex-dsp.js'],
         oxydex: ['oxydex-dsp.js', 'oxydex-cross.js'],
-        ppgdex: ['ppgdex-dsp.js', 'ppgdex-cross.js', 'sq-table.js'],
+        ppgdex: ['ppgdex-dsp.js', 'ppgdex-cross.js'],
         pulsedex: ['pulsedex-dsp.js', 'pulsedex-cross.js']
       };
       var missingBodies = [];
