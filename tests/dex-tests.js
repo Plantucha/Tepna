@@ -13955,6 +13955,25 @@
           })
           .join('\n');
       };
+      /* ── STRINGS ARE TEXT, NOT CODE ───────────────────────────────────────────────────────────
+         Row 2026-11-25-the-id-ratchet-binds-an-id-off-prose-with-a-colon. `strip()` above removes
+         comments and KEEPS string literals, and the `<id>:` route below reads `<id>:` anywhere. So
+         the prose `never the smoothed correction: the running median` at `sq-table.js:931` bound the
+         ppgdex id `correction`, which nothing emits. Measured 2026-11-25: with that file in
+         `BODIES.ppgdex` the gate printed `FIXED (lower the baseline): [correction meanSqi]`, and a
+         session that obeys the gate drops a live id. The baseline ratchets DOWN only, so a false
+         binding never returns.
+         This empties every string literal for that one route. A template keeps its `${…}` groups,
+         which ARE code, and loses its literal text. The quoted route and the `.id` route still read
+         the RAW body, so a key written `'correction': 1` binds exactly as before. */
+      var stripStrings = function (s) {
+        return String(s || '')
+          .replace(/'(?:\\.|[^'\\\n])*'/g, "''")
+          .replace(/"(?:\\.|[^"\\\n])*"/g, '""')
+          .replace(/`(?:\\.|[^`\\])*`/g, function (lit) {
+            return (lit.match(/\$\{[^{}]*\}/g) || []).join(' ');
+          });
+      };
       /* ANTI-VACUITY FIRST, and it must NAME the missing file. A registry absent from this lane's
          inventory would make its ids look perfectly bound (zero parsed, zero undeclared) — the
          population-of-zero failure SOURCE_FILES has already produced twice. #3356 listed all nine. */
@@ -13979,7 +13998,11 @@
         hrvdex: ['hrvdex-dsp.js', 'hrvdex-app.js', 'hrvdex-profile.js'],
         motiondex: ['motiondex-dsp.js'],
         oxydex: ['oxydex-dsp.js', 'oxydex-cross.js'],
-        ppgdex: ['ppgdex-dsp.js', 'ppgdex-cross.js', 'ppgdex-render.js'],
+        /* `sq-table.js` joins the PpgDex body too, because `PpgDex.html` inlines it — read the
+           carriers with `grep -l 'data-inline-src="sq-table.js"' *.html`. The ECGDex entry above
+           named the file on 2026-11-25 and this one did not, so every id the table declares for
+           PpgDex read as unbound. Adding the file is what exposed the prose match below. */
+        ppgdex: ['ppgdex-dsp.js', 'ppgdex-cross.js', 'ppgdex-render.js', 'sq-table.js'],
         pulsedex: ['pulsedex-dsp.js', 'pulsedex-cross.js']
       };
       var missingBodies = [];
@@ -14018,6 +14041,8 @@
             })
             .join('\n')
         );
+        /* The same body with every string literal emptied — the population for the `<id>:` route. */
+        var bodyCode = stripStrings(body);
         var ids = [];
         /* ⚠️ FIELD-ORDER-INDEPENDENT, and this is a bug fix with two scars.
            It used to require `label` IMMEDIATELY after the brace (`id: { label:`), so ANY entry that
@@ -14036,7 +14061,7 @@
         for (const m of regS.matchAll(re)) if (ids.indexOf(m[2]) === -1) ids.push(m[2]);
         totalIds += ids.length;
         var undeclared = ids.filter(function (id) {
-          var emitted = new RegExp('(^|[^A-Za-z0-9_$])' + id + '\\s*:|\\.' + id + '\\b|[\'"`]' + id + '[\'"`]').test(body);
+          var emitted = new RegExp('(^|[^A-Za-z0-9_$])' + id + '\\s*:').test(bodyCode) || new RegExp('\\.' + id + '\\b|[\'"`]' + id + '[\'"`]').test(body);
           var inDefs = new RegExp('(^|[^A-Za-z0-9_$.\'"])' + id + "\\s*:\\s*\\{|id:\\s*'" + id + "'").test(defs);
           /* The ENTRY text, read from the UNSTRIPPED registry so a `dormant` written in prose beside
              the flag is not what satisfies this — the flag itself must be there. */
@@ -14101,6 +14126,20 @@
         T.ok(node + ' · route control · an UNQUOTED d_<id> does not bind', !probe('barekey'), 'd_barekey as a bare identifier is not a render key — a looser regex would bind it');
         T.ok(node + ' · route control · d_<id> inside a longer token does not bind', !probe('other'), 'prefixed_d_other must not satisfy d_other');
         T.ok(node + ' · route control · an id that exists nowhere stays undeclared', !probe('zzzNeverRendered'), 'a fabricated id must bind through no route');
+        /* ── CONTROLS FOR THE `<id>:` ROUTE. The second and third legs are the row's own case:
+           an English sentence that `strip()` keeps, in each of the two string forms. */
+        var emitSynth = "  realkey: 1,\n  var s = 'never the smoothed prosekey: the running median';\n  var h = `<b>tplkey: ${x}</b>`;";
+        var emitProbe = function (pid) {
+          return new RegExp('(^|[^A-Za-z0-9_$])' + pid + '\\s*:').test(stripStrings(emitSynth));
+        };
+        T.ok(node + ' · route control · a key outside a string binds', emitProbe('realkey'), 'the positive case must still match');
+        T.ok(node + ' · route control · an id in PROSE inside a quoted string does not bind', !emitProbe('prosekey'), 'a sentence inside a string literal is text, not an emission');
+        T.ok(node + ' · route control · an id in PROSE inside a template literal does not bind', !emitProbe('tplkey'), 'template text is text too');
+        T.ok(
+          node + ' · route control · emptying the strings leaves the QUOTED route intact',
+          /['"`]quotedkey['"`]/.test("var k = 'quotedkey';"),
+          'the quoted route reads the raw body, so a quoted key still binds'
+        );
         /* An EQUALITY, never a count: a swap keeps the number and changes the members, and a floor is
            satisfied by the wrong ones (measured on the shells gate's INVISIBLE_CAP). */
         T.ok(
