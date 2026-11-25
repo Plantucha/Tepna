@@ -1514,6 +1514,11 @@
   // ════════════════════════════════════════════════════════════════════════
   //  FREQUENCY DOMAIN — Lomb–Scargle on unevenly-sampled NN → VLF/LF/HF + resp.
   // ════════════════════════════════════════════════════════════════════════
+  /* ∅ A series with no variation has no spectrum. The detrend leaves a floating-point residue of about
+     1e-24 ms² when every interval is equal and not a short binary fraction, and `hf > 0` read that
+     residue as power: 300 intervals of 807.6923 ms published LF/HF 3.87 and a breath rate of 9 beside
+     LF 0 and HF 0. The floor is 1 µs of SD, about a thousandth of the 1/1024 s interval step. */
+  const RR_VAR_MIN_MS2 = 1e-6;
   function lombScargle(nn, times, nf) {
     const N = nn.length;
     /* REFUSE, DO NOT FABRICATE (Clock Contract §2.6, applied to the spectral path). Returning zeros
@@ -1614,6 +1619,7 @@
     }
     const variance = x.reduce((s, v) => s + v * v, 0) / N,
       sc = tpFull > 0 ? variance / tpFull : 1;
+    if (variance < RR_VAR_MIN_MS2) vlf = lf = hf = peakP = peakF = 0; // residue is not power
     // DEEP-AUDIT §10: the sub-bands tile [fLo,fHi) exactly, so tp IS vlf+lf+hf. Round the bands FIRST and
     // define tp as their sum, so the Task-Force identity holds EXACTLY rather than to within rounding.
     const _v = Math.round(vlf * sc),
@@ -1674,7 +1680,8 @@
         }
       }
       const F = Math.sqrt(sumSq / cnt);
-      if (F > 0) {
+      // ∅ a residue below the floor is no fluctuation, so the scale gives no point (RR_VAR_MIN_MS2)
+      if (F * F >= RR_VAR_MIN_MS2) {
         logn.push(Math.log10(n));
         logF.push(Math.log10(F));
       }

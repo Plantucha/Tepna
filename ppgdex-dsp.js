@@ -4203,6 +4203,11 @@
     };
   }
   // Lomb–Scargle on irregular RR for frequency-domain HRV
+  /* ∅ A series with no variation has no spectrum. The detrend leaves a floating-point residue of about
+     1e-24 ms² when every interval is equal and not a short binary fraction, and `hf > 0` read that
+     residue as power: 300 intervals of 807.6923 ms published LF/HF 4.03 and a breath rate of 9.18 beside
+     LF 0 and HF 0. The floor is 1 µs of SD, about a thousandth of the 1/1024 s interval step. */
+  const RR_VAR_MIN_MS2 = 1e-6;
   function lombScargle(tt, nn) {
     if (nn.length < 8) return null;
     const t = tt.map((x) => x);
@@ -4329,6 +4334,10 @@
     let variance = 0;
     for (let i = 0; i < N; i++) variance += y[i] * y[i];
     variance /= N;
+    if (variance < RR_VAR_MIN_MS2) {
+      vlf = lf = hf = 0; // residue is not power
+      hfPeakF = null;
+    }
     const scF = totalFull > 0 ? variance / totalFull : 1; // §3.1 — full support, not the band
     vlf *= scF;
     lf *= scF;
@@ -4461,9 +4470,15 @@
     for (let si = 0; si < scales.length; si++) {
       if (!Wsum[si]) continue;
       const F = Math.sqrt(Esum[si] / (Wsum[si] * scales[si]));
+      /* ∅ A scale with no fluctuation gives no point. `Math.log(F || 1e-9)` gave every such scale one
+         floor value, so a flat series fitted a constant and published α1 = 0, and one 30 ms step in
+         300 equal intervals published 3.95 where ECGDex reads 0.604. Same floor and same three-scale
+         minimum as ECGDex and PulseDex. */
+      if (F * F < RR_VAR_MIN_MS2) continue;
       xs.push(Math.log(scales[si]));
-      ys.push(Math.log(F || 1e-9));
+      ys.push(Math.log(F));
     }
+    if (xs.length < 3) return { value: null, reason: 'no-fluctuation', segments: used, covered };
     const mx = mean(xs),
       myy = mean(ys);
     let num = 0,
@@ -6795,6 +6810,7 @@
     /* Reduced coverage ANNOTATES (§∅). The keys appear only once the series was actually cut, so no
        committed gapless fixture moves for a key that would describe nothing. */
     const _segAnno = (seg, cut) => {
+      if (seg && seg.reason) return { reason: seg.reason }; // the estimator refused, cut or not
       if (!cut) return {};
       if (!seg) return { reason: 'no-run-over-floor' };
       return { segments: seg.segments, coveragePct: nn.length ? r1((100 * seg.covered) / nn.length) : null };

@@ -1776,6 +1776,89 @@
       }
     });
 
+    group('∅ a constant RR train has no spectrum and no scaling exponent — ECGDex · PpgDex · PulseDex', 'ecgdex-dsp · ppgdex-dsp · pulsedex-dsp · absence · residue', function (T) {
+      var E = env.ECGDSP,
+        P = env.PPGDSP,
+        U = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!E || !P || !U) {
+        T.ok('ECGDSP, PPGDSP and PulseDex._bare are all co-loaded', false, [!!E, !!P, !!U].join(','));
+        return;
+      }
+      var times = function (nn) {
+        var acc = 0;
+        return nn.map(function (v) {
+          return (acc += v) / 1000;
+        });
+      };
+      var NODES = [
+        { id: 'ECGDex', ls: (nn) => E.lombScargle(nn, times(nn), 300), dfa: E.dfaAlpha1 },
+        { id: 'PpgDex', ls: (nn) => P.lombScargle(times(nn), nn), dfa: P.dfaAlpha1 },
+        { id: 'PulseDex', ls: (nn) => U.lombScargle(nn), dfa: U.dfaAlpha1 }
+      ];
+      var constant = function (rr, n) {
+        var a = [];
+        for (var i = 0; i < n; i++) a.push(rr);
+        return a;
+      };
+      /* 800 ms is exact in binary and always refused. The others leave a residue, and before the floor
+         they published a ratio, two shares and a breath rate over LF 0 and HF 0. */
+      var FLAT = [
+        ['800 ms', constant(800, 300)],
+        ['807.6923 ms', constant(807.6923, 300)],
+        ['769.2308 ms', constant(1000 / 1.3, 300)],
+        ['333.3333 ms', constant(1000 / 3, 300)],
+        ['807.6923 ms over 3333 beats', constant(807.6923, 3333)]
+      ];
+      NODES.forEach(function (n) {
+        FLAT.forEach(function (c) {
+          var s = n.ls(c[1]);
+          T.eq(n.id + ' · ' + c[0] + ' · LF/HF, breath rate and DFA are all null', [s.lfhf, s.respRate, n.dfa(c[1])].map(String).join(','), 'null,null,null');
+          T.eq(n.id + ' · ' + c[0] + ' · and the bands stay a measured 0', [s.vlf, s.lf, s.hf].join(','), '0,0,0');
+        });
+        /* CONTROLS — each one holds variation far under what the bands print, and each one is real. */
+        var rsa = [];
+        for (var i = 0; i < 300; i++) rsa.push(800 + Math.sin(i * 0.4 * Math.PI)); // 1 ms at 0.25 Hz
+        var sr = n.ls(rsa);
+        T.ok('CONTROL · ' + n.id + ' · a 1 ms modulation at 0.25 Hz keeps its 15 br/min, though HF prints 0', Math.abs(sr.respRate - 15) < 0.1 && sr.hf === 0, JSON.stringify([sr.respRate, sr.hf]));
+        T.ok('CONTROL · ' + n.id + ' · …and its ratio is a number', typeof sr.lfhf === 'number', String(sr.lfhf));
+        T.ok('CONTROL · ' + n.id + ' · …and its DFA is a number', typeof n.dfa(rsa) === 'number', String(n.dfa(rsa)));
+      });
+      // PulseDex also publishes the global peak, and PpgDex the two shares
+      var up = U.lombScargle(constant(807.6923, 300));
+      T.eq('PulseDex · the global peak is null, never 0.003 Hz in VLF', [up.peakHz, up.peakBand, up.peakBelowHF, up.respBelowHF].join(','), ',,false,false');
+      T.ok('PulseDex · and the absent breath rate names its reason', /no spectral peak/.test(String(up.respRateReason)), String(up.respRateReason));
+      T.ok('ECGDex · and the absent breath rate names its reason', /no spectral peak/.test(String(NODES[0].ls(constant(807.6923, 300)).respRateReason)), '');
+      var pp = P.lombScargle(times(constant(807.6923, 300)), constant(807.6923, 300));
+      T.eq('PpgDex · the two normalised shares are null, never 80 and 20 of nothing', [pp.lfnu, pp.hfnu, pp.respRateMethod].map(String).join(','), 'null,null,null');
+      // the DFA arm PpgDex held alone
+      var step = constant(800, 300);
+      step[150] = 830;
+      T.eq('PpgDex · one 30 ms step in equal intervals reads the ECGDex exponent, never 3.95', P.dfaAlpha1(step), +E.dfaAlpha1(step).toFixed(2));
+      T.eq('PulseDex · …and so does PulseDex', U.dfaAlpha1(step), E.dfaAlpha1(step));
+      var seg = P.dfaAlpha1Segmented(constant(800, 300), [[0, 300]]);
+      T.eq('PpgDex · the segmented form keeps its coverage and names the reason', [seg.value, seg.reason, seg.segments, seg.covered].join(','), ',no-fluctuation,1,300');
+      T.eq('CONTROL · a run below the 50-beat floor still answers null, not a reason', P.dfaAlpha1Segmented(constant(800, 40), [[0, 40]]), null);
+      // one floor, three copies
+      var src = env.sources || {};
+      var floors = ['ecgdex-dsp.js', 'ppgdex-dsp.js', 'pulsedex-dsp.js']
+        .filter((f) => src[f])
+        .map(function (f) {
+          var m = /const RR_VAR_MIN_MS2 = ([0-9.e-]+);/.exec(src[f]);
+          return m ? m[1] : 'absent in ' + f;
+        });
+      T.ok(
+        'the copies declare ONE floor',
+        floors.every((v) => v === '1e-6'),
+        floors.join(',')
+      );
+      if (src['ppgdex-dsp.js'])
+        T.ok(
+          'PpgDex · the estimator reason reaches dfa1Reason, cut or not',
+          /if \(seg && seg\.reason\) return \{ reason: seg\.reason \};[^\n]*\n\s*if \(!cut\) return \{\};/.test(src['ppgdex-dsp.js']),
+          ''
+        );
+    });
+
     group('∅ PulseDex — the artifact share, the absent respiration peak and the bare estimators (N1-33/34/35)', 'pulsedex-dsp · absence · named', function (T) {
       var P = (env.PulseDex && env.PulseDex._bare) || null;
       if (!P || typeof P.pdComputeResult !== 'function') {
