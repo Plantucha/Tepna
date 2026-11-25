@@ -1,6 +1,6 @@
 {
   "criterion": "health_flag_branches_exiting_above_module_scope_evaluation",
-  "count": 40,
+  "count": 41,
   "tools": [
     "tools/acc-acc-control.mjs",
     "tools/aperiodic-method-compare.mjs",
@@ -31,6 +31,7 @@
     "tools/pulse-agreement.mjs",
     "tools/resp-acc-headless.mjs",
     "tools/rho-overlap-power.mjs",
+    "tools/robustness-rerun-ab.mjs",
     "tools/stmt-delete.mjs",
     "tools/survivor-witness.mjs",
     "tools/synth-desat-kinetics.mjs",
@@ -43,6 +44,6 @@
     "tools/wearable-sync.mjs",
     "tools/witness-baseline.mjs"
   ],
-  "at": "2026-10-30T17:12:48.775Z",
-  "commit": "d4f1832d"
+  "at": "2026-11-25T14:17:55.303Z",
+  "commit": "affe4999"
 }

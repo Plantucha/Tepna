@@ -1,0 +1,298 @@
+{
+  "schema": "tepna.published-number-record/1",
+  "producer": "cohort-runner.html, driven by tools/cohort-runner-headless.mjs",
+  "producerCommit": "affe49990",
+  "producerCommitNote": "A NEW MEASUREMENT, not a re-run of a published pin. The paper publishes cohort-gen/1.6-pilot and cohort-gen/1.7-pilot, and neither generator is in this history, so no commit reproduces them. This record holds two arms this repository CAN reproduce: the current generator cohort-gen/2.0 and the control cohort-gen/1.9, recovered with `git show 5c36ff59^:cohort-gen.js`. The published-to-1.9 difference therefore carries generator drift AND detector drift together, and this record attributes neither.",
+  "invocation": "node tools/cohort-runner-headless.mjs --n 20000 --jobs 10 --deadline-min 240, twice: arm A on the working tree generator (cohort-gen/2.0), arm B after `git show 5c36ff59^:cohort-gen.js > cohort-gen.js` (cohort-gen/1.9). Lane FAST, worker pool, seeds 0..19999, a fresh browser profile per arm (0 records inherited, measured).",
+  "generated": "2026-11-25",
+  "inputs": {
+    "path": "none: each patient is CohortGen.patient(k), synthetic by construction",
+    "committed": false,
+    "files": 0,
+    "digest": null,
+    "note": "No person's data enters either arm. The two arm captures are the scratchpad files named under evidence in the verdict; git holds neither, and this record holds their whole digest."
+  },
+  "deterministic": "yes, under the two pins named: both generators are in this history, and the aggregate of each arm is reproducible by the invocation above.",
+  "publishedIn": "papers/robustness-benchmark.html section 5 (the 2026-11-25 addendum)",
+  "claims": {
+    "note": "the values EXACTLY as the prose states them, so CLAIM … FROM … #claims/<key> compares equal; the whole of both arms is under result",
+    "patients": 20000,
+    "coverageMinCell": 1092,
+    "nights": 114934,
+    "severeNights": 29564,
+    "withOverlap": 19932,
+    "withoutOverlap": 68,
+    "noOverlapFlagged": 50,
+    "slopeCg20": 0.812,
+    "biasCg20": -3.35,
+    "r2Cg20": 0.96,
+    "severeBiasCg20": -7.24,
+    "severeSlopeCg20": 0.853,
+    "flaggedCg20": 2088,
+    "recallLowSevereCg20": 2038,
+    "slopeCg19": 0.83,
+    "biasCg19": -3.28,
+    "r2Cg19": 0.965,
+    "severeBiasCg19": -6.98,
+    "severeSlopeCg19": 0.891,
+    "flaggedCg19": 2086,
+    "recallLowSevereCg19": 2036,
+    "desatRecallMedian": 0.59,
+    "desatRecallN": 18479,
+    "rmssdAbsErrMedian": 0.8,
+    "rmssdAbsErrN": 18065,
+    "glucoHypoRecallMedian": 1,
+    "glucoHypoRecallN": 4104,
+    "severeSeeds": 5155,
+    "severeSeedsDiffering": 5119,
+    "nonSevereSeeds": 14845,
+    "nonSevereSeedsDiffering": 0,
+    "invariantsJudged": 33,
+    "invariantViolations": 0
+  },
+  "result": {
+    "cg20": {
+      "pin": {
+        "cohortGen": "cohort-gen/2.0",
+        "dex": "1.0.0",
+        "kernelHash": "118ebed5"
+      },
+      "patients": 20000,
+      "fusionRuns": 20000,
+      "withOverlap": 19932,
+      "withoutOverlap": 68,
+      "kernelMismatch": 0,
+      "fatal": 0,
+      "cpapPatients": 11690,
+      "nodeThrew": {
+        "OxyDex": 0,
+        "PulseDex": 0,
+        "GlucoDex": 0,
+        "ECGDex": 0,
+        "PpgDex": 0,
+        "CPAPDex": 0,
+        "Integrator": 0
+      },
+      "coverageMinCell": 1092,
+      "failureLedger": {
+        "count": 2088,
+        "recall_low_severe": 2038,
+        "no_overlap": 50
+      },
+      "odiVsTruthAHI": {
+        "slope": 0.812,
+        "intercept": -1,
+        "r2": 0.96,
+        "bias": -3.35,
+        "n": 114934
+      },
+      "bySeverity": {
+        "none": {
+          "slope": 0.834,
+          "intercept": -0.14,
+          "r2": 0.937,
+          "bias": -0.41,
+          "n": 25875
+        },
+        "mild": {
+          "slope": 0.87,
+          "intercept": -0.91,
+          "r2": 0.96,
+          "bias": -1.69,
+          "n": 25741
+        },
+        "mod": {
+          "slope": 0.937,
+          "intercept": -2.65,
+          "r2": 0.969,
+          "bias": -3.46,
+          "n": 33754
+        },
+        "severe": {
+          "slope": 0.853,
+          "intercept": -3.23,
+          "r2": 0.945,
+          "bias": -7.24,
+          "n": 29564
+        }
+      },
+      "desatRecall": {
+        "median": 0.59,
+        "n": 18479
+      },
+      "rmssdAbsErr": {
+        "median": 0.8,
+        "n": 18065
+      },
+      "glucoHypoRecall": {
+        "median": 1,
+        "n": 4104
+      },
+      "cpapResidualAhiAbsErr": {
+        "median": 0.49,
+        "n": 11690
+      },
+      "minutesWall": null
+    },
+    "cg19": {
+      "pin": {
+        "cohortGen": "cohort-gen/1.9",
+        "dex": "1.0.0",
+        "kernelHash": "118ebed5"
+      },
+      "patients": 20000,
+      "fusionRuns": 20000,
+      "withOverlap": 19932,
+      "withoutOverlap": 68,
+      "kernelMismatch": 0,
+      "fatal": 0,
+      "cpapPatients": 11690,
+      "nodeThrew": {
+        "OxyDex": 0,
+        "PulseDex": 0,
+        "GlucoDex": 0,
+        "ECGDex": 0,
+        "PpgDex": 0,
+        "CPAPDex": 0,
+        "Integrator": 0
+      },
+      "coverageMinCell": 1092,
+      "failureLedger": {
+        "count": 2086,
+        "recall_low_severe": 2036,
+        "no_overlap": 50
+      },
+      "odiVsTruthAHI": {
+        "slope": 0.83,
+        "intercept": -1.18,
+        "r2": 0.965,
+        "bias": -3.28,
+        "n": 114934
+      },
+      "bySeverity": {
+        "none": {
+          "slope": 0.834,
+          "intercept": -0.14,
+          "r2": 0.937,
+          "bias": -0.41,
+          "n": 25875
+        },
+        "mild": {
+          "slope": 0.87,
+          "intercept": -0.91,
+          "r2": 0.96,
+          "bias": -1.69,
+          "n": 25741
+        },
+        "mod": {
+          "slope": 0.937,
+          "intercept": -2.65,
+          "r2": 0.969,
+          "bias": -3.46,
+          "n": 33754
+        },
+        "severe": {
+          "slope": 0.891,
+          "intercept": -4.06,
+          "r2": 0.958,
+          "bias": -6.98,
+          "n": 29564
+        }
+      },
+      "desatRecall": {
+        "median": 0.59,
+        "n": 18479
+      },
+      "rmssdAbsErr": {
+        "median": 0.8,
+        "n": 18065
+      },
+      "glucoHypoRecall": {
+        "median": 1,
+        "n": 4104
+      },
+      "cpapResidualAhiAbsErr": {
+        "median": 0.49,
+        "n": 11690
+      },
+      "minutesWall": null
+    },
+    "generatorAB": {
+      "verdict": {
+        "schema": "tepna.verdict/1",
+        "gate": "robustness-rerun-ab",
+        "status": "PASS",
+        "scope": "internal",
+        "population": {
+          "checked": 33,
+          "eligible": 33,
+          "excluded": 0
+        },
+        "criterion": {
+          "name": "invariant_violations",
+          "threshold": 0,
+          "unit": "invariants",
+          "direction": "lte"
+        },
+        "result": {
+          "violations": 0,
+          "violationIds": [],
+          "oldGenerator": "cohort-gen/1.9",
+          "newGenerator": "cohort-gen/2.0",
+          "severeSeedsDiffering": 5119,
+          "nonSevereSeedsDiffering": 0
+        },
+        "evidence": [
+          "/tmp/claude-1000/-home-michal-Tepna/c378239c-744a-4fee-967c-3029f4c3b39e/scratchpad/arm-b-20k-cg19.json",
+          "/tmp/claude-1000/-home-michal-Tepna/c378239c-744a-4fee-967c-3029f4c3b39e/scratchpad/arm-a-20k-cg20.json",
+          "/tmp/claude-1000/-home-michal-Tepna/c378239c-744a-4fee-967c-3029f4c3b39e/scratchpad/cohort-gen-1.9.js",
+          "tools/robustness-rerun-ab.mjs"
+        ],
+        "reason": null,
+        "producedBy": {
+          "tool": "tools/robustness-rerun-ab.mjs",
+          "commit": "affe49990"
+        },
+        "at": "2026-11-25T14:02:16Z"
+      },
+      "profileDiff": {
+        "n": 20000,
+        "oldVersion": "cohort-gen/1.9",
+        "newVersion": "cohort-gen/2.0",
+        "bySeverity": {
+          "none": {
+            "seeds": 4534,
+            "differing": 0
+          },
+          "mild": {
+            "seeds": 4461,
+            "differing": 0
+          },
+          "mod": {
+            "seeds": 5850,
+            "differing": 0
+          },
+          "severe": {
+            "seeds": 5155,
+            "differing": 5119
+          }
+        },
+        "populations": {
+          "old": {
+            "none": 4534,
+            "mild": 4461,
+            "mod": 5850,
+            "severe": 5155
+          },
+          "new": {
+            "none": 4534,
+            "mild": 4461,
+            "mod": 5850,
+            "severe": 5155
+          }
+        },
+        "strataDisagree": 0
+      }
+    }
+  }
+}
