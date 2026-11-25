@@ -1407,6 +1407,9 @@
 
   // Nocturnal hypo: 00:00–06:00 runs ≥15 min < 70 mg/dL
   function nocturnalHypo(c) {
+    // §∅ — an episode is ≥15 min. With no measured rate, 15/null was Infinity and no run qualified,
+    // so the app published 0 episodes over a night that holds lows.
+    if (c.cadence == null) return null;
     const minCells = Math.max(2, Math.round(15 / c.cadence));
     const eps = [];
     let run = /** @type {any} */ (null);
@@ -1433,6 +1436,54 @@
     }
     flush();
     return eps;
+  }
+
+  // ─── hypo⟷QTc: the app reads a prolonged QTc beside the night's lows ───
+  //     `hypos` is null when the rate was refused: no episode was looked for, so nothing is clear.
+  function hypoQtcRead(hypos, qtc, qtcBorderline, qtcLong, sex) {
+    const qtcProlonged = qtc != null && qtc > qtcBorderline;
+    const nNocturnalHypo = hypos ? hypos.length : null;
+    // an episode that left the sensor range has no nadir, so the night has no minimum either
+    const minNightGlucose = hypos && hypos.length && hypos.every((h) => h.min != null) ? Math.min(...hypos.map((h) => h.min)) : null;
+    let hypoQtcRisk = 'none',
+      hypoQtcNote = /** @type {string|null} */ (null);
+    if (qtc != null) {
+      if (nNocturnalHypo > 0 && qtcProlonged) {
+        hypoQtcRisk = 'elevated';
+        hypoQtcNote =
+          'Nocturnal hypoglycemia (' +
+          nNocturnalHypo +
+          ' episode' +
+          (nNocturnalHypo > 1 ? 's' : '') +
+          (minNightGlucose == null ? ', nadir below the sensor range' : ', nadir ' + minNightGlucose + ' mg/dL') +
+          ') coincides with a prolonged QTc (' +
+          qtc +
+          ' ms). Hypoglycemia is a recognised QTc-prolonging trigger — this same-night coincidence is the arrhythmic-risk pattern behind "dead-in-bed". Directional, single-lead — confirm with a clinician/12-lead.';
+      } else if (qtcProlonged) {
+        hypoQtcRisk = 'qtc-only';
+        hypoQtcNote =
+          'QTc ' +
+          qtc +
+          ' ms is ' +
+          (qtc > qtcLong ? 'prolonged' : 'borderline') +
+          ' (threshold ' +
+          qtcBorderline +
+          ' ms for ' +
+          (sex === 'F' ? 'F' : 'M') +
+          (nNocturnalHypo == null ? ') and the nocturnal hypos could not be counted (no measured cadence)' : ') but no nocturnal hypos were measured this period') +
+          ' — repolarisation watch, not a glucose-linked flag.';
+      } else if (nNocturnalHypo > 0) {
+        hypoQtcRisk = 'hypo-only';
+        hypoQtcNote =
+          'Nocturnal hypos present but QTc (' + qtc + ' ms) is within range — no repolarisation amplification seen on this (possibly different) night. Keep aligned-night data to watch the pair.';
+      } else if (nNocturnalHypo == null) {
+        hypoQtcNote = 'QTc ' + qtc + ' ms within range. The nocturnal hypos could not be counted (no measured cadence), so the hypo⟷QTc pattern is not assessed.';
+      } else {
+        hypoQtcRisk = 'clear';
+        hypoQtcNote = 'QTc ' + qtc + ' ms within range and no nocturnal hypos — the hypo⟷QTc arrhythmic pattern is absent.';
+      }
+    }
+    return { nNocturnalHypo, minNightGlucose, hypoQtcRisk, hypoQtcNote };
   }
 
   // ─── daypart variability (CV by time-of-day) — mirrors Lingo's overnight/morning/
@@ -1462,6 +1513,8 @@
 
   // Unannotated excursions: rapid sustained rises (no meal markers in v1) → excursion events
   function excursions(c, meals) {
+    // §∅ — a rise is judged per minute, so no measured rate means no verdict, not zero excursions
+    if (c.cadence == null) return null;
     // slope over ~15 min; a rise of ≥ ~45 mg/dL peak-over-trough with rate ≥ 1.0 mg/dL/min
     const w = Math.max(1, Math.round(15 / c.cadence));
     const evs = [];
@@ -1632,7 +1685,7 @@
       }
     }
     // nocturnal hypos (high priority)
-    for (const h of r.nocturnalHypo)
+    for (const h of r.nocturnalHypo || [])
       ev.push({
         t: hhmm(h.startMs),
         tMs: h.startMs,
@@ -1642,7 +1695,7 @@
         meta: h.belowRange ? { minMgdl: null, durMin: h.durMin, belowSensorRange: true } : { minMgdl: h.min, durMin: h.durMin }
       });
     // excursions
-    for (const e of r.excursions)
+    for (const e of r.excursions || [])
       ev.push({
         t: hhmm(e.startMs),
         tMs: e.startMs,
@@ -2978,6 +3031,7 @@
     _tierOf: tierOf,
     _postprandial: postprandial,
     _excursions: excursions,
+    hypoQtcRead: hypoQtcRead,
     _ckParse, // exposed for the Clock Contract §2.7 range-validation regression gate
     // Clock Contract §6 — the SELF-INGEST event order, read by the review view in glucodex-app.js so
     // the two surfaces cannot drift. `_evSortKeyMs` is the key the §∅ regression group drives directly.

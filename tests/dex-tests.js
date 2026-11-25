@@ -48082,6 +48082,86 @@
       T.ok('control · …because it has scored days to say it from', flat.dawn.days.length >= 1, flat.dawn.days.length + ' days');
     });
 
+    group('GlucoDex ∅ — an unmeasured cadence withholds the night lows and the excursions, never counts zero', 'glucodex-dsp · absence · cadence', function (T) {
+      var G = env.GLUDSP,
+        U = env.GLUUI;
+      if (!G || typeof G.analyze !== 'function') {
+        T.ok('GLUDSP.analyze is available', false, 'not loaded');
+        return;
+      }
+      /* Readings 5 h apart: no delta falls in (0, 240) min, so no rate. The 02:00 reading is 48 mg/dL.
+         15 / null is Infinity, so no run could qualify and the app printed 0 night lows over it. */
+      var H = 3600000,
+        t0 = Date.UTC(2026, 4, 10, 2, 0, 0);
+      function rec(step, n, f) {
+        var t = [],
+          v = [];
+        for (var i = 0; i < n; i++) {
+          t.push(t0 + i * step);
+          v.push(f(i));
+        }
+        return G.analyze({ tMs: t, vMgdl: v, unit: 'mg/dL', t0Ms: t0 }, null, {});
+      }
+      var r = rec(5 * H, 24, function (i) {
+        return i % 5 === 0 ? 48 : 120;
+      });
+      T.eq('ANTI-VACUITY · the record measures no cadence', JSON.stringify(r.cadence), 'null');
+      T.ok('ANTI-VACUITY · …and it holds a low inside 00:00–06:00', r.min === 48, 'min=' + r.min);
+      T.eq('the night-low list is null, never an empty list', JSON.stringify(r.nocturnalHypo), 'null');
+      T.eq('…and so is the excursion list', JSON.stringify(r.excursions), 'null');
+      T.ok('…with the reason beside them', /^cadence-unmeasurable/.test(String(r.cadenceReason)), String(r.cadenceReason));
+      T.eq(
+        'the bus carries no event of either kind',
+        (r.events || []).filter(function (e) {
+          return e.impulse === 'nocturnal_hypo' || e.impulse === 'glucose_excursion';
+        }).length,
+        0
+      );
+      var exp = G.glucoBuildSummaryExport(r, {});
+      T.eq('the summary export publishes the null', JSON.stringify([exp.patterns.nocturnalHypos, exp.patterns.excursions]), '[null,null]');
+
+      // CONTROL: a 5-min record with the same lows is searched, so zero is a measurement there
+      // (a smooth dip to 48 over four hours: a step down and back reads as a compression artifact)
+      var low = rec(300000, 288, function (i) {
+        return i < 48 ? 120 - 72 * Math.sin((Math.PI * i) / 48) : 120;
+      });
+      T.eq('CONTROL · a measured rate finds the planted hour below 70', low.nocturnalHypo.length, 1);
+      var flat = rec(300000, 288, function () {
+        return 120;
+      });
+      T.eq('CONTROL · a measured flat day reads zero lows, a list and not a null', JSON.stringify([flat.nocturnalHypo, flat.excursions]), '[[],[]]');
+
+      // The QTc read beside it: a night nobody searched is never `clear`
+      var q = G.hypoQtcRead;
+      T.eq('no count and a QTc in range → not assessed', q(null, 420, 450, 470, 'M').hypoQtcRisk, 'none');
+      T.ok('…and the note says why', /could not be counted/.test(q(null, 420, 450, 470, 'M').hypoQtcNote), String(q(null, 420, 450, 470, 'M').hypoQtcNote));
+      T.eq('…with a null count, not 0', JSON.stringify(q(null, 420, 450, 470, 'M').nNocturnalHypo), 'null');
+      T.eq('no count and a long QTc → the QTc alone', q(null, 480, 450, 470, 'M').hypoQtcRisk, 'qtc-only');
+      T.ok('…without claiming that no lows were measured', !/no nocturnal hypos/.test(q(null, 480, 450, 470, 'M').hypoQtcNote), String(q(null, 480, 450, 470, 'M').hypoQtcNote));
+      T.eq('CONTROL · a searched night with none and a QTc in range is clear', q([], 420, 450, 470, 'M').hypoQtcRisk, 'clear');
+      T.ok('CONTROL · a searched night with none and a long QTc says so', /no nocturnal hypos were measured/.test(q([], 480, 450, 470, 'M').hypoQtcNote), '');
+      T.eq('CONTROL · a low beside a long QTc is elevated', q([{ min: 52 }], 480, 450, 470, 'M').hypoQtcRisk, 'elevated');
+      T.eq('CONTROL · a low beside a QTc in range is hypo-only', q([{ min: 52 }], 420, 450, 470, 'M').hypoQtcRisk, 'hypo-only');
+      T.eq('CONTROL · no QTc reads nothing', JSON.stringify([q([{ min: 52 }], null, 450, 470, 'M').hypoQtcRisk, q([{ min: 52 }], null, 450, 470, 'M').hypoQtcNote]), '["none",null]');
+      T.eq('CONTROL · the nadir is the lowest episode', q([{ min: 60 }, { min: 52 }], 480, 450, 470, 'M').minNightGlucose, 52);
+
+      if (!U || typeof U.hypoCountHtml !== 'function') {
+        T.ok('the surface helpers are available', false, 'GLUUI not loaded');
+        return;
+      }
+      T.eq('the pill prints the token over an unsearched night', U.hypoCountHtml(r), 'nocturnal hypos withheld \u2014 <b>cadence-unmeasurable</b>');
+      T.eq('…and the excursion pill does too', U.excursionCountHtml(r), 'excursions withheld \u2014 <b>cadence-unmeasurable</b>');
+      T.eq('an unsearched record with no reason says UNKNOWN', U.hypoCountHtml({ nocturnalHypo: null }), 'nocturnal hypos withheld \u2014 <b>UNKNOWN</b>');
+      T.eq('CONTROL · a measured zero prints 0', U.hypoCountHtml(flat), '<b>0</b> nocturnal hypos');
+      T.eq('CONTROL · one low is singular', U.hypoCountHtml(low), '<b>1</b> nocturnal hypo');
+      T.eq('CONTROL · a measured zero of excursions prints 0', U.excursionCountHtml(flat), '<b>0</b> unannotated excursions');
+      T.eq(
+        'CONTROL · an annotated excursion keeps its count',
+        U.excursionCountHtml({ excursions: [{ annotated: true }] }),
+        '<b>1</b> excursion \u00b7 <b style="color:var(--green)">1 meal-annotated</b>'
+      );
+    });
+
     group('GlucoDex ∅ — an unmeasured cadence leaves the session span null, and de-drift never pivots on a zero', 'glucodex-dsp · absence · session-span', function (T) {
       var G = env.GLUDSP;
       if (!G || typeof G.analyze !== 'function') {

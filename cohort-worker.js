@@ -287,14 +287,16 @@ function runGluco(cgmCSV) {
       recording: { startEpochMs: r.t0Ms, durationMin: r.durMin },
       glycemic: { cv: r.cv, mean: r.mean, tir: r.tir ? r.tir.tir : null, gmi: r.gmi },
       dawn: { surge: dawnSurge },
-      nocturnalHypo: (r.nocturnalHypo || []).map(function (e) {
-        return { startMs: e.startMs, min: e.min, durMin: e.durMin };
-      }),
+      nocturnalHypo:
+        r.nocturnalHypo &&
+        r.nocturnalHypo.map(function (e) {
+          return { startMs: e.startMs, min: e.min, durMin: e.durMin };
+        }),
       timeseries: { t0Ms: r.t0Ms, cadenceMin: r.cadence, cells: cells },
       kernel: kern(),
       ganglior_events: r.events || []
     },
-    score: { cv: r.cv, mean: r.mean, gmi: r.gmi, nHypo: (r.nocturnalHypo || []).length, winHypo: winHypo, dawnSurge: dawnSurge, nReadings: r.nReadings, durDays: r.durDays }
+    score: { cv: r.cv, mean: r.mean, gmi: r.gmi, nHypo: r.nocturnalHypo ? r.nocturnalHypo.length : null, winHypo: winHypo, dawnSurge: dawnSurge, nReadings: r.nReadings, durDays: r.durDays }
   };
 }
 
