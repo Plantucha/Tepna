@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="a0d9a50a6573" data-compute-hash="c2277b7a1482">
+<html lang="en" data-manifest-hash="389cd4352362" data-compute-hash="592ab4d37086">
 <head>
 <!--
   GlucoDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3svKSdRdlZI82Y/rLhtgO321jPG2dJseCANtlOvchhM=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Cv0u2I9YwZm5jvAom4gFQfIMWPy64JRPiXEm2o7elJ4=' 'sha256-DmRyvMG6q+qyrmPiFRynuKJz6UNa02ZpXwnLA02NwCY=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-xeo/SvJn5pePZ1SM5sKHX3dRwul+yLMPUvGj5yOK8ns='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-3svKSdRdlZI82Y/rLhtgO321jPG2dJseCANtlOvchhM=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Cv0u2I9YwZm5jvAom4gFQfIMWPy64JRPiXEm2o7elJ4=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-bV9puip5cXhdmdjTxLQSmozaij4ixCzmMm4aPQpZ5Og=' 'sha256-cEe98Q/RvKZZgnEYYXS6pvDxdAWuSUD0sEyEu+yBRak=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-etJozmRPiI3UPlAYB2NYMpcrS7RD3IlroRjdLWu0Dq4=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-xeo/SvJn5pePZ1SM5sKHX3dRwul+yLMPUvGj5yOK8ns='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>GlucoDex — Continuous Glucose Analyzer · v2.37.0</title>
@@ -10289,6 +10289,344 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     return out;
   }
 
+  /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ──────────────────────
+     One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
+     carries the field list and the null discipline). A CGM export carries the sensor's own stamp
+     and no host stamp column, so there is no second clock here to measure a rate against.
+     Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
+     nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
+     load-order bug and the export-parity group reds on it rather than letting it pass.
+     Both export roads call this one function, so neither can drift from the other. */
+  function glucoTimingBlock() {
+    return typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock ? DexExport.timingBlock({}) : null;
+  }
+
+  /* THE SUMMARY-EXPORT PAYLOAD — the ⬇ JSON button's whole document, now a headless function.
+     It built itself inline in `glucodex-app.js exportJSON`, so no committed fixture pinned it and
+     no node runner reached it. Row
+     `2026-11-24-four-nodes-summary-export-payload-has-no-known-answer` names that gap.
+     The app realm owns three values a headless caller cannot read — the kernel stamp, the
+     provenance stamp and the wall-clock generation time. The caller hands those in through
+     `opts`, and a fixture run pins every other field.
+     Publish a helper on the namespace, never only in lexical scope: the `glucoCells` comment at
+     the export literal below records what one unpublished helper already cost this node. */
+  function glucoBuildSummaryExport(r, opts) {
+    opts = opts || {};
+    const p = r.profile || {},
+      f = r.fusion;
+    const out = {
+      /* The caller may hand the DexKernel OBJECT itself ({K, VERSION, HASH}) or an already-lowercased
+         pair. `glucoBuildNodeExport` normalises both, and a reader of the bus reads the lowercase
+         keys, so this road normalises the same way rather than publishing whichever shape arrived. */
+      kernel: opts.kernel
+        ? { version: (opts.kernel.version != null ? opts.kernel.version : opts.kernel.VERSION) || null, hash: (opts.kernel.hash != null ? opts.kernel.hash : opts.kernel.HASH) || null }
+        : null,
+      schema: {
+        name: 'ganglior.node-export',
+        version: '2.0',
+        node: 'GlucoDex',
+        nodeVersion: '1.0',
+        generated: opts.generated || new Date().toISOString(),
+        provenance: opts.provenance || null, // R1: build + input fingerprints, stamped by the app realm
+        doc: 'Single-signal CGM analyzer export. All metrics computed in-browser from the CGM file only (nothing leaves the device). null = not computed at this recording length/quality. `timeseries` per-hour/day aggregates are the cross-node currency; `fusion` carries BOTH the ECGDex-correlation results and the producer-side values GlucoDex feeds back to the bus.',
+        units: { glucose: 'mg/dL', gmi: '%', a1c: '%', cv: '%', tir: '%', mage: 'mg/dL', conga: 'mg/dL', modd: 'mg/dL', gvp: '%', time: 'min', age: 'yr', slope: 'ln-units/h', conf: '0..1' }
+      },
+      recording: {
+        source: r.source,
+        unit: 'mg/dL (normalised internally)',
+        sourceUnit: r.unit,
+        cadenceMin: r.cadence,
+        startEpochMs: r.t0Ms,
+        durationDaysActive: r.durDays,
+        spanMin: r.spanMin,
+        activeMin: r.activeMin,
+        tier: r.tier,
+        tierNote: r.tierMsg,
+        readings: r.nReadings,
+        longRecording: r.longRec,
+        /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ──────────────
+           One shape on every node-export. `glucoBuildNodeExport` emits the same call, so the two
+           roads out of this node cannot drift on the block's shape. */
+        timing: glucoTimingBlock()
+      },
+      quality: {
+        sensorActivePct: r.pctActive,
+        gaps: r.nGaps,
+        gapMin: r.gapMin,
+        warmupMinSuppressed: r.warmupMin,
+        compressionLowMin: r.compMin,
+        dataQualityConfidence: r.dataQualityConf,
+        dataQualityLabel: r.dqLabel,
+        sensorSessions: (r.sessions || []).map((s) => ({ idx: s.idx, startEpochMs: s.startMs, days: s.days, median: s.median, mean: s.mean, driftMgdlPerDay: s.driftPerDay })),
+        sessionCount: r.nSessions,
+        sessionCorrections: {
+          leveled: r.sessionCorr && r.sessionCorr.leveled,
+          deDrifted: r.sessionCorr && r.sessionCorr.deDrifted,
+          offsetsMgdl: r.sessionCorr ? r.sessionCorr.offsets : [],
+          globalMedian: r.sessionCorr ? r.sessionCorr.globalMedian : null,
+          note: 'leveling aligns each wear median to the global median (between-sensor step removal); de-drift removes the within-wear linear trend (experimental). Both reference-free, off unless enabled.'
+        },
+        note: 'sensorActivePct = analyzable cells ÷ timeline. Warm-up suppressed; gaps interpolated+greyed; compression lows (sustained nocturnal dip with bracketing recovery — positional artifact) flagged & held out of TBR/LBGI/hypo so they do not inflate them. AGP needs ≥70%. dataQualityConfidence scales the stability-score interpretation.',
+        compressionDetector: 'night-hours sustained low ≥25 min, both 2-h shoulders euglycemic (>95/>92) and dip >32 mg/dL below them with fast bilateral recovery',
+        agpValid: r.pctActive >= 70
+      },
+      glycemic: {
+        mean: r.mean,
+        gmi: r.gmi,
+        estA1c: r.ea1c,
+        sd: r.sd,
+        cv: r.cv,
+        median: r.median,
+        p10: r.p10,
+        p25: r.p25,
+        p75: r.p75,
+        p90: r.p90,
+        min: r.min,
+        max: r.max,
+        timeInRanges: { tbr2_under54: r.tir.tbr2, tbr1_54to69: r.tir.tbr1, tir_70to180: r.tir.tir, tar1_181to250: r.tir.tar1, tar2_over250: r.tir.tar2 },
+        timeInTightRange_70to140: r.titr,
+        formulas: { gmi: '3.31 + 0.02392·meanMgdl', estA1c: '(meanMgdl + 46.7) / 28.7', cv: 'SD/mean·100' },
+        thresholds: {
+          veryLow: 54,
+          low: 70,
+          high: 180,
+          veryHigh: 250,
+          cvStablePct: 36,
+          tirGoalPct: 70,
+          tbrGoalPct: r.hypoGoal,
+          tbrGoalInForcePct: r.hypoGoalInForce,
+          note: 'mg/dL · consensus 2019. tbrGoalPct is the goal of the STATED therapy — null when no therapy was entered; tbrGoalInForcePct is the threshold the badges graded against (1% for a stated non-insulin therapy, 4% on insulin, and the stricter 1% when no therapy was stated).'
+        },
+        labels: { gmi: 'GMI is a lab-A1c PROXY, NOT your A1c. estA1c (ADAG) and GMI use different formulas and will differ.' }
+      },
+      variability: {
+        mage: r.mage,
+        conga1h: r.conga1,
+        conga2h: r.conga2,
+        conga4h: r.conga4,
+        modd: r.modd,
+        gvp: r.gvp,
+        jIndex: r.jIndex,
+        lbgi: r.lbgi,
+        hbgi: r.hbgi,
+        mag: r.magRate,
+        grade: r.grade ? { score: r.grade.score, hypoPct: r.grade.hypoPct, euPct: r.grade.euPct, hyperPct: r.grade.hyperPct } : null,
+        adrr: r.adrr,
+        byDaypart: r.daypart
+          ? {
+              totalCV: r.daypart.total,
+              overnightCV: r.daypart.overnight.cv,
+              morningCV: r.daypart.morning.cv,
+              afternoonCV: r.daypart.afternoon.cv,
+              eveningCV: r.daypart.evening.cv,
+              windows: r.daypart.windows,
+              note: 'CV localised to time-of-day — where the swings live'
+            }
+          : null,
+        formulas: {
+          jIndex: '0.001·(mean+SD)²',
+          lbgi: 'mean(10·f² for f<0), f=1.509·(ln(BG)^1.084 − 5.381)',
+          hbgi: 'mean(10·f² for f>0)',
+          gvp: '(traceLength/flatLength − 1)·100',
+          mag: 'Σ|ΔBG| / hours',
+          grade: 'mean of 425·(log10(log10(BG_mmol))+0.16)², capped 50',
+          adrr: 'mean over days of (LRmax+HRmax) in Kovatchev risk space'
+        },
+        note: 'MODD/ADRR null if <2 days. All on the full cleaned series — decimation is render-only.'
+      },
+      patterns: {
+        dawnPhenomenon: {
+          present: r.dawn.present,
+          medianRiseMgdl: r.dawn.medianDelta ?? null,
+          nDays: r.dawn.nDays ?? 0,
+          perDay: r.dawn.days || [],
+          flagThresholdMgdl: 20,
+          note: 'nadir(03–06h)→pre-breakfast(06–08h)'
+        },
+        nocturnalHypos: r.nocturnalHypo,
+        excursions: r.excursions,
+        mealMarkers:
+          r.mealMarkers && r.mealMarkers.length
+            ? r.mealMarkers.map((m) => ({ timeOfDay: ('0' + Math.floor(m.minOfDay / 60)).slice(-2) + ':' + ('0' + (m.minOfDay % 60)).slice(-2), category: m.category, label: m.label }))
+            : null,
+        postprandial: r.postprandial
+          ? r.postprandial.map((m) => ({
+              label: m.label,
+              category: m.category,
+              nDays: m.nDays,
+              baselineMgdl: m.baseline,
+              peakDeltaMgdl: m.peakDelta,
+              timeToPeakMin: m.timeToPeakMin,
+              delta2hMgdl: m.delta2h,
+              returnedToBaselinePct: m.returnedPct
+            }))
+          : null,
+        ppgrNote: 'per meal marker: 30-min pre-meal baseline, peak rise, time-to-peak, +2 h delta, % of days returned to baseline within 3 h',
+        note:
+          r.mealMarkers && r.mealMarkers.length
+            ? 'Excursions tagged against user meal markers (−20→+75 min window); annotated=true carries the meal label/category.'
+            : 'No meal markers set — excursions are slope-detected & labelled unannotated.'
+      },
+      // DEEP-AUDIT §19 — age/sex/diabetesStatus/therapy could never be null: the population default
+      // (45 y · M · 'none' · 'none') shipped as though the user had stated it. Only what was actually
+      // entered survives into `profile`; the priors COMPUTE used move to `assumedDefaults`, labelled.
+      personalization: {
+        profile: (function () {
+          var o = p._origins || null;
+          var ent = function (f, v) {
+            return o && (o[f] === 'you' || o[f] === 'detected') ? v : null;
+          };
+          return {
+            age: ent('age', p.age),
+            sex: ent('sex', p.sex),
+            diabetesStatus: ent('diabetes', p.diab),
+            therapy: ent('dxTherapy', p.therapy),
+            targetRangeMgdl: [r.tgtLo, r.tgtHi],
+            labA1cGroundTruth: p.a1c && p.a1c > 0 ? p.a1c : null,
+            note: 'fields the user set in the profile panel; null = default/auto'
+          };
+        })(),
+        assumedDefaults: (function () {
+          var o = p._origins || null;
+          var asm = function (f, v) {
+            return o && (o[f] === 'you' || o[f] === 'detected') ? null : v;
+          };
+          return {
+            age: asm('age', p.age),
+            sex: asm('sex', p.sex),
+            diabetesStatus: asm('diabetes', p.diab),
+            therapy: asm('dxTherapy', p.therapy),
+            source: 'population norm / code default — the value the analysis ran on',
+            note: 'NOT a statement by this user. A null diabetesStatus here means they did tell us.'
+          };
+        })(),
+        glycemicStabilityScore: r.stabilityScore,
+        dataQualityConfidence: r.dataQualityConf,
+        stabilityScoreFormula:
+          'clamp(0.55·TIR + 0.45·cvScore − min(28, hypoTBR·5)); cvScore=clamp(100−(CV−25)·3); hypoTBR excludes flagged compression artifacts. Read alongside dataQualityConfidence.',
+        metabolicAge: null /* Metabolic Age REMOVED 2026-06-21 (external-review WP-A); key kept null for node-export back-compat. */,
+        gmiVsLabA1c: r.gmiCheck
+          ? { gmi: r.gmiCheck.gmi, labA1c: r.gmiCheck.lab, deltaPct: r.gmiCheck.delta, agree: r.gmiCheck.agree, note: 'validates the GMI proxy against the user lab value' }
+          : null,
+        sensorBiasCalibration: r.calib
+          ? {
+              labImpliedEAG: r.calib.labEAG,
+              sensorMean: r.calib.sensorMean,
+              biasMgdl: r.calib.bias,
+              applied: r.calib.applied,
+              appliedOffsetMgdl: r.calib.appliedOffset,
+              magnitude: r.calib.magnitude,
+              formula: 'eAG = 28.7·labA1c − 46.7 (ADAG); bias = eAG − sensorMean; when applied, every reading is shifted by bias',
+              note: 'optional. Corrects a systematically low/high sensor against lab ground truth. +bias ⇒ sensor reads low. Informational; all metrics here reflect the corrected trace when applied.'
+            }
+          : null
+      },
+      fusion: f
+        ? {
+            ecgInputs: {
+              usedSlopeScalar: f.inputs.usedSlope && !f.slopeRecomputed,
+              slopeRecomputedFromEpochs: f.slopeRecomputed,
+              sigma_lnRMSSD_slope: f.slope,
+              surgeEscalationPct: f.surgeEsc,
+              couplingStrength: f.coupling,
+              cvhrIndex: f.cvhrIdx,
+              nEpochsRegressed: f.inputs.nEpochs
+            },
+            autonomicRiskVector: {
+              score: f.autoRisk,
+              slopeRisk: f.slopeRisk,
+              surgeRisk: f.surgeRisk,
+              couplingRisk: f.couplingRisk,
+              weights: { slope: 0.6, surgeEscalation: 0.2, couplingInverse: 0.2 },
+              note: 'slope weighted highest (Li & Kiyono 2026); others corroborate. Renormalised over available inputs.'
+            },
+            glycemicVariabilityScore: f.glyVar,
+            morphology: f.morph
+              ? {
+                  qtcMs: f.morph.qtc,
+                  qtcMethod: f.morph.qtcMethod,
+                  qtcProlonged: f.morph.qtcProlonged,
+                  qtcThresholds: {
+                    borderline: f.morph.qtcBorderline,
+                    prolonged: f.morph.qtcLong,
+                    sexStated: !!(p && p._origins && (p._origins.sex === 'you' || p._origins.sex === 'detected')),
+                    note: 'sex-specific consensus (450/460 borderline, 470/480 prolonged); an unstated sex uses the MALE bound — sexStated=false says so; single-lead median-beat estimate, directional'
+                  },
+                  prMs: f.morph.pr,
+                  qrsDurMs: f.morph.qrsDur,
+                  stLevelUv: f.morph.stLevel,
+                  hypoQtcRisk: f.morph.hypoQtcRisk,
+                  nocturnalHypos: f.morph.nNocturnalHypo,
+                  nadirMgdl: f.morph.minNightGlucose,
+                  qtcGlucoseTrend: f.morph.qtcTrend ? { nEpochs: f.morph.qtcTrend.n, pearsonR: f.morph.qtcTrend.r, qtcRangeMs: f.morph.qtcTrend.qtcRange, note: f.morph.qtcTrend.note } : null,
+                  tWaveAlternans: f.morph.twa ? { uv: f.morph.twa.uv, abnormal: f.morph.twa.abnormal, note: f.morph.twa.note } : null,
+                  trendAvailable: !!f.morph.trendAvailable,
+                  twaAvailable: !!f.morph.twaAvailable,
+                  consumerNote: 'GlucoDex consumes morphology.qtcTrend[] / timeseries.epochs[].qtc / morphology.twa when ECGDex exports them; falls back to summary QTc otherwise.',
+                  note: 'Consumes ECGDex 1.1 morphology.intervals. hypoQtcRisk=elevated when nocturnal hypoglycemia coincides with prolonged QTc (the dead-in-bed arrhythmic pattern). Directional, single-lead ≠ 12-lead.'
+                }
+              : null,
+            irRisk: {
+              band: f.irBand,
+              score: f.irScore,
+              formula: '0.45·autonomicRisk + 0.55·glycemicVariability',
+              note: 'directional insulin-resistance-risk band, recalibrated bands — NOT a diagnosis, no dosing advice'
+            },
+            concordance: f.concordance,
+            nightOverlap: f.nightOverlap,
+            alignment: f.alignNote,
+            nightCV: f.nightCV,
+            producerSide: {
+              nocturnalGlucoseRisk: f.nocturnalGlucoseRisk,
+              glucoseAutonomicCorrelation: f.glucoseAutonomicCorrelation,
+              note: 'GlucoDex feeds these back to the bus — a future Integrator drops glucoseAutonomicCorrelation into ECGDex reserved.glucoseCorrelation (the §5 handshake).'
+            },
+            refs: { dynamicHRVglucose: 'Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]' }
+          }
+        : {
+            available: false,
+            note: 'No ECGDex export present at analysis time — single-node CGM run. Cross-signal autonomic⟷glycemic fusion (IR-risk, hypo-QTc) is computed by the Integrator when an overlapping ECGDex night is also loaded; this is not missing computation.'
+          },
+      timeseries: {
+        doc: 'Per-hour AGP percentiles + per-day rollups + per-cell trace. cells[] makes this continuous node SLICEABLE: a consumer (the Integrator) recomputes glycemic metrics on any sub-window (e.g. a same-night ECG/Oxy overlap) without GlucoDex ever pre-segmenting into nights. One signal, one codex — windowing lives at the fusion layer.',
+        cadenceMin: r.cadence,
+        t0Ms: r.t0Ms,
+        unit: 'mg/dL',
+        // §F1.1 — ONE builder. This block and glucoBuildNodeExport's both emit the cell trace; they were
+        // separate copies until the DSP gained `timeseries`, and two copies of a builder is the
+        // sibling-divergence class the audit that added it exists to fix. Single-sourced in the DSP.
+        cells: glucoCells(r.series),
+        cellsNote:
+          'ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms (NOT reconstructed from a string); v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG). A consumer computing glucose statistics MUST exclude 3 and 4: flag 4 is a long gap (sensor change / dropout) where the value is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count. Native cadence — no downsampling.',
+        agpHourly: r.hourly,
+        perDay: r.daily
+      },
+      nutrition: r.nutrition
+        ? {
+            matchedDays: r.nutrition.matchedDays,
+            carbsField: r.nutrition.carbsKey,
+            correlations: r.nutrition.corr || null,
+            perDay: r.nutrition.matched
+              ? r.nutrition.matched.map((m) => ({ date: m.date, netCarbs: m.netCarbs, carbs: m.carbs, sugars: m.sugars, fiber: m.fiber, energy: m.energy, glucoseMean: m.mean, tir: m.tir, cv: m.cv }))
+              : null,
+            source: 'Cronometer (date-matched)',
+            note: r.nutrition.note || 'Pearson r across shared days; directional, n small, day-totals miss meal timing. Confounded by activity/sleep/stress.'
+          }
+        : null,
+      ganglior_events: r.events,
+      reserved: {
+        doc: 'Fields awaiting other fleet nodes; null until available.',
+        autonomicInstabilitySlope: f ? f.slope : null,
+        autonomicSource: 'ECGDex',
+        desatCorrelation: null,
+        desatSource: 'OxyDex',
+        mealMarkers: null,
+        mealSource: 'Integrator (v1 has no food log)'
+      }
+    };
+    return out;
+  }
+
   function glucoBuildNodeExport(r, opts) {
     opts = opts || {};
     // CLAMP-SATURATION HONESTY (GLUCODEX-FOLLOWUPS §2). When the CGM export clipped at the floor (Abbott
@@ -10430,7 +10768,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
            Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
            nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
            load-order bug and the export-parity group reds on it rather than letting it pass. */
-        timing: typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock ? DexExport.timingBlock({}) : null
+        timing: glucoTimingBlock()
       },
       glucose: {
         mean: r.mean,
@@ -10510,7 +10848,10 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     return typeof v === 'string' && v.length <= 40 && _SRC_TAG_RE.test(v);
   }
 
-  function compute(input, opts) {
+  /* THE INPUT-SHAPE BRANCHES, and the session object they produce. `compute()` below wraps this
+     in a node-export; `glucoBuildSummaryExport` consumes the same object. One function owns the
+     branches, so the two export roads cannot drift on what they analysed. */
+  function glucoComputeResult(input, opts) {
     opts = opts || {};
     let parsed;
     if (input && Array.isArray(input.tMs) && Array.isArray(input.vMgdl)) {
@@ -10553,11 +10894,21 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       parsed = parseCSV(text);
     }
     if (_sourceTag(opts.source)) parsed.source = opts.source;
-    const r = analyze(parsed, null, opts);
-    return glucoBuildNodeExport(r, opts);
+    return analyze(parsed, null, opts);
+  }
+
+  /* `compute()` IS the node-export road, and nothing else. A caller that wants the session
+     object takes `glucoComputeResult` instead. */
+  function compute(input, opts) {
+    return glucoBuildNodeExport(glucoComputeResult(input, opts), opts || {});
   }
 
   global.GLUDSP = {
+    // THE SUMMARY-EXPORT ROAD. `glucodex-app.js exportJSON` reads this one; a node runner and
+    // tools/regen-glucodex-goldens.mjs read it too, so one payload serves every caller.
+    glucoBuildSummaryExport,
+    glucoTimingBlock,
+    glucoComputeResult,
     parseCSV,
     analyze,
     genSynthetic,
@@ -10673,6 +11024,8 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   }
 
   global.GlucoDex = global.GlucoDex || { compute, parseCSV, analyze, genSynthetic, buildNodeExport: glucoBuildNodeExport, _build: glucoBuildNodeExport };
+  global.GlucoDex.buildSummaryExport = glucoBuildSummaryExport; // the ⬇ JSON payload, headless
+  global.GlucoDex.computeResult = glucoComputeResult; // the session object, before either export
   global.GlucoDex.loadOwnExport = glucoLoadOwnExport; // SELF-INGEST reload (review-mode clinical view)
   // scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate, co-load order irrelevant.
   global.GlucoDex.scrubExport = function (env) {
@@ -14810,309 +15163,14 @@ __require('glucodex-profile.js');
   function exportJSON() {
     if (!RESULT) return;
     const r = RESULT,
-      p = r.profile || {},
       f = r.fusion;
-    const out = {
-      kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null,
-      schema: {
-        name: 'ganglior.node-export',
-        version: '2.0',
-        node: 'GlucoDex',
-        nodeVersion: '1.0',
-        generated: new Date().toISOString(),
-        provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null, // R1: build + input fingerprints
-        doc: 'Single-signal CGM analyzer export. All metrics computed in-browser from the CGM file only (nothing leaves the device). null = not computed at this recording length/quality. `timeseries` per-hour/day aggregates are the cross-node currency; `fusion` carries BOTH the ECGDex-correlation results and the producer-side values GlucoDex feeds back to the bus.',
-        units: { glucose: 'mg/dL', gmi: '%', a1c: '%', cv: '%', tir: '%', mage: 'mg/dL', conga: 'mg/dL', modd: 'mg/dL', gvp: '%', time: 'min', age: 'yr', slope: 'ln-units/h', conf: '0..1' }
-      },
-      recording: {
-        source: r.source,
-        unit: 'mg/dL (normalised internally)',
-        sourceUnit: r.unit,
-        cadenceMin: r.cadence,
-        startEpochMs: r.t0Ms,
-        durationDaysActive: r.durDays,
-        spanMin: r.spanMin,
-        activeMin: r.activeMin,
-        tier: r.tier,
-        tierNote: r.tierMsg,
-        readings: r.nReadings,
-        longRecording: r.longRec
-      },
-      quality: {
-        sensorActivePct: r.pctActive,
-        gaps: r.nGaps,
-        gapMin: r.gapMin,
-        warmupMinSuppressed: r.warmupMin,
-        compressionLowMin: r.compMin,
-        dataQualityConfidence: r.dataQualityConf,
-        dataQualityLabel: r.dqLabel,
-        sensorSessions: (r.sessions || []).map((s) => ({ idx: s.idx, startEpochMs: s.startMs, days: s.days, median: s.median, mean: s.mean, driftMgdlPerDay: s.driftPerDay })),
-        sessionCount: r.nSessions,
-        sessionCorrections: {
-          leveled: r.sessionCorr && r.sessionCorr.leveled,
-          deDrifted: r.sessionCorr && r.sessionCorr.deDrifted,
-          offsetsMgdl: r.sessionCorr ? r.sessionCorr.offsets : [],
-          globalMedian: r.sessionCorr ? r.sessionCorr.globalMedian : null,
-          note: 'leveling aligns each wear median to the global median (between-sensor step removal); de-drift removes the within-wear linear trend (experimental). Both reference-free, off unless enabled.'
-        },
-        note: 'sensorActivePct = analyzable cells ÷ timeline. Warm-up suppressed; gaps interpolated+greyed; compression lows (sustained nocturnal dip with bracketing recovery — positional artifact) flagged & held out of TBR/LBGI/hypo so they do not inflate them. AGP needs ≥70%. dataQualityConfidence scales the stability-score interpretation.',
-        compressionDetector: 'night-hours sustained low ≥25 min, both 2-h shoulders euglycemic (>95/>92) and dip >32 mg/dL below them with fast bilateral recovery',
-        agpValid: r.pctActive >= 70
-      },
-      glycemic: {
-        mean: r.mean,
-        gmi: r.gmi,
-        estA1c: r.ea1c,
-        sd: r.sd,
-        cv: r.cv,
-        median: r.median,
-        p10: r.p10,
-        p25: r.p25,
-        p75: r.p75,
-        p90: r.p90,
-        min: r.min,
-        max: r.max,
-        timeInRanges: { tbr2_under54: r.tir.tbr2, tbr1_54to69: r.tir.tbr1, tir_70to180: r.tir.tir, tar1_181to250: r.tir.tar1, tar2_over250: r.tir.tar2 },
-        timeInTightRange_70to140: r.titr,
-        formulas: { gmi: '3.31 + 0.02392·meanMgdl', estA1c: '(meanMgdl + 46.7) / 28.7', cv: 'SD/mean·100' },
-        thresholds: {
-          veryLow: 54,
-          low: 70,
-          high: 180,
-          veryHigh: 250,
-          cvStablePct: 36,
-          tirGoalPct: 70,
-          tbrGoalPct: r.hypoGoal,
-          tbrGoalInForcePct: r.hypoGoalInForce,
-          note: 'mg/dL · consensus 2019. tbrGoalPct is the goal of the STATED therapy — null when no therapy was entered; tbrGoalInForcePct is the threshold the badges graded against (1% for a stated non-insulin therapy, 4% on insulin, and the stricter 1% when no therapy was stated).'
-        },
-        labels: { gmi: 'GMI is a lab-A1c PROXY, NOT your A1c. estA1c (ADAG) and GMI use different formulas and will differ.' }
-      },
-      variability: {
-        mage: r.mage,
-        conga1h: r.conga1,
-        conga2h: r.conga2,
-        conga4h: r.conga4,
-        modd: r.modd,
-        gvp: r.gvp,
-        jIndex: r.jIndex,
-        lbgi: r.lbgi,
-        hbgi: r.hbgi,
-        mag: r.magRate,
-        grade: r.grade ? { score: r.grade.score, hypoPct: r.grade.hypoPct, euPct: r.grade.euPct, hyperPct: r.grade.hyperPct } : null,
-        adrr: r.adrr,
-        byDaypart: r.daypart
-          ? {
-              totalCV: r.daypart.total,
-              overnightCV: r.daypart.overnight.cv,
-              morningCV: r.daypart.morning.cv,
-              afternoonCV: r.daypart.afternoon.cv,
-              eveningCV: r.daypart.evening.cv,
-              windows: r.daypart.windows,
-              note: 'CV localised to time-of-day — where the swings live'
-            }
-          : null,
-        formulas: {
-          jIndex: '0.001·(mean+SD)²',
-          lbgi: 'mean(10·f² for f<0), f=1.509·(ln(BG)^1.084 − 5.381)',
-          hbgi: 'mean(10·f² for f>0)',
-          gvp: '(traceLength/flatLength − 1)·100',
-          mag: 'Σ|ΔBG| / hours',
-          grade: 'mean of 425·(log10(log10(BG_mmol))+0.16)², capped 50',
-          adrr: 'mean over days of (LRmax+HRmax) in Kovatchev risk space'
-        },
-        note: 'MODD/ADRR null if <2 days. All on the full cleaned series — decimation is render-only.'
-      },
-      patterns: {
-        dawnPhenomenon: {
-          present: r.dawn.present,
-          medianRiseMgdl: r.dawn.medianDelta ?? null,
-          nDays: r.dawn.nDays ?? 0,
-          perDay: r.dawn.days || [],
-          flagThresholdMgdl: 20,
-          note: 'nadir(03–06h)→pre-breakfast(06–08h)'
-        },
-        nocturnalHypos: r.nocturnalHypo,
-        excursions: r.excursions,
-        mealMarkers:
-          r.mealMarkers && r.mealMarkers.length
-            ? r.mealMarkers.map((m) => ({ timeOfDay: ('0' + Math.floor(m.minOfDay / 60)).slice(-2) + ':' + ('0' + (m.minOfDay % 60)).slice(-2), category: m.category, label: m.label }))
-            : null,
-        postprandial: r.postprandial
-          ? r.postprandial.map((m) => ({
-              label: m.label,
-              category: m.category,
-              nDays: m.nDays,
-              baselineMgdl: m.baseline,
-              peakDeltaMgdl: m.peakDelta,
-              timeToPeakMin: m.timeToPeakMin,
-              delta2hMgdl: m.delta2h,
-              returnedToBaselinePct: m.returnedPct
-            }))
-          : null,
-        ppgrNote: 'per meal marker: 30-min pre-meal baseline, peak rise, time-to-peak, +2 h delta, % of days returned to baseline within 3 h',
-        note:
-          r.mealMarkers && r.mealMarkers.length
-            ? 'Excursions tagged against user meal markers (−20→+75 min window); annotated=true carries the meal label/category.'
-            : 'No meal markers set — excursions are slope-detected & labelled unannotated.'
-      },
-      // DEEP-AUDIT §19 — age/sex/diabetesStatus/therapy could never be null: the population default
-      // (45 y · M · 'none' · 'none') shipped as though the user had stated it. Only what was actually
-      // entered survives into `profile`; the priors COMPUTE used move to `assumedDefaults`, labelled.
-      personalization: {
-        profile: (function () {
-          var o = p._origins || null;
-          var ent = function (f, v) {
-            return o && (o[f] === 'you' || o[f] === 'detected') ? v : null;
-          };
-          return {
-            age: ent('age', p.age),
-            sex: ent('sex', p.sex),
-            diabetesStatus: ent('diabetes', p.diab),
-            therapy: ent('dxTherapy', p.therapy),
-            targetRangeMgdl: [r.tgtLo, r.tgtHi],
-            labA1cGroundTruth: p.a1c && p.a1c > 0 ? p.a1c : null,
-            note: 'fields the user set in the profile panel; null = default/auto'
-          };
-        })(),
-        assumedDefaults: (function () {
-          var o = p._origins || null;
-          var asm = function (f, v) {
-            return o && (o[f] === 'you' || o[f] === 'detected') ? null : v;
-          };
-          return {
-            age: asm('age', p.age),
-            sex: asm('sex', p.sex),
-            diabetesStatus: asm('diabetes', p.diab),
-            therapy: asm('dxTherapy', p.therapy),
-            source: 'population norm / code default — the value the analysis ran on',
-            note: 'NOT a statement by this user. A null diabetesStatus here means they did tell us.'
-          };
-        })(),
-        glycemicStabilityScore: r.stabilityScore,
-        dataQualityConfidence: r.dataQualityConf,
-        stabilityScoreFormula:
-          'clamp(0.55·TIR + 0.45·cvScore − min(28, hypoTBR·5)); cvScore=clamp(100−(CV−25)·3); hypoTBR excludes flagged compression artifacts. Read alongside dataQualityConfidence.',
-        metabolicAge: null /* Metabolic Age REMOVED 2026-06-21 (external-review WP-A); key kept null for node-export back-compat. */,
-        gmiVsLabA1c: r.gmiCheck
-          ? { gmi: r.gmiCheck.gmi, labA1c: r.gmiCheck.lab, deltaPct: r.gmiCheck.delta, agree: r.gmiCheck.agree, note: 'validates the GMI proxy against the user lab value' }
-          : null,
-        sensorBiasCalibration: r.calib
-          ? {
-              labImpliedEAG: r.calib.labEAG,
-              sensorMean: r.calib.sensorMean,
-              biasMgdl: r.calib.bias,
-              applied: r.calib.applied,
-              appliedOffsetMgdl: r.calib.appliedOffset,
-              magnitude: r.calib.magnitude,
-              formula: 'eAG = 28.7·labA1c − 46.7 (ADAG); bias = eAG − sensorMean; when applied, every reading is shifted by bias',
-              note: 'optional. Corrects a systematically low/high sensor against lab ground truth. +bias ⇒ sensor reads low. Informational; all metrics here reflect the corrected trace when applied.'
-            }
-          : null
-      },
-      fusion: f
-        ? {
-            ecgInputs: {
-              usedSlopeScalar: f.inputs.usedSlope && !f.slopeRecomputed,
-              slopeRecomputedFromEpochs: f.slopeRecomputed,
-              sigma_lnRMSSD_slope: f.slope,
-              surgeEscalationPct: f.surgeEsc,
-              couplingStrength: f.coupling,
-              cvhrIndex: f.cvhrIdx,
-              nEpochsRegressed: f.inputs.nEpochs
-            },
-            autonomicRiskVector: {
-              score: f.autoRisk,
-              slopeRisk: f.slopeRisk,
-              surgeRisk: f.surgeRisk,
-              couplingRisk: f.couplingRisk,
-              weights: { slope: 0.6, surgeEscalation: 0.2, couplingInverse: 0.2 },
-              note: 'slope weighted highest (Li & Kiyono 2026); others corroborate. Renormalised over available inputs.'
-            },
-            glycemicVariabilityScore: f.glyVar,
-            morphology: f.morph
-              ? {
-                  qtcMs: f.morph.qtc,
-                  qtcMethod: f.morph.qtcMethod,
-                  qtcProlonged: f.morph.qtcProlonged,
-                  qtcThresholds: {
-                    borderline: f.morph.qtcBorderline,
-                    prolonged: f.morph.qtcLong,
-                    sexStated: !!(p && p._origins && (p._origins.sex === 'you' || p._origins.sex === 'detected')),
-                    note: 'sex-specific consensus (450/460 borderline, 470/480 prolonged); an unstated sex uses the MALE bound — sexStated=false says so; single-lead median-beat estimate, directional'
-                  },
-                  prMs: f.morph.pr,
-                  qrsDurMs: f.morph.qrsDur,
-                  stLevelUv: f.morph.stLevel,
-                  hypoQtcRisk: f.morph.hypoQtcRisk,
-                  nocturnalHypos: f.morph.nNocturnalHypo,
-                  nadirMgdl: f.morph.minNightGlucose,
-                  qtcGlucoseTrend: f.morph.qtcTrend ? { nEpochs: f.morph.qtcTrend.n, pearsonR: f.morph.qtcTrend.r, qtcRangeMs: f.morph.qtcTrend.qtcRange, note: f.morph.qtcTrend.note } : null,
-                  tWaveAlternans: f.morph.twa ? { uv: f.morph.twa.uv, abnormal: f.morph.twa.abnormal, note: f.morph.twa.note } : null,
-                  trendAvailable: !!f.morph.trendAvailable,
-                  twaAvailable: !!f.morph.twaAvailable,
-                  consumerNote: 'GlucoDex consumes morphology.qtcTrend[] / timeseries.epochs[].qtc / morphology.twa when ECGDex exports them; falls back to summary QTc otherwise.',
-                  note: 'Consumes ECGDex 1.1 morphology.intervals. hypoQtcRisk=elevated when nocturnal hypoglycemia coincides with prolonged QTc (the dead-in-bed arrhythmic pattern). Directional, single-lead ≠ 12-lead.'
-                }
-              : null,
-            irRisk: {
-              band: f.irBand,
-              score: f.irScore,
-              formula: '0.45·autonomicRisk + 0.55·glycemicVariability',
-              note: 'directional insulin-resistance-risk band, recalibrated bands — NOT a diagnosis, no dosing advice'
-            },
-            concordance: f.concordance,
-            nightOverlap: f.nightOverlap,
-            alignment: f.alignNote,
-            nightCV: f.nightCV,
-            producerSide: {
-              nocturnalGlucoseRisk: f.nocturnalGlucoseRisk,
-              glucoseAutonomicCorrelation: f.glucoseAutonomicCorrelation,
-              note: 'GlucoDex feeds these back to the bus — a future Integrator drops glucoseAutonomicCorrelation into ECGDex reserved.glucoseCorrelation (the §5 handshake).'
-            },
-            refs: { dynamicHRVglucose: 'Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]' }
-          }
-        : {
-            available: false,
-            note: 'No ECGDex export present at analysis time — single-node CGM run. Cross-signal autonomic⟷glycemic fusion (IR-risk, hypo-QTc) is computed by the Integrator when an overlapping ECGDex night is also loaded; this is not missing computation.'
-          },
-      timeseries: {
-        doc: 'Per-hour AGP percentiles + per-day rollups + per-cell trace. cells[] makes this continuous node SLICEABLE: a consumer (the Integrator) recomputes glycemic metrics on any sub-window (e.g. a same-night ECG/Oxy overlap) without GlucoDex ever pre-segmenting into nights. One signal, one codex — windowing lives at the fusion layer.',
-        cadenceMin: r.cadence,
-        t0Ms: r.t0Ms,
-        unit: 'mg/dL',
-        // §F1.1 — ONE builder. This block and glucoBuildNodeExport's both emit the cell trace; they were
-        // separate copies until the DSP gained `timeseries`, and two copies of a builder is the
-        // sibling-divergence class the audit that added it exists to fix. Single-sourced in the DSP.
-        cells: GLUDSP.glucoCells(r.series),
-        cellsNote:
-          'ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms (NOT reconstructed from a string); v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG). A consumer computing glucose statistics MUST exclude 3 and 4: flag 4 is a long gap (sensor change / dropout) where the value is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count. Native cadence — no downsampling.',
-        agpHourly: r.hourly,
-        perDay: r.daily
-      },
-      nutrition: r.nutrition
-        ? {
-            matchedDays: r.nutrition.matchedDays,
-            carbsField: r.nutrition.carbsKey,
-            correlations: r.nutrition.corr || null,
-            perDay: r.nutrition.matched
-              ? r.nutrition.matched.map((m) => ({ date: m.date, netCarbs: m.netCarbs, carbs: m.carbs, sugars: m.sugars, fiber: m.fiber, energy: m.energy, glucoseMean: m.mean, tir: m.tir, cv: m.cv }))
-              : null,
-            source: 'Cronometer (date-matched)',
-            note: r.nutrition.note || 'Pearson r across shared days; directional, n small, day-totals miss meal timing. Confounded by activity/sleep/stress.'
-          }
-        : null,
-      ganglior_events: r.events,
-      reserved: {
-        doc: 'Fields awaiting other fleet nodes; null until available.',
-        autonomicInstabilitySlope: f ? f.slope : null,
-        autonomicSource: 'ECGDex',
-        desatCorrelation: null,
-        desatSource: 'OxyDex',
-        mealMarkers: null,
-        mealSource: 'Integrator (v1 has no food log)'
-      }
-    };
+    /* The payload itself lives in `glucodex-dsp.js glucoBuildSummaryExport`. This realm owns only
+       the three values a headless caller cannot read, and it hands them in. A committed fixture
+       then pins the document, which an app-realm builder could never be held to. */
+    const out = GLUDSP.glucoBuildSummaryExport(r, {
+      kernel: window.DexKernel || null,
+      provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null
+    });
     dl(JSON.stringify(out, null, 2), exportName({ node: 'GlucoDex', t0Ms: r.t0Ms, kind: 'summary', ext: 'json' }), 'application/json;charset=utf-8');
     showOK('Exported AI-readable JSON (all metrics + schema/units/thresholds/weights/formulas' + (f ? ' + fusion handshake' : '') + ').');
   }
