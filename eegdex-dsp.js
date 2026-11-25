@@ -2059,6 +2059,82 @@
     };
   }
 
+  /* ── THE STAGE FORMULA, A SECOND STAGE SOURCE ───────────────────────────────────────────────────
+     OFF unless the reader turns it on, and the band-power stager above stays this node's answer
+     (@kestrel, #8464 rule 3). This function is the whole of the formula path inside the engine: it
+     prepares the 35 columns with `EEGFEAT.eegBlockExtract`, evaluates them with `EEGSTAGE`, and
+     hands back the evaluator's own per-epoch answer UNCHANGED.
+
+     IT MAPS NO CLASS ONTO THE BAND-POWER VOCABULARY. The formula names four classes — wake, light,
+     deep and REM — and renaming `light` to `N2` would claim a distinction that nobody fitted. The
+     two hypnograms are two series, never one series from two engines.
+
+     THE MODEL IS DATA AND THE READER SUPPLIES IT (board decision, this PR). No coefficient is
+     inlined into the page: a model file arrives through the same drop zone as the recording, is
+     recognised by its own `schema` field, and this function refuses BY NAME when a precondition is
+     absent. That is also what makes "a second model loads with no code change" true for the reader
+     and not only for the test lane (@kestrel, #8464 rule 6).
+
+     §∅ — an epoch the evaluator refused carries `stage: null` and the evaluator's own reason. This
+     function invents no stage for it and drops no epoch. */
+  function formulaStages(rec, model) {
+    var F = global.EEGFEAT,
+      S = global.EEGSTAGE;
+    if (!F || !S) return { err: 'the stage-formula modules are not loaded' };
+    if (!model) return { err: 'no model file — the formula scores nothing without one' };
+    if (model.schema !== 'tepna.stage-formula/1') {
+      return { err: 'the model file reads schema ' + model.schema + ', not tepna.stage-formula/1' };
+    }
+    /* It takes the SAME shape `compute` takes, and reads the samples under either key, because the
+       app holds the frame it ingested rather than the rec that `analyze` saw. */
+    var sig = (rec && (rec.samples || rec.eeg)) || null;
+    if (!sig || !sig.length || !(rec.fs > 0)) return { err: 'no EEG signal' };
+    var fs = rec.fs,
+      nEp = Math.floor(sig.length / Math.round(EPOCH_SEC * fs));
+    if (nEp < 2) return { err: 'under two epochs of EEG' };
+    /* THE NAMES ARE THE JOINT, so a mismatch refuses instead of reading column 7 as column 7 of a
+       different list. The evaluator checks the 12 names it reads directly; this checks all 35, in
+       order, because the rows below are positional. */
+    var names = (model.inputs && model.inputs.names) || [],
+      block = F.EEG_NAMES,
+      k;
+    if (names.length !== block.length) {
+      return { err: 'the model names ' + names.length + ' inputs and the feature block gives ' + block.length };
+    }
+    for (k = 0; k < block.length; k++) {
+      if (names[k] !== block[k]) {
+        return { err: 'the model names input ' + k + ' as ' + names[k] + ' and the feature block gives ' + block[k] };
+      }
+    }
+    var got = F.eegBlockExtract({ nEpochs: nEp, signals: { eeg: { fs: fs, data: sig } } }),
+      rows = [],
+      i,
+      j,
+      r;
+    for (i = 0; i < nEp; i++) {
+      r = [];
+      for (j = 0; j < got.cols.length; j++) r.push(got.cols[j][i]);
+      rows.push(r);
+    }
+    var out;
+    try {
+      out = S.stages(model, rows);
+    } catch (e) {
+      /* The evaluator's refusals are named, and the message is the reader's. A throw here is a
+         model the page cannot evaluate, never a night it cannot score. */
+      return { err: 'the evaluator refused the model: ' + ((e && e.message) || String(e)) };
+    }
+    return {
+      id: out.id,
+      classes: out.classes,
+      epochs: out.epochs,
+      scored: out.scored,
+      refused: out.refused,
+      nEpochs: nEp,
+      modelSha16: (model.source && model.source.sha256_16) || null
+    };
+  }
+
   global.EEGDSP = {
     VERSION: VERSION,
     BANDS: BANDS,
@@ -2071,6 +2147,8 @@
     rms: rms,
     median: median,
     analyze: analyze,
+    /* the SECOND stage source, off unless the reader turns it on and supplies a model file */
+    formulaStages: formulaStages,
     /* the app-facing surface: the adapter entry point, the EDF ingest, the night band summary,
        the node export and the deterministic demo frame */
     compute: compute,

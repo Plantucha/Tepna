@@ -1102,10 +1102,130 @@
     }
   }
 
+  /* ── THE FORMULA HYPNOGRAM ─────────────────────────────────────────────────────────────────────
+     The second stage source's own strip, drawn only when the reader turned the switch on AND a
+     model file arrived. It never replaces the strip above, and the two are never merged.
+
+     NOT ONE NUMBER IS PRINTED HERE, and that is the state this PR ships in. The brief's own rule is
+     that the screen shows no figure before the three published thresholds each hold a ledger
+     citation, and no blind read has judged this port yet. So the surface carries the SHAPE, the
+     model's identity and the limits — and the registry grades the series `experimental`, which is one
+     rank above `heuristic`, the lowest tier the ladder holds (@kestrel, #8464 rule 5 and #8668).
+
+     THE COLUMN HEIGHTS ARE BORROWED FOR DRAWING ONLY. The formula names four classes and the strip
+     above names five stages, so this figure reuses the five-stage ladder's heights to place four
+     classes and the note says so. A borrowed height is a drawing choice; it claims no equivalence
+     between `light` and N2, and the class name in every hover is the formula's own.
+
+     §∅ — an epoch the evaluator refused is HATCHED, exactly as an unscored epoch is above, and the
+     reason it carries is the evaluator's own. */
+  /* The file the reader must supply, named on the surface for a reader who holds only the page. */
+  var MODEL_FILE_NAME = 'eeg-stage-model-base-2026-11-17.json';
+  var MODEL_FILE_SHA16 = '500f1a71f6ca3e18';
+  var FORMULA_DRAW = { wake: 'eg-ep-w', light: 'eg-ep-n2', deep: 'eg-ep-n3', REM: 'eg-ep-rem' };
+
+  function formulaHtml(f) {
+    if (!f) return '';
+    if (f.err) {
+      /* A refusal is the surface. It names what is absent, and it draws no strip: §∅ — a figure over
+         an absence would read as a night that scored badly rather than one nothing scored. */
+      return (
+        row('Formula hypnogram', 'no series', 'the formula refused') +
+        '<p class="chart-note">' +
+        esc('The stage formula scored nothing: ' + f.err + '. The hypnogram above is this node’s own stager and it stands on its own.') +
+        '</p>' +
+        /* A READER WITH ONLY THE PAGE HOLDS NO MODEL FILE (@kestrel, #8668). The page carries no
+           coefficients, so the text names the file to look for and the bytes that identify it. */
+        (/no model file/.test(f.err)
+          ? '<p class="chart-note">' +
+            esc(
+              'The file to give it is ' +
+                MODEL_FILE_NAME +
+                ', which sits in the root of this repository. Its first 16 hash characters read ' +
+                MODEL_FILE_SHA16 +
+                '. Drop it where you dropped the recording.'
+            ) +
+            '</p>'
+          : '')
+      );
+    }
+    var eps = (f.epochs || []).length,
+      cols = '',
+      legend = '',
+      i,
+      e,
+      st,
+      seen = {},
+      keys = ['wake', 'light', 'deep', 'REM'];
+    if (!eps) return row('Formula hypnogram', 'no epochs', 'the night holds none');
+    for (i = 0; i < eps; i++) {
+      e = f.epochs[i];
+      st = e.stage;
+      if (st != null) seen[st] = true;
+      cols +=
+        '<div class="eg-ep ' +
+        (st == null ? 'eg-ep-nul' : FORMULA_DRAW[st] || 'eg-ep-nul') +
+        '" title="' +
+        esc('epoch ' + i + ' · ' + (st == null ? 'not scored — ' + (e.reason || 'no reason given') : st)) +
+        '"></div>';
+    }
+    for (i = 0; i < keys.length; i++) {
+      /* The legend carries the CLASS NAMES and no count, because a count is a number. A class the
+         night never reads is still listed, so an absent class is visible as an absence. */
+      legend +=
+        '<span class="eg-lg"><span class="eg-dot" style="background:' +
+        STAGE_COLOR[{ wake: 'W', light: 'N2', deep: 'N3', REM: 'REM' }[keys[i]]] +
+        '"></span>' +
+        esc(keys[i] + (seen[keys[i]] ? '' : ' (none)')) +
+        '</span>';
+    }
+    legend += '<span class="eg-lg"><span class="eg-dot eg-ep-nul"></span>not scored</span>';
+    return (
+      row('Formula hypnogram', 'a second stage source', 'off unless you turn it on') +
+      '<div class="eg-hyp">' +
+      cols +
+      '</div><div class="eg-legend">' +
+      legend +
+      '</div>' +
+      '<p class="chart-note">' +
+      esc(
+        'Model ' +
+          (f.id || 'unnamed') +
+          (f.modelSha16 ? ' · file ' + f.modelSha16 : '') +
+          '. The column heights come from the five-stage ladder above and place four classes, so a height names no stage of that ladder; the hover carries the class the formula named.'
+      ) +
+      '</p>' +
+      '<p class="chart-note">' +
+      esc(
+        'What this series is not: the coefficients were fitted on sleep-laboratory derivations and a small number of forehead recordings; a frontal derivation recognises deep sleep less well than a central one; the formula scores after the night and never during it; a hatched column is an epoch it refused, and it carries the reason the evaluator gave. It is a research aid and not a diagnosis, and no figure stands beside it until a blind read of this port holds a citation.'
+      ) +
+      '</p>'
+    );
+  }
+
+  /* THE DOM WRITE LIVES HERE, beside every other write of this node. `formulaHtml` escapes each
+     value it interpolates, and the assembled markup then goes out through the one `setHTML` helper
+     the node already uses — a write in the app shell would be a second, unescapable sink. */
+  function renderFormula(card, title, f) {
+    if (!card || !title) return;
+    if (!f) {
+      setHTML(card, '');
+      card.style.display = 'none';
+      title.style.display = 'none';
+      return;
+    }
+    setHTML(card, formulaHtml(f));
+    card.style.display = '';
+    title.style.display = '';
+  }
+
   global.EEGUI = {
     synthNote: synthNote,
     renderSummary: renderSummary,
     hypnoHtml: hypnoHtml,
+    formulaHtml: formulaHtml,
+    renderFormula: renderFormula,
+    FORMULA_DRAW: FORMULA_DRAW,
     archHtml: archHtml,
     bandHtml: bandHtml,
     qualityHtml: qualityHtml,

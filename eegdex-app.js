@@ -22,6 +22,13 @@ import { EEGUI } from './eegdex-render.js';
     return document.getElementById(id);
   };
   var RESULT = null;
+  /* THE SECOND STAGE SOURCE'S STATE, and it is OFF until the reader turns it on (@kestrel, #8464
+     rule 3). `FRAME` is the last ingested frame, held because the formula is a SECOND pass over the
+     same samples: a switch flip or a model file must be able to score the night already on screen
+     without asking for the file again. `MODEL` is the reader's model file, and no coefficient of it
+     is in this page. */
+  var FRAME = null;
+  var MODEL = null;
 
   /* EDF is BINARY. A text read would corrupt every sample it decoded, so this node reads the buffer
      and never a string. */
@@ -38,11 +45,67 @@ import { EEGUI } from './eegdex-render.js';
     });
   }
 
+  function readText(file) {
+    return new Promise(function (resolve) {
+      var fr = new FileReader();
+      fr.onload = function () {
+        resolve(fr.result || null);
+      };
+      fr.onerror = function () {
+        resolve(null);
+      };
+      fr.readAsText(file);
+    });
+  }
+
+  /* THE MODEL IS RECOGNISED BY ITS OWN SCHEMA, never by its name. A filename is a claim about the
+     writer, so `.json` only makes a file a CANDIDATE here; the `schema` field inside it decides. A
+     JSON that is not a stage formula is reported and dropped, and it never reaches the EDF reader. */
+  function takeModel(file) {
+    return readText(file).then(function (txt) {
+      var m = null;
+      try {
+        m = JSON.parse(txt);
+      } catch (e) {
+        return { ok: false, why: file.name + ' — not readable JSON: ' + ((e && e.message) || String(e)) };
+      }
+      if (!m || m.schema !== 'tepna.stage-formula/1') {
+        return { ok: false, why: file.name + ' — reads schema ' + (m && m.schema ? m.schema : 'none') + ', not tepna.stage-formula/1' };
+      }
+      MODEL = m;
+      return { ok: true, why: file.name + ' — stage formula ' + (m.id || 'unnamed') + ' loaded' };
+    });
+  }
+
+  /* The formula section, drawn from the frame already on screen. The switch decides whether this
+     node runs a second stage source at all, and nothing here touches `RESULT` or the strip above. */
+  function renderFormula() {
+    var on = $('egFormulaOn') && $('egFormulaOn').checked,
+      card = $('egFormulaCard'),
+      title = $('egFormula');
+    EEGUI.renderFormula(card, title, !on || !FRAME ? null : EEGDSP.formulaStages(FRAME, MODEL));
+  }
+
   function ingestFiles(fileList) {
     var files = Array.prototype.slice.call(fileList || []);
     if (!files.length) return;
     /* One EEG recording per analysis. A second file is named rather than merged: two EDFs are two
        recordings until something proves they share a clock. */
+    /* A model file travels in the SAME drop, because the formula needs the night and the
+       coefficients together and a second drop zone would be a second thing to explain. */
+    var models = files.filter(function (f) {
+      return /\.json$/i.test(f.name);
+    });
+    files = files.filter(function (f) {
+      return !/\.json$/i.test(f.name);
+    });
+    if (models.length) {
+      takeModel(models[0]).then(function (r) {
+        setStatus(r.why);
+        renderFormula();
+      });
+      if (!files.length) return;
+    }
     if (files.length > 1) setStatus('Reading ' + files[0].name + ' only — ' + (files.length - 1) + ' other file(s) ignored.');
     var file = files[0];
     readBuffer(file).then(function (buf) {
@@ -63,6 +126,7 @@ import { EEGUI } from './eegdex-render.js';
         frame = { ok: false, reason: 'edf-header-refused — ' + ((e && e.message) || String(e)) };
       }
       if (!frame || !frame.ok) {
+        FRAME = null;
         RESULT = null;
         setExportReady(false);
         EEGUI.renderSummary(null);
@@ -74,8 +138,10 @@ import { EEGUI } from './eegdex-render.js';
         );
         return;
       }
+      FRAME = frame;
       RESULT = EEGDSP.compute(frame);
       EEGUI.renderSummary(RESULT);
+      renderFormula();
       if (RESULT && RESULT.err) {
         setExportReady(false);
         setStatus(file.name + ' — ' + RESULT.err + (RESULT.reason ? ' (' + RESULT.reason + ')' : ''));
@@ -107,7 +173,9 @@ import { EEGUI } from './eegdex-render.js';
        generator's truth, so the hypnogram's planned strip and the raster's planted row exist on this
        path alone; the EDF path above calls `renderSummary(RESULT)` and those two rows are absent by
        construction rather than by a flag. */
+    FRAME = frame;
     EEGUI.renderSummary(RESULT, frame.truth);
+    renderFormula();
     setStatus('Demo — synthetic, not a recording: an 8 h simulated night, authored arithmetic.');
     setExportReady(true);
   }
@@ -168,6 +236,9 @@ import { EEGUI } from './eegdex-render.js';
       });
     }
     if ($('egDemo')) $('egDemo').addEventListener('click', runDemo);
+    /* THE SWITCH. Its markup carries no `checked`, so the page loads with the formula OFF and the
+       band-power stager is this node's answer until the reader decides otherwise. */
+    if ($('egFormulaOn')) $('egFormulaOn').addEventListener('change', renderFormula);
     if ($('egExport')) $('egExport').addEventListener('click', exportJSON);
     // theme toggle — the shared fleet control, wired here and NOT in an inline script, so the strict
     // script-src CSP keeps an empty hash list. Mirrors motiondex-app.js.
@@ -181,14 +252,17 @@ import { EEGUI } from './eegdex-render.js';
     if ($('egClear'))
       $('egClear').addEventListener('click', function () {
         RESULT = null;
-        ['egKpiGrid', 'egHypnoCard', 'egBandsCard', 'egQualityCard'].forEach(function (id) {
+        FRAME = null;
+        MODEL = null;
+        if ($('egFormulaOn')) $('egFormulaOn').checked = false;
+        ['egKpiGrid', 'egHypnoCard', 'egBandsCard', 'egQualityCard', 'egFormulaCard'].forEach(function (id) {
           var el = $(id);
           if (el) {
             el.innerHTML = '';
             if (id !== 'egKpiGrid') el.style.display = 'none';
           }
         });
-        ['egKPI', 'egHypno', 'egBands', 'egQuality'].forEach(function (id) {
+        ['egKPI', 'egHypno', 'egBands', 'egQuality', 'egFormula'].forEach(function (id) {
           var el = $(id);
           if (el) el.style.display = 'none';
         });
