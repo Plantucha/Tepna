@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="bb463fbf15a9" data-compute-hash="dad295e91de3"><head>
+<html lang="en" data-manifest-hash="8d483776be1d" data-compute-hash="497dc6de95ef"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7wlWCQUAtgWYZihc9Nt/v44R41d/EerskA0DJJiMdPw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UdJ88eeYm1W9tlVf66iAGR0D63hIgHQ6dBYrVftyKPE=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gsfxF3U9fQYY6VBcjkxdisltp5OpMvk7xGo0quyFZm8=' 'sha256-hWzB4rsCbqCsuYfj7w7IHjnaPKU1JJMMs+oxJLE4sLU=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-v+ZDhUbvqeorKucOsmnsbIPPI+s5NEnBQknMfNbSmk8=' 'sha256-wktj1Df+isZKJxu0wGtJ0pZLbTfqdObxwLCd2Fo+wQg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7wlWCQUAtgWYZihc9Nt/v44R41d/EerskA0DJJiMdPw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-JOqjyEYQXKY+GdMVYfY11IKXcdrf3/qh7jo0ee3mqbg=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UdJ88eeYm1W9tlVf66iAGR0D63hIgHQ6dBYrVftyKPE=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gsfxF3U9fQYY6VBcjkxdisltp5OpMvk7xGo0quyFZm8=' 'sha256-hWzB4rsCbqCsuYfj7w7IHjnaPKU1JJMMs+oxJLE4sLU=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-wktj1Df+isZKJxu0wGtJ0pZLbTfqdObxwLCd2Fo+wQg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -49349,11 +49349,39 @@ __exports.MotionDex = window.MotionDex;
 
      A synthetic channel carries physical units already, so `true` is the truthful value. `cal` lets
      a caller build an uncalibrated channel and reach the refusal path.
-     Row 2026-11-24-synthetic-edf-channels-carry-no-calibrated-field. */
+     Row 2026-11-24-synthetic-edf-channels-carry-no-calibrated-field.
+
+     ∅ THE REST OF THE SAME SHAPE DRIFT — `_scale`, `physMin` and `physMax`. `readEDF` writes all
+     three in the same object literal that writes `calibrated`, and this builder wrote none, so each
+     read `undefined` over the whole synthetic set. A reader after the physical range of a synthetic
+     channel would get `undefined` and could scale by a fabricated denominator, which is the fault
+     `readEDF` already refuses with a null `_scale`.
+
+     `_scale` is the digital-to-physical factor, and a synthetic channel never passed through int16,
+     so the truthful factor is the identity 1. The decoder couples the two fields — a calibrated
+     signal carries a number and an uncalibrated one carries null — so this builder keeps that pair,
+     and `opts.uncal` below moves both.
+
+     A synthetic channel declares no EDF header, so it has no declared physical range. An undeclared
+     range is therefore `null`, never 0 and never the extremes of the data: the data extremes are a
+     different quantity, and a constant channel such as Crc16 would give them a zero width — the zero
+     denominator this row warns about. The declared form sits on the SpO2 channel below, where a
+     percent range is definitional.
+     Row 2026-11-24-synthetic-edf-channels-carry-no-scale-or-physical-range. */
   function _mkSig(n, fn, fs, dim, cal) {
     var a = new Float32Array(n);
     for (var i = 0; i < n; i++) a[i] = fn(i);
-    return { data: a, fs: fs, dim: dim, calibrated: cal !== false, _spr: Math.round(fs * 60) };
+    var c = cal !== false;
+    return {
+      data: a,
+      fs: fs,
+      dim: dim,
+      calibrated: c,
+      _scale: c ? 1 : null,
+      physMin: null,
+      physMax: null,
+      _spr: Math.round(fs * 60)
+    };
   }
   function _synthEdfSet(opts) {
     opts = opts || {};
@@ -49479,7 +49507,13 @@ __exports.MotionDex = window.MotionDex;
         var usets = [PLD.signals, BRP.signals];
         for (var us = 0; us < usets.length; us++) {
           var usig = usets[us][opts.uncal[u]];
-          if (usig) usig.calibrated = false;
+          /* ∅ `readEDF` writes a null `_scale` on exactly the signals it marks uncalibrated, so the
+             two fields move together here as well. A `calibrated:false` channel that kept a numeric
+             scale would be a pair the decoder never produces. */
+          if (usig) {
+            usig.calibrated = false;
+            usig._scale = null;
+          }
         }
       }
     }
@@ -49515,10 +49549,12 @@ __exports.MotionDex = window.MotionDex;
       recordsRead: R,
       recDurSec: recDur,
       signals: {
-        // ∅ The same shape parity as `_mkSig` above. `readEDF` writes `calibrated` on every
-        // non-annotation signal, and an oximeter channel is one.
-        'SpO2.1s': { data: spo2, fs: 1, dim: '%', calibrated: true, _spr: 60 },
-        'Pulse.1s': { data: pulse, fs: 1, dim: 'bpm', calibrated: true, _spr: 60 }
+        /* ∅ The same shape parity as `_mkSig` above. `readEDF` writes `calibrated`, `_scale`,
+           `physMin` and `physMax` on every non-annotation signal, and an oximeter channel is one.
+           A saturation in percent has the range 0 to 100 by definition, so SpO2 declares it. The
+           pulse channel has no range the vendor header gives us, so it declares null. */
+        'SpO2.1s': { data: spo2, fs: 1, dim: '%', calibrated: true, _scale: 1, physMin: 0, physMax: 100, _spr: 60 },
+        'Pulse.1s': { data: pulse, fs: 1, dim: 'bpm', calibrated: true, _scale: 1, physMin: null, physMax: null, _spr: 60 }
       }
     };
     var EVE = {
