@@ -318,13 +318,16 @@ window.evBadge = evBadge;
         [this.FLAG.GAP]: 'rgba(150,160,175,.16)',
         [this.FLAG.GAP_LONG]: 'rgba(150,160,175,.16)',
         [this.FLAG.WARMUP]: 'rgba(255,184,77,.13)',
-        [this.FLAG.COMPRESSION]: 'rgba(167,139,250,.16)'
+        [this.FLAG.COMPRESSION]: 'rgba(167,139,250,.16)',
+        // Low / High — outside the sensor range, so there is no value to draw a line through
+        [this.FLAG.BELOW]: 'rgba(255,107,122,.22)',
+        [this.FLAG.ABOVE]: 'rgba(255,107,122,.22)'
       };
       let runS = null,
         runFlag = null;
       for (let i = i0; i <= i1; i++) {
         const f = this.gF[i];
-        const ex = f === this.FLAG.GAP || f === this.FLAG.GAP_LONG || f === this.FLAG.WARMUP || f === this.FLAG.COMPRESSION;
+        const ex = exCol[f] !== undefined;
         if (ex && runS === null) {
           runS = i;
           runFlag = f;
@@ -351,7 +354,7 @@ window.evBadge = evBadge;
       for (let i = i0; i <= i1; i += stepDraw) {
         const x = sxCell(i),
           y = sy(this.gV[i]);
-        const isGap = this.gF[i] === this.FLAG.WARMUP;
+        const isGap = this.gF[i] === this.FLAG.WARMUP || !isFinite(this.gV[i]);
         if (isGap) {
           if (pen) {
             ctx.stroke();
@@ -393,7 +396,7 @@ window.evBadge = evBadge;
       let pen = false;
       for (let px = 0; px < W; px++) {
         const i = Math.floor((px / W) * this.N);
-        if (this.gF[i] === this.FLAG.WARMUP) {
+        if (this.gF[i] === this.FLAG.WARMUP || !isFinite(this.gV[i])) {
           pen = false;
           continue;
         }

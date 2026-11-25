@@ -79375,6 +79375,187 @@
       );
     });
 
+    /* A CGM writes `Low` / `High` when glucose sits outside its measuring range. The parser dropped the
+       cell as "not a number", the grid drew a line across it, and thirty minutes of severe low read as
+       0 % below range with no event (Muse hunt U-5, 2026-11-25). Every expected count below is arithmetic
+       on the planted rows. */
+    group('GlucoDex Low / High — a reading outside the sensor range counts as time, and has no value', 'glucodex-dsp · libre-cgm · absence', function (T) {
+      var G = env.GlucoDex || env.GLUDSP;
+      if (!G || typeof G.compute !== 'function' || typeof G.parseCSV !== 'function') {
+        T.ok('env.GlucoDex.compute and parseCSV available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      var GD = env.GLUDSP || G;
+      var T0 = Date.UTC(2026, 2, 3, 0, 0, 0);
+      var stamp = function (i) {
+        return new Date(T0 + i * 300000).toISOString().slice(0, 19).replace('T', ' ');
+      };
+      // one day at 5 min; `edit(i)` returns a glucose cell, or undefined to keep the flat 110/111 default
+      var day = function (edit, extra) {
+        var rows = ['Timestamp,Glucose Value (mg/dL)'];
+        for (var i = 0; i < 288; i++) {
+          var c = edit(i);
+          rows.push(stamp(i) + ',' + (c === undefined ? 110 + (i % 2) : c));
+        }
+        return rows.concat(extra || []).join('\n');
+      };
+      var evs = function (r) {
+        return r.ganglior_events.filter(function (e) {
+          return e.impulse === 'nocturnal_hypo';
+        });
+      };
+      var cellsOf = function (r, f) {
+        return r.timeseries.cells.filter(function (c) {
+          return c.f === f;
+        });
+      };
+
+      // ── control: a file with no Low/High looked and found none
+      var ctl = G.compute({ text: day(function () {}) });
+      T.eq('control · the parser looked, and no cell is out of range', JSON.stringify(ctl.recording.outOfRange), '{"below":0,"above":0,"belowMin":0,"aboveMin":0}');
+      T.eq('control · no row was dropped', JSON.stringify(ctl.recording.rowsDropped), '{"value":0,"stamp":0}');
+      T.eq('control · 100 % in range', ctl.glucose.tir.tir, 100);
+
+      // ── 20 Low cells at 03:20–04:55: 20/288 = 6.9 % under 54, one event of 100 min with no nadir
+      var lowTxt = day(function (i) {
+        return i >= 40 && i < 60 ? 'Low' : undefined;
+      });
+      var low = G.compute({ text: lowTxt });
+      T.eq('20 Low cells of 288 are 6.9 % below 54', low.glucose.tir.tbr2, 6.9);
+      T.eq('…and time in range is the other 93.1 %', low.glucose.tir.tir, 93.1);
+      T.eq('the run is one nocturnal_hypo', evs(low).length, 1);
+      T.eq('…that lasts 100 min', evs(low)[0] && evs(low)[0].meta.durMin, 100);
+      T.eq('…with a null nadir', evs(low)[0] && evs(low)[0].meta.minMgdl, null);
+      T.eq('…that says why', evs(low)[0] && evs(low)[0].meta.belowSensorRange, true);
+      T.eq('the export counts them', JSON.stringify(low.recording.outOfRange), '{"below":20,"above":0,"belowMin":100,"aboveMin":0}');
+      T.eq('20 trace cells carry flag 5', cellsOf(low, 5).length, 20);
+      T.ok(
+        '…and none of them carries a value',
+        cellsOf(low, 5).every(function (c) {
+          return c.v === null;
+        })
+      );
+      T.ok('no NaN reaches the export as a number', JSON.stringify(low).indexOf('NaN') < 0);
+      T.eq('a Low has no value, so the mean is the numeric readings alone', low.glucose.mean, ctl.glucose.mean);
+      T.eq('a Low is sensor-active time, not a gap', low.glucose.pctActive, 100);
+
+      // ── ONE Low between two readings: the old grid bridged it as a short gap and called it analysable
+      var one = G.compute({
+        text: day(function (i) {
+          return i === 100 ? 'LO' : undefined;
+        })
+      });
+      // ── a Low cell covers its own cadence, never the gap behind it: 35 rows absent after i = 100
+      var gapTxt = day(function (i) {
+        return i === 100 ? 'Low' : undefined;
+      })
+        .split('\n')
+        .filter(function (ln, k) {
+          return k < 102 || k > 136;
+        })
+        .join('\n');
+      T.eq('one Low before a 3 h gap is one cell', cellsOf(G.compute({ text: gapTxt }), 5).length, 1);
+      // ── a Low 2 min after a reading does not take the cell that reading sits on
+      var offTxt = day(function () {}, [new Date(T0 + 100 * 300000 + 120000).toISOString().slice(0, 19).replace('T', ' ') + ',Low']);
+      T.eq('an off-grid Low does not displace the reading on the cell', cellsOf(G.compute({ text: offTxt }), 5).length, 0);
+
+      T.eq('one LO cell is not bridged by interpolation', cellsOf(one, 5).length + '/' + cellsOf(one, 2).length, '1/0');
+
+      // ── High: after a 100 → 300 climb, 12 High cells (12/288 = 4.2 %); the peak is a floor
+      var highTxt = day(function (i) {
+        return i >= 150 && i < 160 ? 110 + 20 * (i - 150) : i >= 160 && i < 172 ? 'High' : undefined;
+      });
+      var high = G.compute({ text: highTxt });
+      T.eq('12 High cells and the 2 readings over 250 make 14/288 above 250', high.glucose.tir.tar2, 4.9);
+      T.eq('12 trace cells carry flag 6', cellsOf(high, 6).length, 12);
+      var exc = high.ganglior_events.filter(function (e) {
+        return e.impulse === 'glucose_excursion';
+      });
+      T.ok('the excursion that left the range says its peak is a floor', exc.length >= 1 && exc[0].meta.peakAboveRange === true, JSON.stringify(exc[0] && exc[0].meta));
+      var hi2 = G.compute({
+        text: day(function (i) {
+          return i >= 150 && i < 160 ? 110 + 20 * (i - 150) : undefined;
+        })
+      });
+      var exc2 = hi2.ganglior_events.filter(function (e) {
+        return e.impulse === 'glucose_excursion';
+      });
+      T.ok('control · an excursion inside the range has no such key', exc2.length >= 1 && !('peakAboveRange' in exc2[0].meta), JSON.stringify(exc2[0] && exc2[0].meta));
+
+      // ── the record includes a Low run at either end
+      var edge = G.compute({
+        text: day(function (i) {
+          return i < 12 || i >= 276 ? 'Low' : undefined;
+        })
+      });
+      T.eq('a record that opens on a Low starts at that Low', edge.recording.startEpochMs, T0);
+      T.eq('12 + 12 Low cells at the two ends are all on the grid', cellsOf(edge, 5).length, 24);
+      T.eq('…and 24/288 = 8.3 % is below 54', edge.glucose.tir.tbr2, 8.3);
+
+      // ── a dip that leaves the range has no nadir, so the compression test must not run on its descent
+      var dip = G.compute({
+        text: day(function (i) {
+          return i >= 24 && i < 36 ? [60, 58, 56, 54, 52, 50, 'Low', 'Low', 'Low', 50, 52, 54][i - 24] : undefined;
+        })
+      });
+      T.eq('no cell of a dip that read Low is a compression artifact', cellsOf(dip, 3).length, 0);
+      var steep = G.compute({
+        text: day(function (i) {
+          return i >= 24 && i < 36 ? [75, 75, 75, 75, 75, 75, 'Low', 'Low', 'Low', 75, 75, 75][i - 24] : undefined;
+        })
+      });
+      T.eq('…and neither is the part of a steep dip before its first Low', cellsOf(steep, 3).length, 0);
+      T.eq('…and the event spans the whole dip', evs(dip)[0] && evs(dip)[0].meta.durMin, 60);
+
+      // ── what the parser could not use is counted, and what is not a reading is not
+      var bad = G.compute({
+        text: day(
+          function (i) {
+            return i === 40 || i === 41 ? 'ERR' : i === 50 ? '' : undefined;
+          },
+          ['not-a-date,120']
+        )
+      });
+      T.eq('2 text cells and 1 unreadable stamp are counted; the empty cell and the header are not', JSON.stringify(bad.recording.rowsDropped), '{"value":2,"stamp":1}');
+
+      // ── the analysis object behind the panels: the episode list and the per-day row
+      var rLow = GD.analyze(GD.parseCSV(lowTxt)),
+        rHigh = GD.analyze(GD.parseCSV(highTxt));
+      T.eq('per day · 20 Low cells of 288 are 6.9 % below 54', JSON.stringify([rLow.daily[0].nBelow, rLow.daily[0].nAbove, rLow.daily[0].tbr]), '[20,0,6.9]');
+      T.eq('per day · 12 High cells', JSON.stringify([rHigh.daily[0].nBelow, rHigh.daily[0].nAbove]), '[0,12]');
+      var ep = rLow.nocturnalHypo && rLow.nocturnalHypo[0];
+      T.eq('the episode behind the event has a null nadir', ep && ep.min, null);
+
+      // ── a producer that never looked reads null, never 0
+      var ts = [],
+        vs = [];
+      for (var k = 0; k < 288; k++) {
+        ts.push(T0 + k * 300000);
+        vs.push(110 + (k % 2));
+      }
+      var raw = G.compute({ tMs: ts, vMgdl: vs, unit: 'mg/dL', t0Ms: T0 });
+      T.ok('a pre-parsed frame with no censored list reads null for both', raw.recording.outOfRange === null && raw.recording.rowsDropped === null, JSON.stringify(raw.recording.outOfRange));
+
+      // ── the panel: min under a Low and max under a High are unknown
+      var cm = GD.coreMetrics([100, 120, 140], { below: 1, above: 0 });
+      T.eq('coreMetrics · a Low makes min null and leaves max', JSON.stringify([cm.min, cm.max]), '[null,140]');
+      T.eq('coreMetrics · …and is 1 of 4 in time below 54', JSON.stringify([cm.tir.tbr2, cm.tir.tir, cm.n, cm.nTir]), '[25,75,3,4]');
+      cm = GD.coreMetrics([100, 120, 140], { below: 0, above: 1 });
+      T.eq('coreMetrics · a High makes max null and leaves min', JSON.stringify([cm.min, cm.max, cm.tir.tar2]), '[100,null,25]');
+
+      // ── the fusion road: the adapter carries the two fields through a SignalFrame
+      var ad = env.SignalAdapters && typeof env.SignalAdapters.byId === 'function' ? env.SignalAdapters.byId('libre-cgm') : null;
+      if (ad && typeof ad.parse === 'function') {
+        var fr = ad.parse(lowTxt, {});
+        T.eq('adapter · the 20 Low readings ride on the frame', fr.censored && fr.censored.length, 20);
+        var viaFrame = G.compute(fr);
+        T.eq('adapter · …and so do the drop counts', JSON.stringify(viaFrame.recording.rowsDropped), '{"value":0,"stamp":0}');
+        T.eq('adapter · the frame road reads the same time below range as the CSV road', viaFrame.glucose.tir.tbr2, low.glucose.tir.tbr2);
+      } else {
+        T.ok('adapter · libre-cgm reachable', false, 'load adapters/libre-cgm.js into both runners');
+      }
+    });
+
     /* AUDIT-2026-07-16 F1 — the §3 file-level DMY/MDY lock must hold in GlucoDex's node-local parseCSV,
        not only in the shared DexClock.resolveDMY tested above. GlucoDex parses CGM stamps with its own
        _ckParse (a deliberate node-local Clock variant) and used to decide DMY/MDY PER ROW with a fixed

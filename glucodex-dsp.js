@@ -242,6 +242,19 @@
     return NaN;
   }
 
+  /* ── ∅ `Low` AND `High` ARE READINGS ────────────────────────────────────────────────────────
+     A CGM writes the word instead of a number when glucose sits outside its measuring range. The
+     reading has a stamp and a direction and no value, so it is CENSORED, which is neither a number
+     nor an absence. The row parser dropped it as "not a number", and the grid then drew a line across
+     the hole: thirty minutes of `Low` became a gap, and the file read 0 % below range (residue U-5 of
+     the Muse hunt record, measured 2026-11-25 on `synthetic_glucodex_clarity_low.csv`). */
+  function _gCensorSide(cell) {
+    const w = String(cell == null ? '' : cell)
+      .trim()
+      .toLowerCase();
+    return w === 'low' || w === 'lo' ? 'low' : w === 'high' || w === 'hi' ? 'high' : null;
+  }
+
   function detectDelimiter(headerLine) {
     const counts = { ',': 0, ';': 0, '\t': 0 };
     for (const ch of headerLine) {
@@ -388,20 +401,40 @@
     const tsOpts = { preferDMY: dmyOrder.dmy, dmyLocked: dmyOrder.locked };
 
     const T = [],
-      V = [];
+      V = [],
+      censored = /** @type {{ tMs: number, side: string }[]} */ ([]);
+    /* `rowsDropped` counts what this parser read and could not use: a glucose cell that holds text
+       other than Low/High, and a reading whose stamp it cannot place. An EMPTY glucose cell is a
+       different row type (a meal or insulin event), so it is not counted, and neither is the text
+       above the first reading, which is the header block. */
+    const rowsDropped = { value: 0, stamp: 0 };
+    let started = false;
     for (const line of nonEmpty) {
       const cells = line.split(delim);
       if (gCol >= cells.length) continue;
       const gRaw = (cells[gCol] || '').trim().replace(/^["']|["']$/g, '');
       const g = _gNumCell(gRaw);
-      if (!isFinite(g)) continue; // header / non-numeric / a cell that is not a number at all
+      const side = _gCensorSide(gRaw);
+      if (!isFinite(g) && !side) {
+        if (started && gRaw) rowsDropped.value++;
+        continue; // header / non-numeric / a cell that is not a number at all
+      }
       const tRaw = (cells[tsCol] || '').trim();
       const tParsed = _ckParse(tRaw, tsOpts); // file-locked order (not the per-row parseTimestamp default)
       const ms = tParsed ? tParsed.tMs : NaN;
-      if (!isFinite(ms)) continue; // need a timestamp to place the sample
+      if (!isFinite(ms)) {
+        rowsDropped.stamp++;
+        continue; // need a timestamp to place the sample
+      }
+      started = true;
+      if (side) {
+        censored.push({ tMs: ms, side });
+        continue;
+      }
       T.push(ms);
       V.push(g);
     }
+    censored.sort((a, b) => a.tMs - b.tMs);
     if (T.length < 10) throw new Error('Parsed only ' + T.length + ' valid readings — is this a CGM CSV with a timestamp + glucose column?');
 
     // sort by time (vendors sometimes export newest-first)
@@ -418,7 +451,7 @@
       vals = Vs.map((v) => v * MGDL_PER_MMOL);
     } // normalise everything to mg/dL internally
 
-    return { tMs: Ts, vMgdl: vals, unit, t0Ms: Ts[0] };
+    return { tMs: Ts, vMgdl: vals, unit, t0Ms: censored.length ? Math.min(Ts[0], censored[0].tMs) : Ts[0], censored, rowsDropped };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -430,7 +463,10 @@
    Both used to carry FLAG.GAP, and analyzableIndex filtered neither — so a routine 14 h sensor-change gap
    was interpolated straight into TIR/GMI/CV/MAGE, the validated-tier headline KPIs (TIR read 11 % where
    the truth was 0 %). The distinction is the fix; the code's own comment already claimed it existed. */
-  const FLAG = { OK: 0, WARMUP: 1, GAP: 2, COMPRESSION: 3, GAP_LONG: 4 };
+  /* BELOW / ABOVE — the sensor reported, and the value is outside its range (`_gCensorSide`). The cell
+     counts as sensor-active time and as time below / above range. It carries NO value: `gV` is NaN, so
+     no mean, SD, percentile or trace can read one. */
+  const FLAG = { OK: 0, WARMUP: 1, GAP: 2, COMPRESSION: 3, GAP_LONG: 4, BELOW: 5, ABOVE: 6 };
 
   // ── disambiguate a genuine sharp nocturnal hypo from a positional (compression) artifact ──
   // GLUCODEX-HYPO-DISAMBIG (June 2026): the compression-rejection pass used to eat true sharp
@@ -475,6 +511,7 @@
 
   function clean(parsed, progress) {
     const { tMs, vMgdl, unit, t0Ms } = parsed;
+    const cens = /** @type {{ tMs: number, side: string }[]} */ (Array.isArray(parsed.censored) ? parsed.censored : []);
     progress && progress(20, 'Detecting cadence & cleaning…');
     const n = tMs.length;
     // cadence = median dt (minutes)
@@ -506,10 +543,13 @@
     // Build a uniform timeline at `cadence` so AGP/MODD/CONGA are well-defined.
     // We resample onto a regular grid by nearest-with-interpolation; flag interpolated cells.
     const stepMs = step * 60000;
-    const spanMs = tMs[n - 1] - tMs[0];
+    // A Low/High run at either end of the file is inside the record, so the grid spans it.
+    const gridT0 = cens.length ? Math.min(tMs[0], cens[0].tMs) : tMs[0];
+    const gridT1 = cens.length ? Math.max(tMs[n - 1], cens[cens.length - 1].tMs) : tMs[n - 1];
+    const spanMs = gridT1 - gridT0;
     /* DEEP-AUDIT-II §5.1 — the CAP is a memory ceiling; the SILENCE was the defect.
        `Math.min(200000, …)` truncates the uniform grid, and the pointer walk below then fills only N
-       cells — so every reading past `tMs[0] + N·stepMs` is dropped, with no counter, no flag, no
+       cells — so every reading past `gridT0 + N·stepMs` is dropped, with no counter, no flag, no
        field and no throw. Downstream (AGP / MODD / CONGA / sessions / events) sees a shorter record
        and reports it as though complete. Latent on the 5-min corpus (200 000 × 5 min ≈ 694 days),
        live at 1-min cadence (≈139 days) or on a dense multi-sensor merge.
@@ -525,9 +565,10 @@
       gF = new Int8Array(N);
 
     // pointer walk through raw samples
-    let j = 0;
+    let j = 0,
+      cj = 0;
     for (let i = 0; i < N; i++) {
-      const t = tMs[0] + i * stepMs;
+      const t = gridT0 + i * stepMs;
       gT[i] = t;
       while (j < n - 1 && tMs[j + 1] <= t) j++;
       // nearest raw on each side
@@ -536,8 +577,10 @@
       const k = Math.min(n - 1, j + 1);
       const tR = tMs[k],
         vR = vMgdl[k];
-      const gapL = (t - tL) / 60000,
-        gapR = (tR - t) / 60000;
+      // |Δ|, because a cell in a Low/High run before the first or after the last reading has no
+      // reading on one side, and a signed difference there is negative and reads as "nearest".
+      const gapL = Math.abs(t - tL) / 60000,
+        gapR = Math.abs(tR - t) / 60000;
       if (Math.min(gapL, gapR) <= step * 0.75) {
         gV[i] = gapL <= gapR ? vL : vR; // snap to the real reading
         gF[i] = FLAG.OK;
@@ -548,9 +591,18 @@
       } else {
         // long gap — carry the interpolation (the chart still needs a line) but mark it GAP_LONG so it is
         // excluded from every distribution metric. These cells are drawn, never measured.
-        const f = tR > tL ? (t - tL) / (tR - tL) : 0;
+        const f = tR > tL && t > tL ? (t - tL) / (tR - tL) : 0;
         gV[i] = tR > tL ? vL + (vR - vL) * f : vL;
         gF[i] = FLAG.GAP_LONG;
+      }
+      // a censored reading that is nearer to this cell than every numeric one owns the cell
+      if (cens.length) {
+        while (cj < cens.length - 1 && Math.abs(cens[cj + 1].tMs - t) <= Math.abs(cens[cj].tMs - t)) cj++;
+        const dC = Math.abs(cens[cj].tMs - t) / 60000;
+        if (dC <= step * 0.75 && dC < Math.min(gapL, gapR)) {
+          gV[i] = NaN;
+          gF[i] = cens[cj].side === 'low' ? FLAG.BELOW : FLAG.ABOVE;
+        }
       }
     }
 
@@ -617,14 +669,17 @@
       while (i < N) {
         if (gF[i] === FLAG.OK && isNight(gT[i]) && gV[i] < dipCeil) {
           let j = i,
-            lo = gV[i];
-          while (j < N && gV[j] < shoulderFloor && isNight(gT[j])) {
-            lo = Math.min(lo, gV[j]);
+            lo = gV[i],
+            sawBelow = false;
+          while (j < N && (gF[j] === FLAG.BELOW || gV[j] < shoulderFloor) && isNight(gT[j])) {
+            if (gF[j] === FLAG.BELOW) sawBelow = true;
+            else lo = Math.min(lo, gV[j]);
             j++;
           }
           const runLen = j - i,
             runMin = runLen * step;
-          if (runLen >= minRun && runMin <= 150) {
+          // a dip that leaves the sensor range has no nadir, so this test cannot run on it
+          if (!sawBelow && runLen >= minRun && runMin <= 150) {
             const before = medOf(i - ctxW, i),
               after = medOf(j, j + ctxW);
             // both shoulders solidly above baseline and the dip deep & fast-recovering on BOTH sides…
@@ -656,10 +711,14 @@
     if (run >= 2) nGaps++;
 
     let warmupCells = 0,
-      compCells = 0;
+      compCells = 0,
+      belowCells = 0,
+      aboveCells = 0;
     for (let i = 0; i < N; i++) {
       if (gF[i] === FLAG.WARMUP) warmupCells++;
       else if (gF[i] === FLAG.COMPRESSION) compCells++;
+      else if (gF[i] === FLAG.BELOW) belowCells++;
+      else if (gF[i] === FLAG.ABOVE) aboveCells++;
     }
 
     const activeCells = N - gapCells - warmupCells;
@@ -686,6 +745,9 @@
       gapMin: cadence == null ? null : Math.round(gapCells * cadence),
       warmupMin: cadence == null ? null : Math.round(warmupCells * cadence),
       compMin: cadence == null ? null : Math.round(compCells * cadence),
+      // null when the producer of this frame never looked for Low/High cells; 0 when it looked and found none
+      belowCells: Array.isArray(parsed.censored) ? belowCells : null,
+      aboveCells: Array.isArray(parsed.censored) ? aboveCells : null,
       nGaps,
       pctActive,
       nRaw: n,
@@ -706,7 +768,21 @@
   // agp/perDay) through this one predicate, so the "excluded from every distribution metric" promise is real.
   function _ana(c, i) {
     const f = c.gF[i];
-    return f !== c.FLAG.WARMUP && f !== c.FLAG.COMPRESSION && f !== c.FLAG.GAP_LONG;
+    return f !== c.FLAG.WARMUP && f !== c.FLAG.COMPRESSION && f !== c.FLAG.GAP_LONG && f !== c.FLAG.BELOW && f !== c.FLAG.ABOVE;
+  }
+
+  // The censored cells among `cells` (a list of grid indices, or the whole grid). They carry no value, so
+  // they enter the time-in-range counts and nothing else.
+  function _censoredIn(c, cells) {
+    let below = 0,
+      above = 0;
+    const n = cells ? cells.length : c.N;
+    for (let k = 0; k < n; k++) {
+      const f = c.gF[cells ? cells[k] : k];
+      if (f === c.FLAG.BELOW) below++;
+      else if (f === c.FLAG.ABOVE) above++;
+    }
+    return { below, above };
   }
 
   function analyzableIndex(c) {
@@ -886,12 +962,19 @@
   // ════════════════════════════════════════════════════════════════════════
   const TIR_CUT = { vlow: 54, low: 70, high: 180, vhigh: 250 }; // mg/dL consensus 2019
 
-  function coreMetrics(vals) {
+  function coreMetrics(vals, outOfRange) {
     /* §∅ — the panel is computed over MEASURED readings only. The old body fed every entry to the
        TIR loop (`null < 54` is true, so ten nulls read as 100 % time below range) and divided by
        `vals.length || 1`, so zero readings published GMI 3.3 and eHbA1c 1.6 over n 1. A non-finite
        entry is now dropped and counted in `nAbsent`; zero readings return a null panel with its
        reason, and the spread needs two readings. */
+    /* `outOfRange` = { below, above }: the cells where the sensor read Low / High. Each one is a known
+       time below 54 or above 250 mg/dL, because no CGM's range ends inside those cuts, so the
+       time-in-range split counts them. Every value statistic stays over the numeric readings, and the
+       two that a censored cell makes unknowable read null: `min` under a Low, `max` under a High. */
+    const oor = /** @type {any} */ (outOfRange);
+    const nBelow = oor && oor.below > 0 ? oor.below : 0,
+      nAbove = oor && oor.above > 0 ? oor.above : 0;
     const all = vals || [];
     const meas = [];
     for (let i = 0; i < all.length; i++) {
@@ -916,6 +999,9 @@
         tir: { tbr2: null, tbr1: null, tir: null, tar1: null, tar2: null },
         tirN: { tbr2: 0, tbr1: 0, tir: 0, tar1: 0, tar2: 0 },
         n: 0,
+        nTir: 0,
+        nBelow,
+        nAbove,
         nAbsent,
         reason: 'no-readings'
       };
@@ -942,8 +1028,11 @@
     for (const g of vals) {
       if (g >= 70 && g <= 140) tight++;
     } // Time in Tight Range (2023 consensus addition)
-    const n = vals.length;
-    const pct = (x) => +((x / n) * 100).toFixed(1);
+    tbr2 += nBelow;
+    tar2 += nAbove;
+    const n = vals.length,
+      nTir = n + nBelow + nAbove;
+    const pct = (x) => +((x / nTir) * 100).toFixed(1);
     const sorted = [...vals].sort((a, b) => a - b);
     return {
       mean: round(m, 0),
@@ -952,8 +1041,8 @@
       gmi: round(gmi, 1),
       ea1c: round(ea1c, 1),
       titr: pct(tight),
-      min: round(sorted[0], 0),
-      max: round(sorted[sorted.length - 1], 0),
+      min: nBelow ? null : round(sorted[0], 0),
+      max: nAbove ? null : round(sorted[sorted.length - 1], 0),
       p10: round(quantile(sorted, 0.1), 0),
       p25: round(quantile(sorted, 0.25), 0),
       median: round(quantile(sorted, 0.5), 0),
@@ -962,6 +1051,9 @@
       tir: { tbr2: pct(tbr2), tbr1: pct(tbr1), tir: pct(tir), tar1: pct(tar1), tar2: pct(tar2) },
       tirN: { tbr2, tbr1, tir, tar1, tar2 },
       n,
+      nTir,
+      nBelow,
+      nAbove,
       nAbsent,
       reason: null
     };
@@ -1305,20 +1397,28 @@
     const minCells = Math.max(2, Math.round(15 / c.cadence));
     const eps = [];
     let run = /** @type {any} */ (null);
+    // `min` is null when the episode left the sensor range: its nadir is below every reading it holds
+    const flush = () => {
+      if (!run || run.e - run.s + 1 < minCells) return;
+      eps.push({ startMs: c.gT[run.s], endMs: c.gT[run.e], min: run.below ? null : Math.round(run.min), durMin: Math.round((run.e - run.s + 1) * c.cadence), belowRange: run.below });
+    };
     for (let i = 0; i < c.N; i++) {
       const h = hourOf(c.gT[i]);
       const night = h < 6;
-      const lo = _ana(c, i) && c.gV[i] < 70;
+      // a Low cell is below the sensor range, so it is below 70 and it has no value to take a minimum over
+      const below = c.gF[i] === c.FLAG.BELOW;
+      const lo = below || (_ana(c, i) && c.gV[i] < 70);
       if (night && lo) {
-        if (!run) run = { s: i, min: c.gV[i] };
-        run.min = Math.min(run.min, c.gV[i]);
+        if (!run) run = { s: i, min: Infinity, below: false };
+        if (below) run.below = true;
+        else run.min = Math.min(run.min, c.gV[i]);
         run.e = i;
       } else {
-        if (run && run.e - run.s + 1 >= minCells) eps.push({ startMs: c.gT[run.s], endMs: c.gT[run.e], min: Math.round(run.min), durMin: Math.round((run.e - run.s + 1) * c.cadence) });
+        flush();
         run = null;
       }
     }
-    if (run && run.e - run.s + 1 >= minCells) eps.push({ startMs: c.gT[run.s], endMs: c.gT[run.e], min: Math.round(run.min), durMin: Math.round((run.e - run.s + 1) * c.cadence) });
+    flush();
     return eps;
   }
 
@@ -1379,11 +1479,15 @@
       const trough = c.gV[i];
       const maxAhead = Math.min(c.N - 1, i + Math.round(180 / c.cadence));
       let peak = trough,
-        peakI = i;
+        peakI = i,
+        hitAbove = false;
       for (let k = i; k <= maxAhead; k++) {
         // §∅ — a non-analysable cell (a GAP_LONG interpolation, warm-up or compression) ends the
         // window: the old scan read the drawn line across a long gap and could publish its peak.
-        if (!_ana(c, k)) break;
+        if (!_ana(c, k)) {
+          hitAbove = c.gF[k] === c.FLAG.ABOVE; // the rise left the sensor range, so `peak` is a floor
+          break;
+        }
         if (c.gV[k] > peak) {
           peak = c.gV[k];
           peakI = k;
@@ -1413,6 +1517,7 @@
           trough: Math.round(trough),
           peak: Math.round(peak),
           rise: Math.round(rise),
+          peakAboveRange: hitAbove,
           rateMgMin: +onRate.toFixed(2),
           durMin: Math.round(onDurMin),
           meal: meal ? meal.label : null,
@@ -1463,7 +1568,7 @@
         if (_ana(c, i)) vals.push(c.gV[i]);
       }
       if (vals.length < 6) continue;
-      const cm = coreMetrics(vals);
+      const cm = coreMetrics(vals, _censoredIn(c, cells));
       // §∅ — the day's count is its MEASURED readings; a day of fewer than 6 is skipped as before.
       const { tbr1, tbr2, tar1, tar2 } = cm.tir;
       if (cm.n < 6 || tbr1 == null || tbr2 == null || tar1 == null || tar2 == null) continue;
@@ -1471,6 +1576,8 @@
         day: k,
         startMs: c.gT[cells[0]],
         n: cm.n,
+        nBelow: cm.nBelow,
+        nAbove: cm.nAbove,
         mean: cm.mean,
         cv: cm.cv,
         tir: cm.tir.tir,
@@ -1513,7 +1620,14 @@
     }
     // nocturnal hypos (high priority)
     for (const h of r.nocturnalHypo)
-      ev.push({ t: hhmm(h.startMs), tMs: h.startMs, impulse: 'nocturnal_hypo', node: 'GlucoDex', conf: +Math.min(0.97, conf + 0.1).toFixed(2), meta: { minMgdl: h.min, durMin: h.durMin } });
+      ev.push({
+        t: hhmm(h.startMs),
+        tMs: h.startMs,
+        impulse: 'nocturnal_hypo',
+        node: 'GlucoDex',
+        conf: +Math.min(0.97, conf + 0.1).toFixed(2),
+        meta: h.belowRange ? { minMgdl: null, durMin: h.durMin, belowSensorRange: true } : { minMgdl: h.min, durMin: h.durMin }
+      });
     // excursions
     for (const e of r.excursions)
       ev.push({
@@ -1522,7 +1636,7 @@
         impulse: 'glucose_excursion',
         node: 'GlucoDex',
         conf,
-        meta: { riseMgdl: e.rise, rateMgMin: e.rateMgMin, peak: e.peak, meal: e.meal || 'unannotated' }
+        meta: Object.assign({ riseMgdl: e.rise, rateMgMin: e.rateMgMin, peak: e.peak, meal: e.meal || 'unannotated' }, e.peakAboveRange ? { peakAboveRange: true } : {})
       });
     // sort by absolute floating ms (Clock Contract §6); falls back to clock string
     ev.sort((a, b) => (a.tMs != null && b.tMs != null ? a.tMs - b.tMs : a.t < b.t ? -1 : 1));
@@ -1656,9 +1770,9 @@
      each surviving reading is still a measured one, and the gap it leaves is already described by
      `coverage.segments`. `analyze` refuses below six analyzable readings, so an all-absent frame
      now throws where it used to publish a fabricated zero.
-     `parseCSV` never carried the defect: it drops a non-numeric glucose cell (:396) and a stamp it
-     cannot place (:401). It counts neither, so a CSV-fed `nAbsentIn` of 0 says this function found
-     every member finite — never that the file held no absence. */
+     `parseCSV` never carried the defect: it drops a non-numeric glucose cell and a stamp it cannot
+     place, and counts both in `rowsDropped`. A CSV-fed `nAbsentIn` of 0 says this function found every
+     member finite — never that the file held no absence. */
   function _gdDropAbsent(frame) {
     const tIn = frame && Array.isArray(frame.tMs) ? frame.tMs : null;
     const vIn = frame && Array.isArray(frame.vMgdl) ? frame.vMgdl : null;
@@ -1716,7 +1830,7 @@
     // RAW means pre-CLEANING (warm-up, gaps, compression), not pre-absence: an absent reading is not
     // at the clip rail, and `Math.min` over a null reads 0, which is a floor no sensor reported.
     const clampSat = detectClampSaturation(frame.vMgdl);
-    const core = coreMetrics(ana.vals);
+    const core = coreMetrics(ana.vals, _censoredIn(c, null));
     progress && progress(60, 'Variability suite…');
     const vari = variability(c, ana, core);
     const daypart = daypartVariability(c, core.cv);
@@ -1766,6 +1880,17 @@
          which is a frame that is not two parallel arrays. See `_gdDropAbsent` for why a CSV-fed 0
          does not describe the file. */
       nAbsentIn: _ab.nAbsentIn,
+      // null when the frame came from a producer that does not count rows (only `parseCSV` does)
+      rowsDropped: frame.rowsDropped || null,
+      outOfRange:
+        c.belowCells == null || c.aboveCells == null
+          ? null
+          : {
+              below: c.belowCells,
+              above: c.aboveCells,
+              belowMin: c.cadence == null ? null : Math.round(c.belowCells * c.cadence),
+              aboveMin: c.cadence == null ? null : Math.round(c.aboveCells * c.cadence)
+            },
       clampSat,
       tier: t.tier,
       tierLabel: t.label,
@@ -2177,7 +2302,8 @@
     var out = [];
     for (var i = 0; i < series.N; i++) {
       if (series.gF[i] === W) continue; // warm-up garbage; keep OK/GAP/COMPRESSION/GAP_LONG
-      out.push({ tMs: series.gT[i], v: Math.round(series.gV[i]), f: series.gF[i] });
+      // a Low/High cell has no value: NaN is its in-memory form and null its exported one (§∅)
+      out.push({ tMs: series.gT[i], v: isFinite(series.gV[i]) ? Math.round(series.gV[i]) : null, f: series.gF[i] });
     }
     return out;
   }
@@ -2588,6 +2714,10 @@
         events: events.length,
         // §∅ — the absence the input carried, beside the coverage below. `null` = not examined.
         nAbsentIn: r.nAbsentIn != null ? r.nAbsentIn : null,
+        // rows the CSV parser read and could not use; null when this frame did not come from it
+        rowsDropped: r.rowsDropped || null,
+        // Low / High cells: below / above the sensor range, with no value. null = the producer never looked.
+        outOfRange: r.outOfRange || null,
         /* §F1.1 — CONTINUOUS coverage, the sibling of HRVDex's sparse block (§6.2). GlucoDex declared no
            duration key `adaptEnvelopeNode` reads, so a well-controlled ZERO-EVENT CGM record collapsed to
            a point at t0Ms — the healthiest record was the one that dropped out of fusion.
@@ -2702,7 +2832,7 @@
           unit: 'mg/dL',
           cells: _cells,
           cellsNote:
-            'ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms; v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG). A consumer computing glucose statistics MUST exclude 3 and 4 — flag 4 is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count.'
+            'ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms; v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG · 5 Low, below the sensor range · 6 High, above it). A consumer computing glucose statistics MUST exclude 3 and 4 — flag 4 is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count. Flags 5 and 6 carry v null: the time is measured and the value is not.'
         };
       })(),
       /* ── CROSS-DAY TREND (ganglior.crossnight v1.0) ─────────────────────────────────────────
@@ -2778,7 +2908,10 @@
           return s && typeof s.v === 'number' ? s.v : NaN;
         }),
         unit: input.unit || 'mg/dL',
-        t0Ms: input.t0Ms != null ? input.t0Ms : _t0
+        t0Ms: input.t0Ms != null ? input.t0Ms : _t0,
+        // §∅ — the Low/High readings and the drop counts travel beside the samples (libre-cgm adapter)
+        censored: Array.isArray(input.censored) ? input.censored : undefined,
+        rowsDropped: input.rowsDropped || undefined
       };
     } else {
       const text =
