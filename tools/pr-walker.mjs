@@ -583,7 +583,7 @@ const REBUILD_COMMIT_MSG =
    🔴 A BUILD OUTPUT DOES NOT RIDE. Since 2026-11-18 an author PR carries none, and pr-compliance check
    10 is blocking. Measured 2026-11-25 (#5797): the pass committed 22 generated paths at 13:02, the
    PR read red over 17 of them, and main's regeneration then put the branch in conflict again, so a
-   second pass at 13:14 committed 6 more. `rebuildAdvice` is the partition `rebase-safe` prints:
+   second pass at 13:14 committed 6 more and a third at 13:57 committed 18. `rebuildAdvice` is the partition `rebase-safe` prints:
    provenance and the regen fixtures are committed, a build output is restored to HEAD, and an
    untracked one is removed because nothing restores it. A regeneration branch carries every path,
    because its whole content is build outputs. */
