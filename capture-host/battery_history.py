@@ -56,6 +56,10 @@ def read_link(path: str, lows: dict[str, dict[int, int]]) -> None:
                 continue
             if len(f) < len(cols):
                 continue  # a torn last row
+            # The daemon keeps the last level in STATUS after a link drops and logs it on every later row, so
+            # a row with no link is an OLD reading under a new stamp. `battery_health` skips it too.
+            if "connected" in cols and f[cols["connected"]] != "1":
+                continue
             hour = _hour_ms(f[cols["Phone timestamp"]])
             pct = _pct(f[cols["battery_pct"]])
             dev = f[cols["device"]]
