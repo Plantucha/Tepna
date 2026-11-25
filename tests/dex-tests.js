@@ -13904,7 +13904,7 @@
         hrvdex: ['hrvdex-dsp.js', 'hrvdex-app.js', 'hrvdex-profile.js'],
         motiondex: ['motiondex-dsp.js'],
         oxydex: ['oxydex-dsp.js', 'oxydex-cross.js'],
-        ppgdex: ['ppgdex-dsp.js', 'ppgdex-cross.js'],
+        ppgdex: ['ppgdex-dsp.js', 'ppgdex-cross.js', 'ppgdex-render.js'],
         pulsedex: ['pulsedex-dsp.js', 'pulsedex-cross.js']
       };
       var missingBodies = [];
