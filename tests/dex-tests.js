@@ -13892,7 +13892,10 @@
          is the difference between a lane bug and a false phantom. */
       var BODIES = {
         cpapdex: ['cpapdex-dsp.js', 'cpapdex-cross.js'],
-        ecgdex: ['ecgdex-dsp.js', 'ecgdex-cross.js', 'ecgdex-app.js', 'ecgdex-render.js'],
+        /* `sq-table.js` joins the ECGDex body (§7.4, 2026-11-25): the metric ids of the quality
+           rows and the three drift series are DECLARED there now, and a body that omits the file
+           reads its own ids as unbound — the phantom this group's header warns about. */
+        ecgdex: ['ecgdex-dsp.js', 'ecgdex-cross.js', 'ecgdex-app.js', 'ecgdex-render.js', 'sq-table.js'],
         glucodex: ['glucodex-dsp.js'],
         hrvdex: ['hrvdex-dsp.js', 'hrvdex-app.js', 'hrvdex-profile.js'],
         motiondex: ['motiondex-dsp.js'],
@@ -13920,6 +13923,14 @@
         var defs = strip(src[node + '-cross.js'] || '');
         var own = Object.keys(src).filter(function (f) {
           return f.indexOf(node + '-') === 0 && f !== node + '-registry.js' && /\.js$/.test(f);
+        });
+        /* A SHARED BODY COUNTS TOO. The filter above reads `<node>-*.js` only, so an id whose binding
+           sits in a spine module read as UNBOUND: `sqAllan` did, the moment the signal-quality table
+           moved to `sq-table.js` (§7.4, 2026-11-25). `BODIES` already names each node's bodies for
+           the inventory leg above, so the union of the two is the population. The prefix stays, so a
+           node still owes no list of its own files. */
+        BODIES[node].forEach(function (f) {
+          if (src[f] && own.indexOf(f) === -1) own.push(f);
         });
         var body = strip(
           own
@@ -64695,11 +64706,17 @@
 
       // 4 · SOURCE MIRRORS — each leg fails when the shape it pins comes back.
       var src = (env.sources && env.sources['ecgdex-dsp.js']) || '';
-      if (src) {
-        T.ok('the fallback reason is a visible string, not a zero', /_SQ_UNMEASURED = 'unmeasured-and-unexplained'/.test(src));
+      /* THE CELL BUILDER AND ITS SENTINEL MOVED TO THE SPINE (§7.4). The leg follows the subject: a
+         scan of this node's file would pass on an absent declaration, which is the hole a moved
+         symbol opens in a source mirror. */
+      var spine = (env.sources && env.sources['sq-table.js']) || '';
+      if (src && spine) {
+        T.ok('the fallback reason is a visible string, not a zero', /_SQ_UNMEASURED = 'unmeasured-and-unexplained'/.test(spine));
+        T.ok('the node resolves the spine at CALL time, so a realm computing no quality fact still loads', /function _sqSpine\(\)/.test(src) && /return _sqSpine\(\)\.sqCell\(/.test(src));
+        T.ok('CONTROL · an absent spine throws a NAMED error rather than disabling the table', /sq-table\.js is absent from this realm/.test(src));
         T.ok('the table sits beside out.quality, inside the rich branch', /out\.signalQuality = ecgSignalQuality\(/.test(src));
         T.ok('the ledger is one literal table, which the census gate holds against its registry', /var _ECG_SIDECAR_LEDGER = \[/.test(src));
-        T.ok('CONTROL · no cell builder defaults a value to 0', !/_sqCell\(\s*0\s*,/.test(src));
+        T.ok('CONTROL · no cell builder defaults a value to 0', !/_sqCell\(\s*0\s*,/.test(src) && !/_sqCell\(\s*0\s*,/.test(spine));
         /* The gate itself, pinned: the value reads the independence verdict and not `ok` alone. A
            revert of the one ternary reds here as well as on the cell above. */
         T.ok('the rate cell gates its value on the independence verdict, not on ok alone', /ax && ax\.ok && ax\.independent !== false \? ax\.ppm : null/.test(src));
@@ -65457,14 +65474,15 @@
 
         /* ── 5 · SOURCE MIRRORS — the three call sites box 9 holds to one grid, and the origin rule. */
         var src2 = (env.sources && env.sources['ecgdex-dsp.js']) || '';
-        if (src2) {
+        var spine2 = (env.sources && env.sources['sq-table.js']) || '';
+        if (src2 && spine2) {
           T.ok('one constant carries the node epoch', /var _SQ_EPOCH_SEC = 300;/.test(src2));
           T.ok('…and the drift strip is cut on it, never on a literal of its own', /_ecgDriftProfile\(ecgAxisAnchors, ecgHostAx, t0Ms, ECG_AXIS_MAX_STEP_MS, _SQ_EPOCH_SEC\)/.test(src2));
           T.ok('the before pass reads the node’s own seams alone, snapshotted before the box’s rows join them', /const _seamSecNode = _seamSec\.slice\(\);/.test(src2));
           T.ok('…and it is a second engine pass, never a subtraction of counts', /epochEngine\(nn, tt, 300, nnSqi, nnSpansGap, _seamSecNode, _refusedBefore, \[\]\)/.test(src2));
           T.ok(
             'the origin is read from the filename, and the comment cites the writer that proves the text cannot say',
-            /capture-host\/writers\.py:1888/.test(src2) && /function _ecgCaptureOrigin\(name\)/.test(src2)
+            /capture-host\/writers\.py:1888/.test(spine2) && /function _sqCaptureOrigin\(name\)/.test(spine2)
           );
           T.ok('CONTROL · no origin is inferred from the ECG header text', !/_ecgCaptureOrigin\(\s*(?:text|lines|raw)/.test(src2));
           T.ok(
@@ -89320,6 +89338,7 @@
       var RESOLVE = {
         // shared spine
         'clock.js': 'DexClock',
+        'sq-table.js': 'SQTable',
         'clock-seam.js': 'DexSeam',
         'kernel-constants.js': 'DexKernel',
         'metric-registry.js': 'MetricRegistry',

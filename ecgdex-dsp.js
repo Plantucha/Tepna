@@ -8129,17 +8129,32 @@
     };
   }
   var _SQ_EPOCH_SEC = 300;
-  var _SQ_UNMEASURED = 'unmeasured-and-unexplained';
-  /* A cell. `value` is the number the fact is worth; `unit` names what the number counts, because
-     several of these facts have more than one defensible unit and a bare percentage is how a share
-     of BEATS gets read as a share of TIME. A non-finite value takes the caller's reason; a caller
-     that forgot one leaves `_SQ_UNMEASURED`, which the test group reads as a defect rather than as
-     an absence — an escape that is VISIBLE instead of silent. */
+  /* THE GENERIC HALF OF THIS TABLE LIVES IN `sq-table.js` (SIGNAL-QUALITY-TABLE-2026-11-14 §7.4).
+     The cell shape, the capture-origin reader and the sidecar-row state machine say nothing about
+     ECG, so the second adopter reads them from the spine instead of from this node's files. The
+     aliases are UNGUARDED on purpose: a bundle that drops the module throws at module evaluation,
+     where a gate sees it, rather than disabling the table silently (CLAUDE.md §👥.3).
+     WHAT STAYS HERE: `_ECG_SIDECAR_LEDGER` and `ecgSignalQuality`, because the channel set and the
+     fact sources are facts about this node. */
+  /* RESOLVED AT CALL TIME, never aliased at module evaluation. A module-level alias would oblige
+     every realm that loads this DSP for an unrelated reason to carry the file: this DSP sits in
+     thirty-odd analysis-tool vm realms that time R peaks and compute no quality fact at all. The
+     accessor keeps the crash the §👥.3 rule asks for and moves it to the first real use, where
+     the message names the absent file. A guarded alias would instead disable the table silently,
+     which is the outcome that rule exists to prevent. */
+  function _sqSpine() {
+    var S = typeof SQTable !== 'undefined' ? SQTable : undefined;
+    if (!S) throw new Error('sq-table.js is absent from this realm, so no signal-quality fact can be computed here (SIGNAL-QUALITY-TABLE-2026-11-14 §7.4)');
+    return S;
+  }
   function _sqCell(value, unit, reason, extra) {
-    var ok = typeof value === 'number' && isFinite(value);
-    var c = { value: ok ? value : null, unit: unit, reason: ok ? null : reason || _SQ_UNMEASURED };
-    if (extra) for (var k in extra) if (Object.prototype.hasOwnProperty.call(extra, k)) c[k] = extra[k];
-    return c;
+    return _sqSpine().sqCell(value, unit, reason, extra);
+  }
+  function _sqLedgerRow(row, r) {
+    return _sqSpine().sqLedgerRow(row, r);
+  }
+  function _ecgCaptureOrigin(name) {
+    return _sqSpine().sqCaptureOrigin(name);
   }
 
   /* THE SIDECAR LEDGER'S ROWS (§3b). The NAMES are a projection of the registry in
@@ -8282,111 +8297,6 @@
   /* The three computed rows. Each reads a state this node ALREADY carries — `r.runs` and `r.seams`
      from `analyze`, the motion sidecar off the ACC companion — so the ledger reports the node's own
      reading rather than a second opinion about the same files. */
-  /* ── WHO WROTE THIS FILE — the one fact the ECG TEXT cannot answer ─────────────────────────────
-     The capture box writes the SAME header as a Polar Sensor Logger export, byte for byte
-     (`capture-host/writers.py:1888` against the layout above), and the same declared units, on
-     purpose: the two are directly comparable. So an origin READ OUT OF THE TEXT would be invented.
-     The FILENAME does carry it, and the box's own reader already names the two layouts and pins them
-     with a test (`writers.py file_start_stamp`): this host writes the start instant as ONE contiguous
-     token, `…_<id>_YYYYMMDDHHMMSS_TAG.ext`, and Polar Sensor Logger SPLITS it,
-     `…_<id>_YYYYMMDD_HHMMSS_TAG.ext`. Read from the RIGHT for the same decidability reason that
-     reader gives — neither the id nor the vendor prefix has a fixed field count.
-     ⚠️ NO NAME MEANS UNKNOWN, NEVER "the box". A sidecar lane that reads `absent` under an unknown
-     origin says the FILE is absent and nothing about a writer; only a named vendor export makes the
-     box's own sidecars `not-applicable`, because no box ran. */
-  function _ecgCaptureOrigin(name) {
-    var nm = typeof name === 'string' ? name.trim() : '';
-    if (!nm) return { origin: null, basis: 'no filename reached this node, so the recording’s origin is unknown — not assumed to be either writer' };
-    var base = nm.indexOf('.') >= 0 ? nm.slice(0, nm.lastIndexOf('.')) : nm;
-    var parts = base.split('_');
-    if (parts.length >= 3) {
-      var d8 = parts[parts.length - 3],
-        t6 = parts[parts.length - 2];
-      if (/^(?:19|20)\d{6}$/.test(d8) && /^\d{6}$/.test(t6)) {
-        return { origin: 'polar-sensor-logger', basis: 'the filename carries the vendor app’s split start stamp, `…_YYYYMMDD_HHMMSS_<stream>`' };
-      }
-    }
-    if (parts.length >= 2 && /^(?:19|20)\d{12}$/.test(parts[parts.length - 2])) {
-      return { origin: 'capture-host', basis: 'the filename carries this host’s contiguous start stamp, `…_YYYYMMDDHHMMSS_<stream>`' };
-    }
-    return { origin: null, basis: 'the filename carries neither writer’s start-stamp layout, so the recording’s origin is unknown' };
-  }
-
-  function _sqLedgerRow(row, r) {
-    var st = row.state || null,
-      why = row.state ? row.reason : null;
-    /* EVERY ROW IN THIS LEDGER IS A FILE THE CAPTURE HOST WRITES. So the absence of one has two
-       different causes, and they need different states: a box capture with no companion is `absent`
-       (the writer ran and produced nothing, which is not a clean stream), and a vendor export is
-       `not-applicable` (no box ran at all, so no companion could exist). An unknown origin is neither
-       claim — the row stays `absent` and its reason says only that no file reached this node. */
-    var org = (r && r.captureOrigin) || null;
-    var vendor = !!(org && org.origin === 'polar-sensor-logger');
-    var naWhy = function (file) {
-      return 'this recording is a Polar Sensor Logger export (' + org.basis + '), and `' + file + '` is written by the capture host — no host ran on it, so this sidecar cannot apply';
-    };
-    var absentWhy = function (file, tail) {
-      if (org && org.origin === 'capture-host') return 'the box wrote no `' + file + '` beside this capture, so ' + tail;
-      return (
-        'no `' +
-        file +
-        '` reached this node, and this recording’s origin is unknown (' +
-        ((org && org.basis) || 'no origin was published') +
-        '), so whether a writer should have produced one is unknown as well'
-      );
-    };
-    if (row.state) {
-      /* a fixed state is a fact about THIS NODE's readers, which no recording changes — the origin
-         override below is the one thing that can still outrank it */
-    } else if (row.lane === 'ecgRuns') {
-      var rs = r && r.runs;
-      if (!rs || rs.reason === 'no-runs-sidecar') {
-        st = vendor ? 'not-applicable' : 'absent';
-        why = vendor ? naWhy('_ECGRUNS.txt') : absentWhy('_ECGRUNS.txt', 'no blanking span is known — this is not a clean stream');
-      } else if (rs.reason) {
-        st = 'not-read';
-        why = 'the reader ran and placed no row: ' + rs.reason;
-      } else {
-        st = 'read';
-      }
-    } else if (row.lane === 'ecgSeams') {
-      var ss = r && r.seams;
-      if (!ss || ss.reason === 'no-seam-sidecar') {
-        st = vendor ? 'not-applicable' : 'absent';
-        why = vendor ? naWhy('_ECGSEAMS.txt') : absentWhy('_ECGSEAMS.txt', 'the seam count is unknown rather than zero');
-      } else if (ss.reason) {
-        st = 'not-read';
-        why = 'the reader ran and placed no row: ' + ss.reason;
-      } else {
-        st = 'read';
-      }
-    } else {
-      var acc = r && r.deviceACC;
-      if (!acc || !acc.length) {
-        st = 'not-applicable';
-        why = 'this recording carries no motion companion, so no motion sidecar can apply to it';
-      } else if (acc._runsSidecar) {
-        st = 'read';
-      } else if (vendor) {
-        st = 'not-applicable';
-        why = naWhy('_ACCRUNS.txt');
-      } else {
-        st = 'absent';
-        why = absentWhy('_ACCRUNS.txt', 'the held-value runs of the loaded motion companion are unknown');
-      }
-    }
-    /* THE ORIGIN OUTRANKS EVERY OTHER CAUSE, AND ONLY EVIDENCE OUTRANKS IT. Every file in this ledger
-       is written by the capture host, so on a vendor export none of them can exist — whatever this
-       node's own reader state for it would otherwise be. A row that was actually READ keeps `read`:
-       a placed census is evidence, and evidence beats an inference drawn from a filename. The prior
-       state travels in the reason rather than being discarded, because "this node has no reader for
-       it" stays true of the next recording. */
-    if (vendor && st !== 'read') {
-      why = naWhy(row.file) + '. This node’s own state for that file is otherwise `' + st + '`: ' + (why || 'it reads the file whenever one arrives');
-      st = 'not-applicable';
-    }
-    return { key: row.key, file: row.file, label: row.label, state: st, reason: st === 'read' ? null : why };
-  }
 
   /* THE TABLE ITSELF. `ex` is the export under construction, read for the one fact that lives there
      rather than on `r`: the firmware cross-check, which is this node's only reference stream. */

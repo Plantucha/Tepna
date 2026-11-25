@@ -52,6 +52,7 @@
     "hrvdex-dsp.js",
     "glucodex-dsp.js",
     "ecgdex-dsp.js",
+    "sq-table.js",
     "cpapdex-dsp.js",
     "ppgdex-dsp.js",
     "integrator-dsp.js",

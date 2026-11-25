@@ -18,6 +18,7 @@
 // tsconfig.json (the 100%-local/offline invariant is untouched).
 
 declare var DexClock: any; // clock.js — the Clock-Contract parser (parseTimestamp, fmt*, …)
+declare var SQTable: any; // sq-table.js — the shared signal-quality table (sqCell, sqLedgerRow, makeTable, …)
 declare var DexSeam: any; // clock-seam.js — the clock-seam tripwire (seamScan, windowVerdict, …)
 declare var DexExport: any; // dex-export.js — the shared node-export builder
 declare var dexScrubExport: any; // dex-export.js — the export identity-scrub helper
