@@ -422,7 +422,8 @@
         }
       }
       const F = Math.sqrt(sumSq / cnt);
-      if (F > 0) {
+      // ∅ a residue below the floor is no fluctuation, so the scale gives no point (RR_VAR_MIN_MS2)
+      if (F * F >= RR_VAR_MIN_MS2) {
         logn.push(Math.log10(n));
         logF.push(Math.log10(F));
       }
@@ -575,6 +576,11 @@
 
   // Lomb–Scargle periodogram for unevenly-sampled RR → true VLF/LF/HF + resp-rate proxy
   // Power normalized so the band integral equals signal variance (Parseval).
+  /* ∅ A series with no variation has no spectrum. The detrend leaves a floating-point residue of about
+     1e-24 ms² when every interval is equal and not a short binary fraction, and `hf > 0` read that
+     residue as power: 300 intervals of 807.6923 ms published LF/HF 3.82 and a breath rate of 9 beside
+     LF 0 and HF 0. The floor is 1 µs of SD, about a thousandth of the 1/1024 s interval step. */
+  const RR_VAR_MIN_MS2 = 1e-6;
   function lombScargle(a, nf) {
     const N = a.length;
     const t = [];
@@ -678,6 +684,7 @@
       }
     }
     const variance = x.reduce((s, v) => s + v * v, 0) / N;
+    if (variance < RR_VAR_MIN_MS2) vlf = lf = hf = peakP = peakF = gPeakP = gPeakF = 0; // residue is not power
     const sc = tpFull > 0 ? variance / tpFull : 1; // calibrate ∫PSD = variance over the FULL support (§3.1)
     // DEEP-AUDIT-2026-07-14 §3: tp is the band SUM, so vlf+lf+hf==totalPower holds EXACTLY rather than to
     // within rounding — mirrors ECGDex:601 / PpgDex. (Immaterial here vs the ±1–2 ms² rounding, but keeps
