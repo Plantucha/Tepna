@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="5cf77f4688cd" data-compute-hash="42d290d5f250">
+<html lang="en" data-manifest-hash="f742a3cd0bb4" data-compute-hash="125e57bcbf0f">
 <head>
 <!--
   EEGDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). EEGDex ships zero
      inline scripts (all init lives in eegdex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-2EhTu2g2o7ZMvcurgsf4UzBHvFbdn8ISGys/5ZBw7gs=' 'sha256-5qQ/Ie05Bfa/0CzXWHxhdGjnjTK/3PRrtMUYg5SEi78=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7hTtbE4VLWkaBh5MQ4eZeqcd7vfHW+BL+yZGmGS7oO0=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-MrCAXzD9kW5ELOmI1tCYiUdGEFdOVr/ljZkcUbwaCkU=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-pbw/gkHA5G4PvvBF0HCVMd64oKZkMoJSBgKPJ5NkQGQ=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wYDQbx7BnjeWBpxiSXeMr45U444dBQ1yup2hvhEudhU=' 'sha256-ydcDcU9PST3H273GxCl0jqNGMcODN42+le6wT6uVlLY='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/rXS83mLuRnld950D3LL35fXyBfSgxwggnv0xoCmIq8=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-2EhTu2g2o7ZMvcurgsf4UzBHvFbdn8ISGys/5ZBw7gs=' 'sha256-5qQ/Ie05Bfa/0CzXWHxhdGjnjTK/3PRrtMUYg5SEi78=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7hTtbE4VLWkaBh5MQ4eZeqcd7vfHW+BL+yZGmGS7oO0=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-G1PWEv4AW9Tmz77iywnn+PsWDI0Lrx/C8+4m24bSgro=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wYDQbx7BnjeWBpxiSXeMr45U444dBQ1yup2hvhEudhU=' 'sha256-ydcDcU9PST3H273GxCl0jqNGMcODN42+le6wT6uVlLY='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>EEGDex — Sleep EEG Analyzer · v2.37.0</title>
@@ -11173,6 +11173,17 @@ global.EegRegistry = {
 
      §∅ — an epoch the evaluator refused carries `stage: null` and the evaluator's own reason. This
      function invents no stage for it and drops no epoch. */
+  /* The reach of the second pass of `tepna.stage-formula/1`: the longest look-back and look-ahead
+     its posterior columns read. It is a property of the schema and not of one model file. */
+  var SECOND_PASS_REACH = 160;
+
+  function hasSecondPass(model) {
+    var passes = (model && model.passes) || [],
+      i;
+    for (i = 0; i < passes.length; i++) if (passes[i] && passes[i].posterior_columns) return true;
+    return false;
+  }
+
   function formulaStages(rec, model) {
     var F = global.EEGFEAT,
       S = global.EEGSTAGE;
@@ -11188,6 +11199,25 @@ global.EegRegistry = {
     var fs = rec.fs,
       nEp = Math.floor(sig.length / Math.round(EPOCH_SEC * fs));
     if (nEp < 2) return { err: 'under two epochs of EEG' };
+    /* A SECOND PASS NEEDS THE WHOLE NIGHT. Its posterior columns read up to SECOND_PASS_REACH
+       epochs each way, so on a shorter import NO epoch carries the look-back the fit used: every
+       window is then cut at an end that is not the end of the night. The arithmetic still answers,
+       and it agrees with the reference at 5e-8 over a 60-epoch vector, which is the trap: the
+       answer sits outside the population the coefficients were fitted on. §∅ reads this as a
+       DISCONTINUITY of the window rather than reduced coverage, so it refuses and names the model
+       (@kestrel, board #8687). */
+    if (nEp < SECOND_PASS_REACH && hasSecondPass(model)) {
+      return {
+        err:
+          'the model ' +
+          (model.id || 'unnamed') +
+          ' scores a second pass that reads up to ' +
+          SECOND_PASS_REACH +
+          ' epochs away, and this import holds ' +
+          nEp +
+          '. Give it the whole night, or score with a one-pass model'
+      };
+    }
     /* THE NAMES ARE THE JOINT, so a mismatch refuses instead of reading column 7 as column 7 of a
        different list. The evaluator checks the 12 names it reads directly; this checks all 35, in
        order, because the rows below are positional. */
@@ -12402,8 +12432,10 @@ __exports.EEGDSP = window.EEGDSP;
      §∅ — an epoch the evaluator refused is HATCHED, exactly as an unscored epoch is above, and the
      reason it carries is the evaluator's own. */
   /* The file the reader must supply, named on the surface for a reader who holds only the page. */
-  var MODEL_FILE_NAME = 'eeg-stage-model-base-2026-11-17.json';
-  var MODEL_FILE_SHA16 = '500f1a71f6ca3e18';
+  var MODEL_FILE_NAME = 'eeg-stage-model-two-pass-2026-11-24.json';
+  var MODEL_FILE_SHA16 = '27d0114dd8c5b43e';
+  var MODEL_FILE_ALT = 'eeg-stage-model-base-2026-11-17.json';
+  var MODEL_FILE_ALT_SHA16 = '500f1a71f6ca3e18';
   var FORMULA_DRAW = { wake: 'eg-ep-w', light: 'eg-ep-n2', deep: 'eg-ep-n3', REM: 'eg-ep-rem' };
 
   function formulaHtml(f) {
@@ -12421,11 +12453,15 @@ __exports.EEGDSP = window.EEGDSP;
         (/no model file/.test(f.err)
           ? '<p class="chart-note">' +
             esc(
-              'The file to give it is ' +
+              'Two files in the root of this repository fit it. ' +
                 MODEL_FILE_NAME +
-                ', which sits in the root of this repository. Its first 16 hash characters read ' +
+                ' (first 16 hash characters ' +
                 MODEL_FILE_SHA16 +
-                '. Drop it where you dropped the recording.'
+                ') scores two passes and needs the whole night. ' +
+                MODEL_FILE_ALT +
+                ' (' +
+                MODEL_FILE_ALT_SHA16 +
+                ') scores one pass and takes a shorter import. Drop one of them where you dropped the recording.'
             ) +
             '</p>'
           : '')
@@ -12479,7 +12515,7 @@ __exports.EEGDSP = window.EEGDSP;
       '</p>' +
       '<p class="chart-note">' +
       esc(
-        'What this series is not: the coefficients were fitted on sleep-laboratory derivations and a small number of forehead recordings; a frontal derivation recognises deep sleep less well than a central one; the formula scores after the night and never during it; a hatched column is an epoch it refused, and it carries the reason the evaluator gave. It is a research aid and not a diagnosis, and no figure stands beside it until a blind read of this port holds a citation.'
+        'What this series is not: the coefficients were fitted on sleep-laboratory derivations and a small number of forehead recordings; a frontal derivation recognises deep sleep less well than a central one; the formula scores after the night and never during it; a model of two passes reads up to 160 epochs away, so it needs the whole night and it refuses a shorter import by name; a hatched column is an epoch it refused, and it carries the reason the evaluator gave. It is a research aid and not a diagnosis, and no figure stands beside it until a blind read of this port holds a citation.'
       ) +
       '</p>'
     );
