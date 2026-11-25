@@ -52,11 +52,22 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   };
   const call = (o) => regenExitCode(o);
 
-  // Regen mode never raises: it is there to WRITE, and it reports what it wrote in its own summary.
+  /* Regen mode exists to WRITE, so drift and a mint are its ordinary success. A BUILD THAT THREW is
+     not: the fixture it owed still carries its stale output, so that run cannot report it
+     regenerated (row 2026-11-25-a-write-mode-regen-exits-zero-after-its-own-build-threw). An ABSENT
+     input stays 0 on purpose, because a worktree holds no corpus and the summary names it. */
   T('regen mode over a clean set exits 0', call({ check: false, unchanged: 6 }).code === 0);
   T('regen mode over drift exits 0', call({ check: false, moved: 3, unchanged: 3 }).code === 0);
   T('regen mode over an absent corpus exits 0', call({ check: false, absent: 6 }).code === 0);
   T('regen mode carries no note', call({ check: false, absent: 6 }).note === null);
+  T('regen mode over a clean set carries no note', call({ check: false, unchanged: 6 }).note === null);
+  const wthrew = call({ check: false, moved: 3, threw: 4 });
+  T('regen mode over a build that threw exits 2', wthrew.code === 2);
+  T('the note names the throw', /4 build threw/.test(wthrew.note || ''));
+  T('the note sizes the hole against the whole set', /4 of 7 fixture\(s\) never reached a rebuild/.test(wthrew.note || ''));
+  T('the note states what the run did rebuild', /rebuilt 3/.test(wthrew.note || ''));
+  T('a throw outranks a clean rebuild beside it', call({ check: false, unchanged: 5, threw: 1 }).code === 2);
+  T('a throw beside an absent input still exits 2', call({ check: false, absent: 2, threw: 1 }).code === 2);
 
   // Check mode: 0 is reserved for a comparison that actually happened over every fixture.
   T('a clean examined set exits 0', call({ check: true, unchanged: 6 }).code === 0);
