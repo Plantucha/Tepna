@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="3e87c2093c03" data-compute-hash="8fb0bbe5e873"><head>
+<html lang="en" data-manifest-hash="5066bdad625b" data-compute-hash="b2aed93577c4"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FKn+jTZK/X+42OTzF08ZV008s90F2ae0bPRfrnjm5dM=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FV/TB0GWLAawcNhCICx6Shvm9lLfECci1wUypQlaWW0=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-M3ZOhml+Q710BLZQ/P2i37xtADxczWQXIxaac3VLRj0=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-OxVlAcnI2FhIjQ9PvF5+JY62KvFIGxtzHZRZaBXkhBo=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UdJ88eeYm1W9tlVf66iAGR0D63hIgHQ6dBYrVftyKPE=' 'sha256-XKQFrqQpPPC7kRB+couzlvLcdQFWKGseS/BbyN9tv9s=' 'sha256-cEe98Q/RvKZZgnEYYXS6pvDxdAWuSUD0sEyEu+yBRak=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-rKOLZSmNqgk9sveMIZvZI2xTcv2C6V9ASMx59wAbxvU=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-wktj1Df+isZKJxu0wGtJ0pZLbTfqdObxwLCd2Fo+wQg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/VJg0iL4BTIOQo1MBGNaCyjASkthShp7aMZCanB9k3A=' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FV/TB0GWLAawcNhCICx6Shvm9lLfECci1wUypQlaWW0=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-M3ZOhml+Q710BLZQ/P2i37xtADxczWQXIxaac3VLRj0=' 'sha256-M6+3YiphIs++USwptqBHVvc2gW9shRoau+v4YEwTU8E=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SploFxN8y41QfXBKeMXZ3VVUDPeaXF7mfHd2/kuq43U=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XKQFrqQpPPC7kRB+couzlvLcdQFWKGseS/BbyN9tv9s=' 'sha256-cEe98Q/RvKZZgnEYYXS6pvDxdAWuSUD0sEyEu+yBRak=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nbCcwjX4Ba9w3RBLEB+5up9PRhrS11tY5toYvGccPHI=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-rKOLZSmNqgk9sveMIZvZI2xTcv2C6V9ASMx59wAbxvU=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-wktj1Df+isZKJxu0wGtJ0pZLbTfqdObxwLCd2Fo+wQg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -15795,14 +15795,21 @@ window.IntegratorDSP = {
          signal's absence and not the file's, so every other signal of the set survives untouched. */
       var samples = (fl && fl.data) || null;
       var flowCalibrated = !(fl && fl.calibrated === false);
-      var hasFlow = !!(samples && samples.length && flowCalibrated);
+      /* ∅ A RATE THE HEADER DOES NOT STATE IS NOT 25 Hz. `cpapdex-edf.js` writes `fs: null` when the
+         record duration is unreadable, and `|| 25` then published the usual AirSense rate as this
+         file's own: every consumer of the frame timed the waveform on a number no header carried
+         (Muse hunt U-10). The frame refuses, for the same reason an uncalibrated channel does. */
+      var flowFs = fl && typeof fl.fs === 'number' && isFinite(fl.fs) && fl.fs > 0 ? fl.fs : null;
+      var hasFlow = !!(samples && samples.length && flowCalibrated && flowFs != null);
       var flowReason = hasFlow
         ? null
         : !CD
           ? 'resmed-edf: CPAPDex/CpapDsp not in scope (load cpapdex-dsp.js before this adapter)'
           : samples && samples.length && !flowCalibrated
             ? 'resmed-edf: the BRP Flow channel is UNCALIBRATED (degenerate or blank digital range), so every sample reads NaN — the decoded sets still ride frame.edfSets'
-            : 'resmed-edf: no BRP Flow waveform in the set (events/PLD only) — the decoded sets still ride frame.edfSets';
+            : samples && samples.length && flowFs == null
+              ? 'resmed-edf: the BRP Flow sample rate is UNREADABLE (no usable record duration in the header), so the waveform has no time axis — the decoded sets still ride frame.edfSets'
+              : 'resmed-edf: no BRP Flow waveform in the set (events/PLD only) — the decoded sets still ride frame.edfSets';
       // `cpap` is a SAMPLES frame (signal-spec.js frameFields: samples/fs/t0Ms), and validateFrame
       // requires the payload when usable — so an EVE-only set (no BRP waveform) cannot ride as a
       // usable samples-frame however analyzable the night is. It comes back usable:false with the
@@ -15812,7 +15819,7 @@ window.IntegratorDSP = {
         'cpap',
         {
           samples: samples,
-          fs: (fl && fl.fs) || 25,
+          fs: flowFs,
           t0Ms: t0,
           usable: hasFlow,
           reason: flowReason
@@ -19217,9 +19224,17 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
 
   // SpO2 Sample Entropy (same method as HR, applied to SpO2)
   function computeSpO2Entropy(rows) {
-    var spo2 = rows.map(function (r) {
-      return r.spo2;
-    });
+    /* §∅ the twin of the N2-3 defect in `computeHREntropy`, left here: an absent second entered the mean,
+       the SD and every template as a saturation of 0. One 60 s hole in ten minutes widened the tolerance
+       until each real sample matched each other, and a night of SampEn 0.50 ("Normal") published 0.12
+       ("Low(periodic)"). The 200-sample floor counts MEASURED seconds (Muse hunt A-27). */
+    var spo2 = rows
+      .map(function (r) {
+        return r.spo2;
+      })
+      .filter(function (v) {
+        return typeof v === 'number' && isFinite(v);
+      });
     var n = spo2.length;
     if (n < 200) return null;
     // SYNTH-TEXTURE-FOLLOWUPS-III: WHOLE-NIGHT decimation, not a head-slice (see computeHREntropy).
@@ -22157,17 +22172,25 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       spo2Means = [],
       hrMeans = [];
     for (var i = 0; i + WIN5 <= n; i += WIN5) {
+      /* §∅ a window's mean is over the samples that EXIST. The old sum read an absent second as a
+         saturation of 0 AND a pulse of 0 over a fixed 300, so a dropout pulled both series down together
+         and manufactured the coupling this index measures: r −0.08 read +0.86 over one 60 s hole in ten
+         minutes (Muse hunt A-27). A window enters the pair list when both channels reach the 60-sample
+         support `computeRollingMetrics` requires of this column. */
       var sl = rows.slice(i, i + WIN5);
-      spo2Means.push(
-        sl.reduce(function (s, r) {
-          return s + r.spo2;
-        }, 0) / WIN5
+      var _wS = _avgPresent(
+        sl.map(function (r) {
+          return r.spo2;
+        })
       );
-      hrMeans.push(
-        sl.reduce(function (s, r) {
-          return s + r.hr;
-        }, 0) / WIN5
+      var _wH = _avgPresent(
+        sl.map(function (r) {
+          return r.hr;
+        })
       );
+      if (!_wS || !_wH || _wS.n < 60 || _wH.n < 60) continue;
+      spo2Means.push(_wS.mean);
+      hrMeans.push(_wH.mean);
     }
     /* NOT COMPUTABLE IS `null`, NEVER 0 (DEEP-AUDIT-V §2.3 F22). `crcIdx` is a CORRELATION, so 0 is a
        real, meaningful reading — "SpO₂ and HR are uncoupled" — and it is also the value this variable
@@ -24022,8 +24045,11 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var WIN = 1800; // 30-min windows
     var windows = [];
     for (var i = 0; i + WIN <= n; i += WIN) {
+      /* §∅ `hr[j + 1] - null` is a step of a whole pulse, twice per hole: windows of 1.1 read 3.6
+         (Muse hunt A-27). The motion filter already makes the array non-contiguous, so dropping the
+         absent seconds changes nothing about contiguity, as `computePoincare` states. */
       var seg = rows.slice(i, i + WIN).filter(function (r) {
-        return r.motion === 0;
+        return r.motion === 0 && r.hr != null && isFinite(r.hr);
       });
       if (seg.length < 60) {
         windows.push(null);
@@ -26555,9 +26581,13 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       if (!ts) continue;
       var a = +p[2],
         b = +p[3],
-        mo = +p[4];
+        /* ∅ AN UNREADABLE MOTION CELL IS NOT STILLNESS. `+''` is 0 and the old `isFinite(mo) ? mo : 0`
+           answered 0 for the rest, so a row whose motion nothing stated read "the finger did not move".
+           Only a written number is a reading, the rule `parseCSV` already applies to this channel
+           (Muse hunt U-12). No consumer reads the field today, so no published value moves. */
+        mo = p[4].trim() === '' ? NaN : +p[4];
       if (!isFinite(a) || !isFinite(b)) continue;
-      rows.push({ tMs: ts.tMs, ch0: a, ch1: b, motion: isFinite(mo) ? mo : 0, src: src });
+      rows.push({ tMs: ts.tMs, ch0: a, ch1: b, motion: isFinite(mo) ? mo : null, src: src });
     }
     var runs = _parsePinnedRuns(opts && opts.runsText);
     var mapped = _ppg2wBlankSpans(rows, runs);
@@ -57980,7 +58010,9 @@ __exports.ECGDex = window.ECGDex;
         brpm = Math.round(v.rr[i] * 10) / 10;
         kept.push(brpm);
       }
-      series.push({ tMs: tEp, brpm: brpm, conf: covOk ? Math.round(v.conf[i] * 1e3) / 1e3 : 0, covered: covOk });
+      /* ∅ a window that was not recorded has NO confidence, and 0 is a measured one: the tracker's
+         weakest answer over a signal it saw (Muse hunt C-F12). `covered:false` names the absence. */
+      series.push({ tMs: tEp, brpm: brpm, conf: covOk ? Math.round(v.conf[i] * 1e3) / 1e3 : null, covered: covOk });
     }
     var med = null;
     if (kept.length) med = median(kept);
@@ -59231,9 +59263,22 @@ __exports.MotionDex = window.MotionDex;
     for (var s = 0; s < ns; s++) if (labels[s] === 'EDF Annotations') annIdx[s] = true;
 
     // ── allocate per-signal output buffers ──
+    /* A LABEL IS NOT A KEY UNTIL IT IS UNIQUE. EDF does not forbid two signals with one label, and
+       `signals[labels[s]]` gave both of them ONE buffer: the decode loop below then wrote the two
+       signals into it alternately, record by record, and the typed array dropped the overflow. The
+       first signal keeps its label; a later one gets `<label> #2`, so every lookup by label reads
+       one unmixed channel and no channel is lost (Muse hunt U-11). */
     var signals = {};
+    var sigKey = [],
+      duplicateLabels = [];
     for (var s2 = 0; s2 < ns; s2++) {
       if (annIdx[s2]) continue;
+      var key = labels[s2];
+      if (Object.hasOwn(signals, key)) {
+        duplicateLabels.push(key);
+        for (var dup = 2; Object.hasOwn(signals, key); dup++) key = labels[s2] + ' #' + dup;
+      }
+      sigKey[s2] = key;
       var spr = sampPerRec[s2];
       // the digital range is the DENOMINATOR of the physical scale. A blank or degenerate
       // calibration header used to fall back on `|| 1`, which silently rescales the signal by a
@@ -59241,7 +59286,7 @@ __exports.MotionDex = window.MotionDex;
       // An uncalibrated signal cannot be converted to physical units, so it is null, not rescaled.
       var _dr = digMax[s2] - digMin[s2];
       var _cal = digMin[s2] != null && digMax[s2] != null && physMin[s2] != null && physMax[s2] != null && _dr !== 0;
-      signals[labels[s2]] = {
+      signals[key] = {
         data: new Float32Array(spr * recordsRead),
         fs: recDurSec > 0 ? spr / recDurSec : null, // 0 ⇒ no periodic sampling: absent, not zero
         calibrated: _cal,
@@ -59286,7 +59331,7 @@ __exports.MotionDex = window.MotionDex;
           continue;
         }
         // numeric signal — int16 LE → physical scaling
-        var sig = signals[labels[sg]];
+        var sig = signals[sigKey[sg]];
         var dMin = digMin[sg],
           pMin = physMin[sg],
           scale = sig._scale;
@@ -59314,6 +59359,7 @@ __exports.MotionDex = window.MotionDex;
       recDurSec: recDurSec,
       ns: ns,
       signals: signals,
+      duplicateLabels: duplicateLabels,
       annotations: annotations
     };
   }
