@@ -36,6 +36,103 @@
     meanSqi: { label: 'Mean SQI', unit: '', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'Mean signal-quality index — direct per-pulse quality' },
     cleanPulses: { label: 'Clean pulses', unit: '%', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: '% pulses with SQI ≥ 0.5 — direct quality statistic' },
     motionIdx: { label: 'Mean motion idx', unit: '', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Mean ACC-variance∪GYRO motion index — direct from inertial sensors' },
+    /* ── THE SIGNAL-QUALITY TABLE'S OWN FACTS (SIGNAL-QUALITY-TABLE-2026-11-14 §3) ──────────────────
+       One id per fact of the table, because a surfaced number carries a badge and a new surface
+       inherits nothing. Every one is `measured` — a census of the captured samples, a population
+       this node placed, or a rate read off two clocks — and a fact this node does not compute keeps
+       the grade of the measurement, with a null value and its named reason beside it (§∅). The
+       `nodeSqi` row of the table badges this node's EXISTING `meanSqi` id, so no second id stands
+       for one number. */
+    coverage: {
+      label: 'Coverage',
+      emittedAt: 'signalQuality.channels.ppg.coverage.value',
+      unit: '%',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Covered share of the recorded envelope — direct segment census'
+    },
+    sqEpochs: {
+      label: 'Epoch population',
+      emittedAt: 'signalQuality.channels.ppg.epochs.value',
+      unit: 'windows',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Windows the per-window walk accepted — direct count'
+    },
+    sqTiming: {
+      label: 'Axis rate',
+      emittedAt: 'signalQuality.channels.ppg.timing.value',
+      unit: 'ppm',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Device rate against the host axis — direct from the anchor pairs (Clock Contract §7)'
+    },
+    sqDrift: {
+      label: 'Night drift',
+      emittedAt: 'signalQuality.channels.ppg.drift.value',
+      unit: 'ppm',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Whole-night rate against a named reference — absent here, and the cell names why'
+    },
+    sqReference: {
+      label: 'Reference Δ',
+      emittedAt: 'signalQuality.channels.ppg.reference.value',
+      unit: 'ms',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Mean self interval against the device’s own mean interval — direct comparison'
+    },
+    sqFlatline: {
+      label: 'Flatline share',
+      emittedAt: 'signalQuality.channels.ppg.flatline.value',
+      unit: '% of samples',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Share of the stream inside a held run — direct census'
+    },
+    sqRail: {
+      label: 'Rail census',
+      emittedAt: 'signalQuality.channels.ppg.rail.value',
+      unit: 'samples at the rail',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Samples inside a run pinned to a detected rail — direct census'
+    },
+    sqSnr: {
+      label: 'In-band SNR',
+      emittedAt: 'signalQuality.channels.ppg.snr.value',
+      unit: 'ratio',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'In-band against out-of-band power over the scorer’s own window — direct ratio'
+    },
+    sqMains: {
+      label: 'Mains ratio',
+      emittedAt: 'signalQuality.channels.ppg.mains.value',
+      unit: 'ratio to in-band power',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Mains-band power against in-band power — absent here, and the cell names why'
+    },
+    sqSidecarState: {
+      label: 'Sidecar state',
+      emittedAt: 'signalQuality.sidecars.0.state',
+      unit: '',
+      goodDirection: 'neutral',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Whether this validity sidecar was read, and why when it was not — direct read'
+    },
     /* ── THE DEVICE'S OWN BEATS AS A REFEREE (owner order 2026-10-04) ────────────────────────────────
        `measured` tier, and each of the three is a different KIND of number, which is why they are three
        entries and not one. `beatLatency` is a DEVICE PROPERTY — the firmware's detection lag, ~184–200 ms

@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS (the ECGDex pilot and the §7.4 spine move are COMPLETE; §7 rolls the table out to the other nodes) · **Created:** 2026-11-14
+**Status:** IN-PROGRESS (the ECGDex pilot, the §7.4 spine move and the PpgDex adoption are COMPLETE; §7 rolls the table out to MotionDex, OxyDex, CPAPDex and GlucoDex) · **Created:** 2026-11-14
 
 # Signal-quality table — every Dex shows its sensors before its results
 
@@ -299,7 +299,11 @@ Assignee: decided on the agent board (`--kind decision`, 2026-11-14).
 
 ## 7 · Rollout after the pilot
 
-1. PpgDex, which has the most channels and a RUNS sidecar.
+1. PpgDex, which has the most channels and a RUNS sidecar (DONE 2026-11-25). The node emits
+   `signalQuality` over its optical and motion columns, each column holding the ten facts of §3,
+   and its own 25-row §3b ledger. Four facts of the optical column stay absent under a named
+   reason, because this node builds no drift walk and measures no mains ratio. The §3d drift
+   panels stay out for the same reason: the node computes no drift profile at all.
 2. MotionDex and OxyDex. OxyDex shows O2Ring drift against the host stamps on a box night, and
    against the H10 when the night holds one (§3d).
 3. CPAPDex and GlucoDex, which do not carry `clock.js`, so their timing row reads `null`.

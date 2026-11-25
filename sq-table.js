@@ -27,6 +27,10 @@
 
   var _SQ_UNMEASURED = 'unmeasured-and-unexplained';
 
+  /* THE FOUR STATES OF A SIDECAR ROW (§3b), held here so a node's own lane resolver cannot invent a
+     fifth one. A state nobody listed is a state no reader of the table can act on. */
+  var _SQ_STATES = { read: 1, absent: 1, 'not-read': 1, 'not-applicable': 1 };
+
   /* A cell. `value` is the number the fact is worth; `unit` names what the number counts, because
      several of these facts have more than one defensible unit and a bare percentage is how a share
      of BEATS gets read as a share of TIME. A non-finite value takes the caller's reason; a caller
@@ -69,7 +73,7 @@
     return { origin: null, basis: 'the filename carries neither writer’s start-stamp layout, so the recording’s origin is unknown' };
   }
 
-  function _sqLedgerRow(row, r) {
+  function _sqLedgerRow(row, r, lanes) {
     var st = row.state || null,
       why = row.state ? row.reason : null;
     /* EVERY ROW IN THIS LEDGER IS A FILE THE CAPTURE HOST WRITES. So the absence of one has two
@@ -95,42 +99,20 @@
     if (row.state) {
       /* a fixed state is a fact about THIS NODE's readers, which no recording changes — the origin
          override below is the one thing that can still outrank it */
-    } else if (row.lane === 'ecgRuns') {
-      var rs = r && r.runs;
-      if (!rs || rs.reason === 'no-runs-sidecar') {
-        st = vendor ? 'not-applicable' : 'absent';
-        why = vendor ? naWhy('_ECGRUNS.txt') : absentWhy('_ECGRUNS.txt', 'no blanking span is known — this is not a clean stream');
-      } else if (rs.reason) {
-        st = 'not-read';
-        why = 'the reader ran and placed no row: ' + rs.reason;
-      } else {
-        st = 'read';
-      }
-    } else if (row.lane === 'ecgSeams') {
-      var ss = r && r.seams;
-      if (!ss || ss.reason === 'no-seam-sidecar') {
-        st = vendor ? 'not-applicable' : 'absent';
-        why = vendor ? naWhy('_ECGSEAMS.txt') : absentWhy('_ECGSEAMS.txt', 'the seam count is unknown rather than zero');
-      } else if (ss.reason) {
-        st = 'not-read';
-        why = 'the reader ran and placed no row: ' + ss.reason;
-      } else {
-        st = 'read';
-      }
     } else {
-      var acc = r && r.deviceACC;
-      if (!acc || !acc.length) {
-        st = 'not-applicable';
-        why = 'this recording carries no motion companion, so no motion sidecar can apply to it';
-      } else if (acc._runsSidecar) {
-        st = 'read';
-      } else if (vendor) {
-        st = 'not-applicable';
-        why = naWhy('_ACCRUNS.txt');
-      } else {
-        st = 'absent';
-        why = absentWhy('_ACCRUNS.txt', 'the held-value runs of the loaded motion companion are unknown');
-      }
+      /* THE LANES BELONG TO THE NODE, NOT TO THE SPINE. Each adopting node declares one resolver per
+         lane it reads, because only that node knows which field of its own record carries the
+         companion. The spine keeps what every node shares: the four states, the two reasons and the
+         origin override below. A row that names a lane with no resolver THROWS, so a ledger the
+         caller half-wired fails loudly instead of publishing a state nobody computed (§∅). */
+      var resolve = lanes && row.lane ? lanes[row.lane] : null;
+      if (typeof resolve !== 'function')
+        throw new Error('sqLedgerRow: the ledger row `' + row.key + '` names the lane `' + (row.lane || '') + '`, and the caller passed no resolver for it (SIGNAL-QUALITY-TABLE-2026-11-14 §7.4)');
+      var got = resolve(r, { vendor: vendor, naWhy: naWhy, absentWhy: absentWhy, origin: org }) || {};
+      if (!_SQ_STATES[got.state])
+        throw new Error('sqLedgerRow: the resolver for the lane `' + row.lane + '` returned the state `' + got.state + '`, which is none of read · absent · not-read · not-applicable');
+      st = got.state;
+      why = st === 'read' ? null : got.reason || null;
     }
     /* THE ORIGIN OUTRANKS EVERY OTHER CAUSE, AND ONLY EVIDENCE OUTRANKS IT. Every file in this ledger
        is written by the capture host, so on a vendor export none of them can exist — whatever this
@@ -203,6 +185,13 @@
     var evBadge = deps.badge,
       lineChart = deps.lineChart,
       C = deps.colors;
+    /* THE REGISTRY IDS ARE THE NODE'S, where its own registry already names the fact. `SQ_ROWS`
+       carries the fleet default and a node overrides one row by key, so a second adopter badges its
+       EXISTING id rather than declaring a second id for one number. */
+    var IDS = deps.ids || {};
+    function _rowId(row) {
+      return IDS[row.k] || row.id;
+    }
 
     function _sqBadge(label) {
       /* The MODULE-LOCAL `evBadge` of this file, never `global.evBadge`. The two are the same function
@@ -397,7 +386,7 @@
       if (body && notes) notes.push('<div class="sq-note-row"><span class="sq-note-k">' + row.label + ' \u00b7 ' + chanLabel + '</span>' + body + '</div>');
       return (
         '<div class="q-stat sq-stat">' +
-        _sqBadge(row.id) +
+        _sqBadge(_rowId(row)) +
         '<div class="q-val' +
         (n == null ? ' sq-val-abs' : '') +
         '">' +
@@ -693,7 +682,7 @@
         (tileNotes.length ? '<div class="q-note sq-notes">' + tileNotes.join('') + '</div>' : '') +
         '<div class="sq-foot">' +
         '<div class="sq-sc-h">' +
-        _sqBadge(SQ_LEDGER_ID) +
+        _sqBadge(IDS.sidecarState || SQ_LEDGER_ID) +
         'Validity sidecars <span class="mini-sub">' +
         scCensus +
         '</span></div>' +
@@ -946,6 +935,7 @@
     sqLedgerRow: _sqLedgerRow,
     SQ_ROWS: SQ_ROWS,
     SQ_DRIFT_SERIES: SQ_DRIFT_SERIES,
+    SQ_LEDGER_ID: SQ_LEDGER_ID,
     makeTable: makeTable
   };
 })(typeof self !== 'undefined' ? self : globalThis);

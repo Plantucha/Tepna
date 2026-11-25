@@ -77,6 +77,10 @@ var OXY_FUSION_REALM = Object.freeze(OXY_REALM.concat(['oxydex-fusion.js']));
 var PPG_REALM = Object.freeze([
   'kernel-constants.js',
   'clock.js',
+  /* `sq-table.js` joins on 2026-11-25 with the signal-quality table (§7.4). PpgDex.src.html loads
+     it, and the DSP resolves the spine at CALL time through a named throw, so a realm that omits it
+     loses every rich fixture to that throw rather than to a silent absence. */
+  'sq-table.js',
   'signal-frame.js',
   'dex-export.js',
   'metric-registry.js',
