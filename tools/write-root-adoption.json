@@ -116,6 +116,11 @@
    "pendingMeans": "the tool matches the shape and owes one reading in its own header (brief \u00a76.4). A name leaves this list only by adopting, or with the file.",
    "exemptMeans": "the tool spawns no child that judges a tree. Its only child asks `git rev-parse` for a commit stamp, which names the code that produced the verdict and is right in the checkout of the tool itself. Each row carries the sentence that says why, and a mute row reds.",
    "adopted": {
+    "tools/robustness-rerun-ab.mjs": {
+     "since": "2026-11-25",
+     "wrapper": "judgeRootOrDie",
+     "reading": "the generator of its new arm defaults to `cohort-gen.js` of the tree it resolves, and the verdict carries that tree's commit, so a cross-checkout run would read another work-unit's generator and stamp this branch's commit on the answer"
+    },
     "tools/astgrep-gate.mjs": {
      "since": "2026-11-14",
      "wrapper": "judgeRoot",
