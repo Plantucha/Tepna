@@ -48083,8 +48083,7 @@
     });
 
     group('GlucoDex ∅ — an unmeasured cadence withholds the night lows and the excursions, never counts zero', 'glucodex-dsp · absence · cadence', function (T) {
-      var G = env.GLUDSP,
-        U = env.GLUUI;
+      var G = env.GLUDSP;
       if (!G || typeof G.analyze !== 'function') {
         T.ok('GLUDSP.analyze is available', false, 'not loaded');
         return;
@@ -48144,22 +48143,6 @@
       T.eq('CONTROL · a low beside a QTc in range is hypo-only', q([{ min: 52 }], 420, 450, 470, 'M').hypoQtcRisk, 'hypo-only');
       T.eq('CONTROL · no QTc reads nothing', JSON.stringify([q([{ min: 52 }], null, 450, 470, 'M').hypoQtcRisk, q([{ min: 52 }], null, 450, 470, 'M').hypoQtcNote]), '["none",null]');
       T.eq('CONTROL · the nadir is the lowest episode', q([{ min: 60 }, { min: 52 }], 480, 450, 470, 'M').minNightGlucose, 52);
-
-      if (!U || typeof U.hypoCountHtml !== 'function') {
-        T.ok('the surface helpers are available', false, 'GLUUI not loaded');
-        return;
-      }
-      T.eq('the pill prints the token over an unsearched night', U.hypoCountHtml(r), 'nocturnal hypos withheld \u2014 <b>cadence-unmeasurable</b>');
-      T.eq('…and the excursion pill does too', U.excursionCountHtml(r), 'excursions withheld \u2014 <b>cadence-unmeasurable</b>');
-      T.eq('an unsearched record with no reason says UNKNOWN', U.hypoCountHtml({ nocturnalHypo: null }), 'nocturnal hypos withheld \u2014 <b>UNKNOWN</b>');
-      T.eq('CONTROL · a measured zero prints 0', U.hypoCountHtml(flat), '<b>0</b> nocturnal hypos');
-      T.eq('CONTROL · one low is singular', U.hypoCountHtml(low), '<b>1</b> nocturnal hypo');
-      T.eq('CONTROL · a measured zero of excursions prints 0', U.excursionCountHtml(flat), '<b>0</b> unannotated excursions');
-      T.eq(
-        'CONTROL · an annotated excursion keeps its count',
-        U.excursionCountHtml({ excursions: [{ annotated: true }] }),
-        '<b>1</b> excursion \u00b7 <b style="color:var(--green)">1 meal-annotated</b>'
-      );
     });
 
     group('GlucoDex ∅ — an unmeasured cadence leaves the session span null, and de-drift never pivots on a zero', 'glucodex-dsp · absence · session-span', function (T) {
@@ -48549,6 +48532,19 @@
           'CONTROL · a measured ZERO stays a number, it is not swept up as absence',
           U.activeText({ activeMin: 0, cadence: 5 }) === '0h',
           'activeText=' + JSON.stringify(U.activeText({ activeMin: 0, cadence: 5 }))
+        );
+
+        /* THE COUNT PILLS. A night nobody searched has a null list, and 0 is a measurement. */
+        T.eq('the pill prints the token over an unsearched night', U.hypoCountHtml(ref), 'nocturnal hypos withheld \u2014 <b>cadence-unmeasurable</b>');
+        T.eq('…and the excursion pill does too', U.excursionCountHtml(ref), 'excursions withheld \u2014 <b>cadence-unmeasurable</b>');
+        T.eq('an unsearched record with no reason says UNKNOWN', U.hypoCountHtml({ nocturnalHypo: null }), 'nocturnal hypos withheld \u2014 <b>UNKNOWN</b>');
+        T.eq('CONTROL · a measured zero prints 0', U.hypoCountHtml(meas), '<b>0</b> nocturnal hypos');
+        T.eq('CONTROL · one low is singular', U.hypoCountHtml({ nocturnalHypo: [{ min: 52 }] }), '<b>1</b> nocturnal hypo');
+        T.eq('CONTROL · a measured zero of excursions prints 0', U.excursionCountHtml(meas), '<b>0</b> unannotated excursions');
+        T.eq(
+          'CONTROL · an annotated excursion keeps its count',
+          U.excursionCountHtml({ excursions: [{ annotated: true }] }),
+          '<b>1</b> excursion \u00b7 <b style="color:var(--green)">1 meal-annotated</b>'
         );
 
         T.eq('CONTROL · a measured record gets NO refusal note (a note on it is noise)', U.cadNote(meas), '');
