@@ -34339,6 +34339,162 @@
       T.eq('the shipped file carries the coefficient count it declares', count, M.coefficients);
     });
 
+    /* ── THE SECOND MODEL FILE, THE ONE OF TWO PASSES ──────────────────────────────────────────
+       "A better model is a new file and no new code" (@kestrel, board #8464 rule 6) is a claim about
+       a REAL second fit, and the synthetic file in the group above cannot settle it: its
+       coefficients come from a rule this suite writes, so it holds the evaluator against arithmetic
+       this repo chose. The file this group reads is the fit's own, and it exercises the one part the
+       shipped one-pass file never reaches — a second pass over the first pass's posterior.
+
+       THE LENGTH OF THE NIGHT IS THE POINT. `pfeat55` reads means over the 40, 80 and 160 epochs
+       before and after each epoch, so the 60-epoch vector sits inside the shortest of those reaches
+       and a wrong reach there moves almost nothing. Measured: with 150 in the place of the 160 the
+       schema states, the 60-epoch vector moves 4.995e-8 and this 330-epoch night moves 4.639e-2. So
+       the long night is what gives the pin teeth, and a seeded generator keeps the file small —
+       `tests/vectors/eegdex-stage-model.json` carries the posterior alone, from the reference
+       evaluator of the fit, over the features the generator below reproduces. */
+    group('EEGDex stage formula — the two-pass file over a whole night', 'eegdex · stage-formula · evaluator · parity · absence', function (T) {
+      var SV = env.stageVectors || {};
+      var FV = SV['eegdex-stage-features'];
+      var MV = SV['eegdex-stage-model'];
+      var M2 = env.stageModel2;
+      T.ok('the lane published the two-pass model file', !!(M2 && M2.schema), 'env.stageModel2 is absent — run-tests.mjs and Dex-Test-Suite.html both publish it');
+      T.ok('the committed model vector names the two-pass file', !!(MV && MV.twoPass && MV.longNight), 'tests/vectors/eegdex-stage-model.json carries no twoPass or longNight block');
+      if (!env.EEGSTAGE || !M2 || !M2.schema || !MV || !MV.twoPass || !MV.longNight || !FV || !FV.expected) return;
+      var S = env.EEGSTAGE,
+        i,
+        j;
+
+      /* PINNED BY ITS HASH, for the same reason the one-pass file is: every number below is read out
+         of it, and a silent edit of one coefficient still gives four finite posteriors per epoch. */
+      T.eq('the file that loaded is the fit the vector names', M2.id, MV.twoPass.id);
+      if (env.stageModel2Digest) T.eq('…and it is the artefact the vector pins', env.stageModel2Digest, MV.twoPass.sha256_16);
+      T.eq('it scores two passes', M2.passes.length, 2);
+      T.eq('…and the second reads the first pass’s posterior', M2.passes[1].posterior_columns, 'pfeat55');
+      var count = 0;
+      M2.passes.forEach(function (ps) {
+        (ps.W || ps.D || []).forEach(function (r) {
+          count += r.length;
+        });
+        count += (ps.b || ps.c || []).length;
+      });
+      T.eq('the file carries the coefficient count it declares', count, M2.coefficients);
+
+      /* THE SHORT VECTOR FIRST, against the fit's own posterior for THIS model id, so the two files
+         are held over the same 60 epochs and the same tolerance. */
+      var want = FV.expected[M2.id];
+      T.ok('the feature vector carries the fit’s posterior for the two-pass file', !!(want && want.posterior && want.stages), 'no expected entry for ' + M2.id);
+      if (!want || !want.posterior) return;
+      var sout = S.evaluate(M2, FV.features);
+      var sworst = 0;
+      for (i = 0; i < want.posterior.length; i++) for (j = 0; j < 4; j++) sworst = Math.max(sworst, Math.abs(sout.posterior[i][j] - want.posterior[i][j]));
+      T.eq('it returns one posterior per epoch of the short vector', sout.posterior.length, want.posterior.length);
+      T.ok('every posterior agrees with the fit within 1e-4', sworst <= 1e-4, 'worst ' + sworst.toExponential(3));
+      var letter = { wake: 'W', light: 'L', deep: 'D', REM: 'R' };
+      function stageString(rows) {
+        return rows
+          .map(function (r) {
+            var k = 0;
+            for (var q = 1; q < r.length; q++) if (r[q] > r[k]) k = q;
+            return letter[sout.classes[k]];
+          })
+          .join('');
+      }
+      T.eq('…and the stage of every epoch is the same', stageString(sout.posterior), want.stages);
+
+      /* THE LONG NIGHT. The features are regenerated here from the seed the vector states, so the
+         committed file holds 330 posteriors and no 330 by 35 matrix. The walk is an AR(1) one per
+         column, rounded to 1e-6 so both lanes build the same numbers from the same seed. */
+      function genLongNight(seed, nEpochs) {
+        var s = seed >>> 0,
+          rnd = function () {
+            s = (s + 0x6d2b79f5) >>> 0;
+            var t = s;
+            t = Math.imul(t ^ (t >>> 15), t | 1);
+            t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+          };
+        var rows = [],
+          walk = [],
+          a,
+          b;
+        for (b = 0; b < 35; b++) walk.push(rnd() * 2 - 1);
+        for (a = 0; a < nEpochs; a++) {
+          var row = [];
+          for (b = 0; b < 35; b++) {
+            walk[b] = walk[b] * 0.92 + (rnd() * 2 - 1) * 0.28;
+            row.push(Math.round(walk[b] * 1e6) / 1e6);
+          }
+          /* THE ABSENT STRETCH. 20 epochs read nothing, so §∅ refuses each of them; 20 later epochs
+             lose 10 of 35 values, which stays under the refusal threshold and still scores. */
+          if (a >= 120 && a < 140) for (b = 0; b < 35; b++) row[b] = null;
+          else if (a >= 200 && a < 220) for (b = 0; b < 10; b++) row[b] = null;
+          rows.push(row);
+        }
+        return rows;
+      }
+      var LN = MV.longNight;
+      var feats = genLongNight(LN.seed, LN.nEpochs);
+      T.eq('the generator gives the night the vector describes', feats.length, LN.posterior.length);
+      var lout = S.evaluate(M2, feats);
+      var lworst = 0,
+        lworstAt = '';
+      for (i = 0; i < LN.posterior.length; i++)
+        for (j = 0; j < 4; j++) {
+          var d = Math.abs(lout.posterior[i][j] - LN.posterior[i][j]);
+          if (d > lworst) {
+            lworst = d;
+            lworstAt = 'epoch ' + i + ' class ' + lout.classes[j];
+          }
+        }
+      T.ok(
+        'every posterior of the 330-epoch night agrees with the reference within its tolerance',
+        lworst <= LN.tolerance,
+        'worst ' + lworst.toExponential(3) + ' over a tolerance of ' + LN.tolerance + (lworstAt ? ', at ' + lworstAt : '')
+      );
+
+      /* ABSENCE, over a night long enough for the second pass to carry the refusal across it: the
+         20 epochs that read nothing are refused, and the 20 that lose 10 of 35 values keep a stage,
+         because 25 of 36 measured stays under the fit's own threshold. */
+      var st = S.stages(M2, feats, lout);
+      var refused = st.epochs.filter(function (e) {
+        return e.stage === null;
+      });
+      T.eq('the 20 epochs that read nothing are not scored', refused.length, 20);
+      T.eq('…and the rest of the night keeps a stage', st.scored, LN.nEpochs - 20);
+      T.eq('each refusal names the thin epoch, not the thin night', refused[0].reason, 'under-half-measured');
+      T.eq('…and reports 1 of 36 inputs measured', refused[0].nMeasured, 1);
+      T.ok(
+        'the 20 epochs that lose 10 of 35 values still score',
+        st.epochs.slice(200, 220).every(function (e) {
+          return e.stage !== null && e.nMeasured === 26;
+        }),
+        'epoch 200 reads stage ' + st.epochs[200].stage + ' over ' + st.epochs[200].nMeasured + ' of ' + st.epochs[200].nInputs
+      );
+
+      /* A PARTIAL IMPORT IS REFUSED BY NAME (@kestrel, board #8687). The refusal is not a
+         disagreement with the reference, which answers for any n: no epoch of a short import carries
+         the look-back the fit read, so every stage it would draw sits outside the fit's population.
+         §∅ reads that as a DISCONTINUITY of the window rather than as reduced coverage, so the node
+         refuses and says which model and how far it reads. */
+      if (env.EEGDSP && env.EEGDSP.formulaStages && env.EEGDSP.genOvernight) {
+        var D = env.EEGDSP;
+        var short1 = D.formulaStages(D.genOvernight({ durSec: 1800, scenario: 'clean', t0Ms: Date.UTC(2026, 0, 1, 23, 0, 0) }), M2);
+        T.ok('a 60-epoch import refuses the two-pass model', /second pass/.test(short1.err || ''), String(short1.err));
+        T.ok('…naming the model file that refused', (short1.err || '').indexOf(M2.id) >= 0, String(short1.err));
+        T.ok('…and how far it reads', /160 epochs/.test(short1.err || ''), String(short1.err));
+        T.ok('…and it offers the one-pass model instead', /one-pass model/.test(short1.err || ''), String(short1.err));
+        /* THE ONE-PASS FILE TAKES THE SAME SHORT IMPORT, so the refusal is a property of the model
+           and not a new floor on the node. */
+        if (env.stageModel) {
+          var short2 = D.formulaStages(D.genOvernight({ durSec: 1800, scenario: 'clean', t0Ms: Date.UTC(2026, 0, 1, 23, 0, 0) }), env.stageModel);
+          T.ok('…while the one-pass file scores that same import', !short2.err && !!(short2.epochs && short2.epochs.length), String(short2.err));
+        }
+        var whole = D.formulaStages(D.genOvernight({ durSec: 5400, scenario: 'clean', t0Ms: Date.UTC(2026, 0, 1, 23, 0, 0) }), M2);
+        T.ok('a 180-epoch import scores with the two-pass model', !whole.err && !!(whole.epochs && whole.epochs.length), String(whole.err));
+      }
+    });
+
     /* ── THE SECOND STAGE SOURCE, AND THE SWITCH THAT HOLDS IT OFF ──────────────────────────────
        The formula path is wired into this node, and the node's own answer does not change: the
        switch carries no `checked`, so the page loads with the band-power stager alone. These legs
@@ -34435,13 +34591,25 @@
       );
       T.ok('…and the model that scored it is named in the note', card.indexOf(got.id) >= 0, 'the model id is absent from the card');
       T.ok('…and the limits are stated beside it', /research aid and not a diagnosis/.test(card) && /forehead/.test(card), 'the limits sentence is absent');
+      /* THE LENGTH THE MODEL NEEDS IS A LIMIT, so it is stated where the other limits are: a reader
+         who imports a fragment of a night must learn why a two-pass file refused it (board #8687). */
+      T.ok('…including the whole night a two-pass model needs', /needs the whole night/.test(card) && /160 epochs/.test(card), 'the card says nothing about the reach of a second pass');
       T.ok('a refusal renders as a refusal, with no strip', U.formulaHtml(noModel).indexOf('eg-hyp') < 0, 'the error path drew a hypnogram strip');
       T.ok('…and it carries the reason the engine gave', U.formulaHtml(noModel).indexOf('no model file') >= 0, 'the refusal does not reach the reader');
       /* A READER WITH ONLY THE PAGE HOLDS NO MODEL FILE, so the refusal names the file to look for,
          the bytes that identify it and where it sits (@kestrel, #8668). */
       var noModelHtml = U.formulaHtml(noModel);
-      T.ok('…and it names the file to supply', noModelHtml.indexOf('eeg-stage-model-base-2026-11-17.json') >= 0, 'the refusal names no file');
-      T.ok('…with the hash that identifies it', noModelHtml.indexOf('500f1a71f6ca3e18') >= 0, 'the refusal names no hash');
+      /* BOTH SHIPPED FILES ARE NAMED, each with the hash that identifies it, because either one is
+         a valid answer and the reader holds only the page. The two-pass file comes first. */
+      T.ok('…and it names the two-pass file to supply', noModelHtml.indexOf('eeg-stage-model-two-pass-2026-11-24.json') >= 0, 'the refusal names no two-pass file');
+      T.ok('…with the hash that identifies it', noModelHtml.indexOf('27d0114dd8c5b43e') >= 0, 'the refusal names no hash for it');
+      T.ok('…and the one-pass file as the shorter import’s answer', noModelHtml.indexOf('eeg-stage-model-base-2026-11-17.json') >= 0, 'the refusal names no one-pass file');
+      T.ok('…with its hash too', noModelHtml.indexOf('500f1a71f6ca3e18') >= 0, 'the refusal names no hash for the one-pass file');
+      T.ok(
+        '…and it says which of the two needs the whole night',
+        /needs the whole night/.test(noModelHtml) && /shorter import/.test(noModelHtml),
+        'the refusal does not separate the two files by the length they need'
+      );
       T.ok('…and where that file sits', /root of this repository/.test(noModelHtml), 'the refusal says nothing about where the file sits');
 
       /* THE GRADE. The series is `experimental`, which is the lowest tier this ladder holds apart

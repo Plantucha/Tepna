@@ -2077,6 +2077,17 @@
 
      §∅ — an epoch the evaluator refused carries `stage: null` and the evaluator's own reason. This
      function invents no stage for it and drops no epoch. */
+  /* The reach of the second pass of `tepna.stage-formula/1`: the longest look-back and look-ahead
+     its posterior columns read. It is a property of the schema and not of one model file. */
+  var SECOND_PASS_REACH = 160;
+
+  function hasSecondPass(model) {
+    var passes = (model && model.passes) || [],
+      i;
+    for (i = 0; i < passes.length; i++) if (passes[i] && passes[i].posterior_columns) return true;
+    return false;
+  }
+
   function formulaStages(rec, model) {
     var F = global.EEGFEAT,
       S = global.EEGSTAGE;
@@ -2092,6 +2103,25 @@
     var fs = rec.fs,
       nEp = Math.floor(sig.length / Math.round(EPOCH_SEC * fs));
     if (nEp < 2) return { err: 'under two epochs of EEG' };
+    /* A SECOND PASS NEEDS THE WHOLE NIGHT. Its posterior columns read up to SECOND_PASS_REACH
+       epochs each way, so on a shorter import NO epoch carries the look-back the fit used: every
+       window is then cut at an end that is not the end of the night. The arithmetic still answers,
+       and it agrees with the reference at 5e-8 over a 60-epoch vector, which is the trap: the
+       answer sits outside the population the coefficients were fitted on. §∅ reads this as a
+       DISCONTINUITY of the window rather than reduced coverage, so it refuses and names the model
+       (@kestrel, board #8687). */
+    if (nEp < SECOND_PASS_REACH && hasSecondPass(model)) {
+      return {
+        err:
+          'the model ' +
+          (model.id || 'unnamed') +
+          ' scores a second pass that reads up to ' +
+          SECOND_PASS_REACH +
+          ' epochs away, and this import holds ' +
+          nEp +
+          '. Give it the whole night, or score with a one-pass model'
+      };
+    }
     /* THE NAMES ARE THE JOINT, so a mismatch refuses instead of reading column 7 as column 7 of a
        different list. The evaluator checks the 12 names it reads directly; this checks all 35, in
        order, because the rows below are positional. */

@@ -3551,6 +3551,27 @@ async function main() {
         return null;
       }
     })(),
+    /* THE SECOND SHIPPED MODEL, the one of two passes. It is a separate handle and not a swap,
+       because the groups hold the two files against each other: the one-pass file scores a short
+       import and the two-pass file refuses one. Each lane computes its own digest, as above. */
+    stageModel2Digest: (() => {
+      try {
+        return _nodeCrypto
+          .createHash('sha256')
+          .update(_nodeFs.readFileSync(join(ROOT, 'eeg-stage-model-two-pass-2026-11-24.json')))
+          .digest('hex')
+          .slice(0, 16);
+      } catch {
+        return null;
+      }
+    })(),
+    stageModel2: (() => {
+      try {
+        return JSON.parse(_readOpt('eeg-stage-model-two-pass-2026-11-24.json'));
+      } catch {
+        return null;
+      }
+    })(),
     repoRoot: ROOT, // the checkout this runner stands in — lets a group re-derive a tool's answer from the files on disk
     /* §timingSource vocabulary gate — the EMITTERS' source, scanned for `timingSource` string
        literals so a value added without a vocabulary entry reds. Source text rather than imports

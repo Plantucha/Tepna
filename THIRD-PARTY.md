@@ -246,10 +246,13 @@ this page.
 
 ## The data sets behind the EEG stage formula
 
-`eeg-stage-model-base-2026-11-17.json` carries the coefficients of the EEG stage
-formula that `eegdex-stage-model.js` evaluates. The fit read 8 public sleep
-corpora. The model file holds no sample of any recording, and no bundle fetches
-one. Each licence below asks for attribution, so this section names each corpus.
+Two model files carry the coefficients of the EEG stage formula that
+`eegdex-stage-model.js` evaluates: `eeg-stage-model-base-2026-11-17.json`, which
+scores one pass, and `eeg-stage-model-two-pass-2026-11-24.json`, which scores
+two. Both fits read the SAME 8 public sleep corpora, under the same 14 fit
+names, so this one section answers for both files. Neither file holds a sample
+of any recording, and no bundle fetches one. Each licence below asks for
+attribution, so this section names each corpus.
 
 Each row gives the identifier, the version and the licence that this project
 read AT THE SOURCE on 2026-11-24: the snapshot's own description file, the
@@ -278,6 +281,13 @@ A suffix on a fit name gives another view of the same night, never other data.
 `.ff` and `.fm2` are other EEG derivations, and `.c` is a central derivation.
 `boashb` and `boaspsg` are the headband recording and the laboratory recording
 of the same subjects.
+
+The two files differ in the TARGET of the fit, and not in the data each one
+read. The one-pass file names its target as the expert stage labels of the open
+corpora above. The two-pass file names a target that mixes those same expert
+labels with the posterior of another net, which read the same corpora. So
+the attribution of this section covers both, and no corpus outside the table
+reached either file.
 
 Every licence above sits inside the set that this project accepts: CC0, CC BY
 4.0 or the Open Data Commons Attribution License. No corpus asks for
