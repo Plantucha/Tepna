@@ -10,7 +10,7 @@
     "unverifiable at another, and two sites repeating one claim are two items (3 and 4, 13 and 14).",
     "",
     "UNVERIFIABLE-LOCALLY IS A FINDING, NOT A SKIP: it names, by DOI, the full texts the suite still needs to",
-    "close this dimension. All 7 are pre-2000 paywalled methods papers or a 1974 proceedings.",
+    "close this dimension. Five remain since 2026-11-25 (see `amendments`); all are pre-2000 paywalled methods papers.",
     "",
     "Reading only. Nothing in this ledger changes code; divergences are residue rows."
   ],
@@ -31,22 +31,12 @@
     "items": 18,
     "distinctDois": 14,
     "files": 8,
-    "checked": 11,
-    "excluded": 7,
-    "matches": 11,
+    "checked": 13,
+    "excluded": 5,
+    "matches": 13,
     "mismatches": 0
   },
   "missingFullTexts": [
-    {
-      "doi": "10.1109/PROC.1966.4634",
-      "cite": "Allan 1966, Proc IEEE",
-      "wantedFor": "the two-sample Allan variance relation at tau = one window"
-    },
-    {
-      "doi": "10.1109/FREQ.1974.200027",
-      "cite": "Gray & Allan 1974",
-      "wantedFor": "the N-cornered-hat solve on first differences"
-    },
     {
       "doi": "10.1109/TASSP.1976.1162830",
       "cite": "Knapp & Carter 1976",
@@ -176,9 +166,12 @@
       "doi": "10.1109/PROC.1966.4634",
       "citedAs": "Allan DW 1966, Proc IEEE",
       "codeClaim": "½·Var(x_{k+1} − x_k) is the Allan variance at τ = one window",
-      "localText": "metadata-only",
-      "verdict": "UNVERIFIABLE-LOCALLY",
-      "note": "Identity verified from metadata (title \"Statistics of atomic frequency standards\"). The relation is the textbook definition of the two-sample Allan variance, but the paper's text is absent. Paywalled 1966 IEEE."
+      "localText": "read-online",
+      "verdict": "MATCH",
+      "note": "Read 2026-11-25 from the NIST copy. Zero dead time and averages over tau, as the code states. Two deviations of ours, neither of them a constant: the code pairs window MEDIANS where the paper averages, and it takes a robust spread about the center where the paper takes a mean square, so a constant drift drops out.",
+      "readFrom": "https://tf.nist.gov/general/pdf/7.pdf",
+      "siteAtRead": "analysis-stats.js patDifferencedHat",
+      "paperSays": "Eq. (11) with N = 2 and T = tau is half the squared difference of two adjacent averages"
     },
     {
       "n": 12,
@@ -186,9 +179,12 @@
       "doi": "10.1109/FREQ.1974.200027",
       "citedAs": "Gray & Allan 1974, 28th Annual Symposium on Frequency Control",
       "codeClaim": "the N-cornered-hat solve on first differences is Gray & Allan 1974",
-      "localText": "metadata-only",
-      "verdict": "UNVERIFIABLE-LOCALLY",
-      "note": "Identity verified from metadata (title \"A Method for Estimating the Frequency Stability of an Individual...\"), which is consistent with the use. Conference proceedings, 1974, not open."
+      "localText": "read-online",
+      "verdict": "MATCH",
+      "note": "Read 2026-11-25 from the NIST copy. The paper also says that a solved variance can be negative and that the three oscillators must be independent. The code keeps a negative variance and returns a null sigma for it.",
+      "readFrom": "https://tf.nist.gov/general/pdf/57.pdf",
+      "siteAtRead": "analysis-stats.js _patSolve, patDifferencedHat",
+      "paperSays": "Eq. (4): sigma_a^2 is half of (sigma_ab^2 + sigma_ac^2 - sigma_bc^2)"
     },
     {
       "n": 13,
@@ -198,7 +194,8 @@
       "codeClaim": "test peak HEIGHT against a fitted red (AR(1)) background, never peak LOCATION; S(f) ~ (1−ρ²)/(1 − 2ρcos(2πf/fs) + ρ²)",
       "localText": "metadata-only",
       "verdict": "UNVERIFIABLE-LOCALLY",
-      "note": "Identity verified from metadata: title \"Robust estimation of background noise and signal detection in climatic time series\", 1996 — matching the code's journal/volume/pages. The method and the spectrum formula need the full text. This is the HIGHEST-VALUE missing text in the set: it is the only metadata-only citation whose method decides whether a metric is emitted at all (a null vs a fabricated cycle on ~42 % of featureless nights)."
+      "note": "Identity verified from metadata: title \"Robust estimation of background noise and signal detection in climatic time series\", 1996 — matching the code's journal/volume/pages. The method and the spectrum formula need the full text. This is the HIGHEST-VALUE missing text in the set: it is the only metadata-only citation whose method decides whether a metric is emitted at all (a null vs a fabricated cycle on ~42 % of featureless nights).",
+      "addendum": "Read 2026-11-25: the first author's method guide (https://research.atmos.ucla.edu/tcd/ssa/guide/mann/mann4.html), not the paper, so the verdict stays. The spectrum formula and the height-over-background rule agree with it. The ESTIMATOR does not: the guide fits rho and the level to a median-smoothed multitaper spectrum, and the code takes rho from the raw lag-1 autocorrelation of one periodogram."
     },
     {
       "n": 14,
@@ -208,7 +205,8 @@
       "codeClaim": "registry `cite` string repeating the AR(1)-background condition",
       "localText": "metadata-only",
       "verdict": "UNVERIFIABLE-LOCALLY",
-      "note": "Same paper as item 13; the registry string and the DSP comment agree with each other, which is dimension 2 (already gated) rather than dimension 3."
+      "note": "Same paper as item 13; the registry string and the DSP comment agree with each other, which is dimension 2 (already gated) rather than dimension 3.",
+      "addendum": "See item 13: the registry string names the same method for a simpler estimator."
     },
     {
       "n": 15,
@@ -260,9 +258,9 @@
     "gate": "literature-formula-parity",
     "status": "PASS",
     "population": {
-      "checked": 11,
+      "checked": 13,
       "eligible": 18,
-      "excluded": 7
+      "excluded": 5
     },
     "criterion": {
       "name": "every code constant equals the paper's stated value in the paper's unit",
@@ -273,8 +271,8 @@
     },
     "result": {
       "mismatches": 0,
-      "matches": 11,
-      "excludedReason": "no local full text and the claim is not in the abstract (7 items, 5 DOIs)"
+      "matches": 13,
+      "excludedReason": "no full text reached and the claim is not in the abstract (5 items, 3 DOIs)"
     },
     "evidence": [
       "audits/LITERATURE-FORMULA-PARITY-2026-10-11.json",
@@ -283,8 +281,72 @@
     "reason": null,
     "producedBy": {
       "tool": "manual read, ledger-recorded",
-      "commit": "1a9cf0c5"
+      "commit": "8955d326"
     },
-    "at": "2026-10-11T01:33:29Z"
-  }
+    "at": "2026-11-25T13:22:05Z",
+    "scope": "internal"
+  },
+  "amendments": [
+    {
+      "at": "2026-11-25T13:22:05Z",
+      "session": "Kestrel",
+      "commit": "8955d326",
+      "what": "items 11 and 12 read from the free NIST copies and closed as MATCH; items 13 and 14 gain an addendum and keep their verdict",
+      "prior": {
+        "population": {
+          "items": 18,
+          "distinctDois": 14,
+          "files": 8,
+          "checked": 11,
+          "excluded": 7,
+          "matches": 11,
+          "mismatches": 0
+        },
+        "verdict": {
+          "schema": "tepna.verdict/1",
+          "gate": "literature-formula-parity",
+          "status": "PASS",
+          "population": {
+            "checked": 11,
+            "eligible": 18,
+            "excluded": 7
+          },
+          "criterion": {
+            "name": "every code constant equals the paper's stated value in the paper's unit",
+            "threshold": 0,
+            "unit": "mismatching items",
+            "direction": "eq",
+            "preStated": "stated in the assignment before any paper was opened"
+          },
+          "result": {
+            "mismatches": 0,
+            "matches": 11,
+            "excludedReason": "no local full text and the claim is not in the abstract (7 items, 5 DOIs)"
+          },
+          "evidence": [
+            "audits/LITERATURE-FORMULA-PARITY-2026-10-11.json",
+            "briefs/LITERATURE-FORMULA-PARITY-2026-10-11-BRIEF.md"
+          ],
+          "reason": null,
+          "producedBy": {
+            "tool": "manual read, ledger-recorded",
+            "commit": "1a9cf0c5"
+          },
+          "at": "2026-10-11T01:33:29Z"
+        },
+        "items": {
+          "11": {
+            "verdict": "UNVERIFIABLE-LOCALLY",
+            "localText": "metadata-only",
+            "note": "Identity verified from metadata (title \"Statistics of atomic frequency standards\"). The relation is the textbook definition of the two-sample Allan variance, but the paper's text is absent. Paywalled 1966 IEEE."
+          },
+          "12": {
+            "verdict": "UNVERIFIABLE-LOCALLY",
+            "localText": "metadata-only",
+            "note": "Identity verified from metadata (title \"A Method for Estimating the Frequency Stability of an Individual...\"), which is consistent with the use. Conference proceedings, 1974, not open."
+          }
+        }
+      }
+    }
+  ]
 }
