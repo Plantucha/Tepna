@@ -29,7 +29,31 @@ W="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 C="${AI_PROBE_CRAWL:-/run/media/michal/647A504F7A50205A/crawl-results-2026-08-18}"
 LIMIT="${AI_PROBE_LIMIT:-0}"
 MAX_PASSES="${AI_PROBE_MAX_PASSES:-8}"
+# The moment to stop, as epoch seconds; 0 means none. A supervisor with a wall passes a moment before
+# it. Measured 2026-11-24: the nightly triage had no such limit here, so its unit killed pass 2 at 8 h,
+# and the run ended as a timeout with no verdict.
+DEADLINE="${AI_PROBE_DEADLINE:-0}"
+case "$DEADLINE" in
+  '' | *[!0-9]*)
+    echo "AI_PROBE_DEADLINE must be epoch seconds, got: $DEADLINE" >&2
+    exit 2
+    ;;
+esac
+MIN_STEP=60                     # a step with less time than this does not start
 LOG_FILTER='tier [0-9] tried'   # per-input noise; the journal keeps everything
+
+# step_cap <cap>: the seconds a step may take — its own cap, or what is left before the deadline. Prints
+# 0 when there is too little left to start. Never pass that 0 to `timeout`, where 0 means "no limit".
+step_cap() {
+  local left
+  if [ "$DEADLINE" -eq 0 ]; then echo "$1"; return; fi
+  left=$((DEADLINE - $(date +%s)))
+  if [ "$left" -lt "$MIN_STEP" ]; then echo 0
+  elif [ "$left" -lt "$1" ]; then echo "$left"
+  else echo "$1"; fi
+}
+# cut_by_deadline <rc>: true when `timeout` ended the step because the deadline came, not its own cap.
+cut_by_deadline() { [ "$1" -eq 124 ] && [ "$DEADLINE" -ne 0 ] && [ "$(date +%s)" -ge "$DEADLINE" ]; }
 
 cd "$W" || exit 1
 FILES=()
@@ -48,6 +72,7 @@ echo "  crawl dir $C · per-file limit ${LIMIT:-none} · max passes $MAX_PASSES"
 pass=0
 gpu_busy=0
 no_server=0
+time_up=0
 declare -A CANARY_REFUSED=()
 prev_jlines=-1
 while [ "$pass" -lt "$MAX_PASSES" ]; do
@@ -69,10 +94,12 @@ while [ "$pass" -lt "$MAX_PASSES" ]; do
   pass_kills=0
   pass_inputs=0
   for f in "${FILES[@]}"; do
+    cap="$(step_cap 5400)"
+    if [ "$cap" -eq 0 ]; then time_up=1; break 2; fi
     echo "═══ $f (pass $pass) ═══"
     LIM=()
     [ "$LIMIT" != "0" ] && LIM=(--limit "$LIMIT")
-    out="$(timeout 5400 node tools/mutation-ai-probe.mjs --file "$f" --retry-none "${LIM[@]}" --crawl-dir "$C" 2>&1)"
+    out="$(timeout "$cap" node tools/mutation-ai-probe.mjs --file "$f" --retry-none "${LIM[@]}" --crawl-dir "$C" 2>&1)"
     rc=$?
     printf '%s\n' "$out" | grep -vE "$LOG_FILTER"
     # Exit 4: a GPU job held the card for the probe's whole wait. The pass is not finished, so it must
@@ -80,6 +107,8 @@ while [ "$pass" -lt "$MAX_PASSES" ]; do
     if [ "$rc" -eq 4 ]; then gpu_busy=1; break 2; fi
     # Exit 5: the model server gave no answer twice in a row. The next file would get none either.
     if [ "$rc" -eq 5 ]; then no_server=1; break 2; fi
+    # The deadline cut this file. The pass is not finished, so it must not read as a fixed point either.
+    if cut_by_deadline "$rc"; then time_up=1; break 2; fi
     # A canary refusal (exit 2) or lock refusal (exit 3) is a per-file verdict, not a driver error.
     [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ] && [ "$rc" -ne 3 ] && echo "!! $f exited $rc — journal retains everything answered so far"
     if [ "$rc" -eq 2 ]; then CANARY_REFUSED["$f"]=1; else unset 'CANARY_REFUSED[$f]'; fi
@@ -105,6 +134,10 @@ if [ "$gpu_busy" -eq 1 ]; then
   echo "⏸ DEFERRED: a GPU job holds the card. No draft ran; the journals keep every answer, and the next run resumes."
   exit 4
 fi
+if [ "$time_up" -eq 1 ]; then
+  echo "⏸ DEFERRED: the time budget is spent. No draft ran; the journals keep every answer, and the next run resumes."
+  exit 4
+fi
 if [ "$no_server" -eq 1 ]; then
   echo "⏹ NO SERVER: the local model gave no answer. No draft ran; the journals keep every answer, and the next run resumes."
   exit 5
@@ -116,7 +149,10 @@ echo "########## DRAFTING  $(date '+%F %T') ##########"
 # here lands in tests/dex-tests.js without a human read.
 draft_fail=0
 draft_skipped=0
+draft_done=0
 for f in "${FILES[@]}"; do
+  cap="$(step_cap 3600)"
+  if [ "$cap" -eq 0 ]; then time_up=1; break; fi
   echo "═══ draft $f ═══"
   # NOT `... | tail -4`. A pipeline reports TAIL's status, so this step could fail completely and
   # still exit 0 — measured 2026-08-23: mutation-suite refused all 8 files (--crawl-dir was missing
@@ -135,15 +171,17 @@ for f in "${FILES[@]}"; do
     draft_skipped=$((draft_skipped + 1))
     continue
   fi
-  out="$(timeout 3600 node tools/mutation-suite.mjs --draft "$f" --crawl-dir "$C" 2>&1)"; rc=$?
+  out="$(timeout "$cap" node tools/mutation-suite.mjs --draft "$f" --crawl-dir "$C" 2>&1)"; rc=$?
   # NOT `| tail -4`. The per-candidate rejection reasons are the only field that distinguishes a weak
   # model from a broken harness, and the tail discarded every one of them — the same truncation whose
   # exit-code half was fixed on 2026-08-23, in this very line. Print it all; the log is a diagnostic.
   printf '%s\n' "$out"
+  if cut_by_deadline "$rc"; then time_up=1; break; fi
   if [ "$rc" -ne 0 ]; then
     echo "!! draft FAILED for $f (exit $rc)"
     draft_fail=$((draft_fail + 1))
   fi
+  draft_done=$((draft_done + 1))
 done
 echo "########## DONE  $(date '+%F %T') ##########"
 node tools/mutation-ai-probe.mjs --status 2>&1
@@ -159,4 +197,9 @@ fi
 if [ "$draft_fail" -gt 0 ]; then
   echo "!! DRAFTING FAILED for $draft_fail of ${#FILES[@]} file(s) — this run is RED"
   exit 1
+fi
+# After the failure check: a red draft stays red when the deadline also came.
+if [ "$time_up" -eq 1 ]; then
+  echo "⏸ DEFERRED: the time budget is spent in the draft phase. $draft_done of ${#FILES[@]} file(s) drafted; the next run drafts them all again."
+  exit 4
 fi
