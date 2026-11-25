@@ -8150,9 +8150,56 @@
   function _sqCell(value, unit, reason, extra) {
     return _sqSpine().sqCell(value, unit, reason, extra);
   }
-  function _sqLedgerRow(row, r) {
-    return _sqSpine().sqLedgerRow(row, r);
+  function _sqLedgerRow(row, r, lanes) {
+    return _sqSpine().sqLedgerRow(row, r, lanes);
   }
+
+  /* ── THIS NODE'S SIDECAR LANES (§3b) ─────────────────────────────────────────────────────────────
+     One resolver per companion this node actually reads. The resolver answers from THIS node's own
+     record, which is why it lives here rather than in the spine: `runs`, `seams` and `deviceACC` are
+     ECGDex's field names, and the next adopter reads different ones. Each returns one of the four
+     states and the reason behind it; the spine holds the origin override that can still outrank a
+     state, because that rule is the same for every node. */
+  var _ECG_LANES = {
+    ecgRuns: function (r, h) {
+      var rs = r && r.runs;
+      if (!rs || rs.reason === 'no-runs-sidecar')
+        return h.vendor
+          ? { state: 'not-applicable', reason: h.naWhy('_ECGRUNS.txt') }
+          : {
+              state: 'absent',
+              reason: h.absentWhy('_ECGRUNS.txt', 'no blanking span is known — this is not a clean stream')
+            };
+      if (rs.reason) return { state: 'not-read', reason: 'the reader ran and placed no row: ' + rs.reason };
+      return { state: 'read', reason: null };
+    },
+    ecgSeams: function (r, h) {
+      var ss = r && r.seams;
+      if (!ss || ss.reason === 'no-seam-sidecar')
+        return h.vendor
+          ? { state: 'not-applicable', reason: h.naWhy('_ECGSEAMS.txt') }
+          : {
+              state: 'absent',
+              reason: h.absentWhy('_ECGSEAMS.txt', 'the seam count is unknown rather than zero')
+            };
+      if (ss.reason) return { state: 'not-read', reason: 'the reader ran and placed no row: ' + ss.reason };
+      return { state: 'read', reason: null };
+    },
+    accRuns: function (r, h) {
+      var acc = r && r.deviceACC;
+      if (!acc || !acc.length)
+        return {
+          state: 'not-applicable',
+          reason: 'this recording carries no motion companion, so no motion sidecar can apply to it'
+        };
+      if (acc._runsSidecar) return { state: 'read', reason: null };
+      if (h.vendor) return { state: 'not-applicable', reason: h.naWhy('_ACCRUNS.txt') };
+      return {
+        state: 'absent',
+        reason: h.absentWhy('_ACCRUNS.txt', 'the held-value runs of the loaded motion companion are unknown')
+      };
+    }
+  };
   function _ecgCaptureOrigin(name) {
     return _sqSpine().sqCaptureOrigin(name);
   }
@@ -8711,7 +8758,7 @@
         }
       },
       sidecars: _ECG_SIDECAR_LEDGER.map(function (row) {
-        return _sqLedgerRow(row, r);
+        return _sqLedgerRow(row, r, _ECG_LANES);
       })
     };
   }

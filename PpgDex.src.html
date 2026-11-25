@@ -457,6 +457,10 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     <!-- QUALITY -->
     <div id="qualitySection" style="display:none">
       <div class="section-title">Signal Quality <span class="st-note">per-pulse SQI × motion gate → Ganglior conf</span></div>
+      <!-- SIGNAL-QUALITY-TABLE-2026-11-14 §6 — the per-channel table and the drift series, ABOVE
+           this section's first result card, which is where the ECGDex pilot puts them. Filled by
+           `renderQuality`, the only reader of `signalQuality` in this app. -->
+      <div class="card" id="sqTableCard"></div>
       <div class="card" id="qualityCard"></div>
     </div>
 
@@ -553,6 +557,9 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
 <script src="dex-profile.js"></script>
 <script src="ppgdex-registry.js"></script>
 <script src="muse-frame.js"></script>
+<!-- sq-table.js BEFORE the dsp and the render module: the DSP resolves the spine at call time,
+     and ppgdex-render.js reads the table slab at load (SIGNAL-QUALITY-TABLE-2026-11-14 §7.4). -->
+<script src="sq-table.js"></script>
 <script type="module" src="ppgdex-dsp.js"></script>
 <script src="ppgdex-morph.js"></script>
 <script src="crossnight-envelope.js"></script>
