@@ -48119,6 +48119,69 @@
       T.ok('control · …because it has scored days to say it from', flat.dawn.days.length >= 1, flat.dawn.days.length + ' days');
     });
 
+    group('GlucoDex ∅ — an unmeasured cadence withholds the night lows and the excursions, never counts zero', 'glucodex-dsp · absence · cadence', function (T) {
+      var G = env.GLUDSP;
+      if (!G || typeof G.analyze !== 'function') {
+        T.ok('GLUDSP.analyze is available', false, 'not loaded');
+        return;
+      }
+      /* Readings 5 h apart: no delta falls in (0, 240) min, so no rate. The 02:00 reading is 48 mg/dL.
+         15 / null is Infinity, so no run could qualify and the app printed 0 night lows over it. */
+      var H = 3600000,
+        t0 = Date.UTC(2026, 4, 10, 2, 0, 0);
+      function rec(step, n, f) {
+        var t = [],
+          v = [];
+        for (var i = 0; i < n; i++) {
+          t.push(t0 + i * step);
+          v.push(f(i));
+        }
+        return G.analyze({ tMs: t, vMgdl: v, unit: 'mg/dL', t0Ms: t0 }, null, {});
+      }
+      var r = rec(5 * H, 24, function (i) {
+        return i % 5 === 0 ? 48 : 120;
+      });
+      T.eq('ANTI-VACUITY · the record measures no cadence', JSON.stringify(r.cadence), 'null');
+      T.ok('ANTI-VACUITY · …and it holds a low inside 00:00–06:00', r.min === 48, 'min=' + r.min);
+      T.eq('the night-low list is null, never an empty list', JSON.stringify(r.nocturnalHypo), 'null');
+      T.eq('…and so is the excursion list', JSON.stringify(r.excursions), 'null');
+      T.ok('…with the reason beside them', /^cadence-unmeasurable/.test(String(r.cadenceReason)), String(r.cadenceReason));
+      T.eq(
+        'the bus carries no event of either kind',
+        (r.events || []).filter(function (e) {
+          return e.impulse === 'nocturnal_hypo' || e.impulse === 'glucose_excursion';
+        }).length,
+        0
+      );
+      var exp = G.glucoBuildSummaryExport(r, {});
+      T.eq('the summary export publishes the null', JSON.stringify([exp.patterns.nocturnalHypos, exp.patterns.excursions]), '[null,null]');
+
+      // CONTROL: a 5-min record with the same lows is searched, so zero is a measurement there
+      // (a smooth dip to 48 over four hours: a step down and back reads as a compression artifact)
+      var low = rec(300000, 288, function (i) {
+        return i < 48 ? 120 - 72 * Math.sin((Math.PI * i) / 48) : 120;
+      });
+      T.eq('CONTROL · a measured rate finds the planted hour below 70', low.nocturnalHypo.length, 1);
+      var flat = rec(300000, 288, function () {
+        return 120;
+      });
+      T.eq('CONTROL · a measured flat day reads zero lows, a list and not a null', JSON.stringify([flat.nocturnalHypo, flat.excursions]), '[[],[]]');
+
+      // The QTc read beside it: a night nobody searched is never `clear`
+      var q = G.hypoQtcRead;
+      T.eq('no count and a QTc in range → not assessed', q(null, 420, 450, 470, 'M').hypoQtcRisk, 'none');
+      T.ok('…and the note says why', /could not be counted/.test(q(null, 420, 450, 470, 'M').hypoQtcNote), String(q(null, 420, 450, 470, 'M').hypoQtcNote));
+      T.eq('…with a null count, not 0', JSON.stringify(q(null, 420, 450, 470, 'M').nNocturnalHypo), 'null');
+      T.eq('no count and a long QTc → the QTc alone', q(null, 480, 450, 470, 'M').hypoQtcRisk, 'qtc-only');
+      T.ok('…without claiming that no lows were measured', !/no nocturnal hypos/.test(q(null, 480, 450, 470, 'M').hypoQtcNote), String(q(null, 480, 450, 470, 'M').hypoQtcNote));
+      T.eq('CONTROL · a searched night with none and a QTc in range is clear', q([], 420, 450, 470, 'M').hypoQtcRisk, 'clear');
+      T.ok('CONTROL · a searched night with none and a long QTc says so', /no nocturnal hypos were measured/.test(q([], 480, 450, 470, 'M').hypoQtcNote), '');
+      T.eq('CONTROL · a low beside a long QTc is elevated', q([{ min: 52 }], 480, 450, 470, 'M').hypoQtcRisk, 'elevated');
+      T.eq('CONTROL · a low beside a QTc in range is hypo-only', q([{ min: 52 }], 420, 450, 470, 'M').hypoQtcRisk, 'hypo-only');
+      T.eq('CONTROL · no QTc reads nothing', JSON.stringify([q([{ min: 52 }], null, 450, 470, 'M').hypoQtcRisk, q([{ min: 52 }], null, 450, 470, 'M').hypoQtcNote]), '["none",null]');
+      T.eq('CONTROL · the nadir is the lowest episode', q([{ min: 60 }, { min: 52 }], 480, 450, 470, 'M').minNightGlucose, 52);
+    });
+
     group('GlucoDex ∅ — an unmeasured cadence leaves the session span null, and de-drift never pivots on a zero', 'glucodex-dsp · absence · session-span', function (T) {
       var G = env.GLUDSP;
       if (!G || typeof G.analyze !== 'function') {
@@ -48508,6 +48571,19 @@
           'activeText=' + JSON.stringify(U.activeText({ activeMin: 0, cadence: 5 }))
         );
 
+        /* THE COUNT PILLS. A night nobody searched has a null list, and 0 is a measurement. */
+        T.eq('the pill prints the token over an unsearched night', U.hypoCountHtml(ref), 'nocturnal hypos withheld \u2014 <b>cadence-unmeasurable</b>');
+        T.eq('…and the excursion pill does too', U.excursionCountHtml(ref), 'excursions withheld \u2014 <b>cadence-unmeasurable</b>');
+        T.eq('an unsearched record with no reason says UNKNOWN', U.hypoCountHtml({ nocturnalHypo: null }), 'nocturnal hypos withheld \u2014 <b>UNKNOWN</b>');
+        T.eq('CONTROL · a measured zero prints 0', U.hypoCountHtml(meas), '<b>0</b> nocturnal hypos');
+        T.eq('CONTROL · one low is singular', U.hypoCountHtml({ nocturnalHypo: [{ min: 52 }] }), '<b>1</b> nocturnal hypo');
+        T.eq('CONTROL · a measured zero of excursions prints 0', U.excursionCountHtml(meas), '<b>0</b> unannotated excursions');
+        T.eq(
+          'CONTROL · an annotated excursion keeps its count',
+          U.excursionCountHtml({ excursions: [{ annotated: true }] }),
+          '<b>1</b> excursion \u00b7 <b style="color:var(--green)">1 meal-annotated</b>'
+        );
+
         T.eq('CONTROL · a measured record gets NO refusal note (a note on it is noise)', U.cadNote(meas), '');
         T.ok('the refusal note names the token', U.cadNote(ref).indexOf('cadence-unmeasurable') >= 0, 'len=' + U.cadNote(ref).length);
         T.ok(
@@ -48802,35 +48878,54 @@
 
       /* ── THE COLUMN PICK HAS NO DEFAULT (CLAUDE.md §∅ · measured 2026-11-17) ──
          `locateColumns` used to end `if (gCol < 0) gCol = 1;`. On a Dexcom-Clarity-shaped export whose
-         glucose cells mostly read 'Low'/'High', no column clears the 60 % numeric bar, so the parser
+         glucose cells mostly hold a word, no column clears the 60 % bar, so the parser
          read column 1 — the TIMESTAMP — as glucose. parseFloat('2026-05-10T00:00:00') is 2026, so all
          60 readings came out at the YEAR and the analysis published a mean of 2026 mg/dL. The first two
          legs are the anti-vacuity partner: the same layout with a fully numeric glucose column must
          still parse in band, or the refusal below would be a verdict about the file SHAPE rather than
-         about the numeric share it was written to judge. */
-      var clarity = function (numericShare) {
+         about the share of readings it was written to judge.
+         The word in the refused file is one that is NOT a reading. `Low` and `High` ARE readings
+         (2026-11-25): they have a stamp and a direction, so the column that holds them is the glucose
+         column, and the legs after the refusal pin that the same 35 % file is read. */
+      var clarity = function (numericShare, words, step) {
+        var w = words || ['SENSOR ERROR', 'n/a'];
         var L = ['Index,Timestamp (YYYY-MM-DDThh:mm:ss),Event Type,Glucose Value (mg/dL)'];
         for (var ci = 0; ci < 60; ci++) {
-          var isNum = ci % 100 < numericShare * 100;
-          L.push([ci + 1, stamp(ci).replace(' ', 'T') + ':00', 'EGV', isNum ? 60 + (ci % 40) : ci % 2 ? 'Low' : 'High'].join(','));
+          var isNum = ci < numericShare * 60;
+          L.push([ci + 1, stamp(ci).replace(' ', 'T') + ':00', 'EGV', isNum ? 60 + ((ci * (step || 7)) % 40) : w[ci % 2 ? 0 : 1]].join(','));
         }
         return L.join('\n');
       };
       var tryParse = function (t) {
         try {
           var r = G.parseCSV(t);
-          return { n: r.vMgdl.length, max: Math.max.apply(null, r.vMgdl) };
+          return { n: r.vMgdl.length, max: Math.max.apply(null, r.vMgdl), nCens: r.censored.length };
         } catch (e) {
           return { error: String(e.message), reason: e && e.reason };
         }
       };
       var full = tryParse(clarity(1));
       T.eq('ANTI-VACUITY · a Clarity-shaped export with a numeric glucose column parses every row', full.n, 60);
-      T.ok('…and in the physiologic band, so the refusal below is about the numeric SHARE', full.max < 600, 'max ' + full.max);
+      T.ok('…and in the physiologic band, so the refusal below is about the SHARE of readings', full.max < 600, 'max ' + full.max);
       var low = tryParse(clarity(0.35));
-      T.eq('…at a 35 % numeric share the pick is REFUSED, never defaulted to column 1', low.reason, 'glucose-column-not-found');
+      T.eq('…at a 35 % share of readings the pick is REFUSED, never defaulted to column 1', low.reason, 'glucose-column-not-found');
       T.ok('…the reader gets the same reason in the message', /glucose-column-not-found/.test(low.error || ''), JSON.stringify(low.error || '').slice(0, 130));
       T.ok('…so the file yields NO series, rather than 60 readings of the year', !('n' in low) && typeof low.error === 'string', Object.keys(low).join(','));
+      // Its 21 numbers are 60, 61, 62 …, the step of a row counter. A counter never reads Low, so the column stands.
+      var censored = tryParse(clarity(0.35, ['Low', 'High'], 1));
+      T.eq('a 35 % numeric file whose other cells read Low or High IS read: 21 numbers', censored.n, 21);
+      T.eq('…and 39 censored readings beside them', censored.nCens, 39);
+      T.ok('…and no number is the year', censored.max < 600, 'max ' + censored.max);
+      var opens = tryParse(clarity(0.17, ['Low', 'Low']));
+      T.eq('a file that opens on fifty Low cells is read', opens.n, 11);
+      T.eq('…and the Low cells travel beside the eleven numbers', opens.nCens, 49);
+      T.eq('…and two numbers are too few: a column of alert words is never a series', tryParse(clarity(0.02, ['Low', 'Low'])).reason, 'glucose-column-not-found');
+      // No header names glucose here, so the share alone decides between the columns: 40 numbers and 20 Low
+      // against a second column with a number in band on 48 rows of 60.
+      var rival = [];
+      for (var rv = 0; rv < 60; rv++) rival.push([stamp(rv), rv % 3 ? 100 + ((rv * 7) % 40) : 'Low', rv % 5 ? 320 + ((rv * 11) % 60) : 900].join(','));
+      var unnamed = tryParse(rival.join('\n'));
+      T.eq('with no header the Low cells count toward the pick, so the glucose column beats its rival', unnamed.n + '/' + unnamed.nCens, '40/20');
       T.eq('…and two rows name the population instead of a missing column', tryParse(mk(2, 'tg')).reason, 'too-few-rows-to-locate-columns');
 
       /* ── THE ROW PARSER MUST NOT FABRICATE EITHER ──
@@ -79412,6 +79507,207 @@
       );
     });
 
+    /* A CGM writes `Low` / `High` when glucose sits outside its measuring range. The parser dropped the
+       cell as "not a number", the grid drew a line across it, and thirty minutes of severe low read as
+       0 % below range with no event (Muse hunt U-5, 2026-11-25). Every expected count below is arithmetic
+       on the planted rows. */
+    group('GlucoDex Low / High — a reading outside the sensor range counts as time, and has no value', 'glucodex-dsp · libre-cgm · absence', function (T) {
+      var G = env.GlucoDex || env.GLUDSP;
+      if (!G || typeof G.compute !== 'function' || typeof G.parseCSV !== 'function') {
+        T.ok('env.GlucoDex.compute and parseCSV available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      var GD = env.GLUDSP || G;
+      var T0 = Date.UTC(2026, 2, 3, 0, 0, 0);
+      var stamp = function (i) {
+        return new Date(T0 + i * 300000).toISOString().slice(0, 19).replace('T', ' ');
+      };
+      // one day at 5 min; `edit(i)` returns a glucose cell, or undefined to keep the flat 110/111 default
+      var day = function (edit, extra) {
+        var rows = ['Timestamp,Glucose Value (mg/dL)'];
+        for (var i = 0; i < 288; i++) {
+          var c = edit(i);
+          rows.push(stamp(i) + ',' + (c === undefined ? 110 + (i % 2) : c));
+        }
+        return rows.concat(extra || []).join('\n');
+      };
+      var evs = function (r) {
+        return r.ganglior_events.filter(function (e) {
+          return e.impulse === 'nocturnal_hypo';
+        });
+      };
+      var cellsOf = function (r, f) {
+        return r.timeseries.cells.filter(function (c) {
+          return c.f === f;
+        });
+      };
+
+      // ── control: a file with no Low/High looked and found none
+      var ctl = G.compute({ text: day(function () {}) });
+      T.eq('control · the parser looked, and no cell is out of range', JSON.stringify(ctl.recording.outOfRange), '{"below":0,"above":0,"belowMin":0,"aboveMin":0}');
+      T.eq('control · no row was dropped', JSON.stringify(ctl.recording.rowsDropped), '{"value":0,"stamp":0}');
+      T.eq('control · 100 % in range', ctl.glucose.tir.tir, 100);
+
+      // ── 20 Low cells at 03:20–04:55: 20/288 = 6.9 % under 54, one event of 100 min with no nadir
+      var lowTxt = day(function (i) {
+        return i >= 40 && i < 60 ? 'Low' : undefined;
+      });
+      var low = G.compute({ text: lowTxt });
+      T.eq('20 Low cells of 288 are 6.9 % below 54', low.glucose.tir.tbr2, 6.9);
+      T.eq('…and time in range is the other 93.1 %', low.glucose.tir.tir, 93.1);
+      T.eq('the run is one nocturnal_hypo', evs(low).length, 1);
+      T.eq('…that lasts 100 min', evs(low)[0] && evs(low)[0].meta.durMin, 100);
+      T.eq('…with a null nadir', evs(low)[0] && evs(low)[0].meta.minMgdl, null);
+      T.eq('…that says why', evs(low)[0] && evs(low)[0].meta.belowSensorRange, true);
+      T.eq('the export counts them', JSON.stringify(low.recording.outOfRange), '{"below":20,"above":0,"belowMin":100,"aboveMin":0}');
+      T.eq('20 trace cells carry flag 5', cellsOf(low, 5).length, 20);
+      T.ok(
+        '…and none of them carries a value',
+        cellsOf(low, 5).every(function (c) {
+          return c.v === null;
+        })
+      );
+      T.ok('no NaN reaches the export as a number', JSON.stringify(low).indexOf('NaN') < 0);
+      T.eq('a Low has no value, so the mean is the numeric readings alone', low.glucose.mean, ctl.glucose.mean);
+      T.eq('a Low is sensor-active time, not a gap', low.glucose.pctActive, 100);
+
+      // ── ONE Low between two readings: the old grid bridged it as a short gap and called it analysable
+      var one = G.compute({
+        text: day(function (i) {
+          return i === 100 ? 'LO' : undefined;
+        })
+      });
+      // ── a Low cell covers its own cadence, never the gap behind it: 35 rows absent after i = 100
+      var gapTxt = day(function (i) {
+        return i === 100 ? 'Low' : undefined;
+      })
+        .split('\n')
+        .filter(function (ln, k) {
+          return k < 102 || k > 136;
+        })
+        .join('\n');
+      T.eq('one Low before a 3 h gap is one cell', cellsOf(G.compute({ text: gapTxt }), 5).length, 1);
+      // ── a Low 2 min after a reading does not take the cell that reading sits on
+      var offTxt = day(function () {}, [new Date(T0 + 100 * 300000 + 120000).toISOString().slice(0, 19).replace('T', ' ') + ',Low']);
+      T.eq('an off-grid Low does not displace the reading on the cell', cellsOf(G.compute({ text: offTxt }), 5).length, 0);
+
+      T.eq('one LO cell is not bridged by interpolation', cellsOf(one, 5).length + '/' + cellsOf(one, 2).length, '1/0');
+
+      // ── High: after a 100 → 300 climb, 12 High cells (12/288 = 4.2 %); the peak is a floor
+      var highTxt = day(function (i) {
+        return i >= 150 && i < 160 ? 110 + 20 * (i - 150) : i >= 160 && i < 172 ? 'High' : undefined;
+      });
+      var high = G.compute({ text: highTxt });
+      T.eq('12 High cells and the 2 readings over 250 make 14/288 above 250', high.glucose.tir.tar2, 4.9);
+      T.eq('12 trace cells carry flag 6', cellsOf(high, 6).length, 12);
+      var exc = high.ganglior_events.filter(function (e) {
+        return e.impulse === 'glucose_excursion';
+      });
+      T.ok('the excursion that left the range says its peak is a floor', exc.length >= 1 && exc[0].meta.peakAboveRange === true, JSON.stringify(exc[0] && exc[0].meta));
+      var hi2 = G.compute({
+        text: day(function (i) {
+          return i >= 150 && i < 160 ? 110 + 20 * (i - 150) : undefined;
+        })
+      });
+      var exc2 = hi2.ganglior_events.filter(function (e) {
+        return e.impulse === 'glucose_excursion';
+      });
+      T.ok('control · an excursion inside the range has no such key', exc2.length >= 1 && !('peakAboveRange' in exc2[0].meta), JSON.stringify(exc2[0] && exc2[0].meta));
+
+      // ── the record includes a Low run at either end
+      var edge = G.compute({
+        text: day(function (i) {
+          return i < 12 || i >= 276 ? 'Low' : undefined;
+        })
+      });
+      T.eq('a record that opens on a Low starts at that Low', edge.recording.startEpochMs, T0);
+      T.eq('12 + 12 Low cells at the two ends are all on the grid', cellsOf(edge, 5).length, 24);
+      T.eq('…and 24/288 = 8.3 % is below 54', edge.glucose.tir.tbr2, 8.3);
+
+      // ── a dip that leaves the range has no nadir, so the compression test must not run on its descent
+      var dip = G.compute({
+        text: day(function (i) {
+          return i >= 24 && i < 36 ? [60, 58, 56, 54, 52, 50, 'Low', 'Low', 'Low', 50, 52, 54][i - 24] : undefined;
+        })
+      });
+      T.eq('no cell of a dip that read Low is a compression artifact', cellsOf(dip, 3).length, 0);
+      var steep = G.compute({
+        text: day(function (i) {
+          return i >= 24 && i < 36 ? [75, 75, 75, 75, 75, 75, 'Low', 'Low', 'Low', 75, 75, 75][i - 24] : undefined;
+        })
+      });
+      T.eq('…and neither is the part of a steep dip before its first Low', cellsOf(steep, 3).length, 0);
+      T.eq('…and the event spans the whole dip', evs(dip)[0] && evs(dip)[0].meta.durMin, 60);
+
+      // ── what the parser could not use is counted, and what is not a reading is not
+      var bad = G.compute({
+        text: day(
+          function (i) {
+            return i === 40 || i === 41 ? 'ERR' : i === 50 ? '' : undefined;
+          },
+          ['not-a-date,120']
+        )
+      });
+      T.eq('2 text cells and 1 unreadable stamp are counted; the empty cell and the header are not', JSON.stringify(bad.recording.rowsDropped), '{"value":2,"stamp":1}');
+
+      // ── dawn: a Low in 03–06h hides the nadir, and the day still reports the rise it can see, as a floor
+      var dawnDay = function (a, b) {
+        return GD.analyze(
+          GD.parseCSV(
+            day(function (i) {
+              return i >= 36 && i < 72 ? (i < 40 ? a : 80) : i >= 72 && i < 96 ? (i < 76 ? b : 130) : undefined;
+            })
+          )
+        ).dawn.days[0];
+      };
+      T.eq('dawn · control', JSON.stringify([dawnDay(80, 130).nadir, dawnDay(80, 130).pre, dawnDay(80, 130).delta]), '[80,130,50]');
+      T.eq('dawn · a Low in 03–06h leaves no nadir', JSON.stringify([dawnDay('Low', 130).nadir, dawnDay('Low', 130).pre, dawnDay('Low', 130).delta]), '[null,130,50]');
+      T.eq('dawn · a High in 06–08h leaves no peak', JSON.stringify([dawnDay(80, 'High').nadir, dawnDay(80, 'High').pre, dawnDay(80, 'High').delta]), '[80,null,50]');
+
+      // ── the analysis object behind the panels: the episode list and the per-day row
+      var rLow = GD.analyze(GD.parseCSV(lowTxt)),
+        rHigh = GD.analyze(GD.parseCSV(highTxt));
+      T.eq('per day · 20 Low cells of 288 are 6.9 % below 54', JSON.stringify([rLow.daily[0].nBelow, rLow.daily[0].nAbove, rLow.daily[0].tbr]), '[20,0,6.9]');
+      T.eq('per day · 12 High cells', JSON.stringify([rHigh.daily[0].nBelow, rHigh.daily[0].nAbove]), '[0,12]');
+      var ep = rLow.nocturnalHypo && rLow.nocturnalHypo[0];
+      T.eq('the episode behind the event has a null nadir', ep && ep.min, null);
+      var sx = GD.glucoBuildSummaryExport(rLow, { generated: '2026-11-25T00:00:00Z' });
+      T.eq('summary export · quality counts the Low cells', JSON.stringify(sx.quality.outOfRange), '{"below":20,"above":0,"belowMin":100,"aboveMin":0}');
+      T.eq('summary export · …and the dropped rows', JSON.stringify(sx.quality.rowsDropped), '{"value":0,"stamp":0}');
+      T.eq('summary export · min is null under a Low', sx.glycemic.min, null);
+      T.ok('summary export · cellsNote names both flags', /5 Low/.test(sx.timeseries.cellsNote) && /6 High/.test(sx.timeseries.cellsNote));
+      T.ok('summary export · no NaN reaches it', JSON.stringify(sx).indexOf('NaN') < 0);
+
+      // ── a producer that never looked reads null, never 0
+      var ts = [],
+        vs = [];
+      for (var k = 0; k < 288; k++) {
+        ts.push(T0 + k * 300000);
+        vs.push(110 + (k % 2));
+      }
+      var raw = G.compute({ tMs: ts, vMgdl: vs, unit: 'mg/dL', t0Ms: T0 });
+      T.ok('a pre-parsed frame with no censored list reads null for both', raw.recording.outOfRange === null && raw.recording.rowsDropped === null, JSON.stringify(raw.recording.outOfRange));
+
+      // ── the panel: min under a Low and max under a High are unknown
+      var cm = GD.coreMetrics([100, 120, 140], { below: 1, above: 0 });
+      T.eq('coreMetrics · a Low makes min null and leaves max', JSON.stringify([cm.min, cm.max]), '[null,140]');
+      T.eq('coreMetrics · …and is 1 of 4 in time below 54', JSON.stringify([cm.tir.tbr2, cm.tir.tir, cm.n, cm.nTir]), '[25,75,3,4]');
+      cm = GD.coreMetrics([100, 120, 140], { below: 0, above: 1 });
+      T.eq('coreMetrics · a High makes max null and leaves min', JSON.stringify([cm.min, cm.max, cm.tir.tar2]), '[100,null,25]');
+
+      // ── the fusion road: the adapter carries the two fields through a SignalFrame
+      var ad = env.SignalAdapters && typeof env.SignalAdapters.byId === 'function' ? env.SignalAdapters.byId('libre-cgm') : null;
+      if (ad && typeof ad.parse === 'function') {
+        var fr = ad.parse(lowTxt, {});
+        T.eq('adapter · the 20 Low readings ride on the frame', fr.censored && fr.censored.length, 20);
+        var viaFrame = G.compute(fr);
+        T.eq('adapter · …and so do the drop counts', JSON.stringify(viaFrame.recording.rowsDropped), '{"value":0,"stamp":0}');
+        T.eq('adapter · the frame road reads the same time below range as the CSV road', viaFrame.glucose.tir.tbr2, low.glucose.tir.tbr2);
+      } else {
+        T.ok('adapter · libre-cgm reachable', false, 'load adapters/libre-cgm.js into both runners');
+      }
+    });
+
     /* AUDIT-2026-07-16 F1 — the §3 file-level DMY/MDY lock must hold in GlucoDex's node-local parseCSV,
        not only in the shared DexClock.resolveDMY tested above. GlucoDex parses CGM stamps with its own
        _ckParse (a deliberate node-local Clock variant) and used to decide DMY/MDY PER ROW with a fixed
@@ -95939,6 +96235,29 @@
         T.approx('∅ · …coverage counts only the cells whose flag was known (~0.5)', m.coverage, 0.5, 0.06);
         T.eq('∅ · …and the unknown count rides out of band, as its own present key', m.nFlagUnknown, 18);
       }
+      /* (e) LOW / HIGH. GlucoDex flags 5 and 6 carry no value. Dropping them read a night with 60 min of
+         Low as 0 min below 70. 00:00–08:55 is 108 cells at 5 min. */
+      var END2 = T0 + 107 * 5 * M;
+      var oor = function (lowAt, highAt) {
+        var cells = [];
+        for (var i = 0; i < 108; i++) {
+          var f = i >= lowAt && i < lowAt + 12 ? 5 : i >= highAt && i < highAt + 12 ? 6 : 0;
+          cells.push({ tMs: T0 + i * 5 * M, v: f ? null : i >= 72 && i < 96 ? 130 : 100, f: f });
+        }
+        return gmw(adapt(cells), T0, END2, {});
+      };
+      var none = oor(999, 999),
+        loN = oor(12, 999), // 01:00–02:00
+        loD = oor(40, 999), // 03:20–04:20
+        hiD = oor(999, 80), // 06:40–07:40
+        hiN = oor(999, 12);
+      T.eq('control · no Low or High', JSON.stringify([none.nBelowRange, none.nAboveRange, none.timeBelow70Min, none.nadirValue, none.dawnRise, none.tir70_140]), '[0,0,0,100,30,100]');
+      T.eq('12 Low cells are 60 min below 70, and the nadir is unknown', JSON.stringify([loN.nBelowRange, loN.timeBelow70Min, loN.nadirValue, loN.nadirTimeMs]), '[12,60,null,null]');
+      T.eq('…they are outside 70–140: 96 of 108', loN.tir70_140, 88.9);
+      T.eq('…and outside 03–06h they leave the dawn rise', loN.dawnRise, 30);
+      T.eq('a Low in 03–06h makes the dawn rise unknown', JSON.stringify([loD.dawnRise, loD.dawnRiseTimeMs]), '[null,null]');
+      T.eq('a High in 06–08h does too', JSON.stringify([hiD.dawnRise, hiD.nAboveRange]), '[null,12]');
+      T.eq('12 High cells are not time below 70, and the nadir stands', JSON.stringify([hiN.timeBelow70Min, hiN.nadirValue, hiN.tir70_140, hiN.dawnRise]), '[0,100,88.9,30]');
       /* (d) CONTROL · a fully declared window is untouched. */
       var cw = gmw(adapt(mk(36, 0, 110, 0)), T0, END, {});
       T.ok('control · a fully declared window is unchanged', !!cw && Math.abs(cw.nocturnalMean - 110) < 1e-9, cw ? 'mean=' + cw.nocturnalMean : 'null');

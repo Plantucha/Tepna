@@ -101,7 +101,7 @@
         return { tMs: t, v: parsed.vMgdl[i] };
       });
 
-      return root.SignalFrame.toSignalFrame(
+      var frame = root.SignalFrame.toSignalFrame(
         'cgm',
         {
           samples: samples,
@@ -119,6 +119,11 @@
           warnings: []
         }
       );
+      /* `toSignalFrame` copies only the canonical fields, so these two ride on the frame it returns.
+         A Low/High reading has a stamp and no value, so it can never be a member of samples[]. */
+      frame.censored = parsed.censored;
+      frame.rowsDropped = parsed.rowsDropped;
+      return frame;
     }
   });
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
