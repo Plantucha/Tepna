@@ -85,9 +85,9 @@ NODES: dict[str, tuple[tuple[Pattern, ...], Pattern | None]] = {
         "Polar_VeritySense_*_PPG.txt",
     ),
 }
-# EEGDex: the Muse raw frame file has no parser in the app yet (unit museparse), so a click would load
-# nothing. Drop it from this set in the PR that ships the parser.
-NOT_LOADABLE = frozenset({"HRVDex", "EEGDex"})
+# EEGDex reads the Muse raw frame files of a night as one recording (`EEGDSP.ingestMuseRaw`), so its cell
+# opens the app with the night loaded.
+NOT_LOADABLE = frozenset({"HRVDex"})
 # derived tools: eligible when every required input exists; they open with those inputs loaded
 DERIVED: dict[str, tuple[str, ...]] = {
     # the hat's O2Ring corner is the ring's PULSE from its _SPO2.csv (sensor-trio-power-analysis.js role `o2`), not the
