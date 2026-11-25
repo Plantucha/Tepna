@@ -322,6 +322,10 @@ for (const n of nights) {
    module states the rule beside the function: each remaining tool's default is an owner and
    PAT-program decision, because a flip moves every number that tool published. So the route lands
    and the flip waits for that word, with the axis now requestable through the one copy. */
+  /* AXIS, DECLARED 2026-11-25 for row 2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock.
+     This per-LED read pins the axis at the call site and offers no `--ecg-axis` front door.
+     The axis is `linear`, pinned here, so a flip of the program default leaves every number
+        this tool published where it is. */
   const R = Array.from(rPeakTimesOnAxis(er, Float64Array.from(E.detectPeaks(er.int16, E.bandpass(er.int16, er.fs), er.fs)), { axis: 'linear' }));
   const toMs = (i) => {
     const s = pr.relSec && pr.relSec[i] != null && isFinite(pr.relSec[i]) ? pr.relSec[i] : i / pr.fs;

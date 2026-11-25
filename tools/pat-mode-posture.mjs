@@ -524,6 +524,9 @@ async function main() {
     let P;
     let acc;
     try {
+      /* AXIS, DECLARED 2026-11-25 for row 2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock.
+         This tool names no axis anywhere, so it passes none and inherits the program default.
+         The axis is therefore `linear` today, and a flip of the program default moves these numbers. */
       E = ecgRpeakTimes(readFileSync(paired.eF, 'utf8'), runsOf(paired.eF, 'ECG'), { refine: true });
       P = ppgFootTimes(readFileSync(paired.pF, 'utf8'), runsOf(paired.pF, 'PPG'));
       acc = parseAcc(readFileSync(accPath, 'utf8'));
