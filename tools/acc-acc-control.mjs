@@ -35,6 +35,13 @@
  * (±60 s → −27.3, 3/13; ±240 s → −31.4, 6/13) but never converges.
  *
  * Usage:  node tools/acc-acc-control.mjs [repoRoot] [corpusRoot]
+ *         --from <YYYY-MM-DD> --to <YYYY-MM-DD>  judge only nights in that window (inclusive)
+ *
+ * THE NIGHT WINDOW EXISTS BECAUSE THE WIDE SEARCH COSTS n x N PER ANCHOR. A +-240 s window carries
+ * 16x the samples of the +-15 s one, so the dose-response of papers/null-calibration.html Table 2
+ * priced at ~70 h over the whole tree, measured 2026-11-25 at 1 night per 10 min. The published
+ * dose-response read 13 nights (2026-07-16 -> 07-28), and naming that window re-measures the same
+ * nights under all three windows instead of three different populations.
  *         WH=<ms> to override the coarse correlation half-window (default 15000).
  * Read-only: parses recordings, writes nothing.
  * ════════════════════════════════════════════════════════════════════════════ */
@@ -46,7 +53,7 @@ import { createRequire } from 'node:module';
 
 import { fileURLToPath } from 'node:url';
 import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
-import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
+import { refuseUnknownArgvOrExit, isCliEntry, positionalArgs } from './argv-guard.mjs';
 import { populationVerdict, snapshotEntries } from './corpus-scope-core.mjs';
 import { capturesRoot } from './home-paths.mjs';
 
@@ -66,11 +73,39 @@ const SELF_REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
    module-level refusal reads the IMPORTER's arguments — measured: the suite's `--jobs=auto`
    reached dual-clock-rate's guard through `await import()` and reded step 14 of 40. */
 const IS_CLI = isCliEntry(import.meta.url);
-if (IS_CLI) refuseUnknownArgvOrExit(process.argv.slice(2), { boolean: ['--verdict-sample', '--selftest', '--help', '-h'], positional: true }, { tool: 'acc-acc-control' });
-const argRepo = process.argv[2] && !process.argv[2].startsWith('-') ? process.argv[2] : null;
+const ARGV_SPEC = { boolean: ['--verdict-sample', '--selftest', '--help', '-h'], valued: ['--from', '--to'], positional: true };
+if (IS_CLI) refuseUnknownArgvOrExit(process.argv.slice(2), ARGV_SPEC, { tool: 'acc-acc-control' });
+/* THE POSITIONALS SKIP A VALUED FLAG'S VALUE. `process.argv[2]` read the first token that does not
+   start with `-`, so `--from 2026-07-16` handed the DATE to the captures root and the tool measured
+   an empty tree while printing a population about it. `positionalArgs` is the tree's one reader. */
+const POSITIONALS = positionalArgs(process.argv.slice(2), { valued: ARGV_SPEC.valued });
+const argRepo = POSITIONALS[0] || null;
 const REPO = argRepo || SELF_REPO;
-const argRoot = process.argv[3] && !process.argv[3].startsWith('-') ? process.argv[3] : null;
+const argRoot = POSITIONALS[1] || null;
 const ROOT = argRoot || capturesRoot();
+/* The night window, over the noon-to-noon night key. A value that is not a real calendar day is a
+   refusal, never a silently empty selection: `2026-07-31` and `2026-07-32` differ by one keystroke
+   and the second would judge 0 nights and still print a verdict. */
+const NIGHT_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
+function nightArg(flag) {
+  const a = process.argv.slice(2);
+  const i = a.indexOf(flag);
+  if (i < 0) return null;
+  const v = a[i + 1];
+  const m = NIGHT_DAY.exec(v || '');
+  const day = m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])) : null;
+  if (!day || day.getUTCMonth() + 1 !== +m[2] || day.getUTCDate() !== +m[3]) {
+    console.error(`\u2715 acc-acc-control: ${flag} needs a calendar day as YYYY-MM-DD (got ${v === undefined ? 'nothing' : v})`);
+    process.exit(2);
+  }
+  return v;
+}
+const FROM = IS_CLI ? nightArg('--from') : null;
+const TO = IS_CLI ? nightArg('--to') : null;
+if (FROM && TO && FROM > TO) {
+  console.error(`\u2715 acc-acc-control: --from ${FROM} is after --to ${TO}, so the window holds no night`);
+  process.exit(2);
+}
 /* VERDICT-CONTRACT §3b — this tool never pre-stated a band (its numbers are on record), so its object
    is UNKNOWN by design with the statistic in `result`; `--verdict-sample` is what the adoption gate reads. */
 if (process.argv.includes('--verdict-sample')) {
@@ -440,6 +475,11 @@ for (const f of capturePaths) {
   nights.get(night)[dev].push(f);
 }
 
+/* The window is applied AFTER the keying, so the population line below still names every night the
+   tree offered and the selection is stated beside it, never in place of it. */
+const nightsKeyed = nights.size;
+if (FROM || TO) for (const k of [...nights.keys()]) if ((FROM && k < FROM) || (TO && k > TO)) nights.delete(k);
+
 if (refusedStamps.length) {
   const shown = [...refusedStamps].sort().slice(0, 6);
   console.log(
@@ -460,7 +500,8 @@ const population = populationVerdict(popBefore, snapshotEntries(ROOT, POP), {
 console.log(
   `  population: ${population.population.checked} capture file(s) offered under ${ROOT}` +
     `; ${accMatched} matched an H10 or Verity _ACC.txt name, ${population.population.checked - accMatched} did not` +
-    `; ${nights.size} night(s) keyed` +
+    `; ${nightsKeyed} night(s) keyed` +
+    (FROM || TO ? `; night window ${FROM || 'the first'}..${TO || 'the last'} selects ${nights.size} of them` : '') +
     (unreadableDirs.length ? `; ${unreadableDirs.length} unreadable subdirectory(ies): ${unreadableDirs.join(', ')}` : '')
 );
 console.log(`POPULATION ${JSON.stringify(population)}`);

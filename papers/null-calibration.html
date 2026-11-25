@@ -111,6 +111,40 @@
   </table>
   <p style="font-size:12px;color:#777;margin-top:-4px">Table 2 · The control. Anchor spread is the range of the per-anchor offset estimates within a night: at the design range they agree to 0.1 min, in the wide search they cover essentially the entire ±50 min searched — the signature of noise.</p>
 
+  <div class="callout" style="border:2px solid #2b6cb0;background:#f5f9ff">
+    <b>Re-measured 2026-11-25: the control on the current aligner, over 108 nights.</b>
+    <p style="margin:.6em 0 0">The July control read 13 nights. The capture tree now carries more, and the same tool
+    judges CLAIM nullNights = 108 FROM analysis/published-numbers/null-calibration-2026-11-25.json#claims/nightsScored nights
+    of 111 eligible. The design range aligns CLAIM nullFineAligned = 101 FROM analysis/published-numbers/null-calibration-2026-11-25.json#claims/fineAligned nights
+    at a median offset of CLAIM nullFineOffset = 0 FROM analysis/published-numbers/null-calibration-2026-11-25.json#claims/fineMedianOffsetMin min
+    and a median anchor spread of CLAIM nullFineSpread = 0 FROM analysis/published-numbers/null-calibration-2026-11-25.json#claims/fineMedianSpreadMin min.
+    The wide search reports a median offset of CLAIM nullCoarseOffset = 0.01 FROM analysis/published-numbers/null-calibration-2026-11-25.json#claims/coarseZeroMedianOffsetMin min
+    at a true 0, and its median anchor spread is CLAIM nullCoarseSpread = 90 FROM analysis/published-numbers/null-calibration-2026-11-25.json#claims/coarseZeroMedianSpreadMin min,
+    which again covers the range it searches. It recovers the planted &minus;39 min on
+    CLAIM nullRecovered39 = 4 FROM analysis/published-numbers/null-calibration-2026-11-25.json#claims/recovered39At15s nights,
+    attenuated to CLAIM nullDelta39 = -10.9 FROM analysis/published-numbers/null-calibration-2026-11-25.json#claims/delta39At15s min.
+    So the failure of &sect;3 is a property of the parameters, not of the 13 nights that first showed it.</p>
+    <p style="margin:.6em 0 0">The bound of Table 1 recomputes exactly: n = CLAIM nullBoundN = 121 FROM analysis/published-numbers/null-calibration-2026-11-25.json#claims/boundN15 samples
+    over N = CLAIM nullBoundLags = 24001 FROM analysis/published-numbers/null-calibration-2026-11-25.json#claims/boundLags15 candidate lags
+    give E[max spurious r] = CLAIM nullBoundE = 0.408 FROM analysis/published-numbers/null-calibration-2026-11-25.json#claims/boundE15 against the lowered threshold of 0.35.</p>
+    <p style="margin:.6em 0 0">The dose-response re-runs that one population of 13 nights at three correlation windows, which is
+    the term the bound says must grow. At &plusmn;15 s the search recovers the planted &minus;39 min on
+    CLAIM nullDose15 = 2 FROM analysis/published-numbers/null-calibration-2026-11-25.json#claims/doseRecovered15s of
+    CLAIM nullDose15Of = 13 FROM analysis/published-numbers/null-calibration-2026-11-25.json#claims/doseRecovered15sOf nights,
+    attenuated to CLAIM nullDoseDelta15 = -22.91 FROM analysis/published-numbers/null-calibration-2026-11-25.json#claims/doseDelta15s min.
+    At &plusmn;60 s it recovers CLAIM nullDose60 = 3 FROM analysis/published-numbers/null-calibration-2026-11-25.json#claims/doseRecovered60s of
+    CLAIM nullDose60Of = 12 FROM analysis/published-numbers/null-calibration-2026-11-25.json#claims/doseRecovered60sOf nights,
+    at CLAIM nullDoseDelta60 = -24.38 FROM analysis/published-numbers/null-calibration-2026-11-25.json#claims/doseDelta60s min.
+    A longer window also needs a longer clean shared stretch, so one night of the 13 no longer aligns at
+    &plusmn;60 s, and each row carries its own denominator. The &plusmn;240 s arm is not re-measured here: it carries
+    16 times the samples of the &plusmn;15 s arm per candidate lag, and it priced at about 10 h over these nights
+    (measured 2026-11-25, one night per ~55 min). The July figure for that window stands as published, and no
+    committed artifact binds it.</p>
+    <p style="margin:.6em 0 0">The July table binds to no committed artifact, because git never held the run that produced it.
+    This block states what the current tool measures, and the record beside it carries every number above
+    with its population. Only the record is machine-readable; the July table stays as it was published.</p>
+  </div>
+
   <p>Three things in Table 2 deserve emphasis.</p>
   <ol>
     <li><b>The wide search's "correct" row is the most dangerous one.</b> At a true offset of zero it reports 0.00 min and lands within ±5 min on 11 of 13 nights, which reads as a working method. It is not working; it is regressing to the centre of its search range, and the planted rows prove it. A control run only at the true answer would have <em>validated</em> the broken configuration. <b>A positive control must plant an effect.</b></li>
