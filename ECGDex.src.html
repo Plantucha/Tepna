@@ -780,6 +780,9 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
 <script src="dex-profile.js"></script>
 <script src="ecgdex-registry.js"></script>
 <script src="clock.js"></script>
+<!-- sq-table.js BEFORE the dsp and the render module: the DSP resolves the spine at call time,
+     and the render module calls SQTable.makeTable at evaluation (SIGNAL-QUALITY-TABLE-2026-11-14 §7.4). -->
+<script src="sq-table.js"></script>
 <!-- GENERATOR-FOLLOWUPS-II §3 step 2 — the shared coherence engine + patient axis. `synth-gen.js`
      now carries the RR→PQRST µV renderer (step 1), so ECGDex can generate raw waveform from the SAME
      master timeline every other node renders from; before the lift that renderer lived in

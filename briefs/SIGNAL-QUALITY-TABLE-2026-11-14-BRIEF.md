@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS (unit 1 of 5 — the ECGDex pilot is COMPLETE; §7 rolls the table out to the other nodes) · **Created:** 2026-11-14
+**Status:** IN-PROGRESS (the ECGDex pilot and the §7.4 spine move are COMPLETE; §7 rolls the table out to the other nodes) · **Created:** 2026-11-14
 
 # Signal-quality table — every Dex shows its sensors before its results
 
@@ -303,7 +303,9 @@ Assignee: decided on the agent board (`--kind decision`, 2026-11-14).
 2. MotionDex and OxyDex. OxyDex shows O2Ring drift against the host stamps on a box night, and
    against the H10 when the night holds one (§3d).
 3. CPAPDex and GlucoDex, which do not carry `clock.js`, so their timing row reads `null`.
-4. The helper moves to a spine module in the same PR as the second adopter.
+4. The helper now lives in the spine module `sq-table.js` (DONE 2026-11-25). The move landed
+   ahead of the adopter, because PpgDex holds no quality machinery yet. Its adoption is a unit
+   of its own.
 
 ## 8 · Open questions
 

@@ -747,6 +747,7 @@ function readSources() {
     'cohort-regression.js',
     'cohort-runner.html',
     'clock.js',
+    'sq-table.js',
     'clock-seam.js',
     'radio-clock.js',
     'oxydex-util.js',
@@ -3179,6 +3180,7 @@ async function main() {
     [
       'kernel-constants.js',
       'clock.js',
+      'sq-table.js',
       'clock-seam.js',
       'radio-clock.js',
       'metric-registry.js',
@@ -3604,6 +3606,7 @@ async function main() {
     // only worth asserting if the shared escaper is known to close that hole.
     escapeHTML: ctx.escapeHTML || (ctx.DexEsc && ctx.DexEsc.escapeHTML),
     DexClock: ctx.DexClock,
+    SQTable: ctx.SQTable,
     DexSeam: ctx.DexSeam,
     DexRadio: ctx.DexRadio,
     /* THE REALM GLOBAL — the object the co-loaded modules actually hang their globals on. The suite

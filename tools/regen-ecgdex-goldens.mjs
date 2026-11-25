@@ -108,7 +108,7 @@ function realm() {
   ctx.__DEX_NAMESPACED__ = true;
   // clock.js BEFORE ecgdex-dsp.js — the DSP aliases DexClock.parseTimestamp at load. ecgdex-morph.js
   // AFTER the DSP so ECGDSP.analyze finds global.ECGMorph (morph-active, matching the equiv gate).
-  for (const f of ['kernel-constants.js', 'clock.js', 'signal-frame.js', 'dex-export.js', 'metric-registry.js', 'ecgdex-registry.js', 'ecgdex-dsp.js', 'ecgdex-morph.js'])
+  for (const f of ['kernel-constants.js', 'clock.js', 'sq-table.js', 'signal-frame.js', 'dex-export.js', 'metric-registry.js', 'ecgdex-registry.js', 'ecgdex-dsp.js', 'ecgdex-morph.js'])
     vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(REPO, f), 'utf8')), ctx, { filename: f });
   return ctx;
 }
