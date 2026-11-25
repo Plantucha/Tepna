@@ -9848,7 +9848,7 @@
                       const t = {};
                       r.epochs.forEach((e) => {
                         if (e.position) {
-                          t[e.position] = (t[e.position] || 0) + 1;
+                          t[e.position] = (t[e.position] || 0) + 1; // absence-ok: tally — an unseen position counted no epochs
                         }
                       });
                       const tot = r.epochs.length || 1;
