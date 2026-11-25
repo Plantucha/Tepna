@@ -14056,8 +14056,17 @@ const OxyDex = window.OxyDex;
         }
         j++; // skip 0x14
         var onsetSec = parseFloat(onset);
+        /* ∅ AN ABSENT DURATION FIELD IS NOT A ZERO-SECOND EVENT. EDF+ makes the duration optional:
+           a TAL carries it only after a 0x15 byte, which `dur` records. `duration ? … : 0` answered 0
+           for BOTH an omitted field and a device-written "0", because the string "0" is falsy too. The
+           two are different facts. A written 0 is the marker form a real AirSense uses to open or close
+           a span, and an omitted field states nothing at all. The reader of an event that carries no
+           stated duration must see `null`, so this answers `null` for the omitted field, and keeps a
+           written 0 as the 0 the device wrote. A duration that does not parse is also `null`. */
+        var durSec = dur ? parseFloat(duration) : null;
+        if (durSec != null && !isFinite(durSec)) durSec = null;
         if (text.length && !isNaN(onsetSec)) {
-          out.push({ onsetSec: onsetSec, durSec: duration ? parseFloat(duration) : 0, text: text });
+          out.push({ onsetSec: onsetSec, durSec: durSec, text: text });
         }
         if (j < n && bytes[j] === 0x00) break; // end of this TAL
       }
