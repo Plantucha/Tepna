@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED (triaged 2026-11-04 (Magpie): **five of the six acceptance items are met, and the sixth is one sentence of prose.** Item two is met — the owner ratified §6's band on 2026-10-13, recorded in the paper brief's §4.4, before any scoring run. Item four is met in full: `analysis/published-numbers/ahi-refit-2026-10-13.json` carries both scored visits, the subject-disjoint split and four `tepna.verdict/1` objects, each gate and criterion naming its own harmonized column. Item five has not triggered, because the successor brief touches docs only — the shipped `computeAHIestimates` coefficients stand and no folded night is stale, which is the sequencing this item asked for. Item six is the one OPEN: `papers/odi4-ahi-bias.html` §3.2 cites the published figure without naming it the repo-local-definition control, and that page holds the only citation. So this brief waits on a labelling fix in `papers/`, which belongs to the lane that owns that page) · **Created:** 2026-10-12 · **Promoted from:** residue `2026-09-15-ahikulkas-buys-scale-not-skill` (owner ruling 2026-10-12, relayed) · **Relates:** `SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md` (DONE), `HELD-OUT-BAND-CAMPAIGN-2026-09-22-BRIEF.md` (PROPOSED), `PAPER-ODI4-REPRODUCIBILITY-2026-07-31-BRIEF.md`, `docs/CORPUS-LOCATIONS.md`
+**Status:** DONE — 2026-11-25 (all six acceptance items met, each ticked in §7 with its evidence) · **Created:** 2026-10-12 · **Promoted from:** residue `2026-09-15-ahikulkas-buys-scale-not-skill` (owner ruling 2026-10-12, relayed) · **Relates:** `SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md` (DONE), `HELD-OUT-BAND-CAMPAIGN-2026-09-22-BRIEF.md` (PROPOSED), `PAPER-ODI4-REPRODUCIBILITY-2026-07-31-BRIEF.md`, `docs/CORPUS-LOCATIONS.md`
 
 # Refitting the AHI surrogate — what is on disk, what one calibration costs, and the one ruling that conflicts
 
@@ -174,15 +174,21 @@ harmonized table repeats 2293 subjects and a bootstrap over rows would understat
 1. §2's split follows the owner's 12:50 EDT ruling: fit 2843, hold-out 2651, no subject in both roles.
    ✅ **met 2026-10-12.**
 2. §6's criterion ratified or replaced **before** the first scoring run.
+   ✅ **met 2026-10-13**: the owner ratified the band, recorded in the paper brief's §4.4.
 3. A harmonized-column reader exists and every scored row carries `ahiVar` = the exact column name.
    ✅ **met 2026-10-13** — `NSRR.parseAhiCsv` / `NSRR.lookupAhi`, §3b.
 4. One scoring run per visit in scope; four fits from it; four `tepna.verdict/1` objects, one per
    definition, each naming its column in `criterion`.
+   ✅ **met 2026-10-13**: `analysis/published-numbers/ahi-refit-2026-10-13.json` holds both visits and the
+   four verdicts. A re-read on 2026-11-25 found four `PASS` verdicts, one for each column.
 5. Any coefficient change to `computeAHIestimates` re-bundles OxyDex and re-verifies its fixtures —
    `oxydex-dsp.js` is in the trio fold's compute set, so a coefficient edit also stales every folded
    night. **Sequence it against the fold, never beside it.**
+   ✅ **not triggered**: no coefficient moved. A later change owes this item in its own unit.
 6. Every citation of the published R² 0.27 names it as the repo-local-definition control (§3), and none
    treats it as a baseline for a harmonized refit.
+   ✅ **met 2026-11-25**: the test group `ahi-paper-item-8` holds `tools/*.mjs` and `briefs/*.md` since
+   #4347. `papers/odi4-ahi-bias.html` §3.2 and its card in `papers/papers.html` now name the definition.
 
 ## 8 · Out of scope
 
