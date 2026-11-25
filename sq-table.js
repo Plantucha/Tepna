@@ -457,7 +457,7 @@
           if (!c || _sqNum(c.value, row.kind) != null) return;
           absentCells++;
           var b = c.reason || _SQ_NO_REASON;
-          seen[b] = (seen[b] || 0) + 1;
+          seen[b] = (seen[b] || 0) + 1; // absence-ok: a tally key with no entry has counted nothing
           var n = seen[b];
           if (n > topN) {
             topN = n;
@@ -581,7 +581,7 @@
       var scTally = Object.create(null);
       sc.forEach(function (r) {
         var st = r.state || 'state not stated';
-        scTally[st] = (scTally[st] || 0) + 1;
+        scTally[st] = (scTally[st] || 0) + 1; // absence-ok: a tally key with no entry has counted nothing
       });
       if (!scTally.read) scTally.read = 0;
       var _scRank = function (x) {
@@ -660,7 +660,7 @@
       var _scCount = function (gs) {
         var by = {};
         gs.forEach(function (g) {
-          by[g.state] = (by[g.state] || 0) + g.files.length;
+          by[g.state] = (by[g.state] || 0) + g.files.length; // absence-ok: a tally key with no entry has counted nothing
         });
         return Object.keys(by)
           .map(function (k) {
