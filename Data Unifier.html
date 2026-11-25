@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="a13d3cefba1f" data-compute-hash="5cc895e2e41d"><head>
+<html lang="en" data-manifest-hash="771aacc5bed6" data-compute-hash="414137025a06"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-JOqjyEYQXKY+GdMVYfY11IKXcdrf3/qh7jo0ee3mqbg=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-M3ZOhml+Q710BLZQ/P2i37xtADxczWQXIxaac3VLRj0=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UdJ88eeYm1W9tlVf66iAGR0D63hIgHQ6dBYrVftyKPE=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gsfxF3U9fQYY6VBcjkxdisltp5OpMvk7xGo0quyFZm8=' 'sha256-hWzB4rsCbqCsuYfj7w7IHjnaPKU1JJMMs+oxJLE4sLU=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-wktj1Df+isZKJxu0wGtJ0pZLbTfqdObxwLCd2Fo+wQg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-JOqjyEYQXKY+GdMVYfY11IKXcdrf3/qh7jo0ee3mqbg=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-M3ZOhml+Q710BLZQ/P2i37xtADxczWQXIxaac3VLRj0=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UdJ88eeYm1W9tlVf66iAGR0D63hIgHQ6dBYrVftyKPE=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gsfxF3U9fQYY6VBcjkxdisltp5OpMvk7xGo0quyFZm8=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rKOLZSmNqgk9sveMIZvZI2xTcv2C6V9ASMx59wAbxvU=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-wktj1Df+isZKJxu0wGtJ0pZLbTfqdObxwLCd2Fo+wQg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -32421,6 +32421,11 @@ __exports.GlucoDex = window.GlucoDex;
          refusal paths too: the mask describes the series whether or not the detector consumed it,
          and `cvhrReason` already names a refusal. */
       spansGapRuns: _spansGapRuns,
+      /* The O2Ring's two-channel raw file, not its 125 Hz pleth. The app set this flag on the
+         session AFTER `analyze`, and `ppgBuildSummaryExport` reads it for the device string. It
+         belongs to the session, so `analyze` declares it once and both roads read one value. A
+         road that set it for itself could name the wrong instrument. */
+      ringRaw: !!rec.rawAxis,
       // The index's BASIS travels with it (F3 port) — present only when one was computed, so a
       // refusal path stays byte-stable and no committed fixture moves for an inert key.
       ...(_cvhr.denomSec != null && _cvhr.denomSec > 0 ? { cvhrDenomSec: _cvhr.denomSec } : {}),
@@ -33580,6 +33585,35 @@ __exports.GlucoDex = window.GlucoDex;
     };
   }
 
+  /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ──────────────────
+     One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
+     carries the field list and the null discipline). PpgDex owns the lattice this builder's derivation was taken from
+     (`:1709`), so it passes its own `timingSource` and the builder validates it. `|| []` keeps
+     "looked, found no resync" apart from "does not look" — the key is written only when non-empty.
+     Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
+     nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
+     load-order bug and the export-parity group reds on it rather than letting it pass. */
+  function ppgTimingBlock(r) {
+    return typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock
+      ? // This node's seam instrument IS its counter-step detector (`clockResyncs` entries
+        // carry `deviceStepMs`), so one array answers both counts — asserted here, not assumed
+        // by the shared builder.
+        DexExport.timingBlock({
+          hostAxis: r.hostAxis,
+          timingSource: r.timingSource,
+          drawn: r.axisDrawn,
+          resyncs: r.clockResyncs || [],
+          seams: r.clockResyncs || [],
+          /* The rate, from the node that owns it. `fsRateApplied` is this node's own flag
+             rather than `hostAxis.rateApplied`, because the refusal branch of that projection
+             never carried the field and a missing key would read as "nobody said". */
+          rate: r.fs,
+          rateRaw: r.fsRaw,
+          rateApplied: r.fsRateApplied,
+          rateReason: r.fsRateReason
+        })
+      : null;
+  }
   function ppgBuildNodeExport(r, opts) {
     opts = opts || {};
     // EXPORT-IDENTITY §2.1: computed ONCE here and shared by recording.contentId and the measurement
@@ -33658,34 +33692,7 @@ __exports.GlucoDex = window.GlucoDex;
            Verity is ankle-worn and defaults to 'wrist', so a morphology tier justified by wrist
            literature is unearned wherever this reads 'device-default'. */
         siteSource: r.siteSource || 'device-default',
-        /* ── THE SHARED TIMING BLOCK (DEVICE-TIME-HANDLING-2026-10-29-BRIEF U5) ──────────────────
-           One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
-           carries the field list and the null discipline). PpgDex owns the lattice this builder's derivation was taken from
-           (`:1709`), so it passes its own `timingSource` and the builder validates it. `|| []` keeps
-           "looked, found no resync" apart from "does not look" — the key is written only when non-empty.
-           Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in all
-           nine bundles and co-loaded by every realm that builds an export, so a `null` here is a
-           load-order bug and the export-parity group reds on it rather than letting it pass. */
-        timing:
-          typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock
-            ? // This node's seam instrument IS its counter-step detector (`clockResyncs` entries
-              // carry `deviceStepMs`), so one array answers both counts — asserted here, not assumed
-              // by the shared builder.
-              DexExport.timingBlock({
-                hostAxis: r.hostAxis,
-                timingSource: r.timingSource,
-                drawn: r.axisDrawn,
-                resyncs: r.clockResyncs || [],
-                seams: r.clockResyncs || [],
-                /* The rate, from the node that owns it. `fsRateApplied` is this node's own flag
-                   rather than `hostAxis.rateApplied`, because the refusal branch of that projection
-                   never carried the field and a missing key would read as "nobody said". */
-                rate: r.fs,
-                rateRaw: r.fsRaw,
-                rateApplied: r.fsRateApplied,
-                rateReason: r.fsRateReason
-              })
-            : null
+        timing: ppgTimingBlock(r)
       },
       ganglior_events: events,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.' },
@@ -34501,7 +34508,7 @@ __exports.GlucoDex = window.GlucoDex;
     return typeof v === 'string' && v.length <= 40 && _SRC_TAG_RE.test(v);
   }
 
-  function compute(input, opts) {
+  function ppgComputeResult(input, opts) {
     opts = opts || {};
     var rec;
     if (input && input.samples && input.samples.ch && Array.isArray(input.samples.ch)) {
@@ -34584,12 +34591,404 @@ __exports.GlucoDex = window.GlucoDex;
     }
     if (_sourceTag(opts.source)) rec.source = opts.source;
     if (opts.fname && !rec.fname) rec.fname = opts.fname;
-    var r = analyze(rec, null);
-    return ppgBuildNodeExport(r, opts);
+    return analyze(rec, null);
+  }
+
+  /* `compute()` IS the node-export road, and nothing else. The session it builds is now reachable on
+     its own through `ppgComputeResult`, which is the road a committed fixture and a headless test
+     take to the SUMMARY payload. The split carries the sidecar discipline with it: every caller
+     still reaches `parsePPG` through one function that passes `runsText` and `seamsText`, so no new
+     caller reads bytes off a file without the validity companion beside them. */
+  function compute(input, opts) {
+    return ppgBuildNodeExport(ppgComputeResult(input, opts), opts || {});
+  }
+
+  /* ── THE SUMMARY EXPORT, HEADLESS ──────────────────────────────────────────────────────────────
+     Row 2026-11-24-four-nodes-summary-export-payload-has-no-known-answer. This payload is the file
+     the app's JSON button downloads, and it lived inline in `ppgdex-app.js buildV2`, where no
+     committed fixture could reach it. A fabricated value in it reded nothing: the source pins in
+     `tests/dex-tests.js` read named keys and never the bytes. It moves here beside
+     `ppgBuildNodeExport`, so the app road and a committed fixture read ONE builder.
+       r               — the recording `analyze()` returns, which is the app's session object
+       opts.kernel     — the DexKernel namespace | null
+       opts.provenance — GangliorProvenance.stamp() | null   (the key is always present)
+       opts.generated  — ISO string, defaulting to now at call time
+     Those three app-realm reads were the only ones this body carried. Everything else is arithmetic
+     over `r`. Field ORDER matches the app's historical payload byte-for-byte. */
+  function ppgBuildSummaryExport(r, opts) {
+    opts = opts || {};
+    /* Verbatim from `ppgdex-app.js`, where the same helper still serves its render-path callers. The
+       body is copied and never re-derived: a different rounding rule would move the bytes of every
+       epoch field below, and the fixture would then pin the new rule instead of the old payload. */
+    const _round = (v, d = 2) => (v == null || typeof v !== 'number' || !isFinite(v) ? (v == null ? null : v) : +v.toFixed(d));
+    const fq = r.freq || {};
+    const m = r.morph;
+    const epochs = r.epochs.map((e) => ({
+      tMin: e.tMin,
+      beats: e.beats,
+      hr: _round(e.hr, 1),
+      meanRR: _round(e.meanRR, 1),
+      rmssd: _round(e.rmssd, 2),
+      sdnn: _round(e.sdnn, 2),
+      pnn50: _round(e.pnn50, 1),
+      lf: _round(e.lf, 1),
+      hf: _round(e.hf, 1),
+      lfhf: _round(e.lfhf, 3),
+      respRate: _round(e.respRate, 1),
+      pi: _round(e.pi, 1),
+      motionIndex: _round(e.motionIndex, 3),
+      ledAgreementPct: _round(e.ledAgreementPct, 0),
+      position: e.position || 'unknown',
+      positionConf: _round(e.positionConf, 2),
+      headingDeg: _round(e.headingDeg, 1),
+      // §3a: null = no posture datum for this epoch, NOT "the field was clean".
+      magInterference: e.magInterference == null ? null : !!e.magInterference
+    }));
+    return {
+      kernel: opts.kernel ? { version: opts.kernel.VERSION, hash: opts.kernel.HASH } : null,
+      schema: {
+        name: 'ganglior.node-export',
+        version: '2.0',
+        node: 'PpgDex',
+        nodeVersion: '1.0',
+        generated: opts.generated || new Date().toISOString(),
+        provenance: opts.provenance !== undefined ? opts.provenance : null, // R1: build + input fingerprints
+        doc: 'Single-signal wrist-PPG node. Floating wall-clock tMs (Clock Contract). Single-site → no SpO₂/PTT/BP; 2-site fusion lives in the Integrator.',
+        units: { ppi: 'ms', rmssd: 'ms', sdnn: 'ms', hr: 'bpm', power: 'ms^2', pi: '%', riseTime: 'ms', ai: '%', motionIndex: '0..1', headingDeg: 'deg', positionConf: '0..1' }
+      },
+      recording: {
+        /* EXPORT-SOURCE-KEY-KINDS — this key held the upload filename, while every other node writes a
+           semantic tag here, and so does this node's OWN DSP builder. A consumer cannot tell the two
+           kinds apart: `signal-orchestrate.js` dispatches on `recording.source === 'welltory'`. So a
+           filename here was a value no consumer reads, sitting in a key one consumer routes on.
+           Measured over the committed corpus: 441 of 442 values are tag-shaped, and the single
+           path-shaped value is this builder's. The tag now matches the DSP sibling. The upload
+           filename rides a key that MEANS a filename, and `recording.fname` is undeclared in the
+           export allow-list, so the scrub drops it and names it in the drop report — what the
+           contract already does with every identifier route. */
+        source: 'ppg',
+        fname: r.fname || null,
+        /* EXPORT-PATH-UNREACHABLE-FOLLOWUPS-IV — the device string was HARDCODED to "Polar Sense", so an
+           O2Ring finger recording exported a file claiming it came from a Polar Verity worn on the
+           wrist. Observed on a real night: source "Wellue_O2Ring-S_..._PPG.txt", device "Polar Sense".
+           A provenance field that names the wrong instrument is worse than an absent one.
+           The device now follows the SAME evidence as the site — the optical layout the DSP already
+           read — and `siteSource` beside it says how strong that evidence is ('device-default' =
+           inferred from the layout, 'declared' = the wearer said so). No new inference is invented
+           here; the lie is simply removed. */
+        device:
+          r.opticalDevice === 'Muse'
+            ? 'Muse S Athena headband (3 of 4 optical channels)'
+            : r.ringRaw
+              ? 'O2Ring raw two-wavelength finger PPG'
+              : r.site === 'finger'
+                ? 'O2Ring-class single-channel finger pleth'
+                : 'Polar Verity Sense (3-LED)',
+        /* Emitted by the DSP's builder since #626 and missing from this one — the sibling-divergence
+           class again: two builders for one export, and only one of them told you where the signal
+           was taken from. Verbatim from hrvBuildNodeExport's siblings so the app and compute() agree. */
+        site: r.site || 'wrist',
+        siteSource: r.siteSource || 'device-default',
+        sampleRateHz: r.fs,
+        durationSec: Math.round(r.durSec),
+        durationMin: r.durMin,
+        startEpochMs: r.t0Ms,
+        offsetMin: r.offsetMin,
+        beats: r.nPulses,
+        channel: r.channel,
+        epochs5min: r.epochs.length,
+        tier: r.tier,
+        cpapInUse: r.cpapInUse != null ? r.cpapInUse : r.profile && r.profile.cpap != null ? r.profile.cpap : null,
+        /* THE SHARED TIMING BLOCK, ON THIS ROAD TOO (DEVICE-TIME-HANDLING-2026-10-29 U5). This
+           payload declares `schema.name: ganglior.node-export`, and that schema obliges the block on
+           every `recording` object. The app's inline builder never reached it, so the summary a
+           reader downloads declared the contract and omitted the block, while both node-export
+           fixtures carried it. The suite found it the moment this payload gained a committed fixture:
+           `equiv:ppgdex_summary_export carries recording.timing - absent`. One function now serves
+           both builders, so the two roads cannot disagree about the timebase. */
+        timing: ppgTimingBlock(r)
+      },
+      quality: {
+        analyzablePct: r.analyzablePct,
+        cleanBeatPct: r.cleanBeatPct,
+        coveragePct: r.coveragePct,
+        meanSQI: r.meanSQI,
+        meanSQIReason: r.meanSQIReason != null ? r.meanSQIReason : null,
+        motionRejectedPct: r.motionRejectedPct,
+        motionRejectedPctReason: r.motionRejectedPctReason,
+        correctionRatePct: r.correctionRate,
+        ledAgreementPct: r.ledAgreementPct != null ? r.ledAgreementPct : null,
+        ledAgree3of3Pct: r.ledAgree3of3Pct != null ? r.ledAgree3of3Pct : null,
+        droppedBeats: r.nDroppedBeats != null ? r.nDroppedBeats : null,
+        magInterferencePct: r.magInterferencePct != null ? r.magInterferencePct : null,
+        deviceAgreementPct: r.validation && r.validation.usable ? r.validation.deviceAgreementPct : null
+      },
+      hrv: {
+        time: {
+          meanRR: r.meanRR,
+          hr: r.dispHr,
+          sdnn: r.sdnn,
+          rmssd: r.rmssd,
+          pnn50: r.pnn50,
+          lnRMSSD: r.lnRMSSD,
+          triIdx: r.triIdx,
+          sdnnIndex: r.sdnnIndex != null ? r.sdnnIndex : null,
+          sdnnRobust: r.sdnnRobust != null ? r.sdnnRobust : null,
+          sd2Robust: r.sd2Robust != null ? r.sd2Robust : null,
+          window: 'wholeRecord',
+          units: 'ms',
+          lowConfidence: !!r.hrvLowConfidence,
+          lowConfidenceReason: r.hrvLowConfidenceReason || null,
+          windowNote: 'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.',
+          sdnnNote:
+            'whole-record sdnn runs high on optical (SDANN/baseline-wander inflation, ~+26% vs chest ECG). sdnnIndex = mean of per-5-min SDNN (~+18%); sdnnRobust = quality-gated MEDIAN of per-5-min SDNN (~+3.5% vs ECG truth) \u2014 use sdnnRobust for cross-node SDNN comparison.'
+        },
+        poincare: { sd1: r.sd1, sd2: r.sd2, sd1sd2: r.sd1sd2, ellipseArea: r.ellArea },
+        frequency: {
+          vlf: fq.vlf,
+          lf: fq.lf,
+          hf: fq.hf,
+          lfhf: fq.lfhf,
+          lfnu: fq.lfnu,
+          hfnu: fq.hfnu,
+          totalPower: fq.totalPower,
+          method: 'Lomb-Scargle',
+          lowConfidence: !!r.hrvLowConfidence,
+          lfRobust: r.lfRobust != null ? r.lfRobust : null,
+          hfRobust: r.hfRobust != null ? r.hfRobust : null,
+          lfhfRobust: r.lfhfRobust != null ? r.lfhfRobust : null,
+          hfRobustLowMotion: r.hfRobustLowMotion != null ? r.hfRobustLowMotion : null
+        },
+        nonlinear: { dfaAlpha1: r.dfa1, sampEn: r.sampen },
+        confidence: r.hrvConfidence || null
+      },
+      // DEEP-AUDIT §19 — the raw profile shipped the POPULATION DEFAULT (42 y · M · 80 kg · 178 cm) as
+      // though the user had entered it. Split it: `profile` = only what was actually entered/detected,
+      // `assumedDefaults` = the priors COMPUTE ran on. Tolerates a profile with no _origins (legacy).
+      personalization: {
+        profile: (function () {
+          var pr = r.profile || null;
+          if (!pr || typeof pr !== 'object') return pr || null;
+          var o = pr._origins || null;
+          var ent = function (f, v) {
+            return o && (o[f] === 'you' || o[f] === 'detected') ? v : null;
+          };
+          return {
+            age: ent('age', pr.age),
+            sex: ent('sex', pr.sex),
+            weight: ent('weight', pr.weight),
+            height: ent('height', pr.height),
+            elev: ent('elevation', pr.elev),
+            cpap: ent('cpap', pr.cpap),
+            hrmax: pr.hrmax > 0 ? pr.hrmax : null,
+            rhr: pr.rhr > 0 ? pr.rhr : null,
+            vo2gt: pr.vo2gt > 0 ? pr.vo2gt : null,
+            note: 'Only what the user entered/selected, or a node detected. null = left on auto/default.'
+          };
+        })(),
+        assumedDefaults: (function () {
+          var pr = r.profile || null;
+          if (!pr || typeof pr !== 'object') return null;
+          var o = pr._origins || null;
+          var asm = function (f, v) {
+            return o && (o[f] === 'you' || o[f] === 'detected') ? null : v;
+          };
+          return {
+            age: asm('age', pr.age),
+            sex: asm('sex', pr.sex),
+            weight: asm('weight', pr.weight),
+            height: asm('height', pr.height),
+            elev: asm('elevation', pr.elev),
+            source: 'population norm (NHANES age×sex) — the value the analysis ran on',
+            note: 'NOT a measurement of this person.'
+          };
+        })(),
+        ansReadinessScore: r.hrvScore,
+        ansAge: null /* ANS Age REMOVED 2026-06-21 (external-review WP-A); null for node-export back-compat. */,
+        restingHR: r.rhrEff,
+        vo2maxEst: r.vo2adj,
+        expectedRmssd: r.expRmssd
+      },
+      apnea: r.longRec ? { screen: 'CVHR (PPI-derived bradycardia-rebound)', note: 'screen not diagnosis', index: null } : null,
+      /* §∅ — NO MORPHOLOGY IS NOT MORPHOLOGY OF ZERO. This block read its fields off
+         `r.morph || {}`, so a record with no builder shipped `dicroticNotchPresent: false` — a
+         measured-looking "no notch" — beside an empty `perWindow` array. The block now refuses as
+         one, and `morphologyReason` carries the DSP's named cause, so a consumer can separate an
+         absent builder from a pulse that carried no notch. `apnea` above refuses the same way. */
+      morphology: m
+        ? {
+            riseTimeMs: m.riseTimeMs,
+            crestTimeMs: m.crestTimeMs,
+            dicroticNotchPresent: !!m.dicroticNotchPresent,
+            augmentationIndexPct: m.augmentationIndexPct,
+            reflectionIndex: m.reflectionIndex,
+            pulseWidthMs: m.pulseWidthMs,
+            notchTimeMs: m.notchTimeMs,
+            sdppgBA: m.sdppgBA,
+            sdppgAGI: m.sdppgAGI,
+            perfusionIndexPct: m.perfusionIndexPct,
+            medianBeat: m.medianBeat ? { fs: m.medianBeat.fs, pre: m.medianBeat.pre, nUsed: m.medianBeat.nUsed, samples: Array.from(m.medianBeat.beat).map((v) => +v.toFixed(4)) } : null,
+            perWindow: m.perWindow || []
+          }
+        : null,
+      morphologyReason: r.morphReason != null ? r.morphReason : null,
+      /* PER-CHANNEL DETECTOR AGREEMENT (three-cornered hat over the 3 optical channels). Exported so
+         the Integrator can weigh a node's beat timing without a reference, the way it does
+         `validation.stability`. ⚠️ `scope` is part of the payload, not decoration: this is per-channel
+         NOISE and it is structurally blind to any error common to all three channels. The Verity's six
+         LEDs are one wavelength in a ring around a shared front end, so motion, contact and perfusion
+         cancel — and a wrong polarity is agreed by all three (#1200). `polarity`/`polarityFlipped`
+         ship with it so a consumer cannot read the agreement without the orientation behind it. */
+      channelStability: r.channelStability
+        ? {
+            channels: r.channelStability.channels.map((c) => ({ sigmaShortestMs: c.sigmaShortestMs, sigmaLongestMs: c.sigmaLongestMs, slope: c.slope })),
+            beatsTripled: r.channelStability.nTriples,
+            triplePct: r.channelStability.triplePct,
+            tau0Sec: r.channelStability.tau0Sec,
+            negativeVarianceTaus: r.channelStability.negativeVarianceTaus,
+            independent: r.channelStability.independent,
+            polarity: r.channelStability.polarity,
+            polarityFlipped: r.channelStability.polarityFlipped,
+            scope: r.channelStability.scope,
+            method:
+              'three-cornered hat: sigma_i(tau)^2 = 1/2(AVAR(i-j)+AVAR(i-k)-AVAR(j-k)) over the pairwise beat-time differences; reference-free, and a negative split means the channels are not independent at that tau'
+          }
+        : null,
+      validation:
+        r.validation && r.validation.usable
+          ? {
+              deviceAgreementPct: r.validation.deviceAgreementPct,
+              meanAbsDevMs: r.validation.meanAbsDevMs,
+              beatsCompared: r.validation.nSelf,
+              correctedPct: r.correctionRate,
+              // WHICH firmware produced the comparison. A consumer that cannot tell a wrist device's
+              // interval estimate from a finger ring's cannot weigh the result — different sensor,
+              // different site, different detector.
+              source: r.validation.source,
+              // Per-metric deltas, so a reader is not left with a mean-only blend that structurally
+              // cannot see the variability rows.
+              dMeanPct: r.validation.dMean,
+              dRMSSDPct: r.validation.dRMSSD,
+              dSDNNPct: r.validation.dSDNN,
+              /* DETECTOR STABILITY vs AVERAGING TIME — the Allan-deviation leg. Present only for the
+                 marker source, where both detectors sit on ONE axis (see the DSP note). `slope` is the
+                 load-bearing field: −1 means the disagreement is pure jitter that averages away, so a
+                 SUSTAINED divergence is a real fault; 0 would mean a floor averaging cannot remove.
+                 `optimalTauSec` is the averaging window a consumer should actually use for this pair. */
+              stability: r.validation.stability
+                ? {
+                    slope: r.validation.stability.slope,
+                    noise: r.validation.stability.noise,
+                    meaning: r.validation.stability.meaning,
+                    beatsPaired: r.validation.stability.nPaired,
+                    tau0Sec: r.validation.stability.tau0Sec,
+                    atShortestMs: r.validation.stability.atShortestMs,
+                    atLongestMs: r.validation.stability.atLongestMs,
+                    atShortestPpm: r.validation.stability.atShortestPpm,
+                    atLongestPpm: r.validation.stability.atLongestPpm,
+                    tauMaxSec: r.validation.stability.tauMaxSec,
+                    optimalTauSec: r.validation.stability.optimalTauSec,
+                    method: 'overlapping Allan deviation of the two detectors’ beat-time difference (phase); the shared physiology cancels, so the curve is detector noise alone',
+                    /* Recorded rather than discovered later: `noise`/`meaning` come from a strict
+                       threshold on a point estimate, so a slope landing on a category boundary is
+                       named with confidence the fit does not support. `slope` is the trustworthy
+                       field. Today's marker pair is ~90 SEs clear of the nearest boundary; a joint
+                       fix across this and capture-host/allan.py is queued. */
+                    knownLimitation: 'noise/meaning are unreliable when slope sits on a category boundary (±0.75, ±0.25); branch on slope, not on the label'
+                  }
+                : null,
+              note: 'self-PPI vs firmware PPI; both sides artifact-corrected. Validation lane only — PPI not handed to PulseDex'
+            }
+          : { note: 'no usable firmware PPI' },
+      motion:
+        r.motion && r.motion.hasData
+          ? {
+              meanMotionIndex: r.motion.meanMotionIndex,
+              meanMotionIndexReason: r.motion.meanMotionIndexReason,
+              motionRejectedPct: r.motionRejectedPct,
+              motionRejectedPctReason: r.motionRejectedPctReason,
+              source: 'ACC+GYRO',
+              accFs: r.motion.accFs,
+              gyroFs: r.motion.gyroFs,
+              perEpochMotion: r.epochs.map((e) => e.motionIndex),
+              position: r.motion.postureAtSec
+                ? {
+                    source: r.motion.hasMag ? 'limb-acc+mag' : 'limb-acc',
+                    reliability: 'low',
+                    note: 'Per-epoch body position is in epochs[].position (+positionConf, +headingDeg, +magInterference). Derived from the limb-worn ACC gravity vector — Polar Sense sits on the WRIST or ANKLE (site not auto-detected), so this is limb orientation, an approximate body-position proxy. Integrator MUST down-weight vs ECGDex chest-strap posture.',
+                    magnetometer: r.motion.hasMag
+                      ? {
+                          present: true,
+                          headingRef: 'relative',
+                          magFs: r.motion.magFs,
+                          magBaseG: r.motion.magBaseG,
+                          refHeadingDeg: r.motion.refHeadingDeg,
+                          magInterferencePct: r.magInterferencePct,
+                          note: 'Earth-field-scale only (~0.15 µT LSB). Splits merged lateral into lateral_L/lateral_R via tilt-compensated heading offset from a supine/upright datum — L/R labels are RELATIVE (may be mirrored without a calibration gesture). magInterference is an informational artifact flag; it does NOT modify beat SQI/conf here. NOT biomagnetic HR (cardiac field ~3000× below one LSB).'
+                        }
+                      : { present: false },
+                    breakdown: (() => {
+                      const t = {};
+                      r.epochs.forEach((e) => {
+                        if (e.position) {
+                          t[e.position] = (t[e.position] || 0) + 1; // absence-ok: tally — an unseen position counted no epochs
+                        }
+                      });
+                      const tot = r.epochs.length || 1;
+                      return Object.entries(t)
+                        .map(([p, n]) => ({ position: p, pct: Math.round((n / tot) * 100) }))
+                        .sort((a, b) => b.pct - a.pct);
+                    })()
+                  }
+                : { source: 'none', note: 'no ACC — position unavailable' }
+            }
+          : { source: 'none', note: 'no ACC/GYRO loaded' },
+      timeseries: { doc: '5-min epochs — primary cross-node feed', epochs, markers: (r.markers || []).map((mk) => ({ relSec: +mk.relSec.toFixed(2), type: mk.type })) },
+      ganglior_events: r.events.map((e) => ({ t: e.t, tMs: e.tMs, impulse: e.impulse, node: e.node, conf: e.conf, meta: e.meta })),
+      reserved: {
+        doc: 'hooks for the Integrator 2-site fusion',
+        ptt: null,
+        pttSource: 'Integrator',
+        deltaSBP: null,
+        deltaSBPSource: 'Integrator (wrist⟷fingertip PTT)',
+        spo2Correlation: null,
+        spo2Source: 'OxyDex'
+      }
+    };
+  }
+
+  /* ONE `generated` stamp for the series envelope. The app read `new Date().toISOString()` TWICE on
+     this road, once inside `schema` and once at the top level, so a call that crossed a millisecond
+     boundary published two different stamps for one file. One read cannot disagree with itself.
+     `crossNight` arrives from the caller, computed over the SAME sorted list, and an absent block
+     stays null rather than a fabricated aggregate (§∅). */
+  function ppgBuildSeriesExport(list, opts) {
+    opts = opts || {};
+    const recs = Array.isArray(list) ? list : [];
+    if (recs.length === 0) return null;
+    const generated = opts.generated || new Date().toISOString();
+    return {
+      kernel: opts.kernel ? { version: opts.kernel.VERSION, hash: opts.kernel.HASH } : null,
+      schema: {
+        name: 'ganglior.node-export',
+        version: '2.0',
+        node: 'PpgDex',
+        multiSession: true,
+        generated,
+        provenance: opts.provenance !== undefined ? opts.provenance : null
+      },
+      generated,
+      sessionCount: recs.length,
+      crossNight: opts.crossNight !== undefined ? opts.crossNight : null,
+      sessions: recs.map((x) => ppgBuildSummaryExport(x, opts))
+    };
   }
 
   global.PPGDSP.compute = compute;
   global.PPGDSP.buildNodeExport = ppgBuildNodeExport;
+  global.PPGDSP.computeResult = ppgComputeResult; // the session `compute()` builds, before the node-export wraps it
+  global.PPGDSP.buildSummaryExport = ppgBuildSummaryExport; // the app's old `buildV2`, headless and fixture-backed
+  global.PPGDSP.buildSeriesExport = ppgBuildSeriesExport; // the app's old multi-session wrapper
   // ONE namespaced global (brief §1A). PpgDex leaks nothing bare (the whole DSP is in this
   // IIFE) → no __DEX_NAMESPACED__ suppression gate needed; this is an explicit named global,
   // collision-free in the co-load realm. Standalone bundles still read PPGDSP.
@@ -34655,6 +35054,9 @@ __exports.GlucoDex = window.GlucoDex;
     parsePPG: parsePPG,
     analyze: analyze,
     buildNodeExport: ppgBuildNodeExport,
+    computeResult: ppgComputeResult,
+    buildSummaryExport: ppgBuildSummaryExport,
+    buildSeriesExport: ppgBuildSeriesExport,
     _build: ppgBuildNodeExport,
     coverage: ppgCoverage,
     buildMeasurementBlocks: ppgBuildMeasurementBlocks
