@@ -12,7 +12,7 @@
 // ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
 // _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
 // runs on this page; every DSP helper this module uses is named here, import-style).
-const { fmtClock, vo2Base, vo2Adj, altVO2Factor, lineChartSVG, triIdxGrade } = window.PulseDex._bare;
+const { fmtClock, vo2Adj, altitudeVO2, lineChartSVG, triIdxGrade } = window.PulseDex._bare;
 
 // ── evidence badge hook (System-Cohesion) — resolves a badge from a rendered
 // label via PulseRegistry (pulsedex-registry.js). Zero-touch; safe no-op if the
@@ -155,11 +155,14 @@ function reRender() {
     r.hrmaxEff = hrmaxValid ? Math.round(hrmaxIn) : tanaka;
     r.tanaka = tanaka;
     r.hrmaxRejected = hrmaxIn > 0 && !hrmaxValid;
-    r.elev = _pp.elev == null || !isFinite(_pp.elev) ? null : +_pp.elev; // §∅ — absent ≠ sea level
-    r.altFactor = r.elev == null ? null : +altVO2Factor(r.elev).toFixed(3); // §∅ — null with no elevation entered
-    const altApplied = r.altFactor == null ? 1 : r.altFactor; // no elevation entered ⇒ no correction
-    // §∅ — an absent HRmax gives no VO₂ estimate; `15.3 * null` is 0, which would read as measured
-    r.vo2base = r.hrmaxEff == null ? null : +(vo2Base(r.rhrEff, r.hrmaxEff) * altApplied).toFixed(1);
+    /* §∅ + ONE ROAD — `altitudeVO2` decides the rounding order for both roads, refuses the VO₂ base
+       with no HRmax, and publishes a null factor when no elevation was entered. This road used to
+       round the factor first and `pulsedex-app.js` used to round last, so one profile read two
+       values (see `pulsedex-dsp.js altitudeVO2`). */
+    const alt = altitudeVO2(_pp.elev, r.rhrEff, r.hrmaxEff);
+    r.elev = alt.elev;
+    r.altFactor = alt.altFactor;
+    r.vo2base = alt.vo2base;
     r.vo2adj = r.lnrmssd == null || r.vo2base == null ? null : +vo2Adj(r.vo2base, r.lnrmssd).toFixed(1);
     const gtIn = _pp.vo2gt;
     r.vo2gt = gtIn > 0 ? +Number(gtIn).toFixed(1) : null;

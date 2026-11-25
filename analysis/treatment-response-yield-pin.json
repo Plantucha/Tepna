@@ -32,7 +32,7 @@
       "kernel-constants.js": "0050ad3f9dc7",
       "clock.js": "1c56de0b671c",
       "clock-seam.js": "3820c4fb6529",
-      "pulsedex-dsp.js": "10bba6a4b3f3"
+      "pulsedex-dsp.js": "a7a35088bac0"
     }
   },
   "yield": {
@@ -404,11 +404,24 @@
       "new": "a0520d639e49",
       "reason": "`altVO2Factor` had no absence guard, and `null <= 1500` is true, so an absent elevation returned the same flat 1 a coast night measures (residue 2026-11-24-pulsedex-publishes-a-neutral-altfactor-with-no-elevation). The guard now returns null for a null or non-finite elevation, and 0 m still returns 1 because sea level is a legal measurement. The edit touches that one function. `measureFromResults` selects on the ODI and rMSSD series, which no altitude term feeds, and the two PulseDex callers already refused a null before they called, so the guard is unreachable from both roads. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped."
     },
-    {"date":"2026-11-25","file":"pulsedex-dsp.js","old":"a0520d639e49","new":"10bba6a4b3f3","reason":"pulsedex-dsp.js gained pdBuildSummaryExport, the headless builder behind the app JSON button, so the file digest moved. The addition is one new function plus its namespace lines; no selection or detector code was touched. measureFromResults selects on ODI and rMSSD, and the new function feeds neither. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped."}
+    {
+      "date": "2026-11-25",
+      "file": "pulsedex-dsp.js",
+      "old": "a0520d639e49",
+      "new": "10bba6a4b3f3",
+      "reason": "pulsedex-dsp.js gained pdBuildSummaryExport, the headless builder behind the app JSON button, so the file digest moved. The addition is one new function plus its namespace lines; no selection or detector code was touched. measureFromResults selects on ODI and rMSSD, and the new function feeds neither. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped."
+    },
+    {
+      "date": "2026-11-25",
+      "file": "pulsedex-dsp.js",
+      "old": "10bba6a4b3f3",
+      "new": "a7a35088bac0",
+      "reason": "One new function, altitudeVO2, gives PulseDex one altitude road and decides the rounding order for both. measureFromResults selects on ODI and rMSSD, which that function does not feed, so the argument said the counts would hold. This run RE-CUT the cohort at paper scale rather than re-stamp on the argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped, 18291 seeds with the 900/900 target filled."
+    }
   ],
-  "measuredAt": "2026-11-25T00:48:59.891Z",
+  "measuredAt": "2026-11-25T03:37:01.584Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "89e345471"
+    "commit": "b410f8514"
   }
 }
