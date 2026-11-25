@@ -15,7 +15,7 @@ stream's own median cadence. The qualifying-pair count is the population of the 
 publish it as `hrPairs`, and a night with no qualifying pair answers null instead of 0. The window arc
 also asks for a finite heart rate, which it did not: `null - 58` entered the sum as a 58 bpm jump.
 
-Measured over the 42 distinct O2Ring nights of the corpus: the shipped RMSSD proxy was 1.001 to 1.459
-times the adjacent-pair value, median 1.010, p90 1.105. pNN3 moved from 0.386 % to 0.370 % at the
-median. Two consumers that read the former 0 are repaired with it: the night-row chip, which graded an
-unmeasured proxy RED with the word "null" as its value, and the HR-ADVANCED line of the CSV export.
+Measured over the 42 distinct O2Ring nights of the corpus: the shipped RMSSD was 1.001 to 1.459
+times the adjacent-pair RMSSD, median 1.010, p90 1.105. pNN3 moved from 0.386 % to 0.370 % at the
+median. This change repairs two consumers that read the former 0: the night-row chip, which graded an
+unmeasured RMSSD RED with the word "null" as its value, and the HR-ADVANCED line of the CSV export.
