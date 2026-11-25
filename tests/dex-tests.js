@@ -74698,6 +74698,53 @@
       );
     });
 
+    /* ════ THE CLINICAL SUMMARY'S THERAPY TOTAL CARRIES THE NIGHTS IT COULD NOT ADD (triage row M9) ════
+     `cpapdex-dsp.js` buildNight refuses the night's wall total when any session carries no duration,
+     and `cpapdex-fusion.js` carries that null into the export. The summary's `|| 0` added the null as a
+     zero inside a figure labelled 'X h therapy total', so a partly unmeasured set read as a smaller
+     COMPLETE set. §∅ asks reduced coverage to annotate, so the total now sums the nights that state
+     their hours and names the count of the nights that do not. A written 0 h stays in the sum. ════ */
+    group('CPAPDex states the nights its therapy total could not add, and never adds them as zero', 'cpapdex-render · cpapdex-dsp · absence · ∅', function (T) {
+      var CR = env.CpapRender || (typeof window !== 'undefined' ? window.CpapRender : null);
+      var T0 = Date.UTC(2026, 5, 10, 22, 30, 0);
+      var el = function (hours, day) {
+        return { recording: { startEpochMs: T0 + (day || 0) * 86400000, therapyHours: hours }, metrics: { residualAHI: 3, largeLeakPct: 2, usageHours: 6 }, oximetry: [] };
+      };
+      if (CR && typeof CR.cpapClinicalSummary === 'function') {
+        /* 1 · the defect: two stated nights and one refused one. */
+        var mixed = CR.cpapClinicalSummary({ elements: [el(3, 0), el(3, 1), el(null, 2)] });
+        T.ok('∅ the total adds only the nights that state their hours', /6\.0 h therapy total/.test(mixed), 'the figure reads something other than the 6.0 h the two stated nights hold');
+        T.ok('∅ the figure names the night it could not add', /1 of 3 without stated hours/.test(mixed), 'the partly unmeasured set states no shortfall beside its total');
+        T.eq('the refused night is never added as a zero-hour night', (mixed.match(/9\.0 h therapy/g) || []).length, 0);
+        /* 2 · CONTROL · every night states its hours, so there is nothing to annotate. */
+        var full = CR.cpapClinicalSummary({ elements: [el(3, 0), el(3, 1), el(3, 2)] });
+        T.ok('CONTROL · three stated nights total 9.0 h', /9\.0 h therapy total/.test(full), 'the complete set lost its own total');
+        T.eq('CONTROL · a complete set carries no shortfall note', (full.match(/without stated hours/g) || []).length, 0);
+        /* 3 · a night that really recorded 0 h is a measurement, so it stays in the sum and is stated. */
+        var zero = CR.cpapClinicalSummary({ elements: [el(0, 0), el(3, 1)] });
+        T.ok('a written 0 h night stays in the sum', /3\.0 h therapy total/.test(zero), 'the 0 h night was dropped from the population');
+        T.eq('a written 0 h night counts as stated', (zero.match(/without stated hours/g) || []).length, 0);
+        /* 4 · no night states its hours, so the total itself is absent and says so. */
+        var none = CR.cpapClinicalSummary({ elements: [el(null, 0), el(null, 1)] });
+        T.ok('∅ a total over no stated hours is absent', /therapy hours not stated/.test(none), 'the empty total printed a number');
+        T.eq('∅ the absent total prints no hour figure', (none.match(/h therapy/g) || []).length, 0);
+        T.eq('∅ the absent total never prints 0 h', (none.match(/0\.0 h/g) || []).length, 0);
+        /* 5 · one refused night alone reads the same way. */
+        var one = CR.cpapClinicalSummary({ elements: [el(null, 0)] });
+        T.ok('∅ a single refused night states the absence', /therapy hours not stated/.test(one), 'the single unmeasured night printed a figure');
+      } else {
+        T.skip('CpapRender.cpapClinicalSummary therapy total', 'cpapdex-render.js is not co-loaded in this runner');
+      }
+      /* 6 · the source leg — the summing reader states the absence instead of defaulting it. */
+      var src = (env.sources || {})['cpapdex-render.js'];
+      if (src == null) {
+        T.skip('cpapdex-render.js source available', 'cpapdex-render.js is not in env.sources, so the source leg cannot run');
+      } else {
+        T.eq('the `|| 0` therapy-hour default is gone', (src.match(/recording\.therapyHours\) \|\| 0/g) || []).length, 0);
+        T.ok('the summing reader tests finiteness', /therapyHours != null && isFinite\(v\)|v != null && isFinite\(v\)/.test(src), 'the reader no longer names a finiteness test');
+      }
+    });
+
     /* ════ HOUSE-INVARIANT LINT · retired vocabulary + frozen names (DEV-TOOLCHAIN Part A · A3) ════
      A source-text gate, sibling of the DSP-purity gate: mechanizes CLAUDE.md §🎫/§📜 — no retired
      evidence tier (proxy/composite/"provisionally validated" → heuristic/emerging) and no retired
