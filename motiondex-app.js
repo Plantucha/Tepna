@@ -227,25 +227,17 @@ import { MOTIONUI } from './motiondex-render.js';
     var first = list[0] && list[0].t0Ms,
       last = list[list.length - 1] && list[list.length - 1].t0Ms;
     var spanDays = first != null && last != null && isFinite(first) && isFinite(last) ? Math.round((last - first) / 86400000) : null;
-    var payload = {
-      kernel: window.DexKernel ? { version: window.DexKernel.VERSION, hash: window.DexKernel.HASH } : null,
-      schema: {
-        name: 'ganglior.node-export',
-        version: '2.0',
-        node: 'MotionDex',
-        nodeVersion: '1.0',
-        multiRecording: true,
-        generated: new Date().toISOString(),
-        provenance: window.GangliorProvenance ? window.GangliorProvenance.stamp() : null,
-        doc: 'Array of per-session v2.0 envelopes (each element is Integrator-readable unchanged) + a ganglior.crossnight v1.0 aggregate header.'
-      },
-      generated: new Date().toISOString(),
-      recordingCount: envs.length,
+    /* ONE ROAD — `motiondex-dsp.js motionBuildSeriesExport` builds the whole wrapper. This realm
+       owns only the three values a headless caller cannot read, and it hands them in: the kernel,
+       the provenance stamp, and the cross module's aggregate. The builder reads no global of its
+       own, and `uploads/synthetic_motiondex_series.export.json` pins the document it writes. */
+    var payload = MOTIONDSP.buildSeriesExport(envs, {
+      kernel: window.DexKernel || null,
+      provenance: window.GangliorProvenance ? window.GangliorProvenance.stamp() : null,
       // null, never {} — a realm without the cross module states the absence rather than publishing an
       // empty aggregate that reads as "measured and found nothing" (CLAUDE.md §∅).
-      crossNight: window.MotionCross ? window.MotionCross.crossNightBlock(envs) : null,
-      recordings: envs
-    };
+      crossNight: window.MotionCross ? window.MotionCross.crossNightBlock(envs) : null
+    });
     var name = typeof window.exportName === 'function' ? window.exportName({ node: 'MotionDex', t0Ms: first, kind: 'series', ext: 'json', spanDays: spanDays }) : 'MotionDex.series.node-export.json';
     dlJSON(JSON.stringify(payload, null, 2), name);
     setStatus('Exported ' + envs.length + ' sessions (array + crossNight envelope).');

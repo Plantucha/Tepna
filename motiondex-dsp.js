@@ -2573,6 +2573,44 @@
     return out;
   }
 
+  /* ── THE MULTI-SESSION SERIES ENVELOPE (row `2026-11-24-four-nodes-summary-export-payload-has-no-known-answer`) ──
+     `motiondex-app.js exportJSON` built this wrapper INLINE, and no committed fixture read it. Every
+     MotionDex fixture drives `buildNodeExport(compute(...))`, which answers with ONE envelope, so a
+     fabricated value in the wrapper reded nothing. The per-session items always came from
+     `buildNodeExport`; the wrapper around them did not.
+
+     ONE `generated` stamp. The app read `new Date().toISOString()` TWICE on this road, once inside
+     `schema` and once at the top level, so a call that crossed a millisecond boundary wrote two
+     different stamps into one file. One read cannot disagree with itself.
+
+     `crossNight` arrives from the CALLER and this builder reaches for no global. The app owns the
+     realm question — a page without `motiondex-cross.js` has no aggregate to publish — and §∅ says
+     an absent block stays `null` rather than an empty object that reads as measured. */
+  function motionBuildSeriesExport(list, opts) {
+    opts = opts || {};
+    var recs = Array.isArray(list) ? list : [];
+    if (recs.length === 0) return null;
+    var generated = opts.generated || new Date().toISOString();
+    var k = opts.kernel;
+    return {
+      kernel: k ? { version: (k.version != null ? k.version : k.VERSION) || null, hash: (k.hash != null ? k.hash : k.HASH) || null } : null,
+      schema: {
+        name: 'ganglior.node-export',
+        version: '2.0',
+        node: 'MotionDex',
+        nodeVersion: '1.0',
+        multiRecording: true,
+        generated: generated,
+        provenance: opts.provenance !== undefined ? opts.provenance : null,
+        doc: 'Array of per-session v2.0 envelopes (each element is Integrator-readable unchanged) + a ganglior.crossnight v1.0 aggregate header.'
+      },
+      generated: generated,
+      recordingCount: recs.length,
+      crossNight: opts.crossNight !== undefined ? opts.crossNight : null,
+      recordings: recs
+    };
+  }
+
   // ─── public API (dual-mode: window attach for classic co-load + ESM tail) ───
   global.MOTIONDSP = {
     parseSensorXYZ: parseSensorXYZ,
@@ -2597,6 +2635,7 @@
        not disagree about its name; aliased rather than renamed so both spellings keep working. */
     genSynthetic: genSyntheticACC,
     buildNodeExport: buildNodeExport,
+    buildSeriesExport: motionBuildSeriesExport, // the app's old multi-session wrapper, headless and fixture-backed
     parseTimestamp: parseTimestamp
   };
   global.MotionDex = global.MotionDex || {
@@ -2604,6 +2643,7 @@
     parseSensorXYZ: parseSensorXYZ,
     genSynthetic: genSyntheticACC,
     buildNodeExport: buildNodeExport,
+    buildSeriesExport: motionBuildSeriesExport,
     _build: buildNodeExport
   };
   global.MotionDex.scrubExport = function (env) {

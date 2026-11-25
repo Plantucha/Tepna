@@ -1958,6 +1958,29 @@ function readEquiv() {
     const gluSummary = gluFix('synthetic_glucodex_summary.export.json');
     if (gluIn && gluSummary !== undefined) out.glucodex_summary_export = { inputs: [gluIn], fixture: gluSummary, fixtureFile: 'synthetic_glucodex_summary.export.json' };
   }
+  /* MotionDex's SERIES wrapper — the last node on the row, and the only one whose per-session items
+     already came from the DSP. Both inputs are COMMITTED, so a skip here is a wiring defect and never
+     an absent recording. `inputs` and not `input`: the one-input CASES diff keys by node and would
+     compare this wrapper against a node-export. */
+  {
+    const mxOne = (f) => {
+      const q = join(ROOT, 'uploads', f);
+      return existsSync(q) ? readFileSync(q, 'utf8') : null;
+    };
+    const mxFix = (f) => {
+      const q = join(ROOT, 'uploads', f);
+      if (!existsSync(q)) return undefined;
+      try {
+        return JSON.parse(readFileSync(q, 'utf8'));
+      } catch {
+        return undefined; // unreadable → the leg self-skips rather than asserting on a parse error
+      }
+    };
+    const mxA = mxOne('synthetic_motiondex_acc.txt');
+    const mxB = mxOne('synthetic_motiondex_series_n2_acc.txt');
+    const mxSeries = mxFix('synthetic_motiondex_series.export.json');
+    if (mxA && mxB && mxSeries !== undefined) out.motiondex_series_export = { inputs: [mxA, mxB], fixture: mxSeries, fixtureFile: 'synthetic_motiondex_series.export.json' };
+  }
   return out;
 }
 

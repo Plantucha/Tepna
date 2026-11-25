@@ -1,10 +1,10 @@
 {
   "bundle": "MotionDex.html",
-  "manifestHash": "4230fb2f9134",
+  "manifestHash": "9e2ad1f9b21b",
   "fixtures": {
     "synthetic_motiondex_golden.node-export.json": {
       "bundle": "MotionDex.html",
-      "manifestHash": "4230fb2f9134",
+      "manifestHash": "9e2ad1f9b21b",
       "added": "2026-07-18",
       "inputs": [
         "synthetic_motiondex_acc.txt"
@@ -14,6 +14,21 @@
       },
       "outputHash": "fc12a03dc077a5d2",
       "note": "ADDED 2026-07-18 (MOTIONDEX-BUILD-2026-07-17 §5) — MotionDex's first code-gated fixture + the COMMITTED synthetic input for its 'compute() ≡ committed export' equivalence leg (env.equiv.motiondex, dex-tests.js CASES). The input is a deterministic, seeded synthetic Polar Sensor Logger ACC stream (MOTIONDSP.genSyntheticACC — closed-form supine/quiet-breathing waveform, no recording of any person, no device identifier, no Date.now/RNG) so re-running the generator reproduces it byte-for-byte and inputHashes stay stable. It is COMMITTED (tracked by name in .gitignore), so the equiv diff RUNS IN CI with no corpus — a committed synthetic twin beats a gitignored real one (FIXTURE-VERIFICATION-GATE lesson). The CASE re-runs MOTIONDSP.buildNodeExport(compute({acc,chestAcc:same})); regenerate the input + this golden together whenever the export shape changes."
+    },
+    "synthetic_motiondex_series.export.json": {
+      "bundle": "MotionDex.html",
+      "manifestHash": "9e2ad1f9b21b",
+      "added": "2026-11-25",
+      "note": "The two-session series export (motionBuildSeriesExport + MotionCross.crossNightBlock) over the two committed synthetic ACC nights, each item scrubbed exactly as motiondex-app.js buildEnv scrubs it. Night 2 was minted by genSyntheticACC({ seed: 7, brpm: 11 }) with both stamp columns shifted one day forward, so the pair spans two evenings.",
+      "inputs": [
+        "synthetic_motiondex_acc.txt",
+        "synthetic_motiondex_series_n2_acc.txt"
+      ],
+      "outputHash": "288a1ffd33b0ffb1",
+      "inputHashes": {
+        "synthetic_motiondex_acc.txt": "04b94b5bf6e52436",
+        "synthetic_motiondex_series_n2_acc.txt": "8a2d7e5ac88852e3"
+      }
     }
   }
 }

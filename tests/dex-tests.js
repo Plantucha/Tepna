@@ -105856,6 +105856,168 @@
       } else T.skip('glucodex-app.js source unavailable');
     });
 
+    /* ── THE MotionDex SERIES EXPORT WRAPPER ≡ ITS COMMITTED FIXTURE ────────────────────────────
+       The last node on the row. MotionDex differs from its three siblings: the per-session items
+       always came from `MOTIONDSP.buildNodeExport`, and only the WRAPPER around them was built
+       inline in `motiondex-app.js exportJSON`. Every MotionDex fixture drives
+       `buildNodeExport(compute(...))`, which answers with ONE envelope, so nothing committed read
+       the wrapper and a fabricated value in it reded no fixture. Row
+       `2026-11-24-four-nodes-summary-export-payload-has-no-known-answer`, the MotionDex slice.
+
+       `generated` is ANCHORED to the first session's start, exactly as
+       `tools/regen-motiondex-goldens.mjs` anchors it, so neither side carries a literal the other
+       has to repeat. Both inputs are COMMITTED, so a skip here is a wiring defect and never an
+       absent recording, and the first leg says so. */
+    group('MotionDex series export ≡ its committed fixture', 'motiondex-dsp · fixtures · equivalence · one-road', function (T) {
+      var M = env.MOTIONDSP || env.MotionDex;
+      var MX = env.MotionCross;
+      var ready = !!(M && typeof M.compute === 'function' && typeof M.buildNodeExport === 'function' && typeof M.buildSeriesExport === 'function');
+      T.ok('MotionDex exposes compute + buildNodeExport + buildSeriesExport', ready, 'co-load motiondex-dsp.js in BOTH runners');
+      if (!ready) return;
+      T.ok('MotionCross.crossNightBlock is reachable', !!(MX && typeof MX.crossNightBlock === 'function'), 'co-load motiondex-cross.js + map env.MotionCross');
+      if (!(MX && typeof MX.crossNightBlock === 'function')) return;
+
+      var eq = (env.equiv || {}).motiondex_series_export;
+      if (!(eq && eq.inputs && eq.inputs.length === 2 && eq.fixture !== undefined)) {
+        T.ok('the two committed inputs and the fixture are wired (motiondex_series_export)', false, 'COMMITTED — wire env.equiv.motiondex_series_export in BOTH runners');
+        return;
+      }
+
+      /* The volatile keys by NAME at ANY depth, the set `tools/regen-goldens-core.mjs` carries.
+         `generated` is anchored on both sides, so it is stripped for the DIFF and asserted on its
+         own below — a stripped key that nothing else reads is a key this group does not check. */
+      var VOLATILE = ['file', 'provenance', 'kernel', 'generated'];
+      function strip(v) {
+        if (Array.isArray(v)) {
+          for (var i = 0; i < v.length; i++) v[i] = strip(v[i]);
+          return v;
+        }
+        if (v && typeof v === 'object') {
+          var ks = Object.keys(v);
+          for (var j = 0; j < ks.length; j++) {
+            if (VOLATILE.indexOf(ks[j]) >= 0) delete v[ks[j]];
+            else v[ks[j]] = strip(v[ks[j]]);
+          }
+          return v;
+        }
+        return v;
+      }
+      function firstDiff(a, b, path) {
+        path = path || '$';
+        if (a === b) return null;
+        var ta = a === null ? 'null' : Array.isArray(a) ? 'array' : typeof a;
+        var tb = b === null ? 'null' : Array.isArray(b) ? 'array' : typeof b;
+        if (ta !== tb) return path + ': ' + ta + ' vs ' + tb;
+        if (ta === 'array') {
+          if (a.length !== b.length) return path + '.length: ' + a.length + ' vs ' + b.length;
+          for (var i = 0; i < a.length; i++) {
+            var d = firstDiff(a[i], b[i], path + '[' + i + ']');
+            if (d) return d;
+          }
+          return null;
+        }
+        if (ta === 'object') {
+          var ka = Object.keys(a),
+            kb = Object.keys(b);
+          if (String(ka) !== String(kb)) return path + ' keys: ' + String(ka) + ' vs ' + String(kb);
+          for (var j = 0; j < ka.length; j++) {
+            var d2 = firstDiff(a[ka[j]], b[ka[j]], path + '.' + ka[j]);
+            if (d2) return d2;
+          }
+          return null;
+        }
+        return path + ': ' + JSON.stringify(a) + ' vs ' + JSON.stringify(b);
+      }
+      var clone = function (x) {
+        return JSON.parse(JSON.stringify(x));
+      };
+      var t0Of = function (e) {
+        return e && e.recording && isFinite(e.recording.startEpochMs) ? e.recording.startEpochMs : null;
+      };
+
+      /* ONE SESSION, THE WAY THE APP BUILDS IT — `buildNodeExport` then `scrubExport`, which is
+         `motiondex-app.js buildEnv` field for field. A series item is the SCRUBBED envelope, and
+         the leg below reads that mark rather than trusting the call order here. */
+      var envs = [];
+      for (var i = 0; i < eq.inputs.length; i++) {
+        var e1 = M.buildNodeExport(M.compute({ acc: eq.inputs[i], chestAcc: eq.inputs[i] }), { kernel: null });
+        envs.push(env.MotionDex && typeof env.MotionDex.scrubExport === 'function' ? env.MotionDex.scrubExport(e1) : e1);
+      }
+      T.eq('both committed inputs computed an envelope', envs.filter(Boolean).length, 2);
+      envs.sort(function (a, b) {
+        var fa = t0Of(a) != null,
+          fb = t0Of(b) != null;
+        if (fa && fb) return t0Of(a) - t0Of(b);
+        return fa ? -1 : fb ? 1 : 0;
+      });
+      var generated = t0Of(envs[0]) != null ? new Date(t0Of(envs[0])).toISOString() : null;
+      var built = M.buildSeriesExport(envs, { kernel: null, provenance: null, generated: generated, crossNight: MX.crossNightBlock(envs) });
+
+      T.eq('the series wrapper reproduces its committed fixture', firstDiff(strip(clone(built)), strip(clone(eq.fixture))), null);
+
+      /* ANTI-VACUITY — an equality over a document of nulls proves nothing. */
+      var nn = 0,
+        nulls = 0;
+      (function walk(v) {
+        if (v === null) {
+          nulls++;
+          return;
+        }
+        if (Array.isArray(v)) {
+          for (var k = 0; k < v.length; k++) walk(v[k]);
+          return;
+        }
+        if (v && typeof v === 'object') {
+          var ks = Object.keys(v);
+          for (var j = 0; j < ks.length; j++) walk(v[ks[j]]);
+          return;
+        }
+        nn++;
+      })(eq.fixture);
+      T.ok('the fixture pins over 300 non-null leaves', nn > 300, nn + ' non-null, ' + nulls + ' null');
+      T.eq('…over two sessions', eq.fixture.recordingCount, 2);
+      T.eq('…and the array carries exactly those two', eq.fixture.recordings.length, 2);
+
+      /* THE DEFECT THIS MOVE FIXES — the app read `new Date().toISOString()` TWICE on this road,
+         once inside `schema` and once at the top level. A call that crossed a millisecond boundary
+         wrote two different stamps into one file. */
+      T.eq('ONE generated stamp, the same one at both reads', built.generated, built.schema.generated);
+      T.eq('…and that stamp is the anchor the caller handed in', built.generated, generated);
+
+      /* THE ITEMS ARE THE SCRUBBED ENVELOPES, and the pair is two real evenings. */
+      T.eq('each item carries the scrub mark the app applies', eq.fixture.recordings[0].schema.scrubbed, true);
+      T.eq('…and the second one too', eq.fixture.recordings[1].schema.scrubbed, true);
+      T.eq('the two sessions sit one day apart, so the fold reads a real pair', t0Of(eq.fixture.recordings[1]) - t0Of(eq.fixture.recordings[0]), 86400000);
+      T.ok(
+        'the crossNight block folds the metrics it declares',
+        !!(eq.fixture.crossNight && eq.fixture.crossNight.metrics && Object.keys(eq.fixture.crossNight.metrics).length >= 5),
+        eq.fixture.crossNight && eq.fixture.crossNight.metrics ? Object.keys(eq.fixture.crossNight.metrics).length + ' metrics' : 'no metrics'
+      );
+
+      /* §∅ — an ABSENT crossNight is null and never a fabricated aggregate, and an empty list has
+         no session to describe, so it is null rather than a wrapper over nothing. */
+      T.eq('§∅ an absent crossNight stays null', M.buildSeriesExport([envs[0]], { kernel: null, provenance: null }).crossNight, null);
+      T.eq('§∅ an empty list returns null, not a wrapper over nothing', M.buildSeriesExport([], {}), null);
+      T.eq('§∅ an absent kernel stays null, never an empty pair', M.buildSeriesExport([envs[0]], {}).kernel, null);
+
+      /* THE SINGLE-SESSION ROAD IS UNTOUCHED — `buildNodeExport` answers exactly as the golden
+         fixture records, so this move added a wrapper and changed no envelope. */
+      var golden = (env.equiv || {}).motiondex;
+      var gIn = golden ? (golden.inputs ? golden.inputs[0] : golden.input) : null;
+      if (gIn && golden.fixture !== undefined) {
+        var g1 = M.buildNodeExport(M.compute({ acc: gIn, chestAcc: gIn }));
+        T.eq('the one-session envelope still reproduces its own golden', firstDiff(strip(clone(g1)), strip(clone(golden.fixture))), null);
+      } else T.skip('the single-session golden is wired elsewhere in this runner');
+
+      /* SOURCE MIRRORS — one road. Each leg reds when the app rebuilds a wrapper of its own. */
+      var app = (env.sources || {})['motiondex-app.js'] || '';
+      if (app) {
+        T.ok('the app delegates the wrapper', /MOTIONDSP\.buildSeriesExport\(envs, \{/.test(app));
+        T.ok('CONTROL · the app keeps no `ganglior.node-export` literal of its own', !/name: 'ganglior\.node-export'/.test(app));
+        T.ok('CONTROL · and no wall-clock read in the export road', (app.match(/new Date\(\)\.toISOString\(\)/g) || []).length === 0);
+      } else T.skip('motiondex-app.js source unavailable');
+    });
+
     /* ── FIXTURE REPRODUCIBILITY — a code claim nothing checks is decoration ────────────────────
        FIXTURE-PROVENANCE.json makes two KINDS of claim about a committed fixture:
 
