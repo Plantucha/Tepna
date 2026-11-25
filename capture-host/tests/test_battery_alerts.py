@@ -571,11 +571,16 @@ def test_build_skips_the_level_a_disconnected_device_repeats(tmp_path):
     Seven nights on the box (2026-11-19 to 11-25) held 19,528 such rows beside 45,442 connected ones."""
     cap = tmp_path / "captures"
     gone = lambda stamp, pct: _row(stamp, "H10-01", pct).replace(";1;-60;", ";0;;")  # noqa: E731
-    rows = [_row("2026-01-01T10:00:00.000", "H10-01", 30), gone("2026-01-02T10:00:00.000", 30)]
+    rows = [
+        _row("2026-01-01T10:00:00.000", "H10-01", 30),
+        gone("2026-01-01T11:00:00.000", 30),
+        _row("2026-01-01T12:00:00.000", "H10-01", 29),  # the link came back: a gap ends no file
+        gone("2026-01-02T10:00:00.000", 29),
+    ]
     _link(cap / "2026-01-01", "Tepna_1_LINK.csv", rows)
     _link(cap / "2026-01-02", "Tepna_2_LINK.csv", [gone("2026-01-02T11:00:00.000", 30).replace("H10-01", "RING-01")])
     out = battery_history.build(str(cap))["devices"]
-    assert [t for t, _ in out["H10-01"]["points"]] == [1767261600000], "only the hour the device was read"
+    assert [t for t, _ in out["H10-01"]["points"]] == [1767261600000, 1767268800000], "only the hours it was read"
     assert "RING-01" not in out, "a device never connected in the window has no reading"
     old = HDR.replace("connected;", "")  # a layout with no link column keeps its readings
     _link(cap / "2026-01-03", "Tepna_3_LINK.csv", ["2026-01-03T10:00:00.000;OLD-01;-60;40;;;1;synthetic\n"], header=old)
