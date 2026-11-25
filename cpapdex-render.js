@@ -1412,10 +1412,31 @@ import { CpapDsp } from './cpapdex-dsp.js';
     var t0First = first.recording ? first.recording.startEpochMs : null;
     var t0Last = last.recording ? last.recording.startEpochMs : null;
     var dateRange = t0First != null ? (D ? D.fmtDate(t0First) : t0First) + (els.length > 1 ? ' \u2192 ' + (D ? D.fmtDate(t0Last) : t0Last) : '') : '\u2014';
-    var totHours = els.reduce(function (a, el) {
-      return a + ((el.recording && el.recording.therapyHours) || 0);
-    }, 0);
-    var durTxt = totHours ? fnum(totHours, 1) + ' h therapy' + (els.length > 1 ? ' total' : '') : '';
+    /* ∅ A NIGHT WITH NO WALL SPAN IS NOT A NIGHT OF ZERO HOURS. `cpapdex-dsp.js` buildNight sets
+       `therapyHours` to null when ANY session of the night carries no duration, under its own §∅ comment
+       there ('one session with no duration makes the night's wall total unknown'), and
+       `cpapdex-fusion.js` carries that null into the export. The former `|| 0` added the null here as a
+       zero, so a set in which some nights went unmeasured read as a smaller COMPLETE set inside a figure
+       labelled 'X h therapy total'. Under the §∅ ruling reduced coverage annotates, so this sums the
+       nights that state their hours and names the count of nights that do not, beside the total. A total
+       over no stated hours at all is absent, and the label then says nothing rather than '0 h'. A night
+       that really recorded 0 h states 0 and stays in the sum. */
+    var hourNights = els.filter(function (el) {
+      var v = el.recording ? el.recording.therapyHours : null;
+      return v != null && isFinite(v);
+    });
+    var totHours = hourNights.length
+      ? hourNights.reduce(function (a, el) {
+          return a + el.recording.therapyHours;
+        }, 0)
+      : null;
+    var noHours = els.length - hourNights.length;
+    var durTxt =
+      totHours != null
+        ? fnum(totHours, 1) + ' h therapy' + (els.length > 1 ? ' total' : '') + (noHours ? ' (' + noHours + ' of ' + els.length + ' without stated hours)' : '')
+        : els.length
+          ? 'therapy hours not stated'
+          : '';
     var recent = last,
       m = recent.metrics || {},
       recHours = recent.recording ? recent.recording.therapyHours : null;
