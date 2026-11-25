@@ -337,9 +337,10 @@
       "hrFloor": 48,
       "hrSlope": 0.82,
       "rsaProxy": 0.296,
-      "rmssd": 0.53,
+      "rmssd": 0.52,
       "maxHr": 75,
-      "n": 25503
+      "n": 25503,
+      "hrPairs": 25387
     },
     "hypoxicBurden": {
       "total": 1.6,
@@ -360,8 +361,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "8c5fae4529c6",
-          "computeHash": "9743a9efa6ec"
+          "manifestHash": "e3bad0160d3b",
+          "computeHash": "b7bbe716ba94"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -388,8 +389,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "8c5fae4529c6",
-          "computeHash": "9743a9efa6ec"
+          "manifestHash": "e3bad0160d3b",
+          "computeHash": "b7bbe716ba94"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -416,8 +417,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "8c5fae4529c6",
-          "computeHash": "9743a9efa6ec"
+          "manifestHash": "e3bad0160d3b",
+          "computeHash": "b7bbe716ba94"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -444,8 +445,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "8c5fae4529c6",
-          "computeHash": "9743a9efa6ec"
+          "manifestHash": "e3bad0160d3b",
+          "computeHash": "b7bbe716ba94"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -598,11 +599,12 @@
       }
     },
     "hrAdvanced": {
-      "rmssd": 0.53,
+      "rmssd": 0.52,
       "hrIQR": 4,
       "meanHRpb": null,
       "meanHRnonPb": 51.7,
-      "hrPbContrast": null
+      "hrPbContrast": null,
+      "hrPairs": 25387
     },
     "composite": {
       "couplingScore": null,
@@ -860,14 +862,14 @@
           0.4,
           0.5,
           0.6,
-          0.5,
+          0.4,
           0.6,
           0.7,
           0.7,
           0.6
         ],
-        "rmssdArcSlope": 0.018,
-        "rmssdArcR2": 0.575,
+        "rmssdArcSlope": 0.0169,
+        "rmssdArcR2": 0.454,
         "rmssdFirstHalf": 0.5,
         "rmssdLastHalf": 0.6,
         "rmssdArcDelta": 0.1,

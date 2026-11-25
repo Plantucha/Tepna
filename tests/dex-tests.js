@@ -74895,6 +74895,125 @@
       }
     });
 
+    /* ════ A PAIR ACROSS A REMOVED STRETCH IS NOT A SUCCESSIVE PAIR (owner ruling 2026-09-17) ════
+     The three OxyDex successive-difference sites filtered motion, device-artifact and heart-rate-less
+     rows, then read every neighbouring pair of the FILTERED array as one second of beat-to-beat change.
+     Minutes of removed signal could sit between two such neighbours, and the step across the removed
+     stretch entered pNN3 and the RMSSD proxy as real variability. A gap in the stamps did the same with
+     no filter at all. A pair now qualifies on the row stream: neighbours in `rows`, within 1.5 cadences.
+     The qualifying-pair count is the population, and the nights publish it as `hrPairs`. ════ */
+    group('∅ · OxyDex counts no successive heart-rate pair across a removed stretch', 'oxydex-dsp · absence · splice · ∅', function (T) {
+      var B = (env.OxyDex && env.OxyDex._bare) || null;
+      if (!B || typeof B.computeHRV !== 'function' || typeof B.computeHRAdvanced !== 'function' || typeof B.computeRMSSDarc !== 'function') {
+        T.skip('OxyDex._bare HRV surface reachable', 'not wired in this lane');
+        return;
+      }
+      var T0 = Date.UTC(2026, 5, 10, 22, 0, 0);
+      /* One still second. `hr` alternates by 1 bpm, so a night of adjacent pairs has an RMSSD of
+         exactly 1 and a pNN3 of 0: every step is 1 bpm, and pNN3 counts steps of 3 bpm or more. */
+      var row = function (i, hr, motion, tMs) {
+        var ms = tMs == null ? T0 + i * 1000 : tMs;
+        return { tMs: ms, t: new Date(ms), spo2: 96, hr: hr, motion: motion || 0 };
+      };
+      /* ARM 1 · ANTI-VACUITY · a night with no removed stretch at all. */
+      var plain = [];
+      for (var i = 0; i < 400; i++) plain.push(row(i, 60 + (i % 2)));
+      var pv = B.computeHRV(plain);
+      T.eq('ANTI-VACUITY · 400 adjacent seconds give an RMSSD proxy of 1 bpm', pv && pv.rmssd, 1);
+      T.eq('ANTI-VACUITY · …and 399 successive pairs', pv && pv.hrPairs, 399);
+      T.eq('ANTI-VACUITY · …and a pNN3 of 0, which is measured', pv && pv.pnn3, 0);
+      /* ARM 2 · THE DEFECT · a 60 s motion block, with the heart rate 20 bpm higher after it. The
+         removed stretch is the only place a 20 bpm step appears. Main read that step as one second of
+         variability and shipped an RMSSD of about 1.48 over 339 pairs. */
+      var spliced = [];
+      for (var j = 0; j < 400; j++) {
+        if (j >= 200 && j < 260) spliced.push(row(j, 70, 1));
+        else spliced.push(row(j, (j < 200 ? 60 : 80) + (j % 2)));
+      }
+      var sv = B.computeHRV(spliced);
+      T.eq('∅ the 20 bpm step across the removed stretch is not a successive pair', sv && sv.rmssd, 1);
+      T.eq('∅ …so the pair count is the 338 the stream holds, not 339', sv && sv.hrPairs, 338);
+      T.eq('∅ …and pNN3 stays 0, where main scored the splice as a 3 bpm step', sv && sv.pnn3, 0);
+      /* ARM 2b · THE SPLICE THAT COSTS NO TIME. A burst of device-artifact rows inside ONE second is
+         removed by the filter and consumes no cadence, so the cadence cap lets the pair through and
+         only the stream-adjacency test can refuse it. Without this arm a plant that deletes the
+         adjacency test still passes, measured 2026-11-25. */
+      var burst = [];
+      for (var b = 0; b < 400; b++) {
+        burst.push(row(b, (b < 200 ? 60 : 80) + (b % 2)));
+        if (b === 199) for (var c = 0; c < 60; c++) burst.push(row(0, 70, 1, T0 + 199000 + 10 * (c + 1)));
+      }
+      var bv = B.computeHRV(burst);
+      T.eq('\u2205 a removed burst inside one second still breaks the pair', bv && bv.rmssd, 1);
+      T.eq('\u2205 \u2026and the stream adjacency alone is what refuses it', bv && bv.hrPairs, 398);
+      /* ARM 3 · A GAP IN THE STAMPS, with no filtered row anywhere: the rows are neighbours in the
+         array, and two hours of wall clock sit between them. */
+      var gapped = [];
+      for (var k = 0; k < 400; k++) gapped.push(row(k, (k < 200 ? 60 : 80) + (k % 2), 0, T0 + k * 1000 + (k >= 200 ? 7200000 : 0)));
+      var gv = B.computeHRV(gapped);
+      T.eq('∅ a pair that straddles a two-hour stamp gap is not a successive pair', gv && gv.rmssd, 1);
+      T.eq('∅ …and the gap costs exactly one pair', gv && gv.hrPairs, 398);
+      /* ARM 4 · NO QUALIFYING PAIR AT ALL · every other second carries motion, so no two still
+         seconds are neighbours. The metrics are unmeasured, and null is the only honest answer. */
+      var alt = [];
+      for (var m = 0; m < 480; m++) alt.push(row(m, 60 + (m % 2), m % 2));
+      var av = B.computeHRV(alt);
+      T.eq('∅ no qualifying pair ⇒ the RMSSD proxy is null, never 0', av && av.rmssd, null);
+      T.eq('∅ no qualifying pair ⇒ pNN3 is null, never 0 %', av && av.pnn3, null);
+      T.eq('∅ …and the published pair count says why', av && av.hrPairs, 0);
+      T.ok(
+        'CONTROL · the night still reports the statistics that read single samples',
+        av && av.hrFloor === 60 && av.n === 240,
+        'hrFloor ' + String(av && av.hrFloor) + ' over n ' + String(av && av.n)
+      );
+      /* ARM 5 · THE SIBLING · computeHRAdvanced carried the same reader. */
+      var sa = B.computeHRAdvanced(spliced, null);
+      T.eq('∅ the sibling also refuses the splice pair', sa && sa.rmssd, 1);
+      T.eq('∅ …and publishes the same population', sa && sa.hrPairs, 338);
+      T.eq('∅ the sibling with no qualifying pair answers null, where main answered 0', B.computeHRAdvanced(alt, null).rmssd, null);
+      /* ARM 6 · THE 30-MINUTE WINDOW ARC. Three windows: the first holds a splice, the second is
+         clean, and the third holds no adjacent pair at all. `computeRMSSDarc` needs two windows it
+         could measure before it fits its slope, so a two-window night in which one window refuses
+         answers null as a whole; the third window here is what the test is about. */
+      var arc = [];
+      for (var q = 0; q < 5400; q++) {
+        if (q >= 3600) arc.push(row(q, 60 + (q % 2), q % 2));
+        else if (q >= 900 && q < 960) arc.push(row(q, 70, 1));
+        else arc.push(row(q, (q < 900 ? 60 : 80) + (q % 2)));
+      }
+      var ra = B.computeRMSSDarc(arc);
+      T.eq('\u2205 a window RMSSD reads only the pairs its stream holds', ra && ra.rmssdArcWindows && ra.rmssdArcWindows[0], 1);
+      T.eq('ANTI-VACUITY \u00b7 the clean window beside it reports 1 bpm', ra && ra.rmssdArcWindows && ra.rmssdArcWindows[1], 1);
+      T.eq('\u2205 a window with no qualifying pair is null, never a number', ra && ra.rmssdArcWindows && ra.rmssdArcWindows[2], null);
+      /* ARM 7 · the window filter now asks for a finite heart rate, which it did not: `null - 58` is
+         -58, so an absent reading entered the sum as a 58 bpm jump. Adding absent seconds to a night
+         changes no statistic of its measured seconds. */
+      var cleanArc = [],
+        holedArc = [];
+      for (var w = 0; w < 3600; w++) {
+        cleanArc.push(row(w, 60 + (w % 2)));
+        holedArc.push(row(w, 60 + (w % 2)));
+        if (w % 90 === 45) holedArc.push({ tMs: T0 + w * 1000 + 500, t: new Date(T0 + w * 1000 + 500), spo2: 96, hr: null, motion: 0 });
+      }
+      var ca = B.computeRMSSDarc(cleanArc),
+        ha = B.computeRMSSDarc(holedArc);
+      T.eq('ANTI-VACUITY \u00b7 the clean half-hour reports an RMSSD of 1 bpm', ca && ca.rmssdArcWindows && ca.rmssdArcWindows[0], 1);
+      T.eq('\u2205 absent heart-rate seconds do not inflate the window RMSSD', ha && ha.rmssdArcWindows && ha.rmssdArcWindows[0], ca && ca.rmssdArcWindows && ca.rmssdArcWindows[0]);
+      /* ARM 8 · the source legs — the n − 1 denominators are gone from all three sites. */
+      var src = (env.sources || {})['oxydex-dsp.js'];
+      if (src == null) {
+        T.skip('oxydex-dsp.js source available', 'oxydex-dsp.js is not in env.sources, so the source legs cannot run');
+      } else {
+        T.eq('the pNN3 denominator `(n - 1)` is gone', (src.match(/nn3 \/ \(n - 1\)/g) || []).length, 0);
+        T.eq('the RMSSD denominator `rmssd_ss / (n - 1)` is gone', (src.match(/rmssd_ss \/ \(n - 1\)/g) || []).length, 0);
+        T.ok(
+          'all three sites read the shared pair counter',
+          (src.match(/_hrSuccessivePairs\(/g) || []).length >= 4,
+          'the file names it ' + String((src.match(/_hrSuccessivePairs\(/g) || []).length) + ' time(s), with one declaration'
+        );
+      }
+    });
+
     /* ════ HOUSE-INVARIANT LINT · retired vocabulary + frozen names (DEV-TOOLCHAIN Part A · A3) ════
      A source-text gate, sibling of the DSP-purity gate: mechanizes CLAUDE.md §🎫/§📜 — no retired
      evidence tier (proxy/composite/"provisionally validated" → heuristic/emerging) and no retired
