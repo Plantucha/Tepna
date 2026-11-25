@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="c6f2769a833f" data-compute-hash="7b844539f0ce"><head>
+<html lang="en" data-manifest-hash="434755b8ec85" data-compute-hash="7b844539f0ce"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/YKyFlcYey+RK9N9hUspMiFEVRu9kTdYB3ded9FqF3w=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LA7FzxwxP2tLxmKV4tPt3XC4QDa4uxZkD9f3pr6DVRU=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-g6WCMuBNJLjoJ+sGjvYw9TNFW6AJaN7Ijg3eVCfBi14=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sGANa0kszOefo06MIgtbgmBXK73Ojh9M/sfBmy5KUbY=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-wktj1Df+isZKJxu0wGtJ0pZLbTfqdObxwLCd2Fo+wQg=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LA7FzxwxP2tLxmKV4tPt3XC4QDa4uxZkD9f3pr6DVRU=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-g6WCMuBNJLjoJ+sGjvYw9TNFW6AJaN7Ijg3eVCfBi14=' 'sha256-h8V/Uu+vsw4KoXl0lSa6MI/WH+M8fK+yqeW/6FCsUN0=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sGANa0kszOefo06MIgtbgmBXK73Ojh9M/sfBmy5KUbY=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-wktj1Df+isZKJxu0wGtJ0pZLbTfqdObxwLCd2Fo+wQg=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.37.0</title>
@@ -10393,6 +10393,19 @@ function evBadge(label, fallback) {
   }
 }
 
+/* M18 (qwen lead triage) — A BADGE WITH AN EXPLICIT TIER, for a number whose label is prose rather
+   than a registry metric. `evBadge` resolves a rendered LABEL through the registry; the context
+   banner has no labels to resolve — it writes sentences. OxyDex solves the same problem with
+   `_ntBadge`, so this is that helper under this node's name: the caller states the tier and the
+   cite, and the engine draws the disc, so no surface hardcodes disc CSS. */
+function tierBadge(tier, cite) {
+  try {
+    return window.MetricRegistry ? window.MetricRegistry.badge(tier, cite || '') : '';
+  } catch {
+    return '';
+  }
+}
+
 /* SNS/PSNS are NULL when HF = 0 (DEEP-AUDIT-III-FOLLOWUPS §1.3, decided 2026-07-28 — the DSP no longer
    invents a denominator). An absent score must READ as absent: `Math.min(100, null)` is 0, so the old
    markup drew a confident empty bar and printed the word "null" beside it — the two failure modes a null
@@ -10445,21 +10458,48 @@ function renderContext(r) {
   else if ((r.mode === 'morning' || r.mode === 'spot') && r.durMin < 5) note = '⚠ Short reading — SDNN, VLF, DFA α1 and SampEn need ≥5 min; treat them as low-confidence below.';
   else if (r.longRec) note = 'Per-window medians are the representative "daily" value; whole-night figures are shown too and feed the long-recording indices (SDANN, SDNN-index).';
   // ── altitude caveats ──
+  /* M18 — THE BANNER SURFACES NUMBERS, SO THE BANNER CARRIES BADGES. The elevation and the
+     correction factor read as part of a sentence, and prose is not a grade: a reader cannot tell
+     from "VO₂max is altitude-corrected (×0.996)" whether that factor is a measurement of this
+     person or a population relationship applied to one profile. It is the second. The two tiers
+     differ and each number takes its own, as the registry's own `vo2gt` note rules it:
+     entered-ness is not a tier, PROVENANCE is.
+       elevation  `measured`  — the profile states it, the same shape as the entered laboratory
+                               VO₂max that pulsedex-registry.js grades `measured`.
+       ×factor    `heuristic` — the published ~1 %-per-300 m relationship above 1500 m, applied to
+                               one profile, and it multiplies the `heuristic` VO₂ estimate. */
+  const elevBadge = tierBadge('measured', 'Elevation as the profile states it — entered by the user, not measured by PulseDex');
+  const factorBadge = tierBadge(
+    'heuristic',
+    'Altitude VO₂max correction: aerobic capacity falls about 1 % per 300 m above 1500 m (Buskirk; Wehrlin & Hallén 2006). A population relationship applied to one profile, and the published factor is the one that multiplies.'
+  );
   let alt = '';
   if (r.elev != null && r.elev >= 2500) {
     alt =
       '🏔 <b>High altitude (' +
+      elevBadge +
       r.elev.toLocaleString() +
-      ' m).</b> HRV reference ranges below are <b>sea-level norms</b> — chronic hypoxia legitimately lowers HRV, raises HR and shifts LF/HF sympathetic, so red flags here may be adaptive, not pathological. VO₂max is altitude-corrected (×' +
+      ' m).</b> HRV reference ranges below are <b>sea-level norms</b> — chronic hypoxia legitimately lowers HRV, raises HR and shifts LF/HF sympathetic, so red flags here may be adaptive, not pathological. VO₂max is altitude-corrected (' +
+      factorBadge +
+      '×' +
       r.altFactor +
       ').';
   } else if (r.elev != null && r.elev > 1500) {
-    alt = '⛰ <b>Moderate altitude (' + r.elev.toLocaleString() + ' m).</b> VO₂max altitude-corrected (×' + r.altFactor + '); HRV norms still broadly apply.';
+    alt = '⛰ <b>Moderate altitude (' + elevBadge + r.elev.toLocaleString() + ' m).</b> VO₂max altitude-corrected (' + factorBadge + '×' + r.altFactor + '); HRV norms still broadly apply.';
   }
   let pbNote = '';
   if (r.pb && r.pb.strong) {
     pbNote =
       '🌬 <b>Periodic-breathing signature detected</b> (low-freq HR cycling, PB index ' +
+      /* The same defect in the same banner. The grade is `pbIndex`'s, the OxyDex sibling that is also
+         an INDEX: that entry reads `experimental`, and so does `periodicBreathing`, because each one
+         is a derived signature with no airflow channel. OxyDex's `pbEpisodes` reads `emerging`, but
+         that is a count of detected episodes, and a ratio of band power cannot hold a higher grade
+         than the rate it is drawn from (kestrel, board #8883, over oxydex-registry.js on main). */
+      tierBadge(
+        'experimental',
+        'Periodic-breathing index — PulseDex detector on low-frequency heart-rate cycling alone. There is no airflow, effort or oximetry channel in this recording, and no scorer scored it. The grade follows OxyDex pbIndex.'
+      ) +
       r.pb.frac +
       '). Common at altitude — it inflates VLF/LF and confounds LF/HF, Resp Rate and the SNS/PSNS split. Treat spectral & composite metrics with caution.';
   }
@@ -10469,7 +10509,7 @@ function renderContext(r) {
     .join('');
   el.innerHTML = `<div class="ctx-main">
       <div><div class="ctx-mode">${escapeHTML(r.modeLabel)}</div><div class="ctx-why">${escapeHTML(r.modeWhy)}${r.overridden ? ' · <span style="color:var(--blue);font-weight:700">manual override</span>' : ''}</div></div>
-      <div class="ctx-conf">${r.overridden ? 'OVERRIDE' : 'auto · ' + r.modeConf + '%'}</div>
+      <div class="ctx-conf">${r.overridden ? 'OVERRIDE' : 'auto · ' + tierBadge('heuristic', 'A fixed score the mode rule attaches to whichever branch it took over duration, hour of day, mean heart rate and heart-rate drift (pulsedex-dsp.js classifyRecording). It is not a probability and it measures nothing in this recording.') + r.modeConf + '%'}</div>
     </div>${notes}`;
   el.style.display = 'block';
 }
