@@ -25,6 +25,19 @@ function evBadge(label, fallback) {
   }
 }
 
+/* M18 (qwen lead triage) — A BADGE WITH AN EXPLICIT TIER, for a number whose label is prose rather
+   than a registry metric. `evBadge` resolves a rendered LABEL through the registry; the context
+   banner has no labels to resolve — it writes sentences. OxyDex solves the same problem with
+   `_ntBadge`, so this is that helper under this node's name: the caller states the tier and the
+   cite, and the engine draws the disc, so no surface hardcodes disc CSS. */
+function tierBadge(tier, cite) {
+  try {
+    return window.MetricRegistry ? window.MetricRegistry.badge(tier, cite || '') : '';
+  } catch {
+    return '';
+  }
+}
+
 /* SNS/PSNS are NULL when HF = 0 (DEEP-AUDIT-III-FOLLOWUPS §1.3, decided 2026-07-28 — the DSP no longer
    invents a denominator). An absent score must READ as absent: `Math.min(100, null)` is 0, so the old
    markup drew a confident empty bar and printed the word "null" beside it — the two failure modes a null
@@ -77,21 +90,48 @@ function renderContext(r) {
   else if ((r.mode === 'morning' || r.mode === 'spot') && r.durMin < 5) note = '⚠ Short reading — SDNN, VLF, DFA α1 and SampEn need ≥5 min; treat them as low-confidence below.';
   else if (r.longRec) note = 'Per-window medians are the representative "daily" value; whole-night figures are shown too and feed the long-recording indices (SDANN, SDNN-index).';
   // ── altitude caveats ──
+  /* M18 — THE BANNER SURFACES NUMBERS, SO THE BANNER CARRIES BADGES. The elevation and the
+     correction factor read as part of a sentence, and prose is not a grade: a reader cannot tell
+     from "VO₂max is altitude-corrected (×0.996)" whether that factor is a measurement of this
+     person or a population relationship applied to one profile. It is the second. The two tiers
+     differ and each number takes its own, as the registry's own `vo2gt` note rules it:
+     entered-ness is not a tier, PROVENANCE is.
+       elevation  `measured`  — the profile states it, the same shape as the entered laboratory
+                               VO₂max that pulsedex-registry.js grades `measured`.
+       ×factor    `heuristic` — the published ~1 %-per-300 m relationship above 1500 m, applied to
+                               one profile, and it multiplies the `heuristic` VO₂ estimate. */
+  const elevBadge = tierBadge('measured', 'Elevation as the profile states it — entered by the user, not measured by PulseDex');
+  const factorBadge = tierBadge(
+    'heuristic',
+    'Altitude VO₂max correction: aerobic capacity falls about 1 % per 300 m above 1500 m (Buskirk; Wehrlin & Hallén 2006). A population relationship applied to one profile, and the published factor is the one that multiplies.'
+  );
   let alt = '';
   if (r.elev != null && r.elev >= 2500) {
     alt =
       '🏔 <b>High altitude (' +
+      elevBadge +
       r.elev.toLocaleString() +
-      ' m).</b> HRV reference ranges below are <b>sea-level norms</b> — chronic hypoxia legitimately lowers HRV, raises HR and shifts LF/HF sympathetic, so red flags here may be adaptive, not pathological. VO₂max is altitude-corrected (×' +
+      ' m).</b> HRV reference ranges below are <b>sea-level norms</b> — chronic hypoxia legitimately lowers HRV, raises HR and shifts LF/HF sympathetic, so red flags here may be adaptive, not pathological. VO₂max is altitude-corrected (' +
+      factorBadge +
+      '×' +
       r.altFactor +
       ').';
   } else if (r.elev != null && r.elev > 1500) {
-    alt = '⛰ <b>Moderate altitude (' + r.elev.toLocaleString() + ' m).</b> VO₂max altitude-corrected (×' + r.altFactor + '); HRV norms still broadly apply.';
+    alt = '⛰ <b>Moderate altitude (' + elevBadge + r.elev.toLocaleString() + ' m).</b> VO₂max altitude-corrected (' + factorBadge + '×' + r.altFactor + '); HRV norms still broadly apply.';
   }
   let pbNote = '';
   if (r.pb && r.pb.strong) {
     pbNote =
       '🌬 <b>Periodic-breathing signature detected</b> (low-freq HR cycling, PB index ' +
+      /* The same defect in the same banner. The grade is `pbIndex`'s, the OxyDex sibling that is also
+         an INDEX: that entry reads `experimental`, and so does `periodicBreathing`, because each one
+         is a derived signature with no airflow channel. OxyDex's `pbEpisodes` reads `emerging`, but
+         that is a count of detected episodes, and a ratio of band power cannot hold a higher grade
+         than the rate it is drawn from (kestrel, board #8883, over oxydex-registry.js on main). */
+      tierBadge(
+        'experimental',
+        'Periodic-breathing index — PulseDex detector on low-frequency heart-rate cycling alone. There is no airflow, effort or oximetry channel in this recording, and no scorer scored it. The grade follows OxyDex pbIndex.'
+      ) +
       r.pb.frac +
       '). Common at altitude — it inflates VLF/LF and confounds LF/HF, Resp Rate and the SNS/PSNS split. Treat spectral & composite metrics with caution.';
   }
@@ -101,7 +141,7 @@ function renderContext(r) {
     .join('');
   el.innerHTML = `<div class="ctx-main">
       <div><div class="ctx-mode">${escapeHTML(r.modeLabel)}</div><div class="ctx-why">${escapeHTML(r.modeWhy)}${r.overridden ? ' · <span style="color:var(--blue);font-weight:700">manual override</span>' : ''}</div></div>
-      <div class="ctx-conf">${r.overridden ? 'OVERRIDE' : 'auto · ' + r.modeConf + '%'}</div>
+      <div class="ctx-conf">${r.overridden ? 'OVERRIDE' : 'auto · ' + tierBadge('heuristic', 'A fixed score the mode rule attaches to whichever branch it took over duration, hour of day, mean heart rate and heart-rate drift (pulsedex-dsp.js classifyRecording). It is not a probability and it measures nothing in this recording.') + r.modeConf + '%'}</div>
     </div>${notes}`;
   el.style.display = 'block';
 }

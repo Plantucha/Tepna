@@ -3673,13 +3673,28 @@ function nightDetail(n, idx) {
     var st = n.stager,
       sm = st.minutes || {},
       sModel = st.model || {};
-    var sProv =
-      (sModel.tag || 'weights') +
-      (sModel.fold != null ? ' · fold ' + sModel.fold : '') +
-      (sModel.innerValKappa != null ? ' · inner-val κ ' + Number(sModel.innerValKappa).toFixed(3) : '') +
-      (sModel.random ? ' · RANDOM weights' : '');
+    var sProv = (sModel.tag || 'weights') + (sModel.fold != null ? ' · fold ' + sModel.fold : '') + (sModel.random ? ' · RANDOM weights' : '');
+    /* M6 (qwen lead triage) — THE κ IS A MEASUREMENT AND IT CARRIES A BADGE. The words "control
+       model — not shipped" are prose: they say where the number came from, and they say nothing
+       about how far a reader may trust it, which is what the ladder states. The badge beside the
+       confidence note below renders only when both `st.confidence` and HypnoExport are present, so
+       on a weights file that carries a κ and no per-epoch posterior this line was the one number
+       on the card with no grade at all. `experimental` is what every stager entry in
+       oxydex-registry.js already declares, and the cite says what the κ measured. The tag and the
+       fold index stay bare: they name WHICH file and WHICH split, as `date` and `source` do, and
+       the ratified meta list keeps that kind of token unbadged. */
+    var sKappa =
+      sModel.innerValKappa == null
+        ? ''
+        : ' · ' +
+          _ntBadge(
+            'experimental',
+            'Inner-validation Cohen κ as the loaded weights file reports it — the control net graded itself on a held-out fold of its own fitting data. Nothing here re-measured it, and no scorer scored this night.'
+          ) +
+          'inner-val κ ' +
+          Number(sModel.innerValKappa).toFixed(3);
     html += '<div class="sec-section" data-tier="secondary">';
-    html += '<div class="sec-label">Sleep Stages <span class="cite-note">(control model — not shipped · ' + escHTML(sProv) + ' · motion absent)</span></div>';
+    html += '<div class="sec-label">Sleep Stages <span class="cite-note">(control model — not shipped · ' + escHTML(sProv) + sKappa + ' · motion absent)</span></div>';
     html += typeof window !== 'undefined' && window.OxyDexStager ? window.OxyDexStager.hypnogramSvg(st.stages, 640, 56) : '';
     // Per-epoch confidence (hypno-export.js): the posterior of the stage each bar shows — darker = surer.
     if (st.confidence && st.meanConfidence != null && typeof window !== 'undefined' && window.HypnoExport) {

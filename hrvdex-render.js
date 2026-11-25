@@ -1426,7 +1426,14 @@ function renderHistogram() {
   const mean = _patMean(vals),
     med = _patMedian(vals),
     sd = _patStd(vals);
-  if (sub) sub.innerHTML = 'μ ' + mean.toFixed(1) + ' · median ' + med.toFixed(1) + ' · σ ' + sd.toFixed(1) + ' · n ' + vals.length;
+  /* M3 (qwen lead triage) — THE SERIES CARRIES THE BADGE, SO NAME THE SERIES. μ, median, σ and n
+     went onto this card with no badge at all: the <p> around them is static markup, the bars the
+     card draws live inside a canvas, and the owner exempts a caption only when a badge sits on
+     every series it draws. These four numbers all describe ONE series — the metric the select
+     holds — so one badge before that metric's name grades all four, and the name makes the
+     badge's subject readable. The grade comes from the registry (hrvdex-registry.js), which this
+     change taught to resolve the PATTERN_METRICS spellings. */
+  if (sub) sub.innerHTML = evBadge(_patLabel(key)) + _patLabel(key) + ' · μ ' + mean.toFixed(1) + ' · median ' + med.toFixed(1) + ' · σ ' + sd.toFixed(1) + ' · n ' + vals.length;
   barChart(
     'ch_hist',
     labels,
@@ -1456,7 +1463,25 @@ function renderScatterExplorer() {
     if (isFinite(r)) {
       const strength = Math.abs(r) > 0.7 ? 'strong' : Math.abs(r) > 0.4 ? 'moderate' : Math.abs(r) > 0.2 ? 'weak' : 'negligible';
       const col = Math.abs(r) > 0.4 ? (r > 0 ? 'var(--status-ok)' : 'var(--status-concern)') : 'var(--text2)';
-      sub.innerHTML = 'Pearson r = <strong style="color:' + col + '">' + r.toFixed(2) + '</strong> · ' + strength + (r < 0 ? ' (inverse)' : '') + ' · n ' + n;
+      /* The same defect as M3 on the sibling card, which the triage did not flag: Pearson r is a
+         statistic over TWO series, so both series are named and both carry their own registry
+         grade. r takes no badge of its own — it is not a metric, and the pair above it states
+         what the reader may trust. */
+      sub.innerHTML =
+        evBadge(_patLabel(kx)) +
+        _patShort(kx) +
+        ' vs ' +
+        evBadge(_patLabel(ky)) +
+        _patShort(ky) +
+        ' · Pearson r = <strong style="color:' +
+        col +
+        '">' +
+        r.toFixed(2) +
+        '</strong> · ' +
+        strength +
+        (r < 0 ? ' (inverse)' : '') +
+        ' · n ' +
+        n;
     } else sub.textContent = 'not enough paired data';
   }
   if (charts['ch_corr']) charts['ch_corr'].destroy();
@@ -1516,8 +1541,20 @@ function renderWeekday() {
           }
         }
       });
+      // The third card of the same shape: two weekday averages of one series, so the series is named
+      // once and graded once.
       sub.innerHTML =
-        'highest <strong style="color:var(--status-ok)">' + hiD + '</strong> (' + hi.toFixed(1) + ') · lowest <strong style="color:var(--status-concern)">' + loD + '</strong> (' + lo.toFixed(1) + ')';
+        evBadge(_patLabel(key)) +
+        _patLabel(key) +
+        ' · highest <strong style="color:var(--status-ok)">' +
+        hiD +
+        '</strong> (' +
+        hi.toFixed(1) +
+        ') · lowest <strong style="color:var(--status-concern)">' +
+        loD +
+        '</strong> (' +
+        lo.toFixed(1) +
+        ')';
     } else sub.textContent = 'not enough data';
   }
   barChart(
