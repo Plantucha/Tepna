@@ -15858,6 +15858,47 @@ const OxyDex = window.OxyDex;
     };
   }
 
+  /* ── THE SUMMARY / SERIES EXPORT PAYLOAD, HEADLESS ──────────────────────────────────────────
+     `exportJSON()` in pulsedex-app.js built this payload INLINE, so no committed fixture reached
+     it and GATE B could not see a value in it move. #5680 repaired a fabricated altitude factor
+     that reached a reader through exactly this road, and the only evidence available was a pin on
+     the source text. This builder is the sibling of `pdBuildNodeExport`: ONE implementation that
+     the app, a committed fixture and any later road all call.
+       list — the recordings, already sorted (the app sorts ascending by t0Ms)
+       opts.crossNight — the `ganglior.crossnight` block, computed by the caller from the SAME
+                         sorted list (`PulseCross.crossNightBlock`). Absent ⇒ null, never a
+                         fabricated aggregate (§∅).
+       opts.kernel     — the DexKernel namespace | null
+       opts.provenance — GangliorProvenance.stamp() | null   (key always present)
+       opts.generated  — ISO string (defaults to now at call time)
+     ONE recording returns that recording's own object UNCHANGED, which is what the app shipped;
+     an empty list returns null, because there is no recording to describe. Field ORDER matches
+     the app's historical payload byte-for-byte. */
+  function pdBuildSummaryExport(list, opts) {
+    opts = opts || {};
+    const recs = Array.isArray(list) ? list : [];
+    if (recs.length === 0) return null;
+    if (recs.length === 1) return recs[0];
+    const generated = opts.generated || new Date().toISOString();
+    return {
+      kernel: opts.kernel ? { version: opts.kernel.VERSION, hash: opts.kernel.HASH } : null,
+      schema: {
+        name: 'ganglior.node-export',
+        version: '2.0',
+        node: 'PulseDex',
+        nodeVersion: '1.0',
+        multiRecording: true,
+        generated,
+        provenance: opts.provenance !== undefined ? opts.provenance : null,
+        doc: 'Array of per-recording PulseDex summaries + a ganglior.crossnight v1.0 aggregate header. Each element is the unmodified single-recording object.'
+      },
+      generated,
+      recordingCount: recs.length,
+      crossNight: opts.crossNight !== undefined ? opts.crossNight : null,
+      recordings: recs
+    };
+  }
+
   // Public namespace — the headless surface the orchestrator + app both call.
   // biome-ignore lint/correctness/noInvalidUseBeforeDeclaration: a hoisted `var` reads as `undefined` here, never a dead zone — the idiom adopts the namespace the bundle may already have defined
   var PulseDex = typeof PulseDex !== 'undefined' && PulseDex ? PulseDex : {};
@@ -15869,6 +15910,7 @@ const OxyDex = window.OxyDex;
   };
   PulseDex.computeResult = pdComputeResult;
   PulseDex.buildNodeExport = pdBuildNodeExport;
+  PulseDex.buildSummaryExport = pdBuildSummaryExport;
   PulseDex.eventsFromResult = pdEventsFromResult;
   PulseDex.loadOwnExport = pulseLoadOwnExport; // SELF-INGEST reload (review-mode clinical view)
   // scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate so co-load order is irrelevant.
@@ -15967,6 +16009,7 @@ const OxyDex = window.OxyDex;
     pdComputeResult,
     pdEventsFromResult,
     pdBuildNodeExport,
+    pdBuildSummaryExport,
     pulseLoadOwnExport
   };
   PulseDex._bare = BARE;
