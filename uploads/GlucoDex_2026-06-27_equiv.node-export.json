@@ -16,6 +16,16 @@
     "startEpochMs": 1775391720000,
     "events": 42,
     "nAbsentIn": 0,
+    "rowsDropped": {
+      "value": 0,
+      "stamp": 0
+    },
+    "outOfRange": {
+      "below": 0,
+      "above": 0,
+      "belowMin": 0,
+      "aboveMin": 0
+    },
     "coverage": {
       "kind": "continuous",
       "spanSec": 2449800,
@@ -40970,7 +40980,7 @@
         "f": 0
       }
     ],
-    "cellsNote": "ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms; v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG). A consumer computing glucose statistics MUST exclude 3 and 4 — flag 4 is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count."
+    "cellsNote": "ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms; v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG · 5 Low, below the sensor range · 6 High, above it). A consumer computing glucose statistics MUST exclude 3 and 4 — flag 4 is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count. Flags 5 and 6 carry v null: the time is measured and the value is not."
   },
   "crossNight": {
     "schema": {

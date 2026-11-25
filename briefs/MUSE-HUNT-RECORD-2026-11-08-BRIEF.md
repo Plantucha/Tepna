@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** IN-PROGRESS — 2026-11-25 · **Created:** 2026-11-08 · **Interlocks:** `briefs/RESIDUE.md` (the verified rows) · `AUDIT-PROMPT.md`
+**Status:** DONE — 2026-11-25 · **Created:** 2026-11-08 · **Interlocks:** `briefs/RESIDUE.md` (the verified rows) · `AUDIT-PROMPT.md`
 
 # MUSE-HUNT-RECORD — every Muse hunt finding, and its state on main
 
@@ -45,10 +45,10 @@ U-5, U-6, U-7, U-9, M-4, M-5, M-6, M-7 and B-6. Each table below names the fix o
 ## 2 · Acceptance
 
 - [x] Each `unverified` and `holds on main` item below has a re-read on origin/main (2026-11-25, at 680cbf2f4).
-- [ ] Each item that holds has a fix PR, or it has a residue row in a RESIDUE-only PR.
+- [x] Each item that holds has a fix PR, or it has a residue row in a RESIDUE-only PR.
 - [x] Each item that does not hold has a one-line note here with the evidence.
-- [ ] Each `design call` item has an owner ruling or a `--kind decision` board post.
-- [ ] The status line moves to DONE when the four items above are true.
+- [x] Each `design call` item has an owner ruling or a `--kind decision` board post (#8826, 2026-11-25).
+- [x] The status line moves to DONE when the four items above are true.
 
 ## 3 · Lane R — render (`#4272`)
 
@@ -144,13 +144,13 @@ EEGDex sleep-efficiency denominator · PulseDex `pttv` floor · HRVDex CAMQ aver
 |---|---|---|---|
 | U-1 | `ppgdex-dsp.js` `parseSensorXYZ` | y and z pushed with no finite check | row `2026-11-08-parsesensorxyz-pushes-y-and-z-without-a-finite-check` |
 | U-2 | `signal-frame.js` `toSignalFrame` | RR quality counts dropped | row `2026-11-08-tosignalframe-drops-the-pulsedex-artifact-counts` |
-| U-3 | `dex-ingest.js` `planIngest` | PPI items filtered out and not listed in `skipped` | holds on main: the filter is by design (firmware RR first), and nothing counts the items that it drops |
-| U-4 | OxyDex `parseCSV` | drops rows uncounted; positional column guess with no marker | holds on main: each short or unreadable row is a bare `continue` with no count |
-| U-5 | GlucoDex `parseCSV` | drops rows uncounted | holds on main: the rows leave with no count |
-| U-6 | HRVDex summary parser | unparseable stamps dropped uncounted | holds on main: `if (isFinite(r._tMs)) rows.push(r)` drops a row with no count |
-| U-7 | ECG companion parsers | band drops uncounted | holds on main: the band tests in `parseDeviceRR`, `parseDeviceHR` and `parseDeviceACC` drop rows with no count |
+| U-3 | `dex-ingest.js` `planIngest` | PPI items filtered out and not listed in `skipped` | row `2026-11-25-planingest-drops-ppi-without-a-skipped-entry` |
+| U-4 | OxyDex `parseCSV` | drops rows uncounted; positional column guess with no marker | row `2026-11-25-three-parsers-drop-rows-without-a-count` |
+| U-5 | GlucoDex `parseCSV` | drops rows uncounted | fixed here: `rowsDropped` counts each row that the parser cannot use, and a `Low` or `High` row is a censored reading |
+| U-6 | HRVDex summary parser | unparseable stamps dropped uncounted | row `2026-11-25-three-parsers-drop-rows-without-a-count` |
+| U-7 | ECG companion parsers | band drops uncounted | row `2026-11-25-three-parsers-drop-rows-without-a-count` |
 | U-8 | `parseDeviceACC` | 4 Hz default with no defaulted marker | fixed on main: `accFsSource` says `assumed` or `ms-delta`, and each consumer that spends the rate as a timebase refuses `assumed` |
-| U-9 | three Polar adapters | a zero-row companion reads as no companion | holds on main: a zero-row companion sets no field and pushes no warning in `polar-h10-ecg`, `polar-acc` and `polar-sense-ppg` |
+| U-9 | three Polar adapters | a zero-row companion reads as no companion | row `2026-11-25-zero-row-companion-reads-as-no-companion` |
 | U-10 | `resmed-edf`, `cpapdex-edf` | fs 25 fallback unmarked; session names dropped uncounted | fixed here: an unreadable BRP Flow rate gives null and a named reason, and the adapter blocks the flow |
 | U-11 | `readEDF` | a duplicate label overwrites | fixed here: a repeated label gets the key `<label> #2`, and `duplicateLabels` names it |
 | U-12 | OxyDex `parsePPG2W` | non-finite motion becomes 0; thin bins skipped uncounted | fixed here for the motion cell: an empty or unreadable cell is null |
@@ -171,7 +171,7 @@ EEGDex sleep-efficiency denominator · PulseDex `pttv` floor · HRVDex CAMQ aver
 | B-3 | `ackSweep` | empty acks output retires every tracked urgent | fixed on main: `planRetire` refuses and logs |
 | B-4 | the bridge | escalation clock runs from arrival | fixed on main |
 | B-5 | the bridge | a reopen under 2 h merges with no post | fixed on main: the merge is deliberate and `reopenMerged` counts it; the episode keeps its event time |
-| B-6 | the bridge | dedup keys truncate titles to 40 characters | holds on main: `deviceOf` cuts the name at 40 characters |
+| B-6 | the bridge | dedup keys truncate titles to 40 characters | row `2026-11-25-ntfy-bridge-device-key-cuts-at-40-characters` |
 | N-1 | `board-nudge.sh` | a parse failure sums to 0 unread | fixed on main: a failed status or an absent count line says "unread unknown, no nudge" |
 | N-2 | `board.mjs` | the open-PR count is capped at 40 with no marker | logged earlier (`#4501`) |
 

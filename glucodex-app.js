@@ -551,7 +551,7 @@ import './glucodex-profile.js';
       { l: 'LBGI', v: r.lbgi, sub: 'low-BG risk', s: r.lbgi == null ? 'neutral' : r.lbgi < 2.5 ? 'ok' : r.lbgi < 5 ? 'warn' : 'bad' },
       { l: 'HBGI', v: r.hbgi, sub: 'high-BG risk', s: r.hbgi == null ? 'neutral' : r.hbgi < 4.5 ? 'ok' : r.hbgi < 9 ? 'warn' : 'bad' },
       ...(r.dawn.present ? [{ l: 'Dawn rise', v: '+' + window.GluDisp.val(r.dawn.medianDelta), sub: window.GluDisp.label() + ' · median', s: r.dawn.medianDelta < 30 ? 'warn' : 'bad' }] : []),
-      ...(r.nocturnalHypo.length ? [{ l: 'Nocturnal hypo', v: r.nocturnalHypo.length, sub: 'episodes ' + window.GluDisp.cmp('<', 70), s: 'bad' }] : []),
+      ...(r.nocturnalHypo && r.nocturnalHypo.length ? [{ l: 'Nocturnal hypo', v: r.nocturnalHypo.length, sub: 'episodes ' + window.GluDisp.cmp('<', 70), s: 'bad' }] : []),
       {
         l: '% Sensor active',
         v: r.pctActive + '%',
@@ -689,6 +689,7 @@ import './glucodex-profile.js';
     </div>
     ${!agpOk ? `<div class="q-note" style="color:var(--amber);border:1px solid rgba(255,184,77,.25);background:rgba(255,184,77,.06);border-radius:8px;padding:10px 12px;margin-bottom:10px">⚠ <b>Sensor active ${r.pctActive}%</b> — below the 70% AGP-validity floor over this period. Percentile bands and time-in-range are computed on the usable signal only; treat them as indicative.</div>` : ''}
     ${r.clampSat && r.clampSat.detected ? `<div class="q-note" style="color:var(--red);border:1px solid rgba(255,107,122,.28);background:rgba(255,107,122,.06);border-radius:8px;padding:10px 12px;margin-bottom:10px">⚠ <b>Clipped export${r.clampSat.vendor === 'lingo' ? ' · Abbott Lingo (55–200 mg/dL)' : ''}.</b> ${r.clampSat.note} The blind metrics below read against the clip, not your true extremes — interpret them as floors, not facts.</div>` : ''}
+    ${r.outOfRange && r.outOfRange.below + r.outOfRange.above > 0 ? `<div class="q-note" style="color:var(--amber);border:1px solid rgba(255,184,77,.25);background:rgba(255,184,77,.06);border-radius:8px;padding:10px 12px;margin-bottom:10px">⚠ <b>Outside the sensor range</b> — ${r.outOfRange.below} cell(s) read Low and ${r.outOfRange.above} read High. They count as time below 54 and above 250 mg/dL. They carry no value, so the mean, GMI, SD, CV and percentiles leave them out, and GlucoDex cannot test a Low for a compression artifact.</div>` : ''}
     <div class="q-note"><b>% sensor active</b> = analyzable cells ÷ total timeline (the CGM honesty metric). Warm-up (first ~1 h of a fresh sensor reading low/garbage) is <b>suppressed</b>; gaps (sensor off / out of range) are <b>flagged & bridged</b> by linear interpolation and greyed on the trace; nocturnal compression lows (sleeping on the sensor) are <b>flagged</b>, not deleted. Excluded spans never enter the distribution metrics, and the <code>conf</code> of every Ganglior event scales with local completeness.</div>`;
     $('qualitySection').style.display = 'block';
   }
@@ -759,14 +760,16 @@ import './glucodex-profile.js';
         UI.lineChart(pts, r.dawn.present ? UI.COLORS.amber : UI.COLORS.teal, { W: 680, H: 130, ymn: 0, med: 20, xfmt: (x) => 'd' + (x + 1) });
     }
     // nocturnal hypos
-    const noct = r.nocturnalHypo
+    // null is a refusal (no measured rate), so it prints as one and never as a count of 0
+    const hypos = r.nocturnalHypo;
+    const noct = (hypos || [])
       .map(
         (h) =>
-          `<div class="gang-ev bad"><span class="ge-t">${DSP.hhmm(h.startMs).slice(0, 5)}</span><span class="ge-imp">nocturnal_hypo</span><span class="ge-meta">min ${window.GluDisp.val(h.min)} · ${h.durMin}m</span><span class="ge-conf">&lt;70</span></div>`
+          `<div class="gang-ev bad"><span class="ge-t">${DSP.hhmm(h.startMs).slice(0, 5)}</span><span class="ge-imp">nocturnal_hypo</span><span class="ge-meta">${h.min == null ? 'below sensor range' : 'min ' + window.GluDisp.val(h.min)} · ${h.durMin}m</span><span class="ge-conf">&lt;70</span></div>`
       )
       .join('');
     // excursions summary
-    const exc = r.excursions;
+    const exc = r.excursions || [];
     const nAnn = exc.filter((e) => e.annotated).length;
     const excStream = exc.length
       ? exc
@@ -781,8 +784,8 @@ import './glucodex-profile.js';
     $('patternsBody').innerHTML = `
     <div class="gang-summary">
       <div class="gang-pill" style="border-color:${r.dawn.present ? UI.COLORS.amber : UI.COLORS.dim}"><b>Dawn phenomenon</b> ${r.dawn.present ? 'present · +' + window.GluDisp.val(r.dawn.medianDelta) + ' ' + window.GluDisp.label() : r.dawn.days && r.dawn.days.length ? 'not flagged (' + window.GluDisp.val(r.dawn.medianDelta) + ' ' + window.GluDisp.label() + ')' : '—'}</div>
-      <div class="gang-pill" style="border-color:${r.nocturnalHypo.length ? UI.COLORS.red : UI.COLORS.dim}"><b>${r.nocturnalHypo.length}</b> nocturnal hypo${r.nocturnalHypo.length === 1 ? '' : 's'}</div>
-      <div class="gang-pill"><b>${exc.length}</b> ${nAnn ? `excursion${exc.length === 1 ? '' : 's'} · <b style="color:var(--green)">${nAnn} meal-annotated</b>` : `unannotated excursion${exc.length === 1 ? '' : 's'}`}</div>
+      <div class="gang-pill" style="border-color:${hypos && hypos.length ? UI.COLORS.red : UI.COLORS.dim}">${UI.hypoCountHtml(r)}</div>
+      <div class="gang-pill">${UI.excursionCountHtml(r)}</div>
     </div>
     ${dawnHtml}
     ${excStream ? `<div class="mini-h" style="margin-top:12px">Excursion events <span class="mini-sub">${nAnn ? 'tagged against your meal markers where they line up' : 'slope-detected · add meal markers above to annotate'}</span></div><div class="gang-stream" style="max-height:200px">${excStream}</div>` : ''}
@@ -839,7 +842,8 @@ import './glucodex-profile.js';
     // build per-day 24h overlay traces from cleaned series
     const days = new Map();
     for (let i = 0; i < r.series.N; i++) {
-      if (r.series.gF[i] === r.series.FLAG.WARMUP) continue;
+      if (r.series.gF[i] === r.series.FLAG.WARMUP || r.series.gF[i] === r.series.FLAG.GAP_LONG) continue;
+      if (!isFinite(r.series.gV[i])) continue; // a Low/High cell has no value
       const d = new Date(r.series.gT[i]);
       const k = d.getUTCFullYear() + '-' + d.getUTCMonth() + '-' + d.getUTCDate();
       if (!days.has(k)) days.set(k, []);
@@ -850,7 +854,7 @@ import './glucodex-profile.js';
     // DEEP-AUDIT §5: long-gap cells are interpolation, not measurement — keep them out of the daily distribution.
     const dvals = [];
     for (let i = 0; i < r.series.N; i++) {
-      if (r.series.gF[i] !== r.series.FLAG.WARMUP && r.series.gF[i] !== r.series.FLAG.COMPRESSION && r.series.gF[i] !== r.series.FLAG.GAP_LONG) dvals.push(r.series.gV[i]);
+      if (r.series.gF[i] !== r.series.FLAG.WARMUP && r.series.gF[i] !== r.series.FLAG.COMPRESSION && r.series.gF[i] !== r.series.FLAG.GAP_LONG && isFinite(r.series.gV[i])) dvals.push(r.series.gV[i]);
     }
 
     const rows = r.daily
@@ -1027,44 +1031,7 @@ import './glucodex-profile.js';
     //   Nocturnal hypoglycemia prolongs QTc (sympathoadrenal surge + hypokalemia) and is
     //   implicated in the "dead-in-bed" arrhythmia. GlucoDex sees the hypos; ECGDex now
     //   exports QTc. The same-night coincidence is a cross-node signal neither sees alone.
-    const nNocturnalHypo = r.nocturnalHypo.length;
-    const minNightGlucose = r.nocturnalHypo.length ? Math.min(...r.nocturnalHypo.map((h) => h.min)) : null;
-    let hypoQtcRisk = 'none',
-      hypoQtcNote = null;
-    if (qtc != null) {
-      if (nNocturnalHypo > 0 && qtcProlonged) {
-        hypoQtcRisk = 'elevated';
-        hypoQtcNote =
-          'Nocturnal hypoglycemia (' +
-          nNocturnalHypo +
-          ' episode' +
-          (nNocturnalHypo > 1 ? 's' : '') +
-          ', nadir ' +
-          minNightGlucose +
-          ' mg/dL) coincides with a prolonged QTc (' +
-          qtc +
-          ' ms). Hypoglycemia is a recognised QTc-prolonging trigger — this same-night coincidence is the arrhythmic-risk pattern behind "dead-in-bed". Directional, single-lead — confirm with a clinician/12-lead.';
-      } else if (qtcProlonged) {
-        hypoQtcRisk = 'qtc-only';
-        hypoQtcNote =
-          'QTc ' +
-          qtc +
-          ' ms is ' +
-          (qtc > qtcLong ? 'prolonged' : 'borderline') +
-          ' (threshold ' +
-          qtcBorderline +
-          ' ms for ' +
-          (sex === 'F' ? 'F' : 'M') +
-          ') but no nocturnal hypos were measured this period — repolarisation watch, not a glucose-linked flag.';
-      } else if (nNocturnalHypo > 0) {
-        hypoQtcRisk = 'hypo-only';
-        hypoQtcNote =
-          'Nocturnal hypos present but QTc (' + qtc + ' ms) is within range — no repolarisation amplification seen on this (possibly different) night. Keep aligned-night data to watch the pair.';
-      } else {
-        hypoQtcRisk = 'clear';
-        hypoQtcNote = 'QTc ' + qtc + ' ms within range and no nocturnal hypos — the hypo⟷QTc arrhythmic pattern is absent.';
-      }
-    }
+    const { nNocturnalHypo, minNightGlucose, hypoQtcRisk, hypoQtcNote } = DSP.hypoQtcRead(r.nocturnalHypo, qtc, qtcBorderline, qtcLong, sex);
     const morph = mInt
       ? {
           qtc,
@@ -1100,7 +1067,8 @@ import './glucodex-profile.js';
         const cad = r.series.cadence * 60000;
         const idx = Math.round((ms - r.series.gT[0]) / cad);
         for (let k = Math.max(0, idx - 2); k <= Math.min(r.series.N - 1, idx + 2); k++) {
-          if (r.series.gF[k] === r.series.FLAG.WARMUP) continue;
+          // …and skip a long gap, which is a drawn line, and a Low/High cell, which has no value
+          if (r.series.gF[k] === r.series.FLAG.WARMUP || r.series.gF[k] === r.series.FLAG.GAP_LONG || !isFinite(r.series.gV[k])) continue;
           const d = Math.abs(r.series.gT[k] - ms);
           if (d < bd) {
             bd = d;
@@ -1239,7 +1207,7 @@ import './glucodex-profile.js';
       const nv = [];
       for (let i = 0; i < r.series.N; i++) {
         const f = r.series.gF[i];
-        if (f === r.series.FLAG.WARMUP || f === r.series.FLAG.GAP_LONG) continue;
+        if (f === r.series.FLAG.WARMUP || f === r.series.FLAG.GAP_LONG || !isFinite(r.series.gV[i])) continue;
         const h = new Date(r.series.gT[i]).getUTCHours();
         if (h < 6) nv.push(r.series.gV[i]);
       }
@@ -1516,8 +1484,8 @@ import './glucodex-profile.js';
         r.dawn.present == null ? 'neutral' : r.dawn.present ? 'warn' : 'ok',
         'Nadir(03–06h)→pre-breakfast rise'
       ],
-      ['Nocturnal hypos', r.nocturnalHypo.length, 'episodes', '0', r.nocturnalHypo.length ? 'bad' : 'ok', '00:00–06:00 ≥15 min <70'],
-      ['Excursions', r.excursions.length, 'events', '—', 'neutral', 'Slope-detected · unannotated'],
+      ['Nocturnal hypos', r.nocturnalHypo ? r.nocturnalHypo.length : '—', 'episodes', '0', !r.nocturnalHypo ? 'neutral' : r.nocturnalHypo.length ? 'bad' : 'ok', '00:00–06:00 ≥15 min <70'],
+      ['Excursions', r.excursions ? r.excursions.length : '—', 'events', '—', 'neutral', 'Slope-detected · unannotated'],
       [
         '— Personalised —',
         '',
@@ -1608,7 +1576,7 @@ import './glucodex-profile.js';
                     { elevated: 'Elevated', 'qtc-only': 'QTc watch', 'hypo-only': 'Hypo only', clear: 'Clear', none: '—' }[f.morph.hypoQtcRisk],
                     '—',
                     'Clear',
-                    f.morph.hypoQtcRisk === 'elevated' ? 'bad' : f.morph.hypoQtcRisk === 'clear' ? 'ok' : 'warn',
+                    f.morph.hypoQtcRisk === 'elevated' ? 'bad' : f.morph.hypoQtcRisk === 'clear' ? 'ok' : f.morph.hypoQtcRisk === 'none' ? 'neutral' : 'warn',
                     'Nocturnal hypo + prolonged QTc = dead-in-bed pattern'
                   ]
                 ]
@@ -1661,12 +1629,12 @@ import './glucodex-profile.js';
     if (!RESULT) return;
     const r = RESULT,
       s = r.series;
-    const fnames = { 0: 'ok', 1: 'warmup', 2: 'gap-interp', 3: 'compression' };
+    const fnames = { 0: 'ok', 1: 'warmup', 2: 'gap-interp', 3: 'compression', 4: 'gap-long-interp', 5: 'below-range', 6: 'above-range' };
     const rows = [['timestamp', 'glucose_mgdl', 'flag']];
     // missing reading → blank, NOT Math.round(null)=0 (that would fabricate a real-looking value)
     for (let i = 0; i < s.N; i++) {
       const g = s.gV[i];
-      rows.push([new Date(s.gT[i]).toISOString(), g == null || !isFinite(g) ? '' : Math.round(g), fnames[s.gF[i]] || 'ok']);
+      rows.push([new Date(s.gT[i]).toISOString(), g == null || !isFinite(g) ? '' : Math.round(g), fnames[s.gF[i]] || 'unknown']);
     }
     dl(csvDoc(rows), 'glucodex_cleaned_' + new Date(r.t0Ms).toISOString().slice(0, 10) + '.csv', 'text/csv');
     showOK('Cleaned series exported (' + s.N.toLocaleString() + ' rows · warm-up/gap/compression flagged).');
@@ -1861,7 +1829,7 @@ import './glucodex-profile.js';
         showOK('Calibrated to lab A1c — trace shifted ' + (r.calib.appliedOffset > 0 ? '+' : '') + r.calib.appliedOffset + ' mg/dL to match your lab-implied average glucose.');
       return;
     }
-    const nAnn = r.excursions.filter((e) => e.annotated).length;
+    const nAnn = (r.excursions || []).filter((e) => e.annotated).length;
     showOK('Re-analyzed with ' + MEALS.length + ' meal marker' + (MEALS.length === 1 ? '' : 's') + ' — ' + nAnn + ' excursion' + (nAnn === 1 ? '' : 's') + ' now annotated.');
   }
 

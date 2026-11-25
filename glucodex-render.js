@@ -153,6 +153,20 @@ window.evBadge = evBadge;
     if (m != null) return m >= 1440 ? (m / 1440).toFixed(1) + 'd' : Math.round(m / 60) + 'h';
     return cadState(r) === 'refused' ? 'no rate' : CAD_UNKNOWN;
   }
+  /* An episode list is null when the rate was refused: the detectors time a run, so nothing was looked
+     for. The pill prints the token; a 0 here would say that the nights were searched. */
+  function hypoCountHtml(r) {
+    const l = r && r.nocturnalHypo;
+    if (!l) return 'nocturnal hypos withheld \u2014 <b>' + (cadToken(r) || CAD_UNKNOWN) + '</b>';
+    return '<b>' + l.length + '</b> nocturnal hypo' + (l.length === 1 ? '' : 's');
+  }
+  function excursionCountHtml(r) {
+    const l = r && r.excursions;
+    if (!l) return 'excursions withheld \u2014 <b>' + (cadToken(r) || CAD_UNKNOWN) + '</b>';
+    const nAnn = l.filter((e) => e.annotated).length;
+    const word = 'excursion' + (l.length === 1 ? '' : 's');
+    return '<b>' + l.length + '</b> ' + (nAnn ? word + ' \u00b7 <b style="color:var(--green)">' + nAnn + ' meal-annotated</b>' : 'unannotated ' + word);
+  }
   /* The card-leading note. It names the token AND the step the grid actually used, because that
      step is what every cell position, every AGP bin and the scope viewport are built on — a reader
      who is told only that the rate is absent cannot tell what the picture below is spaced by. */
@@ -318,13 +332,16 @@ window.evBadge = evBadge;
         [this.FLAG.GAP]: 'rgba(150,160,175,.16)',
         [this.FLAG.GAP_LONG]: 'rgba(150,160,175,.16)',
         [this.FLAG.WARMUP]: 'rgba(255,184,77,.13)',
-        [this.FLAG.COMPRESSION]: 'rgba(167,139,250,.16)'
+        [this.FLAG.COMPRESSION]: 'rgba(167,139,250,.16)',
+        // Low / High — outside the sensor range, so there is no value to draw a line through
+        [this.FLAG.BELOW]: 'rgba(255,107,122,.22)',
+        [this.FLAG.ABOVE]: 'rgba(255,107,122,.22)'
       };
       let runS = null,
         runFlag = null;
       for (let i = i0; i <= i1; i++) {
         const f = this.gF[i];
-        const ex = f === this.FLAG.GAP || f === this.FLAG.GAP_LONG || f === this.FLAG.WARMUP || f === this.FLAG.COMPRESSION;
+        const ex = exCol[f] !== undefined;
         if (ex && runS === null) {
           runS = i;
           runFlag = f;
@@ -351,7 +368,7 @@ window.evBadge = evBadge;
       for (let i = i0; i <= i1; i += stepDraw) {
         const x = sxCell(i),
           y = sy(this.gV[i]);
-        const isGap = this.gF[i] === this.FLAG.WARMUP;
+        const isGap = this.gF[i] === this.FLAG.WARMUP || !isFinite(this.gV[i]);
         if (isGap) {
           if (pen) {
             ctx.stroke();
@@ -393,7 +410,7 @@ window.evBadge = evBadge;
       let pen = false;
       for (let px = 0; px < W; px++) {
         const i = Math.floor((px / W) * this.N);
-        if (this.gF[i] === this.FLAG.WARMUP) {
+        if (this.gF[i] === this.FLAG.WARMUP || !isFinite(this.gV[i])) {
           pen = false;
           continue;
         }
@@ -721,6 +738,8 @@ window.evBadge = evBadge;
     fusionScatter,
     riskGauge,
     cadToken,
+    hypoCountHtml,
+    excursionCountHtml,
     cadState,
     cadText,
     durText,

@@ -60,6 +60,17 @@
     "gapMin": 0,
     "warmupMinSuppressed": 0,
     "compressionLowMin": 0,
+    "outOfRange": {
+      "below": 0,
+      "above": 0,
+      "belowMin": 0,
+      "aboveMin": 0
+    },
+    "rowsDropped": {
+      "value": 0,
+      "stamp": 0
+    },
+    "outOfRangeNote": "Low / High cells, where the sensor reported a glucose outside its measuring range. They count as active time and as time below 54 / above 250 mg/dL, and they carry no value: min is null under a Low and max is null under a High, and mean, SD, CV and GMI are over the numeric readings alone. LBGI, HBGI, ADRR and the dawn rise are floors when a Low or a High sits in their window.",
     "sensorSessions": [
       {
         "idx": 1,
@@ -202,6 +213,7 @@
         "trough": 94,
         "peak": 147,
         "rise": 53,
+        "peakAboveRange": false,
         "rateMgMin": 1.06,
         "durMin": 50,
         "meal": null,
@@ -214,6 +226,7 @@
         "trough": 94,
         "peak": 147,
         "rise": 53,
+        "peakAboveRange": false,
         "rateMgMin": 1.06,
         "durMin": 50,
         "meal": null,
@@ -226,6 +239,7 @@
         "trough": 94,
         "peak": 147,
         "rise": 53,
+        "peakAboveRange": false,
         "rateMgMin": 1.06,
         "durMin": 50,
         "meal": null,
@@ -4591,7 +4605,7 @@
         "f": 0
       }
     ],
-    "cellsNote": "ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms (NOT reconstructed from a string); v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG). A consumer computing glucose statistics MUST exclude 3 and 4: flag 4 is a long gap (sensor change / dropout) where the value is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count. Native cadence — no downsampling.",
+    "cellsNote": "ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms (NOT reconstructed from a string); v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG · 5 Low, below the sensor range · 6 High, above it). A consumer computing glucose statistics MUST exclude 3 and 4: flag 4 is a long gap (sensor change / dropout) where the value is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count. Flags 5 and 6 carry v null: the time is measured and the value is not. Native cadence — no downsampling.",
     "agpHourly": [
       {
         "h": 0,
@@ -5031,6 +5045,8 @@
         "day": "2026-5-3",
         "startMs": 1777766400000,
         "n": 288,
+        "nBelow": 0,
+        "nAbove": 0,
         "mean": 102,
         "cv": 14.4,
         "tir": 100,
@@ -5042,6 +5058,8 @@
         "day": "2026-5-4",
         "startMs": 1777852800000,
         "n": 288,
+        "nBelow": 0,
+        "nAbove": 0,
         "mean": 102,
         "cv": 14.4,
         "tir": 100,
@@ -5053,6 +5071,8 @@
         "day": "2026-5-5",
         "startMs": 1777939200000,
         "n": 288,
+        "nBelow": 0,
+        "nAbove": 0,
         "mean": 102,
         "cv": 14.4,
         "tir": 100,
