@@ -226,10 +226,69 @@ function ecgRpeakTimes(text, runsText) {
    reachable from the corpus search carry the companion, so the refusal reaches 4.7 % of them. Whether
    the shipped default should consume the recompute is NOT decided here — it moves published PAT
    numbers, and the move is what an instrument calling this switch measures. */
+/* ── @port-from ppgdex-dsp.js#holdOverGaps ──────────────────────────────────────────────────────
+   @port-sha 2b153c3f2d28
+   ZERO-ORDER HOLD OVER THE SENTINEL GAPS, reconciled 2026-11-25 against that source text.
+   The node's hold is PRIVATE to its own closure: `PPGDSP` exports `parsePPG`, `detectChannel` and
+   `consensusBeats`, and never the hold. So the switch above cannot call it and carries this copy,
+   which `tools/port-parity.mjs` pins to the source text named here.
+   DELIBERATE DIFFERENCE: this copy is ES5, because the build inlines this file as a classic blob
+   worker. `Float32Array.from` becomes an indexed copy; the rule it runs is the source's rule.
+   The source's own comment states the honesty guarantee: a held sample can shape a filter tail, and
+   `gapBeats` still drops every beat whose foot-to-peak span touches a gap. This copy holds the
+   channel and runs no gapBeats of its own, so a reader of `tools/pat-mask-census.mjs` reads a FOOT
+   SET move and never a published PpgDex number. */
+function holdOverGaps(x, gap) {
+  var y = new Float32Array(x.length);
+  for (var i = 0; i < x.length; i++) y[i] = x[i];
+  var last = null;
+  for (var j = 0; j < y.length; j++) {
+    if (!gap[j]) {
+      last = y[j];
+      continue;
+    }
+    if (last !== null) y[j] = last;
+  }
+  /* Leading gaps have no prior good sample — backfill from the first good one so the array is
+     finite. The source backfills the same way, and names the same reason. */
+  if (gap[0]) {
+    var first = null;
+    for (var k = 0; k < y.length && first === null; k++) if (!gap[k]) first = y[k];
+    for (var m = 0; m < y.length && gap[m]; m++) y[m] = first !== null ? first : 0;
+  }
+  return y;
+}
 function ppgFootTimes(text, runsText, opts) {
   var rec = runsText ? PPGDSP.parsePPG(text, { runsText: runsText }) : PPGDSP.parsePPG(text);
   if (rec.t0Ms == null) throw new Error('PPG file carried no phone timestamp.');
-  var per = rec.ch.map(function (c) {
+  /* ── ∅ THE SENTINEL GAPS REACH THIS DETECTOR AS SIGNAL, AND THE NODE HOLDS THEM OVER FIRST ──────
+     Row `2026-09-26-pat-finger-feet-detected-on-unmasked-156-rows`. `PPGDSP.analyze` runs
+     `holdOverGaps(c, rec.gap)` before its biquad (`ppgdex-dsp.js`, the `chIn` site), so every
+     shipped PpgDex number is detected over a held channel. This function detects over the RAW
+     channel, so a blanking run the file itself marks invalid reads here as a plausible diastole.
+     Wren measured the move on 2026-09-26: the finger feet shift by a constant -0.74..-0.49 ms per
+     night on 68 of 70 ring nights, and on 6 older nights 2.0-3.3 % of feet move past 40 ms.
+     `opts.holdGaps` is OPTIONAL and LAST per §🧪, and absent or false every line below runs as it
+     did, so no published number moves. The switch exists so a census can MEASURE the move over the
+     shipped function rather than over a copy of it — `tools/pat-mask-census.mjs` calls both legs.
+     The owner then rules on the default. */
+  var _hold = !!(opts && opts.holdGaps);
+  var chIn =
+    _hold && rec.gap
+      ? rec.ch.map(function (c) {
+          return holdOverGaps(c, rec.gap);
+        })
+      : rec.ch;
+  /* ∅ THE SIZE OF THE EXPOSURE IS AVAILABLE ON EVERY PATH, so the record carries it either way.
+     A number in `wouldHoldGapSamples` beside a `null` in `gapSamplesHeld` says the switch is off and
+     names what it would have held. Both `null` says `parsePPG` published no mask, so nobody looked.
+     A `0` in either is a MEASURED zero: the mask exists and marks no sample. */
+  var _gapCount = null;
+  if (rec.gap) {
+    _gapCount = 0;
+    for (var _gi = 0; _gi < rec.gap.length; _gi++) if (rec.gap[_gi]) _gapCount++;
+  }
+  var per = chIn.map(function (c) {
     return PPGDSP.detectChannel(c, rec.fs);
   });
   /* CONSENSUS POLARITY — apply BEFORE the reference pick, which is the order `analyze` ships
@@ -243,8 +302,10 @@ function ppgFootTimes(text, runsText, opts) {
      after it the dissenter carries the majority sign and the night reads unanimous. */
   var polSigns = ConsensusDissent.signsOf(per);
   var polMaj = PPGDSP.consensusSign(polSigns);
+  /* The re-detection reads `chIn`, not `rec.ch`: a dissenter re-detected over the raw channel while
+     its peers were detected over the held one would carry two different inputs in one consensus. */
   var polCorrected = PPGDSP.applyConsensusPolarity(per, function (i, sgn) {
-    return PPGDSP.detectChannel(rec.ch[i], rec.fs, sgn);
+    return PPGDSP.detectChannel(chIn[i], rec.fs, sgn);
   });
   var polStamp = ConsensusDissent.stampOf(polSigns, polMaj, polCorrected);
   var refIdx = 0,
@@ -431,6 +492,8 @@ function ppgFootTimes(text, runsText, opts) {
     conf: _conf,
     feetIdx: cons.feet,
     nSamples: rec.n,
+    gapSamplesHeld: _hold ? _gapCount : null,
+    wouldHoldGapSamples: _gapCount,
     unmeasuredSec: _unmeasured,
     /* ∅ The consensus-polarity condition this night was read under, and what the pass did about it.
        `shape` separates the four abstentions the count cannot: only `unanimous` means the channels

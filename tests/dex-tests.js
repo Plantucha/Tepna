@@ -46237,6 +46237,43 @@
         T.ok('…and by a bounded amount — a refinement, not a relocation', maxD < 200, 'max ' + maxD.toFixed(1) + ' ms');
       }
 
+      /* ── PPG LEG · THE SENTINEL HOLD IS OPT-IN, AND ITS SIZE IS PUBLISHED EITHER WAY ──────────
+         Row 2026-09-26-pat-finger-feet-detected-on-unmasked-156-rows. The node's `analyze` holds the
+         O2Ring `156` markers over before it detects; this leg detects over the raw channel. The
+         worker now carries `opts.holdGaps` so `tools/pat-mask-census.mjs` can measure the move over
+         the SHIPPED function, and the contract this lane pins is the one the owner's ruling rests on:
+         the DEFAULT HOLDS NOTHING, so no published PAT number moved when the switch arrived.
+         Driven from the COMMITTED finger twin rather than a record built here, for the reason the
+         block below gives: an input built inside a test drifts with the test. That twin carries
+         marker rows, and `PPGDSP` is asked for the count independently, so the number this leg
+         asserts is READ FROM THE DSP and never written into the test. */
+      var eqFin = env.equiv && env.equiv.ppgdex_finger;
+      if (!(eqFin && eqFin.input)) {
+        T.ok('committed finger twin present', false, 'uploads/synthetic_ppgdex_o2ring_finger.txt is COMMITTED — this must run');
+      } else if (legs.ppg && typeof P.parsePPG === 'function') {
+        var recF = P.parsePPG(eqFin.input);
+        var gapN = 0;
+        if (recF.gap) for (var gi = 0; gi < recF.gap.length; gi++) if (recF.gap[gi]) gapN++;
+        T.ok('ANTI-VACUITY · the DSP marks sentinel samples on this twin at all', !!recF.gap && gapN > 0, 'gap samples ' + gapN);
+        var fRaw = legs.ppg(eqFin.input);
+        var fOff = legs.ppg(eqFin.input, null, { holdGaps: false });
+        var fHeld = legs.ppg(eqFin.input, null, { holdGaps: true });
+        T.eq('the default path holds NOTHING, so no published foot moved when the switch arrived', fRaw.gapSamplesHeld, null);
+        T.eq('…and an explicit false is the same path', fOff.gapSamplesHeld, null);
+        T.eq('the raw and explicitly-off legs find the same feet', fOff.n, fRaw.n);
+        /* ∅ THE EXPOSURE IS SIZED ON EVERY PATH, so a reader of a default record learns what the
+           hold WOULD cover. A number beside a `null` says the switch is off; both `null` says
+           `parsePPG` published no mask and nobody looked. */
+        T.eq('the default record SIZES what the hold would cover', fRaw.wouldHoldGapSamples, gapN);
+        T.eq('and the held leg reports holding exactly that many', fHeld.gapSamplesHeld, gapN);
+        T.eq('the held leg still sizes the same mask', fHeld.wouldHoldGapSamples, gapN);
+        /* CONTROL · the Verity twin carries no marker, so the mask is ABSENT there rather than empty.
+           `null` and a measured 0 are different facts and this lane keeps them apart (§∅). */
+        if (env.equiv && env.equiv.ppgdex_gapped && env.equiv.ppgdex_gapped.input) {
+          var fWrist = legs.ppg(env.equiv.ppgdex_gapped.input);
+          T.eq('∅ a wrist layout publishes NO mask, which is not a mask that marks nothing', fWrist.wouldHoldGapSamples, null);
+        }
+      }
       /* ── PPG LEG · a fractional foot must resolve through the MEASURED axis ─────────────────────
          Driven from the COMMITTED fragmented Verity twin (`uploads/synthetic_ppgdex_verity_gapped.txt`,
          already paired as `env.equiv.ppgdex_gapped`) rather than a synthetic built here. Two reasons,

@@ -254,7 +254,17 @@ function ecgRpeakTimes(text, runsText) {
   };
 }
 /* ── @port-from pat-feasibility-worker.js#ppgFootTimes ─────────────────────────────
-   @port-sha 087d087d946a
+   @port-sha b4653e88ce84
+   RECONCILED 2026-11-25 against that source text, for row
+   2026-09-26-pat-finger-feet-detected-on-unmasked-156-rows. The worker gained an optional
+   `opts.holdGaps`, which holds the sentinel gaps over before `detectChannel` the way the node's
+   `analyze` already does, plus `gapSamplesHeld` / `wouldHoldGapSamples` on its record.
+   DELIBERATELY NOT PORTED, and the reason is the census rather than the cost: `tools/pat-mask-census.mjs`
+   loads the WORKER into a vm and calls both legs there, because a move measured over a copy measures
+   a third pipeline (`tools/pat-pinned-move.mjs` states that rule and this unit follows it). So no
+   caller of this copy needs the switch, and porting it would put a second unexercised hold in the
+   tree. The unconditional half IS visible here: with the switch absent the worker holds nothing, so
+   every line below still runs as it did and no published number moves.
    RECONCILED 2026-11-06 against that source text, for row
    2026-11-05-the-two-bundle-workers-still-discard-the-polarity-return. The worker now reads the
    polarity signs BEFORE the pass and keeps the return as a stamp, which is the shape this copy
