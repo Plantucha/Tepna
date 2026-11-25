@@ -1,0 +1,664 @@
+{
+  "kernel": null,
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "MotionDex",
+    "nodeVersion": "1.0",
+    "multiRecording": true,
+    "generated": "2026-06-10T22:00:00.000Z",
+    "provenance": null,
+    "doc": "Array of per-session v2.0 envelopes (each element is Integrator-readable unchanged) + a ganglior.crossnight v1.0 aggregate header."
+  },
+  "generated": "2026-06-10T22:00:00.000Z",
+  "recordingCount": 2,
+  "crossNight": {
+    "schema": {
+      "name": "ganglior.crossnight",
+      "version": "1.0",
+      "engine": "crossNight",
+      "engineVersion": "1.0.0",
+      "node": "MotionDex",
+      "nodeVersion": "1.0",
+      "generated": "2026-11-25T15:22:12.618Z"
+    },
+    "window": {
+      "unit": "session",
+      "count": 2,
+      "firstT0Ms": 1781128800000,
+      "lastT0Ms": 1781215200000,
+      "spanDays": 1,
+      "coverageWeighted": false,
+      "qualityFloorPct": 50,
+      "lowQualityCount": 0,
+      "weightAbsentCount": 0
+    },
+    "metrics": {
+      "movementIndex": {
+        "label": "Movement index",
+        "unit": "",
+        "goodDirection": "down",
+        "evidence": "measured",
+        "cite": null,
+        "n": 2,
+        "central": {
+          "mean": 0,
+          "sd": 0,
+          "median": 0,
+          "iqr": 0,
+          "min": 0,
+          "max": 0,
+          "cv": null
+        },
+        "trend": {
+          "slopePerIndex": 0,
+          "slopePerDay": 0,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
+          "r2": 0,
+          "r2date": 0,
+          "mannKendall": {
+            "tau": null,
+            "p": null
+          },
+          "label": "insufficient",
+          "dirDisagree": false
+        },
+        "change": null,
+        "baseline": {
+          "window": "prior-1",
+          "mean": null,
+          "sd": null,
+          "zLatest": null,
+          "zSaturated": false,
+          "flag": null
+        }
+      },
+      "immobileFrac": {
+        "label": "Immobile time",
+        "unit": "%",
+        "goodDirection": "up",
+        "evidence": "measured",
+        "cite": null,
+        "n": 2,
+        "central": {
+          "mean": 100,
+          "sd": 0,
+          "median": 100,
+          "iqr": 0,
+          "min": 100,
+          "max": 100,
+          "cv": 0
+        },
+        "trend": {
+          "slopePerIndex": 0,
+          "slopePerDay": 0,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
+          "r2": 0,
+          "r2date": 0,
+          "mannKendall": {
+            "tau": null,
+            "p": null
+          },
+          "label": "insufficient",
+          "dirDisagree": false
+        },
+        "change": null,
+        "baseline": {
+          "window": "prior-1",
+          "mean": null,
+          "sd": null,
+          "zLatest": null,
+          "zSaturated": false,
+          "flag": null
+        }
+      },
+      "sqiConf": {
+        "label": "Signal quality",
+        "unit": "×",
+        "goodDirection": "up",
+        "evidence": "measured",
+        "cite": null,
+        "n": 2,
+        "central": {
+          "mean": 0.97,
+          "sd": 0,
+          "median": 0.97,
+          "iqr": 0,
+          "min": 0.97,
+          "max": 0.97,
+          "cv": 0
+        },
+        "trend": {
+          "slopePerIndex": 0,
+          "slopePerDay": 0,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
+          "r2": 0,
+          "r2date": 0,
+          "mannKendall": {
+            "tau": null,
+            "p": null
+          },
+          "label": "insufficient",
+          "dirDisagree": false
+        },
+        "change": null,
+        "baseline": {
+          "window": "prior-1",
+          "mean": null,
+          "sd": null,
+          "zLatest": null,
+          "zSaturated": false,
+          "flag": null
+        }
+      },
+      "supineFrac": {
+        "label": "Supine time",
+        "unit": "%",
+        "goodDirection": "down",
+        "evidence": "experimental",
+        "cite": null,
+        "n": 2,
+        "central": {
+          "mean": 100,
+          "sd": 0,
+          "median": 100,
+          "iqr": 0,
+          "min": 100,
+          "max": 100,
+          "cv": 0
+        },
+        "trend": {
+          "slopePerIndex": 0,
+          "slopePerDay": 0,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
+          "r2": 0,
+          "r2date": 0,
+          "mannKendall": {
+            "tau": null,
+            "p": null
+          },
+          "label": "insufficient",
+          "dirDisagree": false
+        },
+        "change": null,
+        "baseline": {
+          "window": "prior-1",
+          "mean": null,
+          "sd": null,
+          "zLatest": null,
+          "zSaturated": false,
+          "flag": null
+        }
+      },
+      "respRate": {
+        "label": "Respiratory rate",
+        "unit": "br/min",
+        "goodDirection": "down",
+        "evidence": "emerging",
+        "cite": null,
+        "n": 2,
+        "central": {
+          "mean": 12.8,
+          "sd": 3.3,
+          "median": 12.8,
+          "iqr": 2.3,
+          "min": 10.5,
+          "max": 15.1,
+          "cv": 25.4
+        },
+        "trend": {
+          "slopePerIndex": -4.6,
+          "slopePerDay": -4.6,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
+          "r2": 1,
+          "r2date": 1,
+          "mannKendall": {
+            "tau": null,
+            "p": null
+          },
+          "label": "insufficient",
+          "dirDisagree": false
+        },
+        "change": null,
+        "baseline": {
+          "window": "prior-1",
+          "mean": null,
+          "sd": null,
+          "zLatest": null,
+          "zSaturated": false,
+          "flag": null
+        }
+      }
+    },
+    "series": [
+      {
+        "i": 0,
+        "t0Ms": 1781128800000,
+        "date": "2026-06-10",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "movementIndex": 0,
+          "immobileFrac": 100,
+          "sqiConf": 0.97,
+          "supineFrac": 100,
+          "respRate": 15.1
+        }
+      },
+      {
+        "i": 1,
+        "t0Ms": 1781215200000,
+        "date": "2026-06-11",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "movementIndex": 0,
+          "immobileFrac": 100,
+          "sqiConf": 0.97,
+          "supineFrac": 100,
+          "respRate": 10.5
+        }
+      }
+    ],
+    "headline": []
+  },
+  "recordings": [
+    {
+      "kernel": {
+        "version": "1.0.0",
+        "hash": "118ebed5"
+      },
+      "schema": {
+        "name": "ganglior.node-export",
+        "version": "2.0",
+        "node": "MotionDex",
+        "nodeVersion": "1.0",
+        "bus": "ganglior",
+        "scrubbed": true,
+        "scrubDropped": []
+      },
+      "recording": {
+        "startEpochMs": 1781128800000,
+        "durSec": 120,
+        "timing": {
+          "timingSource": "none",
+          "independent": false,
+          "anchors": 32,
+          "spanMs": 119230.7677,
+          "ppm": null,
+          "spanPpm": null,
+          "ppmEstimator": null,
+          "ppmUncertainty": null,
+          "resyncs": 0,
+          "seams": 0,
+          "rate": null,
+          "rateRaw": null,
+          "rateApplied": null,
+          "reason": "device axis is DRAWN — 70.97 % of inter-sample deltas share one value (≥ 67 %); this column is a synthesised counter, not a clock, so there is no second timebase to discipline against; host ≡ device — residual spread 0.92 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock"
+        },
+        "hostAxis": {
+          "ok": true,
+          "applied": false,
+          "stream": "acc",
+          "anchors": 32,
+          "anchorsDroppedPreResync": null,
+          "ppm": null,
+          "spanPpm": null,
+          "ppmReason": "device axis is DRAWN — 70.97 % of inter-sample deltas share one value (≥ 67 %); this column is a synthesised counter, not a clock, so there is no second timebase to discipline against",
+          "drawnColumn": {
+            "ppm": -0.9409523922553402,
+            "spanPpm": -6.438774276186211
+          },
+          "spanMs": 119230.7677,
+          "maxStepMs": 0.07660000000032596,
+          "independent": false,
+          "spreadMs": 0.9239999999990687,
+          "deviceDrawn": true,
+          "drawnShare": 0.7096774193548387,
+          "timingSource": "none",
+          "stability": null,
+          "reason": null,
+          "resyncs": null
+        },
+        "validity": {
+          "seams": null,
+          "seamsExamined": null,
+          "seamsPlaced": null,
+          "seamsUnplaced": null,
+          "seamsBoundMs": null,
+          "seamsStream": "acc",
+          "seamsDeviceAxis": null,
+          "seamsReason": "no-seam-sidecar"
+        }
+      },
+      "motion": {
+        "streams": {
+          "acc": 3120,
+          "gyro": 0,
+          "mag": 0,
+          "chestAcc": 3120
+        },
+        "supineFrac": 1,
+        "dwellFrac": {
+          "supine": 1,
+          "prone": 0,
+          "left": 0,
+          "right": 0,
+          "upright": 0,
+          "unknown": 0
+        },
+        "dwellFracReason": null,
+        "immobileFrac": 1,
+        "immobileFracReason": null,
+        "movementIndex": 0,
+        "activitySeries": [
+          {
+            "tMs": 1781128800000,
+            "count": 0,
+            "moving": false
+          },
+          {
+            "tMs": 1781128830000,
+            "count": 0,
+            "moving": false
+          },
+          {
+            "tMs": 1781128860000,
+            "count": 0,
+            "moving": false
+          },
+          {
+            "tMs": 1781128890000,
+            "count": 0,
+            "moving": false
+          }
+        ],
+        "activityCadenceSec": 30,
+        "respRateBrpm": 15.1,
+        "respRateMethod": "acc-spectral-viterbi",
+        "respRateReason": null,
+        "effortSeries": [
+          {
+            "tMs": 1781128800000,
+            "amp": 0.0109,
+            "present": true
+          },
+          {
+            "tMs": 1781128810000,
+            "amp": 0.0106,
+            "present": true
+          },
+          {
+            "tMs": 1781128820000,
+            "amp": 0.0105,
+            "present": true
+          },
+          {
+            "tMs": 1781128830000,
+            "amp": 0.0108,
+            "present": true
+          },
+          {
+            "tMs": 1781128840000,
+            "amp": 0.0106,
+            "present": true
+          },
+          {
+            "tMs": 1781128850000,
+            "amp": 0.0107,
+            "present": true
+          },
+          {
+            "tMs": 1781128860000,
+            "amp": 0.0107,
+            "present": true
+          },
+          {
+            "tMs": 1781128870000,
+            "amp": 0.0107,
+            "present": true
+          },
+          {
+            "tMs": 1781128880000,
+            "amp": 0.0105,
+            "present": true
+          },
+          {
+            "tMs": 1781128890000,
+            "amp": 0.0106,
+            "present": true
+          },
+          {
+            "tMs": 1781128900000,
+            "amp": 0.0108,
+            "present": true
+          },
+          {
+            "tMs": 1781128910000,
+            "amp": 0.0072,
+            "present": true
+          }
+        ],
+        "effortCadenceSec": 10,
+        "effortFloorG": 0.004,
+        "sqi": 0.97,
+        "sqiReason": null,
+        "sqiActivity": 0.97,
+        "sqiActivityReason": null
+      },
+      "ganglior_events": [
+        {
+          "t": "22:00:00",
+          "tMs": 1781128800000,
+          "impulse": "posture_change",
+          "node": "MotionDex",
+          "conf": 0.97,
+          "meta": {
+            "position": "supine"
+          }
+        }
+      ]
+    },
+    {
+      "kernel": {
+        "version": "1.0.0",
+        "hash": "118ebed5"
+      },
+      "schema": {
+        "name": "ganglior.node-export",
+        "version": "2.0",
+        "node": "MotionDex",
+        "nodeVersion": "1.0",
+        "bus": "ganglior",
+        "scrubbed": true,
+        "scrubDropped": []
+      },
+      "recording": {
+        "startEpochMs": 1781215200000,
+        "durSec": 120,
+        "timing": {
+          "timingSource": "none",
+          "independent": false,
+          "anchors": 32,
+          "spanMs": 119230.7677,
+          "ppm": null,
+          "spanPpm": null,
+          "ppmEstimator": null,
+          "ppmUncertainty": null,
+          "resyncs": 0,
+          "seams": 0,
+          "rate": null,
+          "rateRaw": null,
+          "rateApplied": null,
+          "reason": "device axis is DRAWN — 70.97 % of inter-sample deltas share one value (≥ 67 %); this column is a synthesised counter, not a clock, so there is no second timebase to discipline against; host ≡ device — residual spread 0.92 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock"
+        },
+        "hostAxis": {
+          "ok": true,
+          "applied": false,
+          "stream": "acc",
+          "anchors": 32,
+          "anchorsDroppedPreResync": null,
+          "ppm": null,
+          "spanPpm": null,
+          "ppmReason": "device axis is DRAWN — 70.97 % of inter-sample deltas share one value (≥ 67 %); this column is a synthesised counter, not a clock, so there is no second timebase to discipline against",
+          "drawnColumn": {
+            "ppm": -0.9409523922553402,
+            "spanPpm": -6.438774276186211
+          },
+          "spanMs": 119230.7677,
+          "maxStepMs": 0.07660000000032596,
+          "independent": false,
+          "spreadMs": 0.9239999999990687,
+          "deviceDrawn": true,
+          "drawnShare": 0.7096774193548387,
+          "timingSource": "none",
+          "stability": null,
+          "reason": null,
+          "resyncs": null
+        },
+        "validity": {
+          "seams": null,
+          "seamsExamined": null,
+          "seamsPlaced": null,
+          "seamsUnplaced": null,
+          "seamsBoundMs": null,
+          "seamsStream": "acc",
+          "seamsDeviceAxis": null,
+          "seamsReason": "no-seam-sidecar"
+        }
+      },
+      "motion": {
+        "streams": {
+          "acc": 3120,
+          "gyro": 0,
+          "mag": 0,
+          "chestAcc": 3120
+        },
+        "supineFrac": 1,
+        "dwellFrac": {
+          "supine": 1,
+          "prone": 0,
+          "left": 0,
+          "right": 0,
+          "upright": 0,
+          "unknown": 0
+        },
+        "dwellFracReason": null,
+        "immobileFrac": 1,
+        "immobileFracReason": null,
+        "movementIndex": 0,
+        "activitySeries": [
+          {
+            "tMs": 1781215200000,
+            "count": 0,
+            "moving": false
+          },
+          {
+            "tMs": 1781215230000,
+            "count": 0,
+            "moving": false
+          },
+          {
+            "tMs": 1781215260000,
+            "count": 0,
+            "moving": false
+          },
+          {
+            "tMs": 1781215290000,
+            "count": 0,
+            "moving": false
+          }
+        ],
+        "activityCadenceSec": 30,
+        "respRateBrpm": 10.5,
+        "respRateMethod": "acc-zero-crossing",
+        "respRateReason": null,
+        "effortSeries": [
+          {
+            "tMs": 1781215200000,
+            "amp": 0.0153,
+            "present": true
+          },
+          {
+            "tMs": 1781215210000,
+            "amp": 0.0145,
+            "present": true
+          },
+          {
+            "tMs": 1781215220000,
+            "amp": 0.0149,
+            "present": true
+          },
+          {
+            "tMs": 1781215230000,
+            "amp": 0.0151,
+            "present": true
+          },
+          {
+            "tMs": 1781215240000,
+            "amp": 0.0145,
+            "present": true
+          },
+          {
+            "tMs": 1781215250000,
+            "amp": 0.0154,
+            "present": true
+          },
+          {
+            "tMs": 1781215260000,
+            "amp": 0.015,
+            "present": true
+          },
+          {
+            "tMs": 1781215270000,
+            "amp": 0.0145,
+            "present": true
+          },
+          {
+            "tMs": 1781215280000,
+            "amp": 0.0151,
+            "present": true
+          },
+          {
+            "tMs": 1781215290000,
+            "amp": 0.0151,
+            "present": true
+          },
+          {
+            "tMs": 1781215300000,
+            "amp": 0.0143,
+            "present": true
+          },
+          {
+            "tMs": 1781215310000,
+            "amp": 0.0103,
+            "present": true
+          }
+        ],
+        "effortCadenceSec": 10,
+        "effortFloorG": 0.004,
+        "sqi": 0.97,
+        "sqiReason": null,
+        "sqiActivity": 0.97,
+        "sqiActivityReason": null
+      },
+      "ganglior_events": [
+        {
+          "t": "22:00:00",
+          "tMs": 1781215200000,
+          "impulse": "posture_change",
+          "node": "MotionDex",
+          "conf": 0.97,
+          "meta": {
+            "position": "supine"
+          }
+        }
+      ]
+    }
+  ]
+}
