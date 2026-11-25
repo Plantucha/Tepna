@@ -216,6 +216,10 @@ function ecgPairs(ED, text, runsText) {
      that word, with the axis now requestable through the one copy. */
   /* The interval comes from the converted times, never from the index delta, so one clock carries
      the beat time and the interval together. */
+  /* AXIS, DECLARED 2026-11-25 for row 2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock.
+     This bridge validator pins the axis at the call site and offers no `--ecg-axis` front door.
+     The axis is `linear`, pinned here, so a flip of the program default leaves every number
+        this tool published where it is. */
   const bt = rPeakTimesOnAxis(rec, Float64Array.from(pk), { axis: 'linear' });
   const out = [];
   for (let k = 1; k < pk.length; k++) {

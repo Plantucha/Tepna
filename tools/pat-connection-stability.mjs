@@ -266,6 +266,9 @@ function main() {
           }
         })
         .filter(Boolean);
+    /* AXIS, DECLARED 2026-11-25 for row 2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock.
+       This tool names no axis anywhere, so it passes none and inherits the program default.
+       The axis is therefore `linear` today, and a flip of the program default moves these numbers. */
     const E = parse(big(/_ECG\.txt$/i), (text, path) => ecgRpeakTimes(text, runsOf(path, 'ECG')));
     const P = parse(big(/(?:VeritySense|Polar_Sense).*_PPG\.txt$/i), (text, path) => ppgFootTimes(text, runsOf(path, 'PPG')));
     if (!E.length || !P.length) {

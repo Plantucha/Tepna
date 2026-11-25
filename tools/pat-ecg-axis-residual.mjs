@@ -202,7 +202,14 @@ async function main() {
     let E;
     let P;
     try {
-      E = ecgRpeakTimes(readFileSync(eF, 'utf8'), runsOf(eF, 'ECG'));
+      /* AXIS, DECLARED 2026-11-25 for row 2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock.
+         This tool's own derivation at the head assumes the LINEAR axis. It reports
+         `R_linear = R_true − c`, so the residual it measures is defined against that axis alone.
+         The call passed no axis and inherited the program default, so a flip of that default would
+         have changed the quantity while the header kept claiming the linear decomposition. The
+         axis is pinned here now, which is the value the default carries today, so no number this
+         tool published moves. */
+      E = ecgRpeakTimes(readFileSync(eF, 'utf8'), runsOf(eF, 'ECG'), { axis: 'linear' });
       P = ppgFootTimes(readFileSync(pF, 'utf8'), runsOf(pF, 'PPG'));
     } catch (e) {
       console.log(`${n}  ⊘ parse failed (${String(e.message).slice(0, 50)})`);

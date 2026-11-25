@@ -97321,6 +97321,124 @@
       }
     });
 
+    group('PAT ECG axis — every caller DECLARES which axis it times R peaks on (2026-11-25)', 'pat · ecg-axis · declared', function (T) {
+      var TT = env.toolTexts;
+      if (!TT) {
+        T.skip('tool texts readable from source', 'env.toolTexts is absent in this runner — the census reads the tools tree');
+        return;
+      }
+      /* THE CENSUS GROUP ABOVE READS THE PRIVATE INDEX FORM. It cannot see a caller that routes
+         through the shared arithmetic and then picks its AXIS silently, which is a different
+         question with the same consequence. Row
+         2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock keeps one open question, the
+         DEFAULT for every `ecgRpeakTimes` caller, and the owner or the PAT program decides it. Row
+         2026-11-22-the-pat-index-axis-row-still-asks-two-answered-questions closed while naming one
+         thing it did NOT measure: whether a caller outside the three declared ports still holds a
+         private axis.
+         Measured 2026-11-25 over the 21 callers below: 7 read the axis from a `--ecg-axis` front
+         door, 7 pinned a bare literal with no reason beside it, and 6 passed no axis at all. None
+         was wrong, because the owner ruling of 2026-11-06 makes `linear` the default. The choice was
+         invisible at 13 of 21 sites, so a flip of the default would have moved 6 files and left 7.
+         One of the 6 was `pat-ecg-axis-residual.mjs`, whose own head derives `R_linear = R_true − c`
+         and therefore depends on the linear axis; it pins the axis now.
+         THE FOUR SETS BELOW ARE PUBLISHED, AND THIS GROUP CLASSIFIES EVERY CALLER FROM ITS OWN TEXT
+         AND COMPARES. A caller that changes group reds, and a NEW caller in no set reds. Nothing
+         here decides the default: that stays the owner's. */
+      var ROW = '2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock';
+      var DECL = new RegExp('AXIS, DECLARED \\d{4}-\\d{2}-\\d{2} for row ' + ROW + '\\.');
+      var CALL = /\b(?:rPeakTimesOnAxis|ecgRpeakTimes)\s*\(/;
+      var FLAG_RE = /'--ecg-axis'/;
+      var LITERAL_RE = /axis: *'(?:linear|counter)'/;
+      /* `pat-matchrate-strict.mjs` OWNS the arithmetic and declares the `axis` option itself, so it
+         belongs to no caller group. Every other name below is a caller. */
+      var OWNER = 'tools/pat-matchrate-strict.mjs';
+      var FLAG = ['beat-correspondence.mjs', 'pat-drift-attribution.mjs', 'pat-hrv-windows.mjs', 'pat-literature-spec.mjs', 'pat-three-corner.mjs', 'pat-window-oracle.mjs', 'pat-window-scaling.mjs'];
+      var PINNED = [
+        'o2ring-finger-roundtrip.mjs',
+        'o2ring-finger-validate-batch.mjs',
+        'pat-ecg-axis-residual.mjs',
+        'pat-per-led.mjs',
+        'ppg-bridge-hrv-validate.mjs',
+        'ppg-foot-consensus-e1.mjs',
+        'ppg-fusion-e3.mjs',
+        'ppi-jitter-vs-ecg.mjs'
+      ];
+      var INHERITS = ['pat-connection-stability.mjs', 'pat-dip-index.mjs', 'pat-finger-coupler.mjs', 'pat-mode-posture.mjs', 'pat-residual-structure.mjs'];
+      var callers = Object.keys(TT)
+        .filter(function (k) {
+          return /^tools\/[^/]+\.mjs$/.test(k) && CALL.test(TT[k] || '');
+        })
+        .sort();
+      T.ok('ANTI-VACUITY · the population is every caller in the tools tree', callers.length >= 20, callers.length + ' caller(s)');
+      T.ok('ANTI-VACUITY · the call matcher reads the module that owns the arithmetic', CALL.test(TT[OWNER] || ''), OWNER + ' must match');
+      T.ok('ANTI-VACUITY · the declaration matcher reads a real declaration', DECL.test(TT['tools/beat-correspondence.mjs'] || ''), 'beat-correspondence carries the 2026-11-11 block');
+      /* Each caller is classified from ITS OWN TEXT, never from the lists above. A front door wins
+         over a literal, because a tool that reads `--ecg-axis` passes whatever the reader asked. */
+      var classify = function (k) {
+        var s = TT[k] || '';
+        if (k === OWNER) return 'owner';
+        if (FLAG_RE.test(s)) return 'flag';
+        if (LITERAL_RE.test(s)) return 'pinned';
+        return 'inherits';
+      };
+      var want = {};
+      want[OWNER] = 'owner';
+      FLAG.forEach(function (f) {
+        want['tools/' + f] = 'flag';
+      });
+      PINNED.forEach(function (f) {
+        want['tools/' + f] = 'pinned';
+      });
+      INHERITS.forEach(function (f) {
+        want['tools/' + f] = 'inherits';
+      });
+      var unlisted = callers.filter(function (k) {
+        return !want[k];
+      });
+      T.eq('every caller sits in one published set', unlisted.join(', '), '', 'a NEW caller must join a set — the axis it uses is the point');
+      var stale = Object.keys(want).filter(function (k) {
+        return callers.indexOf(k) < 0;
+      });
+      T.eq('every published name is still a caller', stale.join(', '), '', 'a name that stopped calling must leave the set');
+      var moved = callers
+        .filter(function (k) {
+          return want[k] && classify(k) !== want[k];
+        })
+        .map(function (k) {
+          return k.replace('tools/', '') + ' reads ' + classify(k) + ', published ' + want[k];
+        })
+        .sort();
+      T.eq('no caller changed how it picks the axis', moved.join(' · '), '');
+      /* THE DECLARATION IS WHAT THE ROW ASKED FOR. A front-door tool states the axis in its usage,
+         so the flag IS the declaration; a pinned or inheriting caller owes the block. */
+      var undeclared = PINNED.concat(INHERITS)
+        .filter(function (f) {
+          return !DECL.test(TT['tools/' + f] || '');
+        })
+        .sort();
+      T.eq('every pinned or inheriting caller carries the AXIS, DECLARED block', undeclared.join(', '), '');
+      T.ok(
+        'the pinned set and the inheriting set are disjoint',
+        PINNED.filter(function (f) {
+          return INHERITS.indexOf(f) >= 0;
+        }).length === 0,
+        'a caller pins or inherits, never both'
+      );
+      /* PLANT · a caller added with no declaration and no front door must land in `inherits` and
+         must read as undeclared. The plant runs on synthetic text, so it needs no file. */
+      var plantText = "const E = ecgRpeakTimes(readFileSync(f, 'utf8'), runs);";
+      T.ok('PLANT · a new silent caller matches the call matcher', CALL.test(plantText), 'the matcher must see it');
+      T.ok('PLANT · and it carries no declaration', !DECL.test(plantText), 'an undeclared caller must read undeclared');
+      T.ok('PLANT · and a bare literal reads as pinned', LITERAL_RE.test("rPeakTimesOnAxis(r, p, { axis: 'linear' })"), 'the literal matcher must see a pin');
+      T.ok('PLANT · a prose mention of the axis does not read as a pin', !LITERAL_RE.test('the axis is linear by default'), 'prose must not satisfy the literal matcher');
+      T.eq(
+        'the four sets cover the population exactly',
+        String(1 + FLAG.length + PINNED.length + INHERITS.length),
+        String(callers.length),
+        'owner 1 · flag ' + FLAG.length + ' · pinned ' + PINNED.length + ' · inherits ' + INHERITS.length
+      );
+    });
+
     group("PAT arrival-floor axis — the corrected lag removes the links' BUFFERING, not a clock (route-PAT fix 2026-09-27)", 'pat · arrival-floor · plant', function (T) {
       var wsrc = (env.sources && env.sources['pat-feasibility-worker.js']) || '';
       if (!wsrc || !env.DexClock || !env.PATAlign || !env.PATGate) {
