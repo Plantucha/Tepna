@@ -1,0 +1,402 @@
+{
+  "schema": "tepna.published-number-record/1",
+  "producer": "tools/acc-acc-control.mjs",
+  "producerCommit": "4260f34ac, plus the --from/--to night window this PR adds to tools/acc-acc-control.mjs",
+  "invocation": [
+    "node tools/acc-acc-control.mjs",
+    "WH=15000|60000|240000 node tools/acc-acc-control.mjs --from 2026-07-16 --to 2026-07-28"
+  ],
+  "generated": "2026-11-25",
+  "inputs": {
+    "path": "~/tepna-smoketest/captures/<night>/",
+    "committed": false,
+    "note": "H10 chest ACC and Verity arm ACC written by one capture daemon on one host clock, so the true offset is 0 by construction. The tree is personal biosignal data and git ignores it, so a re-run can FLAG this record and never CLEAR it in CI. No night is named here."
+  },
+  "deterministic": "the aligner draws no random number; the arms differ only in WH, the correlation half-window, and in the night window",
+  "publishedIn": "papers/null-calibration.html §3 (re-measured block, 2026-11-25)",
+  "population": {
+    "filesOffered": 30611,
+    "accFilesMatched": 1958,
+    "nightsKeyed": 117,
+    "corpusWide": {
+      "scored": 108,
+      "eligible": 111,
+      "excluded": 3
+    },
+    "doseResponse": {
+      "from": "2026-07-16",
+      "to": "2026-07-28",
+      "selected": 13,
+      "note": "the 13 nights the July control read; all arms judge this one population"
+    }
+  },
+  "bound": {
+    "note": "E[max spurious r] = (1/sqrt(n)) * sqrt(2 ln N), recomputed in closed form from the bin size, window half-width and search range the tool prints. Table 1 of the paper.",
+    "design": {
+      "n": 65,
+      "N": 65,
+      "eMaxSpuriousR": 0.358,
+      "rMin": 0.6
+    },
+    "wide15s": {
+      "n": 121,
+      "N": 24001,
+      "eMaxSpuriousR": 0.408,
+      "rMin": 0.35
+    },
+    "wide60s": {
+      "n": 481,
+      "N": 24001,
+      "eMaxSpuriousR": 0.205,
+      "rMin": 0.35
+    },
+    "wide240s": {
+      "n": 1921,
+      "N": 24001,
+      "eMaxSpuriousR": 0.102,
+      "rMin": 0.35
+    }
+  },
+  "claims": {
+    "note": "values EXACTLY as the paper states them, so CLAIM … FROM … #claims/<key> compares equal; the per-leg statistics are under result",
+    "nightsScored": 108,
+    "nightsEligible": 111,
+    "fineAligned": 101,
+    "fineMedianOffsetMin": 0,
+    "fineMedianSpreadMin": 0,
+    "fineWithinFive": 101,
+    "coarseZeroMedianOffsetMin": 0.01,
+    "coarseZeroMedianSpreadMin": 90,
+    "coarseZeroWithinFive": 71,
+    "recovered39At15s": 4,
+    "recovered39At15sOf": 100,
+    "delta39At15s": -10.9,
+    "recovered175At15s": 47,
+    "delta175At15s": 9.3,
+    "boundN15": 121,
+    "boundLags15": 24001,
+    "boundE15": 0.408,
+    "boundEDesign": 0.358,
+    "boundE60": 0.205,
+    "boundE240": 0.102,
+    "doseNights": 13,
+    "doseRecovered15s": 2,
+    "doseRecovered15sOf": 13,
+    "doseDelta15s": -22.91,
+    "doseRecovered60s": 3,
+    "doseRecovered60sOf": 12,
+    "doseDelta60s": -24.38,
+    "doseRecovered240s": null,
+    "doseRecovered240sOf": null,
+    "doseDelta240s": null
+  },
+  "result": {
+    "corpusWide15s": {
+      "windowHalfS": 15,
+      "legs": {
+        "COARSE @ true 0": {
+          "aligned": 100,
+          "of": 108,
+          "medianOffsetMin": 0.01,
+          "medianAnchorSpreadMin": 90,
+          "withinFiveOfZero": 71,
+          "deltaMedianMin": null,
+          "recovered": null,
+          "recoveredOf": null
+        },
+        "COARSE @ injected -39": {
+          "aligned": 100,
+          "of": 108,
+          "medianOffsetMin": -7.43,
+          "medianAnchorSpreadMin": 93.3,
+          "withinFiveOfZero": null,
+          "deltaMedianMin": -10.9,
+          "recovered": 4,
+          "recoveredOf": 100
+        },
+        "COARSE @ injected +17.5": {
+          "aligned": 100,
+          "of": 108,
+          "medianOffsetMin": 11.9,
+          "medianAnchorSpreadMin": 89.5,
+          "withinFiveOfZero": null,
+          "deltaMedianMin": 9.3,
+          "recovered": 47,
+          "recoveredOf": 100
+        },
+        "FINE @ true 0": {
+          "aligned": 101,
+          "of": 108,
+          "medianOffsetMin": 0,
+          "medianAnchorSpreadMin": 0,
+          "withinFiveOfZero": 101,
+          "deltaMedianMin": null,
+          "recovered": null,
+          "recoveredOf": null
+        }
+      },
+      "verdict": {
+        "schema": "tepna.verdict/1",
+        "gate": "acc-acc-control",
+        "scope": "internal",
+        "status": "UNKNOWN",
+        "population": {
+          "checked": 108,
+          "eligible": 111,
+          "excluded": 3
+        },
+        "criterion": {
+          "name": "undeclared",
+          "threshold": 0,
+          "unit": "",
+          "direction": "lte"
+        },
+        "result": {
+          "label": "ACC↔ACC alignment recovery per leg (offset min, anchor spread min)",
+          "legs": {
+            "coarse0": {
+              "aligned": 100,
+              "of": 108,
+              "medianOffsetMin": 0.01,
+              "medianAnchorSpreadMin": 90
+            },
+            "coarseMinus39": {
+              "aligned": 100,
+              "of": 108,
+              "medianOffsetMin": -7.43,
+              "medianAnchorSpreadMin": 93.3
+            },
+            "coarsePlus17_5": {
+              "aligned": 100,
+              "of": 108,
+              "medianOffsetMin": 11.9,
+              "medianAnchorSpreadMin": 89.5
+            },
+            "fine0": {
+              "aligned": 101,
+              "of": 108,
+              "medianOffsetMin": 0,
+              "medianAnchorSpreadMin": 0
+            }
+          }
+        },
+        "evidence": [
+          "tools/acc-acc-control.mjs",
+          "~/tepna-smoketest/captures/**/*_ACC.txt"
+        ],
+        "reason": "no pre-stated criterion — the statistic is reported bare and no rule can be applied to it; a band written after the number is a number, not a test (VERDICT-CONTRACT §1: a threshold derived from the data it judges is UNKNOWN, not PASS). The only route to a decided status is a band pre-stated in a brief BEFORE the next run, on records this tool has not seen",
+        "producedBy": {
+          "tool": "tools/acc-acc-control.mjs",
+          "commit": "4260f34ac"
+        },
+        "at": "2026-11-25T17:49:29Z"
+      }
+    },
+    "dose15s": {
+      "windowHalfS": 15,
+      "legs": {
+        "COARSE @ true 0": {
+          "aligned": 13,
+          "of": 13,
+          "medianOffsetMin": 0,
+          "medianAnchorSpreadMin": 89.6,
+          "withinFiveOfZero": 12,
+          "deltaMedianMin": null,
+          "recovered": null,
+          "recoveredOf": null
+        },
+        "COARSE @ injected -39": {
+          "aligned": 13,
+          "of": 13,
+          "medianOffsetMin": -22.91,
+          "medianAnchorSpreadMin": 92.4,
+          "withinFiveOfZero": null,
+          "deltaMedianMin": -22.91,
+          "recovered": 2,
+          "recoveredOf": 13
+        },
+        "COARSE @ injected +17.5": {
+          "aligned": 13,
+          "of": 13,
+          "medianOffsetMin": 4.87,
+          "medianAnchorSpreadMin": 83.4,
+          "withinFiveOfZero": null,
+          "deltaMedianMin": 4.87,
+          "recovered": 4,
+          "recoveredOf": 13
+        },
+        "FINE @ true 0": {
+          "aligned": 13,
+          "of": 13,
+          "medianOffsetMin": 0,
+          "medianAnchorSpreadMin": 0.1,
+          "withinFiveOfZero": 13,
+          "deltaMedianMin": null,
+          "recovered": null,
+          "recoveredOf": null
+        }
+      },
+      "verdict": {
+        "schema": "tepna.verdict/1",
+        "gate": "acc-acc-control",
+        "scope": "internal",
+        "status": "UNKNOWN",
+        "population": {
+          "checked": 13,
+          "eligible": 13,
+          "excluded": 0
+        },
+        "criterion": {
+          "name": "undeclared",
+          "threshold": 0,
+          "unit": "",
+          "direction": "lte"
+        },
+        "result": {
+          "label": "ACC↔ACC alignment recovery per leg (offset min, anchor spread min)",
+          "legs": {
+            "coarse0": {
+              "aligned": 13,
+              "of": 13,
+              "medianOffsetMin": 0,
+              "medianAnchorSpreadMin": 89.6
+            },
+            "coarseMinus39": {
+              "aligned": 13,
+              "of": 13,
+              "medianOffsetMin": -22.91,
+              "medianAnchorSpreadMin": 92.4
+            },
+            "coarsePlus17_5": {
+              "aligned": 13,
+              "of": 13,
+              "medianOffsetMin": 4.87,
+              "medianAnchorSpreadMin": 83.4
+            },
+            "fine0": {
+              "aligned": 13,
+              "of": 13,
+              "medianOffsetMin": 0,
+              "medianAnchorSpreadMin": 0.1
+            }
+          }
+        },
+        "evidence": [
+          "tools/acc-acc-control.mjs",
+          "~/tepna-smoketest/captures/**/*_ACC.txt"
+        ],
+        "reason": "no pre-stated criterion — the statistic is reported bare and no rule can be applied to it; a band written after the number is a number, not a test (VERDICT-CONTRACT §1: a threshold derived from the data it judges is UNKNOWN, not PASS). The only route to a decided status is a band pre-stated in a brief BEFORE the next run, on records this tool has not seen",
+        "producedBy": {
+          "tool": "tools/acc-acc-control.mjs",
+          "commit": "4260f34ac"
+        },
+        "at": "2026-11-25T18:42:32Z"
+      }
+    },
+    "dose60s": {
+      "windowHalfS": 60,
+      "legs": {
+        "COARSE @ true 0": {
+          "aligned": 12,
+          "of": 13,
+          "medianOffsetMin": 0,
+          "medianAnchorSpreadMin": 78.2,
+          "withinFiveOfZero": 10,
+          "deltaMedianMin": null,
+          "recovered": null,
+          "recoveredOf": null
+        },
+        "COARSE @ injected -39": {
+          "aligned": 12,
+          "of": 13,
+          "medianOffsetMin": -24.38,
+          "medianAnchorSpreadMin": 92.3,
+          "withinFiveOfZero": null,
+          "deltaMedianMin": -24.38,
+          "recovered": 3,
+          "recoveredOf": 12
+        },
+        "COARSE @ injected +17.5": {
+          "aligned": 12,
+          "of": 13,
+          "medianOffsetMin": 11.58,
+          "medianAnchorSpreadMin": 89.3,
+          "withinFiveOfZero": null,
+          "deltaMedianMin": 7.38,
+          "recovered": 5,
+          "recoveredOf": 12
+        },
+        "FINE @ true 0": {
+          "aligned": 13,
+          "of": 13,
+          "medianOffsetMin": 0,
+          "medianAnchorSpreadMin": 0.1,
+          "withinFiveOfZero": 13,
+          "deltaMedianMin": null,
+          "recovered": null,
+          "recoveredOf": null
+        }
+      },
+      "verdict": {
+        "schema": "tepna.verdict/1",
+        "gate": "acc-acc-control",
+        "scope": "internal",
+        "status": "UNKNOWN",
+        "population": {
+          "checked": 13,
+          "eligible": 13,
+          "excluded": 0
+        },
+        "criterion": {
+          "name": "undeclared",
+          "threshold": 0,
+          "unit": "",
+          "direction": "lte"
+        },
+        "result": {
+          "label": "ACC↔ACC alignment recovery per leg (offset min, anchor spread min)",
+          "legs": {
+            "coarse0": {
+              "aligned": 12,
+              "of": 13,
+              "medianOffsetMin": 0,
+              "medianAnchorSpreadMin": 78.2
+            },
+            "coarseMinus39": {
+              "aligned": 12,
+              "of": 13,
+              "medianOffsetMin": -24.38,
+              "medianAnchorSpreadMin": 92.3
+            },
+            "coarsePlus17_5": {
+              "aligned": 12,
+              "of": 13,
+              "medianOffsetMin": 11.58,
+              "medianAnchorSpreadMin": 89.3
+            },
+            "fine0": {
+              "aligned": 13,
+              "of": 13,
+              "medianOffsetMin": 0,
+              "medianAnchorSpreadMin": 0.1
+            }
+          }
+        },
+        "evidence": [
+          "tools/acc-acc-control.mjs",
+          "~/tepna-smoketest/captures/**/*_ACC.txt"
+        ],
+        "reason": "no pre-stated criterion — the statistic is reported bare and no rule can be applied to it; a band written after the number is a number, not a test (VERDICT-CONTRACT §1: a threshold derived from the data it judges is UNKNOWN, not PASS). The only route to a decided status is a band pre-stated in a brief BEFORE the next run, on records this tool has not seen",
+        "producedBy": {
+          "tool": "tools/acc-acc-control.mjs",
+          "commit": "4260f34ac"
+        },
+        "at": "2026-11-25T19:12:45Z"
+      }
+    },
+    "dose240s": {
+      "ran": false,
+      "reason": "priced at ~10 h over the 13 nights, measured 2026-11-25 at 1 night per ~55 min; the arm carries 16x the samples per candidate lag of the 15 s arm"
+    }
+  }
+}
