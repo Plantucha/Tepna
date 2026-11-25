@@ -28,7 +28,7 @@
  *      the token, or the launcher's own invocation becomes the first thing it refuses.)
  *
  * IT DETACHES BY DEFAULT, and the reason is measured, not stylistic. The chain is ~45–90 minutes
- * (stamp gate ~2 min · build+docs · `npm run check` 10+ min · CI + Kodiak's serial queue 10–60 min),
+ * (stamp gate ~2 min · build+docs · `npm run check` 10+ min · CI + Mergify's serial queue 10–60 min),
  * and the operator's tool loop caps a foreground command at 10 minutes. Every hand-written waiter
  * around that cap has been wrong in one of CLAUDE.md §👥.4's four ways. So the launcher forks this
  * process as its own session leader, points stdout/stderr at a log, and returns in under a second;
@@ -50,7 +50,7 @@
  *   commit    stage by EXPLICIT PATH from `git status --porcelain`; deleted changesets via
  *             `git rm --cached`; REFUSES on any untracked path — a release produces none
  *   push      plain push of a new branch; never any --force
- *   pr        gh pr create — a 2-line body; Kodiak merges every non-draft, unlabelled PR
+ *   pr        gh pr create — a 2-line body; Mergify queues every non-draft, unlabelled PR
  *   merge     poll until MERGED; after a grace period hand the PR to land-pr.mjs (the fallback
  *             CLAUDE.md §👥.5 names) rather than assume the queue is moving
  *   tag       at the MERGE sha (never the branch tip — squash rewrites it); `-s` when a signing
@@ -294,14 +294,41 @@ export function parsePlan(dryRunStdout) {
   return { from: m[1], to: m[2], level: m[3], n: names.length, names };
 }
 
-/* Merge polling verdict from `gh pr view --json state,mergeCommit,mergeStateStatus`. */
-export function mergeVerdict(view, elapsedMin, graceMin) {
+/* Minutes the chain leaves a PR to the merge queue before it acts: `checks_timeout` (90) plus
+   `batch_max_wait_time` (10) in `.mergify.yml`. Past that, the queue itself has given up on the batch. */
+export const QUEUE_HOLD_MAX_MIN = 100;
+
+/* Mergify holds the PR while its check run is not complete. Measured 2026-11-24 on PR 5706: the queue
+   was 17 min into a batch check when the grace ended, `land-pr` merged the PR directly, and Mergify
+   then checked the other PR of that batch again. UNSTABLE is the normal state of a queued PR, so
+   `mergeStateStatus` cannot say this. */
+export function queueHolds(view) {
+  const runs = (view && view.statusCheckRollup) || [];
+  return runs.some((c) => c && c.name === 'Mergify Merge Queue' && c.status !== 'COMPLETED');
+}
+
+/* The two clocks of the wait. `idleSince` restarts whenever the queue holds the PR, so the grace counts
+   time OUTSIDE the queue. `heldSince` is the start of the current hold. An unreadable view moves neither. */
+export function queueClock(clock, view, nowMs) {
+  if (!view) return clock;
+  if (!queueHolds(view)) return { idleSince: clock.idleSince, heldSince: null };
+  return { idleSince: nowMs, heldSince: clock.heldSince == null ? nowMs : clock.heldSince };
+}
+
+/* Merge polling verdict from `gh pr view --json state,mergeCommit,mergeStateStatus,statusCheckRollup`.
+   `idleMin` is the time outside the queue, `heldMin` the length of the current hold. */
+export function mergeVerdict(view, idleMin, graceMin, heldMin = 0) {
   if (!view) return { action: 'wait', why: 'unreadable — an unreadable snapshot is not a closed PR' };
   if (view.state === 'MERGED') return { action: 'done', sha: view.mergeCommit && view.mergeCommit.oid };
   if (view.state === 'CLOSED') return { action: 'fail', why: 'PR closed without merging' };
   if (view.mergeStateStatus === 'DIRTY') return { action: 'fail', why: 'merge conflict — rebase by hand (§👥.2c)' };
-  if (elapsedMin >= graceMin) return { action: 'land', why: `still ${view.mergeStateStatus} after ${graceMin} min — handing to land-pr` };
-  return { action: 'wait', why: `${view.mergeStateStatus}; Kodiak's queue` };
+  if (queueHolds(view)) {
+    const why = `${view.mergeStateStatus}; in the Mergify queue for ${Math.floor(heldMin)} min`;
+    if (heldMin < QUEUE_HOLD_MAX_MIN || graceMin === Infinity) return { action: 'wait', why };
+    return { action: 'land', why: `${why}, its limit is ${QUEUE_HOLD_MAX_MIN} — handing to land-pr` };
+  }
+  if (idleMin >= graceMin) return { action: 'land', why: `still ${view.mergeStateStatus} after ${graceMin} min outside the queue — handing to land-pr` };
+  return { action: 'wait', why: `${view.mergeStateStatus}; not in the Mergify queue` };
 }
 
 /* ── I/O helpers ──────────────────────────────────────────────────────────────────────────────── */
@@ -575,15 +602,19 @@ const RUN = {
   merge(st) {
     const t0 = Date.now();
     let landed = false;
+    let clock = { idleSince: t0, heldSince: null };
     for (;;) {
       let view = null;
       try {
-        view = JSON.parse(must('gh', ['pr', 'view', String(st.pr), '--json', 'state,mergeCommit,mergeStateStatus'], { cwd: st.worktree }));
+        view = JSON.parse(must('gh', ['pr', 'view', String(st.pr), '--json', 'state,mergeCommit,mergeStateStatus,statusCheckRollup'], { cwd: st.worktree }));
       } catch {
         view = null;
       }
-      const el = (Date.now() - t0) / 60000;
-      const v = mergeVerdict(view, el, landed ? Infinity : st.graceMin);
+      const now = Date.now();
+      const el = (now - t0) / 60000;
+      clock = queueClock(clock, view, now);
+      const held = clock.heldSince == null ? 0 : (now - clock.heldSince) / 60000;
+      const v = mergeVerdict(view, (now - clock.idleSince) / 60000, landed ? Infinity : st.graceMin, held);
       if (v.action === 'done') {
         st.mergeSha = v.sha;
         if (!st.mergeSha) throw new Error('merged but no merge commit reported');
@@ -864,11 +895,34 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   ok(parsePlan('No pending changesets') === null, 'no plan → null');
   // merge verdict
   ok(mergeVerdict({ state: 'MERGED', mergeCommit: { oid: 'abc' } }, 0, 20).sha === 'abc', 'merged → done with sha');
-  ok(mergeVerdict({ state: 'OPEN', mergeStateStatus: 'BEHIND' }, 5, 20).action === 'wait', 'BEHIND inside grace → wait (Kodiak serialises)');
+  ok(mergeVerdict({ state: 'OPEN', mergeStateStatus: 'BEHIND' }, 5, 20).action === 'wait', 'BEHIND inside grace → wait (the queue serialises)');
   ok(mergeVerdict({ state: 'OPEN', mergeStateStatus: 'BEHIND' }, 25, 20).action === 'land', 'stalled past grace → land-pr fallback');
   ok(mergeVerdict({ state: 'OPEN', mergeStateStatus: 'DIRTY' }, 1, 20).action === 'fail', 'conflict → fail, never update');
   ok(mergeVerdict(null, 1, 20).action === 'wait', 'unreadable → wait');
   ok(mergeVerdict({ state: 'CLOSED' }, 1, 20).action === 'fail', 'closed → fail');
+  // the merge queue holds the PR
+  const held = (status, name = 'Mergify Merge Queue') => ({ state: 'OPEN', mergeStateStatus: 'UNSTABLE', statusCheckRollup: [{ name, status }] });
+  ok(queueHolds(held('IN_PROGRESS')) && queueHolds(held('QUEUED')), 'an incomplete queue check holds the PR');
+  ok(!queueHolds(held('COMPLETED')), 'CONTROL · a completed queue check holds nothing');
+  ok(!queueHolds(held('IN_PROGRESS', 'browser-gates')), 'CONTROL · another running check is not the queue');
+  ok(!queueHolds(null) && !queueHolds({ state: 'OPEN' }), 'no view, or no checks → no hold');
+  ok(mergeVerdict(held('IN_PROGRESS'), 25, 20, 25).action === 'wait', 'THE DEFECT: past the grace and in the queue → wait, never land-pr');
+  ok(mergeVerdict(held('COMPLETED'), 25, 20, 0).action === 'land', 'CONTROL · past the grace and out of the queue → land-pr');
+  ok(mergeVerdict(held('IN_PROGRESS'), 0, 20, QUEUE_HOLD_MAX_MIN - 1).action === 'wait', 'one minute under the hold limit → wait');
+  ok(mergeVerdict(held('IN_PROGRESS'), 0, 20, QUEUE_HOLD_MAX_MIN).action === 'land', 'at the hold limit → land-pr, so a dead queue cannot hold a release');
+  ok(mergeVerdict(held('IN_PROGRESS'), 0, Infinity, 500).action === 'wait', 'land-pr already ran → it runs one time only');
+  ok(mergeVerdict({ ...held('IN_PROGRESS'), mergeStateStatus: 'DIRTY' }, 1, 20, 1).action === 'fail', 'a conflict in the queue → fail');
+  const yml = readFileSync(join(ROOT, '.mergify.yml'), 'utf8');
+  const ymlMin = (k) => +((new RegExp(`^\\s+${k}: (\\d+) minutes$`, 'm').exec(yml) || [])[1] ?? Number.NaN);
+  ok(ymlMin('checks_timeout') + ymlMin('batch_max_wait_time') === QUEUE_HOLD_MAX_MIN, 'the hold limit is the sum that .mergify.yml declares');
+  const c0 = { idleSince: 0, heldSince: null };
+  const c1 = queueClock(c0, held('IN_PROGRESS'), 600000);
+  ok(c1.idleSince === 600000 && c1.heldSince === 600000, 'the hold starts → both clocks start');
+  const c2 = queueClock(c1, held('IN_PROGRESS'), 1200000);
+  ok(c2.idleSince === 1200000 && c2.heldSince === 600000, 'the hold continues → the grace restarts, the hold does not');
+  ok(queueClock(c2, null, 1800000) === c2, 'an unreadable view moves no clock');
+  const c3 = queueClock(c2, held('COMPLETED'), 1800000);
+  ok(c3.idleSince === 1200000 && c3.heldSince === null, 'the hold ends → the grace counts from the last time in the queue');
   // release assets
   ok(assetName('Data Unifier.html') === 'Data-Unifier.html' && assetName('OxyDex.html') === 'OxyDex.html', 'a space becomes a dash, never the dot GitHub would choose');
   ok(offlineZipName('2.26.0') === 'Tepna-v2.26.0-offline.zip', 'the zip names its version');
