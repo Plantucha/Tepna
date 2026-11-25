@@ -5483,9 +5483,17 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
 
   // SpO2 Sample Entropy (same method as HR, applied to SpO2)
   function computeSpO2Entropy(rows) {
-    var spo2 = rows.map(function (r) {
-      return r.spo2;
-    });
+    /* §∅ the twin of the N2-3 defect in `computeHREntropy`, left here: an absent second entered the mean,
+       the SD and every template as a saturation of 0. One 60 s hole in ten minutes widened the tolerance
+       until each real sample matched each other, and a night of SampEn 0.50 ("Normal") published 0.12
+       ("Low(periodic)"). The 200-sample floor counts MEASURED seconds (Muse hunt A-27). */
+    var spo2 = rows
+      .map(function (r) {
+        return r.spo2;
+      })
+      .filter(function (v) {
+        return typeof v === 'number' && isFinite(v);
+      });
     var n = spo2.length;
     if (n < 200) return null;
     // SYNTH-TEXTURE-FOLLOWUPS-III: WHOLE-NIGHT decimation, not a head-slice (see computeHREntropy).
@@ -8423,17 +8431,25 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       spo2Means = [],
       hrMeans = [];
     for (var i = 0; i + WIN5 <= n; i += WIN5) {
+      /* §∅ a window's mean is over the samples that EXIST. The old sum read an absent second as a
+         saturation of 0 AND a pulse of 0 over a fixed 300, so a dropout pulled both series down together
+         and manufactured the coupling this index measures: r −0.08 read +0.86 over one 60 s hole in ten
+         minutes (Muse hunt A-27). A window enters the pair list when both channels reach the 60-sample
+         support `computeRollingMetrics` requires of this column. */
       var sl = rows.slice(i, i + WIN5);
-      spo2Means.push(
-        sl.reduce(function (s, r) {
-          return s + r.spo2;
-        }, 0) / WIN5
+      var _wS = _avgPresent(
+        sl.map(function (r) {
+          return r.spo2;
+        })
       );
-      hrMeans.push(
-        sl.reduce(function (s, r) {
-          return s + r.hr;
-        }, 0) / WIN5
+      var _wH = _avgPresent(
+        sl.map(function (r) {
+          return r.hr;
+        })
       );
+      if (!_wS || !_wH || _wS.n < 60 || _wH.n < 60) continue;
+      spo2Means.push(_wS.mean);
+      hrMeans.push(_wH.mean);
     }
     /* NOT COMPUTABLE IS `null`, NEVER 0 (DEEP-AUDIT-V §2.3 F22). `crcIdx` is a CORRELATION, so 0 is a
        real, meaningful reading — "SpO₂ and HR are uncoupled" — and it is also the value this variable
@@ -10288,8 +10304,11 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var WIN = 1800; // 30-min windows
     var windows = [];
     for (var i = 0; i + WIN <= n; i += WIN) {
+      /* §∅ `hr[j + 1] - null` is a step of a whole pulse, twice per hole: windows of 1.1 read 3.6
+         (Muse hunt A-27). The motion filter already makes the array non-contiguous, so dropping the
+         absent seconds changes nothing about contiguity, as `computePoincare` states. */
       var seg = rows.slice(i, i + WIN).filter(function (r) {
-        return r.motion === 0;
+        return r.motion === 0 && r.hr != null && isFinite(r.hr);
       });
       if (seg.length < 60) {
         windows.push(null);
@@ -12821,9 +12840,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       if (!ts) continue;
       var a = +p[2],
         b = +p[3],
-        mo = +p[4];
+        /* ∅ AN UNREADABLE MOTION CELL IS NOT STILLNESS. `+''` is 0 and the old `isFinite(mo) ? mo : 0`
+           answered 0 for the rest, so a row whose motion nothing stated read "the finger did not move".
+           Only a written number is a reading, the rule `parseCSV` already applies to this channel
+           (Muse hunt U-12). No consumer reads the field today, so no published value moves. */
+        mo = p[4].trim() === '' ? NaN : +p[4];
       if (!isFinite(a) || !isFinite(b)) continue;
-      rows.push({ tMs: ts.tMs, ch0: a, ch1: b, motion: isFinite(mo) ? mo : 0, src: src });
+      rows.push({ tMs: ts.tMs, ch0: a, ch1: b, motion: isFinite(mo) ? mo : null, src: src });
     }
     var runs = _parsePinnedRuns(opts && opts.runsText);
     var mapped = _ppg2wBlankSpans(rows, runs);

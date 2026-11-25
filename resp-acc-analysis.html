@@ -11603,7 +11603,9 @@ window.IntegratorDSP = {
         brpm = Math.round(v.rr[i] * 10) / 10;
         kept.push(brpm);
       }
-      series.push({ tMs: tEp, brpm: brpm, conf: covOk ? Math.round(v.conf[i] * 1e3) / 1e3 : 0, covered: covOk });
+      /* ∅ a window that was not recorded has NO confidence, and 0 is a measured one: the tracker's
+         weakest answer over a signal it saw (Muse hunt C-F12). `covered:false` names the absence. */
+      series.push({ tMs: tEp, brpm: brpm, conf: covOk ? Math.round(v.conf[i] * 1e3) / 1e3 : null, covered: covOk });
     }
     var med = null;
     if (kept.length) med = median(kept);
