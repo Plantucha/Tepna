@@ -290,9 +290,22 @@
     for (var s = 0; s < ns; s++) if (labels[s] === 'EDF Annotations') annIdx[s] = true;
 
     // ── allocate per-signal output buffers ──
+    /* A LABEL IS NOT A KEY UNTIL IT IS UNIQUE. EDF does not forbid two signals with one label, and
+       `signals[labels[s]]` gave both of them ONE buffer: the decode loop below then wrote the two
+       signals into it alternately, record by record, and the typed array dropped the overflow. The
+       first signal keeps its label; a later one gets `<label> #2`, so every lookup by label reads
+       one unmixed channel and no channel is lost (Muse hunt U-11). */
     var signals = {};
+    var sigKey = [],
+      duplicateLabels = [];
     for (var s2 = 0; s2 < ns; s2++) {
       if (annIdx[s2]) continue;
+      var key = labels[s2];
+      if (Object.hasOwn(signals, key)) {
+        duplicateLabels.push(key);
+        for (var dup = 2; Object.hasOwn(signals, key); dup++) key = labels[s2] + ' #' + dup;
+      }
+      sigKey[s2] = key;
       var spr = sampPerRec[s2];
       // the digital range is the DENOMINATOR of the physical scale. A blank or degenerate
       // calibration header used to fall back on `|| 1`, which silently rescales the signal by a
@@ -300,7 +313,7 @@
       // An uncalibrated signal cannot be converted to physical units, so it is null, not rescaled.
       var _dr = digMax[s2] - digMin[s2];
       var _cal = digMin[s2] != null && digMax[s2] != null && physMin[s2] != null && physMax[s2] != null && _dr !== 0;
-      signals[labels[s2]] = {
+      signals[key] = {
         data: new Float32Array(spr * recordsRead),
         fs: recDurSec > 0 ? spr / recDurSec : null, // 0 ⇒ no periodic sampling: absent, not zero
         calibrated: _cal,
@@ -345,7 +358,7 @@
           continue;
         }
         // numeric signal — int16 LE → physical scaling
-        var sig = signals[labels[sg]];
+        var sig = signals[sigKey[sg]];
         var dMin = digMin[sg],
           pMin = physMin[sg],
           scale = sig._scale;
@@ -373,6 +386,7 @@
       recDurSec: recDurSec,
       ns: ns,
       signals: signals,
+      duplicateLabels: duplicateLabels,
       annotations: annotations
     };
   }

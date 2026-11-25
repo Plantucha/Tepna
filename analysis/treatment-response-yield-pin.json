@@ -24,7 +24,7 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "46faf431bb51",
       "oxydex-profile.js": "9a35c718b8cf",
-      "oxydex-dsp.js": "760fadaf2751"
+      "oxydex-dsp.js": "a82aa05e8171"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
@@ -417,11 +417,18 @@
       "old": "10bba6a4b3f3",
       "new": "a7a35088bac0",
       "reason": "One new function, altitudeVO2, gives PulseDex one altitude road and decides the rounding order for both. measureFromResults selects on ODI and rMSSD, which that function does not feed, so the argument said the counts would hold. This run RE-CUT the cohort at paper scale rather than re-stamp on the argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped, 18291 seeds with the 900/900 target filled."
+    },
+    {
+      "date": "2026-11-25",
+      "file": "oxydex-dsp.js",
+      "old": "760fadaf2751",
+      "new": "a82aa05e8171",
+      "reason": "Three OxyDex functions stopped reading an absent second as 0 (computeSpO2Entropy, crcIdx and computeRMSSDarc, Muse hunt A-27), and parsePPG2W reads an unreadable motion cell as null (U-12). measureFromResults selects on ODI and rMSSD, and none of the four feeds ODI. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped."
     }
   ],
-  "measuredAt": "2026-11-25T03:37:01.584Z",
+  "measuredAt": "2026-11-25T17:29:30.368Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "b410f8514"
+    "commit": "680cbf2f4"
   }
 }

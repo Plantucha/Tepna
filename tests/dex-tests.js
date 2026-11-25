@@ -3007,6 +3007,109 @@
         null
       );
 
+      /* ── A-27 · three more consumers the metamorphic sweep found ── each answered the same for an absent
+         second and for a second that reads 0, and differently from the measured record. Every leg states
+         the invariant that separates them: absent seconds leave the measured answer where it was. */
+      var need27 = ['computeSpO2Entropy', 'computeCrossSignal', 'computeRMSSDarc'].filter(function (k) {
+        return typeof OD[k] !== 'function';
+      });
+      T.eq('A-27 · the three swept consumers are reachable', JSON.stringify(need27), '[]');
+      if (!need27.length) {
+        var varyS = function (i) {
+          return 96 - ((i * i + 3 * i) % 7 < 2 ? 1 : 0) - (i % 97 < 9 ? 2 : 0);
+        };
+        var eAlone = OD.computeSpO2Entropy(rowsOf(400, varyS));
+        var eHoled = OD.computeSpO2Entropy(
+          rowsOf(460, function (i) {
+            return i >= 100 && i < 160 ? null : varyS(i < 100 ? i : i - 60);
+          })
+        );
+        T.ok('A-27 · the SampEn fixture is measured and not degenerate', !!eAlone && eAlone.spo2SampEn > 0.1, JSON.stringify(eAlone));
+        T.eq('A-27 · a 60 s hole does not move SpO2 SampEn off the measured answer', JSON.stringify(eHoled), JSON.stringify(eAlone));
+        var eFloor = function (measured) {
+          return OD.computeSpO2Entropy(
+            rowsOf(600, function (i) {
+              return i < measured ? varyS(i) : null;
+            })
+          );
+        };
+        T.eq('A-27 · the 200-sample floor counts MEASURED seconds — 199 refuse', eFloor(199), null);
+        T.ok('A-27 CONTROL · …and 200 answer', eFloor(200) !== null);
+
+        /* Six five-minute windows, each constant, so an absent second cannot move a window's mean. */
+        var wS = [96, 94, 97, 93, 95, 92],
+          wH = [60, 63, 58, 59, 66, 61];
+        var crcOf = function (keep) {
+          var out = [];
+          for (var i = 0; i < 1800; i++) {
+            var w = Math.floor(i / 300);
+            out.push({ spo2: keep('spo2', w, i % 300) ? wS[w] : null, hr: keep('hr', w, i % 300) ? wH[w] : null });
+          }
+          return OD.computeCrossSignal(out, null, [], null, 0.5).crcIdx;
+        };
+        var crcClean = crcOf(function () {
+          return true;
+        });
+        var crcFive = (function () {
+          var rows = [];
+          for (var i = 0; i < 1500; i++) rows.push({ spo2: wS[Math.floor(i / 300)], hr: wH[Math.floor(i / 300)] });
+          return OD.computeCrossSignal(rows, null, [], null, 0.5).crcIdx;
+        })();
+        T.ok('A-27 · the coupling fixture discriminates: the sixth window moves the index', crcClean !== null && crcFive !== null && crcClean !== crcFive, crcClean + ' vs ' + crcFive);
+        T.eq(
+          'A-27 · a 60 s dropout in two windows does not move the coupling index',
+          crcOf(function (ch, w, k) {
+            return !((w === 1 || w === 4) && k >= 100 && k < 160);
+          }),
+          crcClean
+        );
+        ['spo2', 'hr'].forEach(function (dead) {
+          var withN = function (nKept) {
+            return crcOf(function (ch, w, k) {
+              return !(ch === dead && w === 5) || k < nKept;
+            });
+          };
+          T.eq('A-27 · a window with 59 measured ' + dead + ' seconds leaves the pair list', withN(59), crcFive);
+          T.eq('A-27 CONTROL · …and one with 60 stays in it', withN(60), crcClean);
+          T.eq('A-27 · a window with no measured ' + dead + ' at all leaves it too, without throwing', withN(0), crcFive);
+        });
+
+        /* HR alternates 60/61, so every adjacent pair differs by 1 and each window reads 1.0. An even-length
+           hole keeps the alternation across its edge. */
+        var arcOf = function (f) {
+          var out = [];
+          for (var i = 0; i < 5400; i++) out.push({ spo2: 96, hr: f(i) ? 60 + (i % 2) : null, motion: 0 });
+          return OD.computeRMSSDarc(out).rmssdArcWindows;
+        };
+        T.eq(
+          'A-27 CONTROL · the measured RMSSD arc reads one per window',
+          JSON.stringify(
+            arcOf(function () {
+              return true;
+            })
+          ),
+          '[1,1,1]'
+        );
+        T.eq(
+          'A-27 · a 60 s pulse dropout is not two steps of a whole pulse',
+          JSON.stringify(
+            arcOf(function (i) {
+              return i % 600 < 100 || i % 600 >= 160;
+            })
+          ),
+          '[1,1,1]'
+        );
+        T.eq(
+          'A-27 · a window under 60 measured pulses is null, and its neighbours stand',
+          JSON.stringify(
+            arcOf(function (i) {
+              return i < 1800 || i >= 3600 || i < 1859;
+            })
+          ),
+          '[1,null,1]'
+        );
+      }
+
       /* ── THE SURFACE ── A-5's refusal reaches a reader through two `oxydex-render.js` sites, and
          `null < 5` is TRUE in both, so the refusal used to paint the GREEN band. Source assertions,
          because the node runner holds the render layer as text; the browser gate draws it. */
@@ -26015,6 +26118,19 @@
       T.eq('parsePPG2W reads rows', w2.rows.length, 2);
       T.ok('parsePPG2W tMs is floating (getUTC round-trip)', new Date(w2.rows[0].tMs).getUTCHours() === 20, 'got ' + new Date(w2.rows[0].tMs).getUTCHours());
       T.eq('parsePPG2W junk → empty', P.parsePPG2W('garbage\nmore').rows.length, 0);
+      T.eq('a written motion cell is read, and a written 0 stays a measured 0', JSON.stringify([w2.rows[0].motion, w2.rows[1].motion]), '[0,2]');
+      var w2m = P.parsePPG2W(
+        'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n2026-08-13T20:21:35.339;0;1526307;1535107;\n2026-08-13T20:21:35.349;0;1526799;1535263; \n2026-08-13T20:21:35.359;0;1526800;1535264;n/a\n'
+      );
+      T.eq(
+        '∅ an empty, blank or unreadable motion cell is null, and the row keeps its channels',
+        JSON.stringify(
+          w2m.rows.map(function (x) {
+            return x.motion;
+          })
+        ),
+        '[null,null,null]'
+      );
       // The device-CSV side reuses OxyDex's OWN parseCSV (no second SpO₂ parser — the single-parser
       // rule): assert its row shape carries the {tMs, spo2} pair contract the trend consumes.
       if (typeof P.parseCSV === 'function') {
@@ -49782,6 +49898,27 @@
       var dp = degen.signals['Press.40ms'];
       T.eq('a degenerate digital range marks THAT SIGNAL uncalibrated, and the file still parses', dp.calibrated, false);
       T.ok('\u2026and its samples are NaN, not rescaled by a fabricated denominator of 1', isNaN(dp.data[10]), 'got ' + dp.data[10]);
+
+      // ── 4 · A LABEL THAT REPEATS NAMES TWO SIGNALS. EDF does not forbid it. One buffer keyed on the
+      //    label took both signals' samples alternately and dropped the overflow: the published channel
+      //    was a mixture, and the other was lost. Renaming the annotation signal builds the pair.
+      var dupRec = E.readEDF(
+        mutated(function (u8) {
+          var lab = 'Press.40ms';
+          for (var i = 0; i < 16; i++) u8[256 + 16 + i] = i < lab.length ? lab.charCodeAt(i) : 0x20;
+        })
+      );
+      var first = dupRec.signals['Press.40ms'],
+        second = dupRec.signals['Press.40ms #2'];
+      T.eq('a repeated label keeps BOTH signals', Object.keys(dupRec.signals).join('|'), 'Press.40ms|Press.40ms #2');
+      T.eq('\u2026the first is sample-for-sample the unmixed channel of the control', Array.from(first.data).join(','), Array.from(press.data).join(','));
+      T.ok(
+        '\u2026the second holds its own full buffer, at its own rate',
+        !!second && second.data.length === second._spr * 5 && second._w === second.data.length,
+        second ? second._w + '/' + second.data.length : 'absent'
+      );
+      T.eq('\u2026and the record names the label that repeats', dupRec.duplicateLabels.join('|'), 'Press.40ms');
+      T.eq('control: a file whose labels are unique names none', okRec.duplicateLabels.length, 0);
     });
 
     group('CPAPDex synthetic EDF — the .2s signals declare the rate their names promise (adopted drafts, batch 1)', 'cpapdex-dsp · adopted-drafts · mutation-pinned', function (T) {
@@ -67916,7 +68053,7 @@
       T.ok(
         '…and none of them reports a breathing rate',
         unc.every(function (e) {
-          return e.brpm === null && e.conf === 0;
+          return e.brpm === null && e.conf === null; // ∅ 0 was the tracker's own weakest answer
         }),
         JSON.stringify(unc.slice(0, 3))
       );
@@ -105038,24 +105175,28 @@
         T.ok('  … samples = the 25 Hz BRP Flow waveform', !!(fr.samples && fr.samples.length) && fr.fs === 25, fr.fs);
         T.ok('  … t0Ms is finite (floating, off the decoded EDF header — not the filename)', isFinite(fr.t0Ms), fr.t0Ms);
 
-        // ── 7. §AD (DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS): the `(fl.fs) || 25` Flow-fs DEFAULT ──────
-        // The leg above drives a Flow channel that CARRIES fs=25, so `(fl.fs) || 25` returns the
-        // explicit rate — a `|| 25 → || 50` slip leaves fr.fs===25 GREEN and the fallback is never
-        // exercised (a hollow gate). Strip the fs off the decoded Flow and the surfaced frame.fs can
-        // come ONLY from the adapter's default, so exactly that mutation reds here. Both-direction:
-        // fs present → 25 read from the channel (leg above); fs absent → 25 read from the default
-        // (here); changing the default flips this assertion and nothing else.
-        // `chan()` lives on the FULL CpapDsp api (the adapter resolves it the same way, resmed-edf.js
-        // :164) — the narrow `CPAPDex` namespace does NOT carry it, so reach through env.CpapDsp.
+        /* ── 7 · ∅ A FLOW CHANNEL WITH NO RATE HAS NO TIME AXIS ──────────────────────────────
+           This leg used to PIN the defect: it asserted that an fs-less Flow surfaced the 25 Hz default
+           of `(fl.fs) || 25`. `readEDF` writes `fs: null` for a zero record duration, so that default
+           published a rate no header stated and the frame was usable on it (Muse hunt U-10). BOTH
+           DIRECTIONS: the leg above is the control that a stated rate yields a usable 25 Hz frame.
+           `chan()` lives on the FULL CpapDsp api (the adapter resolves it the same way) — the narrow
+           `CPAPDex` namespace does NOT carry it, so reach through env.CpapDsp. */
         var CPDSP = env.CpapDsp;
         if (CPDSP && typeof CPDSP.chan === 'function') {
-          var dset = CD._synthEdfSet({ oxi: true, cs: true });
-          var flowCh = CPDSP.chan(dset.BRP, 'Flow');
-          T.ok('precondition · the synthetic BRP Flow carries an explicit fs=25 (so stripping it is meaningful)', !!(flowCh && flowCh.fs === 25), flowCh && flowCh.fs);
-          if (flowCh) flowCh.fs = undefined; // force the adapter's `(fl.fs) || 25` fallback
-          var dfr = A.parse('', { edfSets: [dset] });
-          T.ok('an fs-less decoded Flow → frame.fs falls back to the 25 Hz BRP default (a changed default reds this)', !!dfr && dfr.fs === 25, dfr && dfr.fs);
-          T.ok('  … and the waveform still surfaces (only the rate was stripped, data intact)', !!(dfr && dfr.samples && dfr.samples.length));
+          T.ok('control · a Flow channel that states its rate is usable', fr.usable === true, String(fr.usable) + ' ' + fr.reason);
+          [null, undefined, 0, NaN, Infinity].forEach(function (badFs) {
+            var dset = CD._synthEdfSet({ oxi: true, cs: true });
+            var flowCh = CPDSP.chan(dset.BRP, 'Flow');
+            T.ok('precondition · the synthetic BRP Flow carries an explicit fs=25 (so stripping it is meaningful)', !!(flowCh && flowCh.fs === 25), flowCh && flowCh.fs);
+            if (flowCh) flowCh.fs = badFs;
+            var dfr = A.parse('', { edfSets: [dset] });
+            T.ok('a Flow rate of ' + badFs + ' → usable:false', !!dfr && dfr.usable === false, dfr ? String(dfr.usable) : 'no frame');
+            T.ok('  … the frame states no rate, never the usual 25 Hz', !!dfr && dfr.fs == null, dfr ? String(dfr.fs) : 'no frame');
+            T.ok('  … the reason names the RATE', !!(dfr && /sample rate is UNREADABLE/.test(dfr.reason || '')), dfr && dfr.reason);
+            T.ok('  … and the waveform and the decoded sets still ride', !!(dfr && dfr.samples && dfr.samples.length && dfr.edfSets.length === 1));
+            T.ok('  … in a schema-valid frame', !!(dfr && SF.validateFrame(dfr).ok), dfr ? SF.validateFrame(dfr).errors.join('; ') : 'no frame');
+          });
         }
 
         /* ── 8 · ∅ AN UNCALIBRATED FLOW CHANNEL IS A FRAME-LEVEL ABSENCE ───────────────────
@@ -111100,10 +111241,26 @@
       );
       T.eq('coverage over an EMPTY denominator is null, not 0', String(rrGap.coverage), 'null');
       T.eq('…and the reason is the node own token', rrGap.coverageReason, 'no-recorded-window');
+      T.ok(
+        'a window that was not recorded has NO confidence: null, never the tracker answer 0',
+        rrGap.series.length > 0 &&
+          rrGap.series.every(function (w) {
+            return w.covered === false && w.conf === null;
+          }),
+        JSON.stringify(rrGap.series[0])
+      );
       var fullRows = MD.parseSensorXYZ(MD.genSyntheticACC({ sec: 300, hz: 26, brpm: 15, seed: 5 }));
       var rrFull = MD.respiratoryRate(fullRows, fullRows[0].tMs, 'mg', {}) || {};
       T.ok('CONTROL · a contiguous night still publishes a MEASURED coverage', typeof rrFull.coverage === 'number' && rrFull.coverage >= 0 && rrFull.coverage <= 1, 'coverage=' + rrFull.coverage);
       T.eq('CONTROL · …and claims no absence reason', String(rrFull.coverageReason), 'null');
+      T.ok(
+        'CONTROL · …and each recorded window keeps a numeric confidence',
+        rrFull.series.length > 0 &&
+          rrFull.series.every(function (w) {
+            return w.covered === true && typeof w.conf === 'number';
+          }),
+        JSON.stringify(rrFull.series[0])
+      );
       var effGap = MD.respiratoryEffort(gapRows, gapRows[0].tMs, null, 'mg') || {};
       T.eq('a rate with no measured coverage answers null', String(effGap.rateCoverage), 'null');
       T.ok(

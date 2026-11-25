@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** IN-PROGRESS — 2026-11-23 · **Created:** 2026-11-08 · **Interlocks:** `briefs/RESIDUE.md` (the verified rows) · `AUDIT-PROMPT.md`
+**Status:** IN-PROGRESS — 2026-11-25 · **Created:** 2026-11-08 · **Interlocks:** `briefs/RESIDUE.md` (the verified rows) · `AUDIT-PROMPT.md`
 
 # MUSE-HUNT-RECORD — every Muse hunt finding, and its state on main
 
@@ -27,6 +27,11 @@ the tables is Muse's number at that HEAD. Main has moved since then, so read the
 
 ## 1 · State vocabulary
 
+I read each open item again on 2026-11-25, on main at 680cbf2f4. I read the function, and that is the
+evidence for `fixed on main`. I did not run Muse's original input for each item. The exception is
+A-27, which ran as a sweep over the live functions. Eleven items still hold: U-3, U-4, U-5, U-6,
+U-7, U-9, M-4, M-5, M-6, M-7 and B-6.
+
 | state | meaning |
 |---|---|
 | row `<key>` | verified on main 2026-11-08; the residue row carries it |
@@ -39,9 +44,9 @@ the tables is Muse's number at that HEAD. Main has moved since then, so read the
 
 ## 2 · Acceptance
 
-- [ ] Each `unverified` and `holds on main` item below has a re-read on origin/main.
+- [x] Each `unverified` and `holds on main` item below has a re-read on origin/main (2026-11-25, at 680cbf2f4).
 - [ ] Each item that holds has a fix PR, or it has a residue row in a RESIDUE-only PR.
-- [ ] Each item that does not hold has a one-line note here with the evidence.
+- [x] Each item that does not hold has a one-line note here with the evidence.
 - [ ] Each `design call` item has an owner ruling or a `--kind decision` board post.
 - [ ] The status line moves to DONE when the four items above are true.
 
@@ -76,56 +81,56 @@ M-1, and re-read B-F1, B-F7 and A-4.
 |---|---|---|---|
 | B-F7 | `ecgdex-dsp.js` `stageSleep` | an absent RMSSD stages REM | fixed on main: `rmOk` requires `e.rmssd != null` |
 | B-F1 | `ecgdex-dsp.js` `_malikCorrect` | fills an unmeasurable device RR with 1000 ms | fixed on main: the fallback comment sits at the twin site |
-| A-5 | `oxydex-dsp.js` `computeDesSev` | an absent second inside an event adds the full baseline | unverified; main now refuses a record under 60 s, and the area loop was not re-read |
+| A-5 | `oxydex-dsp.js` `computeDesSev` | an absent second inside an event adds the full baseline | fixed on main: an absent second leaves the area loop, `desSevAbsentSec` counts it, and an event with no baseline is skipped |
 | A-2 | `oxydex-dsp.js` `computeHRFlatlines` | `null === null` counts as a flatline | fixed on main: the run test carries a §∅ comment |
 | A-4 | `oxydex-dsp.js` `computeSleepStabilityScore` | s5 scores a null burden rate as 100 | fixed on main: s5 is null when `hb.rate` is null |
-| A-13 | `oxydex-dsp.js` `computeSpO2Autocorr` | nulls coerced in means and lag sums | unverified |
-| A-1 | `computeOxyCrash` | a sensor dropout after flat 98 publishes a crash | unverified |
-| A-3 | `computeSpO2Percentiles` | nulls sort as 0; no n | unverified |
-| A-6 | `detectODI` | no measured-sample floor; all-null gives ODI 0 | unverified |
-| A-7 | `computePatternScores` | null `odi4.rate` passes `< 3` | unverified |
-| A-8 | `computeHypoxicLoad` | discards the supplied ODI-3 when no event derives | unverified |
-| A-9 | `computeHRProfile` | null HR summed as 0 | unverified |
-| A-10 | `computeSpikeDecay` | a null after the peak reads as fast recovery | unverified |
-| A-11 | `oxydex-util.js` `computeCeilingBaselineArr` | an empty window gets baseline 95 | unverified |
-| A-12 | `computeRollingMetrics` | window means divide by length with nulls as 0 | unverified |
-| A-14 | `computePBmetrics` | a null makes the window min 0 | unverified |
-| A-15 | `computeNightExtras` | split-night means count nulls as 0 | unverified |
-| A-16 | `computeHRNadirTime` | the nadir lands in a dropout | unverified |
-| A-17 | `computeO2HREfficiency` | an all-null pre-window inflates the ratio | unverified |
-| A-18 | `computeHRQuartileTrend` | an all-null first quartile gives hrQ1 0 | unverified |
-| A-19 | `computeKarvonenZones` | age defaults to 49 with no assumed marker | holds on main: `age = age` falling back to 49, no marker near it |
-| A-21 | `glucodex-dsp.js` `coreMetrics` | n reports 1 over zero readings; a phantom panel | holds on main: `vals.length` falls back to 1 |
-| A-22 | GlucoDex `detectSessions`, `tierOf` | a null cadence is unhandled | unverified |
-| A-23 | GlucoDex `postprandial` | the +2 h value has no distance bound | unverified |
-| A-24 | GlucoDex `mage` | publishes the SD as MAGE with no excursion | unverified (source-only) |
-| A-25 | GlucoDex `bgRisk` | publishes 0, 0 on no valid values | unverified (source-only) |
-| A-26 | GlucoDex `excursions` | an interpolated cell can be a peak | unverified (source-only) |
-| A-27 | 14 OxyDex functions | the A-12 null-coercion shape | unverified (source-only) |
-| B-F2 | `ppgdex-dsp.js` `timeDomain` | two fallbacks re-admit excluded intervals | unverified |
-| B-F3 | `ppgdex-dsp.js` `poincare` | all-pairs fallback; ratio on a 0 denominator | unverified |
-| B-F4 | `ecgdex-dsp.js` `pnn50` | 0 over zero eligible pairs | unverified |
-| B-F5 | ECG and PPG `beatConfidence` | under 20 beats, every second trusts 1 | unverified |
-| B-F6 | `ecgdex-dsp.js` `hrvStability` | a null epoch counts as log 0 | unverified |
-| B-F8 | ECG `lombScargle` | respRate 0 on a flat series | unverified |
-| B-F9 | `cardiorespCoupling` | plv 0 when no window fits | unverified |
-| B-F10 | `buildNN` | coveragePct 100 over a zero span | unverified (low) |
-| B-F11 | ECG `gangliorEvents` `sqiAt` | a measured SQI of 0 becomes 0.5 | unverified (source-only) |
-| M-1 | `oxydex-dsp.js` `linReg` | a fit on empty or single-point input | unverified; in-DSP callers guard |
-| M-2 | `analysis-stats.js` `_wvar`, `sensor-trio-worker.js` | a distrusted corner reads as perfect agreement | unverified; reachability on a real night is open |
-| C-F1 | Integrator `labelPositionalApnea` | "unknown" posture counts as non-supine | unverified |
-| C-F2 | CPAP `buildLongitudinal` | compliancePct 0 over zero measured nights | unverified |
-| C-F3 | CPAP `buildSessionFromEdf` | maxLeak 0 from zero mask-on samples | unverified |
-| C-F4 | CPAP `computeMetrics`, `nightMetrics` | NaN where siblings use null | unverified |
+| A-13 | `oxydex-dsp.js` `computeSpO2Autocorr` | nulls coerced in means and lag sums | fixed on main: the mean and the lag sums read measured samples, and the 300 s floor counts them again after the filter |
+| A-1 | `computeOxyCrash` | a sensor dropout after flat 98 publishes a crash | fixed on main: §∅ N1-01: a delta across a hole is not a delta, and a record under 60 s gives null |
+| A-3 | `computeSpO2Percentiles` | nulls sort as 0; no n | fixed on main: §∅ N1-02: the sort takes measured samples and refuses under 60 |
+| A-6 | `detectODI` | no measured-sample floor; all-null gives ODI 0 | fixed on main: §∅ N1-03: a floor on MEASURED hours; an unmeasured night gives null rate and count |
+| A-7 | `computePatternScores` | null `odi4.rate` passes `< 3` | fixed on main: both probability scores test `_has(odi4.rate)` before they compare |
+| A-8 | `computeHypoxicLoad` | discards the supplied ODI-3 when no event derives | fixed on main: `hlRefusal` names `rows-absent` and `detector-odi3-disagree` |
+| A-9 | `computeHRProfile` | null HR summed as 0 | fixed on main: `_avgPresent` over each window, and no clean pulse refuses the profile |
+| A-10 | `computeSpikeDecay` | a null after the peak reads as fast recovery | fixed on main: §∅ N1-04: the decay scan requires `_has(rows[j].hr)` |
+| A-11 | `oxydex-util.js` `computeCeilingBaselineArr` | an empty window gets baseline 95 | fixed on main: an absence stays out of the ceiling histogram, and an empty window gives a null ceiling |
+| A-12 | `computeRollingMetrics` | window means divide by length with nulls as 0 | fixed on main: §∅ N1-08: `_avgPresent` with a 60-sample support for each window |
+| A-14 | `computePBmetrics` | a null makes the window min 0 | fixed on main: §∅ N1-09: the window minimum skips an absent sample |
+| A-15 | `computeNightExtras` | split-night means count nulls as 0 | fixed on main: §∅ N1-10: each half filters to finite numbers, and the ranges give null |
+| A-16 | `computeHRNadirTime` | the nadir lands in a dropout | fixed on main: the running window counts rows that carry a pulse |
+| A-17 | `computeO2HREfficiency` | an all-null pre-window inflates the ratio | fixed on main: §∅ N1-11: both windows go through `_avgPresent` |
+| A-18 | `computeHRQuartileTrend` | an all-null first quartile gives hrQ1 0 | fixed on main: a quarter with no measured pulse refuses the trend |
+| A-19 | `computeKarvonenZones` | age defaults to 49 with no assumed marker | fixed on main: the producer marks an unentered age as an assumption |
+| A-21 | `glucodex-dsp.js` `coreMetrics` | n reports 1 over zero readings; a phantom panel | fixed on main: the panel is computed over measured readings, and each member is null at n 0 |
+| A-22 | GlucoDex `detectSessions`, `tierOf` | a null cadence is unhandled | fixed on main: `detectSessions` publishes a null mean under 10 readings, and `tierOf` answers `unknown` for an unmeasured span |
+| A-23 | GlucoDex `postprandial` | the +2 h value has no distance bound | fixed on main: the +2 h value must sit within 15 min of +2 h |
+| A-24 | GlucoDex `mage` | publishes the SD as MAGE with no excursion | fixed on main: no qualifying excursion gives null |
+| A-25 | GlucoDex `bgRisk` | publishes 0, 0 on no valid values | fixed on main: zero scorable readings give null for both indices |
+| A-26 | GlucoDex `excursions` | an interpolated cell can be a peak | fixed on main: a non-analysable cell ends the excursion scan |
+| A-27 | 14 OxyDex functions | the A-12 null-coercion shape | fixed here in part, fixed on main for the rest. I called 76 OxyDex functions with a measured record, with absent holes, and with the same holes at 0. Three answered the same for absent and for 0: `computeSpO2Entropy`, the coupling index in `computeCrossSignal`, and `computeRMSSDarc`. This PR repairs the three |
+| B-F2 | `ppgdex-dsp.js` `timeDomain` | two fallbacks re-admit excluded intervals | fixed on main: §∅ N1-21: `dispersionReason` and the pair arm each refuse under their own name |
+| B-F3 | `ppgdex-dsp.js` `poincare` | all-pairs fallback; ratio on a 0 denominator | fixed on main: §∅ N1-22: `pairReason` is `no-clean-adjacent-pair`, and the ratio has a bound on its denominator |
+| B-F4 | `ecgdex-dsp.js` `pnn50` | 0 over zero eligible pairs | fixed on main: no eligible pair gives null |
+| B-F5 | ECG and PPG `beatConfidence` | under 20 beats, every second trusts 1 | fixed on main: both mirrors mark the population out of band: `nBeats`, `nSqi`, `sqiSource` and `calibrated` |
+| B-F6 | `ecgdex-dsp.js` `hrvStability` | a null epoch counts as log 0 | fixed on main: a refused epoch leaves the log series |
+| B-F8 | ECG `lombScargle` | respRate 0 on a flat series | fixed on main: the respiration rate is null with `respRateReason` when no bin beats the peak |
+| B-F9 | `cardiorespCoupling` | plv 0 when no window fits | fixed on main: no dominant EDR period gives null with a reason |
+| B-F10 | `buildNN` | coveragePct 100 over a zero span | fixed on main: `coveragePct` is null with `coveragePctReason` over a zero span |
+| B-F11 | ECG `gangliorEvents` `sqiAt` | a measured SQI of 0 becomes 0.5 | fixed on main: a measured 0 stays 0, and a record with no beat gives null |
+| M-1 | `oxydex-dsp.js` `linReg` | a fit on empty or single-point input | fixed on main: `linReg` gives null on an absent pair and on a zero denominator |
+| M-2 | `analysis-stats.js` `_wvar`, `sensor-trio-worker.js` | a distrusted corner reads as perfect agreement | fixed on main: `_wvar` gives null when nothing carried weight, and `tchSigmasFused` refuses the hat on a null leg |
+| C-F1 | Integrator `labelPositionalApnea` | "unknown" posture counts as non-supine | fixed on main: `unknown` joins neither `supine` nor `nonsupine`; the comment above `_POS_SUPINE_RE` gives the measured case |
+| C-F2 | CPAP `buildLongitudinal` | compliancePct 0 over zero measured nights | fixed on main: `compliancePct` is null with `complianceReason: no-nights` |
+| C-F3 | CPAP `buildSessionFromEdf` | maxLeak 0 from zero mask-on samples | fixed on main: `maxLeak` requires `leakMaskOn.length` |
+| C-F4 | CPAP `computeMetrics`, `nightMetrics` | NaN where siblings use null | fixed on main: the leak members require `leakMaskOn.length`; row `2026-11-15-cpapdex-computemetrics-nan-panel-on-empty-lanes` |
 | C-F5 | PulseDex `pdComputeResult` | artifact count discarded under `artifactClean` | fixed on main: `pdComputeResult` publishes `artifactPct` and `nArtifact` from one `cleanR`, and the export coalesces both to null |
 | C-F6 | PulseDex `lombScargle` | respRate 0 over zero power | fixed on main: `respRate` carries null unless `peakP > 0`, `respRateReason` names the absence, and both window roads null their median the same way |
 | C-F7 | PulseDex `_bare` helpers | fabricate on zero denominators | row `2026-11-15-pulsedex-bare-estimators-fabricate-on-nulls`, which reads `fixed #5116` |
 | C-F8 | HRVDex rolling windows | row-count windows with no span bound | row `2026-11-15-hrvdex-seven-day-window-has-no-span-bound`, which reads `fixed #5132`, and `_dayWindow` bounds the window by calendar day |
-| C-F9 | MotionDex `bodyPosition` | a zero distribution over zero covered epochs | unverified |
-| C-F10 | EEGDex `analyze` | every epoch stamped conf 0.5 | unverified |
-| C-F11 | Integrator | a fixed conf 0.6; a correlation from one pair | unverified (source-only) |
-| C-F12 | MotionDex `respiratoryRate` | conf 0 on uncovered windows | unverified |
-| C-F13 | Integrator `activityEnvelope` | a NaN sample becomes 0 activity | unverified |
+| C-F9 | MotionDex `bodyPosition` | a zero distribution over zero covered epochs | fixed on main: `bodyPosition` answers `hasData: false` with `unit-unknown` or a duration reason |
+| C-F10 | EEGDex `analyze` | every epoch stamped conf 0.5 | fixed on main: `conf` is null on each epoch, and the comment states the contract |
+| C-F11 | Integrator | a fixed conf 0.6; a correlation from one pair | fixed on main: #5100 made the confidence and the pair bounds null |
+| C-F12 | MotionDex `respiratoryRate` | conf 0 on uncovered windows | fixed here: an uncovered window publishes `conf: null` |
+| C-F13 | Integrator `activityEnvelope` | a NaN sample becomes 0 activity | fixed on main: #5100: the envelope writes NaN at a sample that it cannot difference |
 
 Design calls from lane S (owner or design decision): ECG hfnu and lfnu at both-zero · PPG
 `dfaAlpha1` on a flat series · ECG `validateHR` r at constant input · PPG `pickChannel` all-unscored
@@ -139,16 +144,16 @@ EEGDex sleep-efficiency denominator · PulseDex `pttv` floor · HRVDex CAMQ aver
 |---|---|---|---|
 | U-1 | `ppgdex-dsp.js` `parseSensorXYZ` | y and z pushed with no finite check | row `2026-11-08-parsesensorxyz-pushes-y-and-z-without-a-finite-check` |
 | U-2 | `signal-frame.js` `toSignalFrame` | RR quality counts dropped | row `2026-11-08-tosignalframe-drops-the-pulsedex-artifact-counts` |
-| U-3 | `dex-ingest.js` `planIngest` | PPI items filtered out and not listed in `skipped` | holds on main; by design (firmware RR first), but uncounted |
-| U-4 | OxyDex `parseCSV` | drops rows uncounted; positional column guess with no marker | unverified |
-| U-5 | GlucoDex `parseCSV` | drops rows uncounted | unverified |
-| U-6 | HRVDex summary parser | unparseable stamps dropped uncounted | unverified |
-| U-7 | ECG companion parsers | band drops uncounted | unverified |
-| U-8 | `parseDeviceACC` | 4 Hz default with no defaulted marker | unverified |
-| U-9 | three Polar adapters | a zero-row companion reads as no companion | unverified |
-| U-10 | `resmed-edf`, `cpapdex-edf` | fs 25 fallback unmarked; session names dropped uncounted | unverified |
-| U-11 | `readEDF` | a duplicate label overwrites | unverified (edge) |
-| U-12 | OxyDex `parsePPG2W` | non-finite motion becomes 0; thin bins skipped uncounted | unverified |
+| U-3 | `dex-ingest.js` `planIngest` | PPI items filtered out and not listed in `skipped` | holds on main: the filter is by design (firmware RR first), and nothing counts the items that it drops |
+| U-4 | OxyDex `parseCSV` | drops rows uncounted; positional column guess with no marker | holds on main: each short or unreadable row is a bare `continue` with no count |
+| U-5 | GlucoDex `parseCSV` | drops rows uncounted | holds on main: the rows leave with no count |
+| U-6 | HRVDex summary parser | unparseable stamps dropped uncounted | holds on main: `if (isFinite(r._tMs)) rows.push(r)` drops a row with no count |
+| U-7 | ECG companion parsers | band drops uncounted | holds on main: the band tests in `parseDeviceRR`, `parseDeviceHR` and `parseDeviceACC` drop rows with no count |
+| U-8 | `parseDeviceACC` | 4 Hz default with no defaulted marker | fixed on main: `accFsSource` says `assumed` or `ms-delta`, and each consumer that spends the rate as a timebase refuses `assumed` |
+| U-9 | three Polar adapters | a zero-row companion reads as no companion | holds on main: a zero-row companion sets no field and pushes no warning in `polar-h10-ecg`, `polar-acc` and `polar-sense-ppg` |
+| U-10 | `resmed-edf`, `cpapdex-edf` | fs 25 fallback unmarked; session names dropped uncounted | fixed here: an unreadable BRP Flow rate gives null and a named reason, and the adapter blocks the flow |
+| U-11 | `readEDF` | a duplicate label overwrites | fixed here: a repeated label gets the key `<label> #2`, and `duplicateLabels` names it |
+| U-12 | OxyDex `parsePPG2W` | non-finite motion becomes 0; thin bins skipped uncounted | fixed here for the motion cell: an empty or unreadable cell is null |
 
 ## 6 · Lane W — monitor, bridge and board (`#4267`)
 
@@ -157,17 +162,17 @@ EEGDex sleep-efficiency denominator · PulseDex `pttv` floor · HRVDex CAMQ aver
 | M-1 | `webmon.py` | `heartbeat_ms` not forwarded | fixed on main |
 | M-2 | `webmon.py` | `seal` not forwarded | fixed on main |
 | M-3 | `monitor.html` | the power block is read by nothing | row `2026-11-08-the-monitor-reads-no-o2ring-power-block` |
-| M-4 | `monitor.html` `loadState` | no failure path after boot; a stale state renders as live | unverified |
-| M-5 | Batteries card | a days-old level shows as current with no age stamp | unverified |
-| M-6 | nights fetch | a failure leaves "no nights on disk" after the toast fades | unverified |
-| M-7 | CPAP daemon card | an unknown state renders idle with a fabricated next run | unverified |
+| M-4 | `monitor.html` `loadState` | no failure path after boot; a stale state renders as live | holds on main: `setInterval(loadState, 5000)` has no failure path after boot, so the pill keeps its last text |
+| M-5 | Batteries card | a days-old level shows as current with no age stamp | holds on main: `renderBatt` falls back to `h.last`, which carries no stamp |
+| M-6 | nights fetch | a failure leaves "no nights on disk" after the toast fades | holds on main: a failed `loadNights` sets an empty list, and `if(!NIGHTS)` never tries again |
+| M-7 | CPAP daemon card | an unknown state renders idle with a fabricated next run | holds on main: `cpapStatusLabel` maps an unknown state to idle with `at_hour` 13, and `renderCpapSpool` has the same arm |
 | B-1 | `tools/ntfy-board-bridge.mjs` `classify` | disk recoveries cannot close | fixed on main |
 | B-2 | the bridge | close matches content | row `2026-11-07-bridge-close-matches-content-and-a-crit-episode-cannot-close` (closed) |
 | B-3 | `ackSweep` | empty acks output retires every tracked urgent | fixed on main: `planRetire` refuses and logs |
 | B-4 | the bridge | escalation clock runs from arrival | fixed on main |
-| B-5 | the bridge | a reopen under 2 h merges with no post | unverified |
-| B-6 | the bridge | dedup keys truncate titles to 40 characters | unverified |
-| N-1 | `board-nudge.sh` | a parse failure sums to 0 unread | unverified (bounded) |
+| B-5 | the bridge | a reopen under 2 h merges with no post | fixed on main: the merge is deliberate and `reopenMerged` counts it; the episode keeps its event time |
+| B-6 | the bridge | dedup keys truncate titles to 40 characters | holds on main: `deviceOf` cuts the name at 40 characters |
+| N-1 | `board-nudge.sh` | a parse failure sums to 0 unread | fixed on main: a failed status or an absent count line says "unread unknown, no nudge" |
 | N-2 | `board.mjs` | the open-PR count is capped at 40 with no marker | logged earlier (`#4501`) |
 
 ## 7 · Lane T — tests (`#4269`)
