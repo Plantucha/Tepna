@@ -40427,15 +40427,17 @@
           T.ok('export · the common (non-rich) Ganglior stream carries no apnea block — unchanged by F3', !('apnea' in xPlain));
         } else T.skip('ECGDex.buildNodeExport available', 'not on this build');
       }
-      /* The app-lane builder (ecgdex-app.js buildV2) MIRRORS the rich block field-for-field — the
-         SHARED-SHAPE mandate the rich builder's own comment states — so the same line must exist there. */
-      var appSrc = env.sources && env.sources['ecgdex-app.js'];
-      if (typeof appSrc === 'string')
+      /* The SUMMARY-lane builder MIRRORS the rich block field-for-field — the SHARED-SHAPE mandate
+         the rich builder's own comment states — so the same line must exist there. It was
+         `ecgdex-app.js buildV2` until the payload moved into `ecgdex-dsp.js ecgBuildSummaryExport`;
+         the two builders are still two, and the parity question is unchanged. */
+      var sumSrc = env.sources && env.sources['ecgdex-dsp.js'];
+      if (typeof sumSrc === 'string')
         T.ok(
-          'ecgdex-app.js buildV2 attaches apnea.cvhrHours the same way (shape parity with the rich export)',
-          /out\.apnea\.cvhrIndex\s*!=\s*null[^\n]*denomSec\s*>\s*0[^\n]*cvhrHours\s*=/.test(appSrc)
+          'ecgBuildSummaryExport attaches apnea.cvhrHours the same way (shape parity with the rich export)',
+          /out\.apnea\.cvhrIndex\s*!=\s*null[^\n]*denomSec\s*>\s*0[^\n]*cvhrHours\s*=/.test(sumSrc)
         );
-      else T.skip('ecgdex-app.js source in env.sources', 'not available in this runner');
+      else T.skip('ecgdex-dsp.js source in env.sources', 'not available in this runner');
     });
 
     group('ECGDex late motion load re-renders the quality table (§∅)', 'ecgdex-app · loadDeviceACC · signal quality', function (T) {
@@ -43989,7 +43991,10 @@
         return j < 0 ? null : text.slice(i, j);
       }
       var dspBlock = timeBlockOf(dsp, 'wholeRecordRMSSD: nz(r.rmssd)');
-      var appBlock = timeBlockOf(app, 'wholeRecordRMSSD: r.rmssd');
+      /* The SUMMARY builder's own block. It lived in `app` until the payload moved into
+         `ecgdex-dsp.js`; the marker still distinguishes the two builders, because the orchestrate
+         one reads `nz(r.rmssd)` and this one reads `r.rmssd` bare. */
+      var appBlock = timeBlockOf(dsp, 'wholeRecordRMSSD: r.rmssd');
       // Anti-vacuity: if either anchor moved, this gate reads NOTHING and would pass on silence.
       T.ok('scan is non-vacuous — DSP hrv.time block located', !!dspBlock, 'anchor moved; the parity check below would be hollow');
       T.ok('scan is non-vacuous — app hrv.time block located', !!appBlock, 'anchor moved; the parity check below would be hollow');
@@ -44128,13 +44133,21 @@
         T.skip('ecgdex-app.js in env.sources', 'not wired in this lane');
       } else {
         T.ok('ANTI-VACUITY · the app source loaded', APP.length > 10000, APP.length + ' chars');
-        T.ok('the reader-facing formatter rounds to two decimals', APP.indexOf('Number.isFinite(fs) ? +fs.toFixed(2)') !== -1);
         T.eq('no reader surface interpolates the raw r.fs', (APP.match(/\$\{r\.fs\}/g) || []).length, 0);
-        T.eq('one definition plus the three reader surfaces call the formatter', (APP.match(/_fsReadable\(/g) || []).length, 4);
+        /* The formatter and the EXPORT surfaces moved into `ecgdex-dsp.js` with the payload, so this
+           group reads two sources. The app keeps its own delegating definition plus the two RENDER
+           surfaces; the export note and the unrounded `sampleRateHz` now sit beside the builder.
+           Counting each side separately is what keeps a surface that silently crossed the boundary
+           from passing: a single total would absorb the move. */
+        T.eq('one delegating definition plus the two render surfaces call the formatter', (APP.match(/_fsReadable\(/g) || []).length, 3);
+        T.ok('the app delegates the formatter rather than rounding again', APP.indexOf('return DSP.fsReadable(fs);') !== -1);
         T.ok('the context banner goes through it', APP.indexOf('${_fsReadable(r.fs)} Hz') !== -1);
         T.ok('the sample-rate table row goes through it', APP.indexOf("['Sample rate', _fsReadable(r.fs)") !== -1);
-        T.ok('the export precision note goes through it', APP.indexOf('_fsReadable(r.fs || 130) +') !== -1);
-        T.eq('the export keeps the unrounded rate at sampleRateHz', (APP.match(/sampleRateHz: r\.fs,/g) || []).length, 1);
+        var DSRC = String((env.sources || {})['ecgdex-dsp.js'] || '');
+        T.ok('ANTI-VACUITY · the DSP source loaded', DSRC.length > 10000, DSRC.length + ' chars');
+        T.ok('the reader-facing formatter rounds to two decimals', DSRC.indexOf('Number.isFinite(fs) ? +fs.toFixed(2)') !== -1);
+        T.ok('the export precision note goes through it', DSRC.indexOf('ecgFsReadable(r.fs || 130) +') !== -1);
+        T.eq('the export keeps the unrounded rate at sampleRateHz', (DSRC.match(/sampleRateHz: r\.fs,/g) || []).length, 1);
       }
       var D = env.ECGDSP;
       if (!(D && typeof D.parseECG === 'function')) {
@@ -44834,8 +44847,14 @@
       T.eq('…and the export still says undated', startOf(rN), null);
 
       T.ok('ANTI-VACUITY · the app source loaded', R.length > 10000, R.length + ' chars');
-      T.ok("the app's v2 export reads the anchor by PRESENCE", /startEpochMs: r\.t0Ms != null \? r\.t0Ms : null/.test(R));
-      T.ok('…and no falsy anchor read survives in it', !/t0Ms \|\| null/.test(R));
+      /* The v2 export road moved into `ecgdex-dsp.js ecgBuildSummaryExport`, so the PRESENCE read is
+         pinned there. The app source stays in the group: the falsy-read control below is about the
+         whole app file, and a `t0Ms || null` reappearing in a render path is the same defect. */
+      var SUM = String((env.sources || {})['ecgdex-dsp.js'] || '');
+      T.ok('ANTI-VACUITY · the DSP source loaded', SUM.length > 10000, SUM.length + ' chars');
+      T.ok('the v2 export reads the anchor by PRESENCE', /startEpochMs: r\.t0Ms != null \? r\.t0Ms : null/.test(SUM));
+      T.ok('…and no falsy anchor read survives in the app', !/t0Ms \|\| null/.test(R));
+      T.ok('…nor beside the builder', !/t0Ms \|\| null/.test(SUM));
     });
 
     group('ECGDex §∅ — an AF screen with nothing to score says INSUFFICIENT, not no-af', 'ecgdex-morph · af-screen · absence', function (T) {
@@ -82305,9 +82324,12 @@
         );
       }
 
-      // static guard — the JSON export must keep wiring the acc section (regression)
+      /* static guard — the JSON export must keep wiring the acc section (regression). The payload
+         moved from `ecgdex-app.js buildV2` into `ecgdex-dsp.js ecgBuildSummaryExport`, so the pin
+         follows it; the app legs below read the CARD, which stayed. */
       var appsrc = (env.sources || {})['ecgdex-app.js'];
-      if (appsrc) T.ok('buildV2 export wires an `acc:` section', /acc:\s*accEx\s*\?/.test(appsrc));
+      var sumsrc = (env.sources || {})['ecgdex-dsp.js'];
+      if (sumsrc) T.ok('the summary export wires an `acc:` section', /acc:\s*accEx\s*\?/.test(sumsrc));
       if (appsrc) {
         /* ∅ 2026-11-16: the ACC card read `a.highMotionEpochs` straight into `.filter`, so the
            producer could not withhold it. An UNPLACED motion stream now reports null, and the card
@@ -94166,7 +94188,11 @@
       }
       T.ok('ECGDex shares one _baevskyGeom source of truth', /function _baevskyGeom/.test(e));
       T.ok('ECGDex Welltory CSV row uses _baevskyGeom(r.nn)', /_baevskyGeom\(r\.nn\)/.test(e));
-      T.ok('ECGDex envelope hrv.time carries amo50/mode/mxDMn (CSV↔JSON parity, P4)', /amo50:\s*_geom\.amo50/.test(e) && /mode:\s*_geom\.mode/.test(e) && /mxDMn:\s*_geom\.mxDMn/.test(e));
+      /* The JSON envelope moved into `ecgdex-dsp.js ecgBuildSummaryExport`; the CSV row above
+         stayed in the app. The parity question needs BOTH sides, so it reads both sources. */
+      var eDsp = (env.sources || {})['ecgdex-dsp.js'] || '';
+      T.ok('ANTI-VACUITY · the DSP source loaded', eDsp.length > 10000, eDsp.length + ' chars');
+      T.ok('ECGDex envelope hrv.time carries amo50/mode/mxDMn (CSV↔JSON parity, P4)', /amo50:\s*_geom\.amo50/.test(eDsp) && /mode:\s*_geom\.mode/.test(eDsp) && /mxDMn:\s*_geom\.mxDMn/.test(eDsp));
     });
 
     /* ── HRVDex CARRIES THE UPSTREAM'S `recording.validity`, AND PUBLISHES ITS OWN ────────────────
@@ -95781,7 +95807,9 @@
       // ── 4 · the disclosure and the grades, pinned on the shipped source ──────────────────────
       var profSrc = (env.sources && env.sources['ecgdex-profile.js']) || '';
       var appSrc = (env.sources && env.sources['ecgdex-app.js']) || '';
+      var dspSrcPriors = (env.sources && env.sources['ecgdex-dsp.js']) || '';
       T.ok('both card sources are readable in this lane', profSrc.length > 1000 && appSrc.length > 1000, profSrc.length + '/' + appSrc.length);
+      T.ok('and the export source too', dspSrcPriors.length > 10000, dspSrcPriors.length + ' chars');
       T.ok(
         'the hero note prints no age-norm sentence unless the age was entered',
         /let ageNote = 'No age entered, so this card shows no age-relative HRV comparison\.';\s*\n\s*if \(r\.ageEntered\) \{/.test(profSrc),
@@ -95823,9 +95851,11 @@
       T.ok('the Rest-HR table row prints no target over an unentered age', /r\.ageEntered && r\.expRHR \? '~' \+ r\.expRHR : '—'/.test(appSrc), 'table target guard missing');
       T.ok('the rMSSD table row prints no prior as a target either', /r\.ageEntered \? r\.expRmssd : '—'/.test(appSrc), 'rMSSD row guard missing');
       T.ok('no card surface reintroduces the unguarded age-norm label', !/sub: r\.expRHR \? 'age norm/.test(appSrc) && !/sub: r\.expRmssd \? 'age norm/.test(appSrc), 'unguarded label present');
+      /* The export road left the app for `ecgdex-dsp.js ecgBuildSummaryExport`. The two priors are
+         still two keys, and the card legs above still read the app. */
       T.ok(
         'the export still maps both priors under their own keys',
-        /expectedRMSSDForAge: r\.expRmssd \?\? null/.test(appSrc) && /expectedRestHRForAge: r\.expRHR \?\? null/.test(appSrc),
+        /expectedRMSSDForAge: r\.expRmssd \?\? null/.test(dspSrcPriors) && /expectedRestHRForAge: r\.expRHR \?\? null/.test(dspSrcPriors),
         'export keys moved'
       );
 
@@ -104872,6 +104902,140 @@
           qEq.fixture.crossNight ? String(Object.keys(qEq.fixture.crossNight)) : 'null'
         );
       }
+    });
+
+    /* ── THE ECGDex SUMMARY / SERIES EXPORT PAYLOAD ≡ ITS COMMITTED FIXTURE ────────────────────
+       The 505-line payload the app's JSON button writes was built INLINE in `ecgdex-app.js`
+       (`buildV2`, and the envelope in `exportJSON`). The suite drives `exportGanglior` for this
+       node, so NOTHING re-ran that payload: a fabricated value in it reded no fixture, and the
+       only evidence a reviewer could offer was a pin on the app's source text. A source pin dies
+       on any reflow of the line and says nothing about the bytes a reader receives. These legs
+       read the bytes. Row `2026-11-24-four-nodes-summary-export-payload-has-no-known-answer`.
+
+       `generated` is ANCHORED to the recording's own start, exactly as `tools/regen-ecgdex-goldens.mjs`
+       anchors it, so neither side carries a literal the other has to repeat. The input is COMMITTED,
+       so a skip here is a wiring defect and never an absent recording, and the first leg says so. */
+    group('ECGDex summary/series export ≡ its committed fixture', 'ecgdex-dsp · fixtures · equivalence · one-road', function (T) {
+      var E = env.ECGDSP || env.ECGDex;
+      var ready = !!(E && typeof E.computeResult === 'function' && typeof E.buildSummaryExport === 'function' && typeof E.buildSeriesExport === 'function');
+      T.ok('ECGDSP exposes computeResult + buildSummaryExport + buildSeriesExport', ready, 'co-load ecgdex-dsp.js in BOTH runners');
+      if (!ready) return;
+
+      var eq = (env.equiv || {}).ecgdex_summary_export;
+      if (!(eq && eq.inputs && eq.inputs[0] && eq.fixture !== undefined)) {
+        T.ok('the committed input and fixture are wired (ecgdex_summary_export)', false, 'COMMITTED — wire env.equiv.ecgdex_summary_export in BOTH runners');
+        return;
+      }
+
+      /* The volatile keys by NAME at ANY depth, the set `tools/regen-goldens-core.mjs` carries.
+         `generated` is anchored on both sides, so it is stripped for the DIFF and asserted on its
+         own below — a stripped key that nothing else reads is a key this group does not check. */
+      var VOLATILE = ['file', 'provenance', 'kernel', 'generated'];
+      function strip(v) {
+        if (Array.isArray(v)) {
+          for (var i = 0; i < v.length; i++) v[i] = strip(v[i]);
+          return v;
+        }
+        if (v && typeof v === 'object') {
+          var ks = Object.keys(v);
+          for (var j = 0; j < ks.length; j++) {
+            if (VOLATILE.indexOf(ks[j]) >= 0) delete v[ks[j]];
+            else v[ks[j]] = strip(v[ks[j]]);
+          }
+          return v;
+        }
+        return v;
+      }
+      function firstDiff(a, b, path) {
+        path = path || '$';
+        if (a === b) return null;
+        var ta = a === null ? 'null' : Array.isArray(a) ? 'array' : typeof a;
+        var tb = b === null ? 'null' : Array.isArray(b) ? 'array' : typeof b;
+        if (ta !== tb) return path + ': ' + ta + ' vs ' + tb;
+        if (ta === 'array') {
+          if (a.length !== b.length) return path + '.length: ' + a.length + ' vs ' + b.length;
+          for (var i = 0; i < a.length; i++) {
+            var d = firstDiff(a[i], b[i], path + '[' + i + ']');
+            if (d) return d;
+          }
+          return null;
+        }
+        if (ta === 'object') {
+          var ka = Object.keys(a),
+            kb = Object.keys(b);
+          if (String(ka) !== String(kb)) return path + ' keys: ' + String(ka) + ' vs ' + String(kb);
+          for (var j = 0; j < ka.length; j++) {
+            var d2 = firstDiff(a[ka[j]], b[ka[j]], path + '.' + ka[j]);
+            if (d2) return d2;
+          }
+          return null;
+        }
+        return path + ': ' + JSON.stringify(a) + ' vs ' + JSON.stringify(b);
+      }
+      var clone = function (x) {
+        return JSON.parse(JSON.stringify(x));
+      };
+
+      var r = E.computeResult({ text: eq.inputs[0] });
+      T.ok('the committed input computed a result object', !!r, r ? '' : 'computeResult returned null');
+      if (!r) return;
+      var generated = r.t0Ms != null ? new Date(r.t0Ms).toISOString() : null;
+      var built = E.buildSummaryExport(r, { kernel: null, provenance: null, generated: generated });
+      var diff = firstDiff(strip(clone(built)), strip(clone(eq.fixture)));
+      T.ok('the summary payload reproduces ' + eq.fixtureFile + ' byte-for-byte', diff === null, diff || '');
+      T.eq('…and the anchored stamp agrees with the committed one', built.schema.generated, eq.fixture.schema.generated);
+
+      /* ANTI-VACUITY. An equality over a payload of nulls is green and examines nothing, so COUNT
+         what the fixture actually pins. The committed input is 59.4 s with no ACC stream, which is
+         why four whole sections are a refusal rather than a value — this leg records the number so a
+         later input that silently shrinks the payload reds here. */
+      var nn = 0,
+        nulls = 0;
+      (function count(x) {
+        if (Array.isArray(x)) {
+          for (var i = 0; i < x.length; i++) count(x[i]);
+        } else if (x && typeof x === 'object') {
+          var ks = Object.keys(x);
+          for (var j = 0; j < ks.length; j++) count(x[ks[j]]);
+        } else if (x === null) nulls++;
+        else nn++;
+      })(eq.fixture);
+      T.ok('the fixture pins over 140 non-null leaves', nn > 140, nn + ' non-null, ' + nulls + ' null');
+      T.ok('…over every section of the payload', Object.keys(eq.fixture).length >= 14, String(Object.keys(eq.fixture).length) + ' sections');
+
+      /* §∅ — the four sections this input CANNOT reach. The fixture pins a REFUSAL there, never a
+         value, and saying so is what keeps a reader from treating this fixture as whole-payload
+         coverage. A longer committed input would move these from null to a number, and that is a
+         separate unit with its own input. */
+      T.eq('§∅ sleep is a refusal at this length, not a zero', eq.fixture.sleep, null);
+      T.eq('§∅ apnea is a refusal at this length, not a zero', eq.fixture.apnea, null);
+      T.eq('§∅ acc is a refusal with no stream, not a zero', eq.fixture.acc, null);
+      T.eq('§∅ hrvStability is a refusal at this length, not a zero', eq.fixture.hrvStability, null);
+
+      /* THE SERIES ENVELOPE. It wraps, and it decides four things of its own: the count, ONE
+         `generated` stamp, the crossNight block it is HANDED, and the mapped elements. The app read
+         `new Date().toISOString()` TWICE here, so a call that crossed a millisecond boundary
+         published two different stamps for one file. One read cannot disagree with itself. */
+      var cross = { schema: { name: 'ganglior.crossnight' }, n: 2 };
+      var series = E.buildSeriesExport([r, r], { kernel: null, provenance: null, generated: generated, crossNight: cross });
+      T.eq('the envelope counts its recordings', series.recordingCount, 2);
+      T.eq('…carries ONE generated stamp, the same one at both reads', series.generated, series.schema.generated);
+      T.eq('…and that stamp is the anchor it was handed', series.generated, generated);
+      T.ok('…passes the crossNight block through unchanged, never a recomputed one', series.crossNight === cross);
+      T.eq('…and each element is the summary payload itself', firstDiff(strip(clone(series.recordings[0])), strip(clone(built))), null);
+      /* §∅ — an ABSENT crossNight is null and never a fabricated aggregate, and an empty list has no
+         recording to describe, so it is null rather than an envelope over nothing. */
+      T.eq('§∅ an absent crossNight stays null', E.buildSeriesExport([r], { kernel: null, provenance: null }).crossNight, null);
+      T.eq('§∅ an empty list returns null, not an envelope over nothing', E.buildSeriesExport([], {}), null);
+
+      /* SOURCE MIRRORS — one road. Each leg reds when the app rebuilds a payload of its own. */
+      var app = (env.sources && env.sources['ecgdex-app.js']) || '';
+      if (app) {
+        T.ok('the app delegates the summary payload', /DSP\.buildSummaryExport\(r, \{/.test(app));
+        T.ok('…and the series envelope', /DSP\.buildSeriesExport\(list, \{/.test(app));
+        T.ok('CONTROL · the app keeps no `ganglior.node-export` literal of its own', !/name: 'ganglior\.node-export'/.test(app));
+        T.ok('CONTROL · and no second clock read in the export road', (app.match(/generated: new Date\(\)\.toISOString\(\)/g) || []).length === 0);
+      } else T.skip('ecgdex-app.js source unavailable');
     });
 
     /* ── FIXTURE REPRODUCIBILITY — a code claim nothing checks is decoration ────────────────────
