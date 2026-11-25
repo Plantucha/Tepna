@@ -59,21 +59,25 @@ assertions in `tests/dex-tests.js`.
 
 ### PR 2 — the evaluator and the model file
 
-- [ ] Every block kind and every pass kind of the reference, and not only the two the base model
+- [x] Every block kind and every pass kind of the reference, and not only the two the base model
       uses: the swap of a model file is the deliverable, so the next model needs no code.
-- [ ] The prepared inputs and the design columns round to 32-bit floats before the product with the
+- [x] The prepared inputs and the design columns round to 32-bit floats before the product with the
       coefficients. The product and the softmax run in 64-bit.
-- [ ] Parity against the `expected` field: every posterior within 1e-4, and the same stage on each of
+- [x] Parity against the `expected` field: every posterior within 1e-4, and the same stage on each of
       the 60 epochs.
-- [ ] **Absence is null in the EVALUATOR, and not only on the screen** (@kestrel, #8464 rule 1, which
-      moves this rule from PR 3 to here). An epoch whose inputs are all unmeasured gets
-      `stage: null` and a named reason, never a stage.
-- [ ] The null rule runs AFTER the posterior, so the parity test still compares each posterior
+- [x] **Absence is null in the EVALUATOR, and not only on the screen** (@kestrel, #8464 rule 1, which
+      moves this rule from PR 3 to here). An epoch that misses half or more of its 36 inputs gets
+      `stage: null` and a named reason, never a stage. The threshold is the fit's own: the
+      end-of-night block already drops an epoch over 0.5 missing from its reference population.
+      Board #8487 records the decision, and @kestrel added two conditions in #8489 and #8491 —
+      count with `Number.isFinite`, so a measured zero still scores, and report `nMeasured` and
+      `nInputs` beside every stage.
+- [x] The null rule runs AFTER the posterior, so the parity test still compares each posterior
       (@kestrel, #8464 rule 2). The expected vectors stay as they are.
-- [ ] A second model file loads with no code change, and a test proves it over a small synthetic
+- [x] A second model file loads with no code change, and a test proves it over a small synthetic
       second file (@kestrel, #8464 rule 6).
-- [ ] The model file is a fitted artefact: it gets a hash pin and a provenance entry.
-- [ ] **The licence table lands before I push this PR.** See §4.
+- [x] The model file is a fitted artefact: it gets a hash pin and a provenance entry.
+- [x] **The licence table lands before I push this PR.** See §4.
 
 ### PR 3 — the wiring in EEGDex
 
@@ -88,8 +92,8 @@ assertions in `tests/dex-tests.js`.
 
 ## 3. The absence rule, stated once
 
-§∅ governs this node as it governs every other. An epoch with no measured input is `null` with a
-named reason. The formula still answers a posterior for such an epoch, because its inputs read 0 and
+§∅ governs this node as it governs every other. An epoch that misses half or more of its 36 inputs
+is `null` with a named reason, and a night with no measured input at all names the night. The formula still answers a posterior for such an epoch, because its inputs read 0 and
 its `miss` input reads 1, so the refusal is a step AFTER the arithmetic and never a change to it.
 That split is what lets the parity test compare every posterior while the node still refuses to name
 a stage it did not measure.
@@ -97,13 +101,18 @@ a stage it did not measure.
 ## 4. The licence table, and what goes to @kestrel first
 
 The model file's `fit.names` field holds 14 names from 8 corpora. `THIRD-PARTY.md` and the model
-file's header carry a table of those names with dataset, version, licence and DOI.
+file stay as they are, and `THIRD-PARTY.md` carries a table of those names with the data set, the
+version, the licence and the accession identifier. The rows give an identifier and NOT a DOI string:
+the DOI ledger holds papers that Crossref resolves, and a data-repository DOI would claim a check
+that nobody ran. Board #8487 records that decision too.
 
-- [ ] I read each licence AT ITS SOURCE, and I never copy a licence cell from the lab's inventory.
-- [ ] @finch tells me which corpus version each fit name used, because the inventory has no version
-      column (@kestrel asked for this in #8464).
-- [ ] A set that is non-commercial, share-alike or under a signed agreement goes to @kestrel BEFORE
+- [x] I read each licence AT ITS SOURCE, and I never copy a licence cell from the lab's inventory.
+- [x] @finch tells me which corpus version each fit name used, because the inventory has no version
+      column (@kestrel asked for this in #8464). Three rows carried no version, and I read the
+      number from the data set's own project page instead.
+- [x] A set that is non-commercial, share-alike or under a signed agreement goes to @kestrel BEFORE
       the push, and so does any set whose licence is none of CC0, CC BY 4.0 or ODC-By 1.0.
+      Nothing went: all 8 licences read CC0, CC BY 4.0 or ODC-By 1.0 (board #8482).
 
 ## 5. What stays out
 

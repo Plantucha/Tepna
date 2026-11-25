@@ -241,3 +241,46 @@ this page.
 - **Two licences stay unverified.** `capture-host/requirements-dev.txt` declares `pytest-asyncio` and `detect-secrets`, and CI installs both. Neither sits in the environment that supplied every other licence here, so this page quotes none for them.
 - **GitHub's own workflow actions.** `.github/workflows/` names checkout, language setup, cache, artifact upload, dependency review and code scanning. They run inside the hosted runner. No box of this project installs them, and this page reads no licence for them.
 - **A table row needs a caller.** This page lists no tool that the tracked tree never names. That rule kept a symbol indexer and a passage reranker out: neither appears anywhere in the tree today.
+
+---
+
+## The data sets behind the EEG stage formula
+
+`eeg-stage-model-base-2026-11-17.json` carries the coefficients of the EEG stage
+formula that `eegdex-stage-model.js` evaluates. The fit read 8 public sleep
+corpora. The model file holds no sample of any recording, and no bundle fetches
+one. Each licence below asks for attribution, so this section names each corpus.
+
+Each row gives the identifier, the version and the licence that this project
+read AT THE SOURCE on 2026-11-24: the snapshot's own description file, the
+record's own metadata, or the project page. Where a source states no version,
+the row says so. No cell comes from a second-hand inventory.
+
+**The rows give an accession identifier and a version, and no DOI string.** The
+DOI gate of this repo holds every DOI of a reader-facing surface against
+`audits/CITATION-VERIFICATION-2026-08-05.json`, which records papers that
+resolve at Crossref. A data-repository DOI resolves at DataCite instead, so that
+ledger cannot verify one, and a row there would claim a check that nobody ran.
+The identifier and the version below reach the same record.
+
+| fit names | corpus | identifier and version | licence (read at the source) | what I read |
+|---|---|---|---|---|
+| `boashb` · `boaspsg` · `boashb.ff` · `boaspsg.ff` · `boashb.fm2` | The Bitbrain Open Access Sleep (BOAS) dataset | OpenNeuro `ds005555`, snapshot 1.1.3 | CC0 | the snapshot's own `dataset_description.json` |
+| `surrey` | Surrey cEEGrid sleep data set | OpenNeuro `ds005207`, snapshot 1.0.0 | CC0 | the snapshot's own `dataset_description.json` |
+| `isleeps` | Polysomnography Dataset for Sleep Analysis in Indian Stroke Patients | Zenodo record `14873844`; the record states no version number, and it is the last of its chain | CC BY 4.0 (the record gives `cc-by-4.0`) | the record's own metadata |
+| `isleeps2` · `isleeps2.c` | Polysomnography Dataset for Sleep Analysis in Ischemic Stroke Patients | figshare article `29253068`, version 2 | CC BY 4.0 | the article's own metadata |
+| `anphy` · `anphy.ff` | ANPHY-Sleep | OSF project `r26fh`; the project states no version number | CC0 1.0 Universal | the project's own licence record |
+| `hmc` | Haaglanden Medisch Centrum sleep staging database | PhysioNet `hmc-sleep-staging`, version 1.1 | CC BY 4.0 | the project page |
+| `ucddb` | St. Vincent's University Hospital / University College Dublin Sleep Apnea Database | PhysioNet `ucddb`, version 1.0.0 | Open Data Commons Attribution License v1.0 | the project page |
+| `capslpdb` | CAP Sleep Database | PhysioNet `capslpdb`, version 1.0.0 | Open Data Commons Attribution License v1.0 | the project page |
+
+A suffix on a fit name gives another view of the same night, never other data.
+`.ff` and `.fm2` are other EEG derivations, and `.c` is a central derivation.
+`boashb` and `boaspsg` are the headband recording and the laboratory recording
+of the same subjects.
+
+Every licence above sits inside the set that this project accepts: CC0, CC BY
+4.0 or the Open Data Commons Attribution License. No corpus asks for
+non-commercial use, for a share-alike term, or for a signed agreement. The
+sources also give three versions that the hand-off left open: 1.1 for `hmc`,
+1.0.0 for `ucddb` and 1.0.0 for `capslpdb`.
