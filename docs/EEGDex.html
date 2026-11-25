@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="05154e3f1e17" data-compute-hash="5e8d6de1a8e0">
+<html lang="en" data-manifest-hash="5cf77f4688cd" data-compute-hash="42d290d5f250">
 <head>
 <!--
   EEGDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). EEGDex ships zero
      inline scripts (all init lives in eegdex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+5s/308ZZHLhEYgoeaMWJ/zCs2ZUakeHuo1fhny95Bc=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-K7+uIbG5ZqPm405RoRfCVCG+Q2LLPZtHsZfR8aQyP8M=' 'sha256-M+HTdSW/wfBFuyWp1YK/XRFPzAI4iBGR/llOHk80SgI=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wYDQbx7BnjeWBpxiSXeMr45U444dBQ1yup2hvhEudhU=' 'sha256-zNrW85hAqNGql/xLaI8/ruXZeyqkmumE0Jh22zrFop0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-2EhTu2g2o7ZMvcurgsf4UzBHvFbdn8ISGys/5ZBw7gs=' 'sha256-5qQ/Ie05Bfa/0CzXWHxhdGjnjTK/3PRrtMUYg5SEi78=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7hTtbE4VLWkaBh5MQ4eZeqcd7vfHW+BL+yZGmGS7oO0=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-MrCAXzD9kW5ELOmI1tCYiUdGEFdOVr/ljZkcUbwaCkU=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-pbw/gkHA5G4PvvBF0HCVMd64oKZkMoJSBgKPJ5NkQGQ=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wYDQbx7BnjeWBpxiSXeMr45U444dBQ1yup2hvhEudhU=' 'sha256-ydcDcU9PST3H273GxCl0jqNGMcODN42+le6wT6uVlLY='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>EEGDex — Sleep EEG Analyzer · v2.37.0</title>
@@ -2758,12 +2758,16 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     <div class="section-title" id="sec-input">EEG Input <span class="st-note">European Data Format <code>.edf</code> — one EEG channel · parsed &amp; analyzed locally</span></div>
     <div class="card">
       <label class="eg-zone" id="egZone">
-        <input type="file" id="egInput" accept=".edf,.EDF" hidden>
+        <input type="file" id="egInput" accept=".edf,.EDF,.json" hidden>
         Drop one EDF recording here, or click to choose.
       </label>
       <div class="controls" style="margin-top:12px">
         <button class="btn" type="button" id="egDemo">▶ Demo</button>
       </div>
+      <!-- THE STAGE FORMULA'S SWITCH, and it carries no `checked`: the page loads with the formula
+           OFF and the band-power stager is this node's answer until the reader decides otherwise. The
+           model file is DATA, so the reader supplies it and no coefficient of it sits in this page. -->
+      <p class="chart-note"><label><input type="checkbox" id="egFormulaOn"> Also score with a stage formula (research) — drop its model file here too</label></p>
       <p class="chart-note" id="egStatus"></p>
     </div>
 
@@ -2772,6 +2776,9 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
 
     <div class="section-title" id="egHypno" style="display:none">Hypnogram <span class="st-note">30 s epochs · median-smoothed · unscored epochs hatched</span></div>
     <div class="card" id="egHypnoCard" style="display:none"></div>
+
+    <div class="section-title" id="egFormula" style="display:none">Stage Formula <span class="st-note">a second stage source, off unless you turn it on · four classes · no figure stands beside it yet</span></div>
+    <div class="card" id="egFormulaCard" style="display:none"></div>
 
     <div class="section-title" id="egArch" style="display:none">Sleep Architecture <span class="st-note">twelve numbers over the staged series · each absence names its own reason</span></div>
     <div class="card" id="egArchCard" style="display:none"></div>
@@ -5315,6 +5322,8 @@ var EEG_REGISTRY = {
     cite:'Calm score — heuristic wellness composite, not a validated EEG metric' },
   hypnogram: { label:'Hypnogram', unit:'', goodDirection:'neutral', depth:'basic', evidence:'emerging',
     cite:'Single-channel band-power staging — literature-backed, not PSG-validated (EEGDEX-BUILD-BRIEF §0)' },
+  hypnogramFormula: { label:'Formula hypnogram', unit:'', goodDirection:'neutral', depth:'advanced', evidence:'experimental',
+    cite:'A second stage source, off unless the reader turns it on. The coefficients were fitted on sleep-laboratory derivations and a small number of forehead recordings, and no blind read has judged this port\'s agreement with an expert score, so the series carries `experimental`, one rank above the lowest tier the ladder holds. It names four classes (wake, light, deep, REM) and not the band-power stager\'s five' },
   tst: { label:'TST', unit:'h', goodDirection:'neutral', depth:'basic', evidence:'emerging',
     cite:'Total sleep time from the staged hypnogram — it inherits the stager tier, never the clock tier' },
   sleepEff: { label:'SE', unit:'%', goodDirection:'up', depth:'basic', evidence:'emerging',
@@ -5384,6 +5393,8 @@ var EEG_LABEL_ALIAS = {
   'calm':'calmScore',
   'composite relaxation index blended from band ratios':'calmScore',
   'per-epoch sleep-stage series scored from one eeg channel':'hypnogram',
+  'formula hypnogram':'hypnogramFormula',
+  'per-epoch stage series from a fitted stage formula over the same eeg channel':'hypnogramFormula',
   'total sleep time':'tst',
   'hours of epochs scored n1, n2, n3 or rem':'tst',
   'sleep efficiency':'sleepEff',
@@ -7732,6 +7743,1356 @@ global.EegRegistry = {
   };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 </script>
+<!-- The stage formula's two modules: the feature block that prepares the 35 columns and the
+     evaluator that reads a model file's coefficients. Both are inert until the switch is on. -->
+<script data-inline-src="eegdex-stage-features.js">/*
+ * eegdex-stage-features.js — Tepna
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+ * project root, or http://www.apache.org/licenses/LICENSE-2.0
+ * ═════════════════════════════════════════════════════════════════════════════
+ * EEGDex — the feature block of the stage formula. `window.EEGFEAT`.
+ *
+ * ── A PORT, NOT A DESIGN ─────────────────────────────────────────────────────
+ * One EEG derivation in, 35 columns per 30 s epoch out, in the order of
+ * `EEG_NAMES`. The arithmetic is a port of the files that FIT the coefficients
+ * the evaluator reads, so every column here must reproduce the number the fit
+ * saw. This file therefore invents nothing: a change to any constant or to any
+ * order of operations below makes the coefficients describe a different
+ * quantity, and that is a silent error rather than a failing test. The parity
+ * assertion in `tests/dex-tests.js` holds all 35 columns against a committed
+ * synthetic vector at 1e-9 relative, which is the only thing that keeps the two
+ * sides one quantity.
+ *
+ * THE SOURCE IS NOT IN THIS REPOSITORY, so this file carries no `@port-from`
+ * declaration and `tools/port-parity.mjs` reads nothing about it. That instrument
+ * pins a copy against a source TEXT the tree holds; here the pin is the committed
+ * vector instead, which is the stronger of the two: it compares the two sides'
+ * NUMBERS rather than noticing that a source file moved. A port declaration naming
+ * a path outside the tree would assert a reconciliation no gate can check.
+ *
+ * ── WHAT THIS FILE IS NOT ────────────────────────────────────────────────────
+ * It is not the stager. `eegdex-dsp.js` holds the band-power stager that EEGDex
+ * SHIPS, and that stays the default. This file is one half of a second,
+ * switched-off path: the features here, the coefficient evaluation next. It
+ * reads no label, decides no stage, and surfaces no number.
+ *
+ * ── EVERY COLUMN IS FREE OF THE SIGNAL'S UNIT ────────────────────────────────
+ * The device's µV scale is not verified, so a night multiplied by any constant
+ * must give the same row. Three means carry that:
+ *   · a share, a ratio and a frequency need no scale;
+ *   · a log power has the NIGHT's median of that column subtracted;
+ *   · the event detectors run on the night in a per-night amplitude form (the
+ *     night times `AMP72.refUv` over its own median absolute amplitude).
+ *
+ * ── ABSENCE (§∅) ─────────────────────────────────────────────────────────────
+ * NaN is "not measured" throughout, and it is the ONE absent value this layer
+ * speaks: an epoch with fewer than `EEGBLOCK.minSeconds` measured seconds, or a
+ * night with no signal, carries NaN in that column and never a 0. A measured 0
+ * is a legal value in every one of these columns, so the tests read finiteness
+ * and never truthiness. The conversion of NaN to the suite's `null` happens one
+ * layer out, in the evaluator, where the contract is JSON.
+ */
+
+(function (root) {
+  'use strict';
+
+  /* The band edges and the window of the per-second spectrum. This section's choice of 2 s: it puts
+     0.5 Hz bins on the grid, so the delta band starts ON a bin rather than inside one. */
+  const EEG_BANDS = [
+    ['delta', 0.5, 4],
+    ['theta', 4, 8],
+    ['alpha', 8, 11],
+    ['sigma', 11, 16],
+    ['beta', 16, 30],
+    ['gamma', 30, 45]
+  ];
+  const EEG_SEC_WIN_S = 2;
+
+  /* An epoch measured for less than half of its samples carries no event value. The fit's rule
+     stager read the same floor; the formula arm keeps the number and not the stager. */
+  const FEAT_MIN_MEASURED = 0.5;
+
+  /* The per-night amplitude form. `refUv` is the median of the median absolute amplitude of 230
+     nights of published, openly licensed sleep recordings, in 0.5–30 Hz — a REFERENCE amplitude, not
+     a calibration: it only puts every night on one scale so that an absolute threshold means the
+     same thing on all of them. */
+  const AMP72 = { band: [0.5, 30], refUv: 7.7, refNights: 230 };
+
+  /* A night's median absolute amplitude in 0.5–30 Hz over its measured samples (same unit as x). */
+  function nightAmplitude(x, fs) {
+    const { y, bad } = bandpass(x, fs, AMP72.band[0], AMP72.band[1]);
+    let m = 0;
+    for (let i = 0; i < y.length; i++) if (!bad[i]) y[m++] = Math.abs(y[i]);
+    if (!m) return NaN;
+    const a = y.subarray(0, m).sort();
+    return m % 2 ? a[(m - 1) / 2] : (a[m / 2 - 1] + a[m / 2]) / 2;
+  }
+
+  /* Slow oscillation — the published zero-crossing criteria: band-pass 0.1–4 Hz; a negative-going
+     zero crossing and the next positive-going one 0.3–1.0 s apart; a negative peak below −80 µV; a
+     negative-to-positive peak-to-peak above 140 µV. `aasm` is the scoring manual's own amplitude
+     figure (75 µV peak-to-peak, with no separate negative-peak figure), which is the form a
+     calibrated frontal-to-mastoid derivation takes, and the form this block uses. */
+  const SLOW = {
+    band: [0.1, 4],
+    halfWaveS: [0.3, 1.0],
+    published: { negUv: -80, p2pUv: 140 },
+    aasm: { negUv: 0, p2pUv: 75 }
+  };
+
+  /* One second-order Butterworth section (Q = 1/√2) as a biquad; `kind` 'hp' or 'lp'. This section's choice of filter:
+   the sources give the band, not the filter. */
+  function biquad(kind, f0, fs, Q = Math.SQRT1_2) {
+    const w = (2 * Math.PI * f0) / fs,
+      c = Math.cos(w),
+      al = Math.sin(w) / (2 * Q),
+      a0 = 1 + al;
+    const b = kind === 'lp' ? [(1 - c) / 2, 1 - c, (1 - c) / 2] : [(1 + c) / 2, -(1 + c), (1 + c) / 2];
+    return { b: b.map((v) => v / a0), a: [(-2 * c) / a0, (1 - al) / a0] };
+  }
+  function run(q, x) {
+    const y = new Float64Array(x.length);
+    let x1 = 0,
+      x2 = 0,
+      y1 = 0,
+      y2 = 0;
+    for (let i = 0; i < x.length; i++) {
+      const v = q.b[0] * x[i] + q.b[1] * x1 + q.b[2] * x2 - q.a[0] * y1 - q.a[1] * y2;
+      x2 = x1;
+      x1 = x[i];
+      y2 = y1;
+      y1 = v;
+      y[i] = v;
+    }
+    return y;
+  }
+  const rev = (x) => Float64Array.from(x).reverse();
+
+  /* Zero-phase band-pass: high-pass at lo and low-pass at hi, each run forward and backward. A sample that is not finite
+   enters the filter as 0 (after the record's mean is removed); the caller gets the mask back and must not use an event that touches it. */
+  function bandpass(x, fs, lo, hi, order = 2) {
+    const bad = new Uint8Array(x.length),
+      z = new Float64Array(x.length);
+    let sum = 0,
+      m = 0;
+    for (let i = 0; i < x.length; i++)
+      if (Number.isFinite(x[i])) {
+        sum += x[i];
+        m++;
+      }
+    const mean = m ? sum / m : 0; // the record's own offset is removed first: a step of an electrode offset into a 0.1 Hz high-pass rings for ~20 s
+    for (let i = 0; i < x.length; i++) {
+      if (Number.isFinite(x[i])) z[i] = x[i] - mean;
+      else bad[i] = 1;
+    }
+    let y = z;
+    /* order 2 (the slow-oscillation band, wide): one section per edge at the nominal edge.
+     order N > 2 (the narrow spindle bands): a Butterworth of order N per edge as N/2 sections, with each cutoff moved
+     by (sqrt(2) - 1)^(1/(2N)) so that the forward-and-backward response is -3 dB exactly AT the nominal edge. */
+    const secs = [];
+    if (order === 2) secs.push(biquad('hp', lo, fs), biquad('lp', hi, fs));
+    else {
+      const k = Math.pow(Math.SQRT2 - 1, 1 / (2 * order));
+      for (let j = 0; j < order / 2; j++) {
+        const Q = 1 / (2 * Math.cos((Math.PI * (2 * j + 1)) / (2 * order)));
+        secs.push(biquad('hp', lo * k, fs, Q), biquad('lp', hi / k, fs, Q));
+      }
+    }
+    for (const q of secs) y = rev(run(q, rev(run(q, y))));
+    return { y, bad };
+  }
+
+  /* The slow oscillations of x (µV, fs Hz) by the criteria `crit` ({ negUv, p2pUv }). Each event: t0 = the negative-going
+   zero crossing, tz = the positive-going one, t1 = the end of the positive half-wave (the next negative-going crossing,
+   at most 1 s after tz), neg = the negative peak, p2p = positive peak minus negative peak. An event within `guardS`
+   of a sample that was not measured is dropped. */
+  function detectSlowWaves(x, fs, crit = SLOW.published, guardS = 1) {
+    const { y, bad } = bandpass(x, fs, SLOW.band[0], SLOW.band[1]),
+      cum = new Int32Array(y.length + 1),
+      out = [],
+      g = Math.round(guardS * fs),
+      maxPos = Math.round(1.0 * fs);
+    for (let i = 0; i < y.length; i++) cum[i + 1] = cum[i] + bad[i];
+    let i = 1;
+    while (i < y.length) {
+      if (!(y[i - 1] >= 0 && y[i] < 0)) {
+        i++;
+        continue;
+      }
+      const a = i;
+      let j = a,
+        neg = 0;
+      while (j < y.length && y[j] < 0) {
+        if (y[j] < neg) neg = y[j];
+        j++;
+      }
+      if (j >= y.length) break;
+      let k = j,
+        pos = 0;
+      while (k < y.length && y[k] >= 0 && k - j < maxPos) {
+        if (y[k] > pos) pos = y[k];
+        k++;
+      }
+      const half = (j - a) / fs;
+      if (half >= SLOW.halfWaveS[0] && half <= SLOW.halfWaveS[1] && neg < crit.negUv && pos - neg > crit.p2pUv) {
+        const lo = Math.max(0, a - g),
+          hi = Math.min(y.length, k + g);
+        if (cum[hi] - cum[lo] === 0) out.push({ t0: a / fs, tz: j / fs, t1: k / fs, neg, p2p: pos - neg });
+      }
+      i = j;
+    }
+    return out;
+  }
+
+  /* Share of each 30 s epoch covered by slow oscillations (t0…t1), the quantity the manual's "20 % of the epoch" refers to. */
+  function slowWaveFraction(events, nEpochs, epochS = 30) {
+    const f = new Float64Array(nEpochs);
+    for (const e of events)
+      for (let ep = Math.max(0, Math.floor(e.t0 / epochS)); ep <= Math.min(nEpochs - 1, Math.floor(e.t1 / epochS)); ep++)
+        f[ep] += Math.max(0, Math.min(e.t1, (ep + 1) * epochS) - Math.max(e.t0, ep * epochS)) / epochS;
+    return f;
+  }
+
+  /* Sleep spindle — the published single-channel four-feature detector, its four constants read at the paper:
+   sigma band 11–16 Hz, broadband 0.3–30 Hz, windows of 0.3 s stepped 0.1 s;
+     abs  = log10 of the mean squared sigma signal                                   threshold 1.25 (log10 µV²)
+     rel  = log10 (sigma power / 4.5–30 Hz power), z-scored against a 30 s baseline  threshold 1.6
+     cov  = log10 of the covariance of the broadband and the sigma signal, z-scored  threshold 1.3
+     corr = that covariance over the product of the two standard deviations          threshold 0.69
+   The baseline mean and SD use only the values between the 10th and the 90th percentile of the 30 s around a window.
+   A spindle = consecutive windows passing all four, extended while abs and cov still pass, kept when 0.3–2.5 s long.
+   The thresholds were set by their authors on a central derivation and are valid for 11–16 Hz only.
+   This section's choices (the paper's supplement was not read): the filters (Butterworth of order 8 per edge, zero-phase,
+   -3 dB at the nominal edges; a 13 Hz sine keeps 0.92 of its power), band
+   powers taken in the time domain, and the baseline statistics recomputed once per second instead of once per window. */
+  const A7 = {
+    sigma: [11, 16],
+    broad: [0.3, 30],
+    relBand: [4.5, 30],
+    winS: 0.3,
+    stepS: 0.1,
+    baselineS: 30,
+    pct: [0.1, 0.9],
+    thr: { abs: 1.25, rel: 1.6, cov: 1.3, corr: 0.69 },
+    durS: [0.3, 2.5],
+    order: 8 // this section's choice: a second-order section per edge halves a 13 Hz spindle and passes 20 Hz (selftest)
+  };
+
+  /* The four features per window. NaN where a window holds a sample that was not measured, or a logarithm has no value. */
+  function a7Features(x, fs) {
+    const sg = bandpass(x, fs, A7.sigma[0], A7.sigma[1], A7.order),
+      bb = bandpass(x, fs, A7.broad[0], A7.broad[1], A7.order).y,
+      rb = bandpass(x, fs, A7.relBand[0], A7.relBand[1], A7.order).y,
+      s = sg.y,
+      W = Math.round(A7.winS * fs),
+      step = Math.round(A7.stepS * fs),
+      n = Math.max(0, Math.floor((x.length - W) / step) + 1),
+      cum = new Int32Array(x.length + 1),
+      abs = new Float64Array(n).fill(NaN),
+      relRaw = new Float64Array(n).fill(NaN),
+      covRaw = new Float64Array(n).fill(NaN),
+      corr = new Float64Array(n).fill(NaN);
+    for (let i = 0; i < x.length; i++) cum[i + 1] = cum[i] + sg.bad[i];
+    for (let w = 0; w < n; w++) {
+      const i0 = w * step;
+      if (cum[i0 + W] - cum[i0] > 0) continue;
+      let ss = 0,
+        rr = 0,
+        ms = 0,
+        mb = 0;
+      for (let i = i0; i < i0 + W; i++) {
+        ss += s[i] * s[i];
+        rr += rb[i] * rb[i];
+        ms += s[i];
+        mb += bb[i];
+      }
+      ms /= W;
+      mb /= W;
+      let c = 0,
+        vs = 0,
+        vb = 0;
+      for (let i = i0; i < i0 + W; i++) {
+        const ds = s[i] - ms,
+          db = bb[i] - mb;
+        c += ds * db;
+        vs += ds * ds;
+        vb += db * db;
+      }
+      c /= W;
+      if (ss > 0) abs[w] = Math.log10(ss / W);
+      if (ss > 0 && rr > 0) relRaw[w] = Math.log10(ss / rr);
+      if (c > 0) covRaw[w] = Math.log10(c);
+      if (vs > 0 && vb > 0) corr[w] = c / Math.sqrt((vs / W) * (vb / W));
+    }
+    const half = Math.round(A7.baselineS / A7.stepS / 2),
+      perS = Math.round(1 / A7.stepS);
+    const z = (raw) => {
+      const out = new Float64Array(n).fill(NaN);
+      for (let b = 0; b < n; b += perS) {
+        const v = [];
+        for (let k = Math.max(0, b - half); k < Math.min(n, b + half); k++) if (Number.isFinite(raw[k])) v.push(raw[k]);
+        if (v.length < 20) continue;
+        v.sort((p, q) => p - q);
+        const lo = Math.floor(A7.pct[0] * v.length),
+          hi = Math.ceil(A7.pct[1] * v.length);
+        let m = 0,
+          sd = 0;
+        for (let k = lo; k < hi; k++) m += v[k];
+        m /= hi - lo;
+        for (let k = lo; k < hi; k++) sd += (v[k] - m) * (v[k] - m);
+        sd = Math.sqrt(sd / (hi - lo));
+        if (!(sd > 0)) continue;
+        for (let k = b; k < Math.min(n, b + perS); k++) if (Number.isFinite(raw[k])) out[k] = (raw[k] - m) / sd;
+      }
+      return out;
+    };
+    return { n, stepS: step / fs, winS: W / fs, abs, rel: z(relRaw), cov: z(covRaw), corr, relRaw, covRaw };
+  }
+
+  /* The spindles of x (µV, fs Hz): [{ t0, t1 }] in seconds. `thr` may replace a threshold: the absolute one has
+   no meaning on a signal whose unit is not microvolts, and the caller then passes its per-night form. */
+  function detectSpindles(x, fs, thr = A7.thr) {
+    const f = a7Features(x, fs),
+      core = (w) => f.abs[w] >= thr.abs && f.rel[w] >= thr.rel && f.cov[w] >= thr.cov && f.corr[w] >= thr.corr,
+      ext = (w) => w >= 0 && w < f.n && f.abs[w] >= thr.abs && f.cov[w] >= thr.cov,
+      out = [];
+    let w = 0;
+    while (w < f.n) {
+      if (!core(w)) {
+        w++;
+        continue;
+      }
+      let a = w,
+        b = w;
+      while (b + 1 < f.n && core(b + 1)) b++;
+      while (ext(a - 1)) a--;
+      while (ext(b + 1)) b++;
+      const t0 = a * f.stepS,
+        t1 = b * f.stepS + f.winS,
+        d = t1 - t0;
+      if (d >= A7.durS[0] && d <= A7.durS[1] && !(out.length && t0 < out[out.length - 1].t1)) out.push({ t0, t1 });
+      w = b + 1;
+    }
+    return out;
+  }
+
+  /* ── THE EVIDENCE PER EPOCH, MEASURED FROM THE SIGNAL ───────────────────────────────────────────────────────────────
+   Every constant below is a choice of the detector's author unless the line marks it "manual" (the scoring manual).
+   All of them were fixed before any labelled night was opened, and none of them is fitted. Every spectral test is a
+   ratio, so none of them depends on the signal's unit. */
+  const EVID72 = {
+    winS: 2, // spectrum of a second: 2 s Hann window centred on the second (0.5 Hz bins)
+    alphaBand: [8, 13], // manual: alpha rhythm 8–13 Hz
+    lowSide: [4, 8],
+    highSide: [16, 30],
+    alphaPeak: 2, // a second carries alpha when the power density in 8–13 Hz is at least twice that of each side band
+    hfBand: [30, 45], // the muscle-tone proxy
+    fastBand: [18, 45], // manual: an arousal may show as frequencies above 16 Hz; the band starts 2 Hz above the sigma band so that a spindle's own leakage cannot make a second fast
+    fastRise: 3, // a second is "fast" when its 18–45 Hz power is at least 3 times the median of the 10 s before the run
+    arousalMinS: 3, // manual: at least 3 s
+    arousalQuietS: 10, // manual: at least 10 s of stable sleep before
+    arousalQuietAlpha: 2, // "stable": at most 2 alpha seconds in those 10 s
+    hfMinSeconds: 15, // an epoch's 30–45 Hz power needs at least 15 measured seconds
+    kcMinS: 0.5, // manual: a K complex lasts at least 0.5 s
+    kcIsolS: 2, // isolated: no other slow wave within 2 s before or after
+    kcEyeS: 0.5, // not a K-complex candidate when an eye movement lies within 0.5 s (separate eye derivation only)
+    eye: { winS: 0.5, gapS: 0.3, k: 6, flat: 0.3, sharp: 0.7, edgeS: 0.1, refractoryS: 0.5 }
+  };
+
+  const medianOf = (v) => {
+    const a = Float64Array.from(v).sort();
+    return a.length ? (a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2) : NaN;
+  };
+
+  /* Per second: mean power density in the alpha band and in its two side bands, and the summed power in the 30–45 Hz and
+   18–45 Hz bands (arbitrary common unit). NaN when the window leaves the record, holds a sample that was not measured,
+   or is flat. A band holds the bins lo ≤ f < hi. */
+  function secondSpectra(x, fs, C = EVID72) {
+    const N = Math.round(C.winS * fs);
+    if (!(fs >= 100) || Math.abs(N - C.winS * fs) > 1e-9) throw new Error('secondSpectra: fs must be at least 100 Hz with a whole number of samples per window');
+    const S = Math.floor(x.length / fs),
+      k0 = Math.ceil(C.lowSide[0] * C.winS),
+      k1 = Math.ceil(C.hfBand[1] * C.winS) - 1,
+      w = new Float64Array(N),
+      cos = [],
+      sin = [],
+      cb = new Int32Array(x.length + 1),
+      v = new Float64Array(N),
+      P = new Float64Array(k1 + 1);
+    let sw = 0;
+    for (let i = 0; i < N; i++) sw += w[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / N);
+    for (let k = k0; k <= k1; k++) {
+      const c = new Float64Array(N),
+        s = new Float64Array(N);
+      for (let i = 0; i < N; i++) {
+        c[i] = Math.cos((2 * Math.PI * k * i) / N);
+        s[i] = Math.sin((2 * Math.PI * k * i) / N);
+      }
+      cos[k] = c;
+      sin[k] = s;
+    }
+    for (let i = 0; i < x.length; i++) cb[i + 1] = cb[i] + (Number.isFinite(x[i]) ? 0 : 1);
+    const mk = () => new Float64Array(S).fill(NaN),
+      out = { alpha: mk(), low: mk(), high: mk(), hf: mk(), fast: mk() },
+      band = ([lo, hi], mean) => {
+        let sum = 0,
+          n = 0;
+        for (let k = Math.max(k0, Math.ceil(lo * C.winS)); k <= k1 && k / C.winS < hi; k++) {
+          sum += P[k];
+          n++;
+        }
+        return mean ? sum / n : sum;
+      };
+    for (let s = 0; s < S; s++) {
+      const a = Math.round((s + 0.5) * fs) - N / 2;
+      if (a < 0 || a + N > x.length || cb[a + N] - cb[a] > 0) continue;
+      let m = 0,
+        e = 0;
+      for (let i = 0; i < N; i++) m += w[i] * x[a + i];
+      m /= sw;
+      for (let i = 0; i < N; i++) {
+        v[i] = w[i] * (x[a + i] - m);
+        e += v[i] * v[i];
+      }
+      if (!(e > 0)) continue;
+      for (let k = k0; k <= k1; k++) {
+        let re = 0,
+          im = 0;
+        const c = cos[k],
+          q = sin[k];
+        for (let i = 0; i < N; i++) {
+          re += v[i] * c[i];
+          im += v[i] * q[i];
+        }
+        P[k] = re * re + im * im;
+      }
+      out.alpha[s] = band(C.alphaBand, true);
+      out.low[s] = band(C.lowSide, true);
+      out.high[s] = band(C.highSide, true);
+      out.hf[s] = band(C.hfBand, false);
+      out.fast[s] = band(C.fastBand, false);
+    }
+    return out;
+  }
+
+  /* Rapid eye movements on a frontal bipolar derivation: a step that holds. At a sample i, with means over 0.5 s:
+     pp = [i−1.0, i−0.5)   pre = [i−0.5, i)   post = [i+0.3, i+0.8)   late = [i+0.8, i+1.3)      D = post − pre
+   an eye movement when |D| ≥ A, the signal was flat before (|pre − pp| ≤ 0.3 |D|) and stays after (|late − post| ≤
+   0.3 |D|), and the change is sharp (the 0.1 s mean ending at i+0.3 minus the 0.1 s mean starting at i covers at least
+   0.7 |D|). A = 6 times the night's median absolute change between adjacent 0.5 s means: no unit enters. A wave that
+   swings back (a slow wave, a K complex) fails the two flatness tests. Movements closer than the windows (bursts) are
+   under-counted; the decision list needs only one per epoch. Returns [{ t, d }], t in seconds, d the signed step. */
+  function detectEyeMovements(x, fs, E = EVID72.eye) {
+    const n = x.length,
+      cs = new Float64Array(n + 1),
+      cb = new Int32Array(n + 1),
+      h = Math.round(E.winS * fs),
+      g = Math.round(E.gapS * fs),
+      q = Math.max(1, Math.round(E.edgeS * fs)),
+      mean = (a, b) => (cs[b] - cs[a]) / (b - a),
+      ds = [],
+      out = [];
+    for (let i = 0; i < n; i++) {
+      const fin = Number.isFinite(x[i]);
+      cs[i + 1] = cs[i] + (fin ? x[i] : 0);
+      cb[i + 1] = cb[i] + (fin ? 0 : 1);
+    }
+    for (let i = h; i + h <= n; i += h) if (cb[i + h] - cb[i - h] === 0) ds.push(Math.abs(mean(i, i + h) - mean(i - h, i)));
+    if (ds.length < 20) return out;
+    const A = E.k * medianOf(ds);
+    if (!(A > 0)) return out;
+    let best = null,
+      first = 0;
+    for (let i = 2 * h; i + g + 2 * h <= n; i++) {
+      if (cb[i + g + 2 * h] - cb[i - 2 * h] > 0) continue;
+      const pre = mean(i - h, i),
+        post = mean(i + g, i + g + h),
+        D = post - pre,
+        aD = Math.abs(D);
+      if (aD < A || Math.abs(pre - mean(i - 2 * h, i - h)) > E.flat * aD || Math.abs(mean(i + g + h, i + g + 2 * h) - post) > E.flat * aD) continue;
+      if ((mean(i + g - q, i + g) - mean(i, i + q)) * Math.sign(D) < E.sharp * aD) continue;
+      const t = (i + g / 2) / fs;
+      if (best && t - first <= E.refractoryS) {
+        if (aD > Math.abs(best.d)) best = { t, d: D };
+      } else {
+        if (best) out.push(best);
+        best = { t, d: D };
+        first = t;
+      }
+    }
+    if (best) out.push(best);
+    return out;
+  }
+
+  /* The evidence records of a night, one per 30 s epoch, in the form `stageNight` reads.
+     x     the staging derivation (µV when `crit` is an absolute criterion), NaN = not measured
+     eye   the frontal bipolar derivation for eye movements, or null (then rem = null); it may be x itself
+     crit  the slow-wave amplitude criterion ({ negUv, p2pUv }); SLOW.aasm on a calibrated derivation */
+  function epochEvidence(x, fs, { eye = null, crit = SLOW.aasm, C = EVID72, minMeasured = FEAT_MIN_MEASURED } = {}) {
+    const L = Math.round(30 * fs),
+      nE = Math.floor(x.length / L),
+      sp = secondSpectra(x, fs, C),
+      S = sp.alpha.length,
+      alphaSec = new Uint8Array(S),
+      ev = [];
+    for (let s = 0; s < S; s++) alphaSec[s] = sp.alpha[s] > 0 && sp.alpha[s] >= C.alphaPeak * sp.low[s] && sp.alpha[s] >= C.alphaPeak * sp.high[s] ? 1 : 0;
+    /* Runs of at least 3 fast seconds. A second is fast when its 18–45 Hz power is at least 3 times the median of the
+     10 s before the run began, or when `extra` says so. [start, end, stable]: stable = 10 s before the run with at
+     least half of them measured and at most 2 of them `quietMark`ed. */
+    const runsOf = (extra, quietMark) => {
+      const out = [];
+      for (let s = 0; s < S; ) {
+        const before = [];
+        let marked = 0;
+        for (let t = Math.max(0, s - C.arousalQuietS); t < s; t++) {
+          if (Number.isFinite(sp.fast[t])) before.push(sp.fast[t]);
+          marked += quietMark(t) ? 1 : 0;
+        }
+        const enough = before.length >= C.arousalQuietS / 2,
+          ref = enough ? medianOf(before) : NaN,
+          fast = (t) => extra(t) || sp.fast[t] >= C.fastRise * ref;
+        if (!fast(s)) {
+          s++;
+          continue;
+        }
+        let e = s;
+        while (e < S && fast(e)) e++;
+        if (e - s >= C.arousalMinS) out.push([s, e, s >= C.arousalQuietS && enough && marked <= C.arousalQuietAlpha]);
+        s = e;
+      }
+      return out;
+    };
+    // 1. broadband bursts (power alone). Manual: the fast activity of an arousal is "not spindles" — what the spindle
+    //    detector reads inside such a burst is not counted.
+    const bursts = runsOf(
+        () => false,
+        () => false
+      ),
+      spind = detectSpindles(x, fs).filter((e) => !bursts.some(([a, b]) => (e.t0 + e.t1) / 2 >= a && (e.t0 + e.t1) / 2 < b)),
+      spSec = new Uint8Array(S);
+    // 2. a spindle near 13 Hz also fills the alpha band of the seconds whose window it touches: for the arousal test
+    //    (not for the alpha share) those seconds are not alpha.
+    for (const e of spind) for (let t = Math.max(0, Math.floor(e.t0) - 1); t <= Math.min(S - 1, Math.floor(e.t1) + 1); t++) spSec[t] = 1;
+    const alphaA = (t) => alphaSec[t] === 1 && spSec[t] === 0;
+    // 3. arousals: a fast run (power or alpha) after 10 s of stable signal; it belongs to the epoch in which it starts
+    const arousal = new Uint8Array(nE);
+    for (const [s, , stable] of runsOf(alphaA, alphaA)) if (stable && Math.floor(s / 30) < nE) arousal[Math.floor(s / 30)] = 1;
+    const sw = detectSlowWaves(x, fs, crit),
+      swShare = slowWaveFraction(sw, nE),
+      eyes = eye ? detectEyeMovements(eye, fs, C.eye) : null,
+      separateEye = eye && eye !== x,
+      count = (times) => {
+        const c = new Int32Array(nE);
+        for (const t of times) {
+          const ep = Math.floor(t / 30);
+          if (ep >= 0 && ep < nE) c[ep]++;
+        }
+        return c;
+      },
+      kcT = [];
+    for (let i = 0; i < sw.length; i++) {
+      const e = sw[i];
+      if (e.t1 - e.t0 < C.kcMinS) continue;
+      if (i > 0 && sw[i - 1].t1 > e.t0 - C.kcIsolS) continue;
+      if (i + 1 < sw.length && sw[i + 1].t0 < e.t1 + C.kcIsolS) continue;
+      if (separateEye && eyes.some((m) => m.t >= e.t0 - C.kcEyeS && m.t <= e.t1 + C.kcEyeS)) continue;
+      kcT.push(e.t0);
+    }
+    const nSp = count(spind.map((e) => (e.t0 + e.t1) / 2)),
+      nKc = count(kcT),
+      nEye = eyes ? count(eyes.map((m) => m.t)) : null,
+      hf = new Float64Array(nE).fill(NaN),
+      measured = new Float64Array(nE);
+    for (let ep = 0; ep < nE; ep++) {
+      let fin = 0;
+      for (let i = ep * L; i < (ep + 1) * L; i++) if (Number.isFinite(x[i])) fin++;
+      measured[ep] = fin / L;
+      let sum = 0,
+        m = 0;
+      for (let s = ep * 30; s < (ep + 1) * 30 && s < S; s++)
+        if (Number.isFinite(sp.hf[s])) {
+          sum += sp.hf[s];
+          m++;
+        }
+      if (m >= C.hfMinSeconds) hf[ep] = sum / m;
+    }
+    const med = medianOf(Array.from(hf).filter((v, ep) => Number.isFinite(v) && measured[ep] >= minMeasured));
+    for (let ep = 0; ep < nE; ep++) {
+      let al = 0;
+      for (let s = ep * 30; s < (ep + 1) * 30 && s < S; s++) al += alphaSec[s];
+      ev.push({
+        measured: measured[ep],
+        alphaShare: al / 30,
+        hfRatio: med > 0 ? hf[ep] / med : NaN,
+        swShare: swShare[ep],
+        spindles: nSp[ep],
+        kc: nKc[ep],
+        rem: nEye ? nEye[ep] : null,
+        arousal: arousal[ep] === 1
+      });
+    }
+    return ev;
+  }
+
+  const EEGBLOCK = {
+    band: [EEG_BANDS[0][1], EEG_BANDS[EEG_BANDS.length - 1][2]], // 0.5–45 Hz
+    minSeconds: 15, // an epoch needs 15 measured seconds for a spectral value, the same floor the 30–45 Hz power takes
+    minMeasured: 0.5, // … and half of its samples for an event value
+    sef: 0.95, // spectral edge: the lowest bin at which the summed power reaches 95 % of the band's power
+    ratios: [
+      ['delta', 'beta'],
+      ['theta', 'alpha'],
+      ['delta', 'theta']
+    ]
+  };
+  const EPOCH_S = 30,
+    BN = EEG_BANDS.map((b) => b[0]);
+
+  const EEG_NAMES = [
+    ...BN.map((b) => `eeg.lp.${b}`), // mean over the epoch's seconds of log10 band power, minus the night's median
+    ...BN.map((b) => `eeg.sd.${b}`), // SD over the epoch's seconds of log10 band power
+    ...BN.map((b) => `eeg.rel.${b}`), // share of the band in the 0.5–45 Hz power of the epoch's mean spectrum
+    ...EEGBLOCK.ratios.map(([a, b]) => `eeg.r.${a}_${b}`), // log10 of the ratio of two band powers (mean spectrum)
+    'eeg.hj.act', // log10 of the 0.5–45 Hz power, minus the night's median
+    'eeg.hj.mob', // sqrt(sum f^2 P / sum P), Hz
+    'eeg.hj.cmp', // sqrt(sum f^4 P / sum f^2 P) / mobility
+    'eeg.sef95', // Hz
+    'eeg.sent', // Shannon entropy of the bin shares, divided by ln(number of bins)
+    'eeg.ev.alpha', // share of the epoch's seconds that carry alpha
+    'eeg.ev.sw', // share of the epoch inside slow waves
+    'eeg.ev.spn', // spindles (count)
+    'eeg.ev.spd', // spindles per measured minute
+    'eeg.ev.kc', // isolated long slow waves (count)
+    'eeg.ev.eye', // eye-movement events read from the same series (count)
+    'eeg.ev.hf', // log10 of the epoch's 30–45 Hz power over the night's median
+    'eeg.ev.arousal', // 1 when an arousal starts in the epoch
+    'eeg.meas' // share of the epoch's samples that were measured
+  ];
+
+  /* Per second k < S: the power of each 0.5 Hz bin in EEGBLOCK.band (a sine of amplitude A on a bin gives A^2/2 over its
+   three bins). ok[k] = 0 when the window leaves the record, holds a sample that is not finite, or is flat. */
+  function secondBins(x, fs, S) {
+    const N = Math.round(EEG_SEC_WIN_S * fs);
+    if (!(fs >= 100) || Math.abs(N - EEG_SEC_WIN_S * fs) > 1e-9) throw new Error(`secondBins: ${fs} Hz, expected >= 100 Hz and a whole number of samples per window`);
+    const df = fs / N,
+      m0 = Math.round(EEGBLOCK.band[0] / df),
+      m1 = Math.round(EEGBLOCK.band[1] / df),
+      nm = m1 - m0,
+      w = new Float64Array(N),
+      C = new Float64Array(nm * N),
+      Sn = new Float64Array(nm * N);
+    let sw = 0,
+      sw2 = 0;
+    for (let i = 0; i < N; i++) {
+      w[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / N);
+      sw += w[i];
+      sw2 += w[i] * w[i];
+    }
+    for (let j = 0; j < nm; j++)
+      for (let i = 0; i < N; i++) {
+        const a = (2 * Math.PI * (m0 + j) * i) / N;
+        C[j * N + i] = Math.cos(a);
+        Sn[j * N + i] = Math.sin(a);
+      }
+    const bad = new Int32Array(x.length + 1);
+    for (let i = 0; i < x.length; i++) bad[i + 1] = bad[i] + (Number.isFinite(x[i]) ? 0 : 1);
+    const P = new Float64Array(S * nm).fill(NaN),
+      ok = new Uint8Array(S),
+      y = new Float64Array(N),
+      norm = 2 / (N * sw2);
+    for (let k = 0; k < S; k++) {
+      const i0 = Math.round((k + 0.5) * fs) - (N >> 1);
+      if (i0 < 0 || i0 + N > x.length || bad[i0 + N] - bad[i0] > 0) continue;
+      let mu = 0,
+        lo = Infinity,
+        hi = -Infinity;
+      for (let i = 0; i < N; i++) {
+        const v = x[i0 + i];
+        mu += w[i] * v;
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      }
+      if (!(hi > lo)) continue;
+      mu /= sw;
+      for (let i = 0; i < N; i++) y[i] = (x[i0 + i] - mu) * w[i];
+      for (let j = 0; j < nm; j++) {
+        let re = 0,
+          im = 0;
+        const o = j * N;
+        for (let i = 0; i < N; i++) {
+          re += y[i] * C[o + i];
+          im += y[i] * Sn[o + i];
+        }
+        P[k * nm + j] = (re * re + im * im) * norm;
+      }
+      ok[k] = 1;
+    }
+    const f = Float64Array.from({ length: nm }, (_, j) => (m0 + j) * df),
+      band = Int8Array.from(f, (v) => EEG_BANDS.findIndex((b) => v >= b[1] - 1e-9 && v < b[2] - 1e-9));
+    return { P, ok, nm, f, band };
+  }
+
+  /* The spectral columns of n epochs, before any night median is removed. Arrays of length n, NaN where an epoch has
+   fewer than EEGBLOCK.minSeconds measured seconds. */
+  function epochSpectral(sb, n) {
+    const nb = EEG_BANDS.length,
+      arr = () => new Float64Array(n).fill(NaN),
+      out = { lp: BN.map(arr), sd: BN.map(arr), rel: BN.map(arr), ratio: EEGBLOCK.ratios.map(arr), act: arr(), mob: arr(), cmp: arr(), sef: arr(), sent: arr(), seconds: new Int32Array(n) },
+      { P, ok, nm, f, band } = sb,
+      S = ok.length,
+      Pm = new Float64Array(nm),
+      pb = new Float64Array(nb),
+      s1 = new Float64Array(nb),
+      s2 = new Float64Array(nb),
+      cnt = new Int32Array(nb);
+    for (let e = 0; e < n; e++) {
+      Pm.fill(0);
+      s1.fill(0);
+      s2.fill(0);
+      cnt.fill(0);
+      let m = 0;
+      for (let k = e * EPOCH_S; k < (e + 1) * EPOCH_S && k < S; k++) {
+        if (!ok[k]) continue;
+        m++;
+        pb.fill(0);
+        for (let j = 0; j < nm; j++) {
+          const v = P[k * nm + j];
+          Pm[j] += v;
+          if (band[j] >= 0) pb[band[j]] += v;
+        }
+        for (let b = 0; b < nb; b++)
+          if (pb[b] > 0) {
+            const l = Math.log10(pb[b]);
+            s1[b] += l;
+            s2[b] += l * l;
+            cnt[b]++;
+          }
+      }
+      out.seconds[e] = m;
+      if (m < EEGBLOCK.minSeconds) continue;
+      let tot = 0,
+        m2 = 0,
+        m4 = 0;
+      pb.fill(0);
+      for (let j = 0; j < nm; j++) {
+        Pm[j] /= m;
+        tot += Pm[j];
+        m2 += f[j] * f[j] * Pm[j];
+        m4 += f[j] ** 4 * Pm[j];
+        if (band[j] >= 0) pb[band[j]] += Pm[j];
+      }
+      if (!(tot > 0)) continue;
+      for (let b = 0; b < nb; b++) {
+        if (cnt[b] >= EEGBLOCK.minSeconds) {
+          out.lp[b][e] = s1[b] / cnt[b];
+          out.sd[b][e] = Math.sqrt(Math.max(0, s2[b] / cnt[b] - (s1[b] / cnt[b]) ** 2));
+        }
+        out.rel[b][e] = pb[b] / tot;
+      }
+      EEGBLOCK.ratios.forEach(([a, b], r) => {
+        const pa = pb[BN.indexOf(a)],
+          q = pb[BN.indexOf(b)];
+        if (pa > 0 && q > 0) out.ratio[r][e] = Math.log10(pa / q);
+      });
+      out.act[e] = Math.log10(tot);
+      out.mob[e] = Math.sqrt(m2 / tot);
+      out.cmp[e] = m2 > 0 ? Math.sqrt(m4 / m2) / out.mob[e] : NaN;
+      let cum = 0,
+        H = 0;
+      out.sef[e] = f[nm - 1];
+      for (let j = 0, found = false; j < nm; j++) {
+        const p = Pm[j] / tot;
+        if (p > 0) H -= p * Math.log(p);
+        cum += p;
+        if (!found && cum >= EEGBLOCK.sef - 1e-12) {
+          out.sef[e] = f[j];
+          found = true;
+        }
+      }
+      out.sent[e] = H / Math.log(nm);
+    }
+    return out;
+  }
+
+  function minusNightMedian(src, dst) {
+    const med = medianOf(Array.from(src).filter(Number.isFinite));
+    for (let e = 0; e < src.length; e++) dst[e] = Number.isFinite(src[e]) ? src[e] - med : NaN;
+  }
+
+  /* The block: night.signals.eeg = { fs, data } (one derivation, NaN = not measured) → { names, cols }. */
+  function eegBlockExtract(night) {
+    const n = night.nEpochs,
+      g = night.signals && night.signals.eeg,
+      cols = EEG_NAMES.map(() => new Float64Array(n).fill(NaN)),
+      col = Object.fromEntries(EEG_NAMES.map((nm, i) => [nm, cols[i]]));
+    if (!g || !g.data) return { names: EEG_NAMES, cols };
+    const x = g.data,
+      fs = g.fs,
+      L = Math.round(EPOCH_S * fs),
+      sp = epochSpectral(secondBins(x, fs, n * EPOCH_S), n);
+    BN.forEach((b, i) => {
+      minusNightMedian(sp.lp[i], col[`eeg.lp.${b}`]);
+      col[`eeg.sd.${b}`].set(sp.sd[i]);
+      col[`eeg.rel.${b}`].set(sp.rel[i]);
+    });
+    EEGBLOCK.ratios.forEach(([a, b], r) => col[`eeg.r.${a}_${b}`].set(sp.ratio[r]));
+    minusNightMedian(sp.act, col['eeg.hj.act']);
+    col['eeg.hj.mob'].set(sp.mob);
+    col['eeg.hj.cmp'].set(sp.cmp);
+    col['eeg.sef95'].set(sp.sef);
+    col['eeg.sent'].set(sp.sent);
+    const meas = col['eeg.meas'];
+    for (let e = 0; e < n; e++) {
+      let fin = 0;
+      for (let i = e * L; i < (e + 1) * L && i < x.length; i++) if (Number.isFinite(x[i])) fin++;
+      meas[e] = fin / L;
+    }
+    const amp = nightAmplitude(x, fs);
+    if (amp > 0) {
+      const k = AMP72.refUv / amp,
+        xs = Float64Array.from(x, (v) => v * k),
+        ev = epochEvidence(xs, fs, { eye: xs });
+      for (let e = 0; e < n && e < ev.length; e++) {
+        const r = ev[e];
+        if (!(r.measured >= EEGBLOCK.minMeasured)) continue;
+        col['eeg.ev.alpha'][e] = r.alphaShare;
+        col['eeg.ev.sw'][e] = r.swShare;
+        col['eeg.ev.spn'][e] = r.spindles;
+        col['eeg.ev.spd'][e] = r.spindles / (0.5 * r.measured);
+        col['eeg.ev.kc'][e] = r.kc;
+        col['eeg.ev.eye'][e] = r.rem === null ? NaN : r.rem;
+        col['eeg.ev.hf'][e] = r.hfRatio > 0 ? Math.log10(r.hfRatio) : NaN;
+        col['eeg.ev.arousal'][e] = r.arousal ? 1 : 0;
+      }
+    }
+    return { names: EEG_NAMES, cols };
+  }
+
+  root.EEGFEAT = {
+    EEG_BANDS: EEG_BANDS,
+    EEG_SEC_WIN_S: EEG_SEC_WIN_S,
+    FEAT_MIN_MEASURED: FEAT_MIN_MEASURED,
+    AMP72: AMP72,
+    SLOW: SLOW,
+    A7: A7,
+    EVID72: EVID72,
+    EEGBLOCK: EEGBLOCK,
+    EEG_NAMES: EEG_NAMES,
+    nightAmplitude: nightAmplitude,
+    bandpass: bandpass,
+    detectSlowWaves: detectSlowWaves,
+    slowWaveFraction: slowWaveFraction,
+    a7Features: a7Features,
+    detectSpindles: detectSpindles,
+    secondSpectra: secondSpectra,
+    detectEyeMovements: detectEyeMovements,
+    epochEvidence: epochEvidence,
+    secondBins: secondBins,
+    epochSpectral: epochSpectral,
+    eegBlockExtract: eegBlockExtract
+  };
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+</script>
+<script data-inline-src="eegdex-stage-model.js">/*
+ * eegdex-stage-model.js — Tepna
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+ * project root, or http://www.apache.org/licenses/LICENSE-2.0
+ * ═════════════════════════════════════════════════════════════════════════════
+ * EEGDex — the evaluator of the stage formula. `window.EEGSTAGE`.
+ *
+ * ── THE NUMBERS ARE DATA, THE CODE IS NOT ────────────────────────────────────
+ * A model file of schema `tepna.stage-formula/1` names its design blocks and
+ * its passes; this file holds every block kind and every pass kind that the fit
+ * has produced, and it holds no coefficient. So a better model is a NEW FILE
+ * and no new code, which a test proves over a small synthetic second file.
+ * The model this repository ships uses 3 of those kinds: `linear109`,
+ * `products630` and one `softmax` pass over 739 columns.
+ *
+ * ── THE NUMBER TYPES ARE PART OF THE CONTRACT ────────────────────────────────
+ * The prepared inputs and every design column round to 32-BIT floats, and the
+ * product with the coefficients and the softmax run in 64-BIT. A port that
+ * stays in 64-bit throughout disagrees with the fit's own results, so the
+ * `Float32Array` of each block below is load-bearing and never an optimisation.
+ * The parity assertion in `tests/dex-tests.js` holds every posterior of the
+ * committed vector against the fit's stored result.
+ *
+ * THE FIT IS NOT IN THIS REPOSITORY, so this file carries no `@port-from`
+ * declaration and `tools/port-parity.mjs` reads nothing about it. The pin is
+ * the committed vector, which compares the two sides' NUMBERS rather than
+ * noticing that a source file moved.
+ *
+ * ── WHAT THIS FILE IS NOT ────────────────────────────────────────────────────
+ * It is not the shipped stager. `eegdex-dsp.js` holds the band-power stager,
+ * and that stays the default. This file reads the 35 columns of
+ * `eegdex-stage-features.js` and a model file, and it surfaces no number by
+ * itself.
+ *
+ * ── ABSENCE (§∅) ─────────────────────────────────────────────────────────────
+ * The formula tolerates a gap by design: `prepare` puts a 0 in the place of
+ * every absent input and carries the missing share as a column. That keeps the
+ * arithmetic finite, and it is exactly the substitution that §∅ forbids a
+ * surface to report as a measurement. `stages()` therefore reads the posterior
+ * and reports `null` with a named reason where the epoch does not describe a
+ * measured stretch of signal. The step runs AFTER the posterior, so the parity
+ * assertion still compares every posterior the formula gives.
+ */
+(function (root) {
+  'use strict';
+
+  const NB = 35;
+  const NAMED = ['eeg.lp.delta', 'eeg.lp.theta', 'eeg.lp.alpha', 'eeg.lp.sigma', 'eeg.lp.beta', 'eeg.hj.mob', 'eeg.sef95', 'eeg.ev.sw', 'eeg.ev.spd', 'eeg.ev.eye', 'eeg.ev.hf', 'eeg.r.delta_beta'];
+  const LAGS = [-2, -1, 1, 2];
+  const SCHEMA = 'tepna.stage-formula/1';
+  const f32 = Math.fround;
+
+  function mat(n, m, single) {
+    return { n: n, m: m, d: single ? new Float32Array(n * m) : new Float64Array(n * m) };
+  }
+
+  function _isNum(v) {
+    return v !== null && v !== undefined && Number.isFinite(v);
+  }
+
+  function hcat(parts) {
+    const n = parts[0].n;
+    let m = 0;
+    for (const P of parts) {
+      if (P.n !== n) throw new Error('a design block has ' + P.n + ' epochs, not ' + n);
+      m += P.m;
+    }
+    const O = mat(n, m, true);
+    for (let i = 0; i < n; i++) {
+      let o = i * m;
+      for (const P of parts) {
+        const b = i * P.m;
+        for (let j = 0; j < P.m; j++) O.d[o + j] = P.d[b + j];
+        o += P.m;
+      }
+    }
+    return O;
+  }
+
+  // -- the prepared inputs -----------------------------------------------------
+
+  function prepare(F) {
+    const n = F.length;
+    const NC = F[0].length;
+    let measured = false;
+    for (let i = 0; i < n && !measured; i++) {
+      for (let j = 0; j < NB; j++) {
+        const v = F[i][j];
+        if (v !== null && v !== undefined && !Number.isNaN(v)) {
+          measured = true;
+          break;
+        }
+      }
+    }
+    const pres = measured ? 1 : 0;
+    const A = mat(n, NC + 2, true);
+    for (let i = 0; i < n; i++) {
+      const row = F[i];
+      let nan = 0;
+      for (let j = 0; j < NC; j++) {
+        const raw = row[j];
+        const v = raw === null || raw === undefined ? NaN : f32(raw);
+        if (Number.isNaN(v)) nan++;
+        let x = Number.isFinite(v) ? v : 0;
+        if (x > 8) x = 8;
+        else if (x < -8) x = -8;
+        A.d[i * A.m + j] = x;
+      }
+      A.d[i * A.m + NC] = f32(nan / NC);
+      A.d[i * A.m + NC + 1] = pres;
+    }
+    return A;
+  }
+
+  // -- the design blocks -------------------------------------------------------
+
+  function linear109(A) {
+    const n = A.n;
+    const c = new Float64Array((n + 1) * NB);
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < NB; j++) c[(i + 1) * NB + j] = c[i * NB + j] + A.d[i * A.m + j];
+    }
+    function roll(w) {
+      const h = Math.floor(w / 2);
+      const M = mat(n, NB, false);
+      for (let i = 0; i < n; i++) {
+        const lo = Math.max(i - h, 0);
+        const hi = Math.min(i + h + 1, n);
+        const k = hi - lo;
+        for (let j = 0; j < NB; j++) M.d[i * NB + j] = (c[hi * NB + j] - c[lo * NB + j]) / k;
+      }
+      return M;
+    }
+    const m5 = roll(5);
+    const m21 = roll(21);
+    const x1 = mat(n, 109, true);
+    for (let i = 0; i < n; i++) {
+      const o = i * 109;
+      for (let j = 0; j < A.m; j++) x1.d[o + j] = A.d[i * A.m + j];
+      for (let j = 0; j < NB; j++) x1.d[o + 38 + j] = m5.d[i * NB + j];
+      for (let j = 0; j < NB; j++) x1.d[o + 73 + j] = m21.d[i * NB + j];
+      x1.d[o + 108] = Math.min(i / 120, 10);
+    }
+    return { x1: x1, m5: m5 };
+  }
+
+  function products630(m5) {
+    const n = m5.n;
+    const O = mat(n, 630, true);
+    for (let i = 0; i < n; i++) {
+      let k = i * 630;
+      const b = i * NB;
+      for (let a = 0; a < NB; a++) {
+        for (let d = a; d < NB; d++) O.d[k++] = m5.d[b + a] * m5.d[b + d];
+      }
+    }
+    return O;
+  }
+
+  function lagdiff72(x1, idx) {
+    const n = x1.n;
+    const nc = idx.length;
+    const O = mat(n, 6 * nc, true);
+    const cl = (i) => (i < 0 ? 0 : i > n - 1 ? n - 1 : i);
+    const at = (i, j) => x1.d[i * x1.m + idx[j]];
+    for (let i = 0; i < n; i++) {
+      let p = i * O.m;
+      for (const k of LAGS) {
+        const r = cl(i + k);
+        for (let j = 0; j < nc; j++) O.d[p++] = at(r, j);
+      }
+      const pv = cl(i - 1);
+      const nx = cl(i + 1);
+      for (let j = 0; j < nc; j++) O.d[p++] = f32(at(i, j) - at(pv, j));
+      for (let j = 0; j < nc; j++) O.d[p++] = f32(at(nx, j) - at(i, j));
+    }
+    return O;
+  }
+
+  function _pct(sorted, q) {
+    const R = sorted.length;
+    const pos = (R - 1) * (q / 100);
+    const lo = Math.floor(pos);
+    const hi = Math.min(lo + 1, R - 1);
+    return sorted[lo] + (pos - lo) * (sorted[hi] - sorted[lo]);
+  }
+
+  function _left(sorted, v) {
+    let lo = 0;
+    let hi = sorted.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (sorted[mid] < v) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  }
+
+  function _right(sorted, v) {
+    let lo = 0;
+    let hi = sorted.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (sorted[mid] <= v) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  }
+
+  function endOfNight38(x1, idx) {
+    const n = x1.n;
+    const O = mat(n, 38, true);
+    const sig = [];
+    for (let i = 0; i < n; i++) if (x1.d[i * x1.m + NB + 1] < 0.5) sig.push(i);
+    if (!sig.length) return O;
+    for (let j = 0; j < idx.length; j++) {
+      const col = NB + 3 + idx[j];
+      const v = new Float64Array(n);
+      for (let i = 0; i < n; i++) v[i] = x1.d[i * x1.m + col];
+      const ref = new Float64Array(sig.length);
+      for (let k = 0; k < sig.length; k++) ref[k] = v[sig[k]];
+      ref.sort();
+      const R = ref.length;
+      const p10 = _pct(ref, 10);
+      const p90 = _pct(ref, 90);
+      for (let i = 0; i < n; i++) {
+        O.d[i * 38 + 3 * j] = (_left(ref, v[i]) + _right(ref, v[i])) / (2 * R);
+        O.d[i * 38 + 3 * j + 1] = v[i] - p10;
+        O.d[i * 38 + 3 * j + 2] = v[i] - p90;
+      }
+    }
+    const dcol = NB + 3 + NB + idx[0];
+    let e = sig[0];
+    let best = -Infinity;
+    for (const i of sig) {
+      const d = x1.d[i * x1.m + dcol];
+      if (d > best) {
+        best = d;
+        e = i;
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      let h = (i - e) / 120;
+      if (h > 10) h = 10;
+      else if (h < -10) h = -10;
+      O.d[i * 38 + 36] = h;
+      O.d[i * 38 + 37] = Math.abs(h);
+    }
+    return O;
+  }
+
+  // -- the second pass's posterior columns -------------------------------------
+
+  function pfeat55(p) {
+    const n = p.n;
+    const q = new Float64Array(n * 4);
+    for (let i = 0; i < n * 4; i++) q[i] = f32(p.d[i]);
+    const c = new Float64Array((n + 1) * 4);
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < 4; j++) c[(i + 1) * 4 + j] = c[i * 4 + j] + q[i * 4 + j];
+    }
+    const a = new Int32Array(n);
+    for (let i = 0; i < n; i++) {
+      let k = 0;
+      for (let j = 1; j < 4; j++) if (q[i * 4 + j] > q[i * 4 + k]) k = j;
+      a[i] = k;
+    }
+    const ms = new Float64Array(n * 3);
+    const order = [2, 3, 0];
+    for (let col = 0; col < 3; col++) {
+      let last = -1;
+      for (let i = 0; i < n; i++) {
+        if (a[i] === order[col]) last = i;
+        const gap = last >= 0 ? i - last : i + 1;
+        ms[i * 3 + col] = Math.min(gap * 0.5, 120);
+      }
+    }
+    const O = mat(n, 55, true);
+    const cl = (i) => (i < 0 ? 0 : i > n - 1 ? n - 1 : i);
+    for (let i = 0; i < n; i++) {
+      let o = i * 55;
+      for (const k of [-2, -1, 0, 1, 2]) {
+        const r = cl(i + k);
+        for (let j = 0; j < 4; j++) O.d[o++] = q[r * 4 + j];
+      }
+      for (const h of [5, 10]) {
+        const lo = Math.max(i - h, 0);
+        const hi = Math.min(i + h + 1, n);
+        const k = hi - lo;
+        for (let j = 0; j < 4; j++) O.d[o++] = (c[hi * 4 + j] - c[lo * 4 + j]) / k;
+      }
+      for (const w of [40, 80, 160]) {
+        const lo = Math.max(i - w, 0);
+        const k = i - lo;
+        for (let j = 0; j < 4; j++) O.d[o++] = k > 0 ? (c[i * 4 + j] - c[lo * 4 + j]) / k : q[i * 4 + j];
+      }
+      for (const w of [40, 80, 160]) {
+        const hi = Math.min(i + w, n - 1);
+        const k = hi - i;
+        for (let j = 0; j < 4; j++) O.d[o++] = k > 0 ? (c[(hi + 1) * 4 + j] - c[(i + 1) * 4 + j]) / k : q[i * 4 + j];
+      }
+      for (let j = 0; j < 3; j++) O.d[o++] = ms[i * 3 + j];
+    }
+    return O;
+  }
+
+  // -- the passes --------------------------------------------------------------
+
+  function _affine(cols, W, b) {
+    const n = cols.n;
+    const k = b.length;
+    const O = mat(n, k, false);
+    if (W.length !== cols.m) throw new Error('the coefficient block has ' + W.length + ' rows, not ' + cols.m);
+    for (let i = 0; i < n; i++) {
+      const base = i * cols.m;
+      for (let j = 0; j < k; j++) O.d[i * k + j] = b[j];
+      for (let col = 0; col < cols.m; col++) {
+        const x = cols.d[base + col];
+        if (x === 0) continue;
+        const Wr = W[col];
+        for (let j = 0; j < k; j++) O.d[i * k + j] += x * Wr[j];
+      }
+    }
+    return O;
+  }
+
+  function softmax(Z) {
+    const n = Z.n;
+    const k = Z.m;
+    const O = mat(n, k, false);
+    for (let i = 0; i < n; i++) {
+      let mx = -Infinity;
+      for (let j = 0; j < k; j++) if (Z.d[i * k + j] > mx) mx = Z.d[i * k + j];
+      let s = 0;
+      for (let j = 0; j < k; j++) {
+        const e = Math.exp(Z.d[i * k + j] - mx);
+        O.d[i * k + j] = e;
+        s += e;
+      }
+      for (let j = 0; j < k; j++) O.d[i * k + j] /= s;
+    }
+    return O;
+  }
+
+  function _tree(S) {
+    const n = S.n;
+    const O = mat(n, 4, false);
+    for (let i = 0; i < n; i++) {
+      const s0 = 1 / (1 + Math.exp(-S.d[i * 3]));
+      const s1 = 1 / (1 + Math.exp(-S.d[i * 3 + 1]));
+      const s2 = 1 / (1 + Math.exp(-S.d[i * 3 + 2]));
+      O.d[i * 4] = s0;
+      O.d[i * 4 + 1] = (1 - s0) * (1 - s1) * s2;
+      O.d[i * 4 + 2] = (1 - s0) * (1 - s1) * (1 - s2);
+      O.d[i * 4 + 3] = (1 - s0) * s1;
+    }
+    return O;
+  }
+
+  // -- the evaluator ------------------------------------------------------------
+
+  function _rows(F) {
+    if (!Array.isArray(F) || !F.length) throw new Error('the night holds no epoch');
+    const w = F[0].length;
+    if (w === NB) {
+      const n = F.length;
+      return F.map((r, i) => r.concat([i / n]));
+    }
+    if (w !== NB + 1) throw new Error('an epoch holds ' + w + ' values, not ' + NB + ' or ' + (NB + 1));
+    return F;
+  }
+
+  function evaluate(model, F) {
+    if (!model || model.schema !== SCHEMA) {
+      throw new Error('the model file reads schema ' + (model && model.schema) + ', not ' + SCHEMA);
+    }
+    const names = model.inputs.names;
+    const idx = NAMED.map((nm) => {
+      const k = names.indexOf(nm);
+      if (k < 0) throw new Error('the model file does not name the input ' + nm);
+      return k;
+    });
+    const rows = _rows(F);
+    const A = prepare(rows);
+    const lin = linear109(A);
+    const parts = model.design.map((blk) => {
+      if (blk === 'linear109') return lin.x1;
+      if (blk === 'products630') return products630(lin.m5);
+      if (blk === 'lagdiff72') return lagdiff72(lin.x1, idx);
+      if (blk === 'end_of_night38') return endOfNight38(lin.x1, idx);
+      throw new Error('unknown design block ' + blk);
+    });
+    const X = parts.length === 1 ? parts[0] : hcat(parts);
+    let p = null;
+    for (const ps of model.passes) {
+      const cols = ps.posterior_columns ? hcat([X, pfeat55(p)]) : X;
+      if (cols.m !== ps.columns.length) {
+        throw new Error('a pass names ' + ps.columns.length + ' columns and the design gives ' + cols.m);
+      }
+      if (ps.kind === 'softmax') p = softmax(_affine(cols, ps.W, ps.b));
+      else if (ps.kind === 'tree') p = _tree(_affine(cols, ps.D, ps.c));
+      else throw new Error('unknown pass kind ' + ps.kind);
+    }
+    const n = p.n;
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const r = [];
+      for (let j = 0; j < 4; j++) r.push(p.d[i * 4 + j]);
+      out.push(r);
+    }
+    return { classes: model.classes.slice(), id: model.id, posterior: out };
+  }
+
+  // -- absence (ABSENCE IS NULL, after the posterior) --------------------------
+  //
+  // The formula itself tolerates a gap: `prepare` puts 0 in the place of every
+  // absent input and carries the missing share as a column of its own. That
+  // keeps the arithmetic finite, and it is exactly the substitution that §∅ of
+  // CLAUDE.md forbids a SURFACE to report as a measurement. So this step reads
+  // the posterior the formula gave, and it reports `null` where the epoch does
+  // not describe a measured stretch of signal.
+  //
+  // THE LINE IS THE FORMULA'S OWN. `end_of_night38` holds the night's reference
+  // population to the epochs whose missing share is under 0.5, so the fit itself
+  // states where an epoch stops describing the signal. This step reads the same
+  // 0.5 and derives nothing from the night it judges.
+  //
+  // A night with no measured block value at all refuses on every epoch, because
+  // `present` is then 0 and every design column rests on a substituted zero.
+  // THE DENOMINATOR IS THE EPOCH'S 36 INPUTS, which is the population that
+  // `end_of_night38` counts (board #8491): the 35 feature columns and
+  // `time_of_night`. Exactly half absent refuses; one more measured input
+  // scores. The count below reads FINITENESS, so a non-finite input counts as
+  // absent here. `prepare` keeps its own `miss` column as the fit wrote it,
+  // where an infinity counts as measured, because the posterior must reproduce
+  // the fit's own numbers.
+  const MISS_REFUSE = 0.5;
+
+  function stages(model, F, post) {
+    const rows = _rows(F);
+    const p = post || evaluate(model, rows);
+    const classes = p.classes;
+    const n = rows.length;
+    const nInputs = rows[0].length;
+    let nightMeasured = false;
+    for (let i = 0; i < n && !nightMeasured; i++) {
+      for (let j = 0; j < NB; j++) {
+        if (_isNum(rows[i][j])) {
+          nightMeasured = true;
+          break;
+        }
+      }
+    }
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      let nMeasured = 0;
+      for (let j = 0; j < nInputs; j++) if (_isNum(rows[i][j])) nMeasured++;
+      const miss = (nInputs - nMeasured) / nInputs;
+      let reason = null;
+      if (!nightMeasured) reason = 'no-measured-signal';
+      else if (miss >= MISS_REFUSE) reason = 'under-half-measured';
+      if (reason) {
+        out.push({ stage: null, reason: reason, nMeasured: nMeasured, nInputs: nInputs, posterior: null });
+        continue;
+      }
+      const row = p.posterior[i];
+      let k = 0;
+      for (let j = 1; j < row.length; j++) if (row[j] > row[k]) k = j;
+      out.push({
+        stage: classes[k],
+        reason: null,
+        nMeasured: nMeasured,
+        nInputs: nInputs,
+        posterior: row
+      });
+    }
+    const scored = out.filter((e) => e.stage !== null).length;
+    return { id: p.id, classes: classes.slice(), epochs: out, scored: scored, refused: n - scored };
+  }
+
+  root.EEGSTAGE = {
+    SCHEMA: SCHEMA,
+    NAMED: NAMED,
+    prepare: prepare,
+    linear109: linear109,
+    products630: products630,
+    lagdiff72: lagdiff72,
+    endOfNight38: endOfNight38,
+    pfeat55: pfeat55,
+    softmax: softmax,
+    evaluate: evaluate,
+    stages: stages,
+    MISS_REFUSE: MISS_REFUSE
+  };
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+</script>
 <script data-inline-src="eegdex-dsp.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("eegdex-dsp.js",function(__require,__exports){
 /*
  * eegdex-dsp.js — Tepna
@@ -9794,6 +11155,82 @@ global.EegRegistry = {
     };
   }
 
+  /* ── THE STAGE FORMULA, A SECOND STAGE SOURCE ───────────────────────────────────────────────────
+     OFF unless the reader turns it on, and the band-power stager above stays this node's answer
+     (@kestrel, #8464 rule 3). This function is the whole of the formula path inside the engine: it
+     prepares the 35 columns with `EEGFEAT.eegBlockExtract`, evaluates them with `EEGSTAGE`, and
+     hands back the evaluator's own per-epoch answer UNCHANGED.
+
+     IT MAPS NO CLASS ONTO THE BAND-POWER VOCABULARY. The formula names four classes — wake, light,
+     deep and REM — and renaming `light` to `N2` would claim a distinction that nobody fitted. The
+     two hypnograms are two series, never one series from two engines.
+
+     THE MODEL IS DATA AND THE READER SUPPLIES IT (board decision, this PR). No coefficient is
+     inlined into the page: a model file arrives through the same drop zone as the recording, is
+     recognised by its own `schema` field, and this function refuses BY NAME when a precondition is
+     absent. That is also what makes "a second model loads with no code change" true for the reader
+     and not only for the test lane (@kestrel, #8464 rule 6).
+
+     §∅ — an epoch the evaluator refused carries `stage: null` and the evaluator's own reason. This
+     function invents no stage for it and drops no epoch. */
+  function formulaStages(rec, model) {
+    var F = global.EEGFEAT,
+      S = global.EEGSTAGE;
+    if (!F || !S) return { err: 'the stage-formula modules are not loaded' };
+    if (!model) return { err: 'no model file — the formula scores nothing without one' };
+    if (model.schema !== 'tepna.stage-formula/1') {
+      return { err: 'the model file reads schema ' + model.schema + ', not tepna.stage-formula/1' };
+    }
+    /* It takes the SAME shape `compute` takes, and reads the samples under either key, because the
+       app holds the frame it ingested rather than the rec that `analyze` saw. */
+    var sig = (rec && (rec.samples || rec.eeg)) || null;
+    if (!sig || !sig.length || !(rec.fs > 0)) return { err: 'no EEG signal' };
+    var fs = rec.fs,
+      nEp = Math.floor(sig.length / Math.round(EPOCH_SEC * fs));
+    if (nEp < 2) return { err: 'under two epochs of EEG' };
+    /* THE NAMES ARE THE JOINT, so a mismatch refuses instead of reading column 7 as column 7 of a
+       different list. The evaluator checks the 12 names it reads directly; this checks all 35, in
+       order, because the rows below are positional. */
+    var names = (model.inputs && model.inputs.names) || [],
+      block = F.EEG_NAMES,
+      k;
+    if (names.length !== block.length) {
+      return { err: 'the model names ' + names.length + ' inputs and the feature block gives ' + block.length };
+    }
+    for (k = 0; k < block.length; k++) {
+      if (names[k] !== block[k]) {
+        return { err: 'the model names input ' + k + ' as ' + names[k] + ' and the feature block gives ' + block[k] };
+      }
+    }
+    var got = F.eegBlockExtract({ nEpochs: nEp, signals: { eeg: { fs: fs, data: sig } } }),
+      rows = [],
+      i,
+      j,
+      r;
+    for (i = 0; i < nEp; i++) {
+      r = [];
+      for (j = 0; j < got.cols.length; j++) r.push(got.cols[j][i]);
+      rows.push(r);
+    }
+    var out;
+    try {
+      out = S.stages(model, rows);
+    } catch (e) {
+      /* The evaluator's refusals are named, and the message is the reader's. A throw here is a
+         model the page cannot evaluate, never a night it cannot score. */
+      return { err: 'the evaluator refused the model: ' + ((e && e.message) || String(e)) };
+    }
+    return {
+      id: out.id,
+      classes: out.classes,
+      epochs: out.epochs,
+      scored: out.scored,
+      refused: out.refused,
+      nEpochs: nEp,
+      modelSha16: (model.source && model.source.sha256_16) || null
+    };
+  }
+
   global.EEGDSP = {
     VERSION: VERSION,
     BANDS: BANDS,
@@ -9806,6 +11243,8 @@ global.EegRegistry = {
     rms: rms,
     median: median,
     analyze: analyze,
+    /* the SECOND stage source, off unless the reader turns it on and supplies a model file */
+    formulaStages: formulaStages,
     /* the app-facing surface: the adapter entry point, the EDF ingest, the night band summary,
        the node export and the deterministic demo frame */
     compute: compute,
@@ -10945,10 +12384,130 @@ __exports.EEGDSP = window.EEGDSP;
     }
   }
 
+  /* ── THE FORMULA HYPNOGRAM ─────────────────────────────────────────────────────────────────────
+     The second stage source's own strip, drawn only when the reader turned the switch on AND a
+     model file arrived. It never replaces the strip above, and the two are never merged.
+
+     NOT ONE NUMBER IS PRINTED HERE, and that is the state this PR ships in. The brief's own rule is
+     that the screen shows no figure before the three published thresholds each hold a ledger
+     citation, and no blind read has judged this port yet. So the surface carries the SHAPE, the
+     model's identity and the limits — and the registry grades the series `experimental`, which is one
+     rank above `heuristic`, the lowest tier the ladder holds (@kestrel, #8464 rule 5 and #8668).
+
+     THE COLUMN HEIGHTS ARE BORROWED FOR DRAWING ONLY. The formula names four classes and the strip
+     above names five stages, so this figure reuses the five-stage ladder's heights to place four
+     classes and the note says so. A borrowed height is a drawing choice; it claims no equivalence
+     between `light` and N2, and the class name in every hover is the formula's own.
+
+     §∅ — an epoch the evaluator refused is HATCHED, exactly as an unscored epoch is above, and the
+     reason it carries is the evaluator's own. */
+  /* The file the reader must supply, named on the surface for a reader who holds only the page. */
+  var MODEL_FILE_NAME = 'eeg-stage-model-base-2026-11-17.json';
+  var MODEL_FILE_SHA16 = '500f1a71f6ca3e18';
+  var FORMULA_DRAW = { wake: 'eg-ep-w', light: 'eg-ep-n2', deep: 'eg-ep-n3', REM: 'eg-ep-rem' };
+
+  function formulaHtml(f) {
+    if (!f) return '';
+    if (f.err) {
+      /* A refusal is the surface. It names what is absent, and it draws no strip: §∅ — a figure over
+         an absence would read as a night that scored badly rather than one nothing scored. */
+      return (
+        row('Formula hypnogram', 'no series', 'the formula refused') +
+        '<p class="chart-note">' +
+        esc('The stage formula scored nothing: ' + f.err + '. The hypnogram above is this node’s own stager and it stands on its own.') +
+        '</p>' +
+        /* A READER WITH ONLY THE PAGE HOLDS NO MODEL FILE (@kestrel, #8668). The page carries no
+           coefficients, so the text names the file to look for and the bytes that identify it. */
+        (/no model file/.test(f.err)
+          ? '<p class="chart-note">' +
+            esc(
+              'The file to give it is ' +
+                MODEL_FILE_NAME +
+                ', which sits in the root of this repository. Its first 16 hash characters read ' +
+                MODEL_FILE_SHA16 +
+                '. Drop it where you dropped the recording.'
+            ) +
+            '</p>'
+          : '')
+      );
+    }
+    var eps = (f.epochs || []).length,
+      cols = '',
+      legend = '',
+      i,
+      e,
+      st,
+      seen = {},
+      keys = ['wake', 'light', 'deep', 'REM'];
+    if (!eps) return row('Formula hypnogram', 'no epochs', 'the night holds none');
+    for (i = 0; i < eps; i++) {
+      e = f.epochs[i];
+      st = e.stage;
+      if (st != null) seen[st] = true;
+      cols +=
+        '<div class="eg-ep ' +
+        (st == null ? 'eg-ep-nul' : FORMULA_DRAW[st] || 'eg-ep-nul') +
+        '" title="' +
+        esc('epoch ' + i + ' · ' + (st == null ? 'not scored — ' + (e.reason || 'no reason given') : st)) +
+        '"></div>';
+    }
+    for (i = 0; i < keys.length; i++) {
+      /* The legend carries the CLASS NAMES and no count, because a count is a number. A class the
+         night never reads is still listed, so an absent class is visible as an absence. */
+      legend +=
+        '<span class="eg-lg"><span class="eg-dot" style="background:' +
+        STAGE_COLOR[{ wake: 'W', light: 'N2', deep: 'N3', REM: 'REM' }[keys[i]]] +
+        '"></span>' +
+        esc(keys[i] + (seen[keys[i]] ? '' : ' (none)')) +
+        '</span>';
+    }
+    legend += '<span class="eg-lg"><span class="eg-dot eg-ep-nul"></span>not scored</span>';
+    return (
+      row('Formula hypnogram', 'a second stage source', 'off unless you turn it on') +
+      '<div class="eg-hyp">' +
+      cols +
+      '</div><div class="eg-legend">' +
+      legend +
+      '</div>' +
+      '<p class="chart-note">' +
+      esc(
+        'Model ' +
+          (f.id || 'unnamed') +
+          (f.modelSha16 ? ' · file ' + f.modelSha16 : '') +
+          '. The column heights come from the five-stage ladder above and place four classes, so a height names no stage of that ladder; the hover carries the class the formula named.'
+      ) +
+      '</p>' +
+      '<p class="chart-note">' +
+      esc(
+        'What this series is not: the coefficients were fitted on sleep-laboratory derivations and a small number of forehead recordings; a frontal derivation recognises deep sleep less well than a central one; the formula scores after the night and never during it; a hatched column is an epoch it refused, and it carries the reason the evaluator gave. It is a research aid and not a diagnosis, and no figure stands beside it until a blind read of this port holds a citation.'
+      ) +
+      '</p>'
+    );
+  }
+
+  /* THE DOM WRITE LIVES HERE, beside every other write of this node. `formulaHtml` escapes each
+     value it interpolates, and the assembled markup then goes out through the one `setHTML` helper
+     the node already uses — a write in the app shell would be a second, unescapable sink. */
+  function renderFormula(card, title, f) {
+    if (!card || !title) return;
+    if (!f) {
+      setHTML(card, '');
+      card.style.display = 'none';
+      title.style.display = 'none';
+      return;
+    }
+    setHTML(card, formulaHtml(f));
+    card.style.display = '';
+    title.style.display = '';
+  }
+
   global.EEGUI = {
     synthNote: synthNote,
     renderSummary: renderSummary,
     hypnoHtml: hypnoHtml,
+    formulaHtml: formulaHtml,
+    renderFormula: renderFormula,
+    FORMULA_DRAW: FORMULA_DRAW,
     archHtml: archHtml,
     bandHtml: bandHtml,
     qualityHtml: qualityHtml,
@@ -11000,6 +12559,13 @@ const { EEGUI } = __require('eegdex-render.js');
     return document.getElementById(id);
   };
   var RESULT = null;
+  /* THE SECOND STAGE SOURCE'S STATE, and it is OFF until the reader turns it on (@kestrel, #8464
+     rule 3). `FRAME` is the last ingested frame, held because the formula is a SECOND pass over the
+     same samples: a switch flip or a model file must be able to score the night already on screen
+     without asking for the file again. `MODEL` is the reader's model file, and no coefficient of it
+     is in this page. */
+  var FRAME = null;
+  var MODEL = null;
 
   /* EDF is BINARY. A text read would corrupt every sample it decoded, so this node reads the buffer
      and never a string. */
@@ -11016,11 +12582,67 @@ const { EEGUI } = __require('eegdex-render.js');
     });
   }
 
+  function readText(file) {
+    return new Promise(function (resolve) {
+      var fr = new FileReader();
+      fr.onload = function () {
+        resolve(fr.result || null);
+      };
+      fr.onerror = function () {
+        resolve(null);
+      };
+      fr.readAsText(file);
+    });
+  }
+
+  /* THE MODEL IS RECOGNISED BY ITS OWN SCHEMA, never by its name. A filename is a claim about the
+     writer, so `.json` only makes a file a CANDIDATE here; the `schema` field inside it decides. A
+     JSON that is not a stage formula is reported and dropped, and it never reaches the EDF reader. */
+  function takeModel(file) {
+    return readText(file).then(function (txt) {
+      var m = null;
+      try {
+        m = JSON.parse(txt);
+      } catch (e) {
+        return { ok: false, why: file.name + ' — not readable JSON: ' + ((e && e.message) || String(e)) };
+      }
+      if (!m || m.schema !== 'tepna.stage-formula/1') {
+        return { ok: false, why: file.name + ' — reads schema ' + (m && m.schema ? m.schema : 'none') + ', not tepna.stage-formula/1' };
+      }
+      MODEL = m;
+      return { ok: true, why: file.name + ' — stage formula ' + (m.id || 'unnamed') + ' loaded' };
+    });
+  }
+
+  /* The formula section, drawn from the frame already on screen. The switch decides whether this
+     node runs a second stage source at all, and nothing here touches `RESULT` or the strip above. */
+  function renderFormula() {
+    var on = $('egFormulaOn') && $('egFormulaOn').checked,
+      card = $('egFormulaCard'),
+      title = $('egFormula');
+    EEGUI.renderFormula(card, title, !on || !FRAME ? null : EEGDSP.formulaStages(FRAME, MODEL));
+  }
+
   function ingestFiles(fileList) {
     var files = Array.prototype.slice.call(fileList || []);
     if (!files.length) return;
     /* One EEG recording per analysis. A second file is named rather than merged: two EDFs are two
        recordings until something proves they share a clock. */
+    /* A model file travels in the SAME drop, because the formula needs the night and the
+       coefficients together and a second drop zone would be a second thing to explain. */
+    var models = files.filter(function (f) {
+      return /\.json$/i.test(f.name);
+    });
+    files = files.filter(function (f) {
+      return !/\.json$/i.test(f.name);
+    });
+    if (models.length) {
+      takeModel(models[0]).then(function (r) {
+        setStatus(r.why);
+        renderFormula();
+      });
+      if (!files.length) return;
+    }
     if (files.length > 1) setStatus('Reading ' + files[0].name + ' only — ' + (files.length - 1) + ' other file(s) ignored.');
     var file = files[0];
     readBuffer(file).then(function (buf) {
@@ -11041,6 +12663,7 @@ const { EEGUI } = __require('eegdex-render.js');
         frame = { ok: false, reason: 'edf-header-refused — ' + ((e && e.message) || String(e)) };
       }
       if (!frame || !frame.ok) {
+        FRAME = null;
         RESULT = null;
         setExportReady(false);
         EEGUI.renderSummary(null);
@@ -11052,8 +12675,10 @@ const { EEGUI } = __require('eegdex-render.js');
         );
         return;
       }
+      FRAME = frame;
       RESULT = EEGDSP.compute(frame);
       EEGUI.renderSummary(RESULT);
+      renderFormula();
       if (RESULT && RESULT.err) {
         setExportReady(false);
         setStatus(file.name + ' — ' + RESULT.err + (RESULT.reason ? ' (' + RESULT.reason + ')' : ''));
@@ -11085,7 +12710,9 @@ const { EEGUI } = __require('eegdex-render.js');
        generator's truth, so the hypnogram's planned strip and the raster's planted row exist on this
        path alone; the EDF path above calls `renderSummary(RESULT)` and those two rows are absent by
        construction rather than by a flag. */
+    FRAME = frame;
     EEGUI.renderSummary(RESULT, frame.truth);
+    renderFormula();
     setStatus('Demo — synthetic, not a recording: an 8 h simulated night, authored arithmetic.');
     setExportReady(true);
   }
@@ -11146,6 +12773,9 @@ const { EEGUI } = __require('eegdex-render.js');
       });
     }
     if ($('egDemo')) $('egDemo').addEventListener('click', runDemo);
+    /* THE SWITCH. Its markup carries no `checked`, so the page loads with the formula OFF and the
+       band-power stager is this node's answer until the reader decides otherwise. */
+    if ($('egFormulaOn')) $('egFormulaOn').addEventListener('change', renderFormula);
     if ($('egExport')) $('egExport').addEventListener('click', exportJSON);
     // theme toggle — the shared fleet control, wired here and NOT in an inline script, so the strict
     // script-src CSP keeps an empty hash list. Mirrors motiondex-app.js.
@@ -11159,14 +12789,17 @@ const { EEGUI } = __require('eegdex-render.js');
     if ($('egClear'))
       $('egClear').addEventListener('click', function () {
         RESULT = null;
-        ['egKpiGrid', 'egHypnoCard', 'egBandsCard', 'egQualityCard'].forEach(function (id) {
+        FRAME = null;
+        MODEL = null;
+        if ($('egFormulaOn')) $('egFormulaOn').checked = false;
+        ['egKpiGrid', 'egHypnoCard', 'egBandsCard', 'egQualityCard', 'egFormulaCard'].forEach(function (id) {
           var el = $(id);
           if (el) {
             el.innerHTML = '';
             if (id !== 'egKpiGrid') el.style.display = 'none';
           }
         });
-        ['egKPI', 'egHypno', 'egBands', 'egQuality'].forEach(function (id) {
+        ['egKPI', 'egHypno', 'egBands', 'egQuality', 'egFormula'].forEach(function (id) {
           var el = $(id);
           if (el) el.style.display = 'none';
         });
