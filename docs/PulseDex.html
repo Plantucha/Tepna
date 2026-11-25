@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="83d1a76b4f8d" data-compute-hash="5ab07f3e2191"><head>
+<html lang="en" data-manifest-hash="4ad314a37812" data-compute-hash="8e4c95144a9c"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CIK+HS7/1xOvtV34dY8m6yXaUzx3kMmgW6RsanoNH+Y=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LA7FzxwxP2tLxmKV4tPt3XC4QDa4uxZkD9f3pr6DVRU=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZiT2EEwIWDPy/MmXy1TMLxWhsKK6QV6vglexpjC1hbA=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-g6WCMuBNJLjoJ+sGjvYw9TNFW6AJaN7Ijg3eVCfBi14=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-uSE9XQRyRTFiBY0Fk9vTwrU2DdZ2Lz2KTqkP/o1DOfk=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-LA7FzxwxP2tLxmKV4tPt3XC4QDa4uxZkD9f3pr6DVRU=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-ZefGDlwmFb912RzQXkd/MPCVtnq49t0R4eFBnahHRVk=' 'sha256-ai71KO8Ppnd3mqSw9D1OPriS145lcfPserFpA+1H1TM=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-g6WCMuBNJLjoJ+sGjvYw9TNFW6AJaN7Ijg3eVCfBi14=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-uSE9XQRyRTFiBY0Fk9vTwrU2DdZ2Lz2KTqkP/o1DOfk=' 'sha256-yPhlbrc1helUSpSqkbQna0IUysTjat9bRsoryaqXy3A='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.37.0</title>
@@ -10153,6 +10153,47 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     };
   }
 
+  /* ── THE SUMMARY / SERIES EXPORT PAYLOAD, HEADLESS ──────────────────────────────────────────
+     `exportJSON()` in pulsedex-app.js built this payload INLINE, so no committed fixture reached
+     it and GATE B could not see a value in it move. #5680 repaired a fabricated altitude factor
+     that reached a reader through exactly this road, and the only evidence available was a pin on
+     the source text. This builder is the sibling of `pdBuildNodeExport`: ONE implementation that
+     the app, a committed fixture and any later road all call.
+       list — the recordings, already sorted (the app sorts ascending by t0Ms)
+       opts.crossNight — the `ganglior.crossnight` block, computed by the caller from the SAME
+                         sorted list (`PulseCross.crossNightBlock`). Absent ⇒ null, never a
+                         fabricated aggregate (§∅).
+       opts.kernel     — the DexKernel namespace | null
+       opts.provenance — GangliorProvenance.stamp() | null   (key always present)
+       opts.generated  — ISO string (defaults to now at call time)
+     ONE recording returns that recording's own object UNCHANGED, which is what the app shipped;
+     an empty list returns null, because there is no recording to describe. Field ORDER matches
+     the app's historical payload byte-for-byte. */
+  function pdBuildSummaryExport(list, opts) {
+    opts = opts || {};
+    const recs = Array.isArray(list) ? list : [];
+    if (recs.length === 0) return null;
+    if (recs.length === 1) return recs[0];
+    const generated = opts.generated || new Date().toISOString();
+    return {
+      kernel: opts.kernel ? { version: opts.kernel.VERSION, hash: opts.kernel.HASH } : null,
+      schema: {
+        name: 'ganglior.node-export',
+        version: '2.0',
+        node: 'PulseDex',
+        nodeVersion: '1.0',
+        multiRecording: true,
+        generated,
+        provenance: opts.provenance !== undefined ? opts.provenance : null,
+        doc: 'Array of per-recording PulseDex summaries + a ganglior.crossnight v1.0 aggregate header. Each element is the unmodified single-recording object.'
+      },
+      generated,
+      recordingCount: recs.length,
+      crossNight: opts.crossNight !== undefined ? opts.crossNight : null,
+      recordings: recs
+    };
+  }
+
   // Public namespace — the headless surface the orchestrator + app both call.
   // biome-ignore lint/correctness/noInvalidUseBeforeDeclaration: a hoisted `var` reads as `undefined` here, never a dead zone — the idiom adopts the namespace the bundle may already have defined
   var PulseDex = typeof PulseDex !== 'undefined' && PulseDex ? PulseDex : {};
@@ -10164,6 +10205,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
   };
   PulseDex.computeResult = pdComputeResult;
   PulseDex.buildNodeExport = pdBuildNodeExport;
+  PulseDex.buildSummaryExport = pdBuildSummaryExport;
   PulseDex.eventsFromResult = pdEventsFromResult;
   PulseDex.loadOwnExport = pulseLoadOwnExport; // SELF-INGEST reload (review-mode clinical view)
   // scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate so co-load order is irrelevant.
@@ -10262,6 +10304,7 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     pdComputeResult,
     pdEventsFromResult,
     pdBuildNodeExport,
+    pdBuildSummaryExport,
     pulseLoadOwnExport
   };
   PulseDex._bare = BARE;
@@ -14875,6 +14918,7 @@ const {
   windowAnalysis,
   compareIntervalSeries,
   pdBuildNodeExport,
+  pdBuildSummaryExport,
   pulseLoadOwnExport
 } = window.PulseDex._bare;
 // mutable page state: bridge bare window.lastResult ↔ the DSP-owned PulseDex.lastResult (the DSP's own
@@ -16241,27 +16285,24 @@ function exportJSON() {
   if (list.length <= 1) {
     // EXPORT-HYGIENE-FOLLOWUPS-II §1: append the recording's identity-free contentId (set in calculate())
     // so re-exporting the SAME recording yields a stable, disambiguated name. null/absent → no suffix.
-    dl(JSON.stringify(lastResult, null, 2), exportName({ node: 'PulseDex', t0Ms: lastResult.t0Ms, kind: 'summary', ext: 'json', contentId: lastResult.contentId }), 'application/json;charset=utf-8');
+    // The one-recording payload IS that recording's object; it travels through the shared builder
+    // so this road and the fixture cannot diverge (pulsedex-dsp.js pdBuildSummaryExport).
+    dl(
+      JSON.stringify(pdBuildSummaryExport([lastResult]), null, 2),
+      exportName({ node: 'PulseDex', t0Ms: lastResult.t0Ms, kind: 'summary', ext: 'json', contentId: lastResult.contentId }),
+      'application/json;charset=utf-8'
+    );
     return;
   }
-  // ≥2 recordings → wrapper: array of per-recording objects + standardized crossNight envelope
-  const payload = {
-    kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null,
-    schema: {
-      name: 'ganglior.node-export',
-      version: '2.0',
-      node: 'PulseDex',
-      nodeVersion: '1.0',
-      multiRecording: true,
-      generated: new Date().toISOString(),
-      provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null,
-      doc: 'Array of per-recording PulseDex summaries + a ganglior.crossnight v1.0 aggregate header. Each element is the unmodified single-recording object.'
-    },
-    generated: new Date().toISOString(),
-    recordingCount: list.length,
+  // ≥2 recordings → wrapper: array of per-recording objects + standardized crossNight envelope.
+  // The payload is built by the HEADLESS builder in pulsedex-dsp.js, so a committed fixture reads
+  // the same bytes this click writes. The crossNight block is computed from the SAME sorted list.
+  const payload = pdBuildSummaryExport(list, {
+    kernel: window.DexKernel || null,
+    provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null,
     crossNight: window.PulseCross.crossNightBlock(list),
-    recordings: list
-  };
+    generated: new Date().toISOString()
+  });
   // series export (≥2 recordings): anchor on the FIRST night + an explicit day-span (brief §2.4) —
   // recordingsSortedPx() is ascending by t0Ms, so list[0]=earliest, last=latest. NO _multi<N> count (§2.3).
   // NO contentId suffix (EXPORT-HYGIENE-FOLLOWUPS-II §1): contentId digests ONE recording; a multi-recording
