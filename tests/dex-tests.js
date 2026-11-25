@@ -100787,6 +100787,48 @@
       T.ok('CONTROL · the card still cites Baevsky for a real value', /'Baevsky 1984 regression'/.test(src), 'the citation went away with the guard');
     });
 
+    /* §∅ M7 — the two arms of getProfile() disagreed about an absent elevation. The DXP arm answers
+       `null` and names the rule. The DOM arm answered 0, and 0 m IS a legal elevation, so an empty
+       field and a sea-level measurement read the same. That arm is reachable: it runs whenever the
+       shared profile record is absent. Found by the local sweep over hrvdex-profile.js:302. */
+    group('∅ HRVDex profile — an absent elevation is not sea level (M7)', 'hrvdex-profile · absence · elevation', function (T) {
+      var src = (env.sources && env.sources['hrvdex-profile.js']) || '';
+      T.ok('ANTI-VACUITY · the hrvdex-profile.js source is readable in this lane', src.length > 1000, 'env.sources["hrvdex-profile.js"] absent');
+      if (!src) return;
+
+      T.ok('the DOM arm no longer coerces an empty elevation to 0 m', !/prof_elev'\)\?\.value\) \|\| 0/.test(src), 'the || 0 elevation fallback is back');
+      T.ok('the DOM arm reads the guarded value', /elev: _elevEntered/.test(src), 'the DOM arm writes its own elevation expression again');
+      var g = src.match(/const _elevEntered = ([^;]+);/);
+      T.ok('ANTI-VACUITY · the _elevEntered expression was extracted', !!g, 'the const _elevEntered line moved');
+      if (g) {
+        var elevOf = new Function('_elevRaw', 'return ' + g[1] + ';');
+        T.eq('an empty field parses to NaN and answers null', elevOf(NaN), null);
+        T.eq('CONTROL · an entered 0 m stays 0 m', elevOf(0), 0);
+        T.ok('an absent elevation and an entered sea level are two states', elevOf(NaN) !== elevOf(0), 'absence and 0 m produce one answer');
+        T.eq('CONTROL · an entered 2100 m is kept', elevOf(2100), 2100);
+        T.eq('CONTROL · a below-sea-level elevation is kept', elevOf(-300), -300);
+      }
+      T.ok('CONTROL · the DXP arm still names the rule', /elev: p\.elevation != null && isFinite/.test(src), 'the DXP arm lost its null answer');
+
+      /* Both altitude factors in this file now state the absent case. `null <= 1500` is true as well,
+         so each answered 1 before too — by a coercion of null to 0, not by a rule. These legs pin the
+         rule AND the numbers, because a guard that moved a shipped number would be a different change. */
+      T.eq('both altitude factors in this file state the absent case', (src.match(/\.elev == null \|\| !isFinite\(/g) || []).length, 2);
+      var a = src.match(/const _altF = ([^;]+);/);
+      T.ok('ANTI-VACUITY · the _altF expression was extracted', !!a, 'the const _altF line moved');
+      if (a) {
+        var altOf = new Function('_pp', 'return ' + a[1] + ';');
+        T.eq('an absent elevation corrects nothing, so the factor is 1', altOf({ elev: null }), 1);
+        T.eq('CONTROL · sea level answers 1 as well', altOf({ elev: 0 }), 1);
+        T.eq('CONTROL · 1500 m answers 1', altOf({ elev: 1500 }), 1);
+        T.ok('CONTROL · 2100 m answers a real correction', Math.abs(altOf({ elev: 2100 }) - 0.98) < 0.0005, 'the 2100 m factor moved: ' + altOf({ elev: 2100 }));
+        T.eq('no shipped number moves — null and 0 m answer one factor', altOf({ elev: null }), altOf({ elev: 0 }));
+      }
+      var dsp = String((env.sources || {})['hrvdex-dsp.js'] || '');
+      if (!dsp) T.skip('hrvdex-dsp.js in env.sources', 'not wired in this lane');
+      else T.ok('CONTROL · the node DSP keeps its own absent-elevation guard', /p_prof\.elev == null \|\| !isFinite\(p_prof\.elev\)/.test(dsp), 'the hrvdex-dsp.js _altFR guard moved');
+    });
+
     /* §∅ BOOKKEEPING — four HIGH absence-survey rows on hrvdex-profile.js that the CODE already
        refuses, while the survey STATE still read `open`: `6845325b8432` (:45, #2972), `5c406cbcb1c4`
        (:353, #2975), `464bd9601149` (:378, #2967) and `802e6f479f45` (:486, #2967). No plant can red
