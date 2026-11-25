@@ -81,7 +81,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { isCliEntry } from './argv-guard.mjs';
 import { REGEN_BRANCH_PREFIX } from './pr-compliance.mjs';
-import { classify as classifyPath, generatedSet, isBuildOutput } from './rebase-safe.mjs';
+import { classify as classifyPath, generatedSet, isBuildOutput, rebuildAdvice } from './rebase-safe.mjs';
 
 export const CAP = 4;
 /* How many of the newest merges the closure pass reads. A `Residue-fixed:` line a body gains AFTER
@@ -564,7 +564,8 @@ const REBUILD_COMMIT_MSG =
   'build: rebuild the generated trees this rebase auto-resolved\n\n' +
   'rebase-safe resolved every conflicting generated path to the base, then rebuilt each\n' +
   'one from source. The rebuild is no part of the rebased commits, so this commit carries\n' +
-  'it and the pushed branch holds no base-resolved artifact.\n';
+  'the provenance fragments and fixtures it moved. The build outputs stay with the\n' +
+  'regeneration PR, so the checkout restored them.\n';
 
 /* ── THE REBUILD MUST RIDE THE PUSH ────────────────────────────────────────────────────────────
    Measured 2026-11-04 (#4369): `rebase-safe` resolves a conflict in a GENERATED path to the base,
@@ -577,8 +578,18 @@ const REBUILD_COMMIT_MSG =
    outside that set is somebody's work. An untracked path IS committed here, because a rebuild adds a
    generated file and nothing restores one — which is why cleanWorktree refuses the same shape. A
    rename still refuses: no rebuild renames. A refusal returns before the push, so the branch stays
-   as the bird left it. */
-export function commitRebuild(g, generated) {
+   as the bird left it.
+
+   🔴 A BUILD OUTPUT DOES NOT RIDE. Since 2026-11-18 an author PR carries none, and pr-compliance check
+   10 is blocking. Measured 2026-11-25 (#5797): the pass committed 22 generated paths at 13:02, the
+   PR read red over 17 of them, and main's regeneration then put the branch in conflict again, so a
+   second pass at 13:14 committed 6 more and a third at 13:57 committed 18. `rebuildAdvice` is the partition `rebase-safe` prints:
+   provenance and the regen fixtures are committed, a build output is restored to HEAD, and an
+   untracked one is removed because nothing restores it. A regeneration branch carries every path,
+   because its whole content is build outputs. */
+export const rebuildMayPush = (r) => /^(nothing-to-commit|committed|restored)/.test(r);
+export function commitRebuild(g, generated, branch = '') {
+  const carryOutputs = String(branch).startsWith(REGEN_BRANCH_PREFIX);
   const dirty = () =>
     String(g('status', '--porcelain') || '')
       .split('\n')
@@ -597,11 +608,22 @@ export function commitRebuild(g, generated) {
       parsed.filter((r) => !outside(r)),
       'uncommitted'
     );
-  g('add', '--', ...parsed.map((r) => r.path));
-  g('commit', '-m', REBUILD_COMMIT_MSG);
+  const paths = parsed.map((r) => r.path);
+  const { outputs, carry } = carryOutputs ? { outputs: [], carry: paths } : rebuildAdvice(paths, generated);
+  const untracked = new Set(parsed.filter((r) => r.code.includes('?')).map((r) => r.path));
+  const tracked = outputs.filter((q) => !untracked.has(q));
+  const added = outputs.filter((q) => untracked.has(q));
+  if (tracked.length) g('checkout', 'HEAD', '--', ...tracked);
+  if (added.length) g('clean', '-f', '-q', '--', ...added);
+  if (carry.length) {
+    g('add', '--', ...carry);
+    g('commit', '-m', REBUILD_COMMIT_MSG);
+  }
   const left = dirty();
   if (left.length) return `still-dirty: ${left.length} path(s) survived the commit`;
-  return `committed: ${parsed.length} generated path(s)`;
+  const tail = outputs.length ? `${outputs.length} build output(s) left to the regeneration PR` : '';
+  if (!carry.length) return `restored: ${tail}`;
+  return `committed: ${carry.length} generated path(s)${tail ? `; ${tail}` : ''}`;
 }
 
 function rebaseBranch(a, wt) {
@@ -622,9 +644,9 @@ function rebaseBranch(a, wt) {
     step = 'rebase-safe';
     sh('node', ['tools/rebase-safe.mjs'], { cwd: wt });
     step = 'rebuild-commit';
-    const rb = commitRebuild(g, generatedSet());
+    const rb = commitRebuild(g, generatedSet(), a.branch);
     console.error(`pr-walker: the rebuild this rebase owed — ${rb}`);
-    if (!/^(nothing-to-commit|committed)/.test(rb)) return `stopped:rebuild-commit: ${rb}`;
+    if (!rebuildMayPush(rb)) return `stopped:rebuild-commit: ${rb}`;
     step = 'push';
     g('push', '-q', `--force-with-lease=${a.branch}:${a.headSha}`, 'origin', `HEAD:refs/heads/${a.branch}`);
     return `pushed:${g('rev-parse', 'HEAD').trim()}`;
@@ -1444,7 +1466,7 @@ function selftest() {
     const g = (...args) => {
       calls.push(args.join(' '));
       if (args[0] === 'status') return cur.join('\n');
-      if (args[0] === 'checkout' || args[0] === 'commit') {
+      if (args[0] === 'checkout' || args[0] === 'clean' || args[0] === 'commit') {
         cur = after || [];
         return '';
       }
@@ -1522,15 +1544,35 @@ function selftest() {
     'a clean tree is never committed'
   );
   const c2 = fakeGit([' M "PAT Feasibility.html"', ' M OxyDex.html']);
-  eq(commitRebuild(c2, GEN), 'committed: 2 generated path(s)', 'two rebuilt bundles ride the push');
-  eq(c2.calls.includes('add -- PAT Feasibility.html OxyDex.html'), true, 'the add is quoted out and passed by path');
+  eq(commitRebuild(c2, GEN), 'restored: 2 build output(s) left to the regeneration PR', 'two rebuilt bundles do not ride an author PR');
+  eq(c2.calls.includes('checkout HEAD -- PAT Feasibility.html OxyDex.html'), true, 'the restore is quoted out and passed by path');
   eq(
-    c2.calls.some((c) => c.startsWith('commit -m build: rebuild')),
+    c2.calls.some((c) => /^(add|commit)/.test(c)),
+    false,
+    'a rebuild of build outputs alone commits nothing'
+  );
+  const cReg = fakeGit([' M "PAT Feasibility.html"', ' M OxyDex.html']);
+  eq(commitRebuild(cReg, GEN, `${REGEN_BRANCH_PREFIX}abc`), 'committed: 2 generated path(s)', 'the regeneration branch still carries its bundles');
+  eq(cReg.calls.includes('add -- PAT Feasibility.html OxyDex.html'), true, 'the add is quoted out and passed by path');
+  eq(
+    cReg.calls.some((c) => c.startsWith('commit -m build: rebuild')),
     true,
     'the commit names itself as the rebuild'
   );
+  eq(
+    cReg.calls.some((c) => c.startsWith('checkout')),
+    false,
+    'and it restores none of them'
+  );
+  /* The #5797 shape: bundles and the fragments they move, in one rebuild. */
+  const cMix = fakeGit([' M OxyDex.html', ' M provenance/OxyDex.json', '?? docs/TOOLS-INDEX.md']);
+  eq(commitRebuild(cMix, GEN), 'committed: 1 generated path(s); 2 build output(s) left to the regeneration PR', 'a mixed rebuild is partitioned');
+  eq(cMix.calls.includes('add -- provenance/OxyDex.json'), true, 'only the provenance fragment is added');
+  eq(cMix.calls.includes('checkout HEAD -- OxyDex.html'), true, 'the tracked bundle goes back to HEAD');
+  eq(cMix.calls.includes('clean -f -q -- docs/TOOLS-INDEX.md'), true, 'the untracked build output is removed by path');
+  eq(cMix.calls.indexOf('checkout HEAD -- OxyDex.html') < cMix.calls.findIndex((c) => c.startsWith('commit')), true, 'the restore runs before the commit');
   const c3 = fakeGit(['?? docs/TOOLS-INDEX.md']);
-  eq(commitRebuild(c3, GEN), 'committed: 1 generated path(s)', 'an untracked generated path is committed — a rebuild adds one');
+  eq(commitRebuild(c3, GEN), 'restored: 1 build output(s) left to the regeneration PR', 'an untracked build output alone is removed, never committed');
   const c4 = fakeGit([' M ecgdex-dsp.js']);
   eq(commitRebuild(c4, GEN), 'refused: 1 rebuilt path(s) outside the generated set: ecgdex-dsp.js', 'a dirty source file is refused by name');
   const cProv = fakeGit(['?? provenance/MotionDex.json']);
@@ -1550,6 +1592,14 @@ function selftest() {
   const mC = commitRebuild(cR, GEN);
   eq(/^refused: 1 rebuilt path\(s\) outside the generated set: tests\/dex-tests\.js;/.test(mC), true, 'a rebuild refusal leads with the path outside the set');
   eq(mC.includes('1 generated path(s) stay dirty and uncommitted: OxyDex.html'), true, 'a rebuild refusal names the rebuilt path it left uncommitted');
+  for (const [v, want] of [
+    ['nothing-to-commit', true],
+    ['committed: 1 generated path(s)', true],
+    ['restored: 2 build output(s) left to the regeneration PR', true],
+    ['refused: 1 rebuilt path(s) outside the generated set: a.js', false],
+    ['still-dirty: 1 path(s) survived the commit', false]
+  ])
+    eq(rebuildMayPush(v), want, `"${v}" ${want ? 'lets' : 'stops'} the push`);
   const c8 = fakeGit([' M OxyDex.html'], [' M OxyDex.html']);
   eq(commitRebuild(c8, GEN), 'still-dirty: 1 path(s) survived the commit', 'a commit that left the path dirty says so rather than reading committed');
   {
