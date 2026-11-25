@@ -74567,6 +74567,57 @@
       );
     });
 
+    /* ════ THE HRVDEX SIDEBAR MIRROR CARRIES THE HERO'S GRADE (triage row M2) ════
+     The readiness hero badges its score with `.ev-corner`, and the sidebar chip mirrors that same
+     number with no disc at all. One number then read as graded in one place and ungraded in the other.
+     A new surface inherits nothing, so the chip wires `MetricRegistry.badge()` through the node's
+     `evBadge`, and the grade stays the registry's: `hrvScore` reads `experimental`. The disc rides the
+     same `score != null` guard as the number. ════ */
+    group('The HRVDex sidebar readiness chip badges the number it mirrors', 'hrvdex-render · hrvdex-registry · badges · coverage-mandate · ∅', function (T) {
+      var src = env.sources || {};
+      var rnd = src['hrvdex-render.js'];
+      if (rnd == null) {
+        T.skip('hrvdex-render.js source available', 'hrvdex-render.js is not in env.sources, so the source legs below cannot run');
+      } else {
+        T.ok('the hero still badges the score it prints', /class="ev-corner">\$\{evBadge\('HRV Score'\)\}/.test(rnd), 'the hero corner badge is gone, so the mirror has no grade to match');
+        T.ok(
+          'the sidebar chip writes a badge beside the label it mirrors',
+          /srbLabel\.innerHTML = \(score != null \? evBadge\('HRV Score'\) : ''\) \+ 'Readiness'/.test(rnd),
+          'the sidebar label does not lead with a guarded badge expression'
+        );
+        T.ok(
+          'both surfaces read the SAME registry label, so one grade cannot drift from the other',
+          (rnd.match(/evBadge\('HRV Score'\)/g) || []).length === 2,
+          'the two surfaces name ' + (rnd.match(/evBadge\('[^']*'\)/g) || []).length + ' badge label(s) between them'
+        );
+      }
+      var html = (env.srcHtml || {})['HRVDex.src.html'] || '';
+      T.ok(
+        'the page gives the sidebar label the id the render writes to',
+        /class="srb-label" id="srbLabel"/.test(html),
+        html ? 'the `.srb-label` element carries no `srbLabel` id, so the render writes to nothing' : 'HRVDex.src.html read empty, so this leg examined nothing'
+      );
+      var reg = env.HrvRegistry || (typeof window !== 'undefined' ? window.HrvRegistry : null);
+      if (!reg || typeof reg.badgeForLabel !== 'function') {
+        T.skip('HrvRegistry.badgeForLabel available', 'the node registry is not wired into this lane, so the grade legs cannot run');
+        return;
+      }
+      /* The fallback is OFF: a minted `experimental` disc looks like a grade and is really the absence
+         of one, and this metric's real grade happens to be `experimental` too. Only the strict call
+         tells the two apart. */
+      var strict = reg.badgeForLabel('HRV Score', false);
+      T.ok('the label `HRV Score` resolves to a registry entry with the fallback OFF', typeof strict === 'string' && strict.length > 0, 'the label mints only the fabricated fallback disc');
+      T.ok('the disc the label mints reads `experimental`', /\bev-experimental\b/.test(String(strict)), 'the grade is not `experimental`: ' + String(strict));
+      var entry = (reg.REGISTRY || {}).hrvScore || null;
+      T.ok('the registry holds an entry under the id `hrvScore`', entry != null, 'the exported table has no `hrvScore` key, so the badge comes from somewhere else');
+      T.ok('the registry grades `hrvScore` as experimental', entry != null && entry.evidence === 'experimental', 'the entry reads ' + String(entry && entry.evidence));
+      T.ok(
+        'the label the two surfaces pass resolves to that same id',
+        typeof reg.idForLabel === 'function' && reg.idForLabel('HRV Score') === 'hrvScore',
+        'the label resolves to ' + String(typeof reg.idForLabel === 'function' ? reg.idForLabel('HRV Score') : 'no resolver')
+      );
+    });
+
     /* ════ HOUSE-INVARIANT LINT · retired vocabulary + frozen names (DEV-TOOLCHAIN Part A · A3) ════
      A source-text gate, sibling of the DSP-purity gate: mechanizes CLAUDE.md §🎫/§📜 — no retired
      evidence tier (proxy/composite/"provisionally validated" → heuristic/emerging) and no retired

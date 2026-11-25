@@ -311,6 +311,15 @@ function renderHero(r, prev) {
       srbScore.style.setProperty('--srb-color', cssColor);
     }
     if (srbNote) srbNote.textContent = tier;
+    /* The sidebar mirrors the hero's number, and a new surface inherits no badge: the hero wears
+       `.ev-corner` and this chip wore nothing, so the same score read as graded in one place and
+       ungraded in the other. `.sidebar-readiness-badge` sets no `position`, so a corner disc would
+       anchor to an ancestor; the inline `.ev` before the label is the placement for a dense chip.
+       The grade comes from the registry, which holds `hrvScore` at `experimental`, the same tier the
+       hero shows. The disc rides the same `score != null` guard as the number, because a badge beside
+       the em dash grades a value that this night does not hold. */
+    const srbLabel = document.getElementById('srbLabel');
+    if (srbLabel) srbLabel.innerHTML = (score != null ? evBadge('HRV Score') : '') + 'Readiness';
     srb.style.display = 'flex';
   }
 }
