@@ -34339,6 +34339,122 @@
       T.eq('the shipped file carries the coefficient count it declares', count, M.coefficients);
     });
 
+    /* ── THE SECOND STAGE SOURCE, AND THE SWITCH THAT HOLDS IT OFF ──────────────────────────────
+       The formula path is wired into this node, and the node's own answer does not change: the
+       switch carries no `checked`, so the page loads with the band-power stager alone. These legs
+       pin the three things a reader's trust rests on. The DEFAULT, because a research path that
+       arrives on by default is a changed instrument. The REFUSALS, because the formula needs a
+       model file the page does not carry, and every absent precondition must say its own name
+       rather than draw an empty strip. And the SILENCE: this surface prints no figure, because no
+       blind read of the port holds a citation yet, and a number on screen would claim one. */
+    group('EEGDex stage formula — the wiring, the switch and the silence', 'eegdex · stage-formula · wiring · absence · badges', function (T) {
+      var html = (env.srcHtml || {})['EEGDex.src.html'];
+      T.ok('the page shell was read', !!html, 'env.srcHtml carries no EEGDex.src.html in this lane');
+      if (html) {
+        var sw = html.match(/<input[^>]*id="egFormulaOn"[^>]*>/);
+        T.ok('the page carries the formula switch', !!sw, 'no input with id egFormulaOn');
+        /* THE DEFAULT IS THE WHOLE RULE (@kestrel, #8464 rule 3). A `checked` attribute here would
+           turn a research path on for every reader of the bundle, and no test below would notice. */
+        T.eq('…and it is OFF, because the attribute that would turn it on is absent', sw ? /\bchecked\b/.test(sw[0]) : true, false);
+        T.ok('the page carries both formula modules', html.indexOf('eegdex-stage-features.js') >= 0 && html.indexOf('eegdex-stage-model.js') >= 0, 'a module is missing from the shell');
+        /* NO COEFFICIENT IS IN THE PAGE. The model is data, and the reader supplies it, so the
+           shell must not grow a model file of its own through any later convenience. */
+        T.eq('…and no model file is inlined into it', /eeg-stage-model[^"]*\.json/.test(html), false);
+      }
+
+      T.ok('env.EEGDSP is published by the lane', !!(env.EEGDSP && env.EEGDSP.formulaStages), 'eegdex-dsp.js did not load, or it publishes no formulaStages');
+      T.ok('env.EEGUI is published by the lane', !!(env.EEGUI && env.EEGUI.formulaHtml), 'eegdex-render.js did not load, or it publishes no formulaHtml');
+      if (!env.EEGDSP || !env.EEGDSP.formulaStages || !env.EEGUI || !env.EEGUI.formulaHtml) return;
+      var D = env.EEGDSP,
+        U = env.EEGUI,
+        M = env.stageModel;
+
+      /* EVERY REFUSAL NAMES ITSELF. A path that returned an empty series instead would draw a night
+         that scored nothing, which reads as a bad night rather than an absent precondition. */
+      var frame = D.genOvernight({ durSec: 1800, scenario: 'clean', t0Ms: Date.UTC(2026, 0, 1, 23, 0, 0) });
+      T.ok('the simulator gave a frame to score', !!(frame && (frame.samples || frame.eeg) && frame.fs > 0), 'genOvernight returned no samples');
+      var noModel = D.formulaStages(frame, null);
+      T.ok('with no model file the formula refuses, and says so', /no model file/.test(noModel.err || ''), String(noModel.err));
+      var wrong = D.formulaStages(frame, { schema: 'other/9' });
+      T.ok('a file of another schema refuses by name', /other\/9/.test(wrong.err || ''), String(wrong.err));
+      T.ok('…and it names the schema it wanted', /tepna\.stage-formula\/1/.test(wrong.err || ''), String(wrong.err));
+      var noSig = D.formulaStages({ fs: 100, eeg: new Float64Array(100) }, M || { schema: 'tepna.stage-formula/1' });
+      T.ok('a recording under two epochs refuses, before any model question', /two epochs/.test(noSig.err || ''), String(noSig.err));
+
+      T.ok('the shipped model file was read by the lane', !!(M && M.schema), 'env.stageModel is absent — run-tests.mjs and Dex-Test-Suite.html both publish it');
+      if (!M || !M.schema) return;
+
+      /* THE NAMES ARE THE JOINT. The rows the node builds are positional, so a model whose input
+         list differs in ONE name must refuse rather than read column 7 as a different column 7. */
+      var renamed = JSON.parse(JSON.stringify({ schema: M.schema, id: M.id, inputs: M.inputs, design: M.design, passes: [] }));
+      renamed.inputs.names[7] = 'eeg.not.a.name';
+      var mismatch = D.formulaStages(frame, renamed);
+      T.ok('a model that renames one input refuses, naming both names', /eeg\.not\.a\.name/.test(mismatch.err || ''), String(mismatch.err));
+
+      /* THE HAPPY PATH. The formula scores the simulator's night, and the series it hands back is
+         the evaluator's own: four classes, one entry per epoch, and no stage invented for an epoch
+         the evaluator refused. */
+      var got = D.formulaStages(frame, M);
+      T.ok('the formula scores the night', !got.err && !!(got.epochs && got.epochs.length), String(got.err));
+      if (got.err) return;
+      T.eq('it reports one entry per epoch of the night', got.epochs.length, got.nEpochs);
+      T.eq('…and it names the model that scored it', got.id, M.id);
+      var classes = {},
+        nulls = 0,
+        i,
+        e;
+      for (i = 0; i < got.epochs.length; i++) {
+        e = got.epochs[i];
+        if (e.stage == null) {
+          nulls++;
+          T.ok('an unscored epoch carries a reason', !!e.reason, 'epoch ' + i + ' reads null with no reason');
+          T.eq('…and no posterior', e.posterior, null);
+        } else classes[e.stage] = true;
+      }
+      T.eq('the refusal tally counts the epochs that read null', nulls, got.refused);
+      T.eq('every epoch is scored or refused, and the tally has no third case', got.scored + got.refused, got.epochs.length);
+      var vocab = Object.keys(classes).sort().join(',');
+      /* THE FORMULA'S VOCABULARY IS ITS OWN. A `light` renamed to `N2` would claim a distinction
+         nobody fitted, so the node must never emit a five-stage name on this path. */
+      T.eq('no five-stage name reaches this series', /\b(N1|N2|N3|W)\b/.test(vocab), false);
+
+      /* THE SILENCE. The brief's rule is that no figure stands beside this series until the three
+         published thresholds each hold a ledger citation. A row's value is where this surface would
+         print one, so every value it prints must be free of digits. */
+      var card = U.formulaHtml(got),
+        rows = card.match(/<b>[^<]*<\/b>/g) || [];
+      T.ok('the card drew the series', card.indexOf('eg-hyp') >= 0 && rows.length > 0, 'no strip and no row in the rendered card');
+      T.eq(
+        'no row on this surface prints a number',
+        rows
+          .filter(function (r) {
+            return /\d/.test(r);
+          })
+          .join(' · '),
+        ''
+      );
+      T.ok('…and the model that scored it is named in the note', card.indexOf(got.id) >= 0, 'the model id is absent from the card');
+      T.ok('…and the limits are stated beside it', /research aid and not a diagnosis/.test(card) && /forehead/.test(card), 'the limits sentence is absent');
+      T.ok('a refusal renders as a refusal, with no strip', U.formulaHtml(noModel).indexOf('eg-hyp') < 0, 'the error path drew a hypnogram strip');
+      T.ok('…and it carries the reason the engine gave', U.formulaHtml(noModel).indexOf('no model file') >= 0, 'the refusal does not reach the reader');
+      /* A READER WITH ONLY THE PAGE HOLDS NO MODEL FILE, so the refusal names the file to look for,
+         the bytes that identify it and where it sits (@kestrel, #8668). */
+      var noModelHtml = U.formulaHtml(noModel);
+      T.ok('…and it names the file to supply', noModelHtml.indexOf('eeg-stage-model-base-2026-11-17.json') >= 0, 'the refusal names no file');
+      T.ok('…with the hash that identifies it', noModelHtml.indexOf('500f1a71f6ca3e18') >= 0, 'the refusal names no hash');
+      T.ok('…and where that file sits', /root of this repository/.test(noModelHtml), 'the refusal says nothing about where the file sits');
+
+      /* THE GRADE. The series is `experimental`, which is the lowest tier this ladder holds apart
+         from `heuristic`, and the badge comes from the registry rather than from this file. */
+      var R = env.EegRegistry;
+      T.ok('the node registry is published by the lane', !!(R && R.badgeForLabel), 'EegRegistry is absent');
+      if (R && R.badgeForLabel) {
+        var badge = R.badgeForLabel('Formula hypnogram');
+        T.ok('the series badges from the registry', !!badge, 'badgeForLabel minted nothing for the abbr the render uses');
+        T.ok('…at experimental or lower', /experimental|heuristic/.test(badge || ''), String(badge));
+      }
+    });
+
     group('The EEGDex modules are executed by this lane, not only read', 'eegdex · wiring · availability', function (T) {
       T.ok('env.EEGDSP is published by the lane', !!env.EEGDSP, 'eegdex-dsp.js did not load — both loaders report that as a console line only');
       T.ok('env.EEGUI is published by the lane', !!env.EEGUI, 'eegdex-render.js did not load — both loaders report that as a console line only');
@@ -89935,6 +90051,12 @@
            `eegdex-app.js` and `eegdex-render.js` are caught by the two DOM patterns below. */
         'eegdex-dsp.js': 'EEGDSP',
         'eegdex-registry.js': 'EEG_REGISTRY',
+        /* The stage formula's two compute modules joined the shell with the wiring PR. Both are pure
+           compute that hangs off ONE global, and both runners execute them, so they classify as
+           co-loaded rather than exempt: the gate's teeth then assert the global is runtime-present
+           in each realm, which is the property that the EDF path and the drop zone depend on. */
+        'eegdex-stage-features.js': 'EEGFEAT',
+        'eegdex-stage-model.js': 'EEGSTAGE',
         'night-seal.js': 'NightSeal',
         'overdex-walk.js': 'OverDexWalk',
         'signal-adapters.js': 'SignalAdapters',

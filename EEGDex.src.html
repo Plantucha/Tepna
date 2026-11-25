@@ -87,12 +87,16 @@
     <div class="section-title" id="sec-input">EEG Input <span class="st-note">European Data Format <code>.edf</code> — one EEG channel · parsed &amp; analyzed locally</span></div>
     <div class="card">
       <label class="eg-zone" id="egZone">
-        <input type="file" id="egInput" accept=".edf,.EDF" hidden>
+        <input type="file" id="egInput" accept=".edf,.EDF,.json" hidden>
         Drop one EDF recording here, or click to choose.
       </label>
       <div class="controls" style="margin-top:12px">
         <button class="btn" type="button" id="egDemo">▶ Demo</button>
       </div>
+      <!-- THE STAGE FORMULA'S SWITCH, and it carries no `checked`: the page loads with the formula
+           OFF and the band-power stager is this node's answer until the reader decides otherwise. The
+           model file is DATA, so the reader supplies it and no coefficient of it sits in this page. -->
+      <p class="chart-note"><label><input type="checkbox" id="egFormulaOn"> Also score with a stage formula (research) — drop its model file here too</label></p>
       <p class="chart-note" id="egStatus"></p>
     </div>
 
@@ -101,6 +105,9 @@
 
     <div class="section-title" id="egHypno" style="display:none">Hypnogram <span class="st-note">30 s epochs · median-smoothed · unscored epochs hatched</span></div>
     <div class="card" id="egHypnoCard" style="display:none"></div>
+
+    <div class="section-title" id="egFormula" style="display:none">Stage Formula <span class="st-note">a second stage source, off unless you turn it on · four classes · no figure stands beside it yet</span></div>
+    <div class="card" id="egFormulaCard" style="display:none"></div>
 
     <div class="section-title" id="egArch" style="display:none">Sleep Architecture <span class="st-note">twelve numbers over the staged series · each absence names its own reason</span></div>
     <div class="card" id="egArchCard" style="display:none"></div>
@@ -153,6 +160,10 @@
 <script src="cpapdex-edf.js"></script>
 <script src="clock.js"></script>
 <script src="muse-frame.js"></script>
+<!-- The stage formula's two modules: the feature block that prepares the 35 columns and the
+     evaluator that reads a model file's coefficients. Both are inert until the switch is on. -->
+<script src="eegdex-stage-features.js"></script>
+<script src="eegdex-stage-model.js"></script>
 <script type="module" src="eegdex-dsp.js"></script>
 <script type="module" src="eegdex-render.js"></script>
 <script type="module" src="eegdex-app.js"></script>

@@ -134,7 +134,7 @@
       <div class="data-pill"><span class="data-dot"></span> Reference Guide</div>
       <div class="sidebar-data-info">
         EEGDex v0.1.0 · generated from eegdex.manifest.json<br>
-        27 metrics · 3 sections
+        28 metrics · 3 sections
       </div>
     </div>
   </div>
@@ -147,7 +147,7 @@
     <h1 class="ph-title">Metrics, Formulas &amp;<br><span>Normal Values</span></h1>
     <p class="ph-desc">Band-power and sleep-architecture analysis from consumer EEG (Muse). Direct spectral readouts, EEG-staged hypnogram, and derived micro-architecture markers.</p>
     <p class="ph-desc" style="margin-top:8px;font-size:12px;color:var(--text3)">
-      27 metrics total: 13 Core · 11 Advanced · 3 Research
+      28 metrics total: 13 Core · 12 Advanced · 3 Research
     </p>
   </div>
 
@@ -166,7 +166,7 @@
       <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
     </svg>
     Quick Jump Index
-    <span class="qj-count">27 metrics · 3 sections</span>
+    <span class="qj-count">28 metrics · 3 sections</span>
     <svg class="qj-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <polyline points="6 9 12 15 18 9"/>
     </svg>
@@ -206,7 +206,7 @@
           Sleep Architecture
         </div>
         <div class="qj-links"><a href="#sleep" class="qj-sec">Sleep Architecture</a></div>
-        <div class="qj-metrics"><a href="#sleep" class="qm">REM %</a><a href="#sleep" class="qm">Spindles</a><a href="#sleep" class="qm">FAA</a><a href="#sleep" class="qm">Calm</a><a href="#sleep" class="qm">Hypnogram</a><a href="#sleep" class="qm">TST</a><a href="#sleep" class="qm">SE</a><a href="#sleep" class="qm">N3 %</a><a href="#sleep" class="qm">N1 %</a><a href="#sleep" class="qm">N2 %</a><a href="#sleep" class="qm">Wake %</a><a href="#sleep" class="qm">SOL</a><a href="#sleep" class="qm">REM Lat</a><a href="#sleep" class="qm">WASO</a><a href="#sleep" class="qm">Shifts</a><a href="#sleep" class="qm">REM Per</a><a href="#sleep" class="qm">SWA Decay</a></div>
+        <div class="qj-metrics"><a href="#sleep" class="qm">REM %</a><a href="#sleep" class="qm">Spindles</a><a href="#sleep" class="qm">FAA</a><a href="#sleep" class="qm">Calm</a><a href="#sleep" class="qm">Hypnogram</a><a href="#sleep" class="qm">Formula hypnogram</a><a href="#sleep" class="qm">TST</a><a href="#sleep" class="qm">SE</a><a href="#sleep" class="qm">N3 %</a><a href="#sleep" class="qm">N1 %</a><a href="#sleep" class="qm">N2 %</a><a href="#sleep" class="qm">Wake %</a><a href="#sleep" class="qm">SOL</a><a href="#sleep" class="qm">REM Lat</a><a href="#sleep" class="qm">WASO</a><a href="#sleep" class="qm">Shifts</a><a href="#sleep" class="qm">REM Per</a><a href="#sleep" class="qm">SWA Decay</a></div>
       </div>
     </div>
     <div class="qj-no-results" id="qjNoResults" hidden>No metrics match your search.</div>
@@ -535,6 +535,24 @@
     </div>
     
     <span class="ev-corner ev-emerging" title="Hypnogram — Single-channel band-power staging — literature-backed, not PSG-validated (EEGDEX-BUILD-BRIEF §0)"></span>
+  </div>
+
+  <div class="mc" data-tier="secondary">
+    <div class="mh">
+      <div class="mi">
+        <span class="ma">Formula hypnogram</span>
+        <span class="mf">Per-epoch stage series from a fitted stage formula over the same EEG channel</span>
+      </div>
+      <span class="mt ta">Advanced</span>
+    </div>
+    
+    <div class="fb">
+      <div class="fl">Formula</div>
+      <div class="ft">the 35 feature columns per 30 s epoch, evaluated by the coefficients of a reader-supplied model file</div>
+      
+    </div>
+    
+    <span class="ev-corner ev-experimental" title="Formula hypnogram — A second stage source, off unless the reader turns it on. The coefficients were fitted on sleep-laboratory derivations and a small number of forehead recordings, and no blind read has judged this port's agreement with an expert score, so the series carries `experimental`, one rank above the lowest tier the ladder holds. It names four classes (wake, light, deep, REM) and not the band-power stager's five"></span>
   </div>
 
   <div class="mc">
