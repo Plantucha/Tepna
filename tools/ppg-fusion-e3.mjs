@@ -452,6 +452,10 @@ function ecgCache(p) {
       v = {
         lo: er.t0Ms,
         hi: er.t0Ms + (er.durSec || 0) * 1000,
+        /* AXIS, DECLARED 2026-11-25 for row 2026-09-26-pat-ecg-index-axis-is-not-the-h10-sample-clock.
+           This fusion run pins the axis at the call site and offers no `--ecg-axis` front door.
+           The axis is `linear`, pinned here, so a flip of the program default leaves every number
+              this tool published where it is. */
         beats: Array.from(rPeakTimesOnAxis(er, Float64Array.from(refinePeaks(bp, eres.peaks)), { axis: 'linear' }))
       };
     }
