@@ -87,8 +87,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "d0766d22aa41",
-        "computeHash": "ab1a368fb6c4"
+        "manifestHash": "7827567b2e0a",
+        "computeHash": "6f1e33a89134"
       },
       "evidence": {
         "envelopeRef": null,
@@ -117,8 +117,8 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "d0766d22aa41",
-        "computeHash": "ab1a368fb6c4"
+        "manifestHash": "7827567b2e0a",
+        "computeHash": "6f1e33a89134"
       },
       "evidence": {
         "envelopeRef": null,
@@ -135,6 +135,373 @@
       "uncertainty": null,
       "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the device-PPI cross-check in `validation` is a comparison, not an interval)"
     }
+  },
+  "signalQuality": {
+    "epochSec": 300,
+    "channels": {
+      "ppg": {
+        "stream": "optical:ppg",
+        "scopeNote": "Every cell of this column describes the reference channel this node picked for the analysis, named beside it — not the three-channel consensus and not the whole file.",
+        "inputNote": null,
+        "nodeSqi": {
+          "value": 1,
+          "unit": "mean per-beat score, 0 to 1",
+          "reason": null,
+          "beats": 43,
+          "channel": 2
+        },
+        "coverage": {
+          "value": null,
+          "unit": "% of the recorded envelope",
+          "reason": "no-census: this recording carries no segment census, so the covered share of its envelope is unknown",
+          "segments": null,
+          "durSec": 39.998518299007266
+        },
+        "epochs": {
+          "value": 1,
+          "unit": "windows",
+          "reason": null,
+          "longRecord": false
+        },
+        "timing": {
+          "value": 132.02640828038045,
+          "unit": "ppm of the device rate against the host axis",
+          "reason": null,
+          "anchors": 11,
+          "spanMs": 37029.62963,
+          "independent": true,
+          "drawn": false,
+          "maxStepMs": 0
+        },
+        "drift": {
+          "value": null,
+          "unit": "ppm of the night rate against a named reference",
+          "reason": "no-walk: this node builds no per-window rate walk over the night, so it measures no drift against a §3d reference — the axis rate beside it is the whole-record figure"
+        },
+        "reference": {
+          "value": null,
+          "unit": "ms between the mean self interval and the mean device interval",
+          "reason": "no-reference: no device interval series reached this node, so no second instrument can be held against its own",
+          "source": null,
+          "nSelf": null,
+          "nDevice": null,
+          "selfMean": null,
+          "devMean": null
+        },
+        "flatline": {
+          "value": 0,
+          "unit": "% of samples",
+          "reason": null,
+          "samples": 0,
+          "pinnedSamples": 0,
+          "stuckSamples": 0,
+          "spans": 0,
+          "of": 5400,
+          "channel": 2
+        },
+        "rail": {
+          "value": 0,
+          "unit": "samples at the rail",
+          "reason": null,
+          "railLo": -519110,
+          "railHi": -513231,
+          "railUnit": "the rail VALUES of the reference channel, in the stream’s own counts — the census beside them counts samples, not values",
+          "of": 5400,
+          "channel": 2
+        },
+        "snr": {
+          "value": 24.209111688855515,
+          "unit": "ratio of in-band to out-of-band power",
+          "reason": null,
+          "windows": 2,
+          "winSec": 20,
+          "channel": 2,
+          "scale": "a power RATIO, not dB — this node never converts it"
+        },
+        "mains": {
+          "value": null,
+          "unit": "ratio of mains-band to in-band power",
+          "reason": "not-measured: this node notches the mains rate out of the waveform and measures no mains-against-in-band ratio"
+        },
+        "sidecarEffect": {
+          "changed": [
+            "flatline",
+            "rail"
+          ],
+          "unchanged": [
+            "timing",
+            "drift",
+            "mains",
+            "epochs"
+          ],
+          "undetermined": [
+            "coverage",
+            "nodeSqi",
+            "snr",
+            "reference"
+          ],
+          "how": "the companion’s rows merge into the pinned span sets, so both census cells count the writer’s held runs beside this node’s own; the four unchanged facts are computed from the stream or its clocks before any companion is read",
+          "undeterminedReason": "the span sets also reach the beat rejection, so a companion can move the beat population these four read; no four-way run of one recording has measured which of them moves here",
+          "population": "the call graph of this node, read fact by fact: the ECGDex pilot measured ITS own facts over one synthetic recording run four times (2026-11-15), and no run of this node has been diffed before and after its companion yet",
+          "measuredOn": null
+        }
+      },
+      "acc": {
+        "stream": "optical:acc",
+        "scopeNote": "This node reads the motion companion to grade the optical beats, so the column carries the population it placed and the rate it read — never a quality score of the motion stream itself.",
+        "inputNote": "no-input: no motion companion reached this node with this recording",
+        "nodeSqi": {
+          "value": null,
+          "unit": "mean per-beat score, 0 to 1",
+          "reason": "no-score: this node scores quality through the optical beat series, so it computes none for the motion stream"
+        },
+        "coverage": {
+          "value": 0,
+          "unit": "% of the placed epochs with a known motion value",
+          "reason": null,
+          "epochsWithMotion": 0,
+          "epochs": 1,
+          "rows": null
+        },
+        "epochs": {
+          "value": null,
+          "unit": "windows",
+          "reason": "no-input: no motion companion reached this node with this recording",
+          "rateHz": null
+        },
+        "timing": {
+          "value": null,
+          "unit": "ppm of the device rate against the host axis",
+          "reason": "no-axis: this node builds no host-disciplined axis for the motion companion, so no device-against-host rate exists for it",
+          "rateHz": null
+        },
+        "drift": {
+          "value": null,
+          "unit": "ppm of the night rate against a named reference",
+          "reason": "no-walk: this node builds no per-window rate walk over the night, so it measures no drift against a §3d reference — the axis rate beside it is the whole-record figure"
+        },
+        "reference": {
+          "value": null,
+          "unit": "ms against a second instrument",
+          "reason": "no-reference: no second motion instrument reaches this node, so nothing can be held against this stream"
+        },
+        "flatline": {
+          "value": null,
+          "unit": "% of samples",
+          "reason": "no-census: the motion companion’s held runs reach this node as the sidecar state in the ledger below, and this node counts no flat share over the samples themselves"
+        },
+        "rail": {
+          "value": null,
+          "unit": "samples at the rail",
+          "reason": "no-census: this node runs no rail detection over the motion stream, and no declared full-scale range reaches it"
+        },
+        "snr": {
+          "value": null,
+          "unit": "ratio of in-band to out-of-band power",
+          "reason": "not-measured: this node computes no in-band ratio for the motion stream"
+        },
+        "mains": {
+          "value": null,
+          "unit": "ratio of mains-band to in-band power",
+          "reason": "not-measured: this node notches the mains rate out of the waveform and measures no mains-against-in-band ratio"
+        },
+        "sidecarEffect": {
+          "changed": [],
+          "unchanged": [
+            "coverage",
+            "epochs",
+            "timing",
+            "drift",
+            "reference",
+            "flatline",
+            "rail",
+            "snr",
+            "mains",
+            "nodeSqi"
+          ],
+          "how": "the motion companion’s own run census reaches the ledger row below and no cell of this column, so every cell’s before value and after value are one number",
+          "population": "the call graph of this column, read cell by cell: the claim is structural rather than measured, because no cell here reads `accSidecar` and the ledger row below reads it instead",
+          "measuredOn": null
+        }
+      }
+    },
+    "sidecars": [
+      {
+        "key": "PPGRUNS",
+        "file": "_PPGRUNS.txt",
+        "label": "Signal gaps — optical",
+        "state": "absent",
+        "reason": "no `_PPGRUNS.txt` reached this node, and this recording’s origin is unknown (no filename reached this node, so the recording’s origin is unknown — not assumed to be either writer), so whether a writer should have produced one is unknown as well"
+      },
+      {
+        "key": "PPGSEAMS",
+        "file": "_PPGSEAMS.txt",
+        "label": "Clock jumps — optical",
+        "state": "absent",
+        "reason": "no `_PPGSEAMS.txt` reached this node, and this recording’s origin is unknown (no filename reached this node, so the recording’s origin is unknown — not assumed to be either writer), so whether a writer should have produced one is unknown as well"
+      },
+      {
+        "key": "ACCRUNS",
+        "file": "_ACCRUNS.txt",
+        "label": "Signal gaps — motion",
+        "state": "not-applicable",
+        "reason": "this recording carries no motion companion, so no motion sidecar can apply to it"
+      },
+      {
+        "key": "PPG2WRUNS",
+        "file": "_PPG2WRUNS.txt",
+        "label": "Signal gaps — optical, 2nd stream",
+        "state": "not-read",
+        "reason": "the box writes it beside a second-wavelength optical stream, and this node ingests the 3-channel `_PPG.txt` only"
+      },
+      {
+        "key": "ACCRAWRUNS",
+        "file": "_ACCRAWRUNS.txt",
+        "label": "Signal gaps — motion, raw stream",
+        "state": "not-read",
+        "reason": "the box derives this spelling beside a raw motion stream, and this node’s picker pairs `_ACCRUNS.txt` with the motion companion it loads"
+      },
+      {
+        "key": "ACCSEAMS",
+        "file": "_ACCSEAMS.txt",
+        "label": "Clock jumps — motion",
+        "state": "not-read",
+        "reason": "the box writes it beside the motion stream and MotionDex reads it; this node has no motion-seam reader"
+      },
+      {
+        "key": "ECGRUNS",
+        "file": "_ECGRUNS.txt",
+        "label": "Signal gaps — ECG",
+        "state": "not-applicable",
+        "reason": "a chest ECG stream, which this node does not ingest"
+      },
+      {
+        "key": "ECGSEAMS",
+        "file": "_ECGSEAMS.txt",
+        "label": "Clock jumps — ECG",
+        "state": "not-applicable",
+        "reason": "a chest ECG stream, which this node does not ingest"
+      },
+      {
+        "key": "HRSEAMS",
+        "file": "_HRSEAMS.txt",
+        "label": "Clock jumps — heart rate",
+        "state": "not-read",
+        "reason": "this node ignores the device `_HR.txt` rows with a note on the page, so no seam reader stands for them"
+      },
+      {
+        "key": "PPISEAMS",
+        "file": "_PPISEAMS.txt",
+        "label": "Clock jumps — beat intervals",
+        "state": "not-read",
+        "reason": "this node reads the device interval rows for the referee and has no seam reader for them"
+      },
+      {
+        "key": "RADIOCLOCK",
+        "file": "_RADIOCLOCK.csv",
+        "label": "Radio clock log",
+        "state": "not-read",
+        "reason": "a parser stands in radio-clock.js, which this bundle does not inline, so no reader here reads this file"
+      },
+      {
+        "key": "LINK",
+        "file": "_LINK.csv",
+        "label": "Bluetooth link log",
+        "state": "not-read",
+        "reason": "one file per night, tied to no stream, and no node reads it"
+      },
+      {
+        "key": "RTCLOG",
+        "file": "_RTCLOG.csv",
+        "label": "Ring clock log",
+        "state": "not-read",
+        "reason": "the ring writes this clock journal beside the optical stream this node can ingest, and no reader stands here"
+      },
+      {
+        "key": "OXYFRAME",
+        "file": "_OXYFRAME.txt",
+        "label": "Ring contact log",
+        "state": "not-read",
+        "reason": "the ring writes this contact journal beside the optical stream this node can ingest, and no reader stands here"
+      },
+      {
+        "key": "CLOCK",
+        "file": "_CLOCK.csv",
+        "label": "Host clock log",
+        "state": "not-read",
+        "reason": "a night journal of what disciplined the host clock, and this node reads the host stamps of its own stream instead"
+      },
+      {
+        "key": "PMDARRIVAL",
+        "file": "_PMDARRIVAL.csv",
+        "label": "Packet arrival log",
+        "state": "not-read",
+        "reason": "a per-session log of the host arrival stamp of every packet of the streams this node ingests, and no reader stands here"
+      },
+      {
+        "key": "CLOCKSYNC",
+        "file": "CLOCKSYNC.csv",
+        "label": "Device clock sync log",
+        "state": "not-read",
+        "reason": "a per-device log of each clock-sync event and its skew, and no reader stands here"
+      },
+      {
+        "key": "PMDNEG",
+        "file": "PMDNEG.csv",
+        "label": "Stream rate agreement log",
+        "state": "not-read",
+        "reason": "the per-stream record of the rate the device agreed to, which this node could hold against the rate it measures, and no reader stands here"
+      },
+      {
+        "key": "STARTS",
+        "file": "STARTS.csv",
+        "label": "Daemon start log",
+        "state": "not-read",
+        "reason": "a night journal of each daemon start, which binds to no stream"
+      },
+      {
+        "key": "WORN",
+        "file": "WORN.csv",
+        "label": "Wear state log",
+        "state": "not-read",
+        "reason": "a per-device journal of the wear state, which binds to no stream"
+      },
+      {
+        "key": "WEDGEFIRE",
+        "file": "WEDGEFIRE.csv",
+        "label": "Device wedge log",
+        "state": "not-read",
+        "reason": "a journal of each device the box found wedged, which binds to no stream"
+      },
+      {
+        "key": "ADAPTERHCI",
+        "file": "ADAPTERHCI.csv",
+        "label": "Radio health log",
+        "state": "not-read",
+        "reason": "a per-radio health report, which binds to no stream"
+      },
+      {
+        "key": "OXYLIFE",
+        "file": "OXYLIFE.csv",
+        "label": "Ring lifecycle log",
+        "state": "not-read",
+        "reason": "the ring writes this lifecycle journal beside the optical stream this node can ingest, and no reader stands here"
+      },
+      {
+        "key": "SESSIONDETECT",
+        "file": "SESSIONDETECT.csv",
+        "label": "CPAP session detector log",
+        "state": "not-applicable",
+        "reason": "the CPAP shadow runner writes it, and this node ingests no CPAP stream"
+      },
+      {
+        "key": "AS11CLOCK",
+        "file": "AS11CLOCK.csv",
+        "label": "CPAP device clock log",
+        "state": "not-applicable",
+        "reason": "the CPAP clock discipline writes it, and this node ingests no CPAP stream"
+      }
+    ]
   },
   "quality": {
     "analyzablePct": 100,

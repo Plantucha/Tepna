@@ -349,6 +349,11 @@ const SOURCE_FILES = ['tools/trio-batch.mjs','tools/pat-host-offset.mjs','tools/
  /* ecgdex-render.js — EVALUATED below through esmClassicify, so the evaluate-equals-listed gate
     requires it here, and the id-binding gate needs its TEXT to see the `sqAllan` render site. */
  'ecgdex-render.js',
+ /* ppgdex-render.js — EVALUATED below through a dynamic import (line ~868), and the id-binding gate
+    needs its TEXT as well: the gate read `meanSqi` as UNBOUND in this lane while the Node lane bound
+    it off the render site, so one lane asked for a baseline the other lane refuses (2026-11-25, unit
+    `sqppgsq`). run-tests.mjs reads it already; both lanes or neither. */
+ 'ppgdex-render.js',
  /* THE FOUR ANALYSIS PAGES THE DELEGATION-PARITY REGISTRY NAMES AND THIS LANE COULD NOT READ. The
     registry in tests/dex-tests.js scans each page for its `AnalysisStats.*` calls, and skips a page
     whose source the runner passed none of — so a private copy reappearing in any of these four was

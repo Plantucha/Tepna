@@ -676,7 +676,28 @@ window.evBadge = evBadge;
   </svg>`;
   }
 
-  global.PPGUI = { PPGScope, lineChart, poincare, medianPulseChart, ledRibbon, buildEnvelope, COLORS: C };
+  /* THE SHARED SIGNAL-QUALITY TABLE (§7.4). The slab lives in `sq-table.js`, which this page loads
+     before this module. This node hands it the three drawing helpers and ONE id override: its
+     registry already names the mean per-beat score `meanSqi`, so the table badges that id rather
+     than standing a second id over one number. */
+  var _SQ_UI = SQTable.makeTable({ badge: evBadge, lineChart: lineChart, colors: C, ids: { nodeSqi: 'meanSqi' } });
+  var sqTable = _SQ_UI.sqTable,
+    sqDriftPanels = _SQ_UI.sqDriftPanels;
+
+  global.PPGUI = {
+    PPGScope,
+    lineChart,
+    poincare,
+    medianPulseChart,
+    ledRibbon,
+    buildEnvelope,
+    COLORS: C,
+    sqTable,
+    sqDriftPanels,
+    SQ_ROWS: SQTable.SQ_ROWS,
+    SQ_DRIFT_SERIES: SQTable.SQ_DRIFT_SERIES,
+    SQ_LEDGER_ID: SQTable.SQ_LEDGER_ID
+  };
 })(window);
 
 // ESM-MIGRATION: dual-mode re-export so ppgdex-app.js can `import { PPGUI }`; the IIFE still attaches

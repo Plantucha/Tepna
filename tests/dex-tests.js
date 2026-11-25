@@ -13937,8 +13937,12 @@
         motiondex: 'activityCounts effortAmp effortPresent',
         oxydex:
           'biCv bluntedArousalFlag breathsPerMin cdiIdx circadianHrAmp ct85 ct88 ct89 decelCap deepProxy dfaAlpha1 episodeRange fftCycleSec hrCv hrMaxKpi hrNadirTiming hrQuartileTrend hrVarSd intraNightNsi karvZone lfHfPower mafHr meanHrPb meanHrRest nadirBin46 nadirBin69 nadirBinGt9 nadirBinLt4 nadirDepth nadirRecov nocDip o2HrEfficiency oscEpisodeCount oscIndex oscPeakCrossings oscWindows pbDivergeCount pbDivergePct pbEpisodes pbTrend periodicBreathing periodicityPattern pnn3Equiv poorNightsPct recoveryCv rmssdProxy scoreTrend sd1sd2 sleepPressureIdx solTrend spo2Autocorr1 spo2HrLag spo2Nadir spo2NadirTiming spo2NightCV spo2wBias spo2wMae spo2wMedian spo2wMin spo2wTrackR spo2wWithin2 ssiIdx stabilityR2 t88 worst10MinSpo2 worst30MinT95 z2win',
+        /* `meanSqi` LEFT this baseline on 2026-11-25: the signal-quality table badges the mean
+           per-beat score through this node's EXISTING id, so `ppgdex-render.js` names the id as a
+           string and route 1 binds it. The table deliberately declares no second id for that one
+           number. The set ratchets DOWN only. */
         ppgdex:
-          'accHz agingIdx agreement analyzable beatLatency beatLatencyMad beatPpiDelta cleanPulses correction detectorStability dicrotic gyroHz ledAgreement meanAbsDev meanPPI meanSqi motionIdx notchTime pulseWidth reflectionIdx',
+          'accHz agingIdx agreement analyzable beatLatency beatLatencyMad beatPpiDelta cleanPulses correction detectorStability dicrotic gyroHz ledAgreement meanAbsDev meanPPI motionIdx notchTime pulseWidth reflectionIdx',
         pulsedex: 'accelCap ansPsns ansSns artifacts decelCap htn maxRR medianRR minRR modeRR mxdmn nBeats recovIndex recovery rsaProxy sdnnZ vagalEff'
       };
       var NODES = Object.keys(UNDECLARED);
@@ -13975,7 +13979,7 @@
         hrvdex: ['hrvdex-dsp.js', 'hrvdex-app.js', 'hrvdex-profile.js'],
         motiondex: ['motiondex-dsp.js'],
         oxydex: ['oxydex-dsp.js', 'oxydex-cross.js'],
-        ppgdex: ['ppgdex-dsp.js', 'ppgdex-cross.js'],
+        ppgdex: ['ppgdex-dsp.js', 'ppgdex-cross.js', 'ppgdex-render.js'],
         pulsedex: ['pulsedex-dsp.js', 'pulsedex-cross.js']
       };
       var missingBodies = [];
@@ -46754,6 +46758,144 @@
         T.ok('the rich export publishes hrv.frequency.respRate (was absent at any level)', 'respRate' in f, Object.keys(f).join(','));
         T.ok('…and respRateMethod beside it', 'respRateMethod' in f);
       }
+    });
+
+    /* SIGNAL-QUALITY-TABLE unit 3 — THE SECOND ADOPTER (§7.4). The pilot's two groups pin the spine
+       itself; this one pins what an adopter owes. The rich gate, because a table inside the light
+       export moves every byte a user downloads. The ten facts of BOTH columns, because a column that
+       drops one publishes a shorter table under the same name. The three-way effect record, because
+       this node has run no four-way measurement and may not write `unchanged` over a fact nobody
+       diffed. And the lane contract, because a ledger whose resolver is half-wired must throw rather
+       than publish a state nobody computed (§∅). */
+    group('SIGNAL-QUALITY-TABLE unit 3 — PpgDex adopts the table, and every cell is a number or a named absence', 'ppgdex-dsp · §∅ · signalQuality', function (T) {
+      var P = env.PpgDex;
+      var eq = env.equiv && env.equiv.ppgdex_rich;
+      if (!(P && typeof P.compute === 'function' && eq && eq.input)) {
+        T.skip('committed PpgDex rich input present', 'the synthetic Verity input is COMMITTED, so this must run everywhere including CI');
+        return;
+      }
+      var rich = P.compute({ text: eq.input }, { rich: true });
+      var light = P.compute({ text: eq.input });
+      var sq = rich && rich.signalQuality;
+
+      // 1 · RICH-ONLY, so the Ganglior stream the app writes does not move a byte.
+      T.ok('the rich export carries the table', !!(sq && sq.channels));
+      T.ok('…and the light export does not, so the light stream is unchanged', !light || !('signalQuality' in light));
+      T.eq('the epoch the table reports is this node’s own five-minute walk', sq && sq.epochSec, 300);
+
+      // 2 · THE BICONDITIONAL, over every cell of both columns.
+      var FACTS = ['coverage', 'rail', 'flatline', 'snr', 'mains', 'nodeSqi', 'timing', 'reference', 'epochs', 'drift'];
+      var META = ['stream', 'sidecarEffect', 'scopeNote', 'inputNote'];
+      var chans = (sq && sq.channels) || {};
+      var names = Object.keys(chans).sort();
+      T.eq('the table carries one column per channel this node ingests', names.join(','), 'acc,ppg');
+      var measured = 0,
+        named = 0;
+      for (var ci = 0; ci < names.length; ci++) {
+        var ch = chans[names[ci]] || {};
+        T.eq(names[ci] + ' names its stream', typeof ch.stream, 'string');
+        var got = Object.keys(ch)
+          .filter(function (k) {
+            return META.indexOf(k) < 0;
+          })
+          .sort();
+        T.eq(names[ci] + ' carries the ten facts the brief names, and no others', got.join(','), FACTS.slice().sort().join(','));
+        for (var fi = 0; fi < FACTS.length; fi++) {
+          var c = ch[FACTS[fi]],
+            tag = names[ci] + ' · ' + FACTS[fi];
+          T.eq(tag + ' names what its number counts', typeof (c && c.unit), 'string');
+          if (c && typeof c.value === 'number' && isFinite(c.value)) {
+            T.eq(tag + ' · a measured cell carries no reason', c.reason, null);
+            measured++;
+          } else {
+            T.eq(tag + ' · an absent cell holds null, never a 0', c && c.value, null);
+            T.ok(tag + ' · …and names why', !!(c && typeof c.reason === 'string' && c.reason.length > 10), c && c.reason);
+            T.ok(tag + ' · …in a reason of its own, not the escape string', !!(c && c.reason !== 'unmeasured-and-unexplained'));
+            named++;
+          }
+        }
+        /* §6's before-and-after record. It is not a cell — it carries no value and no unit — and the
+           three lists must PARTITION the ten facts: a fact on none of them is a fact this node
+           published with no claim about what its companions move. */
+        var eff = ch.sidecarEffect;
+        T.ok(names[ci] + ' carries the before-and-after record beside its cells', !!(eff && Array.isArray(eff.changed) && Array.isArray(eff.unchanged)));
+        var und = eff && Array.isArray(eff.undetermined) ? eff.undetermined : [];
+        var all = eff ? eff.changed.concat(eff.unchanged, und) : [];
+        T.eq(names[ci] + ' · every fact of the column sits on exactly one of the three lists', all.slice().sort().join(','), FACTS.slice().sort().join(','));
+        T.eq(names[ci] + ' · and none sits on two', all.length, FACTS.length);
+        T.ok(
+          names[ci] + ' · the record names the population it was read over, never a bare claim',
+          !!(eff && typeof eff.population === 'string' && eff.population.length > 20 && typeof eff.how === 'string'),
+          eff && eff.population
+        );
+        if (und.length) T.ok(names[ci] + ' · an undetermined list says why it is undetermined', !!(eff && typeof eff.undeterminedReason === 'string' && eff.undeterminedReason.length > 20));
+      }
+      T.eq('the two columns published twenty cells between them', measured + named, 20);
+      T.ok('…and at least one of them is a real measurement, so this is not an all-absent table', measured > 0, measured + ' measured, ' + named + ' named absent');
+
+      // 3 · THE LEDGER — one row per file the census names, each in one of the four states.
+      var rows = (sq && sq.sidecars) || [];
+      T.eq('the ledger carries one row per sidecar of the census', rows.length, 25);
+      var STATES = ['absent', 'not-applicable', 'not-read', 'read'];
+      var seen = {},
+        dup = [];
+      for (var ri = 0; ri < rows.length; ri++) {
+        var row = rows[ri] || {},
+          rt = 'ledger · ' + (row.key || '#' + ri);
+        T.ok(rt + ' names its file and its label', typeof row.file === 'string' && row.file.length > 0 && typeof row.label === 'string' && row.label.length > 0);
+        T.ok(rt + ' holds one of the four states', STATES.indexOf(row.state) >= 0, row.state);
+        if (row.state === 'read') T.eq(rt + ' · a row that was read carries no reason', row.reason, null);
+        else T.ok(rt + ' · every other state names why', typeof row.reason === 'string' && row.reason.length > 10, row.reason);
+        if (seen[row.key]) dup.push(row.key);
+        seen[row.key] = 1;
+      }
+      T.eq('and no key appears twice', dup.join(','), '');
+
+      // 4 · THE LANE CONTRACT — the spine refuses a ledger the caller half-wired.
+      var S = env.SQTable;
+      if (S && typeof S.sqLedgerRow === 'function') {
+        var threw = null;
+        try {
+          S.sqLedgerRow({ key: 'K', file: 'F.txt', label: 'L', lane: 'noSuchLane' }, { captureOrigin: null }, {});
+        } catch (e) {
+          threw = (e && e.message) || String(e);
+        }
+        T.ok('a row naming a lane the caller never wired THROWS, so no unread state is published', !!threw && /no resolver/.test(threw), threw || 'it returned a row');
+        var bad = null;
+        try {
+          S.sqLedgerRow(
+            { key: 'K', file: 'F.txt', label: 'L', lane: 'x' },
+            { captureOrigin: null },
+            {
+              x: function () {
+                return { state: 'probably-read' };
+              }
+            }
+          );
+        } catch (e2) {
+          bad = (e2 && e2.message) || String(e2);
+        }
+        T.ok('…and a resolver inventing a fifth state throws as well', !!bad && /none of/.test(bad), bad || 'it returned a row');
+      } else T.skip('SQTable reachable in this realm', 'the spine is loaded beside ppgdex-dsp.js in both execution lanes');
+
+      // 5 · SOURCE MIRRORS — each leg reds when its site comes back.
+      var src = (env.sources && env.sources['ppgdex-dsp.js']) || '';
+      if (src) {
+        T.ok('the table sits inside the rich branch, so the light export cannot carry it', /out\.signalQuality = ppgSignalQuality\(r\);/.test(src));
+        T.ok('the node declares its epoch once, for the walk and for the table', /_PPG_EPOCH_SEC = 300;/.test(src) && /const epLen = _PPG_EPOCH_SEC;/.test(src));
+        T.ok('the lanes belong to this node and travel into the spine', /_sqLedgerRow\(row, rr, _PPG_LANES\)/.test(src));
+      } else T.skip('ppgdex-dsp.js source unavailable');
+      var app = (env.sources && env.sources['ppgdex-app.js']) || '';
+      if (app) {
+        T.ok('the card builds the export with opts.rich, because the table is rich-gated', /rich: true/.test(app) && /PPGDSP\.buildNodeExport/.test(app));
+        T.ok('…and writes the card through the one sink the xss gate names', /_sqSet\('sqTableCard', UI\.sqTable\(/.test(app));
+      } else T.skip('ppgdex-app.js source unavailable');
+      var reg = (env.sources && env.sources['ppgdex-registry.js']) || '';
+      if (reg) {
+        var IDS = ['coverage', 'sqEpochs', 'sqTiming', 'sqDrift', 'sqReference', 'sqFlatline', 'sqRail', 'sqSnr', 'sqMains', 'sqSidecarState'];
+        for (var ii = 0; ii < IDS.length; ii++) T.ok('the registry declares the id the table badges · ' + IDS[ii], new RegExp('\\b' + IDS[ii] + ':').test(reg));
+        T.ok('the mean per-beat score keeps its EXISTING id, so no second id stands for one number', /meanSqi:/.test(reg) && !/sqNodeSqi:/.test(reg));
+      } else T.skip('ppgdex-registry.js source unavailable');
     });
 
     group('PpgDex rich export ≡ its committed golden — Integrator-facing surface', 'ppgdex-dsp · equiv · integrator-facing', function (T) {

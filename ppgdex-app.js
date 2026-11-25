@@ -671,7 +671,36 @@ import { PPGUI } from './ppgdex-render.js';
     </div>
     <div class="q-note">Per-pulse SQI = template cross-correlation against the median pulse × the <b>ACC+GYRO motion gate</b>. PPIs &gt;20% off the local median (Malik) are corrected; ${r.nCorrected} of ${r.nPulses.toLocaleString()} fixed. ${m && m.hasData ? `Motion bursts (accel-magnitude variance + gyro magnitude, resampled to the PPG base) <b>down-weight</b> pulses — wrist PPG's signature quality channel that OxyDex/ECGDex don't have. Mean motion index ${m.meanMotionIndex != null ? m.meanMotionIndex : '— (no inertial coverage)'}.` : '<b>No ACC/GYRO loaded</b> — motion gating skipped; load the companion files for the full quality channel.'} SQI feeds the <b>conf</b> of every Ganglior event.</div>
     ${r.ledSeries && r.ledSeries.length && UI.ledRibbon ? `<div class="mini-h" style="margin-top:14px">${evBadge('LED agreement')}3-LED agreement ribbon <span class="mini-sub">green 3/3 · amber 2/3 (kept) · red 1/3 (dropped) · ref ch${r.channel}</span></div>${UI.ledRibbon(r.ledSeries, { W: 680, H: 120 })}<div class="q-note" style="margin-top:4px">The Polar Sense streams 3 optical channels; a beat is kept only when <b>≥2 of 3</b> place a systolic peak within ±50 ms (optical bSQI) — single-LED beats are <b>dropped, not median-filled</b> (${r.nDroppedBeats || 0} dropped this session). Low-agreement spans line up with the motion / poor-perfusion windows.</div>` : ''}`;
+    const _sq = _sqObject(r);
+    _sqSet('sqTableCard', UI.sqTable(_sq.sq, _sq.why));
     $('qualitySection').style.display = 'block';
+  }
+
+  /* THE SIGNAL-QUALITY TABLE (SIGNAL-QUALITY-TABLE-2026-11-14 §7.4). `_sqObject` prefers the object
+     the analysis already carries, and otherwise builds one here. The §3d drift panels stay out: this
+     node holds no drift profile, so that card would state one node-wide absence on every load. */
+  function _sqObject(r) {
+    if (r && r.signalQuality) return { sq: r.signalQuality, why: null };
+    if (!(window.PPGDSP && typeof PPGDSP.buildNodeExport === 'function')) return { sq: null, why: 'this build publishes no PPGDSP.buildNodeExport, so the table has no object to read' };
+    try {
+      /* `rich: true` IS LOAD-BEARING. `out.signalQuality` sits inside the `if (opts.rich)` branch of
+         ppgdex-dsp.js, so a call without it returns an export with no table in it and this card
+         prints an absence that the node did not have. This call is LOCAL to the card: the app's own
+         export path still calls buildNodeExport WITHOUT opts.rich, so the Ganglior stream the user
+         downloads does not move a byte. */
+      const ex = PPGDSP.buildNodeExport(r, { kernel: window.DexKernel || null, rich: true });
+      if (ex && ex.signalQuality) return { sq: ex.signalQuality, why: null };
+      return { sq: null, why: 'the rich node export built with no signalQuality object inside it' };
+    } catch (e) {
+      return { sq: null, why: 'the node export threw while this card was built: ' + ((e && e.message) || String(e)) };
+    }
+  }
+
+  /* The ONE sink for the table card, which is why this statement carries an entry in the
+     xss-sink-gate ALLOW table: the builder assembles markup, so no identifier can be escaped here. */
+  function _sqSet(id, html) {
+    const el = $(id);
+    if (el) el.innerHTML = html;
   }
 
   function renderCharts(r) {
