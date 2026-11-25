@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="7eabd3b9fcb5" data-compute-hash="f2d6acd2f905">
+<html lang="en" data-manifest-hash="7578a1661f52" data-compute-hash="f2d6acd2f905">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1GXN++OkM02KioWXqr41sn7DFt/p7OeiRsHDpnTpfhg=' 'sha256-42kyzQem73gBU2vM9vVzkl7OCVo4X8g5sHyj1DitNBA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9nZbaaUGZxHBJKPQ+GTzzoMqkNclfe/TIKbnq7RwNzo=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AJI3024kFPXR8vHy8m8EF0R1krYY18zhOaNj9BrPCdA=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-N+/PqjailC3HlNrby5dUWhmGtXf6lf42byiOskRM4qo=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jcYwIYHWEOkRho/6EL++KYsUTDIxL+gNUno4PTReee0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1GXN++OkM02KioWXqr41sn7DFt/p7OeiRsHDpnTpfhg=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9nZbaaUGZxHBJKPQ+GTzzoMqkNclfe/TIKbnq7RwNzo=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AJI3024kFPXR8vHy8m8EF0R1krYY18zhOaNj9BrPCdA=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-N+/PqjailC3HlNrby5dUWhmGtXf6lf42byiOskRM4qo=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-fR5LYdYKGpey3OIZ3lQjri+sZw93IS28pWeBz+pfoKA=' 'sha256-jcYwIYHWEOkRho/6EL++KYsUTDIxL+gNUno4PTReee0=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.37.0</title>
@@ -28150,8 +28150,13 @@ function nightRowInner(n) {
   var readCls = n.karv ? n.karv.readinessColor : stabGradeClass(n.stab);
   var readPill = readScore != null ? '<span class="nr-readiness-pill ' + stsCls(readCls) + '">💪 ' + readScore + '</span>' : '';
 
-  // ── LEFT: date + readiness ──
-  var leftHtml = '<div class="nr-left">' + '<div class="nr-date-v22">' + n.date + '</div>' + '<div class="nr-dur">' + durFmt + '</div>' + readPill + '</div>';
+  /* ── LEFT: date + readiness ──
+     The disc goes on the number and never on the em dash, because a badge beside `—` grades a value
+     that this night does not hold. `duration` reads `measured` in the node registry: the recording
+     span is a direct read of the stamps and not a derived figure. The call sits AT the element, so
+     the badge-by-construction guard reads it in the same window as the class. */
+  var durBadge = durH == null || typeof evBadge !== 'function' ? '' : evBadge('Duration');
+  var leftHtml = '<div class="nr-left">' + '<div class="nr-date-v22">' + n.date + '</div>' + '<div class="nr-dur">' + durBadge + durFmt + '</div>' + readPill + '</div>';
 
   // ── CENTER: 5 core KPIs ──
   var centerHtml = '<div class="nr-center">';
@@ -28936,10 +28941,12 @@ function nightDetail(n, idx) {
 
   // ── Date header — always shown at top of expanded card ──────────
   var _dh = n.date || '';
-  var _dur = s.durationMin ? Math.floor(s.durationMin / 60) + 'h' + (Math.round(s.durationMin % 60) < 10 ? '0' : '') + Math.round(s.durationMin % 60) + 'm' : '';
+  /* `!= null` and not a truthiness test: a night of 0 minutes is a measured zero and it keeps its
+     chip, while an unknown span stays absent. The disc rides the same guard as the number. */
+  var _dur = s.durationMin != null ? Math.floor(s.durationMin / 60) + 'h' + (Math.round(s.durationMin % 60) < 10 ? '0' : '') + Math.round(s.durationMin % 60) + 'm' : '';
   html += '<div class="night-detail-header">';
   html += '<div class="ndh-date">' + _dh + '</div>';
-  if (_dur) html += '<div class="ndh-dur">' + _dur + '</div>';
+  if (_dur) html += '<div class="ndh-dur">' + (typeof evBadge === 'function' ? evBadge('Duration') : '') + _dur + '</div>';
   html += '<div class="ndh-file">📄 ' + sanitizeFname(n.fname) + '</div>';
   html += '</div>';
 
