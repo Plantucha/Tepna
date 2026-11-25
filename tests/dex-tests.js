@@ -33578,6 +33578,10 @@
       for (const m of cap.matchAll(reCall)) emitted[m[1].toUpperCase() + '.' + m[2]] = 'capture_filename call site';
       var reW = /\bw\("([a-z0-9]+)"(?:,\s*"([a-z]+)")?\)/g;
       for (const m of cap.matchAll(reW)) emitted[m[1].toUpperCase() + '.' + (m[2] || 'txt')] = 'w() call site';
+      /* The Muse S Athena path names its files through a local `_path(kind, ext)` helper, so its
+         `<base>_RAW.txt` frame file reaches the emitted set only through this third call form. */
+      var reP = /\b_path\("([a-z0-9]+)",\s*"([a-z]+)"\)/g;
+      for (const m of cap.matchAll(reP)) emitted[m[1].toUpperCase() + '.' + m[2]] = '_path() call site';
       var measOf = /meas_of = \{([^}]*)\}/.exec(cap);
       T.ok('capture.py still declares the generic `meas_of` stream map', !!measOf, 'the generic Polar streams are opened through it — if it moved, the emitted set lost them');
       var reKey = /"([a-z0-9]+)":/g;
@@ -35907,6 +35911,30 @@
       var noCtr = D.ingestMuseRaw(buildMuseRawText({ records: 400, gapAt: 100, gapLen: 2, blankCounter: true }));
       T.eq('a blank counter column leaves the notification loss at zero', noCtr.frames.lostFrames, 0);
       T.eq('and the record index still counts the lost records', noCtr.frames.lostRecords, 2);
+    });
+
+    group('The EEGDex Muse ingest reads the files of one night as one recording', 'eegdex · muse · ingest · seam', function (T) {
+      var D = env.EEGDSP;
+      if (!D || !env.MuseFrame) {
+        T.skip('env.EEGDSP and env.MuseFrame available', 'eegdex-dsp.js or muse-frame.js is not executed by this lane');
+        return;
+      }
+      var txt = buildMuseRawText({ records: 600, gapLen: 0 }),
+        lines = txt.split('\n'),
+        cut = 300,
+        whole = D.ingestMuseRaw(txt),
+        split = D.ingestMuseRaw([lines.slice(0, cut).join('\n') + '\n', lines.slice(cut).join('\n')]);
+      /* A seam where nothing went silent costs nothing. The device clock and the host stamps agree
+         across it, so the two files read sample for sample as the one file they were cut from. */
+      T.ok('a night in two files reads', split.ok === true, 'reason ' + split.reason);
+      T.eq('the read names how many files it joined', JSON.stringify([whole.frames.files, split.frames.files]), JSON.stringify([1, 2]));
+      T.eq('a silent-free seam adds no sample', split.samples.length, whole.samples.length);
+      T.eq('and no gap', JSON.stringify([split.frames.gapCount, split.frames.lostRecords, split.frames.lostFrames]), JSON.stringify([0, 0, 0]));
+      T.eq('the first file anchors the clock', split.t0Ms, whole.t0Ms);
+      /* A file with no row adds no seam, and a night of empty files is a night with no row. */
+      T.eq('an empty file in the night changes nothing', D.ingestMuseRaw([txt, '']).samples.length, whole.samples.length);
+      T.eq('a night of empty files refuses', D.ingestMuseRaw(['', '']).reason, 'no-row');
+      T.eq('an empty night refuses', D.ingestMuseRaw([]).reason, 'no-row');
     });
 
     group('The EEGDex node export carries one event per stage transition', 'eegdex · export · ganglior', function (T) {

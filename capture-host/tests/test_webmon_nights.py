@@ -161,8 +161,8 @@ def _skip_without_root_pages(root, apps, nodes):
     checks, whose subject is the real checkout authored pages, stand down.
 
     ⚠️ AND THE POPULATION IS THE NODES THE CALLER WALKS, never every entry in the table: the app table
-    also lists the PLANNED EEGDex node, which has no page and no route, so a wider check skips in the
-    REAL checkout too — measured, a guard wider than the thing it guards.
+    also lists GlucoDex and HRVDex, which have a page and no route, so a wider check reads nodes no
+    click reaches — measured, a guard wider than the thing it guards.
 
     ⚠️ DO NOT NAME A ROOT FILE IN QUOTES ANYWHERE IN THIS FILE. root_reads matches quoted text by
     regex, comments included, so a filename written in quotes here becomes a phantom root read and reds

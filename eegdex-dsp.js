@@ -1237,7 +1237,23 @@
     var ckLib = opts.clock || (typeof global !== 'undefined' && global ? global.DexClock : null);
     if (!ckLib || typeof ckLib.parseTimestamp !== 'function') return { ok: false, reason: 'clock-absent' };
 
-    var parsed = lib.parseRawRows(text);
+    /* ONE NIGHT, SEVERAL FILES. The recorder starts a new `<base>_RAW.txt` at each reconnect, so a
+       night arrives as an array of texts in file order. Each seam BREAKS BOTH CHAINS, exactly as an
+       unreadable row does: the packet counter restarts with the link, so its step is no loss count, and
+       the restart branch below measures the silence from the host stamps instead of joining the files. */
+    var texts = Array.isArray(text) ? text : [text],
+      parsed = { rows: [], refused: {} },
+      seams = {},
+      part,
+      key,
+      f,
+      q;
+    for (f = 0; f < texts.length; f++) {
+      part = lib.parseRawRows(texts[f]);
+      if (f > 0 && part.rows.length && parsed.rows.length) seams[parsed.rows.length] = true;
+      for (q = 0; q < part.rows.length; q++) parsed.rows.push(part.rows[q]);
+      for (key in part.refused) parsed.refused[key] = (parsed.refused[key] || 0) + part.refused[key]; // absence-ok: a refusal tally starts at zero
+    }
     if (!parsed.rows.length) return { ok: false, reason: 'no-row', refusedRows: parsed.refused };
 
     var names = [],
@@ -1287,6 +1303,10 @@
 
     for (i = 0; i < parsed.rows.length; i++) {
       row = parsed.rows[i];
+      if (seams[i]) {
+        prevSeq = null;
+        seqBroken = true;
+      }
       pkt = lib.tokenise(row.bytes);
       if (!pkt.packet) {
         unparsable[pkt.reason] = (unparsable[pkt.reason] || 0) + 1;
@@ -1394,6 +1414,7 @@
       source: 'muse-raw',
       frames: {
         rows: parsed.rows.length,
+        files: texts.length,
         eegRecords: eegRecords,
         lostRecords: lostRecords,
         lostFrames: lostFrames,

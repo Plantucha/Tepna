@@ -116,7 +116,7 @@ def test_edf_hours_is_records_times_duration_from_the_header(tmp_path):
 
 def test_a_muse_raw_frame_file_fills_the_eeg_cell_and_its_sidecars_stay_out(tmp_path):
     """The native Muse recorder writes `<base>_RAW.txt` beside `RAWRUNS` and `RAWSEAMS`. The cell takes the
-    frame file alone, and stays not loadable until EEGDex has a parser for it."""
+    frame file alone, and the cell opens EEGDex, which reads the frame files of a night as one recording."""
     root = str(tmp_path)
     d = _night(root, h10=False, verity=False, ring=False, cpap=False)
     base = os.path.join(d, "Muse_S-Athena_TEST0001_20260919220000_RAW")
@@ -125,7 +125,7 @@ def test_a_muse_raw_frame_file_fills_the_eeg_cell_and_its_sidecars_stay_out(tmp_
     _w(base + "SEAMS.txt", "# stream=muse rule=clock-seam\n")
     e = ni.night_entry(os.path.join(root, "captures"), d)
     assert e["EEGDex"]["files"] == ["2026-09-19/Muse_S-Athena_TEST0001_20260919220000_RAW.txt"]
-    assert e["EEGDex"]["loadable"] is False
+    assert e["EEGDex"]["loadable"] is True
 
 
 def test_the_PPGDex_click_carries_the_muse_frame_file_beside_the_verity_and_the_ring(tmp_path):
