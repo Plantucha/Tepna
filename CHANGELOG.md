@@ -30,6 +30,88 @@ changesets.)
 
 ---
 
+## [2.37.0] — 2026-11-25
+
+### Added
+- Load the Muse headband's optical PPG in PPGDex beside the Verity and O2Ring from a Nights click. (`MUSE-HUNT-RECORD-2026-11-08-BRIEF.md`)
+- Load the O2Ring's raw two-channel file in PPGDex instead of its pleth, on an axis that keeps each loss of rows as a gap. (`O2RING-RAW-DUAL-WAVELENGTH-2026-08-05-BRIEF.md`)
+- A new tool, `tools/qwen-lead-triage.mjs`, sends the local model's kept leads to the Anthropic Batch API for a first-pass triage and writes the lens ledgers. (`LOCAL-QWEN-SWEEPS-2026-11-22-BRIEF.md`)
+- The feature block of the EEG stage formula, the first of that brief's three PRs. (`EEGDEX-STAGE-FORMULA-2026-11-24-BRIEF.md`)
+- Add the `kill-a-mutant` skill, which carries the five fleet rules on mutation survivors. (`MEMORY-PROGRAM-2026-11-22-BRIEF.md`)
+- Add a `--pooling` arm to `tools/ppi-jitter-vs-ecg.mjs`. The arm measures the pooling paper's Table 1
+- `tools/pr-open.mjs` gates the PR body, pushes the branch, opens the draft PR and posts the board note in one (`TOKEN-DIET-2026-10-11-BRIEF.md`)
+
+### Changed
+- Pin that the walker plans nothing when no queue check run reads. Record why that config read is an era marker.
+- `tools/memory-program.mjs` now redacts tailnet addresses (RFC 6598) before text leaves the rig. Hybrid (`MEMORY-PROGRAM-2026-11-22-BRIEF.md`)
+- Bind the trio paper's 90-night re-fold count to its committed pooled-hat record, and shrink the paper-claim-marker baseline to 17.
+- - Hold the reference-pick census to the SET of delegating sites, not to its read totals. (`CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md`)
+- doc-search puts up to two memory notes in its five answers. Each note takes the place of the lowest (`MEMORY-PROGRAM-2026-11-22-BRIEF.md`)
+- Restate the pooling paper's Table 1 from its committed producer in a new dated section. The order reversal does not reproduce on the producer's epoch grid.
+- Produce the pooling paper Table 2 retention curves from the committed tool.
+- Trim a long command output after the command runs, not by a rewrite of the command. Print the advice on a moved memory file once a session. Report fleet memory findings from `tools/unit-health.mjs`. (`TOKEN-DIET-2026-10-11-BRIEF.md`)
+- Explain the eight closure moves the yield pin recorded with no note.
+
+### Fixed
+- Draw and grade CPAPDex usage hours from the mask-on figure in the deep table and the export flag. (`MUSE-HUNT-RECORD-2026-11-08-BRIEF.md`)
+- Send a large file to the embedder in requests that the HTTP client can wait for. One large file no longer stops the semantic half of every index tick. (`MEMORY-PROGRAM-2026-11-22-BRIEF.md`)
+- Read the trailer guard's command text in command position, and strip every heredoc body
+- Exclude an ungraded second from the fused three-cornered hat instead of weighting it as full trust.
+- Key the fused-hat beat weights on the caller's own time axis, so the H10 join reads one clock.
+- Spell a stacked escape hatch in four hooks, and read the hatch in command position only.
+- - Badge every number the HRVDex alert panel surfaces: the alert row holds the evidence dot inline before each metric label. (`LOCAL-QWEN-SWEEPS-2026-11-22-BRIEF.md`)
+- - Grade the HRVDex Overtrain Risk index on one measured ladder at all three render sites. (`MUSE-HUNT-RECORD-2026-11-08-BRIEF.md`)
+- The search sinks an archived memory note below the live ones, and the supersession check reads the versioned memory's lane directories. (`MEMORY-PROGRAM-2026-11-22-BRIEF.md`)
+- Emit a `tepna.verdict/1` object when a step cap stops the diff-mutation sweep, over the population the run reached.
+- Refuse an absent OxyDex night-row or card field instead of grading it against a published band. (`MUSE-HUNT-RECORD-2026-11-08-BRIEF.md`)
+- Scan the OxyDex absence census by index, so it builds no regex from a matched reference.
+- Read the queue doctor's merge-bot probe from who last merged, not from a config file one bot swap removed. Carry that verdict to the mergeable rung.
+- The idle Qwen driver yields only when `api/ps` lists a Qwen model, so a loaded bge-m3 no longer stops it. (`LOCAL-QWEN-SWEEPS-2026-11-22-BRIEF.md`)
+- Retry the radio clock anchor enable when the adapter was still down at the first send. A service that lost this race after a boot recorded rows with no anchor until a restart.
+- - Sort an undated recording LAST in five node lists: the PulseDex and PpgDex recording switchers and (`LOCAL-QWEN-SWEEPS-2026-11-22-BRIEF.md`)
+- `tools/xerj-bench.mjs` asks for the semantic lane by name, so its `bge` row scores that engine again. An engine that (`MEMORY-PROGRAM-2026-11-22-BRIEF.md`)
+- Refuse a `corpus-tier` run whose source root resolves into the NAS or offers no entry.
+- Refuse the borrowed-peer overlap share when the peer export carried no duration. The note and the card then name the absent span. (`ABSENCE-SURVEY-2026-09-22-BRIEF.md`)
+- Refuse the live-vs-SD comparison when no EDF header carries a sample rate. Refuse it when a recording start stamp is absent, and name the side. (`ABSENCE-SURVEY-2026-09-22-BRIEF.md`)
+- Refuse the CPAPDex overlap share when nobody measured the night's own end.
+- - Sort an undated night or session LAST in nine more node lists: five in the CPAPDex app, one in its (`LOCAL-QWEN-SWEEPS-2026-11-22-BRIEF.md`)
+- Stop doc-search from rebuilding its index after a hybrid timeout. The rebuild made a busy rig busier.
+- Reject a null host stamp at the four ECGDex ACC anchor guards.
+- Refuse ECGDex posture, epoch motion and the ACC card when nothing measured the accelerometer rate.
+- Draw each ECGDex hypnogram band one epoch wide, so a refused window never reads as a staged one. (`ABSENCE-SURVEY-2026-09-22-BRIEF.md`)
+- Refuse an unmeasured QRS width, template or local median in ECGDex beat typing. (`ABSENCE-SURVEY-2026-09-22-BRIEF.md`)
+- Carry the ECGDex sample-rate label out of `analyze` and publish it in the signal-quality clock cell. (`ABSENCE-SURVEY-2026-09-22-BRIEF.md`)
+- Refuse three defaulted ECGDex numbers: the RSA efficiency ratio, the RRacc-vs-EDR correlation and the coverage sample rate. (`ABSENCE-SURVEY-2026-09-22-BRIEF.md`)
+- Refuse a non-finite phase estimate in the ECGDex coupling path, and name its own reason.
+- Badge the four ECGDex sleep-stage chips, and grade Light and Wake in the registry.
+- Publish no altitude factor in ECGDex when nobody entered an elevation. (`ABSENCE-SURVEY-2026-09-22-BRIEF.md`)
+- Drop the evidence disc from the ECGDex withheld-intervals row, so an absent measurement claims no tier. (`ABSENCE-SURVEY-2026-09-22-BRIEF.md`)
+- Refuse a ResMed EDF frame whose BRP Flow channel is uncalibrated.
+- Draw one labelled lane per EEG electrode on the monitor card and scope.
+- The board hook reads a finish command only where the shell runs one. A search or an echo that names
+- The mutation AI probe waits for the GPU when a job holds the card, and a waiting pass no longer reads as converged.
+- Name the cell voltage in the Muse low-battery alert, read from the fuel-gauge record. (`MUSE-ATHENA-PROTOCOL-2026-11-14-BRIEF.md`)
+- Read a Muse EEG gap in EEGDex off the device time in the packet header, and drop a repeated packet. (`MUSE-ATHENA-PROTOCOL-2026-11-14-BRIEF.md`)
+- Read the 24-bit Muse device tick as a signed number in the running device clock. (`MUSE-HUNT-RECORD-2026-11-08-BRIEF.md`)
+- Keep the night span across a short gap and a daemon restart, so a finished night draws no offline alert.
+- Print the updater restart debt only after the content gate confirms it.
+- Declare the recording coverage in the OxyDex night-summary CSV when the night holds a hole.
+- Name the modified paths when the checkout sync skips, and report a primary checkout whose oldest absent commit is over two hours old.
+- Time the Muse headband's pulse in a 3 Hz band in PPGDex, so its rMSSD reads near the chest ECG. (`MUSE-HUNT-RECORD-2026-11-08-BRIEF.md`)
+- Read the PpgDex per-beat trust map with the key that built it. Answer null for a key it never wrote. (`ABSENCE-SURVEY-2026-09-22-BRIEF.md`)
+- Keep the local mutation probe off the card while a registered GPU job runs. A failed question to the model is no longer a recorded answer.
+- Publish a null PulseDex altitude factor when nobody entered an elevation, so a reader cannot take it for a measured sea-level night.
+- State the reference-pick rule behind every published PAT figure, and hold each figure to it by census. (`CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md`)
+- Name the gate and the failing assertion when a release stamp refuses, and keep its full output in a log. Build before the stamp judges, and let a resume before the stamp take the main of now.
+- Commit the robustness-benchmark digests as a published-number record and correct the paper that called an untracked file a committed artifact.
+- Make the STE linter read a `[[note-name]]` as a name, not as prose. (`MEMORY-PROGRAM-2026-11-22-BRIEF.md`)
+- Write `calibrated` on every synthetic EDF channel, as the real decoder does.
+- Four start stamps in the sensor-trio lane anchored a per-second grid on an or-zero `t0Ms`, so a (`LOCAL-QWEN-SWEEPS-2026-11-22-BRIEF.md`)
+- Both VO₂max cards printed `(±' + (v.see || 0) + ' SEE)`. A result that carried no `see` then read (`LOCAL-QWEN-SWEEPS-2026-11-22-BRIEF.md`)
+- Begin no night from a ring that reports no wear, and send no night note after an evening restart.
+
+---
+
 ## [2.36.0] — 2026-11-23
 
 ### Added
@@ -4691,7 +4773,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.36.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.37.0...HEAD
+[2.37.0]: https://github.com/Plantucha/Tepna/compare/v2.36.0...v2.37.0
 [2.36.0]: https://github.com/Plantucha/Tepna/compare/v2.35.0...v2.36.0
 [2.35.0]: https://github.com/Plantucha/Tepna/compare/v2.34.0...v2.35.0
 [2.34.0]: https://github.com/Plantucha/Tepna/compare/v2.33.0...v2.34.0

@@ -1996,6 +1996,36 @@
         "PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.37.0",
+      "date": "2026-11-25",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "86b7c9158e23",
+        "OxyDex": "7eabd3b9fcb5",
+        "PulseDex": "83d1a76b4f8d",
+        "GlucoDex": "a0d9a50a6573",
+        "PpgDex": "d0766d22aa41",
+        "HRVDex": "a7cc1c7af137",
+        "CPAPDex": "a8ab5e42bbf5",
+        "Integrator": "c10692c62963",
+        "MotionDex": "4230fb2f9134",
+        "EEGDex": "05154e3f1e17"
+      },
+      "briefs": [
+        "MUSE-HUNT-RECORD-2026-11-08-BRIEF.md",
+        "MEMORY-PROGRAM-2026-11-22-BRIEF.md",
+        "LOCAL-QWEN-SWEEPS-2026-11-22-BRIEF.md",
+        "O2RING-RAW-DUAL-WAVELENGTH-2026-08-05-BRIEF.md",
+        "CONSENSUS-REFPICK-FOLLOWUPS-2026-11-06-BRIEF.md",
+        "ABSENCE-SURVEY-2026-09-22-BRIEF.md",
+        "EEGDEX-STAGE-FORMULA-2026-11-24-BRIEF.md",
+        "MUSE-ATHENA-PROTOCOL-2026-11-14-BRIEF.md",
+        "TOKEN-DIET-2026-10-11-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
