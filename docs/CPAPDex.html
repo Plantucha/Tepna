@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="c34def7d8d95" data-compute-hash="4b241fec6148">
+<html lang="en" data-manifest-hash="fe42b0c5a44f" data-compute-hash="4b241fec6148">
 <head>
 <!--
   CPAPDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-JPE1u9zxYngv0wKNpNjoO4qzm9YgEOwtVnEfSLeUBa4=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Mg6EgZRB8QM3r3F9L1uXtuW3lkVqGEzkcP/oLjit4KQ=' 'sha256-OxVlAcnI2FhIjQ9PvF5+JY62KvFIGxtzHZRZaBXkhBo=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-kZnlXE/Qfj5Uwusy7EAqhlkTHdfgNUjv+csPQdRDltY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-tNA+Z0bcxEDDSAtStUUWR6iaE5gbxxPZMmCJPSWoD0o=' 'sha256-uHCIYK0VFoAHUV7O0Tf+ty3eYxF8sNy3/yyfQM29B7Y=' 'sha256-ws8VpGTMgeNUucvnxTYsHhcUJGn7vqPvNyZ18y7Ayhs='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-JPE1u9zxYngv0wKNpNjoO4qzm9YgEOwtVnEfSLeUBa4=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Mg6EgZRB8QM3r3F9L1uXtuW3lkVqGEzkcP/oLjit4KQ=' 'sha256-OxVlAcnI2FhIjQ9PvF5+JY62KvFIGxtzHZRZaBXkhBo=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-lRHulzCUYKGByGEcYhiZOb+z//Fbdv7tuacllc0fOzo=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-tNA+Z0bcxEDDSAtStUUWR6iaE5gbxxPZMmCJPSWoD0o=' 'sha256-uHCIYK0VFoAHUV7O0Tf+ty3eYxF8sNy3/yyfQM29B7Y=' 'sha256-ws8VpGTMgeNUucvnxTYsHhcUJGn7vqPvNyZ18y7Ayhs='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.37.0</title>
@@ -11955,10 +11955,31 @@ const { CpapDsp } = __require('cpapdex-dsp.js');
     var t0First = first.recording ? first.recording.startEpochMs : null;
     var t0Last = last.recording ? last.recording.startEpochMs : null;
     var dateRange = t0First != null ? (D ? D.fmtDate(t0First) : t0First) + (els.length > 1 ? ' \u2192 ' + (D ? D.fmtDate(t0Last) : t0Last) : '') : '\u2014';
-    var totHours = els.reduce(function (a, el) {
-      return a + ((el.recording && el.recording.therapyHours) || 0);
-    }, 0);
-    var durTxt = totHours ? fnum(totHours, 1) + ' h therapy' + (els.length > 1 ? ' total' : '') : '';
+    /* ∅ A NIGHT WITH NO WALL SPAN IS NOT A NIGHT OF ZERO HOURS. `cpapdex-dsp.js` buildNight sets
+       `therapyHours` to null when ANY session of the night carries no duration, under its own §∅ comment
+       there ('one session with no duration makes the night's wall total unknown'), and
+       `cpapdex-fusion.js` carries that null into the export. The former `|| 0` added the null here as a
+       zero, so a set in which some nights went unmeasured read as a smaller COMPLETE set inside a figure
+       labelled 'X h therapy total'. Under the §∅ ruling reduced coverage annotates, so this sums the
+       nights that state their hours and names the count of nights that do not, beside the total. A total
+       over no stated hours at all is absent, and the label then says nothing rather than '0 h'. A night
+       that really recorded 0 h states 0 and stays in the sum. */
+    var hourNights = els.filter(function (el) {
+      var v = el.recording ? el.recording.therapyHours : null;
+      return v != null && isFinite(v);
+    });
+    var totHours = hourNights.length
+      ? hourNights.reduce(function (a, el) {
+          return a + el.recording.therapyHours;
+        }, 0)
+      : null;
+    var noHours = els.length - hourNights.length;
+    var durTxt =
+      totHours != null
+        ? fnum(totHours, 1) + ' h therapy' + (els.length > 1 ? ' total' : '') + (noHours ? ' (' + noHours + ' of ' + els.length + ' without stated hours)' : '')
+        : els.length
+          ? 'therapy hours not stated'
+          : '';
     var recent = last,
       m = recent.metrics || {},
       recHours = recent.recording ? recent.recording.therapyHours : null;
