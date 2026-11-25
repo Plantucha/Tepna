@@ -3970,9 +3970,10 @@
          refusal would have surfaced as a ratio of exactly 0.000. Both derived metrics refuse
          when either axis is absent.
          ∅ The ratio also refuses below `ECG_SD2_MIN_MS`. The retained `|| 1` divided by an invented
-         1 ms, so a series with no long-axis spread published SD1 itself as the ratio. PpgDex
-         (`PPG_SD2_MIN_MS`) and PulseDex (`PX_SD2_MIN_MS`) refuse at the same floor. `ellArea` keeps
-         its 0: a product over a measured zero width is a measured zero area. */
+         1 ms, so a series with no long-axis spread published SD1 itself as the ratio. PulseDex
+         refuses at the same floor (`PX_SD2_MIN_MS`). PpgDex refuses at 0.05 ms (`PPG_SD2_MIN_MS`),
+         because it publishes one decimal. `ellArea` keeps its 0: a product over a measured zero width
+         is a measured zero area. */
       sd1sd2: sd1v == null || sd2v == null || sd2v < ECG_SD2_MIN_MS ? null : +(sd1v / sd2v).toFixed(3),
       ellArea: sd1v == null || sd2v == null ? null : +(Math.PI * sd1v * sd2v).toFixed(0),
       poincareNN,
