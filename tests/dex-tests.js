@@ -74618,6 +74618,86 @@
       );
     });
 
+    /* ════ AN ABSENT EDF+ EVENT DURATION IS NOT A ZERO-SECOND EVENT (triage row M8) ════
+     EDF+ makes a TAL's duration optional: it follows a 0x15 byte, and a TAL without one states no
+     length. `cpapdex-edf.js parseTAL` answered `durSec: duration ? parseFloat(duration) : 0`, which
+     gave 0 to an omitted field AND to a device-written "0" — the string "0" is falsy as well. Two
+     different facts then had one value, and the export published `durSec: 0`, a 0-second apnea no
+     byte in the file supports. A real AirSense 11 writes a span as a marker pair, so this is the
+     form the corpus actually holds. The committed synthetic set gives every EVE annotation a
+     duration, so no fixture ever examined the other form. ════ */
+    group('CPAPDex carries an absent EDF+ event duration as null, never as 0', 'cpapdex-edf · cpapdex-dsp · cpapdex-fusion · ∅', function (T) {
+      var E = env.CpapEdf,
+        D = env.CpapDsp,
+        F = env.CpapFusion;
+      var ok = !!(E && typeof E.parseTAL === 'function' && D && typeof D.buildSessionFromEdf === 'function' && typeof D._synthEdfSet === 'function');
+      T.ok('CpapEdf.parseTAL + CpapDsp co-loaded', ok, ok ? '' : 'wire cpapdex-edf.js and cpapdex-dsp.js into both runners');
+      if (!ok) return;
+      function tal(str) {
+        var b = [];
+        for (var i = 0; i < str.length; i++) b.push(str.charCodeAt(i));
+        return b;
+      }
+      // ── ARM 1 · the byte parser ───────────────────────────────────────────────────────────────
+      var noField = E.parseTAL(tal('+100\x14Hypopnea\x14\x00'));
+      T.eq('a TAL with NO duration field parses as one annotation', noField.length, 1);
+      T.eq('∅ …and its duration is null, not 0', noField.length === 1 ? noField[0].durSec : 'no-annotation', null);
+      var written0 = E.parseTAL(tal('+100\x150\x14CSR Start\x14\x00'));
+      T.eq('a device-written "0" stays the 0 the device wrote (the marker form)', written0.length === 1 ? written0[0].durSec : 'no-annotation', 0);
+      var real = E.parseTAL(tal('+100\x1512.5\x14Hypopnea\x14\x00'));
+      T.eq('CONTROL · a stated duration is read verbatim', real.length === 1 ? real[0].durSec : 'no-annotation', 12.5);
+      var junk = E.parseTAL(tal('+100\x15abc\x14Hypopnea\x14\x00'));
+      T.eq('a duration that does not parse is null, never NaN', junk.length === 1 ? junk[0].durSec : 'no-annotation', null);
+      T.ok(
+        'the two cases are told apart by the 0x15 flag, so the old value test is gone',
+        !/duration \? parseFloat\(duration\) : 0/.test((env.sources || {})['cpapdex-edf.js'] || ''),
+        'parseTAL still answers 0 for an omitted duration field'
+      );
+      // ── ARM 2 · the DSP event mapping ─────────────────────────────────────────────────────────
+      var set = D._synthEdfSet({});
+      set.EVE.annotations = [
+        { class: 'Obstructive Apnea', durSec: null, onsetSec: 100, tMs: null },
+        { class: 'Hypopnea', durSec: 20, onsetSec: 200, tMs: null }
+      ];
+      var sess = D.buildSessionFromEdf(set, {});
+      var evs = (sess && sess.events) || [];
+      var oa = evs.filter(function (e) {
+        return e.type === 'OA';
+      })[0];
+      var hyp = evs.filter(function (e) {
+        return e.type === 'H';
+      })[0];
+      T.eq('both EVE annotations map to typed events', evs.length, 2);
+      T.eq('∅ the event whose TAL stated no duration carries null', oa ? oa.durSec : 'no-event', null);
+      T.eq('CONTROL · the sibling that stated 20 s carries 20', hyp ? hyp.durSec : 'no-event', 20);
+      // ── ARM 3 · the bus export ────────────────────────────────────────────────────────────────
+      if (!F || typeof F.cpapBuildExport !== 'function' || typeof D.buildNight !== 'function') {
+        T.ok('CpapFusion.cpapBuildExport co-loaded', false, 'wire cpapdex-fusion.js into both runners');
+      } else {
+        var exp = F.cpapBuildExport(D.buildNight([sess]));
+        var bus = (exp && exp.ganglior_events) || [];
+        var apnea = bus.filter(function (e) {
+          return e.impulse === 'apnea';
+        })[0];
+        var hypB = bus.filter(function (e) {
+          return e.impulse === 'hypopnea';
+        })[0];
+        T.eq('∅ the bus publishes the absence, not a 0-second apnea', apnea && apnea.meta ? apnea.meta.durSec : 'no-event', null);
+        T.eq('CONTROL · the hypopnea publishes its stated 20 s', hypB && hypB.meta ? hypB.meta.durSec : 'no-event', 20);
+        T.eq('an event that states no duration earns the floor of its type and no boost', apnea ? apnea.conf : 'no-event', 0.85);
+      }
+      // ── ARM 4 · the PB pairing is unchanged by the new null ───────────────────────────────────
+      var setN = D._synthEdfSet({ csMarkers: true });
+      for (var k = 0; k < setN.CSL.annotations.length; k++) setN.CSL.annotations[k].durSec = null;
+      var pctNull = (D.buildSessionFromEdf(setN, {}).metrics || {}).periodicBreathingPct;
+      var pctZero = (D.buildSessionFromEdf(D._synthEdfSet({ csMarkers: true }), {}).metrics || {}).periodicBreathingPct;
+      T.ok(
+        'a marker pair that states no duration opens and closes the same span as a written 0',
+        pctNull === pctZero && pctNull != null,
+        'null form ' + String(pctNull) + ' vs written-0 form ' + String(pctZero)
+      );
+    });
+
     /* ════ HOUSE-INVARIANT LINT · retired vocabulary + frozen names (DEV-TOOLCHAIN Part A · A3) ════
      A source-text gate, sibling of the DSP-purity gate: mechanizes CLAUDE.md §🎫/§📜 — no retired
      evidence tier (proxy/composite/"provisionally validated" → heuristic/emerging) and no retired

@@ -54,7 +54,10 @@
     // UA = device-scored apnea the firmware could not type — still airflow the device scored,
     // so it carries an apnea-tier floor (below OA/CA, above RERA), NOT the 0.55 RERA default.
     var base = type === 'CA' ? 0.9 : type === 'OA' ? 0.85 : type === 'UA' ? 0.8 : type === 'H' ? 0.7 : 0.55;
-    var durBoost = Math.min(0.1, (durSec || 0) / 300); // +0.1 max at ≥30 s
+    /* An event that states no duration earns no boost, which is the floor for its type and not a
+       claim that the event lasted 0 s. The read is explicit because `durSec` is now `null` when the
+       device stated nothing (cpapdex-edf.js parseTAL). */
+    var durBoost = durSec != null && isFinite(durSec) ? Math.min(0.1, durSec / 300) : 0; // +0.1 max at ≥30 s
     return +Math.min(0.98, base + durBoost).toFixed(2);
   }
   function _impulseFor(type) {
@@ -92,7 +95,10 @@
           node: 'CPAPDex',
           conf: _eventConf(ev.type, ev.durSec),
           sqi: sqi2,
-          meta: { class: _classFor(ev.type), durSec: ev.durSec || 0, source: 'device-scored' }
+          /* ∅ `durSec` rides out as the absence it is. `|| 0` published a 0-second apnea for every
+             event whose TAL carried no duration field, and a consumer cannot tell that 0 from a real
+             one. */
+          meta: { class: _classFor(ev.type), durSec: ev.durSec != null ? ev.durSec : null, source: 'device-scored' }
         });
       });
       // ── periodic breathing (CSL spans) — one event marking the night's PB burden ──

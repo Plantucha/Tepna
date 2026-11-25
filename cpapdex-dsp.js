@@ -1115,7 +1115,11 @@
         type = eveClassToType(a.class);
       if (!type) continue;
       var timeSec = a.tMs != null ? (a.tMs - sessionT0Ms) / 1000 : a.onsetSec;
-      out.push({ type: type, timeSec: timeSec, durSec: a.durSec || 0, class: a.class, tMs: a.tMs });
+      /* ∅ The parser answers `null` when the TAL carried no duration field (cpapdex-edf.js parseTAL),
+         so `|| 0` here would put the manufactured 0 back and publish a 0-second apnea. Carry the
+         absence. A written 0 stays 0. */
+      var durSec = a.durSec != null && isFinite(a.durSec) ? a.durSec : null;
+      out.push({ type: type, timeSec: timeSec, durSec: durSec, class: a.class, tMs: a.tMs });
     }
     return out;
   }
@@ -1154,7 +1158,12 @@
     var open = null;
     for (var j = 0; j < pb.length; j++) {
       var a = pb[j],
-        dur = a.durSec || 0;
+        /* Both marker forms land on 0 here, and that is correct for THIS reader: a span-carrying TAL
+           owns its own span, while a TAL that states no duration (a written 0, or no duration field at
+           all, which the parser answers as `null`) opens or closes a pair instead. A `null` never
+           opens a span on its own. The read is explicit, so a later reader does not have to infer
+           which of the two the 0 was. */
+        dur = a.durSec != null && isFinite(a.durSec) ? a.durSec : 0;
       if (dur > 0) {
         out.sec += dur;
         out.spans++;
