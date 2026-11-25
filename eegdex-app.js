@@ -106,6 +106,21 @@ import { EEGUI } from './eegdex-render.js';
       });
       if (!files.length) return;
     }
+    /* A MUSE NIGHT IS SEVERAL FILES OF ONE RECORDING. The capture-host recorder starts a new
+       `<base>_RAW.txt` at each reconnect, so every frame file in the drop is read, in name order
+       (the name carries the start stamp), and the ingest measures each seam from the host stamps.
+       The `RAWRUNS` and `RAWSEAMS` sidecars do not match the pattern and stay out. */
+    var raws = files
+      .filter(function (f) {
+        return /_RAW\.txt$/i.test(f.name);
+      })
+      .sort(function (a, b) {
+        return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+      });
+    if (raws.length) {
+      ingestMuseFiles(raws);
+      return;
+    }
     if (files.length > 1) setStatus('Reading ' + files[0].name + ' only — ' + (files.length - 1) + ' other file(s) ignored.');
     var file = files[0];
     readBuffer(file).then(function (buf) {
@@ -125,31 +140,67 @@ import { EEGUI } from './eegdex-render.js';
       } catch (e) {
         frame = { ok: false, reason: 'edf-header-refused — ' + ((e && e.message) || String(e)) };
       }
-      if (!frame || !frame.ok) {
-        FRAME = null;
-        RESULT = null;
-        setExportReady(false);
-        EEGUI.renderSummary(null);
-        setStatus(
-          file.name +
-            ' — no EEG analyzed: ' +
-            ((frame && frame.reason) || 'edf-unreadable') +
-            (frame && frame.channels && frame.channels.length ? '. Channels in the header: ' + frame.channels.join(', ') : '')
-        );
-        return;
-      }
-      FRAME = frame;
-      RESULT = EEGDSP.compute(frame);
-      EEGUI.renderSummary(RESULT);
-      renderFormula();
-      if (RESULT && RESULT.err) {
-        setExportReady(false);
-        setStatus(file.name + ' — ' + RESULT.err + (RESULT.reason ? ' (' + RESULT.reason + ')' : ''));
-        return;
-      }
-      setStatus(file.name + ' · channel ' + frame.channel + (frame.truncated ? ' · the last data record is truncated' : ''));
-      setExportReady(true);
+      showFrame(frame, file.name, 'edf-unreadable', frame && frame.truncated ? ' · the last data record is truncated' : '');
     });
+  }
+
+  /* One path from a frame to the screen, for the EDF and the Muse reader alike. A refusal names the
+     reader's own reason, and a frame never reaches `compute` unless the reader said ok. */
+  function showFrame(frame, label, fallbackReason, note) {
+    if (!frame || !frame.ok) {
+      FRAME = null;
+      RESULT = null;
+      setExportReady(false);
+      EEGUI.renderSummary(null);
+      setStatus(
+        label +
+          ' — no EEG analyzed: ' +
+          ((frame && frame.reason) || fallbackReason) +
+          (frame && frame.channels && frame.channels.length ? '. Channels in the header: ' + frame.channels.join(', ') : '')
+      );
+      return;
+    }
+    FRAME = frame;
+    RESULT = EEGDSP.compute(frame);
+    EEGUI.renderSummary(RESULT);
+    renderFormula();
+    if (RESULT && RESULT.err) {
+      setExportReady(false);
+      setStatus(label + ' — ' + RESULT.err + (RESULT.reason ? ' (' + RESULT.reason + ')' : ''));
+      return;
+    }
+    setStatus(label + ' · channel ' + frame.channel + note);
+    setExportReady(true);
+  }
+
+  /* The Muse frame files of one night, read one after another and handed to the ingest as one array.
+     A file that cannot be read refuses the night by name: a night with a hole nobody measured is
+     not a night this node may stage. */
+  function ingestMuseFiles(raws) {
+    var label = raws.length === 1 ? raws[0].name : raws[0].name + ' + ' + (raws.length - 1) + ' more';
+    setStatus('Reading ' + label + '…');
+    var texts = [],
+      k = 0;
+    function next() {
+      if (k === raws.length) {
+        var frame = EEGDSP.ingestMuseRaw(texts);
+        texts = null;
+        var fr = frame && frame.frames,
+          note = fr && fr.gapCount ? ' · ' + fr.gapCount + ' gap(s), ' + fr.lostRecords + ' records absent' + (fr.restarts ? ', ' + fr.restarts + ' reconnect(s)' : '') : '';
+        showFrame(frame, label, 'muse-unreadable', note);
+        return;
+      }
+      var file = raws[k++];
+      readText(file).then(function (txt) {
+        if (txt == null) {
+          showFrame({ ok: false, reason: 'file-unreadable: ' + file.name }, label, 'muse-unreadable', '');
+          return;
+        }
+        texts.push(txt);
+        next();
+      });
+    }
+    next();
   }
 
   function runDemo() {

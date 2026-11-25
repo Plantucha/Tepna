@@ -1506,7 +1506,7 @@ const NIGHT_APP = {ECGDex:"ECGDex.html", OxyDex:"OxyDex.html", PPGDex:"PpgDex.ht
 // where they were silently dropped (measured 2026-09-20). test_webmon_nights checks each selector
 // against the app's own source, so an app renaming its input reds the gate instead of the click.
 const NIGHT_INPUT = {ECGDex:[["_ECG.txt","#ecgInput"],["_ACC.txt","#accInput"],["_RR.txt","#rrInput"],["_HR.txt","#hrInput"]],
-  OxyDex:"#fileInput", PPGDex:"#fileInput", PulseDex:"#rawInput", CPAPDex:"#fileInput", MotionDex:"#mxInput",
+  OxyDex:"#fileInput", PPGDex:"#fileInput", PulseDex:"#rawInput", CPAPDex:"#fileInput", MotionDex:"#mxInput", EEGDex:"#egInput",
   Integrator:"#files", "3 corner hat":"#fileInput", PAT:"#fileInput", "PAT fused":"#fileInput"};
 // The two batch tools index the files and then WAIT for their Process button — the six analyzers process
 // on load. The owner's ask is "load and process without other clicking", so openNight presses that button

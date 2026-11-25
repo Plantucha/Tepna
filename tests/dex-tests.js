@@ -1776,6 +1776,89 @@
       }
     });
 
+    group('∅ a constant RR train has no spectrum and no scaling exponent — ECGDex · PpgDex · PulseDex', 'ecgdex-dsp · ppgdex-dsp · pulsedex-dsp · absence · residue', function (T) {
+      var E = env.ECGDSP,
+        P = env.PPGDSP,
+        U = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!E || !P || !U) {
+        T.ok('ECGDSP, PPGDSP and PulseDex._bare are all co-loaded', false, [!!E, !!P, !!U].join(','));
+        return;
+      }
+      var times = function (nn) {
+        var acc = 0;
+        return nn.map(function (v) {
+          return (acc += v) / 1000;
+        });
+      };
+      var NODES = [
+        { id: 'ECGDex', ls: (nn) => E.lombScargle(nn, times(nn), 300), dfa: E.dfaAlpha1 },
+        { id: 'PpgDex', ls: (nn) => P.lombScargle(times(nn), nn), dfa: P.dfaAlpha1 },
+        { id: 'PulseDex', ls: (nn) => U.lombScargle(nn), dfa: U.dfaAlpha1 }
+      ];
+      var constant = function (rr, n) {
+        var a = [];
+        for (var i = 0; i < n; i++) a.push(rr);
+        return a;
+      };
+      /* 800 ms is exact in binary and always refused. The others leave a residue, and before the floor
+         they published a ratio, two shares and a breath rate over LF 0 and HF 0. */
+      var FLAT = [
+        ['800 ms', constant(800, 300)],
+        ['807.6923 ms', constant(807.6923, 300)],
+        ['769.2308 ms', constant(1000 / 1.3, 300)],
+        ['333.3333 ms', constant(1000 / 3, 300)],
+        ['807.6923 ms over 3333 beats', constant(807.6923, 3333)]
+      ];
+      NODES.forEach(function (n) {
+        FLAT.forEach(function (c) {
+          var s = n.ls(c[1]);
+          T.eq(n.id + ' · ' + c[0] + ' · LF/HF, breath rate and DFA are all null', [s.lfhf, s.respRate, n.dfa(c[1])].map(String).join(','), 'null,null,null');
+          T.eq(n.id + ' · ' + c[0] + ' · and the bands stay a measured 0', [s.vlf, s.lf, s.hf].join(','), '0,0,0');
+        });
+        /* CONTROLS — each one holds variation far under what the bands print, and each one is real. */
+        var rsa = [];
+        for (var i = 0; i < 300; i++) rsa.push(800 + Math.sin(i * 0.4 * Math.PI)); // 1 ms at 0.25 Hz
+        var sr = n.ls(rsa);
+        T.ok('CONTROL · ' + n.id + ' · a 1 ms modulation at 0.25 Hz keeps its 15 br/min, though HF prints 0', Math.abs(sr.respRate - 15) < 0.1 && sr.hf === 0, JSON.stringify([sr.respRate, sr.hf]));
+        T.ok('CONTROL · ' + n.id + ' · …and its ratio is a number', typeof sr.lfhf === 'number', String(sr.lfhf));
+        T.ok('CONTROL · ' + n.id + ' · …and its DFA is a number', typeof n.dfa(rsa) === 'number', String(n.dfa(rsa)));
+      });
+      // PulseDex also publishes the global peak, and PpgDex the two shares
+      var up = U.lombScargle(constant(807.6923, 300));
+      T.eq('PulseDex · the global peak is null, never 0.003 Hz in VLF', [up.peakHz, up.peakBand, up.peakBelowHF, up.respBelowHF].join(','), ',,false,false');
+      T.ok('PulseDex · and the absent breath rate names its reason', /no spectral peak/.test(String(up.respRateReason)), String(up.respRateReason));
+      T.ok('ECGDex · and the absent breath rate names its reason', /no spectral peak/.test(String(NODES[0].ls(constant(807.6923, 300)).respRateReason)), '');
+      var pp = P.lombScargle(times(constant(807.6923, 300)), constant(807.6923, 300));
+      T.eq('PpgDex · the two normalised shares are null, never 80 and 20 of nothing', [pp.lfnu, pp.hfnu, pp.respRateMethod].map(String).join(','), 'null,null,null');
+      // the DFA arm PpgDex held alone
+      var step = constant(800, 300);
+      step[150] = 830;
+      T.eq('PpgDex · one 30 ms step in equal intervals reads the ECGDex exponent, never 3.95', P.dfaAlpha1(step), +E.dfaAlpha1(step).toFixed(2));
+      T.eq('PulseDex · …and so does PulseDex', U.dfaAlpha1(step), E.dfaAlpha1(step));
+      var seg = P.dfaAlpha1Segmented(constant(800, 300), [[0, 300]]);
+      T.eq('PpgDex · the segmented form keeps its coverage and names the reason', [seg.value, seg.reason, seg.segments, seg.covered].join(','), ',no-fluctuation,1,300');
+      T.eq('CONTROL · a run below the 50-beat floor still answers null, not a reason', P.dfaAlpha1Segmented(constant(800, 40), [[0, 40]]), null);
+      // one floor, three copies
+      var src = env.sources || {};
+      var floors = ['ecgdex-dsp.js', 'ppgdex-dsp.js', 'pulsedex-dsp.js']
+        .filter((f) => src[f])
+        .map(function (f) {
+          var m = /const RR_VAR_MIN_MS2 = ([0-9.e-]+);/.exec(src[f]);
+          return m ? m[1] : 'absent in ' + f;
+        });
+      T.ok(
+        'the copies declare ONE floor',
+        floors.every((v) => v === '1e-6'),
+        floors.join(',')
+      );
+      if (src['ppgdex-dsp.js'])
+        T.ok(
+          'PpgDex · the estimator reason reaches dfa1Reason, cut or not',
+          /if \(seg && seg\.reason\) return \{ reason: seg\.reason \};[^\n]*\n\s*if \(!cut\) return \{\};/.test(src['ppgdex-dsp.js']),
+          ''
+        );
+    });
+
     group('∅ PulseDex — the artifact share, the absent respiration peak and the bare estimators (N1-33/34/35)', 'pulsedex-dsp · absence · named', function (T) {
       var P = (env.PulseDex && env.PulseDex._bare) || null;
       if (!P || typeof P.pdComputeResult !== 'function') {
@@ -33495,6 +33578,10 @@
       for (const m of cap.matchAll(reCall)) emitted[m[1].toUpperCase() + '.' + m[2]] = 'capture_filename call site';
       var reW = /\bw\("([a-z0-9]+)"(?:,\s*"([a-z]+)")?\)/g;
       for (const m of cap.matchAll(reW)) emitted[m[1].toUpperCase() + '.' + (m[2] || 'txt')] = 'w() call site';
+      /* The Muse S Athena path names its files through a local `_path(kind, ext)` helper, so its
+         `<base>_RAW.txt` frame file reaches the emitted set only through this third call form. */
+      var reP = /\b_path\("([a-z0-9]+)",\s*"([a-z]+)"\)/g;
+      for (const m of cap.matchAll(reP)) emitted[m[1].toUpperCase() + '.' + m[2]] = '_path() call site';
       var measOf = /meas_of = \{([^}]*)\}/.exec(cap);
       T.ok('capture.py still declares the generic `meas_of` stream map', !!measOf, 'the generic Polar streams are opened through it — if it moved, the emitted set lost them');
       var reKey = /"([a-z0-9]+)":/g;
@@ -35824,6 +35911,30 @@
       var noCtr = D.ingestMuseRaw(buildMuseRawText({ records: 400, gapAt: 100, gapLen: 2, blankCounter: true }));
       T.eq('a blank counter column leaves the notification loss at zero', noCtr.frames.lostFrames, 0);
       T.eq('and the record index still counts the lost records', noCtr.frames.lostRecords, 2);
+    });
+
+    group('The EEGDex Muse ingest reads the files of one night as one recording', 'eegdex · muse · ingest · seam', function (T) {
+      var D = env.EEGDSP;
+      if (!D || !env.MuseFrame) {
+        T.skip('env.EEGDSP and env.MuseFrame available', 'eegdex-dsp.js or muse-frame.js is not executed by this lane');
+        return;
+      }
+      var txt = buildMuseRawText({ records: 600, gapLen: 0 }),
+        lines = txt.split('\n'),
+        cut = 300,
+        whole = D.ingestMuseRaw(txt),
+        split = D.ingestMuseRaw([lines.slice(0, cut).join('\n') + '\n', lines.slice(cut).join('\n')]);
+      /* A seam where nothing went silent costs nothing. The device clock and the host stamps agree
+         across it, so the two files read sample for sample as the one file they were cut from. */
+      T.ok('a night in two files reads', split.ok === true, 'reason ' + split.reason);
+      T.eq('the read names how many files it joined', JSON.stringify([whole.frames.files, split.frames.files]), JSON.stringify([1, 2]));
+      T.eq('a silent-free seam adds no sample', split.samples.length, whole.samples.length);
+      T.eq('and no gap', JSON.stringify([split.frames.gapCount, split.frames.lostRecords, split.frames.lostFrames]), JSON.stringify([0, 0, 0]));
+      T.eq('the first file anchors the clock', split.t0Ms, whole.t0Ms);
+      /* A file with no row adds no seam, and a night of empty files is a night with no row. */
+      T.eq('an empty file in the night changes nothing', D.ingestMuseRaw([txt, '']).samples.length, whole.samples.length);
+      T.eq('a night of empty files refuses', D.ingestMuseRaw(['', '']).reason, 'no-row');
+      T.eq('an empty night refuses', D.ingestMuseRaw([]).reason, 'no-row');
     });
 
     group('The EEGDex node export carries one event per stage transition', 'eegdex · export · ganglior', function (T) {
@@ -48767,6 +48878,49 @@
         U.GlucoScope.prototype.setData.call(recM, meas);
         T.eq('CONTROL · a measured export reads the same step off the same grid', recM.cad, 5);
         T.eq('CONTROL · a record shorter than a day is shown whole', recM.view.span, recM.N);
+      }
+    });
+
+    /* ── §∅ · THE SESSIONS CARD, OVER A WEAR THAT NEVER FIT ──────────────────────────
+       Board #8872, item M17 of the GlucoDex re-read. `glucodex-dsp.js` publishes `driftPerDay: null`
+       for a sensor wear whose regression never fit. The card reduced the set through
+       `Math.abs(s.driftPerDay)` over an or-zero fallback, and `Math.abs(null)` is 0, so the
+       "Largest drift" tile printed a measured 0 /day under an `ok` class and the prose beneath it
+       said nothing. The per-session ROW of the same table already printed an em-dash for that same
+       record, so one card held both answers. The adjacent between-session `spread` fell back the
+       same way when fewer than two wears carried a median.
+
+       `renderSessions` is private to the app IIFE and writes into the DOM, so the two reductions and
+       the three surfaces they feed are pinned as SOURCE TEXT — the lane `oxydex-app.js` uses above.
+       `GluDisp.drift` is EXECUTED, because the repair leans on the refusal it already answered. */
+    group('GlucoDex sessions card NAMES an unfitted drift and a lone median — never a zero (§∅)', 'glucodex-app · glucodex-render · absence · sources', function (T) {
+      var gsrc = (env.sources || {})['glucodex-app.js'] || '';
+      if (!gsrc.trim()) {
+        T.skip('glucodex-app.js in env.sources', 'sources not provided in this runner');
+      } else {
+        /* 1 · the two reductions keep the wears that fit, and publish null over none of them. */
+        T.ok('no reduction reads a session slope through Math.abs any more', !/Math\.abs\(s\.driftPerDay/.test(gsrc), 'the or-zero reduction over `s.driftPerDay` is back');
+        T.eq('the drift reduction keeps only the wears that fit', (gsrc.match(/const drifts = ss\.map\(\(s\) => s\.driftPerDay\)\.filter\(\(d\) => d != null && isFinite\(\+d\)\);/g) || []).length, 1);
+        T.eq('…and publishes null when none of them fit', (gsrc.match(/const maxDrift = drifts\.length \? Math\.max\(\.\.\.drifts\.map\(\(d\) => Math\.abs\(\+d\)\)\) : null;/g) || []).length, 1);
+        T.eq(
+          'the between-session spread publishes null under two medians, never 0',
+          (gsrc.match(/const spread = medians\.length > 1 \? Math\.max\(\.\.\.medians\) - Math\.min\(\.\.\.medians\) : null;/g) || []).length,
+          1
+        );
+
+        /* 2 · the three surfaces each NAME the absence. */
+        T.eq('the drift tile reads ONE GluDisp.drift answer', (gsrc.match(/const maxDriftDisp = window\.GluDisp\.drift\(maxDrift\);/g) || []).length, 1);
+        T.ok('…and prints the em-dash over an absent slope', gsrc.indexOf("maxDriftDisp.display == null ? '—'") >= 0, 'the tile prints the string `null` again');
+        T.ok('…with no unit standing over the em-dash', /maxDriftDisp\.display == null \? 'no wear carries a fitted slope'/.test(gsrc), 'the per-day sub-label stands over no measurement');
+        T.ok('the spread tile prints the em-dash over a lone median', gsrc.indexOf("spread == null ? '—'") >= 0, 'the tile prints the string `null` again');
+        T.ok('…and grades it neutral rather than ok', /spread == null \? 'neutral'/.test(gsrc), 'an unmeasured spread carries a severity colour');
+        T.ok('the prose names the absent drift', gsrc.indexOf('No wear carries a fitted drift slope') >= 0, 'the prose is silent over an absent slope');
+        T.ok('…and the absent spread', gsrc.indexOf('Fewer than two wears carry a median') >= 0, 'the prose claims the medians are close');
+
+        /* 3 · CONTROL · the measured path is untouched. */
+        T.ok('CONTROL · a large spread still reads as a between-sensor step', /spread >= 15 \?/.test(gsrc), 'the measured spread branch went');
+        T.ok('CONTROL · a 7 per-day wear still reads as sensor aging', /maxDrift >= 7 \?/.test(gsrc), 'the measured drift branch went');
+        T.ok('CONTROL · the per-session row keeps its own em-dash', /s\.driftPerDay == null \? '—'/.test(gsrc), 'the table cell lost its refusal');
       }
     });
 
@@ -92948,6 +93102,12 @@
         T.eq('§5.3 · absent drift is neutral, not a fabricated 0-severity', env.GluDisp.drift(null).sev, 'neutral');
         T.eq('§5.3 · absent drift has no display value', env.GluDisp.drift(null).display, null);
         env.GluDisp.set('mgdl');
+        /* §∅ · board #8872, item M17: the sessions card reduced the per-wear slopes over an or-zero
+           fallback, so an UNFITTED wear reached this helper as a measured 0 and the KPI printed
+           `0 /day` under an `ok` class. The two legs above hold the refusal; these two hold the
+           other side of it, so no later repair may sweep a measured 0 into the absence. */
+        T.eq('§5.3 · CONTROL · a measured 0 mg/dL per day IS a display value', env.GluDisp.drift(0).display, 0);
+        T.eq('§5.3 · CONTROL · …and a measured 0 grades ok, never neutral', env.GluDisp.drift(0).sev, 'ok');
 
         /* ── DEEP-AUDIT-II §2.2 · ONE band set for DesSev, across every site that grades it ──────────
            Mutation-checked 2026-07-29: reverting the CHIP to its old {10,25} reds NOTHING. The chip is
@@ -100839,6 +100999,48 @@
       T.ok('the guard still refuses a null resting HR first', /const _bapOk = bap_full != null &&/.test(src), 'the AP guard dropped its resting-HR term');
       T.ok('the card hint names the absent resting HR', /'no resting HR measured'/.test(src), 'the BAP hint does not name the absence');
       T.ok('CONTROL · the card still cites Baevsky for a real value', /'Baevsky 1984 regression'/.test(src), 'the citation went away with the guard');
+    });
+
+    /* §∅ M7 — the two arms of getProfile() disagreed about an absent elevation. The DXP arm answers
+       `null` and names the rule. The DOM arm answered 0, and 0 m IS a legal elevation, so an empty
+       field and a sea-level measurement read the same. That arm is reachable: it runs whenever the
+       shared profile record is absent. Found by the local sweep over hrvdex-profile.js:302. */
+    group('∅ HRVDex profile — an absent elevation is not sea level (M7)', 'hrvdex-profile · absence · elevation', function (T) {
+      var src = (env.sources && env.sources['hrvdex-profile.js']) || '';
+      T.ok('ANTI-VACUITY · the hrvdex-profile.js source is readable in this lane', src.length > 1000, 'env.sources["hrvdex-profile.js"] absent');
+      if (!src) return;
+
+      T.ok('the DOM arm no longer coerces an empty elevation to 0 m', !/prof_elev'\)\?\.value\) \|\| 0/.test(src), 'the || 0 elevation fallback is back');
+      T.ok('the DOM arm reads the guarded value', /elev: _elevEntered/.test(src), 'the DOM arm writes its own elevation expression again');
+      var g = src.match(/const _elevEntered = ([^;]+);/);
+      T.ok('ANTI-VACUITY · the _elevEntered expression was extracted', !!g, 'the const _elevEntered line moved');
+      if (g) {
+        var elevOf = new Function('_elevRaw', 'return ' + g[1] + ';');
+        T.eq('an empty field parses to NaN and answers null', elevOf(NaN), null);
+        T.eq('CONTROL · an entered 0 m stays 0 m', elevOf(0), 0);
+        T.ok('an absent elevation and an entered sea level are two states', elevOf(NaN) !== elevOf(0), 'absence and 0 m produce one answer');
+        T.eq('CONTROL · an entered 2100 m is kept', elevOf(2100), 2100);
+        T.eq('CONTROL · a below-sea-level elevation is kept', elevOf(-300), -300);
+      }
+      T.ok('CONTROL · the DXP arm still names the rule', /elev: p\.elevation != null && isFinite/.test(src), 'the DXP arm lost its null answer');
+
+      /* Both altitude factors in this file now state the absent case. `null <= 1500` is true as well,
+         so each answered 1 before too — by a coercion of null to 0, not by a rule. These legs pin the
+         rule AND the numbers, because a guard that moved a shipped number would be a different change. */
+      T.eq('both altitude factors in this file state the absent case', (src.match(/\.elev == null \|\| !isFinite\(/g) || []).length, 2);
+      var a = src.match(/const _altF = ([^;]+);/);
+      T.ok('ANTI-VACUITY · the _altF expression was extracted', !!a, 'the const _altF line moved');
+      if (a) {
+        var altOf = new Function('_pp', 'return ' + a[1] + ';');
+        T.eq('an absent elevation corrects nothing, so the factor is 1', altOf({ elev: null }), 1);
+        T.eq('CONTROL · sea level answers 1 as well', altOf({ elev: 0 }), 1);
+        T.eq('CONTROL · 1500 m answers 1', altOf({ elev: 1500 }), 1);
+        T.ok('CONTROL · 2100 m answers a real correction', Math.abs(altOf({ elev: 2100 }) - 0.98) < 0.0005, 'the 2100 m factor moved: ' + altOf({ elev: 2100 }));
+        T.eq('no shipped number moves — null and 0 m answer one factor', altOf({ elev: null }), altOf({ elev: 0 }));
+      }
+      var dsp = String((env.sources || {})['hrvdex-dsp.js'] || '');
+      if (!dsp) T.skip('hrvdex-dsp.js in env.sources', 'not wired in this lane');
+      else T.ok('CONTROL · the node DSP keeps its own absent-elevation guard', /p_prof\.elev == null \|\| !isFinite\(p_prof\.elev\)/.test(dsp), 'the hrvdex-dsp.js _altFR guard moved');
     });
 
     /* §∅ BOOKKEEPING — four HIGH absence-survey rows on hrvdex-profile.js that the CODE already

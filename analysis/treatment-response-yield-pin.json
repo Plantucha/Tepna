@@ -32,7 +32,7 @@
       "kernel-constants.js": "0050ad3f9dc7",
       "clock.js": "1c56de0b671c",
       "clock-seam.js": "3820c4fb6529",
-      "pulsedex-dsp.js": "a7a35088bac0"
+      "pulsedex-dsp.js": "78a6ce4a7002"
     }
   },
   "yield": {
@@ -59,7 +59,7 @@
       "file": "oxydex-dsp.js",
       "old": "a50aa3668d52",
       "new": "67823e8864cb",
-      "reason": "PR #3595: UI-level changes (EDF rejection, stale-metrics warning) \u2014 no DSP computation change"
+      "reason": "PR #3595: UI-level changes (EDF rejection, stale-metrics warning) — no DSP computation change"
     },
     {
       "date": "2026-10-18",
@@ -87,14 +87,14 @@
       "file": "oxydex-dsp.js",
       "old": "8a6d7668203a",
       "new": "92cec4912b7f",
-      "reason": "residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read: the whole diff for this file is one added `// biome-ignore` comment line above the `var OxyDex = typeof OxyDex \u2026` namespace idiom, which arming `correctness/noInvalidUseBeforeDeclaration` needs. No statement moved, so the 233/239 yield is re-stamped and not re-cut."
+      "reason": "residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read: the whole diff for this file is one added `// biome-ignore` comment line above the `var OxyDex = typeof OxyDex …` namespace idiom, which arming `correctness/noInvalidUseBeforeDeclaration` needs. No statement moved, so the 233/239 yield is re-stamped and not re-cut."
     },
     {
       "date": "2026-10-28",
       "file": "pulsedex-dsp.js",
       "old": "c4f4cee79733",
       "new": "d5e923c8081e",
-      "reason": "residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read: the whole diff for this file is one added `// biome-ignore` comment line above the `var PulseDex = typeof PulseDex \u2026` namespace idiom, which arming `correctness/noInvalidUseBeforeDeclaration` needs. No statement moved, so the 233/239 yield is re-stamped and not re-cut."
+      "reason": "residue 2026-10-28-the-lint-allow-list-omits-the-rule-that-sees-a-dead-zone-read: the whole diff for this file is one added `// biome-ignore` comment line above the `var PulseDex = typeof PulseDex …` namespace idiom, which arming `correctness/noInvalidUseBeforeDeclaration` needs. No statement moved, so the 233/239 yield is re-stamped and not re-cut."
     },
     {
       "date": "2026-11-06",
@@ -276,7 +276,7 @@
       "file": "oxydex-dsp.js",
       "old": "4b59a5fa140b",
       "new": "ed812f7cb6d9",
-      "reason": "Group G3 of the null and zero audit (board #6489): seven OxyDex event metrics reported absence as a measurement. computeOxyCrash skips a pair across a hole and refuses with no measured pair, computeSpO2Percentiles sorts the measured set alone, detectODI nulls its count and its rate below the 60-sample floor, computeSpikeDecay walks measured samples, computeRollingMetrics and computePBmetrics refuse below the same floor, and computeO2HREfficiency averages the present samples in both windows. measureFromResults drops a patient only on a gap or a non-finite value in the ODI or rMSSD series, and no numeric detector output moves for a fully measured night. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped \u2014 byte-identical to the 2026-09-22 published counts this file already holds."
+      "reason": "Group G3 of the null and zero audit (board #6489): seven OxyDex event metrics reported absence as a measurement. computeOxyCrash skips a pair across a hole and refuses with no measured pair, computeSpO2Percentiles sorts the measured set alone, detectODI nulls its count and its rate below the 60-sample floor, computeSpikeDecay walks measured samples, computeRollingMetrics and computePBmetrics refuse below the same floor, and computeO2HREfficiency averages the present samples in both windows. measureFromResults drops a patient only on a gap or a non-finite value in the ODI or rMSSD series, and no numeric detector output moves for a fully measured night. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped — byte-identical to the 2026-09-22 published counts this file already holds."
     },
     {
       "date": "2026-11-15",
@@ -381,7 +381,7 @@
       "file": "pulsedex-dsp.js",
       "old": "336e73354d8c",
       "new": "7be9ae41b8db",
-      "reason": "unit `pdhr`: the node dropped three window-median statistics no road read \u2014 `_dispHr`, `dispMeanRR` and the `_cMeanRR` built from it \u2014 and a comment at the site now records the whole-record HR convention the export already publishes. The removal deletes no reachable arithmetic, so the detector reads the same rMSSD series; a paper-scale re-cut measured the SAME yield 233 tx / 239 flat with 667 / 661 skipped, so the counts are measured under the new closure rather than claimed inert."
+      "reason": "unit `pdhr`: the node dropped three window-median statistics no road read — `_dispHr`, `dispMeanRR` and the `_cMeanRR` built from it — and a comment at the site now records the whole-record HR convention the export already publishes. The removal deletes no reachable arithmetic, so the detector reads the same rMSSD series; a paper-scale re-cut measured the SAME yield 233 tx / 239 flat with 667 / 661 skipped, so the counts are measured under the new closure rather than claimed inert."
     },
     {
       "date": "2026-11-23",
@@ -395,7 +395,7 @@
       "file": "oxydex-profile.js",
       "old": "7f65bccefb87",
       "new": "9a35c718b8cf",
-      "reason": "The profile VO\u2082max override wrote vo2Low and vo2High from a literal 10.8 and never wrote `see`, so the card printed a \u00b110.8 range beside \"\u00b10 SEE\". The override now reads the result's own `see` where the DSP wrote one, writes that number back, and builds both range ends from it. The edit moves the VO\u2082max profile override alone. `measureFromResults` selects on the ODI and rMSSD series, which no profile field feeds, so no detector output moves for a fully measured night. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped."
+      "reason": "The profile VO₂max override wrote vo2Low and vo2High from a literal 10.8 and never wrote `see`, so the card printed a ±10.8 range beside \"±0 SEE\". The override now reads the result's own `see` where the DSP wrote one, writes that number back, and builds both range ends from it. The edit moves the VO₂max profile override alone. `measureFromResults` selects on the ODI and rMSSD series, which no profile field feeds, so no detector output moves for a fully measured night. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped."
     },
     {
       "date": "2026-11-24",
@@ -431,11 +431,18 @@
       "old": "a82aa05e8171",
       "new": "25dcad17ec7e",
       "reason": "The three OxyDex successive-difference sites now count a pair only when the two rows are neighbours in the row stream and within 1.5 cadences of the stream's own median cadence, so a pair across a removed stretch is no longer beat-to-beat change, and a night with no qualifying pair answers null. measureFromResults selects on ODI-4 and rMSSD, and the rMSSD it reads is one of the series this change moves, so no inertness argument was available. This run RE-CUT the cohort at paper scale on the source that holds #5797 as well, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped, 18291 seeds with the 900/900 target filled."
+    },
+    {
+      "date": "2026-11-25",
+      "file": "pulsedex-dsp.js",
+      "old": "a7a35088bac0",
+      "new": "78a6ce4a7002",
+      "reason": "`lombScargle` now refuses the band ratio, the breath rate and the peak when the detrended RR variance sits under 1e-6 ms², and each DFA scale with no fluctuation gives no point, so a train of equal intervals no longer publishes floating-point residue as power. measureFromResults selects on ODI and rMSSD, and the PulseDex realm feeds it through parseRRInput, artifactClean, rmssd and std, none of which this change touches. This run RE-CUT the cohort at paper scale rather than re-stamp on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped, 18291 seeds with the 900/900 target filled."
     }
   ],
-  "measuredAt": "2026-11-25T19:42:21.072Z",
+  "measuredAt": "2026-11-25T22:52:30.927Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "c8684be0e"
+    "commit": "0a9080e32"
   }
 }

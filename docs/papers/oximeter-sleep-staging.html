@@ -172,6 +172,41 @@
     </tbody>
   </table>
   <p>On corrected data the nets hold their place: oximetry 0.705 and ECG + breathing 0.702 over all nights, and both at about 0.57 on blind Challenge. Posture adds nothing (+0.0009), so the ECG line drops it. No formula passes even the lowest ship band blind. The oximetry formula reads 0.374 on Challenge and 0.242 on DREAMT, and the PPG formulas 0.22–0.28 on DREAMT. Ranking each term within its night (N2) gains +0.014 in the pool and on Challenge, and was adopted. The pre-§46 formula's blind 0.392–0.407 (Table 2) is not comparable: it is the same cohort read on different data.</p>
+  <div class="callout" style="border:2px solid #2b6cb0;background:#f5f9ff">
+  <b>Re-scored 2026-11-25: every line of Table 6, from the saved posteriors.</b>
+  <p style="margin:.6em 0 0">Table 6 was read from <code>lab-cache/v46-reads.txt</code>, which git never held. The scorer
+  behind that readout is re-runnable, so every line of the table was scored again over the same saved posteriors, and the
+  numbers below are that run's own output. It re-scored
+  <b>CLAIM oximArmsReScored = 11 FROM analysis/published-numbers/oximeter-sleep-staging-2026-11-25.json#claims/armsReScored arms</b>, and
+  <b>CLAIM oximArmsReproducing = 9 FROM analysis/published-numbers/oximeter-sleep-staging-2026-11-25.json#claims/armsReproducingThePublishedLine arms</b>
+  reproduce the October readout to every digit it prints, pooled and per cohort: the oximetry net at
+  <b>CLAIM oximNetKappa4 = 0.705 FROM analysis/published-numbers/oximeter-sleep-staging-2026-11-25.json#result/arms/O/kappa4 kappa</b> over
+  <b>CLAIM oximNetNights = 15777 FROM analysis/published-numbers/oximeter-sleep-staging-2026-11-25.json#result/arms/O/nights nights</b>, with
+  <b>CLAIM oximNetBlindChallenge = 0.573 FROM analysis/published-numbers/oximeter-sleep-staging-2026-11-25.json#result/arms/O/byCohort/challenge/kappa4 kappa</b> on blind Challenge;
+  the ECG + breathing net at <b>CLAIM ecgNetKappa4 = 0.702 FROM analysis/published-numbers/oximeter-sleep-staging-2026-11-25.json#result/arms/R1/kappa4 kappa</b> and its
+  no-posture twin at <b>CLAIM ecgNetNoPostureKappa4 = 0.701 FROM analysis/published-numbers/oximeter-sleep-staging-2026-11-25.json#result/arms/R2/kappa4 kappa</b>;
+  the ECG formula at <b>CLAIM ecgFormulaKappa4 = 0.438 FROM analysis/published-numbers/oximeter-sleep-staging-2026-11-25.json#result/arms/FEu/kappa4 kappa</b>;
+  the oximetry formula at <b>CLAIM oximFormulaKappa4 = 0.581 FROM analysis/published-numbers/oximeter-sleep-staging-2026-11-25.json#result/arms/Fu/kappa4 kappa</b> with
+  <b>CLAIM oximFormulaBlindChallenge = 0.374 FROM analysis/published-numbers/oximeter-sleep-staging-2026-11-25.json#result/arms/Fu/byCohort/challenge/kappa4 kappa</b> blind, under the
+  lowest ship band of 0.42; and the PPG formulas at
+  <b>CLAIM ppgFormulaP1Kappa4 = 0.535 FROM analysis/published-numbers/oximeter-sleep-staging-2026-11-25.json#result/arms/P1u/kappa4 kappa</b> and
+  <b>CLAIM ppgFormulaP0Kappa4 = 0.488 FROM analysis/published-numbers/oximeter-sleep-staging-2026-11-25.json#result/arms/P0u/kappa4 kappa</b>.</p>
+  <p style="margin:.6em 0 0"><b>Two arms no longer reproduce, and the reason is absence.</b> The wrist-only nets W1 and W1a
+  read <b>CLAIM wristNetKappa4 = 0.662 FROM analysis/published-numbers/oximeter-sleep-staging-2026-11-25.json#result/arms/W1/kappa4 kappa</b> and
+  <b>CLAIM wristNetCropKappa4 = 0.656 FROM analysis/published-numbers/oximeter-sleep-staging-2026-11-25.json#result/arms/W1a/kappa4 kappa</b> today, against the
+  <b>CLAIM wristNetKappa4Published = 0.658 FROM analysis/published-numbers/oximeter-sleep-staging-2026-11-25.json#result/arms/W1/published/kappa4 kappa</b> and 0.652 of the row above.
+  The cause is not a method change:
+  <b>CLAIM wristNightsLost = 44 FROM analysis/published-numbers/oximeter-sleep-staging-2026-11-25.json#result/arms/W1/nightsLostSincePublished nights</b> of the 3 008 posterior files
+  are absent from the tree, every one of them in the STAGES STNF clinic, which falls to
+  <b>CLAIM wristStnfNights = 369 FROM analysis/published-numbers/oximeter-sleep-staging-2026-11-25.json#result/arms/W1/byCohort/stnf/nights nights</b> from the 413 the run scored.
+  Both numbers stand side by side and neither is corrected: a re-score over fewer nights is a different population, not a
+  better estimate of the same one. The two W1 figures of Table 6 and of §2 are therefore the October run's, and this
+  paragraph is the only place a wrist κ binds to a record.</p>
+  <p style="margin:.6em 0 0">The nine cohorts are governed research data, so the posterior tree is not committed and no
+  night is named here; the record carries pooled and per-cohort aggregates only, with the scorer's own digest beside them.
+  A re-score can therefore flag that record and never clear it in CI. Table 6's DREAMT column for the ECG lines is scored
+  separately from these eleven arms and is not re-scored here.</p>
+  </div>
 
   <h2 class="sec">4. Discussion</h2>
   <p><b>(i) Where the gap lives.</b> The control beats the stack by 0.15 pooled and 0.18 blind. The oracle of §32 locates most of it: with each night's own intercepts and per-term slopes the stack reaches 0.616, within 0.1 of the control, and its 9 % of failed nights (κ &lt; 0.2) vanish. The three-class readout (§38a) says the remaining errors are not dominated by one boundary — the gain from collapsing light and deep is the same +0.08–0.09 on every model, as in Korkalainen et al. (2020).</p>
