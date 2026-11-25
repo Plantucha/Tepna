@@ -413,7 +413,9 @@ function exportCSV() {
       lines.push(
         '',
         'HR ADVANCED',
-        '  RMSSD Proxy (bpm),' + n.hrAdv.rmssd,
+        // ∅ an unmeasured proxy writes an empty cell, never the string "null"
+        '  RMSSD Proxy (bpm),' + (n.hrAdv.rmssd != null ? n.hrAdv.rmssd : ''),
+        '  Successive Pairs,' + (n.hrAdv.hrPairs != null ? n.hrAdv.hrPairs : ''),
         '  HR IQR (bpm),' + n.hrAdv.hrIQR,
         '  Mean HR PB Windows,' + n.hrAdv.meanHRpb,
         '  Mean HR Non-PB,' + n.hrAdv.meanHRnonPb,
@@ -657,7 +659,9 @@ function exportCSV() {
         '  RSA Proxy,' + _hv(n.hrv.rsaProxy),
         '  HR Slope (bpm/hr),' + _hv(n.hrv.hrSlope),
         '  HR Floor (p5 bpm),' + _hv(n.hrv.hrFloor),
-        '  Samples,' + _hv(n.hrv.n)
+        '  Samples,' + _hv(n.hrv.n),
+        // ∅ pNN3 and RMSSD read successive pairs, not samples, so the row states that population too
+        '  Successive Pairs,' + _hv(n.hrv.hrPairs)
       );
     } else {
       lines.push('  (insufficient data)');
