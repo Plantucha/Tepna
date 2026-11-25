@@ -2592,7 +2592,10 @@ function nightRowInner(n) {
   if (n.comp && n.comp.sfi != null) chipsArr.push(nrChip('SFI', n.comp.sfi, n.comp.sfi < 1 ? 'g' : n.comp.sfi < 3 ? 'w' : 'r'));
   if (n.motSleep) chipsArr.push(nrChip('SleepEff', n.motSleep.sleepEff + '%', n.motSleep.sleepEff >= 90 ? 'g' : n.motSleep.sleepEff >= 80 ? 'w' : 'r'));
   if (n.sleepArch && n.sleepArch.wasoMin != null) chipsArr.push(nrChip('WASO', n.sleepArch.wasoMin + 'm', n.sleepArch.wasoMin < 10 ? 'g' : n.sleepArch.wasoMin < 30 ? 'w' : 'r'));
-  if (n.hrAdv) chipsArr.push(nrChip('RMSSD', n.hrAdv.rmssd, n.hrAdv.rmssd >= 2 ? 'g' : n.hrAdv.rmssd >= 1 ? 'w' : 'r'));
+  /* §∅ — `null >= 2` is FALSE and `null >= 1` is FALSE, so a proxy nobody could compute would have
+     rendered RED, with the word "null" as its value. The chip states the refusal and its reason. */
+  if (n.hrAdv && n.hrAdv.rmssd != null) chipsArr.push(nrChip('RMSSD', n.hrAdv.rmssd, n.hrAdv.rmssd >= 2 ? 'g' : n.hrAdv.rmssd >= 1 ? 'w' : 'r'));
+  else if (n.hrAdv) chipsArr.push(nrChip('RMSSD', nzv(null), '', 'no two still, artifact-free heart-rate samples sit one cadence apart in this night'));
   if (n.sbii)
     chipsArr.push(
       nrChip(

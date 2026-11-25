@@ -351,13 +351,14 @@
     "hrv": {
       "hrSdnnProxy": 4.51,
       "hrSdnn": 4.51,
-      "pnn3": 0.7,
+      "pnn3": 0.6,
       "hrFloor": 45,
       "hrSlope": 1.33,
       "rsaProxy": 0.29,
       "rmssd": 0.57,
       "maxHr": 103,
-      "n": 21740
+      "n": 21740,
+      "hrPairs": 21696
     },
     "hypoxicBurden": {
       "total": 5.2,
@@ -378,8 +379,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "8c5fae4529c6",
-          "computeHash": "9743a9efa6ec"
+          "manifestHash": "e3bad0160d3b",
+          "computeHash": "b7bbe716ba94"
         },
         "evidence": {
           "envelopeRef": null,
@@ -407,8 +408,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "8c5fae4529c6",
-          "computeHash": "9743a9efa6ec"
+          "manifestHash": "e3bad0160d3b",
+          "computeHash": "b7bbe716ba94"
         },
         "evidence": {
           "envelopeRef": null,
@@ -436,8 +437,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "8c5fae4529c6",
-          "computeHash": "9743a9efa6ec"
+          "manifestHash": "e3bad0160d3b",
+          "computeHash": "b7bbe716ba94"
         },
         "evidence": {
           "envelopeRef": null,
@@ -465,8 +466,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "8c5fae4529c6",
-          "computeHash": "9743a9efa6ec"
+          "manifestHash": "e3bad0160d3b",
+          "computeHash": "b7bbe716ba94"
         },
         "evidence": {
           "envelopeRef": null,
@@ -873,7 +874,8 @@
       "hrIQR": 3,
       "meanHRpb": 51.5,
       "meanHRnonPb": 49.7,
-      "hrPbContrast": 1.8
+      "hrPbContrast": 1.8,
+      "hrPairs": 21696
     },
     "composite": {
       "couplingScore": 29,
@@ -1518,7 +1520,7 @@
         "hl_meanDurSec": 24
       },
       "vagal": {
-        "vagalIndex": 0.0608,
+        "vagalIndex": 0.0521,
         "vagalLabel": "High"
       },
       "recIdx": {
