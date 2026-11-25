@@ -15,7 +15,7 @@
   "allow": {
     "no-nullish-zero": [
       {
-        "file": "glucodex-app.js",
+        "file": "glucodex-dsp.js",
         "match": "r.dawn.nDays ?? 0",
         "ordinal": 0,
         "why": "counted-zero"

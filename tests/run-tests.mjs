@@ -1938,6 +1938,26 @@ function readEquiv() {
     const ppgSummary = ppgFix('synthetic_ppgdex_summary.export.json');
     if (ppgIn && ppgSummary !== undefined) out.ppgdex_summary_export = { inputs: [ppgIn], fixture: ppgSummary, fixtureFile: 'synthetic_ppgdex_summary.export.json' };
   }
+  /* GlucoDex's ⬇ JSON summary payload — the same argument one node over. Both the input and the
+     fixture are COMMITTED, so a skip here is a wiring defect and never an absent recording. */
+  {
+    const gluOne = (f) => {
+      const q = join(ROOT, 'uploads', f);
+      return existsSync(q) ? readFileSync(q, 'utf8') : null;
+    };
+    const gluFix = (f) => {
+      const q = join(ROOT, 'uploads', f);
+      if (!existsSync(q)) return undefined;
+      try {
+        return JSON.parse(readFileSync(q, 'utf8'));
+      } catch {
+        return undefined; // unreadable → the leg self-skips rather than asserting on a parse error
+      }
+    };
+    const gluIn = gluOne('synthetic_glucodex_lingo.csv');
+    const gluSummary = gluFix('synthetic_glucodex_summary.export.json');
+    if (gluIn && gluSummary !== undefined) out.glucodex_summary_export = { inputs: [gluIn], fixture: gluSummary, fixtureFile: 'synthetic_glucodex_summary.export.json' };
+  }
   return out;
 }
 
