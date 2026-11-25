@@ -33,6 +33,8 @@
  *   close   a merged PR whose body carries `Residue-fixed: <key>` for a row that reads `OPEN` on
  *           main gets a RESIDUE-only draft PR writing `fixed #<that PR>` in the state cell, one
  *           walker closure PR in flight at a time (`planClosures`, `closeRowsText`)
+ *   wake    a rig bird whose PR merged, and whose pane then sits idle for WAKE_IDLE_MIN with no new turn,
+ *           gets one addressed board note; the board nudge types it into the pane (`planWakes`)
  * SIGNED. Every action that changed a PR leaves one comment on it naming the walker, the action, the UTC
  * time and the reason (owner, 2026-11-01: "it will sign everything what it does … It will increase
  * visibility"). A failed or dry-run action signs nothing; a comment that cannot post never changes the
@@ -60,7 +62,8 @@
  *
  * THE DECISION IS PURE. `classify()` and `plan()` take snapshots and return actions; `tests/dex-tests.js`
  * group `tools · pr-walker` pins them without `gh`, a network or a clock (the land-pr / queue-doctor
- * shape). Everything that touches GitHub or git lives in `act()` and `snapshot()`.
+ * shape). Everything that touches GitHub or git lives in `act()` and `snapshot()`; the wake pass reads
+ * herdr in `readBirds()` and writes the board in `postWake()`.
  *
  * Fails closed. An unreadable ruleset makes EVERY reported check required. An unreadable check list is
  * `unknown`, never green. A dirty walker worktree skips the rebase and says why.
@@ -88,6 +91,14 @@ export const CAP = 4;
    window with its row still OPEN, so the two cannot drift. */
 export const MERGED_WINDOW = 30;
 export const KODIAK_IDLE_MIN = 20;
+/* The birds whose pane sits in this machine's herdr. A bird on another host, a person, the walker
+   itself and an agent of another vendor are outside the set, so no merge ever prompts them. */
+export const RIG_BIRDS = ['kestrel', 'heron', 'osprey', 'magpie'];
+export const WAKE_IDLE_MIN = 20;
+/* A merge this pass first sees after more than this many minutes wakes nobody, so a first run, or a
+   walker that was down for a night, does not prompt the fleet about old merges. */
+export const WAKE_FRESH_MIN = 120;
+const WAKE_THREAD = '8';
 /* Mergify's default `queue_branch_prefix`. `.mergify.yml` leaves the key unset, so the two agree. */
 export const QUEUE_BRANCH_PREFIX = 'mergify/merge-queue/';
 export const STALE_PENDING_MIN = 180;
@@ -408,7 +419,7 @@ export function snapshot() {
   try {
     const m = JSON.parse(gh(['pr', 'list', '--state', 'merged', '--limit', String(MERGED_WINDOW), '--json', 'number,body,mergedAt']));
     mainMovedAtMs = m.length ? Math.max(...m.map((x) => Date.parse(x.mergedAt) || 0)) : 0;
-    merged = m.map((x) => ({ number: x.number, body: x.body || '' }));
+    merged = m.map((x) => ({ number: x.number, body: x.body || '', mergedAtMs: stampMs(x.mergedAt) }));
   } catch {
     mainMovedAtMs = 0;
   }
@@ -1183,6 +1194,14 @@ export function pass(opts) {
     state.regen = { main: rr.sha || mainSha, result: rr.result, at: now };
     resLines.push(`REGEN main@${String(rr.sha || mainSha).slice(0, 9)} → ${rr.result}`);
   }
+  /* Wakes: one addressed note to a rig bird that a merge left idle. */
+  const pw = planWakes(snap.merged, readBirds(), state.wakes, now);
+  for (const p of pw.posts) {
+    const r = opts.dryRun ? 'dry-run' : postWake(p);
+    if (r === 'posted') for (const n of p.numbers) pw.next[n] = `posted@${now}`;
+    resLines.push(`WAKE ${p.bird} ${p.numbers.map((n) => `#${n}`).join(', ')} → ${r}`);
+  }
+  if (!opts.dryRun) state.wakes = pw.next;
   const page =
     landingPage(rows, planned, done, {
       at: new Date(now).toISOString(),
@@ -1203,6 +1222,91 @@ export function pass(opts) {
   if (opts.json) console.log(JSON.stringify({ at: now, rows, actions: done, alerts: planned.alerts, drift, residue: resLines }));
   else process.stdout.write(opts.dryRun ? page : jt.text);
   return { rows, done, alerts: planned.alerts };
+}
+
+/* ── A MERGE WAKES AN IDLE BIRD ─────────────────────────────────────────────────────────────────
+   A merge starts no turn. Measured 2026-11-25: Magpie pushed the last fix of #5676 and ended the turn
+   at 22:09 EST. The PR merged at 22:42, and the pane sat idle until a hand-written post at 04:00. The
+   board nudge wakes a pane for an addressed entry, so the missing part was the entry.
+   A bird that starts a turn after the merge has had its chance to read the merge, so it gets no note.
+   A turn that was already running at the merge is not that turn: the clock starts when it ends. */
+export function trailerBird(body) {
+  const all = [...String(body || '').matchAll(/^Fleet-Session:[ \t]*([A-Za-z-]+)/gm)];
+  return all.length ? all[all.length - 1][1].toLowerCase() : null;
+}
+/* merged: [{ number, body, mergedAtMs }]; birds: [{ name, status, seq }] or null when herdr did not
+   answer; wakes: { number: 'old' | 'moved' | 'posted@<ms>' | { bird, seq, sinceMs } }.
+   Returns the next state and one post per bird. A failed post keeps its record, so the caller retries. */
+export function planWakes(merged, birds, wakes, nowMs) {
+  if (!merged || !birds) return { next: wakes || {}, posts: [] };
+  const next = {};
+  const due = {};
+  for (const pr of merged) {
+    const name = trailerBird(pr.body);
+    if (!RIG_BIRDS.includes(name)) continue;
+    const prior = (wakes || {})[pr.number];
+    if (typeof prior === 'string') {
+      next[pr.number] = prior;
+      continue;
+    }
+    if (!prior && (pr.mergedAtMs === null || pr.mergedAtMs === undefined || nowMs - pr.mergedAtMs > WAKE_FRESH_MIN * 60000)) {
+      next[pr.number] = 'old';
+      continue;
+    }
+    const rec = prior || { bird: name, seq: null, sinceMs: null };
+    next[pr.number] = rec;
+    const b = birds.find((x) => x.name === name);
+    if (!b) continue;
+    if (b.status === 'working') {
+      if (rec.seq !== null) next[pr.number] = 'moved';
+    } else if (b.status === 'idle' || b.status === 'done') {
+      if (rec.seq === null || rec.seq !== b.seq) next[pr.number] = { bird: name, seq: b.seq, sinceMs: nowMs };
+      else if (nowMs - rec.sinceMs >= WAKE_IDLE_MIN * 60000) {
+        due[name] ||= [];
+        due[name].push(pr.number);
+      }
+    }
+  }
+  return { next, posts: Object.entries(due).map(([bird, numbers]) => ({ bird, numbers: numbers.sort((x, y) => x - y) })) };
+}
+export function wakeText(numbers) {
+  const list = numbers.map((n) => `#${n}`).join(', ');
+  return [
+    `${list} merged, and your pane shows no new turn for ${WAKE_IDLE_MIN} min. The walker posts this once for each merge.`,
+    '',
+    '1. Remove the worktree with `node tools/wt-done.mjs <path>`, and release the claim.',
+    '2. Take the next unit: `node tools/residue-ids.mjs --open`, or the next step in your state head.',
+    '3. If the fleet winds down, or no unit fits, write the handoff and stop.',
+    '',
+    'If a gate of yours still runs, this note changes nothing.'
+  ].join('\n');
+}
+/* null when herdr did not answer or its JSON does not read: an unread pane wakes nobody. */
+export function parseBirds(text) {
+  try {
+    const list = JSON.parse(text).result.agents;
+    if (!Array.isArray(list)) return null;
+    return list
+      .filter((a) => a && a.name && a.state_change_seq !== undefined && a.state_change_seq !== null)
+      .map((a) => ({ name: String(a.name), status: a.agent_status || 'unknown', seq: a.state_change_seq }));
+  } catch {
+    return null;
+  }
+}
+function readBirds() {
+  try {
+    return parseBirds(sh(path.join(homedir(), '.local', 'bin', 'herdr'), ['--session', 'birds', 'agent', 'list'], { timeout: 20000 }));
+  } catch {
+    return null;
+  }
+}
+function postWake(p) {
+  try {
+    sh(path.join(homedir(), '.local', 'bin', 'agent-board'), ['--as', 'pr-walker', 'post', WAKE_THREAD, wakeText(p.numbers), '--to', p.bird, '--kind', 'note'], { timeout: 20000 });
+    return 'posted';
+  } catch (e) {
+    return `failed: ${String(e.message || e).split('\n')[0]}`;
+  }
 }
 
 export function installText() {
@@ -1509,6 +1613,47 @@ function selftest() {
     "build-first: a path dirty before the build is the author's, and only the moved one stays"
   );
   eq(dropPreDirty(' M OxyDex.html', ''), ' M OxyDex.html', 'build-first CONTROL: a clean tree before the build drops nothing');
+  {
+    const T = 1_000_000_000;
+    const min = (n) => T + n * 60000;
+    const M = [{ number: 7, body: 'x\nFleet-Session: Magpie\n', mergedAtMs: T }];
+    const at = (status, seq) => [{ name: 'magpie', status, seq }];
+    eq(trailerBird('a\nFleet-Session: Wren (relay: Osprey)'), 'wren', 'wake: a relayed trailer names the author');
+    eq(trailerBird('> Fleet-Session: Heron'), null, 'wake: a quoted trailer is not a trailer');
+    eq(trailerBird('no trailer'), null, 'wake: no trailer, no bird');
+    const s1 = planWakes(M, at('done', 5), {}, min(1));
+    eq(s1.posts.length, 0, 'wake: the first sight posts nothing');
+    eq(s1.next[7].seq, 5, 'wake: the first sight of an idle pane starts the clock');
+    eq(planWakes(M, at('done', 5), s1.next, min(20)).posts.length, 0, 'wake: 19 idle minutes post nothing');
+    const s2 = planWakes(M, at('done', 5), s1.next, min(21));
+    eq(JSON.stringify(s2.posts), '[{"bird":"magpie","numbers":[7]}]', 'wake: 20 idle minutes post once');
+    eq(s2.next[7].seq, 5, 'wake: a post the caller did not confirm keeps its record');
+    eq(planWakes(M, at('done', 5), { 7: `posted@${min(21)}` }, min(90)).posts.length, 0, 'wake: a posted merge stays posted');
+    const mv = planWakes(M, at('working', 6), s1.next, min(5));
+    eq(mv.next[7], 'moved', 'wake: a turn that starts after the merge settles it');
+    eq(planWakes(M, at('done', 7), mv.next, min(60)).posts.length, 0, 'wake: a settled merge never posts');
+    const w = planWakes(M, at('working', 4), {}, min(1));
+    eq(w.next[7].seq, null, 'wake: a turn running at the merge starts no clock');
+    const w2 = planWakes(M, at('done', 5), w.next, min(40));
+    eq(w2.posts.length, 0, 'wake: the clock starts when that turn ends');
+    eq(planWakes(M, at('done', 5), w2.next, min(60)).posts.length, 1, 'wake: idle after that turn posts');
+    eq(planWakes(M, at('idle', 9), s1.next, min(30)).posts.length, 0, 'wake: a moved counter restarts the clock');
+    eq(planWakes(M, at('blocked', 5), s1.next, min(60)).posts.length, 0, 'wake: a blocked pane waits on a person');
+    eq(planWakes(M, [], s1.next, min(60)).next[7].seq, 5, 'wake: an absent bird keeps its record');
+    eq(planWakes(M, null, s1.next, min(60)).posts.length, 0, 'wake: an unread herdr wakes nobody');
+    eq(planWakes(null, at('done', 5), s1.next, min(60)).next[7].seq, 5, 'wake: an unread merge list keeps the state');
+    eq(planWakes(M, at('done', 5), {}, min(121)).next[7], 'old', 'wake: an old merge wakes nobody');
+    eq(planWakes([{ ...M[0], mergedAtMs: null }], at('done', 5), {}, min(1)).next[7], 'old', 'wake: an unread merge time wakes nobody');
+    const other = (n) => [{ number: 8, body: `Fleet-Session: ${n}`, mergedAtMs: T }];
+    for (const n of ['pr-walker', 'Finch', 'Wren', 'Shrike'])
+      eq(Object.keys(planWakes(other(n), [{ name: n.toLowerCase(), status: 'done', seq: 1 }], {}, min(1)).next).length, 0, `wake: ${n} is outside the set`);
+    const two = [...M, { number: 3, body: 'Fleet-Session: Magpie', mergedAtMs: T }];
+    const t1 = planWakes(two, at('done', 5), {}, min(1));
+    eq(planWakes(two, at('done', 5), t1.next, min(30)).posts[0].numbers.join(), '3,7', 'wake: two merges share one post');
+    eq(parseBirds('not json'), null, 'wake: unreadable herdr output is null');
+    eq(parseBirds('{"result":{"agents":[{"name":"heron","agent_status":"done","state_change_seq":4},{"agent_status":"idle"}]}}').length, 1, 'wake: a pane with no name is not a bird');
+    eq(wakeText([3, 7]).startsWith('#3, #7 merged'), true, 'wake: the note names each merge');
+  }
   console.log(`all ${ran} selftests passed`);
 }
 
