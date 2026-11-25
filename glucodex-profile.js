@@ -317,7 +317,7 @@
     // chips
     let chips = '';
     if (r.dawn.present) chips += `<div class="readiness-zone-chip warn">↗ Dawn phenomenon · +${window.GluDisp.val(r.dawn.medianDelta)} ${window.GluDisp.label()}</div>`;
-    if (r.nocturnalHypo.length) chips += `<div class="readiness-zone-chip bad">🌙 ${r.nocturnalHypo.length} nocturnal hypo${r.nocturnalHypo.length > 1 ? 's' : ''}</div>`;
+    if (r.nocturnalHypo && r.nocturnalHypo.length) chips += `<div class="readiness-zone-chip bad">🌙 ${r.nocturnalHypo.length} nocturnal hypo${r.nocturnalHypo.length > 1 ? 's' : ''}</div>`;
     chips += `<div class="readiness-zone-chip ${r.pctActive >= 70 ? 'ok' : r.pctActive >= 50 ? 'warn' : 'bad'}">${r.pctActive}% sensor active</div>`;
     chips += `<div class="readiness-zone-chip ${r.dqLabel === 'high' ? 'ok' : r.dqLabel === 'moderate' ? 'warn' : 'bad'}" title="score confidence from coverage & compression flagging">data confidence ${r.dqLabel} · ×${r.dataQualityConf}</div>`;
     if (r.gmiCheck) chips += `<div class="readiness-zone-chip ${r.gmiCheck.agree ? 'ok' : 'warn'}">GMI vs lab A1c ${r.gmiCheck.delta > 0 ? '+' : ''}${r.gmiCheck.delta}%</div>`;
