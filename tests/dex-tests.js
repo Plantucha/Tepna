@@ -103910,6 +103910,163 @@
        Runs the module's own selfTest() so the browser + Node lanes gate the same 19 assertions,
        then re-asserts the contract shape from env (a module co-loaded in only one runner reds
        in the other — the §3 co-load symmetry, enforced by construction). */
+    /* ── THE SUMMARY/SERIES EXPORT ROAD, RE-RUN AGAINST ITS COMMITTED BYTES ─────────────────────
+       This is the dynamic half the gate below demands for the two `*.export.json` fixtures. It
+       exists because the payload the app's JSON button writes was built INLINE in
+       `pulsedex-app.js`, so nothing committed read it: #5680 repaired a fabricated altitude factor
+       on this exact road, and the only evidence it could offer was a pin on the source text. A pin
+       on source text dies on any reformatting of the line and says nothing about the bytes a reader
+       receives. These legs read the bytes.
+
+       The opts are the regen tool's opts, deliberately: kernel and provenance null, `generated`
+       ANCHORED to the first recording's start rather than to now, and the crossNight block computed
+       from the same sorted list. That is what makes the payload deterministic enough to pin — the
+       live app still stamps the click time, which `tools/regen-goldens-core.mjs` carries as a
+       VOLATILE key. Both inputs are COMMITTED, so a skip here is a wiring defect and not an absent
+       recording, and the legs say so. */
+    group('PulseDex summary/series export ≡ its committed fixture', 'pulsedex-dsp · fixtures · equivalence', function (T) {
+      var P = (env.PulseDex && env.PulseDex._bare) || null;
+      var ready = !!(P && typeof P.parseRRInput === 'function' && typeof P.pdComputeResult === 'function' && typeof P.pdBuildSummaryExport === 'function');
+      T.ok('PulseDex._bare exposes parseRRInput + pdComputeResult + pdBuildSummaryExport', ready, 'co-load pulsedex-dsp.js in BOTH runners');
+      if (!ready) return;
+
+      function recsFrom(texts) {
+        var out = [];
+        for (var i = 0; i < texts.length; i++) {
+          var fr = P.parseRRInput(texts[i]);
+          if (!fr) return null;
+          var r = P.pdComputeResult({ intervals: fr.vals, tsMs: fr.tsMs, t0Ms: fr.t0Ms, offsetMin: fr.offsetMin });
+          if (!r) return null;
+          out.push(r);
+        }
+        /* Ascending by t0Ms, as recordingsSortedPx() orders the app's list. NOT `(a.t0Ms || 0)` —
+           pulsedex-cross.js records that comparator as a defect, because an unstamped recording
+           then sorts as the oldest one. */
+        out.sort(function (a, b) {
+          var fa = typeof a.t0Ms === 'number' && isFinite(a.t0Ms),
+            fb = typeof b.t0Ms === 'number' && isFinite(b.t0Ms);
+          if (fa && fb) return a.t0Ms - b.t0Ms;
+          return fa ? -1 : fb ? 1 : 0;
+        });
+        return out;
+      }
+
+      /* THE VOLATILE KEYS, by NAME and at ANY DEPTH — the same set `tools/regen-goldens-core.mjs`
+         carries, which is why `regen --check` reads these fixtures as current on a second run. One of
+         them is not the envelope's own stamp: `PulseCross.crossNightBlock` writes
+         `crossNight.schema.generated` from `new Date()` ITSELF, so the SERIES payload carries a click
+         time this builder never sees and cannot anchor. Stripping it is the honest reading — the key
+         is a stamp, pinned nowhere — and the alternative is to pass an anchor into the cross module,
+         which is a change to a file every node duplicates and belongs in its own unit. */
+      var VOLATILE = ['file', 'provenance', 'kernel', 'generated', 'vo2est', 'karv'];
+      function stripVolatile(v) {
+        if (Array.isArray(v)) {
+          for (var i = 0; i < v.length; i++) v[i] = stripVolatile(v[i]);
+          return v;
+        }
+        if (v && typeof v === 'object') {
+          var ks = Object.keys(v);
+          for (var j = 0; j < ks.length; j++) {
+            if (VOLATILE.indexOf(ks[j]) >= 0) delete v[ks[j]];
+            else v[ks[j]] = stripVolatile(v[ks[j]]);
+          }
+          return v;
+        }
+        return v;
+      }
+
+      /* The first path at which two JSON trees differ, so a red names WHERE rather than printing two
+         payloads a reader has to diff by eye. */
+      function firstDiff(a, b, path) {
+        path = path || '$';
+        if (a === b) return null;
+        var ta = a === null ? 'null' : Array.isArray(a) ? 'array' : typeof a;
+        var tb = b === null ? 'null' : Array.isArray(b) ? 'array' : typeof b;
+        if (ta !== tb) return path + ': ' + ta + ' vs ' + tb;
+        if (ta === 'array') {
+          if (a.length !== b.length) return path + '.length: ' + a.length + ' vs ' + b.length;
+          for (var i = 0; i < a.length; i++) {
+            var d = firstDiff(a[i], b[i], path + '[' + i + ']');
+            if (d) return d;
+          }
+          return null;
+        }
+        if (ta === 'object') {
+          var ka = Object.keys(a),
+            kb = Object.keys(b);
+          if (String(ka) !== String(kb)) return path + ' keys: ' + String(ka) + ' vs ' + String(kb);
+          for (var j = 0; j < ka.length; j++) {
+            var d2 = firstDiff(a[ka[j]], b[ka[j]], path + '.' + ka[j]);
+            if (d2) return d2;
+          }
+          return null;
+        }
+        return path + ': ' + JSON.stringify(a) + ' vs ' + JSON.stringify(b);
+      }
+
+      function leg(key, label, withCross) {
+        var eq = (env.equiv || {})[key];
+        if (!(eq && eq.inputs && eq.fixture !== undefined)) {
+          T.ok(label + ': the committed inputs and fixture are wired (' + key + ')', false, 'COMMITTED — wire env.equiv.' + key + ' in BOTH runners');
+          return;
+        }
+        var recs = recsFrom(eq.inputs);
+        T.ok(label + ': every committed input parsed and computed', !!recs && recs.length === eq.inputs.length, recs ? recs.length + '/' + eq.inputs.length : 'a parse or compute returned null');
+        if (!recs || recs.length !== eq.inputs.length) return;
+        var generated = recs[0] && recs[0].t0Ms != null ? new Date(recs[0].t0Ms).toISOString() : null;
+        var crossNight;
+        if (withCross) {
+          var X = env.PulseCross;
+          if (!(X && typeof X.crossNightBlock === 'function')) {
+            T.ok(label + ': PulseCross.crossNightBlock is co-loaded', false, 'co-load crossnight-envelope.js + pulsedex-cross.js in BOTH runners');
+            return;
+          }
+          crossNight = X.crossNightBlock(recs);
+        }
+        var built = P.pdBuildSummaryExport(recs, { kernel: null, provenance: null, generated: generated, crossNight: crossNight });
+        var diff = firstDiff(stripVolatile(JSON.parse(JSON.stringify(built))), stripVolatile(JSON.parse(JSON.stringify(eq.fixture))));
+        T.ok(label + ' reproduces ' + eq.fixtureFile + ' byte-for-byte', diff === null, diff || '');
+      }
+
+      leg('pulsedex_summary_export', 'one recording', false);
+      leg('pulsedex_series_export', 'two recordings', true);
+
+      /* ANTI-VACUITY, and the reason this group is not just two equalities: the SERIES payload is the
+         only committed PulseDex artifact that carries the envelope at all, and the SUMMARY payload is
+         the only one carrying a recording object with no envelope around it. A leg that quietly
+         stopped reaching either shape would still print two greens above. */
+      var sEq = (env.equiv || {}).pulsedex_summary_export,
+        qEq = (env.equiv || {}).pulsedex_series_export;
+      if (sEq && sEq.fixture) {
+        T.ok(
+          'the summary fixture IS the bare recording (no envelope, no recordingCount)',
+          sEq.fixture.schema === undefined && sEq.fixture.recordingCount === undefined && sEq.fixture.t0Ms !== undefined,
+          String(Object.keys(sEq.fixture).slice(0, 4))
+        );
+        /* §∅ MEASURED, AND IT IS NOT WHAT THIS FIXTURE WAS EXPECTED TO SHOW. `altFactor` is ABSENT
+           from the committed summary payload, because the headless road builds the recording with
+           `pdComputeResult` and the altitude factor is written by the APP's calculate() and by
+           pulsedex-render.js. So the field #5680 repaired is still reachable only by a source pin:
+           this fixture pins the recording as compute() builds it, and closing that gap needs the
+           app's own result path to move headless too. Asserted as ABSENT rather than null so the
+           leg states the real coverage instead of implying coverage it does not have. */
+        T.eq('its altFactor is ABSENT, because the headless road never computes one (coverage, stated)', sEq.fixture.altFactor === undefined ? 'absent' : sEq.fixture.altFactor, 'absent');
+      }
+      if (qEq && qEq.fixture) {
+        T.eq('the series fixture carries both recordings', qEq.fixture.recordingCount, 2);
+        T.ok(
+          '…under the ganglior.node-export schema with multiRecording set',
+          !!(qEq.fixture.schema && qEq.fixture.schema.name === 'ganglior.node-export' && qEq.fixture.schema.multiRecording === true),
+          qEq.fixture.schema ? String(qEq.fixture.schema.name) : 'no schema'
+        );
+        T.ok(
+          '…and a real crossNight block, not a null placeholder',
+          !!(qEq.fixture.crossNight && typeof qEq.fixture.crossNight === 'object' && qEq.fixture.crossNight.metrics),
+          qEq.fixture.crossNight ? String(Object.keys(qEq.fixture.crossNight)) : 'null'
+        );
+      }
+    });
+
     /* ── FIXTURE REPRODUCIBILITY — a code claim nothing checks is decoration ────────────────────
        FIXTURE-PROVENANCE.json makes two KINDS of claim about a committed fixture:
 
