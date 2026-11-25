@@ -87,7 +87,18 @@
      zero crossing and the next positive-going one 0.3–1.0 s apart; a negative peak below −80 µV; a
      negative-to-positive peak-to-peak above 140 µV. `aasm` is the scoring manual's own amplitude
      figure (75 µV peak-to-peak, with no separate negative-peak figure), which is the form a
-     calibrated frontal-to-mastoid derivation takes, and the form this block uses. */
+     calibrated frontal-to-mastoid derivation takes, and the form this block uses.
+
+     SOURCES, so a reader can check each number rather than take it from this file:
+       the four `published` criteria — Massimini, Marcello et al. 2004, "The Sleep Slow Oscillation as
+         a Traveling Wave", The Journal of Neuroscience 24:6862-6870, doi:10.1523/JNEUROSCI.1318-04.2004
+       the 75 µV frontal figure — Davidson, Shaun et al. 2025, "Is it time to revisit the scoring of
+         slow wave (N3) sleep?", SLEEP 48(10) zsaf063, doi:10.1093/sleep/zsaf063
+     TWO LIMITS THE SOURCES THEMSELVES STATE, and this file does not step over:
+       Massimini applied those criteria to a LOCAL AVERAGE OF THE SCALP and not to one channel, so the
+         `published` pair is not a single-channel threshold and this block defaults to `aasm`;
+       Davidson RESTATES the scoring manual rather than deriving the figure, so it is cited as a
+         restatement of the manual and never as the origin of the 75 µV. */
   const SLOW = {
     band: [0.1, 4],
     halfWaveS: [0.3, 1.0],
@@ -199,7 +210,10 @@
     return out;
   }
 
-  /* Share of each 30 s epoch covered by slow oscillations (t0…t1), the quantity the manual's "20 % of the epoch" refers to. */
+  /* Share of each 30 s epoch covered by slow oscillations (t0…t1), the quantity the manual's "20 % of
+     the epoch" refers to. The 20 % and the frontal derivation it reads on are restated by Davidson,
+     Shaun et al. 2025, SLEEP 48(10) zsaf063, doi:10.1093/sleep/zsaf063 — a restatement of the manual,
+     not the origin of the rule. */
   function slowWaveFraction(events, nEpochs, epochS = 30) {
     const f = new Float64Array(nEpochs);
     for (const e of events)
@@ -208,7 +222,10 @@
     return f;
   }
 
-  /* Sleep spindle — the published single-channel four-feature detector, its four constants read at the paper:
+  /* Sleep spindle — the published single-channel four-feature detector, its four constants read at the
+   paper: Lacourse, Karine et al. 2019, "A sleep spindle detection algorithm that emulates human expert
+   spindle scoring", Journal of Neuroscience Methods 316:3-11, Table 2, doi:10.1016/j.jneumeth.2018.08.014.
+   The constants that paper gives:
    sigma band 11–16 Hz, broadband 0.3–30 Hz, windows of 0.3 s stepped 0.1 s;
      abs  = log10 of the mean squared sigma signal                                   threshold 1.25 (log10 µV²)
      rel  = log10 (sigma power / 4.5–30 Hz power), z-scored against a 30 s baseline  threshold 1.6
