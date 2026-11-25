@@ -425,6 +425,7 @@ async function gateTestSuite() {
       labelHits: labels.map((l) => Array.from(document.querySelectorAll('div.test .name')).some((d) => (d.textContent || '').indexOf(l) >= 0)),
       hasFail: !!document.querySelector('#summary .pill.fail'),
       bootSkips: window.__rcBootSkips || [],
+      strayLoads: window.__rcStrayLoads || [],
       summary: (document.getElementById('summary').innerText || '').replace(/\s+/g, ' ').trim(),
       /* NAME THE FAILURES, do not just count them. This gate used to report "✕ 2 failing" and
        nothing else, so every consumer — CI log reader or a session debugging their own PR — had
@@ -476,6 +477,7 @@ async function gateTestSuite() {
     FAILS.push('Dex-Test-Suite rendered ' + r.rowsRendered + ' of ' + r.rowsInMemory + ' test rows — a title, name or detail broke the page markup, so a failure past the break cannot be named here');
   }
   say('   summary:', r.summary + (r.bootSkips.length ? '   [boot-skips: ' + r.bootSkips.join(', ') + ']' : ''));
+  if (r.strayLoads.length) say('   stray loads refused by bootRig:', r.strayLoads.join(', '));
   if (r.skips) {
     const slack = BROWSER_LANE && typeof BROWSER_LANE.budget === 'number' ? BROWSER_LANE.budget - r.skips.rows.length : null;
     say(
