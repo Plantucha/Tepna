@@ -69735,6 +69735,43 @@
         }
       } else T.skip('residue closure wired', 'pwPlanClosures absent in this lane');
 
+      /* ── a merge wakes the idle bird behind it (measured 2026-11-25: #5676 merged, its bird sat idle
+         for 5 h 18 min, and nothing told it) ─────────────────────────────────────────────────── */
+      var pwk = env.pwPlanWakes,
+        prb = env.pwParseBirds;
+      T.ok('the wake planner reaches this lane — its absence is a wiring failure', typeof pwk === 'function' && typeof prb === 'function');
+      if (typeof pwk === 'function' && typeof prb === 'function') {
+        var T0 = 1000000000;
+        var wMin = function (n) {
+          return T0 + n * 60000;
+        };
+        var wM = [{ number: 7, body: 'x\nFleet-Session: Magpie\n', mergedAtMs: T0 }];
+        var wAt = function (st, seq) {
+          return [{ name: 'magpie', status: st, seq: seq }];
+        };
+        var w1 = pwk(wM, wAt('done', 5), {}, wMin(1));
+        T.eq('the first sight of an idle bird posts nothing', w1.posts.length, 0);
+        T.eq('19 idle minutes post nothing', pwk(wM, wAt('done', 5), w1.next, wMin(20)).posts.length, 0);
+        T.eq('20 idle minutes post once', JSON.stringify(pwk(wM, wAt('done', 5), w1.next, wMin(21)).posts), '[{"bird":"magpie","numbers":[7]}]');
+        T.eq('a posted merge stays posted', pwk(wM, wAt('done', 5), { 7: 'posted@1' }, wMin(90)).posts.length, 0);
+        T.eq('a turn that starts after the merge settles it', pwk(wM, wAt('working', 6), w1.next, wMin(5)).next[7], 'moved');
+        var w3 = pwk(wM, wAt('working', 4), {}, wMin(1));
+        T.eq('a turn already running at the merge starts no clock', w3.next[7].seq, null);
+        var w4 = pwk(wM, wAt('done', 5), w3.next, wMin(40));
+        T.eq('the clock starts when that turn ends', w4.posts.length, 0);
+        T.eq('idle after that turn posts', pwk(wM, wAt('done', 5), w4.next, wMin(60)).posts.length, 1);
+        T.eq('a blocked pane waits on a person', pwk(wM, wAt('blocked', 5), w1.next, wMin(60)).posts.length, 0);
+        T.eq('an unread herdr wakes nobody', pwk(wM, null, w1.next, wMin(60)).posts.length, 0);
+        T.eq('an old merge wakes nobody', pwk(wM, wAt('done', 5), {}, wMin(121)).next[7], 'old');
+        T.eq('an unread merge time wakes nobody', pwk([{ number: 7, body: wM[0].body, mergedAtMs: null }], wAt('done', 5), {}, wMin(1)).next[7], 'old');
+        T.eq(
+          'an agent outside the rig set is never planned',
+          Object.keys(pwk([{ number: 8, body: 'Fleet-Session: Shrike', mergedAtMs: T0 }], [{ name: 'shrike', status: 'done', seq: 1 }], {}, wMin(1)).next).length,
+          0
+        );
+        T.eq('unreadable herdr output is null, never an empty fleet', prb('not json'), null);
+      }
+
       /* ── a closure PR waits while a ready PR runs its checks (measured 2026-11-16, board #6670:
          closure PR #5112 merged ahead of #5094 and cancelled its capture-host mutation run) ───── */
       var cwo = env.pwClosureWaitsOn;
