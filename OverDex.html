@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="6210e5f64610" data-compute-hash="bb36460db051"><head>
+<html lang="en" data-manifest-hash="8961b7391309" data-compute-hash="89ac3e4c7e11"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-/T+ENvly3qPaksx8t/Rm8H6XgK/DiuP9xd51MVwulbc=' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FV/TB0GWLAawcNhCICx6Shvm9lLfECci1wUypQlaWW0=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UdJ88eeYm1W9tlVf66iAGR0D63hIgHQ6dBYrVftyKPE=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gsfxF3U9fQYY6VBcjkxdisltp5OpMvk7xGo0quyFZm8=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lRjBNsCaN1onrmQCSzWhXTs/b9YNthVr/yE6cNRUb7U=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-v+ZDhUbvqeorKucOsmnsbIPPI+s5NEnBQknMfNbSmk8=' 'sha256-wktj1Df+isZKJxu0wGtJ0pZLbTfqdObxwLCd2Fo+wQg=' 'sha256-zxV4DCpRJohvPwd65AN+/CH0kNLzHAU+vIKI6BC4I28='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7wlWCQUAtgWYZihc9Nt/v44R41d/EerskA0DJJiMdPw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FV/TB0GWLAawcNhCICx6Shvm9lLfECci1wUypQlaWW0=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UdJ88eeYm1W9tlVf66iAGR0D63hIgHQ6dBYrVftyKPE=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gsfxF3U9fQYY6VBcjkxdisltp5OpMvk7xGo0quyFZm8=' 'sha256-hWzB4rsCbqCsuYfj7w7IHjnaPKU1JJMMs+oxJLE4sLU=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-v+ZDhUbvqeorKucOsmnsbIPPI+s5NEnBQknMfNbSmk8=' 'sha256-wktj1Df+isZKJxu0wGtJ0pZLbTfqdObxwLCd2Fo+wQg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -2935,6 +2935,10 @@
 
   var _SQ_UNMEASURED = 'unmeasured-and-unexplained';
 
+  /* THE FOUR STATES OF A SIDECAR ROW (§3b), held here so a node's own lane resolver cannot invent a
+     fifth one. A state nobody listed is a state no reader of the table can act on. */
+  var _SQ_STATES = { read: 1, absent: 1, 'not-read': 1, 'not-applicable': 1 };
+
   /* A cell. `value` is the number the fact is worth; `unit` names what the number counts, because
      several of these facts have more than one defensible unit and a bare percentage is how a share
      of BEATS gets read as a share of TIME. A non-finite value takes the caller's reason; a caller
@@ -2977,7 +2981,7 @@
     return { origin: null, basis: 'the filename carries neither writer’s start-stamp layout, so the recording’s origin is unknown' };
   }
 
-  function _sqLedgerRow(row, r) {
+  function _sqLedgerRow(row, r, lanes) {
     var st = row.state || null,
       why = row.state ? row.reason : null;
     /* EVERY ROW IN THIS LEDGER IS A FILE THE CAPTURE HOST WRITES. So the absence of one has two
@@ -3003,42 +3007,20 @@
     if (row.state) {
       /* a fixed state is a fact about THIS NODE's readers, which no recording changes — the origin
          override below is the one thing that can still outrank it */
-    } else if (row.lane === 'ecgRuns') {
-      var rs = r && r.runs;
-      if (!rs || rs.reason === 'no-runs-sidecar') {
-        st = vendor ? 'not-applicable' : 'absent';
-        why = vendor ? naWhy('_ECGRUNS.txt') : absentWhy('_ECGRUNS.txt', 'no blanking span is known — this is not a clean stream');
-      } else if (rs.reason) {
-        st = 'not-read';
-        why = 'the reader ran and placed no row: ' + rs.reason;
-      } else {
-        st = 'read';
-      }
-    } else if (row.lane === 'ecgSeams') {
-      var ss = r && r.seams;
-      if (!ss || ss.reason === 'no-seam-sidecar') {
-        st = vendor ? 'not-applicable' : 'absent';
-        why = vendor ? naWhy('_ECGSEAMS.txt') : absentWhy('_ECGSEAMS.txt', 'the seam count is unknown rather than zero');
-      } else if (ss.reason) {
-        st = 'not-read';
-        why = 'the reader ran and placed no row: ' + ss.reason;
-      } else {
-        st = 'read';
-      }
     } else {
-      var acc = r && r.deviceACC;
-      if (!acc || !acc.length) {
-        st = 'not-applicable';
-        why = 'this recording carries no motion companion, so no motion sidecar can apply to it';
-      } else if (acc._runsSidecar) {
-        st = 'read';
-      } else if (vendor) {
-        st = 'not-applicable';
-        why = naWhy('_ACCRUNS.txt');
-      } else {
-        st = 'absent';
-        why = absentWhy('_ACCRUNS.txt', 'the held-value runs of the loaded motion companion are unknown');
-      }
+      /* THE LANES BELONG TO THE NODE, NOT TO THE SPINE. Each adopting node declares one resolver per
+         lane it reads, because only that node knows which field of its own record carries the
+         companion. The spine keeps what every node shares: the four states, the two reasons and the
+         origin override below. A row that names a lane with no resolver THROWS, so a ledger the
+         caller half-wired fails loudly instead of publishing a state nobody computed (§∅). */
+      var resolve = lanes && row.lane ? lanes[row.lane] : null;
+      if (typeof resolve !== 'function')
+        throw new Error('sqLedgerRow: the ledger row `' + row.key + '` names the lane `' + (row.lane || '') + '`, and the caller passed no resolver for it (SIGNAL-QUALITY-TABLE-2026-11-14 §7.4)');
+      var got = resolve(r, { vendor: vendor, naWhy: naWhy, absentWhy: absentWhy, origin: org }) || {};
+      if (!_SQ_STATES[got.state])
+        throw new Error('sqLedgerRow: the resolver for the lane `' + row.lane + '` returned the state `' + got.state + '`, which is none of read · absent · not-read · not-applicable');
+      st = got.state;
+      why = st === 'read' ? null : got.reason || null;
     }
     /* THE ORIGIN OUTRANKS EVERY OTHER CAUSE, AND ONLY EVIDENCE OUTRANKS IT. Every file in this ledger
        is written by the capture host, so on a vendor export none of them can exist — whatever this
@@ -3111,6 +3093,13 @@
     var evBadge = deps.badge,
       lineChart = deps.lineChart,
       C = deps.colors;
+    /* THE REGISTRY IDS ARE THE NODE'S, where its own registry already names the fact. `SQ_ROWS`
+       carries the fleet default and a node overrides one row by key, so a second adopter badges its
+       EXISTING id rather than declaring a second id for one number. */
+    var IDS = deps.ids || {};
+    function _rowId(row) {
+      return IDS[row.k] || row.id;
+    }
 
     function _sqBadge(label) {
       /* The MODULE-LOCAL `evBadge` of this file, never `global.evBadge`. The two are the same function
@@ -3305,7 +3294,7 @@
       if (body && notes) notes.push('<div class="sq-note-row"><span class="sq-note-k">' + row.label + ' \u00b7 ' + chanLabel + '</span>' + body + '</div>');
       return (
         '<div class="q-stat sq-stat">' +
-        _sqBadge(row.id) +
+        _sqBadge(_rowId(row)) +
         '<div class="q-val' +
         (n == null ? ' sq-val-abs' : '') +
         '">' +
@@ -3601,7 +3590,7 @@
         (tileNotes.length ? '<div class="q-note sq-notes">' + tileNotes.join('') + '</div>' : '') +
         '<div class="sq-foot">' +
         '<div class="sq-sc-h">' +
-        _sqBadge(SQ_LEDGER_ID) +
+        _sqBadge(IDS.sidecarState || SQ_LEDGER_ID) +
         'Validity sidecars <span class="mini-sub">' +
         scCensus +
         '</span></div>' +
@@ -3854,6 +3843,7 @@
     sqLedgerRow: _sqLedgerRow,
     SQ_ROWS: SQ_ROWS,
     SQ_DRIFT_SERIES: SQ_DRIFT_SERIES,
+    SQ_LEDGER_ID: SQ_LEDGER_ID,
     makeTable: makeTable
   };
 })(typeof self !== 'undefined' ? self : globalThis);
@@ -41929,10 +41919,15 @@ __exports.GlucoDex = window.GlucoDex;
   // ════════════════════════════════════════════════════════════════════════
   //  EPOCHS — 5-min windows over the corrected interval series
   // ════════════════════════════════════════════════════════════════════════
+  /* THE EPOCH OF THIS NODE, held in one place. The walk below and the signal-quality table are two
+     readers of one grid, and a reader who compares a refused epoch against a quality row compares two
+     grids the moment the two numbers drift apart. */
+  const _PPG_EPOCH_SEC = 300;
+
   function buildEpochs(nn, tt, motion, perfWindow, cleanMask, agreeI, adj) {
     const epochs = [];
     if (nn.length < 2) return epochs;
-    const epLen = 300; // sec
+    const epLen = _PPG_EPOCH_SEC; // sec
     const tEnd = tt[tt.length - 1];
     for (let e0 = 0; e0 < tEnd; e0 += epLen) {
       const idx = [];
@@ -43116,6 +43111,18 @@ __exports.GlucoDex = window.GlucoDex;
       analyzablePctReason,
       // §∅ raw span sets, per optical channel — projected into the export's `quality.pinnedCoverage`.
       pinnedSpanSets: rec.spans || null,
+      /* THE PINNED-RUNS CROSS-CHECK VERDICT, carried through because this reshape drops whatever it
+         does not name and the signal-quality ledger reads it (§3b of
+         SIGNAL-QUALITY-TABLE-2026-11-14). `null` means no `_PPGRUNS.txt` companion reached the
+         parse at all, which is validity UNKNOWN rather than a clean stream. */
+      pinnedCrossCheck: rec.pinnedCrossCheck || null,
+      /* THE MOTION COMPANION'S OWN SIDECAR, as two facts rather than one: whether a motion stream
+         reached this node, and whether the `_ACCRUNS.txt` beside it parsed. A reader of one cannot
+         derive the other, and the ledger row needs both to tell "no companion" from "no sidecar". */
+      accSidecar: {
+        loaded: !!(rec.acc && rec.acc.length),
+        runsRead: !!(rec.acc && rec.acc._runsSidecar)
+      },
       /* The device-beat referee, carried HERE because this is the object the emitter reads as `r`.
          ⚠️ My first attempt put it beside `sentinelRejected` in the quality object below, which is
          exactly the mistake `pinnedCoverage`'s note in the emitter already records: that block never
@@ -43766,6 +43773,455 @@ __exports.GlucoDex = window.GlucoDex;
     return any ? out : null;
   }
 
+  // ═══ SIGNAL QUALITY — the shared table's second adopter (SIGNAL-QUALITY-TABLE-2026-11-14 §7) ═════
+  /* THE SPINE, RESOLVED AT CALL TIME. Same discipline as `ecgdex-dsp.js`: a module-scope alias would
+     oblige every realm that merely LOADS this file to carry `sq-table.js`, and the only caller is
+     `ppgBuildNodeExport` below. A realm without the file throws here, by name, rather than
+     disabling a published fact in silence. */
+  function _sqSpine() {
+    var S = typeof SQTable !== 'undefined' ? SQTable : undefined;
+    if (!S) throw new Error('sq-table.js is absent from this realm, so no signal-quality fact can be computed here (SIGNAL-QUALITY-TABLE-2026-11-14 §7.4)');
+    return S;
+  }
+  function _sqCell(value, unit, reason, extra) {
+    return _sqSpine().sqCell(value, unit, reason, extra);
+  }
+  function _sqLedgerRow(row, r, lanes) {
+    return _sqSpine().sqLedgerRow(row, r, lanes);
+  }
+  function _ppgCaptureOrigin(name) {
+    return _sqSpine().sqCaptureOrigin(name);
+  }
+
+  /* ── THIS NODE'S SIDECAR LANES (§3b) ─────────────────────────────────────────────────────────────
+     One resolver per companion this node actually reads, because only this node knows which field of
+     its own record carries the verdict. The spine holds what every node shares: the four states, the
+     two absence reasons and the capture-origin override. */
+  var _PPG_LANES = {
+    ppgRuns: function (r, h) {
+      var cc = r && r.pinnedCrossCheck;
+      if (!cc)
+        return h.vendor
+          ? { state: 'not-applicable', reason: h.naWhy('_PPGRUNS.txt') }
+          : {
+              state: 'absent',
+              reason: h.absentWhy('_PPGRUNS.txt', 'no held-value run of the optical stream is known — this is not a clean stream')
+            };
+      if (!cc.comparable)
+        return {
+          state: 'not-read',
+          reason: 'the reader ran and the companion declared no parameters, so its rows cannot be held against this node’s own derivation'
+        };
+      return { state: 'read', reason: null };
+    },
+    ppgSeams: function (r, h) {
+      var ss = r && r.seams;
+      if (!ss || ss.reason === 'no-seam-sidecar')
+        return h.vendor
+          ? { state: 'not-applicable', reason: h.naWhy('_PPGSEAMS.txt') }
+          : {
+              state: 'absent',
+              reason: h.absentWhy('_PPGSEAMS.txt', 'the seam count is unknown rather than zero')
+            };
+      if (ss.reason) return { state: 'not-read', reason: 'the reader ran and placed no row: ' + ss.reason };
+      return { state: 'read', reason: null };
+    },
+    accRuns: function (r, h) {
+      var acc = (r && r.accSidecar) || null;
+      if (!acc || !acc.loaded)
+        return {
+          state: 'not-applicable',
+          reason: 'this recording carries no motion companion, so no motion sidecar can apply to it'
+        };
+      if (acc.runsRead) return { state: 'read', reason: null };
+      if (h.vendor) return { state: 'not-applicable', reason: h.naWhy('_ACCRUNS.txt') };
+      return {
+        state: 'absent',
+        reason: h.absentWhy('_ACCRUNS.txt', 'the held-value runs of the loaded motion companion are unknown')
+      };
+    }
+  };
+
+  /* THE SIDECAR LEDGER'S ROWS (§3b). The NAMES are a projection of the registry in
+     `tools/sidecar-census.mjs`, never a second declaration of the set, and the `sidecar-census` gate
+     reds when this list drops a name that registry carries. A row this node does not read says which
+     of the two it is: `not-read` means the box writes the file for a capture of this kind and no
+     reader stands here, and `not-applicable` means another device's capture writes it. */
+  var _PPG_SIDECAR_LEDGER = [
+    { key: 'PPGRUNS', file: '_PPGRUNS.txt', label: 'Signal gaps — optical', lane: 'ppgRuns' },
+    { key: 'PPGSEAMS', file: '_PPGSEAMS.txt', label: 'Clock jumps — optical', lane: 'ppgSeams' },
+    { key: 'ACCRUNS', file: '_ACCRUNS.txt', label: 'Signal gaps — motion', lane: 'accRuns' },
+    {
+      key: 'PPG2WRUNS',
+      file: '_PPG2WRUNS.txt',
+      label: 'Signal gaps — optical, 2nd stream',
+      state: 'not-read',
+      reason: 'the box writes it beside a second-wavelength optical stream, and this node ingests the 3-channel `_PPG.txt` only'
+    },
+    {
+      key: 'ACCRAWRUNS',
+      file: '_ACCRAWRUNS.txt',
+      label: 'Signal gaps — motion, raw stream',
+      state: 'not-read',
+      reason: 'the box derives this spelling beside a raw motion stream, and this node’s picker pairs `_ACCRUNS.txt` with the motion companion it loads'
+    },
+    {
+      key: 'ACCSEAMS',
+      file: '_ACCSEAMS.txt',
+      label: 'Clock jumps — motion',
+      state: 'not-read',
+      reason: 'the box writes it beside the motion stream and MotionDex reads it; this node has no motion-seam reader'
+    },
+    {
+      key: 'ECGRUNS',
+      file: '_ECGRUNS.txt',
+      label: 'Signal gaps — ECG',
+      state: 'not-applicable',
+      reason: 'a chest ECG stream, which this node does not ingest'
+    },
+    {
+      key: 'ECGSEAMS',
+      file: '_ECGSEAMS.txt',
+      label: 'Clock jumps — ECG',
+      state: 'not-applicable',
+      reason: 'a chest ECG stream, which this node does not ingest'
+    },
+    {
+      key: 'HRSEAMS',
+      file: '_HRSEAMS.txt',
+      label: 'Clock jumps — heart rate',
+      state: 'not-read',
+      reason: 'this node ignores the device `_HR.txt` rows with a note on the page, so no seam reader stands for them'
+    },
+    {
+      key: 'PPISEAMS',
+      file: '_PPISEAMS.txt',
+      label: 'Clock jumps — beat intervals',
+      state: 'not-read',
+      reason: 'this node reads the device interval rows for the referee and has no seam reader for them'
+    },
+    {
+      key: 'RADIOCLOCK',
+      file: '_RADIOCLOCK.csv',
+      label: 'Radio clock log',
+      state: 'not-read',
+      reason: 'a parser stands in radio-clock.js, which this bundle does not inline, so no reader here reads this file'
+    },
+    {
+      key: 'LINK',
+      file: '_LINK.csv',
+      label: 'Bluetooth link log',
+      state: 'not-read',
+      reason: 'one file per night, tied to no stream, and no node reads it'
+    },
+    {
+      key: 'RTCLOG',
+      file: '_RTCLOG.csv',
+      label: 'Ring clock log',
+      state: 'not-read',
+      reason: 'the ring writes this clock journal beside the optical stream this node can ingest, and no reader stands here'
+    },
+    {
+      key: 'OXYFRAME',
+      file: '_OXYFRAME.txt',
+      label: 'Ring contact log',
+      state: 'not-read',
+      reason: 'the ring writes this contact journal beside the optical stream this node can ingest, and no reader stands here'
+    },
+    {
+      key: 'CLOCK',
+      file: '_CLOCK.csv',
+      label: 'Host clock log',
+      state: 'not-read',
+      reason: 'a night journal of what disciplined the host clock, and this node reads the host stamps of its own stream instead'
+    },
+    {
+      key: 'PMDARRIVAL',
+      file: '_PMDARRIVAL.csv',
+      label: 'Packet arrival log',
+      state: 'not-read',
+      reason: 'a per-session log of the host arrival stamp of every packet of the streams this node ingests, and no reader stands here'
+    },
+    {
+      key: 'CLOCKSYNC',
+      file: 'CLOCKSYNC.csv',
+      label: 'Device clock sync log',
+      state: 'not-read',
+      reason: 'a per-device log of each clock-sync event and its skew, and no reader stands here'
+    },
+    {
+      key: 'PMDNEG',
+      file: 'PMDNEG.csv',
+      label: 'Stream rate agreement log',
+      state: 'not-read',
+      reason: 'the per-stream record of the rate the device agreed to, which this node could hold against the rate it measures, and no reader stands here'
+    },
+    {
+      key: 'STARTS',
+      file: 'STARTS.csv',
+      label: 'Daemon start log',
+      state: 'not-read',
+      reason: 'a night journal of each daemon start, which binds to no stream'
+    },
+    {
+      key: 'WORN',
+      file: 'WORN.csv',
+      label: 'Wear state log',
+      state: 'not-read',
+      reason: 'a per-device journal of the wear state, which binds to no stream'
+    },
+    {
+      key: 'WEDGEFIRE',
+      file: 'WEDGEFIRE.csv',
+      label: 'Device wedge log',
+      state: 'not-read',
+      reason: 'a journal of each device the box found wedged, which binds to no stream'
+    },
+    {
+      key: 'ADAPTERHCI',
+      file: 'ADAPTERHCI.csv',
+      label: 'Radio health log',
+      state: 'not-read',
+      reason: 'a per-radio health report, which binds to no stream'
+    },
+    {
+      key: 'OXYLIFE',
+      file: 'OXYLIFE.csv',
+      label: 'Ring lifecycle log',
+      state: 'not-read',
+      reason: 'the ring writes this lifecycle journal beside the optical stream this node can ingest, and no reader stands here'
+    },
+    {
+      key: 'SESSIONDETECT',
+      file: 'SESSIONDETECT.csv',
+      label: 'CPAP session detector log',
+      state: 'not-applicable',
+      reason: 'the CPAP shadow runner writes it, and this node ingests no CPAP stream'
+    },
+    {
+      key: 'AS11CLOCK',
+      file: 'AS11CLOCK.csv',
+      label: 'CPAP device clock log',
+      state: 'not-applicable',
+      reason: 'the CPAP clock discipline writes it, and this node ingests no CPAP stream'
+    }
+  ];
+
+  /* ── THE TEN FACTS, PER CHANNEL (§3) ─────────────────────────────────────────────────────────────
+     One cell per fact per channel, and every cell that holds no number names the reason (§∅). The
+     two channels are the two streams this node ingests: the optical waveform it analyses, and the
+     motion companion it loads beside it. A fact this node does not compute for a channel says
+     WHICH of the two it is — structural (this node scores quality through the optical beat series,
+     so the motion stream has no score of its own) or absent input (no companion arrived). */
+  function ppgSignalQuality(r) {
+    var org = (r && r.captureOrigin) || _ppgCaptureOrigin((r && r.fname) || '');
+    var rr = r && r.captureOrigin ? r : Object.assign({}, r, { captureOrigin: org });
+    var ch = typeof r.channel === 'number' ? r.channel : null;
+    var sets = Array.isArray(r.pinnedSpanSets) ? r.pinnedSpanSets : null;
+    var set = sets && ch != null ? sets[ch] || null : null;
+    var n = typeof r.n === 'number' && r.n > 0 ? r.n : null;
+    var score = r.channelScores && ch != null ? r.channelScores[ch] || null : null;
+    var va = r.validation || null;
+    var ha = r.hostAxis && r.hostAxis.ok ? r.hostAxis : null;
+    var haDrawn = ha ? (ha.drawn != null ? ha.drawn : ha.deviceDrawn) : null;
+    var mo = r.motion && r.motion.hasData ? r.motion : null;
+    var moEv = r.hrvConfidence && r.hrvConfidence.evidence ? r.hrvConfidence.evidence : null;
+    var NO_DRIFT = 'no-walk: this node builds no per-window rate walk over the night, so it measures no drift against a §3d reference — the axis rate beside it is the whole-record figure';
+    var NO_MAINS = 'not-measured: this node notches the mains rate out of the waveform and measures no mains-against-in-band ratio';
+    var NO_MOTION = 'no-input: no motion companion reached this node with this recording';
+
+    /* THE HELD RUNS, SPLIT BY RULE. `rule: 'pinned'` is a run sitting on a detected rail and
+       `'stuck'` is a constant run at any other value, so the flat share counts BOTH and the rail
+       census counts the first alone. A span set with no spans is a measured zero; no span set at
+       all is unknown, and the two take different cells below. */
+    var flatN = null,
+      pinN = null,
+      stuckN = null;
+    if (set && Array.isArray(set.spans)) {
+      flatN = 0;
+      pinN = 0;
+      stuckN = 0;
+      for (var i = 0; i < set.spans.length; i++) {
+        var sp = set.spans[i];
+        var sn = sp && typeof sp.n === 'number' && isFinite(sp.n) ? sp.n : 0;
+        flatN += sn;
+        if (sp && sp.rule === 'pinned') pinN += sn;
+        else stuckN += sn;
+      }
+    }
+    var NO_SPANS = 'no-census: this node derived no held-run span set for the reference channel, so the share is unknown rather than zero';
+    var ppgFlat = _sqCell(flatN != null && n ? (100 * flatN) / n : NaN, '% of samples', flatN == null ? NO_SPANS : 'the record published no sample count, so a share of it cannot be formed', {
+      samples: flatN,
+      pinnedSamples: pinN,
+      stuckSamples: stuckN,
+      spans: set && Array.isArray(set.spans) ? set.spans.length : null,
+      of: n,
+      channel: ch
+    });
+    var ppgRail = _sqCell(pinN != null ? pinN : NaN, 'samples at the rail', NO_SPANS, {
+      railLo: set ? (set.lo != null ? set.lo : null) : null,
+      railHi: set ? (set.hi != null ? set.hi : null) : null,
+      railUnit: 'the rail VALUES of the reference channel, in the stream’s own counts — the census beside them counts samples, not values',
+      of: n,
+      channel: ch
+    });
+
+    /* THE AXIS RATE (Clock Contract §7). A rate exists only when the host column is a SECOND clock:
+       a drawn column cannot disagree with the device about a rate, so that case is an absence with
+       its own reason rather than a 0 ppm. */
+    var ppgTiming = _sqCell(
+      ha && haDrawn === false && typeof ha.ppm === 'number' ? ha.ppm : NaN,
+      'ppm of the device rate against the host axis',
+      !ha
+        ? 'no-axis: no host-disciplined axis was built for this recording, so the two clocks were never held against each other'
+        : haDrawn !== false
+          ? ha.inertReason || 'not-independent: the host column is not a second clock, so no device-against-host rate exists to measure'
+          : ha.ppmReason || 'the axis published no rate and named no reason',
+      {
+        anchors: ha && ha.anchors != null ? ha.anchors : null,
+        spanMs: ha && typeof ha.spanMs === 'number' ? ha.spanMs : null,
+        independent: ha && ha.independent != null ? ha.independent === true : null,
+        drawn: haDrawn,
+        maxStepMs: ha && typeof ha.maxStepMs === 'number' ? ha.maxStepMs : null
+      }
+    );
+
+    /* THE REFERENCE Δ. The referee is the device's own interval series, when one arrived: the
+       Verity's `_PPI.txt` or the ring's in-band beat markers. Each failing state names itself —
+       no file, an empty file, and too few intervals are three different absences. */
+    var ppgRef = _sqCell(
+      va && va.usable && typeof va.meanAbsDevMs === 'number' ? va.meanAbsDevMs : NaN,
+      'ms between the mean self interval and the mean device interval',
+      !va || !va.hasData
+        ? va && va.filePresent
+          ? 'empty-reference: a device interval file reached this node and carried no interval row'
+          : 'no-reference: no device interval series reached this node, so no second instrument can be held against its own'
+        : va.usable
+          ? 'the referee ran and published no offset'
+          : 'under-powered: the two interval trains are too short to compare (' + (va.source || 'unnamed source') + ')',
+      {
+        source: va ? va.source || null : null,
+        nSelf: va && va.nSelf != null ? va.nSelf : null,
+        nDevice: va && va.nDevice != null ? va.nDevice : null,
+        selfMean: va && va.selfMean != null ? va.selfMean : null,
+        devMean: va && va.devMean != null ? va.devMean : null
+      }
+    );
+
+    /* WHAT THE COMPANION CHANGES, declared from this node's own call graph rather than measured
+       here: `crossCheckPinned` merges the companion's rows into the pinned span sets, which the two
+       census cells above read. The pilot's four-way run measured ECGDex's own facts and says
+       nothing about these, so the undetermined list stays named instead of being written as
+       `unchanged` (§∅ — a fact nobody measured is not a fact). */
+    var ppgSidecarEffect = {
+      changed: ['flatline', 'rail'],
+      unchanged: ['timing', 'drift', 'mains', 'epochs'],
+      undetermined: ['coverage', 'nodeSqi', 'snr', 'reference'],
+      how: 'the companion’s rows merge into the pinned span sets, so both census cells count the writer’s held runs beside this node’s own; the four unchanged facts are computed from the stream or its clocks before any companion is read',
+      undeterminedReason:
+        'the span sets also reach the beat rejection, so a companion can move the beat population these four read; no four-way run of one recording has measured which of them moves here',
+      population:
+        'the call graph of this node, read fact by fact: the ECGDex pilot measured ITS own facts over one synthetic recording run four times (2026-11-15), and no run of this node has been diffed before and after its companion yet',
+      measuredOn: null
+    };
+
+    return {
+      epochSec: _PPG_EPOCH_SEC,
+      channels: {
+        ppg: {
+          stream: 'optical:ppg',
+          scopeNote: 'Every cell of this column describes the reference channel this node picked for the analysis, named beside it — not the three-channel consensus and not the whole file.',
+          inputNote: null,
+          nodeSqi: _sqCell(typeof r.meanSQI === 'number' ? r.meanSQI : NaN, 'mean per-beat score, 0 to 1', r.meanSQIReason || 'this node published no mean score and named no reason', {
+            beats: typeof r.nBeats === 'number' ? r.nBeats : null,
+            channel: ch
+          }),
+          coverage: _sqCell(
+            r.coverage && typeof r.coverage.coveragePct === 'number' ? r.coverage.coveragePct : NaN,
+            '% of the recorded envelope',
+            'no-census: this recording carries no segment census, so the covered share of its envelope is unknown',
+            {
+              segments: r.coverage && Array.isArray(r.coverage.segments) ? r.coverage.segments.length : null,
+              durSec: typeof r.durSec === 'number' ? r.durSec : null
+            }
+          ),
+          epochs: _sqCell(Array.isArray(r.epochs) ? r.epochs.length : NaN, 'windows', 'no-walk: this analysis placed no epoch walk over the record', { longRecord: r.longRec === true }),
+          timing: ppgTiming,
+          drift: _sqCell(NaN, 'ppm of the night rate against a named reference', NO_DRIFT),
+          reference: ppgRef,
+          flatline: ppgFlat,
+          rail: ppgRail,
+          snr: _sqCell(
+            score && typeof score.snr === 'number' ? score.snr : NaN,
+            'ratio of in-band to out-of-band power',
+            score ? 'the channel scorer placed no ratio for the reference channel' : r.channelReason || 'no-score: no channel carried a scoreable window, so no channel was ranked',
+            {
+              windows: score && score.nWindows != null ? score.nWindows : null,
+              winSec: score && score.winSec != null ? score.winSec : null,
+              channel: ch,
+              scale: 'a power RATIO, not dB — this node never converts it'
+            }
+          ),
+          mains: _sqCell(NaN, 'ratio of mains-band to in-band power', NO_MAINS),
+          sidecarEffect: ppgSidecarEffect
+        },
+        acc: {
+          stream: 'optical:acc',
+          /* THE MOTION STREAM IS NOT A SECOND WAVEFORM, and seven of its ten cells would read as if
+             it were. This node places the motion samples against the optical start and scores
+             quality through the optical beat series, so the stream has no score, no rate, no
+             reference and no spectral measure OF ITS OWN — and each stays absent when a companion
+             DOES arrive. The structural reason therefore stands whatever the drop carried, and only
+             the two cells a companion really fills carry the input-dependent one. */
+          scopeNote:
+            'This node reads the motion companion to grade the optical beats, so the column carries the population it placed and the rate it read — never a quality score of the motion stream itself.',
+          inputNote: mo ? null : NO_MOTION,
+          nodeSqi: _sqCell(NaN, 'mean per-beat score, 0 to 1', 'no-score: this node scores quality through the optical beat series, so it computes none for the motion stream'),
+          coverage: _sqCell(
+            moEv && typeof moEv.motionEpochs === 'number' && typeof moEv.epochs === 'number' && moEv.epochs > 0 ? (100 * moEv.motionEpochs) / moEv.epochs : NaN,
+            '% of the placed epochs with a known motion value',
+            mo ? 'no-walk: no epoch walk was placed, so there is no population to measure the motion against' : NO_MOTION,
+            {
+              epochsWithMotion: moEv ? moEv.motionEpochs : null,
+              epochs: moEv ? moEv.epochs : null,
+              rows: mo && mo.nAcc != null ? mo.nAcc : null
+            }
+          ),
+          epochs: _sqCell(mo && Array.isArray(mo.perWindow) ? mo.perWindow.length : NaN, 'windows', mo ? 'no-walk: the motion analysis placed no window' : NO_MOTION, {
+            rateHz: mo && mo.accFs != null ? mo.accFs : null
+          }),
+          timing: _sqCell(
+            NaN,
+            'ppm of the device rate against the host axis',
+            'no-axis: this node builds no host-disciplined axis for the motion companion, so no device-against-host rate exists for it',
+            { rateHz: mo && mo.accFs != null ? mo.accFs : null }
+          ),
+          drift: _sqCell(NaN, 'ppm of the night rate against a named reference', NO_DRIFT),
+          reference: _sqCell(NaN, 'ms against a second instrument', 'no-reference: no second motion instrument reaches this node, so nothing can be held against this stream'),
+          flatline: _sqCell(
+            NaN,
+            '% of samples',
+            'no-census: the motion companion’s held runs reach this node as the sidecar state in the ledger below, and this node counts no flat share over the samples themselves'
+          ),
+          rail: _sqCell(NaN, 'samples at the rail', 'no-census: this node runs no rail detection over the motion stream, and no declared full-scale range reaches it'),
+          snr: _sqCell(NaN, 'ratio of in-band to out-of-band power', 'not-measured: this node computes no in-band ratio for the motion stream'),
+          mains: _sqCell(NaN, 'ratio of mains-band to in-band power', NO_MAINS),
+          sidecarEffect: {
+            changed: [],
+            unchanged: ['coverage', 'epochs', 'timing', 'drift', 'reference', 'flatline', 'rail', 'snr', 'mains', 'nodeSqi'],
+            how: 'the motion companion’s own run census reaches the ledger row below and no cell of this column, so every cell’s before value and after value are one number',
+            population:
+              'the call graph of this column, read cell by cell: the claim is structural rather than measured, because no cell here reads `accSidecar` and the ledger row below reads it instead',
+            measuredOn: null
+          }
+        }
+      },
+      sidecars: _PPG_SIDECAR_LEDGER.map(function (row) {
+        return _sqLedgerRow(row, rr, _PPG_LANES);
+      })
+    };
+  }
+
   function ppgBuildNodeExport(r, opts) {
     opts = opts || {};
     // EXPORT-IDENTITY §2.1: computed ONCE here and shared by recording.contentId and the measurement
@@ -43922,6 +44378,7 @@ __exports.GlucoDex = window.GlucoDex;
        of `seam-foreign-stream` cannot tell WHICH companion arrived, and the count it would have
        inferred belongs to another stream (∅). */
     if (seamAnn.sidecarStream != null) out.recording.validity.seamsSidecarStream = seamAnn.sidecarStream;
+
     /* THE CLOCK SEAM, WHERE THE CORPUS COULD NOT SEE IT. `clockSeam` and `clockResyncs` have sat on
        the internal result since the §∅ ruling of 2026-09-17, and this builder published neither — so a
        reader of the folded nights can bound the step count from `recording.hostAxis.maxStepMs` and can
@@ -44322,6 +44779,12 @@ __exports.GlucoDex = window.GlucoDex;
     // populated once companions land, §1b). Field math MIRRORS ppgdex-app.js buildV2 (same `r`, same numbers).
     // SHARED SHAPE with ecgBuildNodeExport (ECGDEX-FOLLOWUPS-II §2) — keep the two aligned (handoff no-divergence).
     if (opts.rich) {
+      /* THE SIGNAL-QUALITY TABLE (SIGNAL-QUALITY-TABLE-2026-11-14 §7), inside the rich gate exactly
+         as the ECGDex pilot places it: the app's own Ganglior stream calls this builder WITHOUT
+         `rich`, so the file a user downloads does not move a byte and no committed fixture output
+         changes. This builder is also the node's ONE caller of the spine module, which keeps every
+         analysis realm that merely loads this file free of `sq-table.js`. */
+      out.signalQuality = ppgSignalQuality(r);
       var fq = r.freq || {};
       out.quality = {
         analyzablePct: nz(r.analyzablePct),
@@ -53011,9 +53474,56 @@ __exports.PpgDex = window.PpgDex;
   function _sqCell(value, unit, reason, extra) {
     return _sqSpine().sqCell(value, unit, reason, extra);
   }
-  function _sqLedgerRow(row, r) {
-    return _sqSpine().sqLedgerRow(row, r);
+  function _sqLedgerRow(row, r, lanes) {
+    return _sqSpine().sqLedgerRow(row, r, lanes);
   }
+
+  /* ── THIS NODE'S SIDECAR LANES (§3b) ─────────────────────────────────────────────────────────────
+     One resolver per companion this node actually reads. The resolver answers from THIS node's own
+     record, which is why it lives here rather than in the spine: `runs`, `seams` and `deviceACC` are
+     ECGDex's field names, and the next adopter reads different ones. Each returns one of the four
+     states and the reason behind it; the spine holds the origin override that can still outrank a
+     state, because that rule is the same for every node. */
+  var _ECG_LANES = {
+    ecgRuns: function (r, h) {
+      var rs = r && r.runs;
+      if (!rs || rs.reason === 'no-runs-sidecar')
+        return h.vendor
+          ? { state: 'not-applicable', reason: h.naWhy('_ECGRUNS.txt') }
+          : {
+              state: 'absent',
+              reason: h.absentWhy('_ECGRUNS.txt', 'no blanking span is known — this is not a clean stream')
+            };
+      if (rs.reason) return { state: 'not-read', reason: 'the reader ran and placed no row: ' + rs.reason };
+      return { state: 'read', reason: null };
+    },
+    ecgSeams: function (r, h) {
+      var ss = r && r.seams;
+      if (!ss || ss.reason === 'no-seam-sidecar')
+        return h.vendor
+          ? { state: 'not-applicable', reason: h.naWhy('_ECGSEAMS.txt') }
+          : {
+              state: 'absent',
+              reason: h.absentWhy('_ECGSEAMS.txt', 'the seam count is unknown rather than zero')
+            };
+      if (ss.reason) return { state: 'not-read', reason: 'the reader ran and placed no row: ' + ss.reason };
+      return { state: 'read', reason: null };
+    },
+    accRuns: function (r, h) {
+      var acc = r && r.deviceACC;
+      if (!acc || !acc.length)
+        return {
+          state: 'not-applicable',
+          reason: 'this recording carries no motion companion, so no motion sidecar can apply to it'
+        };
+      if (acc._runsSidecar) return { state: 'read', reason: null };
+      if (h.vendor) return { state: 'not-applicable', reason: h.naWhy('_ACCRUNS.txt') };
+      return {
+        state: 'absent',
+        reason: h.absentWhy('_ACCRUNS.txt', 'the held-value runs of the loaded motion companion are unknown')
+      };
+    }
+  };
   function _ecgCaptureOrigin(name) {
     return _sqSpine().sqCaptureOrigin(name);
   }
@@ -53572,7 +54082,7 @@ __exports.PpgDex = window.PpgDex;
         }
       },
       sidecars: _ECG_SIDECAR_LEDGER.map(function (row) {
-        return _sqLedgerRow(row, r);
+        return _sqLedgerRow(row, r, _ECG_LANES);
       })
     };
   }
