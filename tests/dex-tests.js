@@ -48201,7 +48201,20 @@
         T.ok('the KPI card names the goal basis it graded against', /hypoGoalInForce/.test(app) && /hypoGoalBasis === 'unstated'/.test(app), 'KPI sub');
         T.ok('the app provenance row gates the age it prints on the cascade origin', /_origins\.age === 'you' \|\| r\.profile\._origins\.age === 'detected'/.test(app), 'provenance row');
         T.ok('the QTc bound says when the sex was assumed', /sex not set — male bound/.test(app), 'QTc bound annotation');
-        T.ok('…and the export carries the same flag beside the bound', /sexStated:/.test(app), 'qtcThresholds.sexStated');
+        /* THE EXPORT LAYER MOVED. The ⬇ JSON payload left `glucodex-app.js exportJSON` for
+           `glucodex-dsp.js glucoBuildSummaryExport`, so this pin follows it. The render legs above
+           stay on the app, because the hero, the KPI card and the QTc row stayed there. Slice the
+           builder out by its own header: `glucoBuildNodeExport` is a sibling in the same file, and a
+           regex over the whole file would match either one and answer the question itself. The close
+           is the first line that is exactly two spaces and a brace, this file's function-level
+           indent; every nested close inside the body sits deeper. */
+        var gdsp = (env.sources || {})['glucodex-dsp.js'] || '';
+        var _si = gdsp.indexOf('  function glucoBuildSummaryExport(r, opts) {');
+        var _sj = _si < 0 ? -1 : gdsp.indexOf('\n  }\n', _si);
+        var sum = _si < 0 || _sj < 0 ? '' : gdsp.slice(_si, _sj);
+        T.ok('the summary builder sliced out of glucodex-dsp.js', sum.length > 3000, sum.length + ' chars');
+        T.ok('…and the export carries the same flag beside the bound', /sexStated:/.test(sum), 'qtcThresholds.sexStated');
+        T.ok('CONTROL · the app rebuilds no qtcThresholds block of its own', !/sexStated:/.test(app), 'the app is building the block again');
       }
 
       P._setStore(null); // the shared store is read by later groups — put the module's own back
@@ -105698,6 +105711,149 @@
         T.ok('CONTROL · the app keeps no `ganglior.node-export` literal of its own', !/name: 'ganglior\.node-export'/.test(app));
         T.ok('CONTROL · and no clock read of its own in the export road', (app.match(/new Date\(\)\.toISOString\(\)/g) || []).length === 0);
       } else T.skip('ppgdex-app.js source unavailable');
+    });
+
+    /* ── THE GlucoDex SUMMARY EXPORT PAYLOAD ≡ ITS COMMITTED FIXTURE ────────────────────────────
+       The same argument one node over, and the row's GlucoDex slice. The ⬇ JSON button's whole
+       document was built INLINE in `glucodex-app.js exportJSON`. Every GlucoDex fixture drives
+       `GlucoDex.compute`, which answers with the `glucoBuildNodeExport` document instead, so
+       NOTHING re-ran this payload: a fabricated value in it reded no fixture. The two documents
+       share a node and share almost no fields. Row
+       `2026-11-24-four-nodes-summary-export-payload-has-no-known-answer`.
+
+       `generated` is ANCHORED to the recording's own start, exactly as
+       `tools/regen-glucodex-goldens.mjs` anchors it, so neither side carries a literal the other has
+       to repeat. The input is COMMITTED, so a skip here is a wiring defect and never an absent
+       recording, and the first leg says so. */
+    group('GlucoDex summary export ≡ its committed fixture', 'glucodex-dsp · fixtures · equivalence · one-road', function (T) {
+      var G = env.GLUDSP || env.GlucoDex;
+      var ready = !!(G && typeof G.glucoComputeResult === 'function' && typeof G.glucoBuildSummaryExport === 'function');
+      T.ok('GLUDSP exposes glucoComputeResult + glucoBuildSummaryExport', ready, 'co-load glucodex-dsp.js in BOTH runners');
+      if (!ready) return;
+
+      var eq = (env.equiv || {}).glucodex_summary_export;
+      if (!(eq && eq.inputs && eq.inputs[0] && eq.fixture !== undefined)) {
+        T.ok('the committed input and fixture are wired (glucodex_summary_export)', false, 'COMMITTED — wire env.equiv.glucodex_summary_export in BOTH runners');
+        return;
+      }
+
+      /* The volatile keys by NAME at ANY depth, the set `tools/regen-goldens-core.mjs` carries.
+         `generated` is anchored on both sides, so it is stripped for the DIFF and asserted on its
+         own below — a stripped key that nothing else reads is a key this group does not check. */
+      var VOLATILE = ['file', 'provenance', 'kernel', 'generated'];
+      function strip(v) {
+        if (Array.isArray(v)) {
+          for (var i = 0; i < v.length; i++) v[i] = strip(v[i]);
+          return v;
+        }
+        if (v && typeof v === 'object') {
+          var ks = Object.keys(v);
+          for (var j = 0; j < ks.length; j++) {
+            if (VOLATILE.indexOf(ks[j]) >= 0) delete v[ks[j]];
+            else v[ks[j]] = strip(v[ks[j]]);
+          }
+          return v;
+        }
+        return v;
+      }
+      function firstDiff(a, b, path) {
+        path = path || '$';
+        if (a === b) return null;
+        var ta = a === null ? 'null' : Array.isArray(a) ? 'array' : typeof a;
+        var tb = b === null ? 'null' : Array.isArray(b) ? 'array' : typeof b;
+        if (ta !== tb) return path + ': ' + ta + ' vs ' + tb;
+        if (ta === 'array') {
+          if (a.length !== b.length) return path + '.length: ' + a.length + ' vs ' + b.length;
+          for (var i = 0; i < a.length; i++) {
+            var d = firstDiff(a[i], b[i], path + '[' + i + ']');
+            if (d) return d;
+          }
+          return null;
+        }
+        if (ta === 'object') {
+          var ka = Object.keys(a),
+            kb = Object.keys(b);
+          if (String(ka) !== String(kb)) return path + ' keys: ' + String(ka) + ' vs ' + String(kb);
+          for (var j = 0; j < ka.length; j++) {
+            var d2 = firstDiff(a[ka[j]], b[ka[j]], path + '.' + ka[j]);
+            if (d2) return d2;
+          }
+          return null;
+        }
+        return path + ': ' + JSON.stringify(a) + ' vs ' + JSON.stringify(b);
+      }
+      var clone = function (x) {
+        return JSON.parse(JSON.stringify(x));
+      };
+
+      var r = G.glucoComputeResult({ text: eq.inputs[0] });
+      T.ok('the committed input computed a result object', !!r, r ? '' : 'glucoComputeResult returned null');
+      if (!r) return;
+      var generated = r.t0Ms != null ? new Date(r.t0Ms).toISOString() : null;
+      var built = G.glucoBuildSummaryExport(r, { kernel: null, provenance: null, generated: generated });
+      var diff = firstDiff(strip(clone(built)), strip(clone(eq.fixture)));
+      T.ok('the summary payload reproduces ' + eq.fixtureFile + ' byte-for-byte', diff === null, diff || '');
+      T.eq('…and the anchored stamp agrees with the committed one', built.schema.generated, eq.fixture.schema.generated);
+
+      /* ANTI-VACUITY. An equality over a payload of nulls is green and examines nothing, so COUNT
+         what the fixture actually pins. A later input that silently shrinks the payload reds here. */
+      var nn = 0,
+        nulls = 0;
+      (function count(x) {
+        if (Array.isArray(x)) {
+          for (var i = 0; i < x.length; i++) count(x[i]);
+        } else if (x && typeof x === 'object') {
+          var ks = Object.keys(x);
+          for (var j = 0; j < ks.length; j++) count(x[ks[j]]);
+        } else if (x === null) nulls++;
+        else nn++;
+      })(eq.fixture);
+      T.ok('the fixture pins over 3000 non-null leaves', nn > 3000, nn + ' non-null, ' + nulls + ' null');
+      T.ok('…over every section of the payload', Object.keys(eq.fixture).length >= 13, String(Object.keys(eq.fixture).length) + ' sections');
+
+      /* THE TWO DOCUMENTS ARE DIFFERENT, which is why one of them had no known answer. `compute()`
+         answers with the node-export; it is the road every other GlucoDex fixture drives, and it
+         could never have pinned the payload above. */
+      var ne = typeof G.compute === 'function' ? G.compute({ text: eq.inputs[0] }) : env.GlucoDex && typeof env.GlucoDex.compute === 'function' ? env.GlucoDex.compute({ text: eq.inputs[0] }) : null;
+      T.ok('compute() still answers with the node-export, after the split', !!(ne && ne.schema && ne.schema.name === 'ganglior.node-export'));
+      T.ok('…and the summary document is NOT that document', !!ne && String(Object.keys(ne)) !== String(Object.keys(built)), 'the two export roads now publish one key list');
+      T.ok('…the summary carries schema.units, which the node-export does not', !!built.schema.units && !(ne && ne.schema && ne.schema.units));
+
+      /* THE SHARED TIMING BLOCK. The payload declared `schema.name: ganglior.node-export` and
+         carried NO `recording.timing`, the block that schema obliges and that `glucoBuildNodeExport`
+         already emitted. Both roads call `glucoTimingBlock` now, so the shape cannot drift. */
+      var tb = built.recording.timing;
+      T.ok('the summary carries recording.timing, not an absent block', !!tb, 'the payload publishes no timing block');
+      T.eq('…and the node-export road reports the same source', tb && tb.timingSource, ne && ne.recording && ne.recording.timing ? ne.recording.timing.timingSource : null);
+      /* §∅ — a CGM file carries the sensor's own stamp and no host stamp column, so there is no
+         second clock. The block says `independent: false` and names the reason; the counts it did
+         not look for stay null rather than reading as a measured zero. */
+      T.eq('§∅ no second clock on a CGM input', tb && tb.independent, false);
+      T.eq('§∅ resyncs are unknown, never a zero nobody measured', tb && tb.resyncs, null);
+      T.eq('§∅ seams are unknown, never a zero nobody measured', tb && tb.seams, null);
+      T.ok('§∅ …and the block names WHY', !!(tb && typeof tb.reason === 'string' && tb.reason.length > 20), tb ? String(tb.reason) : '');
+
+      /* §∅ — the section this input CANNOT reach. The synthetic Lingo CSV carries no nutrition rows,
+         so the fixture pins a REFUSAL there and never an empty aggregate. */
+      T.eq('§∅ nutrition is a refusal with no food rows, not a zero', eq.fixture.nutrition, null);
+
+      /* THE PUBLISHED HELPER. `glucoCells` was single-sourced into the DSP and never published, so
+         the app threw `GLUDSP.glucoCells is not a function` and the ⬇ JSON downloaded nothing while
+         every gate stayed green. The builder calls it in lexical scope now, and this leg reads the
+         cells it produced rather than the function's name. */
+      T.ok(
+        'the payload carries a populated timeseries.cells block',
+        !!(built.timeseries && built.timeseries.cells && built.timeseries.cells.length > 800),
+        built.timeseries && built.timeseries.cells ? built.timeseries.cells.length + ' cells' : 'no cells'
+      );
+
+      /* SOURCE MIRRORS — one road. Each leg reds when the app rebuilds a payload of its own. */
+      var app = (env.sources && env.sources['glucodex-app.js']) || '';
+      if (app) {
+        T.ok('the app delegates the summary payload', /GLUDSP\.glucoBuildSummaryExport\(r, \{/.test(app));
+        T.ok('CONTROL · the app keeps no `ganglior.node-export` literal of its own', !/name: 'ganglior\.node-export'/.test(app));
+        T.ok('CONTROL · and no wall-clock read in the export road', (app.match(/generated: new Date\(\)\.toISOString\(\)/g) || []).length === 0);
+      } else T.skip('glucodex-app.js source unavailable');
     });
 
     /* ── FIXTURE REPRODUCIBILITY — a code claim nothing checks is decoration ────────────────────
