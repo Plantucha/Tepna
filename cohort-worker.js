@@ -277,7 +277,7 @@ function runGluco(cgmCSV) {
   var r = GLUDSP.analyze(parsed, null, {});
   var s = r.series || {},
     cells = [];
-  if (s.gT && s.gV) for (var i = 0; i < s.N; i++) cells.push({ tMs: s.gT[i], v: s.gV[i], f: s.gF ? s.gF[i] : 0 });
+  if (s.gT && s.gV) for (var i = 0; i < s.N; i++) cells.push({ tMs: s.gT[i], v: isFinite(s.gV[i]) ? s.gV[i] : null, f: s.gF ? s.gF[i] : 0 });
   var winHypo = winHypoFromCSV(cgmCSV, r.cadence);
   var dawnSurge = (r.dawn && (r.dawn.medianRiseMgdl != null ? r.dawn.medianRiseMgdl : firstFinite(r.dawn))) || null;
   return {

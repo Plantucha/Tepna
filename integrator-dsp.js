@@ -570,7 +570,8 @@ function adaptEnvelopeNode(json, node, filename) {
         };
       })
       .filter(function (cl) {
-        return cl.tMs != null && cl.v != null;
+        // a Low/High cell (GlucoDex flags 5 and 6) has a stamp and no value, and it is measured time
+        return cl.tMs != null && (cl.v != null || cl.f === 5 || cl.f === 6);
       })
       .sort(function (a, b) {
         return a.tMs - b.tMs;
@@ -2889,10 +2890,13 @@ function glucoseMetricsInWindow(cgmRec, startMs, endMs, opts) {
      The Integrator reads these flags as bare NUMERIC LITERALS and never imports the name, which is
      why GlucoDex's fix could not propagate and why grepping for GAP_LONG finds nothing here. Named
      locally with the owning definition cited, so the coupling is visible to the next reader. */
-  var GFLAG = { OK: 0, WARMUP: 1, GAP: 2, COMPRESSION: 3, GAP_LONG: 4 }; // ← mirrors glucodex-dsp.js FLAG
+  var GFLAG = { OK: 0, WARMUP: 1, GAP: 2, COMPRESSION: 3, GAP_LONG: 4, BELOW: 5, ABOVE: 6 }; // ← mirrors glucodex-dsp.js FLAG
   var vals = [],
     valsT = [],
-    nFlagUnknown = 0;
+    nFlagUnknown = 0,
+    nBelowRange = 0, // Low cells: time below the sensor range, with no value
+    nAboveRange = 0, // High cells
+    dawnCensored = false; // a Low in the 03–06h nadir window or a High in the 06–08h peak window
   for (i = 0; i < win.length; i++) {
     /* §∅ — A CELL THAT NEVER DECLARED A FLAG IS NOT A MEASURED READING. The adapter above stamped a
        missing `f` as 0 (GFLAG.OK), so a cell from an export carrying no clean flags counted as measured
@@ -2905,6 +2909,17 @@ function glucoseMetricsInWindow(cgmRec, startMs, endMs, opts) {
       continue;
     }
     if (win[i].f === GFLAG.COMPRESSION || win[i].f === GFLAG.GAP_LONG) continue;
+    if (win[i].f === GFLAG.BELOW || win[i].f === GFLAG.ABOVE) {
+      var hC = new Date(win[i].tMs).getUTCHours();
+      if (win[i].f === GFLAG.BELOW) {
+        nBelowRange++;
+        if (hC >= 3 && hC < 6) dawnCensored = true;
+      } else {
+        nAboveRange++;
+        if (hC >= 6 && hC < 8) dawnCensored = true;
+      }
+      continue;
+    }
     if (win[i].v == null) continue;
     vals.push(win[i].v);
     valsT.push(win[i].tMs);
@@ -2956,7 +2971,8 @@ function glucoseMetricsInWindow(cgmRec, startMs, endMs, opts) {
       }
     }
   }
-  var dawnRise = isFinite(dawnNadir) && isFinite(dawnMax) ? Math.round(dawnMax - dawnNadir) : null;
+  // a nadir under a Low, or a peak under a High, is unknown, so the rise is unknown too
+  var dawnRise = !dawnCensored && isFinite(dawnNadir) && isFinite(dawnMax) ? Math.round(dawnMax - dawnNadir) : null;
   return {
     nMin: +nMin.toFixed(1),
     coverage: coverage != null ? +coverage.toFixed(3) : null,
@@ -2964,13 +2980,15 @@ function glucoseMetricsInWindow(cgmRec, startMs, endMs, opts) {
     nFlagUnknown: nFlagUnknown, // §∅ — cells in the slice whose export declared no clean flag: not measurable glucose, and not coverage.
     nocturnalMean: Math.round(m),
     nocturnalCV: +cv.toFixed(1),
-    nadirValue: Math.round(nadir),
-    nadirTimeMs: nadirT,
+    nBelowRange: nBelowRange, // Low cells in the slice: in the time figures below, in no value figure
+    nAboveRange: nAboveRange,
+    nadirValue: nBelowRange ? null : Math.round(nadir), // the nadir is below every reading here
+    nadirTimeMs: nBelowRange ? null : nadirT,
     dawnRise: dawnRise,
-    dawnRiseTimeMs: dawnT,
-    tir70_140: +((tt / vals.length) * 100).toFixed(1),
+    dawnRiseTimeMs: dawnRise == null ? null : dawnT,
+    tir70_140: +((tt / (vals.length + nBelowRange + nAboveRange)) * 100).toFixed(1),
     mage: _mageWin(vals, sd),
-    timeBelow70Min: cadMin != null ? Math.round(below * cadMin) : null
+    timeBelow70Min: cadMin != null ? Math.round((below + nBelowRange) * cadMin) : null
   };
 }
 

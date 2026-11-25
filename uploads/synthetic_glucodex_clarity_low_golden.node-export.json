@@ -12,26 +12,32 @@
   },
   "recording": {
     "source": "file",
-    "contentId": "d7273db603e0",
+    "contentId": "2b29043e3e54",
     "startEpochMs": 1778371200000,
-    "events": 2,
+    "events": 3,
     "nAbsentIn": 0,
+    "rowsDropped": {
+      "value": 0,
+      "stamp": 0
+    },
+    "outOfRange": {
+      "below": 6,
+      "above": 0,
+      "belowMin": 30,
+      "aboveMin": 0
+    },
     "coverage": {
       "kind": "continuous",
       "spanSec": 172500,
       "segments": [
         {
           "startMs": 1778371200000,
-          "durSec": 10800
-        },
-        {
-          "startMs": 1778383800000,
-          "durSec": 160200
+          "durSec": 172800
         }
       ],
-      "recordedSec": 171000,
-      "nWithDuration": 2,
-      "n": 2
+      "recordedSec": 172800,
+      "nWithDuration": 1,
+      "n": 1
     },
     "clamp": {
       "detected": false
@@ -60,13 +66,13 @@
     "sd": 15,
     "cv": 14.4,
     "tir": {
-      "tbr2": 0,
+      "tbr2": 1,
       "tbr1": 0,
-      "tir": 100,
+      "tir": 99,
       "tar1": 0,
       "tar2": 0
     },
-    "titr": 95.8,
+    "titr": 94.8,
     "mage": 51,
     "modd": 0,
     "adrr": 4.4,
@@ -75,7 +81,7 @@
     "gvpComparable": 575,
     "lbgi": 0.8,
     "hbgi": 0.2,
-    "pctActive": 99,
+    "pctActive": 100,
     "tier": "multi-day",
     "dawn": {
       "present": false
@@ -298,33 +304,33 @@
       },
       {
         "tMs": 1778382000000,
-        "v": 99,
-        "f": 4
+        "v": null,
+        "f": 5
       },
       {
         "tMs": 1778382300000,
-        "v": 99,
-        "f": 4
+        "v": null,
+        "f": 5
       },
       {
         "tMs": 1778382600000,
-        "v": 99,
-        "f": 4
+        "v": null,
+        "f": 5
       },
       {
         "tMs": 1778382900000,
-        "v": 100,
-        "f": 4
+        "v": null,
+        "f": 5
       },
       {
         "tMs": 1778383200000,
-        "v": 100,
-        "f": 4
+        "v": null,
+        "f": 5
       },
       {
         "tMs": 1778383500000,
-        "v": 100,
-        "f": 4
+        "v": null,
+        "f": 5
       },
       {
         "tMs": 1778383800000,
@@ -2997,7 +3003,7 @@
         "f": 0
       }
     ],
-    "cellsNote": "ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms; v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG). A consumer computing glucose statistics MUST exclude 3 and 4 — flag 4 is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count."
+    "cellsNote": "ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms; v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG · 5 Low, below the sensor range · 6 High, above it). A consumer computing glucose statistics MUST exclude 3 and 4 — flag 4 is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count. Flags 5 and 6 carry v null: the time is measured and the value is not."
   },
   "crossNight": {
     "schema": {
@@ -3149,21 +3155,21 @@
         "cite": null,
         "n": 2,
         "central": {
-          "mean": 100,
-          "sd": 0,
-          "median": 100,
-          "iqr": 0,
-          "min": 100,
+          "mean": 98.95,
+          "sd": 1.5,
+          "median": 98.95,
+          "iqr": 1,
+          "min": 97.9,
           "max": 100,
-          "cv": 0
+          "cv": 1.5
         },
         "trend": {
-          "slopePerIndex": 0,
-          "slopePerDay": 0,
+          "slopePerIndex": 2.1,
+          "slopePerDay": 2.1,
           "slopePerRecording": null,
           "slopeBasis": "day",
-          "r2": 0,
-          "r2date": 0,
+          "r2": 1,
+          "r2date": 1,
           "mannKendall": {
             "tau": null,
             "p": null
@@ -3189,21 +3195,21 @@
         "cite": null,
         "n": 2,
         "central": {
-          "mean": 0,
-          "sd": 0,
-          "median": 0,
-          "iqr": 0,
+          "mean": 1.05,
+          "sd": 1.5,
+          "median": 1.05,
+          "iqr": 1.1,
           "min": 0,
-          "max": 0,
-          "cv": null
+          "max": 2.1,
+          "cv": 141.4
         },
         "trend": {
-          "slopePerIndex": 0,
-          "slopePerDay": 0,
+          "slopePerIndex": -2.1,
+          "slopePerDay": -2.1,
           "slopePerRecording": null,
           "slopeBasis": "day",
-          "r2": 0,
-          "r2date": 0,
+          "r2": 1,
+          "r2date": 1,
           "mannKendall": {
             "tau": null,
             "p": null
@@ -3273,8 +3279,8 @@
           "mean": 103,
           "gmi": 5.8,
           "cv": 14.5,
-          "tir": 100,
-          "timeBelow": 0,
+          "tir": 97.9,
+          "timeBelow": 2.1,
           "timeAbove": 0
         }
       },
@@ -3297,6 +3303,18 @@
     "headline": []
   },
   "ganglior_events": [
+    {
+      "t": "03:00:00",
+      "tMs": 1778382000000,
+      "impulse": "nocturnal_hypo",
+      "node": "GlucoDex",
+      "conf": 0.97,
+      "meta": {
+        "minMgdl": null,
+        "durMin": 30,
+        "belowSensorRange": true
+      }
+    },
     {
       "t": "12:55:00",
       "tMs": 1778417700000,

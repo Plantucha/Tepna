@@ -300,6 +300,7 @@
         numHits = 0,
         intHits = 0,
         inBand = 0,
+        censHits = 0,
         total = 0;
       /* SERIAL-INTEGER DETECTION (DEEP-AUDIT-VI F6). Dexcom Clarity's first column is a row
          counter (Index = 1, 2, 3, …) whose values sit inside the [2, 600] "physiologic" band for
@@ -319,6 +320,7 @@
         if (!cell) continue;
         total++;
         if (isFinite(parseTimestamp(cell)) && /[:\-/]/.test(cell) && cell.length >= 8) dateHits++;
+        if (_gCensorSide(cell)) censHits++;
         const num = _gNumCell(cell);
         if (isFinite(num)) {
           numHits++;
@@ -334,7 +336,8 @@
       }
       if (total < 3) continue;
       if (dateHits / total > 0.6 && tsCol < 0) tsCol = c;
-      const serialCol = serial && numHits >= 5 && intHits === numHits;
+      // A counter never reads `Low`: a column with a censored cell is a measurement, however even its steps.
+      const serialCol = serial && numHits >= 5 && intHits === numHits && !censHits;
       if (serialCol) continue; // a row counter can be a fine tsCol tiebreak-loser, never the glucose
       /* Prefer the numeric column with the most physiologic in-band hits (not the date). A header
          cell naming glucose outranks band statistics (+1 exceeds the whole sc range): the vendor
@@ -342,16 +345,21 @@
          but only a column that is still mostly numeric may claim the bonus, so a text column
          with a glucose-ish header cannot win. */
       const gHead = /gluco/i.test((headCells[c] || '').trim());
-      const sc = inBand / total - dateHits / total + (gHead ? 1 : 0);
-      if (numHits / total > 0.6 && sc > gScore) {
+      /* A `Low` or `High` cell is a reading (`_gCensorSide`), so it counts toward the share that makes
+         a column the glucose column: a file that opens on two hours of `Low` is still a CGM file, and
+         the 60 % bar over numbers alone refused it whole. Three numbers stay a floor, so a column of
+         alert words is never a series. */
+      const readHits = numHits + censHits;
+      const sc = (inBand + censHits) / total - dateHits / total + (gHead ? 1 : 0);
+      if (numHits >= 3 && readHits / total > 0.6 && sc > gScore) {
         gScore = sc;
         gCol = c;
       }
     }
     /* ABSENCE IS NULL (CLAUDE.md §∅). These two lines used to read `if (tsCol < 0) tsCol = 0;` and
        `if (gCol < 0) gCol = 1;` - an absence answered with a column INDEX. When no column cleared the
-       60 % numeric bar the parser read column 1 as glucose. On a Clarity-shaped export whose glucose
-       cells mostly read 'Low'/'High' (35 % numeric in the probe) column 1 is the TIMESTAMP, so every
+       60 % bar the parser read column 1 as glucose. On a Clarity-shaped export whose glucose
+       cells mostly held words (35 % numeric in the probe) column 1 is the TIMESTAMP, so every
        reading parsed to the year and the analysis published a mean of 2026 mg/dL over 60 readings
        (measured 2026-11-17). A column pick has no sensible default: either the file names the column
        or this parser cannot read the file. Name the absence and let the caller refuse.
@@ -377,10 +385,10 @@
         colReason === 'too-few-rows-to-locate-columns'
           ? 'GlucoDex needs at least 3 rows to decide which column is which'
           : colReason === 'glucose-column-not-found'
-            ? 'no column holds mostly numeric readings'
+            ? 'no column holds mostly glucose readings'
             : colReason === 'timestamp-column-not-found'
               ? 'no column holds mostly readable timestamps'
-              : 'no column holds mostly numeric readings, and none holds mostly readable timestamps';
+              : 'no column holds mostly glucose readings, and none holds mostly readable timestamps';
       const err = /** @type {Error & { reason?: string }} */ (
         new Error(
           'This export names no timestamp + glucose column pair GlucoDex can read: ' + why + '. GlucoDex refuses the file rather than read another column as glucose (reason: ' + colReason + ').'
@@ -1349,10 +1357,15 @@
     const deltas = [];
     for (const [k, cells] of days) {
       let nadir = Infinity,
-        pre = [];
+        pre = [],
+        sawLow = false,
+        sawHigh = false;
       for (const i of cells) {
-        if (!_ana(c, i)) continue;
         const h = hourOf(c.gT[i]);
+        // a Low in the nadir window or a High in the peak window makes `delta` a floor
+        if (c.gF[i] === c.FLAG.BELOW && h >= 3 && h < 6) sawLow = true;
+        if (c.gF[i] === c.FLAG.ABOVE && h >= 6 && h < 8) sawHigh = true;
+        if (!_ana(c, i)) continue;
         if (h >= 3 && h < 6) nadir = Math.min(nadir, c.gV[i]);
         else if (h >= 6 && h < 8) pre.push(c.gV[i]);
       }
@@ -1360,8 +1373,8 @@
         const preMean = mean(pre);
         deltas.push({
           day: k,
-          nadir: Math.round(nadir),
-          pre: Math.round(preMean),
+          nadir: sawLow ? null : Math.round(nadir), // the nadir is below every reading when one was Low
+          pre: sawHigh ? null : Math.round(preMean),
           delta: Math.round(preMean - nadir),
           atMs:
             cells.find((i) => {
@@ -2374,6 +2387,11 @@
         gapMin: r.gapMin,
         warmupMinSuppressed: r.warmupMin,
         compressionLowMin: r.compMin,
+        // the same two facts `glucoBuildNodeExport` carries on `recording`; null = the producer never looked
+        outOfRange: r.outOfRange || null,
+        rowsDropped: r.rowsDropped || null,
+        outOfRangeNote:
+          'Low / High cells, where the sensor reported a glucose outside its measuring range. They count as active time and as time below 54 / above 250 mg/dL, and they carry no value: min is null under a Low and max is null under a High, and mean, SD, CV and GMI are over the numeric readings alone. LBGI, HBGI, ADRR and the dawn rise are floors when a Low or a High sits in their window.',
         dataQualityConfidence: r.dataQualityConf,
         dataQualityLabel: r.dqLabel,
         sensorSessions: (r.sessions || []).map((s) => ({ idx: s.idx, startEpochMs: s.startMs, days: s.days, median: s.median, mean: s.mean, driftMgdlPerDay: s.driftPerDay })),
@@ -2616,7 +2634,7 @@
         // sibling-divergence class the audit that added it exists to fix. Single-sourced in the DSP.
         cells: glucoCells(r.series),
         cellsNote:
-          'ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms (NOT reconstructed from a string); v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG). A consumer computing glucose statistics MUST exclude 3 and 4: flag 4 is a long gap (sensor change / dropout) where the value is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count. Native cadence — no downsampling.',
+          'ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms (NOT reconstructed from a string); v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG · 5 Low, below the sensor range · 6 High, above it). A consumer computing glucose statistics MUST exclude 3 and 4: flag 4 is a long gap (sensor change / dropout) where the value is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count. Flags 5 and 6 carry v null: the time is measured and the value is not. Native cadence — no downsampling.',
         agpHourly: r.hourly,
         perDay: r.daily
       },
