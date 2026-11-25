@@ -63,6 +63,19 @@ export const PAIR_TOL_MS = 40;
 export const BAR_MEDIAN_MS = 5;
 export const BAR_IQR_MS = 10;
 export const BAR_LOST_GAINED_PCT = 2;
+
+/* ∅ The bar is an OR of three legs, so ONE breach decides it whatever the other legs read. A leg the
+   tool can evaluate therefore still judges the recording, and `null` means only this: no available
+   leg breached, and at least one leg carries no value. The all-three rule it replaces printed `?`
+   over 9 real recordings on 2026-11-25, every one of which had lost or gained 200 % or more of its
+   feet — a foot set the hold had already replaced, reported as unjudged. Thresholds stay exactly as
+   Wren pre-stated them on 2026-09-26; only the combination changed. */
+export const barVerdict = (med, iqr, lostGainedPct) => {
+  const legs = [med === null ? null : Math.abs(med) >= BAR_MEDIAN_MS, iqr === null ? null : iqr >= BAR_IQR_MS, lostGainedPct === null ? null : lostGainedPct > BAR_LOST_GAINED_PCT];
+  if (legs.some((l) => l === true)) return true;
+  if (legs.some((l) => l === null)) return null;
+  return false;
+};
 export const SAMPLE_DEFAULT = 24;
 
 /* ── the pairing ──────────────────────────────────────────────────────────────────────────────── */
@@ -146,7 +159,7 @@ export function maskOne(worker, text) {
   /* ∅ The denominator is the RAW foot count, because the question is how far the published set moves
      and the raw leg is what is published today. A share over 0 feet is `null` with a reason. */
   const lostGainedPct = raw.n ? ((lost + gained) / raw.n) * 100 : null;
-  const bar = med === null || iqr === null || lostGainedPct === null ? null : Math.abs(med) >= BAR_MEDIAN_MS || iqr >= BAR_IQR_MS || lostGainedPct > BAR_LOST_GAINED_PCT;
+  const bar = barVerdict(med, iqr, lostGainedPct);
   return {
     reachable: true,
     reason: null,
@@ -204,7 +217,7 @@ export function summarise(rows) {
     medianOfMediansMs: medianOf(meds),
     worstLostGainedPct: pcts.length ? Math.max(...pcts) : null,
     reason: null,
-    unjudgedReason: unjudged ? `${unjudged} of ${rows.length} reachable recording(s) paired no foot within ${PAIR_TOL_MS} ms, so the bar reached neither` : null
+    unjudgedReason: unjudged ? `${unjudged} of ${rows.length} reachable recording(s) breached no leg the tool could evaluate, and at least one leg carried no value` : null
   };
 }
 
@@ -232,10 +245,10 @@ export function buildVerdict({ rows, refused, unreachable, eligible, scanned, tr
     }
   } else if (judged === 0) {
     status = 'UNDERPOWERED';
-    reason = `${sum.n} reachable recording(s) read and not one of them paired a foot within ${PAIR_TOL_MS} ms, so the bar reached none of them`;
+    reason = `${sum.n} reachable recording(s) read and the bar could evaluate no leg on any of them, so it reached none of them`;
   } else if (judged < SAMPLE_FLOOR) {
     status = 'UNDERPOWERED';
-    reason = `${judged} judged recording(s), against a pre-stated floor of ${SAMPLE_FLOOR}${unjudged ? ` (${unjudged} more paired no foot within ${PAIR_TOL_MS} ms)` : ''}`;
+    reason = `${judged} judged recording(s), against a pre-stated floor of ${SAMPLE_FLOOR}${unjudged ? ` (${unjudged} more breached no evaluable leg)` : ''}`;
   } else if (sum.movers === 0) {
     status = 'PASS';
   } else {
@@ -374,7 +387,7 @@ export async function selftest() {
   const mkU = (paired) => ({ reachable: true, movesBar: null, moves: true, shiftMedianMs: null, shiftIqrMs: null, lostGainedPct: null, paired });
   const vUn = buildVerdict({ rows: [mkU(0), mkU(0), mkU(0)], refused: 0, unreachable: 0, eligible: 3, scanned: 3 });
   ok('∅ a sample the bar reached on no recording is UNDERPOWERED, never a PASS over 0 movers', vUn.status === 'UNDERPOWERED');
-  ok('and it names the pairing that failed rather than a mover count', /not one of them paired a foot within 40 ms/.test(vUn.reason || ''));
+  ok('and it names the legs it could not evaluate rather than a mover count', /could evaluate no leg on any of them/.test(vUn.reason || ''));
   ok('an unjudged recording is EXCLUDED, not checked', vUn.population.checked === 0 && vUn.population.excluded === 3 && vUn.population.eligible === 3);
   const vMix = buildVerdict({ rows: [mk(true, -0.6), mk(false, -0.5), mk(false, -0.7), mkU(0)], refused: 0, unreachable: 0, eligible: 4, scanned: 4 });
   ok('the mover share divides by the JUDGED recordings alone', vMix.result.moverShare === 1 / 3);
@@ -382,6 +395,16 @@ export async function selftest() {
   ok('checked + excluded = eligible holds with an unjudged row in the sample', vMix.population.checked + vMix.population.excluded === vMix.population.eligible);
   ok('∅ the printer states an absent shift median, never a number', fmt2(null) === '—' && fmt2(-0.6) === '-0.60');
   ok('CONTROL · a judged sample reports the share over its own rows', vHeld.result.moverShare === 0 && vHeld.result.unjudged === 0);
+
+  /* ∅ The three-valued OR, head on. `null` must mean "no evaluable leg breached", never "a leg was
+     absent", or a recording whose whole foot set the hold replaced reads as unjudged. */
+  ok('∅ a lost-or-gained breach alone judges the recording, with both shift legs present', barVerdict(0.1, 0.2, 200) === true);
+  ok('∅ and it still judges when the shift legs carry no value at all', barVerdict(null, null, 200) === true);
+  ok('∅ a median breach alone judges it too', barVerdict(6, null, 0.5) === true);
+  ok('∅ an absent leg leaves the row UNJUDGED when no evaluable leg breached', barVerdict(null, null, 0.5) === null);
+  ok('∅ and a row with no evaluable leg at all stays unjudged', barVerdict(null, null, null) === null);
+  ok('CONTROL · every leg present and none breached reads false, never null', barVerdict(0.1, 0.2, 0.5) === false);
+  ok('CONTROL · the bar keeps the thresholds Wren pre-stated, so 5 ms exactly breaches', barVerdict(5, 0.2, 0.5) === true && barVerdict(4.99, 0.2, 0.5) === false);
   ok(
     'every non-PASS carries a reason',
     [vNone, vNothing, vThin, vMove].every((v) => typeof v.reason === 'string' && v.reason.length > 0)
@@ -511,7 +534,7 @@ async function main() {
     rows.push({ rec, ...row });
     const mark = row.movesBar === true ? '△' : row.movesBar === false ? '=' : '?';
     console.log(
-      `  ${mark} ${rec} — ${row.gapSamples} marker sample(s) held · feet ${row.feetRaw} raw · ${row.feetHeld} held · shift median ${fmt2(row.shiftMedianMs)} ms · IQR ${fmt2(row.shiftIqrMs)} ms · ${row.lost} lost · ${row.gained} gained (${fmt2(row.lostGainedPct)} %) · ${row.feetBeyondTol} past ${PAIR_TOL_MS} ms${row.movesBar === null ? ` · BAR UNJUDGED: ${row.paired} foot pair(s) survived the ${PAIR_TOL_MS} ms tolerance, so the shift carries no median` : ''}`
+      `  ${mark} ${rec} — ${row.gapSamples} marker sample(s) held · feet ${row.feetRaw} raw · ${row.feetHeld} held · shift median ${fmt2(row.shiftMedianMs)} ms · IQR ${fmt2(row.shiftIqrMs)} ms · ${row.lost} lost · ${row.gained} gained (${fmt2(row.lostGainedPct)} %) · ${row.feetBeyondTol} past ${PAIR_TOL_MS} ms${row.movesBar === null ? ` · BAR UNJUDGED: ${row.paired} foot pair(s) survived the ${PAIR_TOL_MS} ms tolerance and no evaluable leg breached the bar` : ''}`
     );
   }
   const verdict = buildVerdict({ rows, refused, unreachable, eligible: all.length, scanned: paired.scanned, treeReason: paired.reason });
