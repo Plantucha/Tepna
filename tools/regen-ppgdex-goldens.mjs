@@ -135,6 +135,21 @@ const fromPPGRich = (file) => {
   return PpgDex.compute({ text: fs.readFileSync(p, 'utf8') }, { rich: true, code: CODE });
 };
 
+/* The SUMMARY payload the app's JSON button downloads, built through the headless builder the app
+   now delegates to (row 2026-11-24-four-nodes-summary-export-payload-has-no-known-answer). It had NO
+   committed fixture at all: the suite drives `compute()`, so the summary envelope a reader actually
+   reads was pinned by source text only. The session is assembled exactly as `ppgdex-app.js` assembles
+   one — `parsePPG` then `analyze`, plus the `ringRaw` flag the app attaches and the builder reads.
+   `generated` is pinned to the recording's own start, and kernel/provenance are null, so the fixture
+   holds the PAYLOAD and never the build. */
+const fromSummary = (file) => {
+  const p = path.join(CORPUS, file);
+  if (!fs.existsSync(p)) return null;
+  const r = PpgDex.computeResult({ text: fs.readFileSync(p, 'utf8') });
+  const generated = r && r.t0Ms != null ? new Date(r.t0Ms).toISOString() : null;
+  return PpgDex.buildSummaryExport(r, { kernel: null, provenance: null, generated: generated });
+};
+
 const FIXTURES = [
   { name: 'PpgDex_2026-06-27_equiv.node-export.json', real: true, build: () => fromPPG('Polar_Sense_BBBBBBBB_20260621_060523_PPG.txt') },
   { name: 'synthetic_ppgdex_golden.node-export.json', build: () => fromPPG('synthetic_ppgdex_verity.txt') },
@@ -214,6 +229,15 @@ const FIXTURES = [
       added: '2026-08-01',
       inputs: ['synthetic_ppgdex_verity.txt'],
       note: 'INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS §1 — the INTEGRATOR-FACING rich export (compute(input,{rich:true})), which had no committed fixture. Pins hrv.time.{sdnn,rmssd,sdnnRobust}, hrv.frequency, hrv.confidence, apnea.cvhrIndex and recording.site — every field integrator-dsp adaptPpgDex reads. Shares the clean twin input with synthetic_ppgdex_golden.node-export.json, so the pair isolates exactly what opts.rich adds.'
+    }
+  },
+  {
+    name: 'synthetic_ppgdex_summary.export.json',
+    build: () => fromSummary('synthetic_ppgdex_verity.txt'),
+    newRecord: {
+      added: '2026-11-25',
+      inputs: ['synthetic_ppgdex_verity.txt'],
+      note: 'The PpgDex summary export payload (the app JSON button), through the headless ppgBuildSummaryExport. Row 2026-11-24-four-nodes-summary-export-payload-has-no-known-answer: this envelope was built inline in ppgdex-app.js buildV2, where no committed fixture could reach it, and the source pins in tests/dex-tests.js read named keys and never the bytes. Shares the clean twin input with synthetic_ppgdex_golden.node-export.json, so the pair isolates what the summary road adds over the node-export one. `generated` is pinned to the recording start, and kernel/provenance are null, so the fixture holds the PAYLOAD and never the build.'
     }
   }
 ];

@@ -26754,14 +26754,16 @@
       }
     });
 
-    /* EXPORT-PATH-UNREACHABLE-FOLLOWUPS-IV — the APP's export builder is not the DSP's, and nothing
-       executes it: the equiv gate runs `PpgDex.compute`, so a divergence in ppgdex-app.js's own
-       `recording` block is invisible to every dynamic leg. It hardcoded `device: 'Polar Sense'`, so a
-       Wellue O2Ring finger night exported provenance naming a Polar Verity worn on the wrist — a field
-       that names the WRONG instrument, which is worse than an absent one. Source-scanned because that
-       is the only lane that can see this builder at all (the same reason `verifiedUnder`'s
-       forbidden-writer rule is a source scan). */
-    group('PpgDex app export names the instrument it actually read', 'ppgdex-app · export-provenance', function (T) {
+    /* EXPORT-PATH-UNREACHABLE-FOLLOWUPS-IV — this builder hardcoded `device: 'Polar Sense'`, so a
+       Wellue O2Ring finger night exported provenance naming a Polar Verity worn on the wrist — a
+       field that names the WRONG instrument, which is worse than an absent one. It lived in
+       `ppgdex-app.js`, where nothing executed it. It now lives in `ppgdex-dsp.js` beside its sibling,
+       and a committed fixture reads its bytes (the group 'PpgDex summary/series export ≡ its
+       committed fixture'). The SOURCE scan stays, and it stays for a sharper reason: the two builders
+       now share one file, so a regex over the whole file would match either one and the parity
+       question would answer itself. Each side is sliced out by its own function header and read
+       alone. */
+    group('PpgDex app export names the instrument it actually read', 'ppgdex-dsp · export-provenance', function (T) {
       var src = env.sources || {};
       var app = src['ppgdex-app.js'] || '';
       var dsp = src['ppgdex-dsp.js'] || '';
@@ -26769,39 +26771,60 @@
         T.skip('ppgdex-app.js + ppgdex-dsp.js sources available', 'not in env.sources — wire readSources()');
         return;
       }
-      T.ok('the app export carries NO hardcoded device string', !/device:\s*'Polar Sense'/.test(app), "device:'Polar Sense' is back — an O2Ring finger night would export as a wrist Verity");
+      /* One builder per slice. The close is the first line that is exactly two spaces and a brace,
+         which is the file's function-level indent; every nested close inside these bodies is deeper. */
+      function fnBody(text, header) {
+        var i = text.indexOf(header);
+        if (i < 0) return '';
+        var j = text.indexOf('\n  }\n', i);
+        return j < 0 ? '' : text.slice(i, j);
+      }
+      var sum = fnBody(dsp, '  function ppgBuildSummaryExport(r, opts) {');
+      var ne = fnBody(dsp, '  function ppgBuildNodeExport(r, opts) {');
+      /* ANTI-VACUITY. Both regexes below run over a SLICE, and a slice that came back empty would
+         pass every negative leg and fail every positive one for the wrong reason. */
+      T.ok('the summary builder sliced out', sum.length > 3000, sum.length + ' chars');
+      T.ok('the node-export builder sliced out', ne.length > 3000, ne.length + ' chars');
+      T.ok('…and the two slices are different bodies', sum.indexOf('function ppgBuildNodeExport') === -1 && ne.indexOf('function ppgBuildSummaryExport') === -1);
+      T.ok('the summary export carries NO hardcoded device string', !/device:\s*'Polar Sense'/.test(sum), "device:'Polar Sense' is back — an O2Ring finger night would export as a wrist Verity");
       T.ok(
         '…the device follows the instrument the ingest named, then the optical layout the DSP read',
-        /device:\s*r\.opticalDevice === 'Muse' \? '[^']*Muse[^']*' : r\.ringRaw \? '[^']*two-wavelength[^']*' : r\.site === 'finger'/.test(app.replace(/\s+/g, ' ')),
+        /device:\s*r\.opticalDevice === 'Muse' \? '[^']*Muse[^']*' : r\.ringRaw \? '[^']*two-wavelength[^']*' : r\.site === 'finger'/.test(sum.replace(/\s+/g, ' ')),
         'device no longer derived from r.opticalDevice then r.site'
       );
       /* The site pair is the honesty carrier: 'device-default' = inferred from the layout,
          'declared' = the wearer said so. Emitting the device without them restates an inference
          as a fact. */
       T.ok(
-        '…and the app emits site + siteSource, as the DSP builder does',
-        /site:\s*r\.site \|\| 'wrist'/.test(app) && /siteSource:\s*r\.siteSource \|\| 'device-default'/.test(app),
+        '…and the summary builder emits site + siteSource, as the node-export builder does',
+        /site:\s*r\.site \|\| 'wrist'/.test(sum) && /siteSource:\s*r\.siteSource \|\| 'device-default'/.test(sum),
         'the two builders disagree about where the signal was taken from'
       );
       T.ok(
-        'control · the DSP builder still emits the same pair (the sibling being matched)',
-        /site:\s*r\.site \|\| 'wrist'/.test(dsp) && /siteSource:\s*r\.siteSource \|\| 'device-default'/.test(dsp)
+        'control · the node-export builder still emits the same pair (the sibling being matched)',
+        /site:\s*r\.site \|\| 'wrist'/.test(ne) && /siteSource:\s*r\.siteSource \|\| 'device-default'/.test(ne)
       );
       /* EXPORT-SOURCE-KEY-KINDS — the same sibling divergence, one field earlier in the same block.
          This builder wrote the upload FILENAME where the DSP's sibling writes a semantic tag, and a
          consumer cannot tell the two kinds apart: `signal-orchestrate.js` routes on that key holding
          'welltory'. So the filename was a value no consumer reads, in a key one consumer dispatches
-         on. Source-scanned for the reason the device assertions above are: nothing executes this
-         builder. ⚠️ Keep the fix's own comment free of the offending expression — this group already
+         on. ⚠️ Keep the fix's own comment free of the offending expression — this group already
          went RED once against a FIXED source, because the explanation beside it carried the literal. */
-      T.ok('the app export writes the semantic tag', /source:\s*'ppg'/.test(app), "buildV2's recording.source is no longer the tag the DSP sibling writes");
-      T.ok('…and the upload filename no longer rides the tag key', !/source:\s*r\.fname/.test(app), 'the upload filename is back in recording.source');
+      T.ok('the summary export writes the semantic tag', /source:\s*'ppg'/.test(sum), "the summary payload's recording.source is no longer the tag the sibling writes");
+      T.ok('…and the upload filename no longer rides the tag key', !/source:\s*r\.fname/.test(sum), 'the upload filename is back in recording.source');
       T.ok(
         '…and the filename rides a key that MEANS a filename',
-        /fname:\s*r\.fname \|\| null/.test(app),
+        /fname:\s*r\.fname \|\| null/.test(sum),
         'recording.fname is gone, so the filename is dropped rather than carried under an honest key'
       );
-      T.ok('control · the DSP builder writes that same tag (the sibling being matched)', /source:\s*'ppg'/.test(dsp));
+      T.ok('control · the node-export builder writes that same tag (the sibling being matched)', /source:\s*'ppg'/.test(ne));
+      /* ONE ROAD — the app rebuilt this block itself until the payload moved. A `recording` literal
+         reappearing there is the divergence this group was written for, read from its other end. */
+      T.ok(
+        'CONTROL · the app rebuilds no recording block of its own',
+        !/device:\s*r\.opticalDevice/.test(app) && !/fname:\s*r\.fname \|\| null/.test(app),
+        'the app is building a recording block again'
+      );
     });
 
     /* Row `2026-11-08-the-scrub-source-guard-keeps-an-extensionless-filename`. `export-schema.js`
@@ -53062,7 +53085,10 @@
       T.ok('the KPI grades through the inverted helper', /pctClsDown\(m\.meanMotionIndex, 0\.2, 0\.5\)/.test(app), 'KPI migrated');
       T.eq('both value readers print an em dash on an absence', (app.match(/m\.meanMotionIndex != null \? m\.meanMotionIndex :/g) || []).length, 2);
       T.ok('the KPI sub-label names the cause', /m\.meanMotionIndexReason \? 'no inertial coverage'/.test(app), 'sub-label migrated');
-      T.ok('the node-export forwards the cause', /meanMotionIndexReason: r\.motion\.meanMotionIndexReason,/.test(app), 'export forwards the cause');
+      /* The SUMMARY export forwards it too. That payload moved from `ppgdex-app.js buildV2` into
+         `ppgdex-dsp.js ppgBuildSummaryExport`, so the pin follows it; the reader legs above stay on
+         the app, because the KPI and the two value readers stayed there. */
+      T.ok('the summary export forwards the cause', /meanMotionIndexReason: r\.motion\.meanMotionIndexReason,/.test(dsp), 'export forwards the cause');
       var mDown = app.match(/const pctClsDown = [^\n]*/);
       T.ok('the app declares the inverted helper', !!mDown, 'helper present: ' + !!mDown);
       if (mDown) {
@@ -83447,16 +83473,22 @@
         JSON.stringify({ absent: noMorph && noMorph.morphReason, threw: threw && threw.morphReason })
       );
 
-      /* THE EXPORT LAYER. `ppgdex-app.js` is not executed in this lane, so its builder is read as
-         text — the shape the neighbouring app groups already use. */
-      var app = (env.sources || {})['ppgdex-app.js'] || '';
-      T.ok('ppgdex-app.js is readable in this lane', !!app, 'not in env.sources — list it in BOTH lanes');
+      /* THE EXPORT LAYER. The summary payload moved out of `ppgdex-app.js buildV2` and into
+         `ppgdex-dsp.js ppgBuildSummaryExport`, where a committed fixture now reads its bytes. The
+         builder is still read as TEXT here, because this group asks what the SOURCE does with an
+         absent morphology, and the committed input carries one. */
+      var exp = (env.sources || {})['ppgdex-dsp.js'] || '';
+      T.ok('ppgdex-dsp.js is readable in this lane', exp.length > 10000, exp.length + ' chars');
       T.ok(
         '\ud83d\udd34 the export refuses the whole morphology block when the DSP published none',
-        app.indexOf('morphology: m') >= 0 && !/const m = r\.morph \|\| \{\}/.test(app),
-        'the empty-object default survives in buildV2'
+        exp.indexOf('morphology: m') >= 0 && !/const m = r\.morph \|\| \{\}/.test(exp),
+        'the empty-object default survives in the summary builder'
       );
-      T.ok('...and it carries the DSP reason beside the refusal', /morphologyReason: r\.morphReason/.test(app), 'the export names no cause');
+      T.ok('...and it carries the DSP reason beside the refusal', /morphologyReason: r\.morphReason/.test(exp), 'the export names no cause');
+      /* CONTROL · the app rebuilds no morphology block of its own. */
+      var appMorph = (env.sources || {})['ppgdex-app.js'] || '';
+      T.ok('ppgdex-app.js is readable in this lane', !!appMorph, 'not in env.sources — list it in BOTH lanes');
+      T.ok('CONTROL · the app publishes no morphology block of its own', !/morphologyReason: r\.morphReason/.test(appMorph), 'the app is building the block again');
     });
     group('PpgDex per-window PI — non-integer fs (fractional sample index)', 'ppgdex-morph · regression', function (T) {
       var PM = env.PPGMorph;
@@ -105326,6 +105358,156 @@
         T.ok('CONTROL · the app keeps no `ganglior.node-export` literal of its own', !/name: 'ganglior\.node-export'/.test(app));
         T.ok('CONTROL · and no second clock read in the export road', (app.match(/generated: new Date\(\)\.toISOString\(\)/g) || []).length === 0);
       } else T.skip('ecgdex-app.js source unavailable');
+    });
+
+    /* ── THE PpgDex SUMMARY / SERIES EXPORT PAYLOAD ≡ ITS COMMITTED FIXTURE ────────────────────
+       The payload the app's JSON button writes was built INLINE in `ppgdex-app.js` (`buildV2`, and
+       the envelope in `exportJSON`). The suite drives `compute()` for this node, so NOTHING re-ran
+       that payload: a fabricated value in it reded no fixture, and the only evidence a reviewer
+       could offer was a pin on the app's source text. A source pin dies on any reflow of the line
+       and says nothing about the bytes a reader receives. These legs read the bytes. Row
+       `2026-11-24-four-nodes-summary-export-payload-has-no-known-answer`, the PpgDex slice.
+
+       `generated` is ANCHORED to the recording's own start, exactly as `tools/regen-ppgdex-goldens.mjs`
+       anchors it, so neither side carries a literal the other has to repeat. The input is COMMITTED,
+       so a skip here is a wiring defect and never an absent recording, and the first leg says so. */
+    group('PpgDex summary/series export ≡ its committed fixture', 'ppgdex-dsp · fixtures · equivalence · one-road', function (T) {
+      var P = env.PPGDSP || env.PpgDex;
+      var ready = !!(P && typeof P.computeResult === 'function' && typeof P.buildSummaryExport === 'function' && typeof P.buildSeriesExport === 'function');
+      T.ok('PpgDex exposes computeResult + buildSummaryExport + buildSeriesExport', ready, 'co-load ppgdex-dsp.js in BOTH runners');
+      if (!ready) return;
+
+      var eq = (env.equiv || {}).ppgdex_summary_export;
+      if (!(eq && eq.inputs && eq.inputs[0] && eq.fixture !== undefined)) {
+        T.ok('the committed input and fixture are wired (ppgdex_summary_export)', false, 'COMMITTED — wire env.equiv.ppgdex_summary_export in BOTH runners');
+        return;
+      }
+
+      /* The volatile keys by NAME at ANY depth, the set `tools/regen-goldens-core.mjs` carries.
+         `generated` is anchored on both sides, so it is stripped for the DIFF and asserted on its
+         own below — a stripped key that nothing else reads is a key this group does not check. */
+      var VOLATILE = ['file', 'provenance', 'kernel', 'generated'];
+      function strip(v) {
+        if (Array.isArray(v)) {
+          for (var i = 0; i < v.length; i++) v[i] = strip(v[i]);
+          return v;
+        }
+        if (v && typeof v === 'object') {
+          var ks = Object.keys(v);
+          for (var j = 0; j < ks.length; j++) {
+            if (VOLATILE.indexOf(ks[j]) >= 0) delete v[ks[j]];
+            else v[ks[j]] = strip(v[ks[j]]);
+          }
+          return v;
+        }
+        return v;
+      }
+      function firstDiff(a, b, path) {
+        path = path || '$';
+        if (a === b) return null;
+        var ta = a === null ? 'null' : Array.isArray(a) ? 'array' : typeof a;
+        var tb = b === null ? 'null' : Array.isArray(b) ? 'array' : typeof b;
+        if (ta !== tb) return path + ': ' + ta + ' vs ' + tb;
+        if (ta === 'array') {
+          if (a.length !== b.length) return path + '.length: ' + a.length + ' vs ' + b.length;
+          for (var i = 0; i < a.length; i++) {
+            var d = firstDiff(a[i], b[i], path + '[' + i + ']');
+            if (d) return d;
+          }
+          return null;
+        }
+        if (ta === 'object') {
+          var ka = Object.keys(a),
+            kb = Object.keys(b);
+          if (String(ka) !== String(kb)) return path + ' keys: ' + String(ka) + ' vs ' + String(kb);
+          for (var j = 0; j < ka.length; j++) {
+            var d2 = firstDiff(a[ka[j]], b[ka[j]], path + '.' + ka[j]);
+            if (d2) return d2;
+          }
+          return null;
+        }
+        return path + ': ' + JSON.stringify(a) + ' vs ' + JSON.stringify(b);
+      }
+      var clone = function (x) {
+        return JSON.parse(JSON.stringify(x));
+      };
+
+      /* `computeResult` is the road `compute()` itself takes to a session, and the road the regen
+         tool takes. One function reaches `parsePPG`, so the sidecar travels with the bytes. */
+      var r = P.computeResult({ text: eq.inputs[0] });
+      T.ok('the committed input computed a session object', !!r, r ? '' : 'computeResult returned null');
+      if (!r) return;
+      var generated = r.t0Ms != null ? new Date(r.t0Ms).toISOString() : null;
+      var built = P.buildSummaryExport(r, { kernel: null, provenance: null, generated: generated });
+      var diff = firstDiff(strip(clone(built)), strip(clone(eq.fixture)));
+      T.ok('the summary payload reproduces ' + eq.fixtureFile + ' byte-for-byte', diff === null, diff || '');
+      T.eq('…and the anchored stamp agrees with the committed one', built.schema.generated, eq.fixture.schema.generated);
+
+      /* ANTI-VACUITY. An equality over a payload of nulls is green and examines nothing, so COUNT
+         what the fixture actually pins. The committed input is 40 s of synthetic Verity PPG, which
+         is why two whole sections are a refusal rather than a value — this leg records the number so
+         a later input that silently shrinks the payload reds here. */
+      var nn = 0,
+        nulls = 0;
+      (function count(x) {
+        if (Array.isArray(x)) {
+          for (var i = 0; i < x.length; i++) count(x[i]);
+        } else if (x && typeof x === 'object') {
+          var ks = Object.keys(x);
+          for (var j = 0; j < ks.length; j++) count(x[ks[j]]);
+        } else if (x === null) nulls++;
+        else nn++;
+      })(eq.fixture);
+      T.ok('the fixture pins over 200 non-null leaves', nn > 200, nn + ' non-null, ' + nulls + ' null');
+      T.ok('…over every section of the payload', Object.keys(eq.fixture).length >= 15, String(Object.keys(eq.fixture).length) + ' sections');
+
+      /* §∅ — the sections this input CANNOT reach. The fixture pins a REFUSAL there, never a value,
+         and saying so is what keeps a reader from treating this fixture as whole-payload coverage. A
+         longer recording reads the apnea path, and a record with three genuinely distinct optical
+         channels reads the other. Each is a separate unit with its own input. */
+      T.eq('§∅ apnea is a refusal at this length, not a zero', eq.fixture.apnea, null);
+      T.eq('§∅ channelStability is a refusal with no answer, not a zero sigma', eq.fixture.channelStability, null);
+      /* CONTROL on the pair above: a REASON is published only where the value is absent. Morphology
+         IS a value on this input, so its reason is null, and a reason appearing beside a present
+         morphology would be the same defect read from the other end. */
+      T.ok('CONTROL · morphology is a value here', eq.fixture.morphology !== null && typeof eq.fixture.morphology === 'object');
+      T.eq('…so it publishes no reason', eq.fixture.morphologyReason, null);
+
+      /* ONE TIMEBASE, TWO ROADS. This payload declares `schema.name: ganglior.node-export`, and that
+         schema obliges `recording.timing`. The app's inline builder never reached the shared block,
+         so the summary a reader downloads declared the contract and omitted the block. One function
+         serves both builders now, so the two roads read the SAME block over the SAME input — which
+         is what this leg measures, against the committed node-export golden of that input. */
+      var ne = ((env.equiv || {}).ppgdex_synth || {}).fixture;
+      if (ne && ne.recording) {
+        T.ok('the summary payload carries recording.timing', built.recording.timing != null, String(Object.keys(built.recording.timing || {}).length) + ' keys');
+        T.eq('…the same block the node-export road publishes for this input', firstDiff(clone(built.recording.timing), clone(ne.recording.timing)), null);
+      } else T.skip('the committed node-export golden of this input is wired (ppgdex_synth)');
+
+      /* THE SERIES ENVELOPE. It wraps, and it decides four things of its own: the count, ONE
+         `generated` stamp, the crossNight block it is HANDED, and the mapped elements. The app read
+         `new Date().toISOString()` TWICE here, so a call that crossed a millisecond boundary
+         published two different stamps for one file. One read cannot disagree with itself. */
+      var cross = { schema: { name: 'ganglior.crossnight' }, n: 2 };
+      var series = P.buildSeriesExport([r, r], { kernel: null, provenance: null, generated: generated, crossNight: cross });
+      T.eq('the envelope counts its sessions', series.sessionCount, 2);
+      T.eq('…carries ONE generated stamp, the same one at both reads', series.generated, series.schema.generated);
+      T.eq('…and that stamp is the anchor it was handed', series.generated, generated);
+      T.ok('…passes the crossNight block through unchanged, never a recomputed one', series.crossNight === cross);
+      T.eq('…and each element is the summary payload itself', firstDiff(strip(clone(series.sessions[0])), strip(clone(built))), null);
+      /* §∅ — an ABSENT crossNight is null and never a fabricated aggregate, and an empty list has no
+         session to describe, so it is null rather than an envelope over nothing. */
+      T.eq('§∅ an absent crossNight stays null', P.buildSeriesExport([r], { kernel: null, provenance: null }).crossNight, null);
+      T.eq('§∅ an empty list returns null, not an envelope over nothing', P.buildSeriesExport([], {}), null);
+
+      /* SOURCE MIRRORS — one road. Each leg reds when the app rebuilds a payload of its own. */
+      var app = (env.sources && env.sources['ppgdex-app.js']) || '';
+      if (app) {
+        T.ok('the app delegates the summary payload', /PPGDSP\.buildSummaryExport\(r, \{/.test(app));
+        T.ok('…and the series envelope', /PPGDSP\.buildSeriesExport\(list, \{/.test(app));
+        T.ok('CONTROL · the app keeps no `ganglior.node-export` literal of its own', !/name: 'ganglior\.node-export'/.test(app));
+        T.ok('CONTROL · and no clock read of its own in the export road', (app.match(/new Date\(\)\.toISOString\(\)/g) || []).length === 0);
+      } else T.skip('ppgdex-app.js source unavailable');
     });
 
     /* ── FIXTURE REPRODUCIBILITY — a code claim nothing checks is decoration ────────────────────
