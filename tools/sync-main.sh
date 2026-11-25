@@ -83,8 +83,15 @@ CUR="$(g rev-parse --abbrev-ref HEAD 2>/dev/null)" || { say "cannot read HEAD"; 
 #     (RESIDUE `2026-09-05-sync-main-skips-while-root-dirty`). A fast-forward cannot touch
 #     an untracked path that no incoming commit names, and git refuses one that would
 #     overwrite an untracked file; step 4b makes that collision explicit and skips on it.
-MOD="$(g status --porcelain --untracked-files=no | wc -l | tr -d ' ')"
-[ "$MOD" = "0" ] || skip "$MOD uncommitted tracked path(s) — never sync over someone's work"
+#     The skip NAMES the paths. From 2026-11-09 to 2026-11-20 one path parked the shared root
+#     for 11 days, the line gave a count alone, and no reader could tell whose edit it was.
+MODPATHS="$(g status --porcelain --untracked-files=no | sed 's/^...//')"
+if [ -n "$MODPATHS" ]; then
+  MOD="$(printf '%s\n' "$MODPATHS" | wc -l | tr -d ' ')"
+  NAMES="$(printf '%s\n' "$MODPATHS" | sed -n '1,5p' | tr '\n' ' ')"
+  [ "$MOD" -gt 5 ] && NAMES="${NAMES}… and $((MOD - 5)) more "
+  skip "$MOD uncommitted tracked path(s) — never sync over someone's work: ${NAMES% }"
+fi
 # `--untracked-files=all` lists every file under an untracked directory (`?? deploy/`
 # alone would hide `deploy/x.sh` from the collision check below).
 UNTRACKED="$(g status --porcelain --untracked-files=all | sed -n 's/^?? //p')"
