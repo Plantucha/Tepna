@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="0a707c962923" data-compute-hash="287036399583">
+<html lang="en" data-manifest-hash="b80fc520e9a3" data-compute-hash="39588bcd74bd">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-71MDhLQiCe5qnwusZY4WoDt4Biw8gumKJ9HS8zGXW4s=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-GGXFnzeUENyO3vafEDqc+1hg15ipvB0UcyQDHIUJu8I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-aA2v5+yC4MnbUqVlDvUpdJ9DdrmPgGrA7kfm37RaOxg=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-csoYuQTC7Oifl4DXdjZQTi/R1rLzeEQyG2MFYNR64tg=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nINCo0TXagqAfjMc8qrTo7HJKrwLN81EsTVzWJvJer8=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-piJPQqTQ1IP+DB0tbyctXlZlRhC4JwaGuRPqPpdWJ9c=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sCBaMmoKT0Ws3VerjCfde5tDT+xro/2PUbFgDCfRX3A=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-71MDhLQiCe5qnwusZY4WoDt4Biw8gumKJ9HS8zGXW4s=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-GGXFnzeUENyO3vafEDqc+1hg15ipvB0UcyQDHIUJu8I=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-aA2v5+yC4MnbUqVlDvUpdJ9DdrmPgGrA7kfm37RaOxg=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-csoYuQTC7Oifl4DXdjZQTi/R1rLzeEQyG2MFYNR64tg=' 'sha256-i+IZah3NHzRhUDtPLEVgMiL9vK3oHI/+EDhyuxP2uQM=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nINCo0TXagqAfjMc8qrTo7HJKrwLN81EsTVzWJvJer8=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sCBaMmoKT0Ws3VerjCfde5tDT+xro/2PUbFgDCfRX3A=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.37.0</title>
@@ -12792,6 +12792,11 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   // ════════════════════════════════════════════════════════════════════════
   //  FREQUENCY DOMAIN — Lomb–Scargle on unevenly-sampled NN → VLF/LF/HF + resp.
   // ════════════════════════════════════════════════════════════════════════
+  /* ∅ A series with no variation has no spectrum. The detrend leaves a floating-point residue of about
+     1e-24 ms² when every interval is equal and not a short binary fraction, and `hf > 0` read that
+     residue as power: 300 intervals of 807.6923 ms published LF/HF 3.87 and a breath rate of 9 beside
+     LF 0 and HF 0. The floor is 1 µs of SD, about a thousandth of the 1/1024 s interval step. */
+  const RR_VAR_MIN_MS2 = 1e-6;
   function lombScargle(nn, times, nf) {
     const N = nn.length;
     /* REFUSE, DO NOT FABRICATE (Clock Contract §2.6, applied to the spectral path). Returning zeros
@@ -12892,6 +12897,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     }
     const variance = x.reduce((s, v) => s + v * v, 0) / N,
       sc = tpFull > 0 ? variance / tpFull : 1;
+    if (variance < RR_VAR_MIN_MS2) vlf = lf = hf = peakP = peakF = 0; // residue is not power
     // DEEP-AUDIT §10: the sub-bands tile [fLo,fHi) exactly, so tp IS vlf+lf+hf. Round the bands FIRST and
     // define tp as their sum, so the Task-Force identity holds EXACTLY rather than to within rounding.
     const _v = Math.round(vlf * sc),
@@ -12952,7 +12958,8 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         }
       }
       const F = Math.sqrt(sumSq / cnt);
-      if (F > 0) {
+      // ∅ a residue below the floor is no fluctuation, so the scale gives no point (RR_VAR_MIN_MS2)
+      if (F * F >= RR_VAR_MIN_MS2) {
         logn.push(Math.log10(n));
         logF.push(Math.log10(F));
       }
@@ -15241,9 +15248,10 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
          refusal would have surfaced as a ratio of exactly 0.000. Both derived metrics refuse
          when either axis is absent.
          ∅ The ratio also refuses below `ECG_SD2_MIN_MS`. The retained `|| 1` divided by an invented
-         1 ms, so a series with no long-axis spread published SD1 itself as the ratio. PpgDex
-         (`PPG_SD2_MIN_MS`) and PulseDex (`PX_SD2_MIN_MS`) refuse at the same floor. `ellArea` keeps
-         its 0: a product over a measured zero width is a measured zero area. */
+         1 ms, so a series with no long-axis spread published SD1 itself as the ratio. PulseDex
+         refuses at the same floor (`PX_SD2_MIN_MS`). PpgDex refuses at 0.05 ms (`PPG_SD2_MIN_MS`),
+         because it publishes one decimal. `ellArea` keeps its 0: a product over a measured zero width
+         is a measured zero area. */
       sd1sd2: sd1v == null || sd2v == null || sd2v < ECG_SD2_MIN_MS ? null : +(sd1v / sd2v).toFixed(3),
       ellArea: sd1v == null || sd2v == null ? null : +(Math.PI * sd1v * sd2v).toFixed(0),
       poincareNN,
