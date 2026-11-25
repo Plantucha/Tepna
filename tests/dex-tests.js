@@ -34006,16 +34006,11 @@
       var S = env.EEGSTAGE;
 
       /* THE DATA IS PINNED BY ITS HASH, because every assertion below reads numbers out of it and a
-           silent edit of one coefficient still gives 4 finite posteriors per epoch. The node lane owns
-           this leg: it is the one with a digest. */
-      if (env.nodeCrypto && env.nodeFs && env.repoRoot) {
-        var bytes = env.nodeFs.readFileSync(env.repoRoot + '/' + MV.base.file);
-        var h16 = env.nodeCrypto.createHash('sha256').update(bytes).digest('hex').slice(0, 16);
-        T.eq('the shipped model file is the artefact the vector pins', h16, MV.base.sha256_16);
-        T.eq('…and it is the model the vector holds a posterior for', M.id, MV.base.id);
-      } else {
-        T.skip('the model file hash', 'needs a digest; the node lane carries it');
-      }
+           silent edit of one coefficient still gives 4 finite posteriors per epoch. Each LANE computes
+           the digest through its own handle and publishes it (`node:crypto` and `crypto.subtle`), so
+           this leg runs in both and neither lane skips. */
+      T.eq('the model the vector holds a posterior for is the one that loaded', M.id, MV.base.id);
+      if (env.stageModelDigest) T.eq('the shipped model file is the artefact the vector pins', env.stageModelDigest, MV.base.sha256_16);
 
       /* PARITY. The hand-off asks for 1e-4 on every posterior and the same stage on every epoch,
            because the fit rounds the prepared inputs and the design columns to 32-bit floats and runs

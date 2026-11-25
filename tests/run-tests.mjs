@@ -3497,7 +3497,6 @@ async function main() {
       }
     },
     nodeFs: _nodeFs,
-    nodeCrypto: _nodeCrypto, // the stage-formula group digests the model file and holds it against the vector's pin
     nodeOs: _nodeOs,
     nodePath: _nodePath.default || _nodePath,
     wtDone: _wtDone,
@@ -3505,6 +3504,21 @@ async function main() {
     /* The SHIPPED stage-formula model, read as data. It is not a fixture and not a source: it holds
        the fit's coefficients, and the parity group evaluates it. A read that fails leaves it null and
        the group skips, rather than every leg throwing on a missing field. */
+    /* …and its digest, computed by the LANE and not inside the group, because the two lanes reach a
+       SHA-256 through different handles: `node:crypto` here, `crypto.subtle` in the page. The group
+       holds whatever the lane publishes against the vector's pin, so neither lane skips the leg and
+       neither one carries the other's handle. */
+    stageModelDigest: (() => {
+      try {
+        return _nodeCrypto
+          .createHash('sha256')
+          .update(_nodeFs.readFileSync(join(ROOT, 'eeg-stage-model-base-2026-11-17.json')))
+          .digest('hex')
+          .slice(0, 16);
+      } catch {
+        return null;
+      }
+    })(),
     stageModel: (() => {
       try {
         return JSON.parse(_readOpt('eeg-stage-model-base-2026-11-17.json'));

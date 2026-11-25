@@ -483,6 +483,25 @@ async function main(){
      coefficients, and the parity group evaluates it. This lane publishes no `nodeCrypto`, so the
      group's digest leg skips here and the Node lane holds the file's hash against the vector's pin. */
   const stageModel = await fetchJSON('eeg-stage-model-base-2026-11-17.json');
+  /* …and its digest, computed by THIS lane through `crypto.subtle`, as the Node lane computes the
+     same 16 hex characters through `node:crypto`. The group holds whatever the lane publishes
+     against the vector's pin, which is why neither lane skips the leg: a skip here cost the browser
+     skip budget a line nobody had declared. A lane that cannot reach a digest publishes null, and
+     the group then holds the model's id alone. */
+  const stageModelDigest = await (async () => {
+    try {
+      const r = await fetch('eeg-stage-model-base-2026-11-17.json');
+      const b = await r.arrayBuffer();
+      const d = await crypto.subtle.digest('SHA-256', b);
+      return Array.from(new Uint8Array(d))
+        .map(x => x.toString(16).padStart(2, '0'))
+        .join('')
+        .slice(0, 16);
+    } catch (e) {
+      console.warn('stage model digest unavailable: ' + (e && e.message));
+      return null;
+    }
+  })();
   await Promise.all(Object.keys(FIXTURE_FILES).map(async k => { fixtures[k] = await fetchJSON(FIXTURE_FILES[k]); }));
   await Promise.all(SOURCE_FILES.map(async f => { const t = await fetchText(f); if(t!=null) sources[f]=t; }));
   // -II §1 / -IV §3 equivalence gate: a committed raw INPUT + its committed ganglior-export
@@ -1052,7 +1071,7 @@ async function main(){
     srcHtml, bundleCsp,
     // The realm global: in THIS lane the modules and the suite share one global (see run-tests.mjs).
     realmGlobal: window,
-    fixtures, sources, equiv, odiPilot, stageVectors, stageModel,
+    fixtures, sources, equiv, odiPilot, stageVectors, stageModel, stageModelDigest,
     // published so `adapter sources reach BOTH lanes` can tell an EMPTY adapter manifest from a
     // lane that simply has no adapters — a silent `[]` there is the blindness that group closes.
     adapterSourcesMissing: window.__adapterSourcesMissing === true,
