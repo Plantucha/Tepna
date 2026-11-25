@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="e89f8a7cac9e" data-compute-hash="102b9bb2a7d2"><head>
+<html lang="en" data-manifest-hash="b6447927d8b6" data-compute-hash="56b2d80e1125"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/VJg0iL4BTIOQo1MBGNaCyjASkthShp7aMZCanB9k3A=' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6vRsd8wVQoTSJKZCJmwjUOk0mO0dhv4yfkPzZA204MI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-L95+f1CJkFsGZmJsXTzg1qxjuBQQkQLCtzLxyAOtSps=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-M3ZOhml+Q710BLZQ/P2i37xtADxczWQXIxaac3VLRj0=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SploFxN8y41QfXBKeMXZ3VVUDPeaXF7mfHd2/kuq43U=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XKQFrqQpPPC7kRB+couzlvLcdQFWKGseS/BbyN9tv9s=' 'sha256-ddHoibFDOdGMRFVFrRF0N6MfLbQclNBZ7A/CGiSUq8s=' 'sha256-gd9IuoPK0m0h+mwKmCjCmBpm6ebuTXqb8O27YnJNX04=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nbCcwjX4Ba9w3RBLEB+5up9PRhrS11tY5toYvGccPHI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-rKOLZSmNqgk9sveMIZvZI2xTcv2C6V9ASMx59wAbxvU=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-wktj1Df+isZKJxu0wGtJ0pZLbTfqdObxwLCd2Fo+wQg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/VJg0iL4BTIOQo1MBGNaCyjASkthShp7aMZCanB9k3A=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6vRsd8wVQoTSJKZCJmwjUOk0mO0dhv4yfkPzZA204MI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-IlE6E9zWDqugqN32sR7f10CSNjO2VD//iePm9vZhdIU=' 'sha256-L95+f1CJkFsGZmJsXTzg1qxjuBQQkQLCtzLxyAOtSps=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SNG0V1OhZVY/Q3A5A3nTOITBdDJxUtvqV6nu8qXld30=' 'sha256-SploFxN8y41QfXBKeMXZ3VVUDPeaXF7mfHd2/kuq43U=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XKQFrqQpPPC7kRB+couzlvLcdQFWKGseS/BbyN9tv9s=' 'sha256-ddHoibFDOdGMRFVFrRF0N6MfLbQclNBZ7A/CGiSUq8s=' 'sha256-ftUZOP6BXhq+bjR2sygBrCjNenvCVQLmSg6CrrMVjRk=' 'sha256-gd9IuoPK0m0h+mwKmCjCmBpm6ebuTXqb8O27YnJNX04=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nbCcwjX4Ba9w3RBLEB+5up9PRhrS11tY5toYvGccPHI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-piJPQqTQ1IP+DB0tbyctXlZlRhC4JwaGuRPqPpdWJ9c=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-rKOLZSmNqgk9sveMIZvZI2xTcv2C6V9ASMx59wAbxvU=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-wktj1Df+isZKJxu0wGtJ0pZLbTfqdObxwLCd2Fo+wQg=' 'sha256-zmPi1hhzvQ7iExQrkogwmgLpi9q2dJI4MTjAauSml10='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -15062,12 +15062,18 @@ window.IntegratorDSP = {
       // parsePPG/compute — the sensor parsers live on PPGDSP, so resolve them there (no ppgdex-dsp.js change).
       var dsp = ppg && typeof ppg.parseSensorXYZ === 'function' ? ppg : root.PPGDSP || ppg;
       var comp = ctx.companions;
+      /* ∅ A companion that is present and gives no row is not an absent companion. `parseDevicePPI`
+         refuses an unknown header with a reason, and the reason travels. */
+      var noteNoRows = function (kind, reason) {
+        prov.warnings.push(kind + ' companion present, and it gave no usable data' + (reason ? ' (' + reason + ')' : ''));
+      };
       if (comp && typeof comp === 'object' && dsp) {
         try {
           if (comp.acc && typeof dsp.parseSensorXYZ === 'function') {
             // §3.2 — the ACC's own sidecar, as `polar-acc.js` and `polar-h10-ecg.js` pass it.
             var a = comp.accruns ? dsp.parseSensorXYZ(comp.acc, { runsText: comp.accruns }) : dsp.parseSensorXYZ(comp.acc);
             if (a && a.length) frame.acc = a;
+            else noteNoRows('ACC');
           }
         } catch (e0) {
           prov.warnings.push('ACC companion parse failed: ' + ((e0 && e0.message) || e0));
@@ -15076,6 +15082,7 @@ window.IntegratorDSP = {
           if (comp.gyro && typeof dsp.parseSensorXYZ === 'function') {
             var g = dsp.parseSensorXYZ(comp.gyro);
             if (g && g.length) frame.gyro = g;
+            else noteNoRows('GYRO');
           }
         } catch (e1) {
           prov.warnings.push('GYRO companion parse failed: ' + ((e1 && e1.message) || e1));
@@ -15084,6 +15091,7 @@ window.IntegratorDSP = {
           if (comp.magn && typeof dsp.parseSensorXYZ === 'function') {
             var mg = dsp.parseSensorXYZ(comp.magn);
             if (mg && mg.length) frame.magn = mg;
+            else noteNoRows('MAGN');
           }
         } catch (e2) {
           prov.warnings.push('MAGN companion parse failed: ' + ((e2 && e2.message) || e2));
@@ -15092,6 +15100,7 @@ window.IntegratorDSP = {
           if (comp.ppi && typeof dsp.parseDevicePPI === 'function') {
             var pp = dsp.parseDevicePPI(comp.ppi);
             if (pp && pp.length) frame.devicePPI = pp;
+            else noteNoRows('PPI', pp && pp.reason);
           }
         } catch (e3) {
           prov.warnings.push('PPI companion parse failed: ' + ((e3 && e3.message) || e3));
@@ -15548,12 +15557,19 @@ window.IntegratorDSP = {
       // ECGDex.compute(frame) carries rec.deviceRR/deviceHR/deviceACC → analyze() stamps epochs[].position
       // (posture) + accExtras + the device cross-checks. No companions → fields stay absent (single-text
       // path byte-identical). A bad companion is a non-fatal warning, never a thrown route.
+      /* ∅ A companion that is present and gives no usable row is not an absent companion. The frame
+         shape is the same for both, so the warning is what separates them. */
+      var noteRows = function (kind, n, dropped) {
+        if (!n) prov.warnings.push(kind + ' companion present, and it gave no usable data' + (dropped ? ' (' + dropped + ' rows dropped)' : ''));
+        else if (dropped) prov.warnings.push(kind + ' companion: ' + dropped + ' of ' + (n + dropped) + ' rows dropped');
+      };
       var comp = ctx.companions;
       if (comp && typeof comp === 'object') {
         try {
           if (comp.rr && typeof ecg.parseDeviceRR === 'function') {
             var dr = ecg.parseDeviceRR(comp.rr);
             if (dr && dr.length) frame.deviceRR = dr;
+            noteRows('RR', dr && dr.length, dr && dr.rowsDropped);
           }
         } catch (e0) {
           prov.warnings.push('RR companion parse failed: ' + ((e0 && e0.message) || e0));
@@ -15562,6 +15578,7 @@ window.IntegratorDSP = {
           if (comp.hr && typeof ecg.parseDeviceHR === 'function') {
             var dh = ecg.parseDeviceHR(comp.hr);
             if (dh && dh.length) frame.deviceHR = dh;
+            noteRows('HR', dh && dh.length, dh && dh.rowsDropped);
           }
         } catch (e1) {
           prov.warnings.push('HR companion parse failed: ' + ((e1 && e1.message) || e1));
@@ -15572,6 +15589,7 @@ window.IntegratorDSP = {
             // companion kind ('accruns', never 'runs' — that slot is the ECG primary's). Absent it,
             // this is the exact single-argument call as before.
             var da = comp.accruns ? ecg.parseDeviceACC(comp.acc, { runsText: comp.accruns }) : ecg.parseDeviceACC(comp.acc);
+            noteRows('ACC', da && da.acc && da.acc.length, 0);
             if (da && da.acc && da.acc.length) {
               // a stampless ACC is relative-from-0 → re-base onto the ECG anchor (Clock Contract — never now()).
               if (da.acc._relBase && frame.t0Ms != null) {
@@ -15983,6 +16001,8 @@ window.IntegratorDSP = {
         try {
           var r = parse(comp[k]);
           if (Array.isArray(r) && r.length) frame[k === 'magn' ? 'mag' : 'gyro'] = r;
+          // ∅ a companion that is present and gives no row is not an absent companion
+          else prov.warnings.push(k.toUpperCase() + ' companion present, and it gave no usable data');
         } catch (e) {
           prov.warnings.push(k.toUpperCase() + ' companion parse failed: ' + ((e && e.message) || e));
         }
@@ -49587,6 +49607,14 @@ __exports.PpgDex = window.PpgDex;
     refIdx: 'sampleIndexFractional'
   });
 
+  /* SD2 below half the published 0.01 ms step is a zero at the precision this node publishes. */
+  const ECG_SD2_MIN_MS = 0.005;
+  /* One band as a share of HF + LF, in percent. Null when a band is absent or the two hold no power. */
+  function nuOf(band, other) {
+    if (band == null || other == null || !(band + other > 0)) return null;
+    return +((band / (band + other)) * 100).toFixed(1);
+  }
+
   function analyze(rec, onProgress) {
     const prog = onProgress || (() => {});
     const { int16, fs } = rec;
@@ -50351,8 +50379,12 @@ __exports.PpgDex = window.PpgDex;
       /* `sd1v / (sd2v || 1)` is the same fabrication as `hfnu` below: with sd2v null the `|| 1`
          substitutes a denominator that was never measured, and `null / 1` is 0 in JS — so a
          refusal would have surfaced as a ratio of exactly 0.000. Both derived metrics refuse
-         when either axis is absent. */
-      sd1sd2: sd1v == null || sd2v == null ? null : +(sd1v / (sd2v || 1)).toFixed(3),
+         when either axis is absent.
+         ∅ The ratio also refuses below `ECG_SD2_MIN_MS`. The retained `|| 1` divided by an invented
+         1 ms, so a series with no long-axis spread published SD1 itself as the ratio. PpgDex
+         (`PPG_SD2_MIN_MS`) and PulseDex (`PX_SD2_MIN_MS`) refuse at the same floor. `ellArea` keeps
+         its 0: a product over a measured zero width is a measured zero area. */
+      sd1sd2: sd1v == null || sd2v == null || sd2v < ECG_SD2_MIN_MS ? null : +(sd1v / sd2v).toFixed(3),
       ellArea: sd1v == null || sd2v == null ? null : +(Math.PI * sd1v * sd2v).toFixed(0),
       poincareNN,
       poincareRep: longRec && repSeg.length >= 20,
@@ -50373,12 +50405,13 @@ __exports.PpgDex = window.PpgDex;
       /* 🔴 THE `|| 1` WAS THE WHOLE DEFECT, and it is worth naming precisely. With hf and lf both
          absent the expression read `null / (null + null || 1) * 100` — `null + null` is 0, `0 || 1`
          is 1, `null / 1` is 0 — producing a clean `0.0 %` on a `validated`-tier metric from an
-         input that was never transformed. The guard is on the MEASUREMENT, not on the denominator:
-         if either band is absent there are no normalised units to report. A genuinely measured
-         hf + lf === 0 still yields 0 via the retained `|| 1`, which is the case that guard was
-         actually for. */
-      hfnu: spec.hf == null || spec.lf == null ? null : +((spec.hf / (spec.hf + spec.lf || 1)) * 100).toFixed(1),
-      lfnu: spec.hf == null || spec.lf == null ? null : +((spec.lf / (spec.hf + spec.lf || 1)) * 100).toFixed(1),
+         input that was never transformed.
+         ∅ A MEASURED hf + lf === 0 REFUSES TOO (ruling #8826). The two shares partition one total,
+         so they sum to 100. Over no power they published 0.0 and 0.0: a share of nothing is not a
+         share. `hf`, `lf` and `tp` stay published as their measured zeros. `lfhf` guards itself
+         on the unrounded HF. */
+      hfnu: nuOf(spec.hf, spec.lf),
+      lfnu: nuOf(spec.lf, spec.hf),
       // non-linear
       dfa1,
       sampen,
@@ -52653,6 +52686,7 @@ __exports.PpgDex = window.PpgDex;
     partKey,
     mergeMultipart,
     lombScargle,
+    nuOf,
     /* Exported so their refusal guards are directly assertable. Additive only — no existing caller
        reaches them through this surface, and the internal call sites are unchanged. */
     poincareGeo,
@@ -54171,16 +54205,39 @@ __exports.PpgDex = window.PpgDex;
   // stampEpochPositions(deviceACC) → epochs[].position (posture) + accExtras. Mirrors PpgDex's
   // DSP-resident parseSensorXYZ/parseDevicePPI (companion parsers live in the DSP).
   // `*_RR.txt` (device RR, ms in the last column) → [{tsMs, rr}], 200–3000 ms.
+  /* ∅ A DROPPED ROW IS COUNTED. Both parsers below skip a row they cannot read and a row outside the
+     plausible band, and a file that lost half its rows published the same shape as a file that lost
+     none. The counts ride as own properties on the returned array, because `compute()` rebuilds the
+     recording and passes this array by reference (a sibling key on the recording would be lost there).
+       rowsDropped   every data row that gave no value
+       rowsOutOfBand the part of `rowsDropped` that held a number outside the band
+     A header is not data: the first line with no readable value and no readable stamp, and any exact
+     repeat of it (a multi-part file carries one header per part). */
   function parseDeviceRR(text) {
     var lines = String(text == null ? '' : text).split(/\r?\n/),
-      out = [];
+      out = /** @type {any} */ ([]),
+      hdr = null,
+      first = true;
+    out.rowsDropped = 0;
+    out.rowsOutOfBand = 0;
     for (var i = 0; i < lines.length; i++) {
       var t = lines[i].trim();
-      if (!t) continue;
+      if (!t || t === hdr) continue;
       var p = t.split(/[;\t,]/);
       var rr = parseFloat(p[p.length - 1]);
-      if (!isFinite(rr) || rr < 200 || rr > 3000) continue;
       var ts = parseTimestamp(p[0]);
+      if (first) {
+        first = false;
+        if (!isFinite(rr) && !ts) {
+          hdr = t;
+          continue;
+        }
+      }
+      if (!isFinite(rr) || rr < 200 || rr > 3000) {
+        out.rowsDropped++;
+        if (isFinite(rr)) out.rowsOutOfBand++;
+        continue;
+      }
       out.push({ tsMs: ts && ts.tMs != null ? ts.tMs : null, rr: rr });
     }
     return out;
@@ -54213,17 +54270,22 @@ __exports.PpgDex = window.PpgDex;
   // `*_HR.txt` (device onboard HR) → [{tsMs, hr}], 20–260 bpm.
   function parseDeviceHR(text) {
     var lines = String(text == null ? '' : text).split(/\r?\n/),
-      out = [];
+      out = /** @type {any} */ ([]);
     var cols = null,
-      headerless = false;
+      headerless = false,
+      hdr = null;
+    out.rowsDropped = 0;
+    out.rowsOutOfBand = 0;
     for (var i = 0; i < lines.length; i++) {
       var t = lines[i].trim();
-      if (!t) continue;
+      if (!t || t === hdr) continue;
       var p = t.split(/[;\t,]/);
-      if (cols === null && !headerless) {
+      var first = cols === null && !headerless;
+      if (first) {
         var fromHdr = hrColsFromHeader(t);
         if (fromHdr) {
           cols = fromHdr;
+          hdr = t;
           continue; // the header line is not data
         }
         headerless = true;
@@ -54235,8 +54297,16 @@ __exports.PpgDex = window.PpgDex;
       // milliseconds relabelled as bpm.
       var hrIdx = cols ? cols.hr : p.length === 1 ? 0 : 1;
       var hr = parseFloat(p[hrIdx]);
-      if (!isFinite(hr) || hr < 20 || hr > 260) continue;
       var ts = parseTimestamp(p[0]);
+      if (first && !isFinite(hr) && !ts) {
+        hdr = t; // a header that names no rate column
+        continue;
+      }
+      if (!isFinite(hr) || hr < 20 || hr > 260) {
+        out.rowsDropped++;
+        if (isFinite(hr)) out.rowsOutOfBand++;
+        continue;
+      }
       out.push({ tsMs: ts && ts.tMs != null ? ts.tMs : null, hr: hr }); // null stamp stays null — never fabricated
     }
     return out;
@@ -55987,6 +56057,9 @@ __exports.PpgDex = window.PpgDex;
              block already applies above, so a measuring night keeps today's bytes. */
           ...(_v.devReason ? { devReason: _v.devReason } : {}),
           ...(_v.nDevAbsent ? { nDeviceAbsent: _v.nDevAbsent } : {}),
+          /* The rows `parseDeviceRR` could not use. Attached only when a row was lost, the same
+             no-null-key discipline as `nDeviceAbsent`, so a clean file keeps its bytes. */
+          ...(r.deviceRR.rowsDropped ? { deviceRowsDropped: r.deviceRR.rowsDropped, deviceRowsOutOfBand: r.deviceRR.rowsOutOfBand } : {}),
           dMeanPct: _v.dMean,
           dRMSSDPct: _v.dRMSSD,
           dSDNNPct: _v.dSDNN,
@@ -64025,7 +64098,11 @@ __exports.CPAPDex = window.CPAPDex;
       })
     )
       byKind.rr = byKind.rr.filter(function (it) {
-        return !isPPI(it.name);
+        if (!isPPI(it.name)) return true;
+        /* The PPI file is set aside by design and it is still a dropped file, so `skipped` names it.
+           An empty list told the reader that every file was used. */
+        skipped.push({ name: it.name, kind: 'supersededppi' });
+        return false;
       });
     // (7) companion lanes: part-group, then de-dupe a duplicated same-device-session sidecar group
     var companionLanes = {
@@ -66597,7 +66674,10 @@ __exports.CPAPDex = window.CPAPDex;
             '</span> → <b>' +
             esc(it.node) +
             '</b>' +
-            (it.runNote ? ' <span class="warn">· ' + esc(it.runNote) + '</span>' : it.computed ? ' <span class="ok">· ' + _computedDetail(it.computed) + '</span>' : '');
+            (it.runNote ? ' <span class="warn">· ' + esc(it.runNote) + '</span>' : it.computed ? ' <span class="ok">· ' + _computedDetail(it.computed) + '</span>' : '') +
+            (it.frame && it.frame.provenance && it.frame.provenance.warnings && it.frame.provenance.warnings.length
+              ? ' <span class="warn">· ' + esc(it.frame.provenance.warnings.join(' · ')) + '</span>'
+              : '');
         else if (k === 'export') right = '<b>' + esc(it.node) + '</b> <span class="muted">' + (it.nRecs > 1 ? it.nRecs + ' recs' : '1 rec') + '</span>';
         else if (k === 'ambiguous') right = ambiguousControl(it);
         else right = '<span class="muted">' + esc(it.note || '') + '</span>';
