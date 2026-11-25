@@ -591,22 +591,32 @@ import './glucodex-profile.js';
       )
       .join('');
     const medians = ss.map((s) => s.median).filter((v) => v != null);
-    const spread = medians.length > 1 ? Math.max(...medians) - Math.min(...medians) : 0;
+    /* §∅ · FEWER THAN TWO MEDIANS IS NO SPREAD, NEVER A 0 mg/dL SPREAD. One wear with a median
+       leaves nothing to take a range over, so the reduction publishes `null` and the tile and the
+       prose below name the absence. A measured 0 — two wears with the same median — stays a 0. */
+    const spread = medians.length > 1 ? Math.max(...medians) - Math.min(...medians) : null;
+    /* §∅ · AN UNFITTED WEAR HAS NO SLOPE. `glucodex-dsp.js` publishes `driftPerDay: null` for a
+       wear whose regression never fit, and `Math.abs(null)` is 0, so the old reduction graded that
+       wear as a measured 0 /day under an `ok` class. Keep only the fitted wears, and publish `null`
+       when none fit: `GluDisp.drift(null)` already answers `{ display: null, sev: 'neutral' }`, the
+       same refusal the per-session row above prints as an em-dash. */
     // `driftPerDay` is STORED mg/dL; GluDisp.drift() owns the display-vs-severity split (§5.3).
-    const maxDrift = Math.max(...ss.map((s) => Math.abs(s.driftPerDay || 0)));
+    const drifts = ss.map((s) => s.driftPerDay).filter((d) => d != null && isFinite(+d));
+    const maxDrift = drifts.length ? Math.max(...drifts.map((d) => Math.abs(+d))) : null;
+    const maxDriftDisp = window.GluDisp.drift(maxDrift);
     $('sessionBody').innerHTML = `
     <div class="card-h" style="margin-bottom:10px">Sensor sessions &amp; drift <span style="font-size:11px;font-weight:500;color:var(--text3);margin-left:6px">${ss.length} wears detected · v1.2</span></div>
     <div class="q-grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">
       <div class="q-stat"><div class="q-val neutral">${evBadge('Sessions')}${ss.length}</div><div class="q-lbl">Sessions</div><div class="q-sub">split on ≥90-min gaps / warm-ups</div></div>
-      <div class="q-stat"><div class="q-val ${spread < 15 ? 'ok' : spread < 30 ? 'warn' : 'bad'}">${window.GluDisp.spread(spread)}<span style="font-size:12px;font-weight:600;color:var(--text3)"> ${window.GluDisp.label()}</span></div><div class="q-lbl">${evBadge('Between-session spread')}Between-session spread</div><div class="q-sub">range of session medians</div></div>
-      <div class="q-stat"><div class="q-val ${window.GluDisp.drift(maxDrift).sev}">${window.GluDisp.drift(maxDrift).display}<span style="font-size:12px;font-weight:600;color:var(--text3)"> /day</span></div><div class="q-lbl">${evBadge('Largest drift')}Largest drift</div><div class="q-sub">${window.GluDisp.label()} per day, within a wear</div></div>
+      <div class="q-stat"><div class="q-val ${spread == null ? 'neutral' : spread < 15 ? 'ok' : spread < 30 ? 'warn' : 'bad'}">${spread == null ? '—' : `${window.GluDisp.spread(spread)}<span style="font-size:12px;font-weight:600;color:var(--text3)"> ${window.GluDisp.label()}</span>`}</div><div class="q-lbl">${evBadge('Between-session spread')}Between-session spread</div><div class="q-sub">${spread == null ? 'fewer than two wears carry a median' : 'range of session medians'}</div></div>
+      <div class="q-stat"><div class="q-val ${maxDriftDisp.sev}">${maxDriftDisp.display == null ? '—' : `${maxDriftDisp.display}<span style="font-size:12px;font-weight:600;color:var(--text3)"> /day</span>`}</div><div class="q-lbl">${evBadge('Largest drift')}Largest drift</div><div class="q-sub">${maxDriftDisp.display == null ? 'no wear carries a fitted slope' : `${window.GluDisp.label()} per day, within a wear`}</div></div>
     </div>
     <div class="tbl-wrap show" style="margin:10px 0"><table><thead><tr><th>Session</th><th>Dates</th><th>Length</th><th>Median</th><th>Drift /day</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="sess-toggles">
       <label class="sess-tog"><input type="checkbox" id="togLevel" ${CORR.levelSessions ? 'checked' : ''}><span><b>Level sessions</b> — align each wear's median to the global median (${window.GluDisp.val(sc.globalMedian || r.median)} ${window.GluDisp.label()}). Removes step-changes between sensors.</span></label>
       <label class="sess-tog"><input type="checkbox" id="togDrift" ${CORR.deDrift ? 'checked' : ''}><span><b>De-drift</b> — remove the slow linear trend within each wear. <span style="color:var(--amber)">Experimental</span> — can shave real slow physiology, off by default.</span></label>
     </div>
-    <div class="q-note" style="margin-top:8px">A multi-week file spans several sensor wears, each with its own factory bias and slow drift. ${spread >= 15 ? `<b style="color:var(--amber)">The ${window.GluDisp.spread(spread)} ${window.GluDisp.label()} spread between session medians is large</b> — a between-sensor step, not necessarily physiology.` : 'Session medians are close — little between-sensor step.'} ${maxDrift >= 7 ? `<b style="color:var(--amber)">One wear drifts ${window.GluDisp.spread(maxDrift)} ${window.GluDisp.label()}/day</b> — possible sensor aging.` : ''} Corrections re-run the whole pipeline on the adjusted trace. ${sc.leveled || sc.deDrifted ? `<b style="color:var(--green)">Active:</b> ${[sc.leveled ? 'leveling' : null, sc.deDrifted ? 'de-drift' : null].filter(Boolean).join(' + ')}.` : 'Both off — metrics reflect the raw sensor.'} <span style="opacity:.7">Reference-free corrections — defensible for leveling, experimental for de-drift; neither is a substitute for fingerstick calibration.</span></div>`;
+    <div class="q-note" style="margin-top:8px">A multi-week file spans several sensor wears, each with its own factory bias and slow drift. ${spread == null ? 'Fewer than two wears carry a median, so there is no between-session spread to report.' : spread >= 15 ? `<b style="color:var(--amber)">The ${window.GluDisp.spread(spread)} ${window.GluDisp.label()} spread between session medians is large</b> — a between-sensor step, not necessarily physiology.` : 'Session medians are close — little between-sensor step.'} ${maxDrift == null ? 'No wear carries a fitted drift slope, so the largest drift is withheld.' : maxDrift >= 7 ? `<b style="color:var(--amber)">One wear drifts ${window.GluDisp.spread(maxDrift)} ${window.GluDisp.label()}/day</b> — possible sensor aging.` : ''} Corrections re-run the whole pipeline on the adjusted trace. ${sc.leveled || sc.deDrifted ? `<b style="color:var(--green)">Active:</b> ${[sc.leveled ? 'leveling' : null, sc.deDrifted ? 'de-drift' : null].filter(Boolean).join(' + ')}.` : 'Both off — metrics reflect the raw sensor.'} <span style="opacity:.7">Reference-free corrections — defensible for leveling, experimental for de-drift; neither is a substitute for fingerstick calibration.</span></div>`;
     const tl = $('togLevel'),
       td = $('togDrift');
     if (tl)
