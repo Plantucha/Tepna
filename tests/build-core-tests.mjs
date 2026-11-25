@@ -231,12 +231,59 @@ async function main() {
      pushed goldens still carrying the previous code identity. These legs pin the split as a KNOWN
      ANSWER over committed bytes, so the day a node starts or stops embedding the stamp, the
      message's premise reds here instead of misleading someone. */
+  /* THE SPLIT IS PER SHAPE, NOT PER NODE (2026-11-25). The stamp lives in `measurement[*].code`,
+     which only the `measurement` export shape has. ECGDex now commits a SECOND shape - the summary
+     export, whose payload is named sections (hrv, apnea, sleep, ...) and carries no `measurement`
+     array at all. So a per-NODE all-or-nothing count reds on a golden that could not carry the stamp
+     under any build, which says nothing about a stale code identity. The legs below key on the shape
+     each golden actually has, and the split stays all-or-nothing INSIDE a shape. A node that silently
+     stops stamping its `measurement` goldens still reds here. */
   {
     const { embeddedStampCount } = await import('../tools/build.mjs');
     const fx = (app) => Object.keys(JSON.parse(readFileSync(join(ROOT, 'provenance', app + '.json'), 'utf8')).fixtures || {});
+    /* A golden absent from this checkout is UNKNOWN, never assigned to a shape - the same refusal
+       `embeddedStampCount` makes. It is dropped from both lists and counted in neither. */
+    const byShape = (app) => {
+      const held = [],
+        sectioned = [],
+        unreadable = [];
+      for (const k of fx(app)) {
+        let d = null;
+        try {
+          d = JSON.parse(readFileSync(join(ROOT, 'uploads', k), 'utf8'));
+        } catch {
+          unreadable.push(k);
+          continue;
+        }
+        /* The stamp sits in `measurement.<metricId>.code`, so the shape test is the presence of a
+           `measurement` MAP of metric records. A golden may hold ONE record, an ARRAY of them (the
+           OxyDex summaries are a series) or a `recordings` list, so the reader walks the payload
+           instead of reading one fixed path - a single-path reader called four OxyDex series
+           goldens sectioned when every record in them carries the stamp. */
+        const hasMeasurement = (() => {
+          const seen = new Set();
+          const walk = (v, depth) => {
+            if (depth > 4 || v == null || typeof v !== 'object' || seen.has(v)) return false;
+            seen.add(v);
+            if (Array.isArray(v)) return v.some((x) => walk(x, depth + 1));
+            const m = v.measurement;
+            if (m && typeof m === 'object' && !Array.isArray(m) && Object.keys(m).length > 0) return true;
+            return Object.values(v).some((x) => walk(x, depth + 1));
+          };
+          return walk(d, 0);
+        })();
+        (hasMeasurement ? held : sectioned).push(k);
+      }
+      return { held, sectioned, unreadable };
+    };
     for (const app of ['OxyDex', 'ECGDex', 'PpgDex']) {
-      const names = fx(app);
-      ok(embeddedStampCount(names) === names.length, app + ' is a CARRIER: every golden embeds code.manifestHash', names.length + ' of ' + names.length);
+      const g = byShape(app);
+      ok(
+        g.held.length > 0 && embeddedStampCount(g.held) === g.held.length,
+        app + ' is a CARRIER: every `measurement` golden embeds code.manifestHash',
+        embeddedStampCount(g.held) + ' of ' + g.held.length + (g.unreadable.length ? ' (' + g.unreadable.length + ' absent, counted in neither)' : '')
+      );
+      ok(embeddedStampCount(g.sectioned) === 0, app + ': a SECTIONED golden embeds no stamp, so no re-run can move one there', g.sectioned.length + ' sectioned golden(s)');
     }
     for (const app of ['HRVDex', 'GlucoDex', 'PulseDex', 'CPAPDex', 'MotionDex', 'Integrator']) {
       ok(embeddedStampCount(fx(app)) === 0, app + ' is NOT a carrier: no golden embeds code.manifestHash');
@@ -245,6 +292,14 @@ async function main() {
        reader silently returned 0 for everything (a wrong uploads root, a renamed key). */
     ok(embeddedStampCount(fx('OxyDex')) > 0, 'the reader can SEE a stamp at all (else every 0 above is vacuous)');
     ok(embeddedStampCount(['no-such-golden-9f3c.node-export.json']) === 0, 'an unreadable golden is NOT counted \u2014 absence is never claimed');
+    /* …and the shape reader is vacuous too if it puts every golden on one side. ECGDex is the one
+       node that holds both shapes today, so it is the only leg that can state the split exists. */
+    const ecg = byShape('ECGDex');
+    ok(
+      ecg.held.length > 0 && ecg.sectioned.length > 0,
+      'ECGDex holds BOTH shapes, so the split above is measured and not assumed',
+      ecg.held.length + ' measurement / ' + ecg.sectioned.length + ' sectioned'
+    );
   }
 
   console.log('');

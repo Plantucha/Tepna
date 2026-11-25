@@ -1,0 +1,262 @@
+{
+  "kernel": null,
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "ECGDex",
+    "nodeVersion": "1.1",
+    "generated": "2026-06-17T01:06:17.723Z",
+    "provenance": null,
+    "doc": "Single-signal ECG analyzer export. All metrics computed from raw ECG only. nulls = not computed at this recording length/quality. Time-series under `timeseries` are the cross-node currency (GlucoDex/CPAPDex/Ganglior consume these).",
+    "units": {
+      "rr": "ms",
+      "hr": "bpm",
+      "power": "ms^2",
+      "sd": "ms",
+      "time": "s",
+      "tMin": "min",
+      "amplitude": "uV",
+      "interval": "ms",
+      "vo2": "ml/kg/min",
+      "age": "yr",
+      "ahi": "events/h",
+      "cvhr": "events/h",
+      "slope": "ln-units/h",
+      "burden": "%",
+      "conf": "0..1"
+    }
+  },
+  "recording": {
+    "source": "file",
+    "sampleRateHz": 129.9999998982617,
+    "durationSec": 59.4,
+    "durationMin": 1,
+    "tier": "insufficient",
+    "tierNote": "< 2 min — HRV not reliable",
+    "mode": "short-reading",
+    "modeLabel": "⏱ Short reading",
+    "modeWhy": "1 min reading",
+    "ambulatory": null,
+    "activityScore": null,
+    "activityScoreReason": "no usable accelerometer stream in the record — activity not measured",
+    "startEpochMs": 1781658377723,
+    "beats": 60,
+    "epochs5min": 1,
+    "longRecording": false,
+    "timing": {
+      "timingSource": "device",
+      "independent": false,
+      "anchors": 16,
+      "spanMs": 57684.615478515625,
+      "ppm": -6.6680440095983435,
+      "spanPpm": -10.669716882384908,
+      "ppmEstimator": "single-window",
+      "ppmUncertainty": null,
+      "resyncs": 0,
+      "seams": 0,
+      "rate": 129.9999998982617,
+      "rateRaw": 129.9999998982617,
+      "rateApplied": false,
+      "reason": "host ≡ device — residual spread 0.92 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock; the rate correction did not reach the published rate: host column is not a second clock (residual spread 0.92 ms, within one stamp quantum — the host stamp is the device stamp rounded), fs left on the device clock; nothing here sizes the published ppm: the spine measured no sigma-y curve on this axis, so the rate travels without its spread"
+    }
+  },
+  "quality": {
+    "analyzablePct": 100,
+    "cleanBeatPct": 100,
+    "coveragePct": 100,
+    "activeMin": 1,
+    "spanMin": 1,
+    "gapMin": 0,
+    "gaps": 0,
+    "lowCoverage": false,
+    "correctionRatePct": 0,
+    "beatsCorrected": 0,
+    "ectopicBeatsCorrected": 0,
+    "correctionNote": "beats replaced by local median: low-SQI + out-of-range + ectopic (>20% from local median, Malik/Kubios). ectopicBeatsCorrected isolates the ectopy-only fixes — these clean rMSSD/pNN50 of PAC/PVC spikes so the HRV agrees with PulseDex/Kubios.",
+    "meanSQI": 0.959,
+    "sqiNote": "kSQI · bSQI(±50ms) · RR-plausibility · flatline/rail · amplitude. Per-surge SQI rides on each Ganglior event as `sqi` (separate from `conf`, which now scales to CVHR surge magnitude).",
+    "meanSQICaveat": null,
+    "coverageNote": "analyzablePct = cleanBeatPct × coverage. coverage = active(beat-covered) time ÷ raw span; stray beats after strap-off do not inflate duration."
+  },
+  "hrv": {
+    "time": {
+      "hr": 59.6,
+      "meanRR": 1006.7,
+      "medianRR": 1006,
+      "sdnn": 28.2,
+      "rmssd": 35.9,
+      "pnn50": 10.2,
+      "nn50": 6,
+      "cv": 2.8,
+      "minRR": 963,
+      "maxRR": 1050,
+      "q25RR": 980,
+      "q75RR": 1035,
+      "sdann": null,
+      "sdnnIndex": null,
+      "lnRMSSD": 3.581,
+      "triangularIndex": 7.5,
+      "wholeRecordHR": 59.6,
+      "wholeRecordSDNN": 28.2,
+      "wholeRecordRMSSD": 35.9,
+      "amo50": 48.3,
+      "mode": 1000,
+      "mxDMn": 0.086,
+      "units": "ms",
+      "geometricNote": "Baevsky-SI inputs (Brennan/Welltory convention): amo50 = amplitude of the modal RR (%), mode = modal RR (ms), mxDMn = RR variation range (SECONDS). Same values as the ⬇ HRVDex CSV columns; null when the NN series is empty.",
+      "windowNote": "sdnn/rmssd/pnn50 here are DISPLAY values = representative 5-min epoch median on overnight recordings (short recs: whole-record). For CROSS-NODE comparison use wholeRecordSDNN/wholeRecordRMSSD (whole-record) or sdnnIndex (mean of per-5-min SDNN)."
+    },
+    "poincare": {
+      "sd1": 25.61,
+      "sd2": 30.59,
+      "sd1sd2": 0.837,
+      "ellipseArea": 2461,
+      "representativeWindow": false,
+      "representativeEpochIndex": null,
+      "representativeEpochTMin": null,
+      "representativeWindowNote": "whole-record NN"
+    },
+    "frequency": {
+      "totalPower": 778,
+      "vlf": 3,
+      "lf": 9,
+      "hf": 766,
+      "lfhf": 0.012,
+      "lfnu": 1.2,
+      "hfnu": 98.8,
+      "respRate": 13.2,
+      "respRateEpochStats": null,
+      "method": "Lomb–Scargle",
+      "respRateNote": "respRate = whole-night scalar; respRateEpochStats = per-5-min EDR spread (min/max/median/sd) for resp-rate-instability screening (CPAPDex)"
+    },
+    "nonlinear": {
+      "dfaAlpha1": 0.185,
+      "sampleEntropy": 0.019,
+      "decelCapacity": 14.32,
+      "accelCapacity": -21.29,
+      "fragmentationPIP": 43.3,
+      "fragmentationIALS": 0.45,
+      "fragmentationPSS": 69.5,
+      "thresholds": {
+        "fragmentationPIPflagPct": 55,
+        "decelCapacityLowMs": 4.5,
+        "decelCapacityNote": "DC<4.5 ms = elevated all-cause mortality marker (PRSA, Bauer 2006)",
+        "pipNote": "PIP>55% = fragmented (Costa 2017)",
+        "ialsNote": "inverse avg run length — higher=more fragmented",
+        "pssNote": "% NN in short (<3-beat) segments"
+      }
+    }
+  },
+  "personalization": {
+    "profile": {
+      "age": null,
+      "sex": null,
+      "weightKg": null,
+      "heightCm": null,
+      "elevationM": null,
+      "cpapBipap": null,
+      "onCPAP": null,
+      "hrMaxEntered": null,
+      "restingHREntered": null,
+      "vo2maxGroundTruthEntered": null,
+      "note": "All fields the user entered/selected in the profile panel. null = left on auto/default."
+    },
+    "assumedDefaults": {
+      "onCPAP": false,
+      "source": "population norm (NHANES age×sex; Tanaka HRmax) — the value the analysis ran on",
+      "note": "null = the user supplied this field, so no default was needed. A non-null value here is NOT a measurement of this person."
+    },
+    "ansReadinessScore": null,
+    "ansAge": null,
+    "restingHR": null,
+    "restingHRNocturnalFloor": null,
+    "hrMax": null,
+    "hrMaxSource": "tanaka",
+    "vo2maxBase": null,
+    "vo2maxAdjusted": null,
+    "vo2maxGroundTruth": null,
+    "altitudeFactor": null,
+    "altitudeFactorFormula": "no elevation entered → null; elev≤1500m → 1; else 1 − 0.0033·(elev−1500)/100",
+    "vo2maxFormula": "Uth–Sørensen 15.3·HRmax/HRrest, ×altitudeFactor, then ×(1 + clamp(±0.08, 0.10·(lnRMSSD−3.4)))",
+    "expectedRMSSDForAge": null,
+    "expectedRestHRForAge": null
+  },
+  "apnea": null,
+  "hrvStability": null,
+  "cardiorespiratory": {
+    "edrRespRate": 16.3,
+    "rsaEfficiencyRatio": 1.06,
+    "rsaAmplitudeBpm": 3.5,
+    "crcPLV": null,
+    "crcPLVReason": "no complete 60 s coupling window in the record — phase locking not computable",
+    "couplingStrength": null,
+    "plvDuringSurges": null,
+    "plvBaseline": null,
+    "perEpochPLV": [],
+    "method": "EDR (R-peak amplitude modulation) ⟷ RR coupling — ECG-only, no airflow/PPG",
+    "refs": {
+      "rsaEfficiency": "Border et al. 2025 arXiv:2507.00597 (RSA minimises cardiac power; ~1.5× insp HR optimum)",
+      "crcPLV": "arXiv:2508.00773 (model-free CRC via phase-locking value)",
+      "couplingStrength": "arXiv:2605.18802 (CSI cardiorespiratory-coupling index)"
+    },
+    "interpretation": "rsaEfficiencyRatio = insp:exp HR ratio (higher = stronger RSA). crcPLV & couplingStrength ∈ [0,1]; both drop during CVHR/apnea clusters (plvDuringSurges < plvBaseline) → a CVHR confidence channel. All derived from existing pipeline outputs — zero new sensors."
+  },
+  "morphology": {
+    "ectopy": {
+      "pvc": 0,
+      "pac": 0,
+      "pvcBurdenPct": 0,
+      "pacBurdenPct": 0,
+      "couplets": 0,
+      "ventricularRunsGE3": 0,
+      "bigeminyCycles": 0,
+      "medianQRSWidthMs": null
+    },
+    "intervals": {
+      "withheld": true,
+      "reason": "no valid median beat (insufficient clean aligned normal beats)"
+    },
+    "qtcTrend": null,
+    "qtcTrendNote": "Withheld — recording too short / too few clean windows for a QTc trend (single summary QTc in `intervals` only).",
+    "twa": null,
+    "tWaveAlternans": null,
+    "afScreen": {
+      "verdict": "no-af",
+      "flaggedWindowsPct": 0,
+      "deltaRREntropy": 0.4,
+      "note": "RR-irregularity screen only — P-wave weak at 130 Hz"
+    }
+  },
+  "sleep": null,
+  "acc": null,
+  "timeseries": {
+    "doc": "Per-5-min-epoch aggregates — the primary cross-node feed. GlucoDex regresses epochRMSSD/epochHR for nocturnal autonomic-instability → IR-risk; epoch.qtc (when present, nearest 15-min windowed QTc) lets it line QTc up against overnight glucose.",
+    "epochs": [
+      {
+        "tMin": 0,
+        "beats": 60,
+        "hr": 59.6,
+        "meanRR": 1006.7,
+        "rmssd": 35.9,
+        "sdnn": 28.2,
+        "pnn50": 10.2,
+        "lf": 9,
+        "hf": 766,
+        "lfhf": 0.012,
+        "respRate": 13.2,
+        "position": "unknown"
+      }
+    ],
+    "sleepStages": null
+  },
+  "ganglior_events": [],
+  "reserved": {
+    "doc": "Fields awaiting other fleet nodes/models; null until available.",
+    "osaTransformerLabels": null,
+    "osaTransformerRef": "Almarshad 2026 Front.AI 9:1727091 (Phase 2 model)",
+    "deltaSBP": null,
+    "deltaSBPSource": "BioZDex",
+    "glucoseCorrelation": null,
+    "glucoseSource": "GlucoDex"
+  }
+}

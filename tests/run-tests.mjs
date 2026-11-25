@@ -1890,6 +1890,29 @@ function readEquiv() {
     if (pdN1 && pdSummary !== undefined) out.pulsedex_summary_export = { inputs: [pdN1], fixture: pdSummary, fixtureFile: 'synthetic_pulsedex_summary.export.json' };
     if (pdN1 && pdN2 && pdSeries !== undefined) out.pulsedex_series_export = { inputs: [pdN1, pdN2], fixture: pdSeries, fixtureFile: 'synthetic_pulsedex_series.export.json' };
   }
+  /* THE ECGDex SUMMARY EXPORT ROAD — the 505-line payload the app's JSON button writes, through the
+     headless `ecgBuildSummaryExport`. The input is the SAME committed synthetic H10 stream the rich
+     golden uses, so a skip here is a wiring defect and never an absent recording. `inputs` and not
+     `input`: the one-input CASES diff keys by node and would compare this payload against a
+     node-export. */
+  {
+    const ecgOne = (f) => {
+      const q = join(ROOT, 'uploads', f);
+      return existsSync(q) ? readFileSync(q, 'utf8') : null;
+    };
+    const ecgFix = (f) => {
+      const q = join(ROOT, 'uploads', f);
+      if (!existsSync(q)) return undefined;
+      try {
+        return JSON.parse(readFileSync(q, 'utf8'));
+      } catch {
+        return undefined; // unreadable → the leg self-skips rather than asserting on a parse error
+      }
+    };
+    const ecgIn = ecgOne('synthetic_ecgdex_h10.txt');
+    const ecgSummary = ecgFix('synthetic_ecgdex_summary.export.json');
+    if (ecgIn && ecgSummary !== undefined) out.ecgdex_summary_export = { inputs: [ecgIn], fixture: ecgSummary, fixtureFile: 'synthetic_ecgdex_summary.export.json' };
+  }
   return out;
 }
 
