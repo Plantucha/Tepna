@@ -786,7 +786,8 @@ async function main(){
      the one-input CASES diff from comparing a summary payload against a node-export. */
   for (const [k, fxF, inF] of [
     ['pulsedex_summary_export', 'synthetic_pulsedex_summary.export.json', ['synthetic_pulsedex_rr.txt']],
-    ['pulsedex_series_export', 'synthetic_pulsedex_series.export.json', ['synthetic_pulsedex_rr.txt', 'synthetic_pulsedex_series_n2_rr.txt']]
+    ['pulsedex_series_export', 'synthetic_pulsedex_series.export.json', ['synthetic_pulsedex_rr.txt', 'synthetic_pulsedex_series_n2_rr.txt']],
+    ['ecgdex_summary_export', 'synthetic_ecgdex_summary.export.json', ['synthetic_ecgdex_h10.txt']]
   ]) {
     try {
       const texts = [];

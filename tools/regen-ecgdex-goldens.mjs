@@ -144,6 +144,20 @@ const fromECGRich = (file) => {
   return ECGDex.compute({ text: fs.readFileSync(p, 'utf8') }, { rich: true, code: CODE });
 };
 
+/* THE SUMMARY EXPORT PAYLOAD — what the app's JSON button writes, through the headless
+   `ecgBuildSummaryExport` (the app's old inline `buildV2`). `generated` is PINNED, because the
+   payload stamps `new Date().toISOString()` and a fixture cannot hold a clock. It is ANCHORED to
+   the recording's own start, never to a literal: a constant here would have to be repeated in the
+   suite leg, and two copies of a magic string drift. `kernel` and `provenance` are null, because
+   both are app-realm globals and a fixture that stamped them would pin the build, not the payload. */
+const fromSummary = (file) => {
+  const p = path.join(CORPUS, file);
+  if (!fs.existsSync(p)) return null;
+  const r = ECGDex.computeResult({ text: fs.readFileSync(p, 'utf8') }, { code: CODE });
+  const generated = r && r.t0Ms != null ? new Date(r.t0Ms).toISOString() : null;
+  return ECGDex.buildSummaryExport(r, { kernel: null, provenance: null, generated: generated });
+};
+
 const FIXTURES = [
   { name: 'ECGDex_2026-06-27_equiv.node-export.json', real: true, build: () => fromECG('Polar_H10_AAAAAAAA_20260617_010615_ECG_clip.txt') },
   { name: 'synthetic_ecgdex_golden.node-export.json', build: () => fromECG('synthetic_ecgdex_h10.txt') },
@@ -173,6 +187,19 @@ const FIXTURES = [
       added: '2026-08-01',
       inputs: ['synthetic_ecgdex_h10.txt'],
       note: 'ECGDEX-EDR-RESP-ACCURACY §7.4 — the INTEGRATOR-FACING rich export (compute(input,{rich:true})), which had no committed fixture. Pins hrv.time.*, hrv.frequency.* (incl. respFromEDR, the field #634 changed), quality, timeseries, sleep, apnea and hrvStability. Shares the clean twin input with synthetic_ecgdex_golden.node-export.json, so the pair isolates exactly what opts.rich adds.'
+    }
+  },
+  /* The SUMMARY payload the user downloads. It had NO committed fixture at all: the suite drives
+     `exportGanglior`, so the 505-line payload a reader actually reads was pinned by source text
+     only (row `2026-11-24-four-nodes-summary-export-payload-has-no-known-answer`). Same committed
+     input as the clean twin, so the pair isolates what the summary road adds over the light one. */
+  {
+    name: 'synthetic_ecgdex_summary.export.json',
+    build: () => fromSummary('synthetic_ecgdex_h10.txt'),
+    newRecord: {
+      added: '2026-11-25',
+      inputs: ['synthetic_ecgdex_h10.txt'],
+      note: 'The ECGDex summary export payload (the app JSON button), through the headless ecgBuildSummaryExport. Pins the whole 505-line envelope: recording, quality, hrv, morphology, timeseries, sleep, apnea and the profile terms. `generated` is pinned to a fixed ISO string, and kernel/provenance are null, so the fixture holds the PAYLOAD and never the build.'
     }
   }
 ];
