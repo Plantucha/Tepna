@@ -1120,8 +1120,10 @@
      §∅ — an epoch the evaluator refused is HATCHED, exactly as an unscored epoch is above, and the
      reason it carries is the evaluator's own. */
   /* The file the reader must supply, named on the surface for a reader who holds only the page. */
-  var MODEL_FILE_NAME = 'eeg-stage-model-base-2026-11-17.json';
-  var MODEL_FILE_SHA16 = '500f1a71f6ca3e18';
+  var MODEL_FILE_NAME = 'eeg-stage-model-two-pass-2026-11-24.json';
+  var MODEL_FILE_SHA16 = '27d0114dd8c5b43e';
+  var MODEL_FILE_ALT = 'eeg-stage-model-base-2026-11-17.json';
+  var MODEL_FILE_ALT_SHA16 = '500f1a71f6ca3e18';
   var FORMULA_DRAW = { wake: 'eg-ep-w', light: 'eg-ep-n2', deep: 'eg-ep-n3', REM: 'eg-ep-rem' };
 
   function formulaHtml(f) {
@@ -1139,11 +1141,15 @@
         (/no model file/.test(f.err)
           ? '<p class="chart-note">' +
             esc(
-              'The file to give it is ' +
+              'Two files in the root of this repository fit it. ' +
                 MODEL_FILE_NAME +
-                ', which sits in the root of this repository. Its first 16 hash characters read ' +
+                ' (first 16 hash characters ' +
                 MODEL_FILE_SHA16 +
-                '. Drop it where you dropped the recording.'
+                ') scores two passes and needs the whole night. ' +
+                MODEL_FILE_ALT +
+                ' (' +
+                MODEL_FILE_ALT_SHA16 +
+                ') scores one pass and takes a shorter import. Drop one of them where you dropped the recording.'
             ) +
             '</p>'
           : '')
@@ -1197,7 +1203,7 @@
       '</p>' +
       '<p class="chart-note">' +
       esc(
-        'What this series is not: the coefficients were fitted on sleep-laboratory derivations and a small number of forehead recordings; a frontal derivation recognises deep sleep less well than a central one; the formula scores after the night and never during it; a hatched column is an epoch it refused, and it carries the reason the evaluator gave. It is a research aid and not a diagnosis, and no figure stands beside it until a blind read of this port holds a citation.'
+        'What this series is not: the coefficients were fitted on sleep-laboratory derivations and a small number of forehead recordings; a frontal derivation recognises deep sleep less well than a central one; the formula scores after the night and never during it; a model of two passes reads up to 160 epochs away, so it needs the whole night and it refuses a shorter import by name; a hatched column is an epoch it refused, and it carries the reason the evaluator gave. It is a research aid and not a diagnosis, and no figure stands beside it until a blind read of this port holds a citation.'
       ) +
       '</p>'
     );
