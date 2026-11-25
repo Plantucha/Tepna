@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="8d483776be1d" data-compute-hash="497dc6de95ef"><head>
+<html lang="en" data-manifest-hash="a13d3cefba1f" data-compute-hash="5cc895e2e41d"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7wlWCQUAtgWYZihc9Nt/v44R41d/EerskA0DJJiMdPw=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-JOqjyEYQXKY+GdMVYfY11IKXcdrf3/qh7jo0ee3mqbg=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UdJ88eeYm1W9tlVf66iAGR0D63hIgHQ6dBYrVftyKPE=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gsfxF3U9fQYY6VBcjkxdisltp5OpMvk7xGo0quyFZm8=' 'sha256-hWzB4rsCbqCsuYfj7w7IHjnaPKU1JJMMs+oxJLE4sLU=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-wktj1Df+isZKJxu0wGtJ0pZLbTfqdObxwLCd2Fo+wQg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-JOqjyEYQXKY+GdMVYfY11IKXcdrf3/qh7jo0ee3mqbg=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-M3ZOhml+Q710BLZQ/P2i37xtADxczWQXIxaac3VLRj0=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UdJ88eeYm1W9tlVf66iAGR0D63hIgHQ6dBYrVftyKPE=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gsfxF3U9fQYY6VBcjkxdisltp5OpMvk7xGo0quyFZm8=' 'sha256-hWzB4rsCbqCsuYfj7w7IHjnaPKU1JJMMs+oxJLE4sLU=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-wktj1Df+isZKJxu0wGtJ0pZLbTfqdObxwLCd2Fo+wQg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -40256,6 +40256,617 @@ __exports.PpgDex = window.PpgDex;
     return singles.concat(merged);
   }
 
+  /* ── THE SUMMARY / SERIES EXPORT PAYLOAD, HEADLESS ──────────────────────────────────────────
+     `buildV2()` and `exportJSON()` in ecgdex-app.js built this payload INLINE, so no committed
+     fixture reached it and GATE B could not see a value in it move. The only evidence available
+     to a reviewer was a pin on the app's source text, and a source pin dies on any reflow of the
+     line (row `2026-11-24-four-nodes-summary-export-payload-has-no-known-answer`). These builders
+     are the siblings of `ecgBuildNodeExport`: ONE implementation that the app, a committed
+     fixture and any later road all call.
+       r / list        — the recording(s). The app sorts the list ascending by t0Ms.
+       opts.kernel     — the DexKernel namespace | null
+       opts.provenance — GangliorProvenance.stamp() | null   (key always present)
+       opts.generated  — ISO string (defaults to now at call time)
+       opts.crossNight — the crossNight aggregate, computed by the caller from the SAME sorted
+                         list (`ECGCross.crossNightBlock`). Absent ⇒ null, never a fabricated
+                         aggregate (§∅).
+     Field ORDER matches the app's historical payload byte-for-byte. */
+  /* ONE TIMING BLOCK. `ecgBuildNodeExport` built this inline, so the SUMMARY payload — which
+     declares the same `schema.name: 'ganglior.node-export'` — carried no `recording.timing` at all.
+     A consumer reading the app's JSON download as a node-export found the shared fourteen-key block
+     absent. The committed fixture is what made that visible: the gate that enumerates every equiv
+     fixture reded on `absent — a builder stopped reaching the shared block` the first time this
+     payload had a fixture to enumerate.
+       `hostAxis` is the DISCIPLINED view (`_ecgPubAxis`), never the raw block: the builder reads
+     `ppm` off whatever object it is handed, so a drawn column reaches `recording.timing` as an
+     absence too. A measured axis hands over an identical copy. */
+  function ecgTimingBlock(r) {
+    if (!(typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock)) return null;
+    return DexExport.timingBlock({
+      hostAxis: _ecgPubAxis(r.hostAxis),
+      timingSource: r.hostAxis ? r.hostAxis.timingSource : null,
+      drawn: r.hostAxis ? r.hostAxis.deviceDrawn : null,
+      resyncs: r.clockResyncs || [],
+      // This node's seam instrument IS its counter-step detector, so the two counts are the same
+      // measurement. The node says so; the shared builder no longer assumes it.
+      seams: r.clockResyncs || [],
+      /* The rate, and the two fields that say what happened to it. This node's span and step gates
+         can measure a `ppm` and decline to spend it, so `applied` is the field that separates a
+         corrected rate from a declined one, and `reason` names the gate. */
+      rate: r.fs,
+      rateRaw: r.fsRaw,
+      rateApplied: r.hostAxis ? r.hostAxis.applied : null,
+      rateReason: r.hostAxis ? r.hostAxis.reason : null
+    });
+  }
+
+  function ecgBuildSummaryExport(r, opts) {
+    opts = opts || {};
+    const p = r.profile || {};
+    const round = (v, d = 2) => (v == null ? null : typeof v === 'number' ? +v.toFixed(d) : v);
+    // ACC full-pipeline (reuse the render-time computation when present; else compute once)
+    const accEx = r._accEx || (r.deviceACC && r.deviceACC.length && accExtras ? accExtras(r.deviceACC, r.accFs, r.t0Ms, r.durSec, r.epochs, r.stages) : null);
+    // per-5-min RRacc (median of high-confidence 30-s epochs) for timeseries alignment
+    const accRespAt = ecgAccRespAt(accEx, r.epochs);
+    const _geom = baevskyGeom(r.nn); // Baevsky-SI inputs for the envelope (FOLLOWUP P4)
+    const out = {
+      kernel: opts.kernel ? { version: opts.kernel.VERSION, hash: opts.kernel.HASH } : null,
+      schema: {
+        name: 'ganglior.node-export',
+        version: '2.0',
+        node: 'ECGDex',
+        nodeVersion: '1.1',
+        generated: opts.generated || new Date().toISOString(),
+        provenance: opts.provenance !== undefined ? opts.provenance : null, // R1: build + input fingerprints
+        doc: 'Single-signal ECG analyzer export. All metrics computed from raw ECG only. nulls = not computed at this recording length/quality. Time-series under `timeseries` are the cross-node currency (GlucoDex/CPAPDex/Ganglior consume these).',
+        units: {
+          rr: 'ms',
+          hr: 'bpm',
+          power: 'ms^2',
+          sd: 'ms',
+          time: 's',
+          tMin: 'min',
+          amplitude: 'uV',
+          interval: 'ms',
+          vo2: 'ml/kg/min',
+          age: 'yr',
+          ahi: 'events/h',
+          cvhr: 'events/h',
+          slope: 'ln-units/h',
+          burden: '%',
+          conf: '0..1'
+        }
+      },
+      recording: {
+        source: r.source,
+        sampleRateHz: r.fs,
+        durationSec: round(r.durSec, 1),
+        durationMin: r.durMin,
+        tier: r.tier,
+        tierNote: r.tierMsg,
+        mode: r.mode,
+        modeLabel: r.modeLabel,
+        modeWhy: r.modeWhy,
+        /* ∅ `!!` ERASED THE REFUSAL. With no ACC stream the node now states `ambulatory: null`,
+           and `!!null` published `false` — the bus then read "measured, not ambulatory" over a
+           record with no accelerometer. Consumers test `=== true`, so null costs them nothing. */
+        ambulatory: r.ambulatory == null ? null : r.ambulatory,
+        activityScore: r.activityScore,
+        ...(r.activityScoreReason ? { activityScoreReason: r.activityScoreReason } : {}),
+        /* ∅ A ZERO ANCHOR IS AN ANCHOR, never absence. The DSP reshape carries a 0 through now
+           (`ecgdex-dsp.js:3831`), and this line nulled it again one layer later. */
+        startEpochMs: r.t0Ms != null ? r.t0Ms : null,
+        beats: r.nBeats,
+        epochs5min: r.epochs.length,
+        longRecording: r.longRec,
+        timing: ecgTimingBlock(r) // the SAME block the node-export writes — see `ecgTimingBlock`
+      },
+      quality: {
+        analyzablePct: r.analyzablePct,
+        cleanBeatPct: r.cleanBeatPct,
+        coveragePct: r.coveragePct,
+        activeMin: r.activeMin,
+        spanMin: r.spanMin,
+        gapMin: r.gapMin,
+        gaps: r.nGaps,
+        lowCoverage: !!r.lowCoverage,
+        correctionRatePct: r.correctionRate,
+        beatsCorrected: r.nCorrected,
+        ectopicBeatsCorrected: r.nEctopyCorrected,
+        correctionNote:
+          'beats replaced by local median: low-SQI + out-of-range + ectopic (>20% from local median, Malik/Kubios). ectopicBeatsCorrected isolates the ectopy-only fixes — these clean rMSSD/pNN50 of PAC/PVC spikes so the HRV agrees with PulseDex/Kubios.',
+        meanSQI: r.meanSQI,
+        sqiNote:
+          'kSQI · bSQI(±50ms) · RR-plausibility · flatline/rail · amplitude. Per-surge SQI rides on each Ganglior event as `sqi` (separate from `conf`, which now scales to CVHR surge magnitude).',
+        meanSQICaveat:
+          r.meanSQI != null && r.meanSQI < 0.6
+            ? 'Mean SQI ' +
+              r.meanSQI +
+              ' is borderline (<0.6) — derived HRV/morphology are usable but lower-confidence; treat intervals & frequency metrics as directional and weight cross-node consensus accordingly.'
+            : null,
+        coverageNote: 'analyzablePct = cleanBeatPct × coverage. coverage = active(beat-covered) time ÷ raw span; stray beats after strap-off do not inflate duration.'
+      },
+      hrv: {
+        time: {
+          hr: r.dispHr,
+          meanRR: r.meanRR,
+          medianRR: r.medianRR,
+          sdnn: r.dispSd,
+          rmssd: r.dispRm,
+          pnn50: r.dispPn,
+          nn50: r.nn50,
+          cv: r.cv,
+          minRR: r.minRR,
+          maxRR: r.maxRR,
+          q25RR: r.q25,
+          q75RR: r.q75,
+          sdann: r.sdann,
+          sdnnIndex: r.sdnnIdx,
+          lnRMSSD: r.lnrmssd,
+          triangularIndex: r.triIdx,
+          wholeRecordHR: r.hr,
+          wholeRecordSDNN: r.sdnn,
+          wholeRecordRMSSD: r.rmssd,
+          amo50: _geom.amo50,
+          mode: _geom.mode,
+          mxDMn: _geom.mxDMn,
+          units: 'ms',
+          geometricNote:
+            'Baevsky-SI inputs (Brennan/Welltory convention): amo50 = amplitude of the modal RR (%), mode = modal RR (ms), mxDMn = RR variation range (SECONDS). Same values as the ⬇ HRVDex CSV columns; null when the NN series is empty.',
+          windowNote:
+            'sdnn/rmssd/pnn50 here are DISPLAY values = representative 5-min epoch median on overnight recordings (short recs: whole-record). For CROSS-NODE comparison use wholeRecordSDNN/wholeRecordRMSSD (whole-record) or sdnnIndex (mean of per-5-min SDNN).'
+        },
+        poincare: {
+          sd1: r.sd1,
+          sd2: r.sd2,
+          sd1sd2: r.sd1sd2,
+          ellipseArea: r.ellArea,
+          representativeWindow: r.poincareRep,
+          representativeEpochIndex: r.poincareRepIdx ?? null,
+          representativeEpochTMin: r.poincareRepTMin ?? null,
+          representativeWindowNote: r.poincareRep ? 'SD1/SD2 from the rep 5-min epoch (index/tMin given) so another node can reconstruct which window was plotted' : 'whole-record NN'
+        },
+        frequency: {
+          totalPower: r.tp,
+          vlf: r.vlf,
+          lf: r.lf,
+          hf: r.hf,
+          lfhf: r.lfhf,
+          lfnu: r.lfnu,
+          hfnu: r.hfnu,
+          respRate: r.respRate,
+          respRateEpochStats: r.respStats || null,
+          method: 'Lomb–Scargle',
+          respRateNote: 'respRate = whole-night scalar; respRateEpochStats = per-5-min EDR spread (min/max/median/sd) for resp-rate-instability screening (CPAPDex)'
+        },
+        nonlinear: {
+          dfaAlpha1: r.dfa1,
+          sampleEntropy: r.sampen,
+          decelCapacity: r.dc,
+          accelCapacity: r.ac,
+          fragmentationPIP: r.pip,
+          fragmentationIALS: r.ials,
+          fragmentationPSS: r.pss,
+          thresholds: {
+            fragmentationPIPflagPct: 55,
+            decelCapacityLowMs: 4.5,
+            decelCapacityNote: 'DC<4.5 ms = elevated all-cause mortality marker (PRSA, Bauer 2006)',
+            pipNote: 'PIP>55% = fragmented (Costa 2017)',
+            ialsNote: 'inverse avg run length — higher=more fragmented',
+            pssNote: '% NN in short (<3-beat) segments'
+          }
+        }
+      },
+      personalization: {
+        // DEEP-AUDIT §19 — the note below was FALSE for age/sex/weight/height/elevation/cpap: those six
+        // could never be null, because the population default (42 y · M · 80 kg · 178 cm) was written as
+        // if the user had entered it. A profile nobody filled in shipped as personal identity data.
+        // `_ent()` writes a field ONLY when the cascade says the user actually set it ('you'), or a
+        // recording detected it ('detected') — exactly the discipline hrMax/restingHR/vo2 already used.
+        // What COMPUTE actually ran on is not lost: it moves to `assumedDefaults` below, labelled.
+        profile: (function () {
+          var o = p._origins || null;
+          var ent = function (field, val) {
+            return o && (o[field] === 'you' || o[field] === 'detected') ? val : null;
+          };
+          return {
+            age: ent('age', p.age),
+            sex: ent('sex', p.sex),
+            weightKg: ent('weight', p.weight),
+            heightCm: ent('height', p.height),
+            elevationM: ent('elevation', p.elev),
+            cpapBipap: ent('cpap', p.cpap ? 'yes-in-use' : 'not-used'),
+            onCPAP: ent('cpap', !!p.cpap),
+            hrMaxEntered: p.hrmax && p.hrmax > 0 ? p.hrmax : null,
+            restingHREntered: p.rhr && p.rhr > 0 ? p.rhr : null,
+            vo2maxGroundTruthEntered: p.vo2gt && p.vo2gt > 0 ? p.vo2gt : null,
+            note: 'All fields the user entered/selected in the profile panel. null = left on auto/default.'
+          };
+        })(),
+        // The population priors COMPUTE actually used where the user entered nothing. NOT personal data —
+        // recorded so the derived numbers stay reproducible without pretending they describe this person.
+        assumedDefaults: (function () {
+          var o = p._origins || null;
+          var asm = function (field, val) {
+            return o && (o[field] === 'you' || o[field] === 'detected') ? null : val;
+          };
+          return {
+            age: asm('age', p.age),
+            sex: asm('sex', p.sex),
+            weightKg: asm('weight', p.weight),
+            heightCm: asm('height', p.height),
+            elevationM: asm('elevation', p.elev),
+            onCPAP: asm('cpap', !!p.cpap),
+            source: 'population norm (NHANES age×sex; Tanaka HRmax) — the value the analysis ran on',
+            note: 'null = the user supplied this field, so no default was needed. A non-null value here is NOT a measurement of this person.'
+          };
+        })(),
+        ansReadinessScore: r.hrvScore ?? null,
+        ansAge: null /* ANS Age REMOVED 2026-06-21 (external-review WP-A); key kept null for node-export back-compat (consumers tolerate null). */,
+        restingHR: r.rhrEff ?? null,
+        restingHRNocturnalFloor: r.hrFloor ?? null,
+        hrMax: r.hrmaxEff ?? null,
+        hrMaxSource: r.hrmaxRejected ? 'tanaka(entry-rejected)' : p.hrmax > 0 ? 'user' : 'tanaka',
+        vo2maxBase: r.vo2base ?? null,
+        vo2maxAdjusted: r.vo2adj ?? null,
+        vo2maxGroundTruth: r.vo2gt ?? null,
+        altitudeFactor: r.altFactor ?? null,
+        altitudeFactorFormula: 'no elevation entered → null; elev≤1500m → 1; else 1 − 0.0033·(elev−1500)/100',
+        vo2maxFormula: 'Uth–Sørensen 15.3·HRmax/HRrest, ×altitudeFactor, then ×(1 + clamp(±0.08, 0.10·(lnRMSSD−3.4)))',
+        expectedRMSSDForAge: r.expRmssd ?? null,
+        expectedRestHRForAge: r.expRHR ?? null
+      },
+      apnea: r.ambulatory
+        ? {
+            reportable: false,
+            suppressedReason: (r.apneaSuppressed && r.apneaSuppressed.suppressedReason) || 'ambulatory — CVHR invalid under exercise',
+            cvhrIndex: null,
+            onCPAP: !!p.cpap,
+            method:
+              'CVHR (Hayano) + CPC (Thomas 2005) — WITHHELD: recording is ambulatory/awake-active, exercise HR dynamics read as cardiogenic oscillation. Mirrors the R5 null-model pattern (index withheld with a reason, never fabricated).'
+          }
+        : r.longRec
+          ? {
+              cvhrIndex: r.cvhr.index,
+              cvhrEvents: r.cvhr.events.length,
+              onCPAP: !!p.cpap,
+              /* `method` RE-WRITTEN 2026-07-31 (§10). It read "CVHR/cardiopulmonary-coupling proxy
+                 (Hilmisson 2019) — ECG-only, screen not diagnosis", which claimed a coupling
+                 computation that did not exist until #580 AND implied the block estimates apnea
+                 burden. It now names the two things actually computed and states the one validated
+                 relationship, with its measured strength — no proxy claim, no severity mapping.
+                 `estimatedAHI` + `riskCategory` are GONE, not nulled: see ecgdex-profile.js. */
+              method:
+                'CVHR index (cyclic variation of HR, Hayano) + CPC band shares (Thomas 2005). NOT an apnea–hypopnea index: against device-scored residual AHI over 39 paired nights the CVHR index did not track it (r = −0.151, p = 0.36); only cpc.hfcPct did (r = −0.408, p = 0.009). Screen-adjacent signal, not diagnosis.',
+              cpc: r.crc && r.crc.cpc ? r.crc.cpc : null,
+              surgeEscalationPct: r.surgeEsc ? r.surgeEsc.escalationPct : null
+            }
+          : null,
+      hrvStability: r.hrvStab
+        ? {
+            sigma_lnRMSSD_slope: r.hrvStab.sigma_lnRMSSD_slope,
+            var_lnRMSSD_slope: r.hrvStab.var_lnRMSSD_slope,
+            mean_lnRMSSD_slope: r.hrvStab.mean_lnRMSSD_slope,
+            classification: r.hrvStab.classification,
+            windows: r.hrvStab.nWindows,
+            ref: 'Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]',
+            interpretation: 'slope<0 stabilizing (favourable) · slope>0 rising instability (glycemic-risk signal)',
+            series: r.hrvStab.series
+          }
+        : null,
+      cardiorespiratory: r.crc
+        ? {
+            edrRespRate: r.crc.respFromEDR,
+            rsaEfficiencyRatio: r.crc.rsaEfficiencyRatio,
+            rsaAmplitudeBpm: r.crc.rsaAmplitudeBpm,
+            crcPLV: r.crc.crcPLV,
+            /* The key is present only when the PLV is refused — the §1.10 idiom beside the EDR rate,
+               so a measuring night's export keeps its bytes. */
+            ...(r.crc.crcPLVReason ? { crcPLVReason: r.crc.crcPLVReason } : {}),
+            couplingStrength: r.crc.couplingStrength,
+            plvDuringSurges: r.crc.plvDuringSurges,
+            plvBaseline: r.crc.plvBaseline,
+            perEpochPLV: r.crc.epochCRC,
+            method: 'EDR (R-peak amplitude modulation) ⟷ RR coupling — ECG-only, no airflow/PPG',
+            refs: {
+              rsaEfficiency: 'Border et al. 2025 arXiv:2507.00597 (RSA minimises cardiac power; ~1.5× insp HR optimum)',
+              crcPLV: 'arXiv:2508.00773 (model-free CRC via phase-locking value)',
+              couplingStrength: 'arXiv:2605.18802 (CSI cardiorespiratory-coupling index)'
+            },
+            interpretation:
+              'rsaEfficiencyRatio = insp:exp HR ratio (higher = stronger RSA). crcPLV & couplingStrength ∈ [0,1]; both drop during CVHR/apnea clusters (plvDuringSurges < plvBaseline) → a CVHR confidence channel. All derived from existing pipeline outputs — zero new sensors.'
+          }
+        : null,
+      morphology: r.morph
+        ? {
+            ectopy: {
+              pvc: r.morph.nPVC,
+              pac: r.morph.nPAC,
+              pvcBurdenPct: r.morph.pvcBurden,
+              pacBurdenPct: r.morph.pacBurden,
+              couplets: r.morph.couplets,
+              ventricularRunsGE3: r.morph.runsGE3,
+              bigeminyCycles: r.morph.bigeminyCycles,
+              medianQRSWidthMs: r.morph.medW
+            },
+            intervals: r.morph.delin.valid
+              ? (function () {
+                  var dq = r.morph.delin.qrsDur,
+                    mw = r.morph.medW,
+                    sat = !!r.morph.delin.qrsSaturated;
+                  var qt = r.morph.qtcTrend || [];
+                  var nSat = qt.filter(function (w) {
+                    return w.qrsSaturated;
+                  }).length;
+                  var satFrac = qt.length ? +(nSat / qt.length).toFixed(2) : null;
+                  // Canonical QRS width = the validated beat-template energy median (== ectopy.medianQRSWidthMs).
+                  // Delineation value kept for transparency; if it disagrees (>15 ms) or saturated, the template
+                  // value is authoritative — never publish two different QRS widths (was 123 vs 62).
+                  var reconciled = sat || (dq != null && mw != null && Math.abs(dq - mw) > 15);
+                  var sampleMs = +(1000 / (r.fs || 130)).toFixed(2);
+                  return {
+                    qrsDur: mw != null ? mw : dq,
+                    qrsDurDelineated: dq,
+                    qrsDurSaturated: sat,
+                    qrsSaturatedWindowFraction: satFrac,
+                    qrsDurMethod: 'beat-template energy median' + (reconciled ? ' (delineation disagreed/saturated → template authoritative)' : ' (delineation agrees)'),
+                    qt: r.morph.delin.qt,
+                    qtcBazett: r.morph.delin.qtcBazett,
+                    qtcFridericia: r.morph.delin.qtcFrid,
+                    pr: r.morph.delin.pr,
+                    stLevel: r.morph.delin.st,
+                    rAmplitude: r.morph.delin.Ramp,
+                    tAmplitude: r.morph.delin.Tamp,
+                    pWaveResolved: r.morph.delin.pPresent,
+                    sampleGridMs: sampleMs,
+                    precisionNote:
+                      'Intervals reported in ms but resolved on a ' +
+                      sampleMs +
+                      ' ms sample grid (' +
+                      ecgFsReadable(r.fs || 130) +
+                      ' Hz) → ±1 sample (~' +
+                      sampleMs +
+                      ' ms) uncertainty. Clinical QT analysis wants ≥250 Hz; treat as a within-subject directional trend, single lead ≠ 12-lead.'
+                  };
+                })()
+              : { withheld: true, reason: 'no valid median beat (insufficient clean aligned normal beats)' },
+            qtcTrend: r.morph.qtcTrend ? r.morph.qtcTrend : null,
+            qtcTrendNote: r.morph.qtcTrend
+              ? 'Per-15-min windowed median-beat QTc (Bazett). The cross-node feed GlucoDex lines up against overnight glucose — rising QTc as glucose falls is the beat-level hypoglycemia⟷repolarisation link. Within-subject trend, single lead ≠ 12-lead. A window whose T-end could not be delineated inside the median-beat window (`qtSaturated` — tangent extrapolating past the window edge, no repolarisation downslope, or a T peak on the truncated search boundary) is WITHHELD entirely rather than reported at the window edge, so a shorter trend means those windows were dropped, not that the night was quiet. Of the windows that remain, `unstable:true` deviates >60 ms from their median — a residual delineation artifact (lead-vector or T-end flip), NOT physiology; exclude them before reading a QTc trend or correlating against glucose.'
+              : 'Withheld — recording too short / too few clean windows for a QTc trend (single summary QTc in `intervals` only).',
+            twa: r.morph.twa ? r.morph.twa.uv : null,
+            tWaveAlternans: r.morph.twa
+              ? {
+                  uv: r.morph.twa.uv,
+                  abnormal: r.morph.twa.abnormal,
+                  nBeats: r.morph.twa.nBeats,
+                  method: r.morph.twa.method,
+                  thresholdUv: 47,
+                  note: 'MTWA ≥47 µV flags repolarisation instability; co-travels with hypoglycemic QTc stress. Single-lead MMA screen, not the spectral clinical test.'
+                }
+              : null,
+            afScreen: { verdict: r.morph.af.verdict, flaggedWindowsPct: r.morph.af.suspiciousPct, deltaRREntropy: r.morph.af.shannon, note: 'RR-irregularity screen only — P-wave weak at 130 Hz' }
+          }
+        : null,
+      sleep: r.ambulatory
+        ? {
+            suppressed: true,
+            suppressedReason: (r.sleepSuppressed && r.sleepSuppressed.suppressedReason) || 'high-activity / ambulatory',
+            stages: null,
+            method:
+              'Cardiorespiratory staging WITHHELD — ambulatory/awake-active recording (a walk is not a sleep study). Field kept present + explicitly suppressed so consumers never hit a missing key.'
+          }
+        : r.longRec
+          ? (function () {
+              var sm = r.stageMin || {},
+                /* absence-ok: a LOCAL guard denominator only. The `tot > 0` tests below are what
+                   turn an absent total into a null fraction, and the published minute count reads
+                   `r.totSleep` directly, so this zero can never reach a surface. */
+                tot = r.totSleep || 0; // absence-ok: local guard denominator, never published
+              var remF = tot > 0 && sm.REM != null ? sm.REM / tot : null,
+                deepF = tot > 0 && sm.Deep != null ? sm.Deep / tot : null;
+              // Physiological norms (adult): REM ~0.20–0.25, Deep ~0.13–0.23. Flag out-of-range
+              // single-signal estimates rather than presenting them as measured truth.
+              var flags = [];
+              if (remF != null && (remF < 0.1 || remF > 0.35)) flags.push('REM ' + (remF * 100).toFixed(0) + '% outside plausible 13–25%');
+              if (deepF != null && (deepF < 0.05 || deepF > 0.3)) flags.push('Deep ' + (deepF * 100).toFixed(0) + '% outside plausible 13–23%');
+              return {
+                /* §∅ 2026-11-25: this published `tot`, so an absent staging total left the export
+                   claiming 0 minutes of sleep over a long recording. The absent total is now null,
+                   and the fractions above already refused. The committed fixture is 59.4 s, so its
+                   sleep section is null and these bytes do not move - a longer input would read it. */
+                totalSleepMin: r.totSleep ?? null,
+                stageMinutes: r.stageMin,
+                method: 'Cardiorespiratory staging from HRV (LF/HF, rMSSD) + ECG-derived respiration — a single-signal ESTIMATE, not a validated PSG hypnogram.',
+                confidence: 'low',
+                confidenceNote:
+                  'Single autonomic channel cannot resolve true sleep stages reliably; minute counts are directional. Reconcile against another node (see Integrator staging_disagreement) or PSG.',
+                plausibility: flags.length ? { ok: false, issues: flags } : { ok: true }
+              };
+            })()
+          : null,
+      acc: accEx
+        ? {
+            sampleRateHz: accEx.accFs,
+            durationMin: accEx.durMin,
+            respiratoryRate: accEx.rraccSummary
+              ? {
+                  mean: accEx.rraccSummary.mean,
+                  sd: accEx.rraccSummary.sd,
+                  highConfidencePct: accEx.rraccSummary.highPct,
+                  nEpochs30s: accEx.rraccSummary.nEpochs,
+                  method: 'chest-axis ACC magnitude → detrend → FFT dominant 0.15–0.45 Hz per 30-s epoch; resp-band SNR ≥ 3 dB = high-confidence',
+                  note: 'Independent of the ECG-derived EDR (see edrAgreement for cross-validation). Per-5-min values ride on timeseries.epochs[].accResp.'
+                }
+              : null,
+            edrAgreement: accEx.agreement
+              ? {
+                  pairedEpochs: accEx.agreement.n,
+                  pearsonR: accEx.agreement.r,
+                  mae: accEx.agreement.mae,
+                  meanDelta: accEx.agreement.meanDelta,
+                  sdDelta: accEx.agreement.sdDelta,
+                  limitsOfAgreement: accEx.agreement.loa,
+                  disagreementRatePct: accEx.agreement.disagreeRate,
+                  verdict:
+                    accEx.agreement.r >= 0.85 || (accEx.agreement.mae <= 1.5 && Math.abs(accEx.agreement.meanDelta) <= 1.5)
+                      ? 'strong'
+                      : accEx.agreement.r >= 0.65 || accEx.agreement.mae <= 3.0
+                        ? 'moderate'
+                        : 'poor',
+                  note: 'RRacc vs ECG-derived respiration (EDR), paired at the 5-min epoch cadence. Verdict is MAE/bias-aware (Bland–Altman) because a narrow EDR range deflates Pearson r.'
+                }
+              : null,
+            sleepStageConsensus: accEx.consensus
+              ? {
+                  consensusRatePct: accEx.consensus.rate,
+                  epochs: accEx.consensus.n,
+                  // §6.1 — the rate's denominator is epochs where the ACC actually voted; an
+                  // Ambiguous vote is an ABSTENTION and leaves both sides of the ratio.
+                  epochsVoted: accEx.consensus.nVoted,
+                  epochsAbstained: accEx.consensus.nAbstained,
+                  conflicts: accEx.consensus.nConflict,
+                  conflictEpochs: accEx.consensus.conflicts.map((c) => ({ tMin: c.tMin, hrvStage: c.hrv, accVote: c.vote, direction: c.dir })),
+                  method:
+                    'gross-motion vote (jerk mean|ΔVM|, normalised 0–100): Wake>20 / Ambiguous 5–20 / Sleep<5, cross-checked vs the HRV+EDR stage. Ambiguous is an ABSTENTION: it is excluded from both sides of consensusRatePct.',
+                  note: 'Conflicts may indicate PLMS, brief arousals without a sustained HR change, or sensor shift.'
+                }
+              : null,
+            gait: accEx.gait
+              ? accEx.gait.walking
+                ? {
+                    totalSteps: accEx.gait.totalSteps,
+                    bouts: accEx.gait.bouts.length,
+                    boutDetail: accEx.gait.bouts,
+                    activityZones: accEx.gait.zonePct,
+                    cadenceEpochs: accEx.gait.cadEpochs,
+                    method: 'De-gravitated vertical magnitude band-passed 0.5–3.5 Hz, adaptive-threshold peak detection (≥ 250 ms inter-step). Single chest sensor → no left/right asymmetry.'
+                  }
+                : {
+                    walking: false,
+                    /* `_gait` returns a number on both arms, so the old `|| 0` was dead and it read
+                       as an absence fabrication. The count passes through. NOT FIXED HERE, and
+                       reported in the PR body: `_gait`'s own `lowfs` arm returns `totalSteps: 0`
+                       when the sample rate cannot resolve the step band, which is a detector that
+                       could not look reporting a measured zero. */
+                    totalSteps: accEx.gait.totalSteps,
+                    reason:
+                      accEx.gait.reason === 'lowfs'
+                        ? 'ACC sample rate ' + accEx.gait.accFs + ' Hz < 7 Hz needed to resolve the 0.5–3.5 Hz step band'
+                        : 'fewer than 50 steps detected (sleep / still recording)'
+                  }
+              : null,
+            doc: 'Companion-accelerometer cross-checks computed in-node: independent respiratory rate, its agreement with ECG-derived respiration, sleep-stage motion consensus, and step/gait. ACC-derived, informational.'
+          }
+        : null,
+      timeseries: {
+        doc: 'Per-5-min-epoch aggregates — the primary cross-node feed. GlucoDex regresses epochRMSSD/epochHR for nocturnal autonomic-instability → IR-risk; epoch.qtc (when present, nearest 15-min windowed QTc) lets it line QTc up against overnight glucose.',
+        epochs: r.epochs.map((e) => {
+          const o = {
+            tMin: e.tMin,
+            beats: e.n,
+            hr: e.hr,
+            meanRR: e.meanRR,
+            rmssd: e.rmssd,
+            sdnn: e.sdnn,
+            pnn50: e.pnn,
+            lf: e.lf,
+            hf: e.hf,
+            lfhf: e.lfhf,
+            respRate: e.resp,
+            position: e.position || 'unknown'
+          };
+          if (r.morph && r.morph.qtcTrend) {
+            let best = null,
+              bd = 1e9;
+            for (const q of r.morph.qtcTrend) {
+              const dd = Math.abs(q.tMin - e.tMin);
+              if (dd < bd && dd <= 15) {
+                bd = dd;
+                best = q;
+              }
+            }
+            if (best) o.qtc = best.qtc;
+          }
+          const ar = accRespAt[e.tMin.toFixed(1)];
+          if (ar != null) o.accResp = ar;
+          return o;
+        }),
+        sleepStages: r.longRec && !r.ambulatory ? r.stages.map((s) => ({ tMin: s.tMin, stage: s.stage })) : null
+      },
+      ganglior_events: r.events.map((ev) => {
+        const { _sec, ...clean } = ev;
+        return clean;
+      }),
+      reserved: {
+        doc: 'Fields awaiting other fleet nodes/models; null until available.',
+        osaTransformerLabels: null,
+        osaTransformerRef: 'Almarshad 2026 Front.AI 9:1727091 (Phase 2 model)',
+        deltaSBP: null,
+        deltaSBPSource: 'BioZDex',
+        glucoseCorrelation: null,
+        glucoseSource: 'GlucoDex'
+      }
+    };
+    /* The index's DENOMINATOR travels with it (DEEP-AUDIT-VI F3) — mirrors ecgBuildNodeExport
+       field-for-field (SHARED-SHAPE mandate): `cvhrIndex` is events per hour of OBSERVED recording
+       (nnRes.activeSec), not of wall span. Attached only when the index was computed. */
+    if (out.apnea && out.apnea.cvhrIndex != null && r.cvhr && r.cvhr.denomSec > 0) out.apnea.cvhrHours = +(r.cvhr.denomSec / 3600).toFixed(2);
+    /* §∅ — A NULL INDEX TRAVELS WITH ITS REASON. The mirror-window exclusion refuses the index when a
+       dropout swallows most of the record's decision windows, and a bare `null` beside a `method`
+       string reads as "no CVHR cycle occurred". The ambulatory branch carries its own
+       `suppressed` flag, so this attaches only to the computed branch. */
+    if (out.apnea && !r.ambulatory && out.apnea.cvhrIndex == null && r.cvhr && r.cvhr.reason) out.apnea.cvhrReason = r.cvhr.reason;
+    return out;
+  }
+
+  /* ONE `generated` stamp for the series envelope. The app read `new Date().toISOString()` TWICE
+     here, so a call that crossed a millisecond boundary published two different stamps for one
+     file. One read cannot disagree with itself. */
+  function ecgBuildSeriesExport(list, opts) {
+    opts = opts || {};
+    const recs = Array.isArray(list) ? list : [];
+    if (recs.length === 0) return null;
+    const generated = opts.generated || new Date().toISOString();
+    return {
+      kernel: opts.kernel ? { version: opts.kernel.VERSION, hash: opts.kernel.HASH } : null,
+      schema: {
+        name: 'ganglior.node-export',
+        version: '2.0',
+        node: 'ECGDex',
+        nodeVersion: '1.1',
+        multiRecording: true,
+        generated,
+        provenance: opts.provenance !== undefined ? opts.provenance : null,
+        doc: 'Array of per-recording v2.0 envelopes (each element is Integrator-readable unchanged) + a crossNight aggregate header.'
+      },
+      generated,
+      recordingCount: recs.length,
+      crossNight: opts.crossNight !== undefined ? opts.crossNight : null,
+      recordings: recs.map((x) => ecgBuildSummaryExport(x, opts))
+    };
+  }
+
+  /* `_fsReadable` and `_accRespAt` lived in ecgdex-app.js, and each still has a render-path
+     caller. They move here beside the builder, and the app delegates: one road for each. */
+  function ecgFsReadable(fs) {
+    return Number.isFinite(fs) ? +fs.toFixed(2) : '—';
+  }
+
+  function ecgAccRespAt(accEx, epochs) {
+    const at = {};
+    if (accEx && accEx.rracc) {
+      (epochs || []).forEach((e) => {
+        const w = accEx.rracc.filter((x) => x.conf === 'high' && x.tStartMin >= e.tMin && x.tStartMin < e.tMin + 5).map((x) => x.rr);
+        if (w.length) {
+          w.sort((a, b) => a - b);
+          at[e.tMin.toFixed(1)] = +w[w.length >> 1].toFixed(1);
+        }
+      });
+    }
+    return at;
+  }
+
   global.ECGDSP = {
     genSynthetic,
     analyze,
@@ -43514,25 +44125,7 @@ __exports.PpgDex = window.PpgDex;
            reads `ppm` off whatever object it is handed, so a drawn column reaches `recording.timing`
            as an absence too. A measured axis hands over an identical copy. The comment sits OUT here
            because the suite's seam-count leg reads a 700-character window from the call below. */
-        timing:
-          typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock
-            ? DexExport.timingBlock({
-                hostAxis: _ecgPubAxis(r.hostAxis),
-                timingSource: r.hostAxis ? r.hostAxis.timingSource : null,
-                drawn: r.hostAxis ? r.hostAxis.deviceDrawn : null,
-                resyncs: r.clockResyncs || [],
-                // This node's seam instrument IS its counter-step detector, so the two counts are
-                // the same measurement. The node says so; the shared builder no longer assumes it.
-                seams: r.clockResyncs || [],
-                /* The rate, and the two fields that say what happened to it. This node's span and
-                   step gates can measure a `ppm` and decline to spend it, so `applied` is the field
-                   that separates a corrected rate from a declined one, and `reason` names the gate. */
-                rate: r.fs,
-                rateRaw: r.fsRaw,
-                rateApplied: r.hostAxis ? r.hostAxis.applied : null,
-                rateReason: r.hostAxis ? r.hostAxis.reason : null
-              })
-            : null
+        timing: ecgTimingBlock(r)
       },
       // roadmap §12 — per-instance lineage for the three headline HRV metrics (keyed by registry id); null
       // when no window can be placed. Present on BOTH the light and the rich export: lineage is not a
@@ -44065,7 +44658,16 @@ __exports.PpgDex = window.PpgDex;
     return typeof v === 'string' && v.length <= 40 && _SRC_TAG_RE.test(v);
   }
 
+  /* `compute` splits in two, so the RESULT object the app's export payload reads is reachable
+     headlessly. `ecgComputeResult` is the sibling of `PulseDex.computeResult`: without it no
+     committed fixture can reach `ecgBuildSummaryExport`, because only the app had an `r`. */
   function compute(input, opts) {
+    opts = opts || {};
+    const r = ecgComputeResult(input, opts);
+    return ecgBuildNodeExport(r, opts);
+  }
+
+  function ecgComputeResult(input, opts) {
     opts = opts || {};
     var rec;
     if (input && input.samples != null && input.samples.length != null && !Array.isArray(input.samples.ch)) {
@@ -44129,7 +44731,7 @@ __exports.PpgDex = window.PpgDex;
     if (opts.offsetMin != null && rec.offsetMin == null) rec.offsetMin = opts.offsetMin;
     var r = analyze(rec, null);
     if (r.offsetMin == null && rec.offsetMin != null) r.offsetMin = rec.offsetMin; // carry zone (analyze doesn't propagate it)
-    return ecgBuildNodeExport(r, opts);
+    return r;
   }
 
   global.ECGDSP.parseECG = parseECGText;
@@ -44163,7 +44765,12 @@ __exports.PpgDex = window.PpgDex;
   global.ECGDSP.epochEngine = epochEngine;
   global.ECGDSP.baevskyGeom = baevskyGeom; // FOLLOWUP-FINDINGS P4 — ONE source for both node-export builders (app buildV2 + orchestrate); pure, so the two are gateable against each other
   global.ECGDSP.compute = compute;
+  global.ECGDSP.computeResult = ecgComputeResult; // the `r` that `buildSummaryExport` reads — the fixture's only road to it
   global.ECGDSP.buildNodeExport = ecgBuildNodeExport;
+  global.ECGDSP.buildSummaryExport = ecgBuildSummaryExport; // the app's old `buildV2`, headless and fixture-backed
+  global.ECGDSP.buildSeriesExport = ecgBuildSeriesExport;
+  global.ECGDSP.fsReadable = ecgFsReadable;
+  global.ECGDSP.accRespAt = ecgAccRespAt;
   // ONE namespaced global (brief §1A). ECGDex leaks nothing bare (the whole DSP is in this
   // IIFE) → no __DEX_NAMESPACED__ suppression gate needed; this is an explicit named global,
   // collision-free in the co-load realm. Standalone bundles still read ECGDSP.
@@ -44233,7 +44840,10 @@ __exports.PpgDex = window.PpgDex;
     parseECGLines: parseECGLines,
     analyze: analyze,
     genSynthetic: genSynthetic,
+    computeResult: ecgComputeResult, // text|frame|rec → the `r` that buildSummaryExport reads
     buildNodeExport: ecgBuildNodeExport,
+    buildSummaryExport: ecgBuildSummaryExport, // the app's old `buildV2`
+    buildSeriesExport: ecgBuildSeriesExport,
     buildMeasurementBlocks: ecgBuildMeasurementBlocks, // roadmap §12 — the builder seam, so the plants can reach it
     _build: ecgBuildNodeExport,
     parseDeviceRR: parseDeviceRR,
