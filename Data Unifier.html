@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="bc0ab1436998" data-compute-hash="b811c6897626"><head>
+<html lang="en" data-manifest-hash="cc68764e8b46" data-compute-hash="acd1fc349172"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/VJg0iL4BTIOQo1MBGNaCyjASkthShp7aMZCanB9k3A=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-L95+f1CJkFsGZmJsXTzg1qxjuBQQkQLCtzLxyAOtSps=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-M3ZOhml+Q710BLZQ/P2i37xtADxczWQXIxaac3VLRj0=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SploFxN8y41QfXBKeMXZ3VVUDPeaXF7mfHd2/kuq43U=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XKQFrqQpPPC7kRB+couzlvLcdQFWKGseS/BbyN9tv9s=' 'sha256-cEe98Q/RvKZZgnEYYXS6pvDxdAWuSUD0sEyEu+yBRak=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nbCcwjX4Ba9w3RBLEB+5up9PRhrS11tY5toYvGccPHI=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rKOLZSmNqgk9sveMIZvZI2xTcv2C6V9ASMx59wAbxvU=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-wktj1Df+isZKJxu0wGtJ0pZLbTfqdObxwLCd2Fo+wQg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/VJg0iL4BTIOQo1MBGNaCyjASkthShp7aMZCanB9k3A=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6vRsd8wVQoTSJKZCJmwjUOk0mO0dhv4yfkPzZA204MI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-L95+f1CJkFsGZmJsXTzg1qxjuBQQkQLCtzLxyAOtSps=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-M3ZOhml+Q710BLZQ/P2i37xtADxczWQXIxaac3VLRj0=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SploFxN8y41QfXBKeMXZ3VVUDPeaXF7mfHd2/kuq43U=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XKQFrqQpPPC7kRB+couzlvLcdQFWKGseS/BbyN9tv9s=' 'sha256-gd9IuoPK0m0h+mwKmCjCmBpm6ebuTXqb8O27YnJNX04=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nbCcwjX4Ba9w3RBLEB+5up9PRhrS11tY5toYvGccPHI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rKOLZSmNqgk9sveMIZvZI2xTcv2C6V9ASMx59wAbxvU=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-wktj1Df+isZKJxu0wGtJ0pZLbTfqdObxwLCd2Fo+wQg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -1704,7 +1704,7 @@
         return { tMs: t, v: parsed.vMgdl[i] };
       });
 
-      return root.SignalFrame.toSignalFrame(
+      var frame = root.SignalFrame.toSignalFrame(
         'cgm',
         {
           samples: samples,
@@ -1722,6 +1722,11 @@
           warnings: []
         }
       );
+      /* `toSignalFrame` copies only the canonical fields, so these two ride on the frame it returns.
+         A Low/High reading has a stamp and no value, so it can never be a member of samples[]. */
+      frame.censored = parsed.censored;
+      frame.rowsDropped = parsed.rowsDropped;
+      return frame;
     }
   });
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
@@ -22830,6 +22835,19 @@ __exports.PulseDex = window.PulseDex;
     return NaN;
   }
 
+  /* ── ∅ `Low` AND `High` ARE READINGS ────────────────────────────────────────────────────────
+     A CGM writes the word instead of a number when glucose sits outside its measuring range. The
+     reading has a stamp and a direction and no value, so it is CENSORED, which is neither a number
+     nor an absence. The row parser dropped it as "not a number", and the grid then drew a line across
+     the hole: thirty minutes of `Low` became a gap, and the file read 0 % below range (residue U-5 of
+     the Muse hunt record, measured 2026-11-25 on `synthetic_glucodex_clarity_low.csv`). */
+  function _gCensorSide(cell) {
+    const w = String(cell == null ? '' : cell)
+      .trim()
+      .toLowerCase();
+    return w === 'low' || w === 'lo' ? 'low' : w === 'high' || w === 'hi' ? 'high' : null;
+  }
+
   function detectDelimiter(headerLine) {
     const counts = { ',': 0, ';': 0, '\t': 0 };
     for (const ch of headerLine) {
@@ -22875,6 +22893,7 @@ __exports.PulseDex = window.PulseDex;
         numHits = 0,
         intHits = 0,
         inBand = 0,
+        censHits = 0,
         total = 0;
       /* SERIAL-INTEGER DETECTION (DEEP-AUDIT-VI F6). Dexcom Clarity's first column is a row
          counter (Index = 1, 2, 3, …) whose values sit inside the [2, 600] "physiologic" band for
@@ -22894,6 +22913,7 @@ __exports.PulseDex = window.PulseDex;
         if (!cell) continue;
         total++;
         if (isFinite(parseTimestamp(cell)) && /[:\-/]/.test(cell) && cell.length >= 8) dateHits++;
+        if (_gCensorSide(cell)) censHits++;
         const num = _gNumCell(cell);
         if (isFinite(num)) {
           numHits++;
@@ -22909,7 +22929,8 @@ __exports.PulseDex = window.PulseDex;
       }
       if (total < 3) continue;
       if (dateHits / total > 0.6 && tsCol < 0) tsCol = c;
-      const serialCol = serial && numHits >= 5 && intHits === numHits;
+      // A counter never reads `Low`: a column with a censored cell is a measurement, however even its steps.
+      const serialCol = serial && numHits >= 5 && intHits === numHits && !censHits;
       if (serialCol) continue; // a row counter can be a fine tsCol tiebreak-loser, never the glucose
       /* Prefer the numeric column with the most physiologic in-band hits (not the date). A header
          cell naming glucose outranks band statistics (+1 exceeds the whole sc range): the vendor
@@ -22917,16 +22938,21 @@ __exports.PulseDex = window.PulseDex;
          but only a column that is still mostly numeric may claim the bonus, so a text column
          with a glucose-ish header cannot win. */
       const gHead = /gluco/i.test((headCells[c] || '').trim());
-      const sc = inBand / total - dateHits / total + (gHead ? 1 : 0);
-      if (numHits / total > 0.6 && sc > gScore) {
+      /* A `Low` or `High` cell is a reading (`_gCensorSide`), so it counts toward the share that makes
+         a column the glucose column: a file that opens on two hours of `Low` is still a CGM file, and
+         the 60 % bar over numbers alone refused it whole. Three numbers stay a floor, so a column of
+         alert words is never a series. */
+      const readHits = numHits + censHits;
+      const sc = (inBand + censHits) / total - dateHits / total + (gHead ? 1 : 0);
+      if (numHits >= 3 && readHits / total > 0.6 && sc > gScore) {
         gScore = sc;
         gCol = c;
       }
     }
     /* ABSENCE IS NULL (CLAUDE.md §∅). These two lines used to read `if (tsCol < 0) tsCol = 0;` and
        `if (gCol < 0) gCol = 1;` - an absence answered with a column INDEX. When no column cleared the
-       60 % numeric bar the parser read column 1 as glucose. On a Clarity-shaped export whose glucose
-       cells mostly read 'Low'/'High' (35 % numeric in the probe) column 1 is the TIMESTAMP, so every
+       60 % bar the parser read column 1 as glucose. On a Clarity-shaped export whose glucose
+       cells mostly held words (35 % numeric in the probe) column 1 is the TIMESTAMP, so every
        reading parsed to the year and the analysis published a mean of 2026 mg/dL over 60 readings
        (measured 2026-11-17). A column pick has no sensible default: either the file names the column
        or this parser cannot read the file. Name the absence and let the caller refuse.
@@ -22952,10 +22978,10 @@ __exports.PulseDex = window.PulseDex;
         colReason === 'too-few-rows-to-locate-columns'
           ? 'GlucoDex needs at least 3 rows to decide which column is which'
           : colReason === 'glucose-column-not-found'
-            ? 'no column holds mostly numeric readings'
+            ? 'no column holds mostly glucose readings'
             : colReason === 'timestamp-column-not-found'
               ? 'no column holds mostly readable timestamps'
-              : 'no column holds mostly numeric readings, and none holds mostly readable timestamps';
+              : 'no column holds mostly glucose readings, and none holds mostly readable timestamps';
       const err = /** @type {Error & { reason?: string }} */ (
         new Error(
           'This export names no timestamp + glucose column pair GlucoDex can read: ' + why + '. GlucoDex refuses the file rather than read another column as glucose (reason: ' + colReason + ').'
@@ -22976,20 +23002,40 @@ __exports.PulseDex = window.PulseDex;
     const tsOpts = { preferDMY: dmyOrder.dmy, dmyLocked: dmyOrder.locked };
 
     const T = [],
-      V = [];
+      V = [],
+      censored = /** @type {{ tMs: number, side: string }[]} */ ([]);
+    /* `rowsDropped` counts what this parser read and could not use: a glucose cell that holds text
+       other than Low/High, and a reading whose stamp it cannot place. An EMPTY glucose cell is a
+       different row type (a meal or insulin event), so it is not counted, and neither is the text
+       above the first reading, which is the header block. */
+    const rowsDropped = { value: 0, stamp: 0 };
+    let started = false;
     for (const line of nonEmpty) {
       const cells = line.split(delim);
       if (gCol >= cells.length) continue;
       const gRaw = (cells[gCol] || '').trim().replace(/^["']|["']$/g, '');
       const g = _gNumCell(gRaw);
-      if (!isFinite(g)) continue; // header / non-numeric / a cell that is not a number at all
+      const side = _gCensorSide(gRaw);
+      if (!isFinite(g) && !side) {
+        if (started && gRaw) rowsDropped.value++;
+        continue; // header / non-numeric / a cell that is not a number at all
+      }
       const tRaw = (cells[tsCol] || '').trim();
       const tParsed = _ckParse(tRaw, tsOpts); // file-locked order (not the per-row parseTimestamp default)
       const ms = tParsed ? tParsed.tMs : NaN;
-      if (!isFinite(ms)) continue; // need a timestamp to place the sample
+      if (!isFinite(ms)) {
+        rowsDropped.stamp++;
+        continue; // need a timestamp to place the sample
+      }
+      started = true;
+      if (side) {
+        censored.push({ tMs: ms, side });
+        continue;
+      }
       T.push(ms);
       V.push(g);
     }
+    censored.sort((a, b) => a.tMs - b.tMs);
     if (T.length < 10) throw new Error('Parsed only ' + T.length + ' valid readings — is this a CGM CSV with a timestamp + glucose column?');
 
     // sort by time (vendors sometimes export newest-first)
@@ -23006,7 +23052,7 @@ __exports.PulseDex = window.PulseDex;
       vals = Vs.map((v) => v * MGDL_PER_MMOL);
     } // normalise everything to mg/dL internally
 
-    return { tMs: Ts, vMgdl: vals, unit, t0Ms: Ts[0] };
+    return { tMs: Ts, vMgdl: vals, unit, t0Ms: censored.length ? Math.min(Ts[0], censored[0].tMs) : Ts[0], censored, rowsDropped };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -23018,7 +23064,10 @@ __exports.PulseDex = window.PulseDex;
    Both used to carry FLAG.GAP, and analyzableIndex filtered neither — so a routine 14 h sensor-change gap
    was interpolated straight into TIR/GMI/CV/MAGE, the validated-tier headline KPIs (TIR read 11 % where
    the truth was 0 %). The distinction is the fix; the code's own comment already claimed it existed. */
-  const FLAG = { OK: 0, WARMUP: 1, GAP: 2, COMPRESSION: 3, GAP_LONG: 4 };
+  /* BELOW / ABOVE — the sensor reported, and the value is outside its range (`_gCensorSide`). The cell
+     counts as sensor-active time and as time below / above range. It carries NO value: `gV` is NaN, so
+     no mean, SD, percentile or trace can read one. */
+  const FLAG = { OK: 0, WARMUP: 1, GAP: 2, COMPRESSION: 3, GAP_LONG: 4, BELOW: 5, ABOVE: 6 };
 
   // ── disambiguate a genuine sharp nocturnal hypo from a positional (compression) artifact ──
   // GLUCODEX-HYPO-DISAMBIG (June 2026): the compression-rejection pass used to eat true sharp
@@ -23063,6 +23112,7 @@ __exports.PulseDex = window.PulseDex;
 
   function clean(parsed, progress) {
     const { tMs, vMgdl, unit, t0Ms } = parsed;
+    const cens = /** @type {{ tMs: number, side: string }[]} */ (Array.isArray(parsed.censored) ? parsed.censored : []);
     progress && progress(20, 'Detecting cadence & cleaning…');
     const n = tMs.length;
     // cadence = median dt (minutes)
@@ -23094,10 +23144,13 @@ __exports.PulseDex = window.PulseDex;
     // Build a uniform timeline at `cadence` so AGP/MODD/CONGA are well-defined.
     // We resample onto a regular grid by nearest-with-interpolation; flag interpolated cells.
     const stepMs = step * 60000;
-    const spanMs = tMs[n - 1] - tMs[0];
+    // A Low/High run at either end of the file is inside the record, so the grid spans it.
+    const gridT0 = cens.length ? Math.min(tMs[0], cens[0].tMs) : tMs[0];
+    const gridT1 = cens.length ? Math.max(tMs[n - 1], cens[cens.length - 1].tMs) : tMs[n - 1];
+    const spanMs = gridT1 - gridT0;
     /* DEEP-AUDIT-II §5.1 — the CAP is a memory ceiling; the SILENCE was the defect.
        `Math.min(200000, …)` truncates the uniform grid, and the pointer walk below then fills only N
-       cells — so every reading past `tMs[0] + N·stepMs` is dropped, with no counter, no flag, no
+       cells — so every reading past `gridT0 + N·stepMs` is dropped, with no counter, no flag, no
        field and no throw. Downstream (AGP / MODD / CONGA / sessions / events) sees a shorter record
        and reports it as though complete. Latent on the 5-min corpus (200 000 × 5 min ≈ 694 days),
        live at 1-min cadence (≈139 days) or on a dense multi-sensor merge.
@@ -23113,9 +23166,10 @@ __exports.PulseDex = window.PulseDex;
       gF = new Int8Array(N);
 
     // pointer walk through raw samples
-    let j = 0;
+    let j = 0,
+      cj = 0;
     for (let i = 0; i < N; i++) {
-      const t = tMs[0] + i * stepMs;
+      const t = gridT0 + i * stepMs;
       gT[i] = t;
       while (j < n - 1 && tMs[j + 1] <= t) j++;
       // nearest raw on each side
@@ -23124,8 +23178,10 @@ __exports.PulseDex = window.PulseDex;
       const k = Math.min(n - 1, j + 1);
       const tR = tMs[k],
         vR = vMgdl[k];
-      const gapL = (t - tL) / 60000,
-        gapR = (tR - t) / 60000;
+      // |Δ|, because a cell in a Low/High run before the first or after the last reading has no
+      // reading on one side, and a signed difference there is negative and reads as "nearest".
+      const gapL = Math.abs(t - tL) / 60000,
+        gapR = Math.abs(tR - t) / 60000;
       if (Math.min(gapL, gapR) <= step * 0.75) {
         gV[i] = gapL <= gapR ? vL : vR; // snap to the real reading
         gF[i] = FLAG.OK;
@@ -23136,9 +23192,18 @@ __exports.PulseDex = window.PulseDex;
       } else {
         // long gap — carry the interpolation (the chart still needs a line) but mark it GAP_LONG so it is
         // excluded from every distribution metric. These cells are drawn, never measured.
-        const f = tR > tL ? (t - tL) / (tR - tL) : 0;
+        const f = tR > tL && t > tL ? (t - tL) / (tR - tL) : 0;
         gV[i] = tR > tL ? vL + (vR - vL) * f : vL;
         gF[i] = FLAG.GAP_LONG;
+      }
+      // a censored reading that is nearer to this cell than every numeric one owns the cell
+      if (cens.length) {
+        while (cj < cens.length - 1 && Math.abs(cens[cj + 1].tMs - t) <= Math.abs(cens[cj].tMs - t)) cj++;
+        const dC = Math.abs(cens[cj].tMs - t) / 60000;
+        if (dC <= step * 0.75 && dC < Math.min(gapL, gapR)) {
+          gV[i] = NaN;
+          gF[i] = cens[cj].side === 'low' ? FLAG.BELOW : FLAG.ABOVE;
+        }
       }
     }
 
@@ -23205,14 +23270,17 @@ __exports.PulseDex = window.PulseDex;
       while (i < N) {
         if (gF[i] === FLAG.OK && isNight(gT[i]) && gV[i] < dipCeil) {
           let j = i,
-            lo = gV[i];
-          while (j < N && gV[j] < shoulderFloor && isNight(gT[j])) {
-            lo = Math.min(lo, gV[j]);
+            lo = gV[i],
+            sawBelow = false;
+          while (j < N && (gF[j] === FLAG.BELOW || gV[j] < shoulderFloor) && isNight(gT[j])) {
+            if (gF[j] === FLAG.BELOW) sawBelow = true;
+            else lo = Math.min(lo, gV[j]);
             j++;
           }
           const runLen = j - i,
             runMin = runLen * step;
-          if (runLen >= minRun && runMin <= 150) {
+          // a dip that leaves the sensor range has no nadir, so this test cannot run on it
+          if (!sawBelow && runLen >= minRun && runMin <= 150) {
             const before = medOf(i - ctxW, i),
               after = medOf(j, j + ctxW);
             // both shoulders solidly above baseline and the dip deep & fast-recovering on BOTH sides…
@@ -23244,10 +23312,14 @@ __exports.PulseDex = window.PulseDex;
     if (run >= 2) nGaps++;
 
     let warmupCells = 0,
-      compCells = 0;
+      compCells = 0,
+      belowCells = 0,
+      aboveCells = 0;
     for (let i = 0; i < N; i++) {
       if (gF[i] === FLAG.WARMUP) warmupCells++;
       else if (gF[i] === FLAG.COMPRESSION) compCells++;
+      else if (gF[i] === FLAG.BELOW) belowCells++;
+      else if (gF[i] === FLAG.ABOVE) aboveCells++;
     }
 
     const activeCells = N - gapCells - warmupCells;
@@ -23274,6 +23346,9 @@ __exports.PulseDex = window.PulseDex;
       gapMin: cadence == null ? null : Math.round(gapCells * cadence),
       warmupMin: cadence == null ? null : Math.round(warmupCells * cadence),
       compMin: cadence == null ? null : Math.round(compCells * cadence),
+      // null when the producer of this frame never looked for Low/High cells; 0 when it looked and found none
+      belowCells: Array.isArray(parsed.censored) ? belowCells : null,
+      aboveCells: Array.isArray(parsed.censored) ? aboveCells : null,
       nGaps,
       pctActive,
       nRaw: n,
@@ -23294,7 +23369,21 @@ __exports.PulseDex = window.PulseDex;
   // agp/perDay) through this one predicate, so the "excluded from every distribution metric" promise is real.
   function _ana(c, i) {
     const f = c.gF[i];
-    return f !== c.FLAG.WARMUP && f !== c.FLAG.COMPRESSION && f !== c.FLAG.GAP_LONG;
+    return f !== c.FLAG.WARMUP && f !== c.FLAG.COMPRESSION && f !== c.FLAG.GAP_LONG && f !== c.FLAG.BELOW && f !== c.FLAG.ABOVE;
+  }
+
+  // The censored cells among `cells` (a list of grid indices, or the whole grid). They carry no value, so
+  // they enter the time-in-range counts and nothing else.
+  function _censoredIn(c, cells) {
+    let below = 0,
+      above = 0;
+    const n = cells ? cells.length : c.N;
+    for (let k = 0; k < n; k++) {
+      const f = c.gF[cells ? cells[k] : k];
+      if (f === c.FLAG.BELOW) below++;
+      else if (f === c.FLAG.ABOVE) above++;
+    }
+    return { below, above };
   }
 
   function analyzableIndex(c) {
@@ -23474,12 +23563,19 @@ __exports.PulseDex = window.PulseDex;
   // ════════════════════════════════════════════════════════════════════════
   const TIR_CUT = { vlow: 54, low: 70, high: 180, vhigh: 250 }; // mg/dL consensus 2019
 
-  function coreMetrics(vals) {
+  function coreMetrics(vals, outOfRange) {
     /* §∅ — the panel is computed over MEASURED readings only. The old body fed every entry to the
        TIR loop (`null < 54` is true, so ten nulls read as 100 % time below range) and divided by
        `vals.length || 1`, so zero readings published GMI 3.3 and eHbA1c 1.6 over n 1. A non-finite
        entry is now dropped and counted in `nAbsent`; zero readings return a null panel with its
        reason, and the spread needs two readings. */
+    /* `outOfRange` = { below, above }: the cells where the sensor read Low / High. Each one is a known
+       time below 54 or above 250 mg/dL, because no CGM's range ends inside those cuts, so the
+       time-in-range split counts them. Every value statistic stays over the numeric readings, and the
+       two that a censored cell makes unknowable read null: `min` under a Low, `max` under a High. */
+    const oor = /** @type {any} */ (outOfRange);
+    const nBelow = oor && oor.below > 0 ? oor.below : 0,
+      nAbove = oor && oor.above > 0 ? oor.above : 0;
     const all = vals || [];
     const meas = [];
     for (let i = 0; i < all.length; i++) {
@@ -23504,6 +23600,9 @@ __exports.PulseDex = window.PulseDex;
         tir: { tbr2: null, tbr1: null, tir: null, tar1: null, tar2: null },
         tirN: { tbr2: 0, tbr1: 0, tir: 0, tar1: 0, tar2: 0 },
         n: 0,
+        nTir: 0,
+        nBelow,
+        nAbove,
         nAbsent,
         reason: 'no-readings'
       };
@@ -23530,8 +23629,11 @@ __exports.PulseDex = window.PulseDex;
     for (const g of vals) {
       if (g >= 70 && g <= 140) tight++;
     } // Time in Tight Range (2023 consensus addition)
-    const n = vals.length;
-    const pct = (x) => +((x / n) * 100).toFixed(1);
+    tbr2 += nBelow;
+    tar2 += nAbove;
+    const n = vals.length,
+      nTir = n + nBelow + nAbove;
+    const pct = (x) => +((x / nTir) * 100).toFixed(1);
     const sorted = [...vals].sort((a, b) => a - b);
     return {
       mean: round(m, 0),
@@ -23540,8 +23642,8 @@ __exports.PulseDex = window.PulseDex;
       gmi: round(gmi, 1),
       ea1c: round(ea1c, 1),
       titr: pct(tight),
-      min: round(sorted[0], 0),
-      max: round(sorted[sorted.length - 1], 0),
+      min: nBelow ? null : round(sorted[0], 0),
+      max: nAbove ? null : round(sorted[sorted.length - 1], 0),
       p10: round(quantile(sorted, 0.1), 0),
       p25: round(quantile(sorted, 0.25), 0),
       median: round(quantile(sorted, 0.5), 0),
@@ -23550,6 +23652,9 @@ __exports.PulseDex = window.PulseDex;
       tir: { tbr2: pct(tbr2), tbr1: pct(tbr1), tir: pct(tir), tar1: pct(tar1), tar2: pct(tar2) },
       tirN: { tbr2, tbr1, tir, tar1, tar2 },
       n,
+      nTir,
+      nBelow,
+      nAbove,
       nAbsent,
       reason: null
     };
@@ -23845,10 +23950,15 @@ __exports.PulseDex = window.PulseDex;
     const deltas = [];
     for (const [k, cells] of days) {
       let nadir = Infinity,
-        pre = [];
+        pre = [],
+        sawLow = false,
+        sawHigh = false;
       for (const i of cells) {
-        if (!_ana(c, i)) continue;
         const h = hourOf(c.gT[i]);
+        // a Low in the nadir window or a High in the peak window makes `delta` a floor
+        if (c.gF[i] === c.FLAG.BELOW && h >= 3 && h < 6) sawLow = true;
+        if (c.gF[i] === c.FLAG.ABOVE && h >= 6 && h < 8) sawHigh = true;
+        if (!_ana(c, i)) continue;
         if (h >= 3 && h < 6) nadir = Math.min(nadir, c.gV[i]);
         else if (h >= 6 && h < 8) pre.push(c.gV[i]);
       }
@@ -23856,8 +23966,8 @@ __exports.PulseDex = window.PulseDex;
         const preMean = mean(pre);
         deltas.push({
           day: k,
-          nadir: Math.round(nadir),
-          pre: Math.round(preMean),
+          nadir: sawLow ? null : Math.round(nadir), // the nadir is below every reading when one was Low
+          pre: sawHigh ? null : Math.round(preMean),
           delta: Math.round(preMean - nadir),
           atMs:
             cells.find((i) => {
@@ -23890,24 +24000,83 @@ __exports.PulseDex = window.PulseDex;
 
   // Nocturnal hypo: 00:00–06:00 runs ≥15 min < 70 mg/dL
   function nocturnalHypo(c) {
+    // §∅ — an episode is ≥15 min. With no measured rate, 15/null was Infinity and no run qualified,
+    // so the app published 0 episodes over a night that holds lows.
+    if (c.cadence == null) return null;
     const minCells = Math.max(2, Math.round(15 / c.cadence));
     const eps = [];
     let run = /** @type {any} */ (null);
+    // `min` is null when the episode left the sensor range: its nadir is below every reading it holds
+    const flush = () => {
+      if (!run || run.e - run.s + 1 < minCells) return;
+      eps.push({ startMs: c.gT[run.s], endMs: c.gT[run.e], min: run.below ? null : Math.round(run.min), durMin: Math.round((run.e - run.s + 1) * c.cadence), belowRange: run.below });
+    };
     for (let i = 0; i < c.N; i++) {
       const h = hourOf(c.gT[i]);
       const night = h < 6;
-      const lo = _ana(c, i) && c.gV[i] < 70;
+      // a Low cell is below the sensor range, so it is below 70 and it has no value to take a minimum over
+      const below = c.gF[i] === c.FLAG.BELOW;
+      const lo = below || (_ana(c, i) && c.gV[i] < 70);
       if (night && lo) {
-        if (!run) run = { s: i, min: c.gV[i] };
-        run.min = Math.min(run.min, c.gV[i]);
+        if (!run) run = { s: i, min: Infinity, below: false };
+        if (below) run.below = true;
+        else run.min = Math.min(run.min, c.gV[i]);
         run.e = i;
       } else {
-        if (run && run.e - run.s + 1 >= minCells) eps.push({ startMs: c.gT[run.s], endMs: c.gT[run.e], min: Math.round(run.min), durMin: Math.round((run.e - run.s + 1) * c.cadence) });
+        flush();
         run = null;
       }
     }
-    if (run && run.e - run.s + 1 >= minCells) eps.push({ startMs: c.gT[run.s], endMs: c.gT[run.e], min: Math.round(run.min), durMin: Math.round((run.e - run.s + 1) * c.cadence) });
+    flush();
     return eps;
+  }
+
+  // ─── hypo⟷QTc: the app reads a prolonged QTc beside the night's lows ───
+  //     `hypos` is null when the rate was refused: no episode was looked for, so nothing is clear.
+  function hypoQtcRead(hypos, qtc, qtcBorderline, qtcLong, sex) {
+    const qtcProlonged = qtc != null && qtc > qtcBorderline;
+    const nNocturnalHypo = hypos ? hypos.length : null;
+    // an episode that left the sensor range has no nadir, so the night has no minimum either
+    const minNightGlucose = hypos && hypos.length && hypos.every((h) => h.min != null) ? Math.min(...hypos.map((h) => h.min)) : null;
+    let hypoQtcRisk = 'none',
+      hypoQtcNote = /** @type {string|null} */ (null);
+    if (qtc != null) {
+      if (nNocturnalHypo > 0 && qtcProlonged) {
+        hypoQtcRisk = 'elevated';
+        hypoQtcNote =
+          'Nocturnal hypoglycemia (' +
+          nNocturnalHypo +
+          ' episode' +
+          (nNocturnalHypo > 1 ? 's' : '') +
+          (minNightGlucose == null ? ', nadir below the sensor range' : ', nadir ' + minNightGlucose + ' mg/dL') +
+          ') coincides with a prolonged QTc (' +
+          qtc +
+          ' ms). Hypoglycemia is a recognised QTc-prolonging trigger — this same-night coincidence is the arrhythmic-risk pattern behind "dead-in-bed". Directional, single-lead — confirm with a clinician/12-lead.';
+      } else if (qtcProlonged) {
+        hypoQtcRisk = 'qtc-only';
+        hypoQtcNote =
+          'QTc ' +
+          qtc +
+          ' ms is ' +
+          (qtc > qtcLong ? 'prolonged' : 'borderline') +
+          ' (threshold ' +
+          qtcBorderline +
+          ' ms for ' +
+          (sex === 'F' ? 'F' : 'M') +
+          (nNocturnalHypo == null ? ') and the nocturnal hypos could not be counted (no measured cadence)' : ') but no nocturnal hypos were measured this period') +
+          ' — repolarisation watch, not a glucose-linked flag.';
+      } else if (nNocturnalHypo > 0) {
+        hypoQtcRisk = 'hypo-only';
+        hypoQtcNote =
+          'Nocturnal hypos present but QTc (' + qtc + ' ms) is within range — no repolarisation amplification seen on this (possibly different) night. Keep aligned-night data to watch the pair.';
+      } else if (nNocturnalHypo == null) {
+        hypoQtcNote = 'QTc ' + qtc + ' ms within range. The nocturnal hypos could not be counted (no measured cadence), so the hypo⟷QTc pattern is not assessed.';
+      } else {
+        hypoQtcRisk = 'clear';
+        hypoQtcNote = 'QTc ' + qtc + ' ms within range and no nocturnal hypos — the hypo⟷QTc arrhythmic pattern is absent.';
+      }
+    }
+    return { nNocturnalHypo, minNightGlucose, hypoQtcRisk, hypoQtcNote };
   }
 
   // ─── daypart variability (CV by time-of-day) — mirrors Lingo's overnight/morning/
@@ -23937,6 +24106,8 @@ __exports.PulseDex = window.PulseDex;
 
   // Unannotated excursions: rapid sustained rises (no meal markers in v1) → excursion events
   function excursions(c, meals) {
+    // §∅ — a rise is judged per minute, so no measured rate means no verdict, not zero excursions
+    if (c.cadence == null) return null;
     // slope over ~15 min; a rise of ≥ ~45 mg/dL peak-over-trough with rate ≥ 1.0 mg/dL/min
     const w = Math.max(1, Math.round(15 / c.cadence));
     const evs = [];
@@ -23967,11 +24138,15 @@ __exports.PulseDex = window.PulseDex;
       const trough = c.gV[i];
       const maxAhead = Math.min(c.N - 1, i + Math.round(180 / c.cadence));
       let peak = trough,
-        peakI = i;
+        peakI = i,
+        hitAbove = false;
       for (let k = i; k <= maxAhead; k++) {
         // §∅ — a non-analysable cell (a GAP_LONG interpolation, warm-up or compression) ends the
         // window: the old scan read the drawn line across a long gap and could publish its peak.
-        if (!_ana(c, k)) break;
+        if (!_ana(c, k)) {
+          hitAbove = c.gF[k] === c.FLAG.ABOVE; // the rise left the sensor range, so `peak` is a floor
+          break;
+        }
         if (c.gV[k] > peak) {
           peak = c.gV[k];
           peakI = k;
@@ -24001,6 +24176,7 @@ __exports.PulseDex = window.PulseDex;
           trough: Math.round(trough),
           peak: Math.round(peak),
           rise: Math.round(rise),
+          peakAboveRange: hitAbove,
           rateMgMin: +onRate.toFixed(2),
           durMin: Math.round(onDurMin),
           meal: meal ? meal.label : null,
@@ -24051,7 +24227,7 @@ __exports.PulseDex = window.PulseDex;
         if (_ana(c, i)) vals.push(c.gV[i]);
       }
       if (vals.length < 6) continue;
-      const cm = coreMetrics(vals);
+      const cm = coreMetrics(vals, _censoredIn(c, cells));
       // §∅ — the day's count is its MEASURED readings; a day of fewer than 6 is skipped as before.
       const { tbr1, tbr2, tar1, tar2 } = cm.tir;
       if (cm.n < 6 || tbr1 == null || tbr2 == null || tar1 == null || tar2 == null) continue;
@@ -24059,6 +24235,8 @@ __exports.PulseDex = window.PulseDex;
         day: k,
         startMs: c.gT[cells[0]],
         n: cm.n,
+        nBelow: cm.nBelow,
+        nAbove: cm.nAbove,
         mean: cm.mean,
         cv: cm.cv,
         tir: cm.tir.tir,
@@ -24100,17 +24278,24 @@ __exports.PulseDex = window.PulseDex;
       }
     }
     // nocturnal hypos (high priority)
-    for (const h of r.nocturnalHypo)
-      ev.push({ t: hhmm(h.startMs), tMs: h.startMs, impulse: 'nocturnal_hypo', node: 'GlucoDex', conf: +Math.min(0.97, conf + 0.1).toFixed(2), meta: { minMgdl: h.min, durMin: h.durMin } });
+    for (const h of r.nocturnalHypo || [])
+      ev.push({
+        t: hhmm(h.startMs),
+        tMs: h.startMs,
+        impulse: 'nocturnal_hypo',
+        node: 'GlucoDex',
+        conf: +Math.min(0.97, conf + 0.1).toFixed(2),
+        meta: h.belowRange ? { minMgdl: null, durMin: h.durMin, belowSensorRange: true } : { minMgdl: h.min, durMin: h.durMin }
+      });
     // excursions
-    for (const e of r.excursions)
+    for (const e of r.excursions || [])
       ev.push({
         t: hhmm(e.startMs),
         tMs: e.startMs,
         impulse: 'glucose_excursion',
         node: 'GlucoDex',
         conf,
-        meta: { riseMgdl: e.rise, rateMgMin: e.rateMgMin, peak: e.peak, meal: e.meal || 'unannotated' }
+        meta: Object.assign({ riseMgdl: e.rise, rateMgMin: e.rateMgMin, peak: e.peak, meal: e.meal || 'unannotated' }, e.peakAboveRange ? { peakAboveRange: true } : {})
       });
     // sort by absolute floating ms (Clock Contract §6); falls back to clock string
     ev.sort((a, b) => (a.tMs != null && b.tMs != null ? a.tMs - b.tMs : a.t < b.t ? -1 : 1));
@@ -24244,9 +24429,9 @@ __exports.PulseDex = window.PulseDex;
      each surviving reading is still a measured one, and the gap it leaves is already described by
      `coverage.segments`. `analyze` refuses below six analyzable readings, so an all-absent frame
      now throws where it used to publish a fabricated zero.
-     `parseCSV` never carried the defect: it drops a non-numeric glucose cell (:396) and a stamp it
-     cannot place (:401). It counts neither, so a CSV-fed `nAbsentIn` of 0 says this function found
-     every member finite — never that the file held no absence. */
+     `parseCSV` never carried the defect: it drops a non-numeric glucose cell and a stamp it cannot
+     place, and counts both in `rowsDropped`. A CSV-fed `nAbsentIn` of 0 says this function found every
+     member finite — never that the file held no absence. */
   function _gdDropAbsent(frame) {
     const tIn = frame && Array.isArray(frame.tMs) ? frame.tMs : null;
     const vIn = frame && Array.isArray(frame.vMgdl) ? frame.vMgdl : null;
@@ -24304,7 +24489,7 @@ __exports.PulseDex = window.PulseDex;
     // RAW means pre-CLEANING (warm-up, gaps, compression), not pre-absence: an absent reading is not
     // at the clip rail, and `Math.min` over a null reads 0, which is a floor no sensor reported.
     const clampSat = detectClampSaturation(frame.vMgdl);
-    const core = coreMetrics(ana.vals);
+    const core = coreMetrics(ana.vals, _censoredIn(c, null));
     progress && progress(60, 'Variability suite…');
     const vari = variability(c, ana, core);
     const daypart = daypartVariability(c, core.cv);
@@ -24354,6 +24539,17 @@ __exports.PulseDex = window.PulseDex;
          which is a frame that is not two parallel arrays. See `_gdDropAbsent` for why a CSV-fed 0
          does not describe the file. */
       nAbsentIn: _ab.nAbsentIn,
+      // null when the frame came from a producer that does not count rows (only `parseCSV` does)
+      rowsDropped: frame.rowsDropped || null,
+      outOfRange:
+        c.belowCells == null || c.aboveCells == null
+          ? null
+          : {
+              below: c.belowCells,
+              above: c.aboveCells,
+              belowMin: c.cadence == null ? null : Math.round(c.belowCells * c.cadence),
+              aboveMin: c.cadence == null ? null : Math.round(c.aboveCells * c.cadence)
+            },
       clampSat,
       tier: t.tier,
       tierLabel: t.label,
@@ -24765,7 +24961,8 @@ __exports.PulseDex = window.PulseDex;
     var out = [];
     for (var i = 0; i < series.N; i++) {
       if (series.gF[i] === W) continue; // warm-up garbage; keep OK/GAP/COMPRESSION/GAP_LONG
-      out.push({ tMs: series.gT[i], v: Math.round(series.gV[i]), f: series.gF[i] });
+      // a Low/High cell has no value: NaN is its in-memory form and null its exported one (§∅)
+      out.push({ tMs: series.gT[i], v: isFinite(series.gV[i]) ? Math.round(series.gV[i]) : null, f: series.gF[i] });
     }
     return out;
   }
@@ -24836,6 +25033,11 @@ __exports.PulseDex = window.PulseDex;
         gapMin: r.gapMin,
         warmupMinSuppressed: r.warmupMin,
         compressionLowMin: r.compMin,
+        // the same two facts `glucoBuildNodeExport` carries on `recording`; null = the producer never looked
+        outOfRange: r.outOfRange || null,
+        rowsDropped: r.rowsDropped || null,
+        outOfRangeNote:
+          'Low / High cells, where the sensor reported a glucose outside its measuring range. They count as active time and as time below 54 / above 250 mg/dL, and they carry no value: min is null under a Low and max is null under a High, and mean, SD, CV and GMI are over the numeric readings alone. LBGI, HBGI, ADRR and the dawn rise are floors when a Low or a High sits in their window.',
         dataQualityConfidence: r.dataQualityConf,
         dataQualityLabel: r.dqLabel,
         sensorSessions: (r.sessions || []).map((s) => ({ idx: s.idx, startEpochMs: s.startMs, days: s.days, median: s.median, mean: s.mean, driftMgdlPerDay: s.driftPerDay })),
@@ -25078,7 +25280,7 @@ __exports.PulseDex = window.PulseDex;
         // sibling-divergence class the audit that added it exists to fix. Single-sourced in the DSP.
         cells: glucoCells(r.series),
         cellsNote:
-          'ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms (NOT reconstructed from a string); v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG). A consumer computing glucose statistics MUST exclude 3 and 4: flag 4 is a long gap (sensor change / dropout) where the value is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count. Native cadence — no downsampling.',
+          'ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms (NOT reconstructed from a string); v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG · 5 Low, below the sensor range · 6 High, above it). A consumer computing glucose statistics MUST exclude 3 and 4: flag 4 is a long gap (sensor change / dropout) where the value is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count. Flags 5 and 6 carry v null: the time is measured and the value is not. Native cadence — no downsampling.',
         agpHourly: r.hourly,
         perDay: r.daily
       },
@@ -25176,6 +25378,10 @@ __exports.PulseDex = window.PulseDex;
         events: events.length,
         // §∅ — the absence the input carried, beside the coverage below. `null` = not examined.
         nAbsentIn: r.nAbsentIn != null ? r.nAbsentIn : null,
+        // rows the CSV parser read and could not use; null when this frame did not come from it
+        rowsDropped: r.rowsDropped || null,
+        // Low / High cells: below / above the sensor range, with no value. null = the producer never looked.
+        outOfRange: r.outOfRange || null,
         /* §F1.1 — CONTINUOUS coverage, the sibling of HRVDex's sparse block (§6.2). GlucoDex declared no
            duration key `adaptEnvelopeNode` reads, so a well-controlled ZERO-EVENT CGM record collapsed to
            a point at t0Ms — the healthiest record was the one that dropped out of fusion.
@@ -25290,7 +25496,7 @@ __exports.PulseDex = window.PulseDex;
           unit: 'mg/dL',
           cells: _cells,
           cellsNote:
-            'ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms; v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG). A consumer computing glucose statistics MUST exclude 3 and 4 — flag 4 is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count.'
+            'ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms; v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG · 5 Low, below the sensor range · 6 High, above it). A consumer computing glucose statistics MUST exclude 3 and 4 — flag 4 is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count. Flags 5 and 6 carry v null: the time is measured and the value is not.'
         };
       })(),
       /* ── CROSS-DAY TREND (ganglior.crossnight v1.0) ─────────────────────────────────────────
@@ -25366,7 +25572,10 @@ __exports.PulseDex = window.PulseDex;
           return s && typeof s.v === 'number' ? s.v : NaN;
         }),
         unit: input.unit || 'mg/dL',
-        t0Ms: input.t0Ms != null ? input.t0Ms : _t0
+        t0Ms: input.t0Ms != null ? input.t0Ms : _t0,
+        // §∅ — the Low/High readings and the drop counts travel beside the samples (libre-cgm adapter)
+        censored: Array.isArray(input.censored) ? input.censored : undefined,
+        rowsDropped: input.rowsDropped || undefined
       };
     } else {
       const text =
@@ -25415,6 +25624,7 @@ __exports.PulseDex = window.PulseDex;
     _tierOf: tierOf,
     _postprandial: postprandial,
     _excursions: excursions,
+    hypoQtcRead: hypoQtcRead,
     _ckParse, // exposed for the Clock Contract §2.7 range-validation regression gate
     // Clock Contract §6 — the SELF-INGEST event order, read by the review view in glucodex-app.js so
     // the two surfaces cannot drift. `_evSortKeyMs` is the key the §∅ regression group drives directly.
