@@ -45,6 +45,8 @@
  *             between a merge and the walker's regen PR main holds a stale one (v2.37.0, 2026-11-24)
  *   build     node tools/build.mjs --all  (⚠ bare build.mjs builds nothing — measured)
  *   docs      node tools/build-docs.mjs   (served copies; `verify:docs` reds until this runs)
+ *   timings   price every test group (tests/group-timings.json) before the gate reads the untimed share.
+ *             Never blocking: a refusal keeps the committed file, and the log names the reason
  *   gate      npm run check — the FULL gate, on the final tree, once
  *   scan      the new CHANGELOG section is leak-scanned BEFORE it is committed (see leakScan)
  *   commit    stage by EXPLICIT PATH from `git status --porcelain`; deleted changesets via
@@ -87,7 +89,7 @@ const LATEST = join(STATE_DIR, 'latest.json');
 
 /* ── pure core ────────────────────────────────────────────────────────────────────────────────── */
 
-export const STEPS = ['plan', 'worktree', 'stamp', 'build', 'docs', 'gate', 'scan', 'commit', 'push', 'pr', 'merge', 'tag', 'release', 'cleanup'];
+export const STEPS = ['plan', 'worktree', 'stamp', 'build', 'docs', 'timings', 'gate', 'scan', 'commit', 'push', 'pr', 'merge', 'tag', 'release', 'cleanup'];
 
 /* The record of a failed child. Its STDERR comes first and whole up to the cap, because that is where a
    refusal names itself; the stdout tail is context and takes what is left. `(err + out).slice(-3000)`
@@ -372,6 +374,33 @@ export function missingAssets(wanted, have) {
   return wanted.filter((n) => !h.has(n));
 }
 
+/* ── THE UNTIMED SHARE IS PAID HERE, ONCE PER RELEASE ─────────────────────────────────────────────
+   `verify:shard-timings` caps the groups that carry no committed time at 5 % of the suite. Its header
+   says that a new group must not red the pull request that adds it, and nothing in the repo priced the
+   backlog. So the set climbed to the cap and the next bird paid: #4920 at 48 of 949, and #5782 at 56
+   of 1106 on 2026-11-25, eight days after the last refresh. A refresh inside a code pull request also
+   rewrites the whole table, so it conflicts with every other refresh (board #6993).
+
+   The table is a HINT to the shard planner, so this step NEVER blocks a release. It keeps the committed
+   bytes when the suite did not pass (the `gate` step judges the suite, on its own run), when the
+   generator refuses, and when the planner's own proof refuses the new table. A run on a loaded box
+   can give one group an outlier time, and that proof is what reads it.
+   Every effect is injected, so the selftest drives each branch with no suite run. */
+export function refreshTimings({ suite, gen, prove, read, write }) {
+  const before = read();
+  const kept = (why) => {
+    if (read() !== before) write(before);
+    return { refreshed: false, why };
+  };
+  const s = suite();
+  if (s.code !== 0) return kept(s.signal ? `the suite was killed by ${s.signal}` : `the suite exited ${s.code}`);
+  const g = gen(s.out);
+  if (g.code !== 0) return kept(`the generator exited ${g.code}`);
+  const p = prove();
+  if (p.code !== 0) return kept(`the shard planner's proof exited ${p.code} over the new table`);
+  return { refreshed: read() !== before, why: read() === before ? 'the table did not move' : null };
+}
+
 function sh(cmd, args, opts = {}) {
   const r = spawnSync(cmd, args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, ...opts });
   return { code: r.status === null ? 1 : r.status, signal: r.signal || null, out: r.stdout || '', err: r.stderr || '' };
@@ -530,6 +559,21 @@ const RUN = {
   docs(st) {
     must('node', ['tools/build-docs.mjs'], { cwd: st.worktree });
     log(st, 'build-docs.mjs done');
+  },
+  timings(st) {
+    /* A state file older than this step can hold a finished commit. A refresh then leaves a dirty tree
+       that nothing stages, and `cleanup` refuses it. */
+    if (st.done.includes('commit')) return log(st, 'group timings kept: the release is already committed');
+    const file = join(st.worktree, 'tests', 'group-timings.json');
+    const at = { cwd: st.worktree };
+    const r = refreshTimings({
+      suite: () => sh('node', ['tests/run-tests.mjs', '--json'], at),
+      gen: (json) => sh('node', ['tests/gen-group-timings.mjs'], { ...at, input: json }),
+      prove: () => sh('node', ['tests/verify-shard-union.mjs'], at),
+      read: () => readFileSync(file, 'utf8'),
+      write: (b) => writeFileSync(file, b)
+    });
+    log(st, r.refreshed ? 'group timings refreshed' : `group timings kept: ${r.why}`);
   },
   gate(st) {
     const logFile = join(STATE_DIR, `v${st.to}-check.log`);
@@ -1011,6 +1055,41 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   ok(/killed by SIGKILL and gave NO VERDICT/.test(gateFailure(['x'], { status: null, signal: 'SIGKILL', stdout: '' })), 'a gate that a signal ended is never called red');
   ok(/did not start: ENOENT/.test(gateFailure(['x'], { status: null, error: new Error('ENOENT') })), 'a gate that did not start says so');
   ok(/first 20/.test(gateFailure(['x'], { status: 1, stdout: '✕ a\n'.repeat(30) })), 'a long list of failures is twenty and the count');
+  // the timing refresh: it keeps the committed bytes on every refusal, and never throws
+  {
+    const drive = (codes, genWrites = 'new') => {
+      let file = 'old';
+      let calls = '';
+      const at = (name, code, effect) => () => {
+        calls += name;
+        if (effect) effect();
+        return { code, signal: null, out: '{}', err: '' };
+      };
+      const r = refreshTimings({
+        suite: at('s', codes[0]),
+        gen: at('g', codes[1], () => {
+          file = genWrites;
+        }),
+        prove: at('p', codes[2]),
+        read: () => file,
+        write: (b) => {
+          file = b;
+        }
+      });
+      return { ...r, file, calls };
+    };
+    const green = drive([0, 0, 0]);
+    ok(green.refreshed && green.file === 'new' && green.calls === 'sgp', 'a green suite, generator and proof refresh the table');
+    const redSuite = drive([1, 0, 0]);
+    ok(!redSuite.refreshed && redSuite.file === 'old' && redSuite.calls === 's', 'a red suite prices nothing, and the generator never runs');
+    const redGen = drive([0, 2, 0], 'half');
+    ok(!redGen.refreshed && redGen.file === 'old' && /generator exited 2/.test(redGen.why), 'a generator that refuses leaves the committed bytes, even after a write');
+    const redProof = drive([0, 0, 1]);
+    ok(!redProof.refreshed && redProof.file === 'old' && /proof exited 1/.test(redProof.why), 'a table the planner refuses goes back to the committed bytes');
+    const same = drive([0, 0, 0], 'old');
+    ok(!same.refreshed && /did not move/.test(same.why), 'a table that did not move is not a refresh');
+    ok(STEPS.indexOf('timings') > STEPS.indexOf('docs') && STEPS.indexOf('timings') < STEPS.indexOf('gate'), 'the refresh runs after the builds and before the gate that reads the share');
+  }
   // every step has a runner, in order
   ok(
     STEPS.every((s) => typeof RUN[s] === 'function'),

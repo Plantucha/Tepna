@@ -32,6 +32,8 @@
    SILENTLY, which is what happened while the only report was one prose line
    printed mid-run. Pricing the stragglers with `npm run timings:refresh` and
    lowering the ratchet in the same commit is the way it shrinks.
+   Since 2026-11-25 every release runs this refresh (the `timings` step of
+   tools/release-land.mjs), so a code PR does not owe one.
    ════════════════════════════════════════════════════════════════════════ */
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
