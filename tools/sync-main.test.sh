@@ -71,6 +71,17 @@ out="$(bash "$S" "$TMP/collide" 2>&1)"; case "$out" in *deploy/new.sh*) ;; *) ec
 fresh modified
 printf 'edit\n' >> "$TMP/modified/a.txt"                    # tracked modification
 expect 2 "tracked modification → SKIP (unchanged rule)" "$TMP/modified"
+OUT="$(bash "$S" "$TMP/modified" 2>&1)"
+case "$OUT" in
+  *"1 uncommitted tracked path(s)"*": a.txt") echo "  ok    the skip names the modified path" ;;
+  *) echo "  FAIL  the skip does not name the modified path: $OUT"; fail=1 ;;
+esac
+for n in 1 2 3 4 5 6; do printf 'm\n' > "$TMP/modified/m$n.txt"; git -C "$TMP/modified" add "m$n.txt"; done
+OUT="$(bash "$S" "$TMP/modified" 2>&1)"
+case "$OUT" in
+  *"7 uncommitted tracked path(s)"*"a.txt m1.txt m2.txt m3.txt m4.txt … and 2 more") echo "  ok    a long list names five paths and counts the rest" ;;
+  *) echo "  FAIL  a long list is not five paths and a count: $OUT"; fail=1 ;;
+esac
 [ "$(git -C "$TMP/modified" rev-parse HEAD)" = "$(git -C "$SEED" rev-list --max-parents=0 HEAD)" ] || { echo "  FAIL  modified: HEAD moved"; fail=1; }
 
 fresh ahead

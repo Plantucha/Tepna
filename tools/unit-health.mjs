@@ -43,6 +43,13 @@
  * with units that start `memory:`. A rig without that checkout adds nothing. An answer that cannot be
  * read is a finding of kind `unread`, never a silent pass. The timer population does not count them.
  *
+ * THE PRIMARY CHECKOUT rides in it too (2026-11-24). `tepna-sync-main.timer` fast-forwards it every 15
+ * minutes and skips while a tracked path is modified; its unit counts that skip as success. From
+ * 2026-11-09 to 2026-11-20 one path parked the checkout, and every timer read as healthy while the board
+ * and this tool ran old code. So a checkout whose oldest missing commit is over PARKED_AFTER_MS old is
+ * `parked`. The age is the commit's, never the count: one commit missing for a day is parked, thirty in
+ * a burst are not. It reads the LOCAL `origin/main`, which each fetch in any worktree moves.
+ *
  * PROVENANCE OF THE RUN'S OWN CODE. A timer runs this tool out of whatever checkout its unit names, so
  * a finding can predate its own fix. On 2026-11-10 the shared checkout read `tepna-unit-health.timer`
  * as stopped from code that did not carry the `SubState=running` guard beside it (board #5401, #5527).
@@ -57,7 +64,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
 import { resolveStatePath } from './mutation-map.mjs';
@@ -66,6 +73,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
 export const SLACK_US = 5 * 60 * 1e6;
 export const NEVER_GRACE_US = 24 * 3600 * 1e6;
+export const PARKED_AFTER_MS = 2 * 3600 * 1e3;
 const BOARD_THREAD = '7';
 
 /** One timer row (systemctl list-timers --output=json) plus its states → zero or one finding. Pure.
@@ -88,6 +96,34 @@ export function judgeTimer(t, s, now) {
     return { unit: t.unit, kind: 'overdue', detail: `${t.unit} last fired ${Math.round((now - last) / 6e7)} min ago against a ${Math.round(interval / 6e7)} min interval` };
   }
   return null;
+}
+
+/** The primary checkout against the local `origin/main` → zero or one finding. Pure.
+ *  `c` = { path, branch, behind, oldestMissingMs, modified }; null = there is no primary checkout to judge
+ *  (a bare repository). An absent count or stamp is `unread`, never a pass. */
+export function judgeCheckout(c, nowMs) {
+  if (c === null) return null;
+  const unit = 'checkout:primary';
+  if (c.behind === null) return { unit, kind: 'unread', detail: `git did not count how far ${c.path} sits behind \`origin/main\`` };
+  if (c.behind === 0) return null;
+  if (c.oldestMissingMs === null) return { unit, kind: 'unread', detail: `git gave no date for the oldest commit that ${c.path} misses` };
+  const age = nowMs - c.oldestMissingMs;
+  if (age <= PARKED_AFTER_MS) return null;
+  const why = [];
+  if (c.branch !== 'main') why.push(`it is on \`${c.branch ?? 'an unread branch'}\`, not \`main\``);
+  if (c.modified === null) why.push('its modified paths did not answer');
+  else if (c.modified.length)
+    why.push(
+      `uncommitted tracked path(s): ${c.modified
+        .slice(0, 5)
+        .map((p) => `\`${p}\``)
+        .join(', ')}${c.modified.length > 5 ? ` and ${c.modified.length - 5} more` : ''}`
+    );
+  return {
+    unit,
+    kind: 'parked',
+    detail: `the checkout ${c.path} sits ${c.behind} commit(s) behind \`origin/main\`, and the oldest is ${(age / 3600e3).toFixed(1)} h old; ${why.length ? why.join('; ') : 'the tree shows no cause, so read `journalctl --user -u tepna-sync-main`'}`
+  };
 }
 
 /** The finding set as a stable key, so --post can tell a change from a repeat. Pure. */
@@ -229,6 +265,24 @@ export function selftest() {
     ),
     'an empty, malformed or shapeless memory answer is one unread finding, never a pass'
   );
+  const M = 3600e3;
+  const C = (o) => ({ path: '/repo', branch: 'main', behind: 3, oldestMissingMs: 1000 * M - 3 * M, modified: ['a.js'], ...o });
+  const parked = judgeCheckout(C({}), 1000 * M);
+  ok(
+    parked?.kind === 'parked' && parked.detail.includes('`a.js`') && parked.detail.includes('3 commit(s)'),
+    'a checkout whose oldest missing commit is 3 h old is parked, and the finding names the path'
+  );
+  ok(judgeCheckout(C({ oldestMissingMs: 1000 * M - PARKED_AFTER_MS }), 1000 * M) === null, 'a lag of exactly the limit is not parked');
+  ok(judgeCheckout(C({ oldestMissingMs: 1000 * M - PARKED_AFTER_MS - 1 }), 1000 * M)?.kind === 'parked', 'one millisecond past the limit is parked');
+  ok(judgeCheckout(C({ behind: 0, oldestMissingMs: null }), 1000 * M) === null, 'a checkout at the ref is healthy');
+  ok(judgeCheckout(C({ behind: 400, oldestMissingMs: 1000 * M - M }), 1000 * M) === null, 'a large burst inside the limit is not parked: the age decides, never the count');
+  ok(judgeCheckout(C({ behind: null }), 1000 * M)?.kind === 'unread' && judgeCheckout(C({ oldestMissingMs: null }), 1000 * M)?.kind === 'unread', 'an unread count or date is a finding, never a pass');
+  ok(judgeCheckout(null, 1000 * M) === null, 'no primary checkout is nothing to judge');
+  ok(judgeCheckout(C({ branch: 'claude/x', modified: [] }), 1000 * M)?.detail.includes('claude/x'), 'a checkout on another branch names the branch');
+  ok(judgeCheckout(C({ modified: [] }), 1000 * M)?.detail.includes('shows no cause'), 'a parked clean checkout says that the tree shows no cause');
+  ok(judgeCheckout(C({ modified: ['1', '2', '3', '4', '5', '6', '7'] }), 1000 * M)?.detail.includes('and 2 more'), 'a long modified list is five names and a count');
+  ok(judgeCheckout(C({ modified: null }), 1000 * M)?.detail.includes('did not answer'), 'an unread modified list says so');
+  ok(!judgeCheckout(C({}), 1000 * M).detail.endsWith('.'), 'the detail carries no closing period, because the post adds one');
   const P = (o) => provenanceOf({ commit: 'abc1234', commitReason: null, behind: 3, drifted: [], refReadable: true, ...o });
   const v = verdictOf({ status: 'NOT_RUN', findings: [], checked: 0, transient: 0, reason: 'no user systemd', prov: P({}) });
   ok(Verdict.validate(v).ok && v.result === null, 'a NOT_RUN verdict validates and carries no result');
@@ -289,6 +343,32 @@ function readProvenance() {
     }
   }
   return provenanceOf({ commit, commitReason, behind, drifted, refReadable });
+}
+
+/** Read the primary checkout: the tree that holds the common git directory, whichever worktree runs this. */
+function readCheckout() {
+  const common = gitOut(['rev-parse', '--path-format=absolute', '--git-common-dir']);
+  if (common === null) return { path: ROOT, branch: null, behind: null, oldestMissingMs: null, modified: null };
+  if (basename(common.trim()) !== '.git') return null;
+  const path = dirname(common.trim());
+  const at = (args) => gitOut(['-C', path, ...args]);
+  const branch = at(['rev-parse', '--abbrev-ref', 'HEAD']);
+  const missing = at(['log', '--format=%ct', 'HEAD..origin/main']);
+  const status = at(['status', '--porcelain', '--untracked-files=no']);
+  const stamps = missing === null ? null : missing.split('\n').filter(Boolean).map(Number);
+  return {
+    path,
+    branch: branch === null ? null : branch.trim(),
+    behind: stamps === null ? null : stamps.length,
+    oldestMissingMs: stamps?.length && stamps.every(Number.isFinite) ? Math.min(...stamps) * 1000 : null,
+    modified:
+      status === null
+        ? null
+        : status
+            .split('\n')
+            .filter(Boolean)
+            .map((l) => l.slice(3))
+  };
 }
 
 function sysctl(args) {
@@ -373,14 +453,16 @@ async function main() {
   const now = Date.now() * 1000;
   const timerFindings = sys.rows.map(({ t, s }) => judgeTimer(t, s, now)).filter(Boolean);
   const jobFindings = [...timerFindings, ...orphanFailures(sys.failedUnits, timerFindings)];
-  const findings = [...jobFindings, ...readMemory()];
+  const memory = readMemory();
+  const checkout = judgeCheckout(readCheckout(), now / 1000);
+  const findings = [...jobFindings, ...memory, ...(checkout ? [checkout] : [])];
   const checked = sys.rows.length;
   const status = checked === 0 ? 'NOT_APPLICABLE' : findings.length ? 'FAIL' : 'PASS';
   const reason =
     checked === 0
       ? 'no user timer is loaded'
       : findings.length
-        ? `${jobFindings.length} timer job(s) failed, stopped, overdue or never ran, and ${findings.length - jobFindings.length} fleet memory finding(s)`
+        ? `${jobFindings.length} timer job(s) failed, stopped, overdue or never ran, ${memory.length} fleet memory finding(s), and ${checkout ? 1 : 0} parked or unread checkout`
         : null;
   if (argv.includes('--post')) {
     const p = statePath();
