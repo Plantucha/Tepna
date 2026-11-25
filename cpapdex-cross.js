@@ -130,7 +130,15 @@
       syy += wi * y[i] * y[i];
     }
     const den = sw * sxx - sx * sx;
-    if (Math.abs(den) < 1e-12) return { slope: null, intercept: null, r2: null };
+    /* ∅ THE DEGENERACY TEST IS RELATIVE, because `den` carries the SCALE of the x values. A channel
+       with no variance reaches `den === 0` only where x is exact in binary: 600 samples of 0.5 give
+       exactly 0, and 600 samples of 0.4 give -1.9e-9, which clears an ABSOLUTE 1e-12 floor and then
+       fits a slope of 0.021 out of rounding noise alone. A flat or dead BLE channel is a real
+       live-capture case, so that slope reaches a card. Against the scale of the sums the two flat
+       series read 0 and 3.3e-14, while a respiratory waveform reads 0.999 — five orders of magnitude
+       of separation, and the ratio is free of the amplitude. Measured 2026-11-25 on those three
+       series. `!(x > y)` also answers null for a NaN. */
+    if (!(Math.abs(den) > 1e-9 * Math.abs(sw * sxx))) return { slope: null, intercept: null, r2: null };
     const slope = (sw * sxy - sx * sy) / den,
       intercept = (sy - slope * sx) / sw;
     const num = sw * sxy - sx * sy;
@@ -772,13 +780,21 @@
     }
     if (A.length < 2) return { ok: false, reason: 'too few paired samples after alignment' };
     var reg = ols(A, B); // B ≈ slope·A + intercept
+    /* ∅ A REGRESSION THAT DID NOT FIT HAS NO RESIDUAL. `ols` answers null for all three coefficients
+       when the live channel carries no variance (`Math.abs(den) < 1e-12`), and a flat or dead BLE
+       channel is a real live-capture case — the refusal above guarantees two paired samples, so the
+       n < 2 branch is not the only route here. `(reg.slope || 0)` fitted a FLAT ZERO line instead:
+       `resid` became raw B, and `residSD` published the SD of the SD-side channel as a POST-regression
+       residual, on the same card where `scale.a` already read `—`. The diffs are independent of the
+       fit, so `bias`, the Bland-Altman band and the excursion count stay measured here. */
+    var _regOk = reg.slope != null && reg.intercept != null;
     var resid = [],
       diffs = [];
     for (var k = 0; k < A.length; k++) {
-      resid.push(B[k] - ((reg.slope || 0) * A[k] + (reg.intercept || 0)));
+      if (_regOk) resid.push(B[k] - (reg.slope * A[k] + reg.intercept));
       diffs.push(B[k] - A[k]);
     }
-    var residSD = sd(resid),
+    var residSD = _regOk ? sd(resid) : null,
       bias = mean(diffs),
       dsd = sd(diffs);
     // Excursions are counted against the Bland-Altman agreement band (bias ± 1.96·SD-of-diffs) — the
@@ -804,6 +820,10 @@
       .filter(function (v) {
         return v != null;
       });
+    /* The reason key appears ONLY on the no-fit path, so a fitting night emits the same three keys as
+       before and no committed fixture moves. */
+    var _scale = { a: reg.slope, b: reg.intercept, residSD: residSD };
+    if (!_regOk) _scale.residSDAbsentReason = 'the live channel carries no variance over the overlap, so the regression has no slope and no residual';
     var scaleStable = _ws.length < 2 ? null : Math.max.apply(null, _ws) - Math.min.apply(null, _ws) < (opts.scaleStableTol == null ? 0.05 : opts.scaleStableTol);
     return {
       ok: true,
@@ -811,7 +831,7 @@
       alignmentOffsetSec: clockOffsetSec + lag, // total device-clock offset the comparator applied
       clockOffsetSec: clockOffsetSec, // the header disagreement alone (the finding)
       appliedLagSec: lag,
-      scale: { a: reg.slope, b: reg.intercept, residSD: residSD },
+      scale: _scale,
       // RIDER 4 (direction ambiguity). Roles are assigned by POSITION and cannot be sniffed (the
       // capture-host writes a byte-compatible ResMed BRP). The lead's literal guard — scale far from 1
       // AND its reciprocal near 1 — is mathematically EMPTY for positive scale (|x−1|>0.15 excludes

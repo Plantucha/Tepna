@@ -1655,7 +1655,12 @@ import { CpapDsp } from './cpapdex-dsp.js';
           '. Two explanations: a genuine amplitude difference, OR the live/SD roles are <b>swapped</b> (undetectable by content). Confirm the roles above — primary night = SD, second file = live — before trusting the direction of these findings.</div>';
       }
       h += '<div class="kpi-grid">';
-      h += kpiTile('cmpScale', fnum(c.scale.a, 3), Math.abs(c.scale.a - 1) < 0.05 ? 'good' : 'neutral', 'SD/live · ±' + fnum(c.scale.residSD, 3) + ' L/s resid · n ' + nMin + ' min');
+      /* ∅ A residual the regression never produced is named here, not printed as an em dash beside a
+         measured one. `cpapdex-cross.js` answers `residSD: null` plus `residSDAbsentReason` when the
+         live channel carries no variance over the overlap. The grade also refuses: an absent scale is
+         not 0.05 away from identity, and `Math.abs(null - 1)` reads 1 only by a coercion. */
+      var _cmpResid = c.scale.residSD == null ? 'no residual — ' + esc(c.scale.residSDAbsentReason || 'the regression did not fit') : '±' + fnum(c.scale.residSD, 3) + ' L/s resid';
+      h += kpiTile('cmpScale', fnum(c.scale.a, 3), c.scale.a != null && Math.abs(c.scale.a - 1) < 0.05 ? 'good' : 'neutral', 'SD/live · ' + _cmpResid + ' · n ' + nMin + ' min');
       h += kpiTile('cmpBias', fnum(c.blandAltman.bias, 3) + '<span class="kpi-u">L/s</span>', Math.abs(c.blandAltman.bias) < 0.05 ? 'good' : 'neutral', 'Bland–Altman · ' + liveL + '−' + sdL);
       h += kpiTile('cmpLoA', '±' + fnum(loaHalf, 3) + '<span class="kpi-u">L/s</span>', 'neutral', '95% limits of agreement · n ' + nMin + ' min');
       h += kpiTile('cmpAlignOffset', fnum(offAbs, 1) + '<span class="kpi-u">s</span>', offAbs < 600 ? 'good' : 'bad', 'live starts ' + fnum(offAbs, 1) + ' s ' + offDir + ' SD');
