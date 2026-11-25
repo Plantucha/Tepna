@@ -5977,7 +5977,10 @@
         : r.longRec
           ? (function () {
               var sm = r.stageMin || {},
-                tot = r.totSleep || 0;
+                /* absence-ok: a LOCAL guard denominator only. The `tot > 0` tests below are what
+                   turn an absent total into a null fraction, and the published minute count reads
+                   `r.totSleep` directly, so this zero can never reach a surface. */
+                tot = r.totSleep || 0; // absence-ok: local guard denominator, never published
               var remF = tot > 0 && sm.REM != null ? sm.REM / tot : null,
                 deepF = tot > 0 && sm.Deep != null ? sm.Deep / tot : null;
               // Physiological norms (adult): REM ~0.20–0.25, Deep ~0.13–0.23. Flag out-of-range
@@ -5986,7 +5989,11 @@
               if (remF != null && (remF < 0.1 || remF > 0.35)) flags.push('REM ' + (remF * 100).toFixed(0) + '% outside plausible 13–25%');
               if (deepF != null && (deepF < 0.05 || deepF > 0.3)) flags.push('Deep ' + (deepF * 100).toFixed(0) + '% outside plausible 13–23%');
               return {
-                totalSleepMin: tot,
+                /* §∅ 2026-11-25: this published `tot`, so an absent staging total left the export
+                   claiming 0 minutes of sleep over a long recording. The absent total is now null,
+                   and the fractions above already refused. The committed fixture is 59.4 s, so its
+                   sleep section is null and these bytes do not move - a longer input would read it. */
+                totalSleepMin: r.totSleep ?? null,
                 stageMinutes: r.stageMin,
                 method: 'Cardiorespiratory staging from HRV (LF/HF, rMSSD) + ECG-derived respiration — a single-signal ESTIMATE, not a validated PSG hypnogram.',
                 confidence: 'low',
@@ -6055,7 +6062,12 @@
                   }
                 : {
                     walking: false,
-                    totalSteps: accEx.gait.totalSteps || 0,
+                    /* `_gait` returns a number on both arms, so the old `|| 0` was dead and it read
+                       as an absence fabrication. The count passes through. NOT FIXED HERE, and
+                       reported in the PR body: `_gait`'s own `lowfs` arm returns `totalSteps: 0`
+                       when the sample rate cannot resolve the step band, which is a detector that
+                       could not look reporting a measured zero. */
+                    totalSteps: accEx.gait.totalSteps,
                     reason:
                       accEx.gait.reason === 'lowfs'
                         ? 'ACC sample rate ' + accEx.gait.accFs + ' Hz < 7 Hz needed to resolve the 0.5–3.5 Hz step band'
