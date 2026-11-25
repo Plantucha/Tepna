@@ -2,7 +2,7 @@
   "_note": "Author-time verification of every DOI cited anywhere in this repo, resolved against api.crossref.org. NOT a runtime input and NEVER fetched by a bundle — the no-network rule governs shipped code; this file is the OFFLINE record of a network check, so a later reader can re-check a citation without repeating it. `year` is Crossref's issued year, which for online-first papers is up to one year before the print/issue year a citation normally quotes; treat a one-year gap as agreement.",
   "_verifiedOn": "2026-08-05",
   "_resolver": "https://api.crossref.org/works/{doi}",
-  "_count": 157,
+  "_count": 160,
   "dois": {
     "10.5664/jcsm.9814": {
       "firstAuthor": "Ni",
@@ -937,10 +937,25 @@
       "container": "Respirology",
       "verifiedOn": "2026-10-30",
       "resolver": "api.crossref.org (author-time, for docs/STAGE-LAB-FORMULAS.md and papers/oximeter-sleep-staging.html)"
+    },
+    "10.1523/JNEUROSCI.1318-04.2004": {
+      "firstAuthor": "Massimini",
+      "year": "2004",
+      "container": "The Journal of Neuroscience"
+    },
+    "10.1016/j.jneumeth.2018.08.014": {
+      "firstAuthor": "Lacourse",
+      "year": "2019",
+      "container": "Journal of Neuroscience Methods"
+    },
+    "10.1093/sleep/zsaf063": {
+      "firstAuthor": "Davidson",
+      "year": "2025",
+      "container": "SLEEP"
     }
   },
   "_aliasPolicy": "authorAliases: additional spellings that are CORRECT for this DOI. Needed because a Crossref surname can be a corporate name, a differently-spaced surname, or absent entirely; without them a correct citation reds and the noise buries a real finding (CITATION-ATTRIBUTION-FOLLOWUPS §3, constraint 1). EVERY entry carrying authorAliases MUST also carry aliasSource, because the two kinds are not the same evidential class: \"crossref-variant\" = the alias is a spelling or short form of the author Crossref actually recorded, so the check still rests on Crossref; \"from-paper\" = Crossref carries NO author for this record and the name was read off the paper itself, which is mildly circular (the citation being checked supplied the answer) and is therefore marked rather than hidden. Gate-enforced by tests/dex-tests.js group citation-ledger.",
   "_backfillNote": "2026-08-16 — six DOIs added for works already cited in papers/ PROSE without one. Resolved against api.crossref.org at author time (the resolver named in _resolver). Before this, 20 of 23 papers carried NO DOI at all, so citation-ledger was structurally blind to them.",
   "_backfillNote2": "2026-08-17 — three time-frequency DOIs added while closing INTERDISCIPLINARY-LITERATURE §2. Resolved at author time against the resolver named in _resolver. THE SECTION'S 'five unledgered' WAS AN OVER-COUNT and the column is now corrected: Allan 1966 (10.1109/PROC.1966.4634) and Premoli 1993 (10.1109/19.206671) were ALREADY here and match Crossref exactly; Torcaso et al. 1998 (Proc. 30th PTTI) and Riley 2008 (NIST SP 1065) have NO DOI, and this ledger is DOI-keyed, so they stay 'verified, no DOI' in the brief rather than being given a fabricated key. The one row marked AUTHORS AND YEAR UNVERIFIED — 'IEEE Xplore document 6037776', no DOI given — resolves to 10.1109/icemi.2011.6037776 (the DOI contains the document number), Zhou Chunlei / Zhang Qi / Yan Shuhua, 2011, ICEMI. Also corrected _count, which read 92 against 95 actual records before this change.",
-  "_backfillNote3": "2026-10-30 — 26 DOIs added for the stage lab's literature check (lab brief §52.2: every formula term against its cited source; benchmarks and evaluation framing). Resolved against api.crossref.org at author time from the primary development computer; `year` is Crossref's issued year (Herscovici 2006 online / 2007 print; Sun 2019 online / 2020 issue). Three carry authorAliases per _aliasPolicy (crossref-variant)."
+  "_backfillNote3": "2026-11-25 — three DOIs added for the published thresholds of the EEG feature block, which carried none (residue row 2026-11-25-the-eeg-stage-formula-thresholds-carry-no-citation, @kestrel board #8722). Resolved at author time against the resolver named in _resolver: Massimini 2004 reads first author Massimini, Marcello, The Journal of Neuroscience 24:6862-6870; Lacourse 2019 reads Lacourse, Karine, Journal of Neuroscience Methods 316:3-11; Davidson 2025 reads Davidson, Shaun, SLEEP 48, zsaf063. Each record carries a Crossref author, so no entry takes an alias."
 }
