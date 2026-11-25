@@ -175,6 +175,8 @@ export function summarise(rows) {
   if (!rows.length) {
     return {
       n: 0,
+      judged: 0,
+      unjudged: 0,
       movers: null,
       moverShare: null,
       medianOfMediansMs: null,
@@ -183,23 +185,41 @@ export function summarise(rows) {
     };
   }
   const movers = rows.filter((r) => r.movesBar === true).length;
+  /* ∅ A ROW WHOSE BAR THE TOOL COULD NOT JUDGE IS NOT A ROW THAT HELD STILL. `maskOne` publishes
+     `movesBar: null` when no pair of feet survives the tolerance, so the shift has no median and the
+     pre-stated bar reaches nothing. The old share divided by `rows.length`, which put those rows in
+     the denominator as though the tool had judged them and they had held still — and `movers === 0`
+     over a population of them alone read as a PASS. The share now divides by the JUDGED rows, and
+     `buildVerdict` moves the rest into `excluded`. */
+  const judged = rows.filter((r) => r.movesBar === true || r.movesBar === false).length;
+  const unjudged = rows.length - judged;
   const meds = rows.map((r) => r.shiftMedianMs).filter((m) => m !== null);
   const pcts = rows.map((r) => r.lostGainedPct).filter((p) => p !== null);
   return {
     n: rows.length,
+    judged,
+    unjudged,
     movers,
-    moverShare: movers / rows.length,
+    moverShare: judged ? movers / judged : null,
     medianOfMediansMs: medianOf(meds),
     worstLostGainedPct: pcts.length ? Math.max(...pcts) : null,
-    reason: null
+    reason: null,
+    unjudgedReason: unjudged ? `${unjudged} of ${rows.length} reachable recording(s) paired no foot within ${PAIR_TOL_MS} ms, so the bar reached neither` : null
   };
 }
+
+/* ∅ The three shift figures read `null` on a recording that paired no foot, so the printer states
+   that absence instead of calling `.toFixed` on it. A crash here lost a whole corpus walk on
+   2026-11-25, ten minutes in, after 3851 recordings had been enumerated. */
+const fmt2 = (v) => (v == null ? '—' : v.toFixed(2));
 
 /* ── the verdict ─────────────────────────────────────────────────────────────────────────────── */
 /* ONE BUILDER, so the sample and a real run print the same object. */
 export function buildVerdict({ rows, refused, unreachable, eligible, scanned, treeReason }) {
   const reachable = rows.filter((r) => r.reachable === true);
   const sum = summarise(reachable);
+  const judged = sum.judged;
+  const unjudged = sum.unjudged;
   let status = 'UNKNOWN';
   let reason = null;
   if (sum.n === 0) {
@@ -210,23 +230,26 @@ export function buildVerdict({ rows, refused, unreachable, eligible, scanned, tr
       status = 'NOT_RUN';
       reason = `${treeReason || 'no PPG recording was read, so the move was not measured'} (the walk saw ${scanned} recording(s))`;
     }
-  } else if (sum.n < SAMPLE_FLOOR) {
+  } else if (judged === 0) {
     status = 'UNDERPOWERED';
-    reason = `${sum.n} reachable recording(s), against a pre-stated floor of ${SAMPLE_FLOOR}`;
+    reason = `${sum.n} reachable recording(s) read and not one of them paired a foot within ${PAIR_TOL_MS} ms, so the bar reached none of them`;
+  } else if (judged < SAMPLE_FLOOR) {
+    status = 'UNDERPOWERED';
+    reason = `${judged} judged recording(s), against a pre-stated floor of ${SAMPLE_FLOOR}${unjudged ? ` (${unjudged} more paired no foot within ${PAIR_TOL_MS} ms)` : ''}`;
   } else if (sum.movers === 0) {
     status = 'PASS';
   } else {
     status = 'FAIL';
-    reason = `${sum.movers} of ${sum.n} recording(s) move past the bar Wren pre-stated on 2026-09-26, so holding the markers over would move a published foot set and the default stays until the owner rules`;
+    reason = `${sum.movers} of ${judged} recording(s) move past the bar Wren pre-stated on 2026-09-26, so holding the markers over would move a published foot set and the default stays until the owner rules`;
   }
   return makeVerdict({
     tool: TOOL,
     gate: 'pat-mask-census',
     status,
     population: {
-      checked: sum.n,
-      eligible: sum.n + unreachable + refused,
-      excluded: unreachable + refused
+      checked: judged,
+      eligible: judged + unjudged + unreachable + refused,
+      excluded: unjudged + unreachable + refused
     },
     criterion: {
       name: 'recordings_whose_foot_set_moves_past_the_prestated_bar',
@@ -240,6 +263,7 @@ export function buildVerdict({ rows, refused, unreachable, eligible, scanned, tr
         : {
             movers: sum.movers,
             moverShare: sum.moverShare,
+            unjudged,
             medianOfMediansMs: sum.medianOfMediansMs,
             worstLostGainedPct: sum.worstLostGainedPct,
             barMedianMs: BAR_MEDIAN_MS,
@@ -342,6 +366,22 @@ export async function selftest() {
   ok('one recording past the bar reads FAIL, so the default stays until the owner rules', vMove.status === 'FAIL');
   ok('and the FAIL says whose bar it is', /Wren pre-stated on 2026-09-26/.test(vMove.reason || ''));
   ok('checked + excluded = eligible holds across the partition', vHeld.population.checked + vHeld.population.excluded === vHeld.population.eligible);
+
+  /* 🔴 THE SAME REGRESSION ONE LEVEL IN, measured 2026-11-25. `maskOne` publishes
+     `movesBar: null` for a recording that paired no foot inside the tolerance, and the old share
+     divided by every reachable row. So a sample of nothing but unjudged recordings carried 0 movers
+     and read as a PASS over a population the bar never reached. */
+  const mkU = (paired) => ({ reachable: true, movesBar: null, moves: true, shiftMedianMs: null, shiftIqrMs: null, lostGainedPct: null, paired });
+  const vUn = buildVerdict({ rows: [mkU(0), mkU(0), mkU(0)], refused: 0, unreachable: 0, eligible: 3, scanned: 3 });
+  ok('∅ a sample the bar reached on no recording is UNDERPOWERED, never a PASS over 0 movers', vUn.status === 'UNDERPOWERED');
+  ok('and it names the pairing that failed rather than a mover count', /not one of them paired a foot within 40 ms/.test(vUn.reason || ''));
+  ok('an unjudged recording is EXCLUDED, not checked', vUn.population.checked === 0 && vUn.population.excluded === 3 && vUn.population.eligible === 3);
+  const vMix = buildVerdict({ rows: [mk(true, -0.6), mk(false, -0.5), mk(false, -0.7), mkU(0)], refused: 0, unreachable: 0, eligible: 4, scanned: 4 });
+  ok('the mover share divides by the JUDGED recordings alone', vMix.result.moverShare === 1 / 3);
+  ok('and the verdict carries the unjudged count where a reader sees it', vMix.result.unjudged === 1 && vMix.population.checked === 3);
+  ok('checked + excluded = eligible holds with an unjudged row in the sample', vMix.population.checked + vMix.population.excluded === vMix.population.eligible);
+  ok('∅ the printer states an absent shift median, never a number', fmt2(null) === '—' && fmt2(-0.6) === '-0.60');
+  ok('CONTROL · a judged sample reports the share over its own rows', vHeld.result.moverShare === 0 && vHeld.result.unjudged === 0);
   ok(
     'every non-PASS carries a reason',
     [vNone, vNothing, vThin, vMove].every((v) => typeof v.reason === 'string' && v.reason.length > 0)
@@ -469,14 +509,15 @@ async function main() {
       continue;
     }
     rows.push({ rec, ...row });
+    const mark = row.movesBar === true ? '△' : row.movesBar === false ? '=' : '?';
     console.log(
-      `  ${row.movesBar ? '△' : '='} ${rec} — ${row.gapSamples} marker sample(s) held · feet ${row.feetRaw} raw · ${row.feetHeld} held · shift median ${row.shiftMedianMs.toFixed(2)} ms · IQR ${row.shiftIqrMs.toFixed(2)} ms · ${row.lost} lost · ${row.gained} gained (${row.lostGainedPct.toFixed(2)} %) · ${row.feetBeyondTol} past ${PAIR_TOL_MS} ms`
+      `  ${mark} ${rec} — ${row.gapSamples} marker sample(s) held · feet ${row.feetRaw} raw · ${row.feetHeld} held · shift median ${fmt2(row.shiftMedianMs)} ms · IQR ${fmt2(row.shiftIqrMs)} ms · ${row.lost} lost · ${row.gained} gained (${fmt2(row.lostGainedPct)} %) · ${row.feetBeyondTol} past ${PAIR_TOL_MS} ms${row.movesBar === null ? ` · BAR UNJUDGED: ${row.paired} foot pair(s) survived the ${PAIR_TOL_MS} ms tolerance, so the shift carries no median` : ''}`
     );
   }
   const verdict = buildVerdict({ rows, refused, unreachable, eligible: all.length, scanned: paired.scanned, treeReason: paired.reason });
   const sum = summarise(rows);
   console.log(
-    `pat-mask-census: ${rows.length} of ${all.length} recording(s) reachable under ${displayTree(String(tree))} · ${unreachable} wrist layout · ${refused} refused · ${sum.movers === null ? 'no mover share' : `${sum.movers} past the bar`}`
+    `pat-mask-census: ${rows.length} of ${all.length} recording(s) reachable under ${displayTree(String(tree))} · ${unreachable} wrist layout · ${refused} refused · ${sum.unjudged} unjudged · ${sum.movers === null ? 'no mover share' : `${sum.movers} of ${sum.judged} judged past the bar`}`
   );
   printVerdict(verdict, { json: has('--json') });
   process.exit(verdict.status === 'FAIL' ? 1 : verdict.status === 'NOT_RUN' ? 2 : 0);
