@@ -33978,6 +33978,248 @@
       T.eq('a night with no EEG signal reports every column absent', noneFinite, 0);
       T.eq('…and still reports all 35 column names', none.names.length, 35);
     });
+    /* THE EVALUATOR, held against the fit's OWN posterior. The feature group above pins the 35
+       columns; this one pins what the coefficients do with them. The same correctness problem
+       applies, and harder: a wrong constant or a reordered block still yields four finite
+       probabilities per epoch, still stages a night, and still passes every other group. So the pin
+       is a NUMBER — `tests/vectors/eegdex-stage-features.json` carries the fitting code's own
+       posterior for the shipped model, and this group holds all 4 columns of all 60 epochs against
+       it. `tests/vectors/eegdex-stage-model.json` adds the second pin: a SYNTHETIC model that uses
+       every design block and both pass kinds, including a second pass over the first pass's
+       posterior, which the shipped model never exercises. That is what makes "a better model is a
+       new file and no new code" a measured claim.
+
+       ABSENCE (§∅) runs AFTER the posterior, never instead of it, so the parity legs above still
+       compare every epoch. An epoch missing 18 or more of its 36 inputs reads `null` with a named
+       reason — the fit's own threshold, not a new one — and counting is by finiteness, so a MEASURED
+       zero still scores. */
+    group('EEGDex stage formula — the evaluator reproduces the fit, and absence stays null', 'eegdex · stage-formula · evaluator · parity · absence', function (T) {
+      T.ok('env.EEGSTAGE is published by the lane', !!env.EEGSTAGE, 'eegdex-stage-model.js did not load — both loaders report that as a console line only');
+      var SV = env.stageVectors || {};
+      var FV = SV['eegdex-stage-features'];
+      var MV = SV['eegdex-stage-model'];
+      var M = env.stageModel;
+      T.ok('the committed feature vector carries the fit’s own posterior', !!(FV && FV.features && FV.expected), 'tests/vectors/eegdex-stage-features.json absent, or it holds no expected field');
+      T.ok('the committed model vector was read', !!(MV && MV.base && MV.second), 'tests/vectors/eegdex-stage-model.json absent or unparsed');
+      T.ok('the shipped model file was read', !!(M && M.schema), 'eeg-stage-model-base-2026-11-17.json absent or unparsed');
+      if (!env.EEGSTAGE || !FV || !FV.expected || !MV || !M || !M.schema) return;
+      var S = env.EEGSTAGE;
+
+      /* THE DATA IS PINNED BY ITS HASH, because every assertion below reads numbers out of it and a
+           silent edit of one coefficient still gives 4 finite posteriors per epoch. Each LANE computes
+           the digest through its own handle and publishes it (`node:crypto` and `crypto.subtle`), so
+           this leg runs in both and neither lane skips. */
+      T.eq('the model the vector holds a posterior for is the one that loaded', M.id, MV.base.id);
+      if (env.stageModelDigest) T.eq('the shipped model file is the artefact the vector pins', env.stageModelDigest, MV.base.sha256_16);
+
+      /* PARITY. The hand-off asks for 1e-4 on every posterior and the same stage on every epoch,
+           because the fit rounds the prepared inputs and the design columns to 32-bit floats and runs
+           the product and the softmax in 64-bit, while this port stays in 64-bit after the rounding. */
+      var want = FV.expected[M.id];
+      T.ok('the vector pins the shipped model by id', !!(want && want.posterior && want.stages), 'no expected entry for ' + M.id);
+      if (!want || !want.posterior) return;
+      var out = S.evaluate(M, FV.features);
+      var worst = 0,
+        worstAt = '',
+        i,
+        j;
+      for (i = 0; i < want.posterior.length; i++)
+        for (j = 0; j < want.posterior[i].length; j++) {
+          var d = Math.abs(out.posterior[i][j] - want.posterior[i][j]);
+          if (d > worst) {
+            worst = d;
+            worstAt = 'epoch ' + i + ' class ' + out.classes[j];
+          }
+        }
+      T.eq('the evaluator returns one posterior per epoch', out.posterior.length, want.posterior.length);
+      T.ok('every posterior agrees with the fit within 1e-4', worst <= 1e-4, 'worst ' + worst.toExponential(3) + (worstAt ? ' at ' + worstAt : ''));
+      var letter = { wake: 'W', light: 'L', deep: 'D', REM: 'R' };
+      var got = out.posterior
+        .map(function (r) {
+          var k = 0;
+          for (var q = 1; q < r.length; q++) if (r[q] > r[k]) k = q;
+          return letter[out.classes[k]];
+        })
+        .join('');
+      T.eq('…and the stage of every epoch is the same', got, want.stages);
+
+      /* ABSENCE IS NULL IN THE EVALUATOR, not only on the screen (board #8464 rule 1, #8489).
+           `prepare` puts a 0 in the place of each absent input, so the formula hands back a posterior
+           for an epoch that measured almost nothing. The step below reads that posterior and refuses.
+           It runs AFTER the posterior, which is why the parity legs above still compare all 60. */
+      var st = S.stages(M, FV.features, out);
+      var refused = st.epochs.filter(function (e) {
+        return e.stage === null;
+      });
+      T.eq('the three epochs that hold one measured column of 35 are not scored', refused.length, 3);
+      T.eq('…and the rest keep a stage', st.scored, FV.features.length - 3);
+      T.eq(
+        'a refusal names its reason',
+        refused
+          .map(function (e) {
+            return e.reason;
+          })
+          .join(','),
+        'under-half-measured,under-half-measured,under-half-measured'
+      );
+      T.eq(
+        'a refusal carries no posterior either',
+        refused.filter(function (e) {
+          return e.posterior !== null;
+        }).length,
+        0
+      );
+      /* REDUCED COVERAGE ANNOTATES (§∅, and board #8489): the reader of a scored epoch sees how
+           many of the inputs were measured, so a thin epoch is visible without being refused. */
+      var ann = st.epochs.filter(function (e) {
+        return typeof e.nMeasured === 'number' && e.nInputs === 36;
+      });
+      T.eq('every epoch reports how many of its 36 inputs were measured', ann.length, st.epochs.length);
+      T.eq('…and a refused epoch reports the thin count that refused it', refused[0].nMeasured, 2);
+
+      /* THE EDGE OF THE RULE, pinned on both sides: exactly half of the 36 inputs absent refuses,
+           and one more measured input scores. The threshold is the one `end_of_night38` reads. */
+      function nightWith(absentCount) {
+        var rows = FV.features.map(function (r) {
+          return r.slice();
+        });
+        for (var q = 0; q < rows[0].length; q++) rows[5][q] = q < absentCount ? null : 1.0;
+        return rows;
+      }
+      var edge = S.stages(M, nightWith(18));
+      var below = S.stages(M, nightWith(17));
+      T.eq('exactly half of the inputs absent refuses the epoch', edge.epochs[5].stage, null);
+      T.eq('…and that epoch reports 18 of 36 measured', edge.epochs[5].nMeasured, 18);
+      T.ok('one more measured input scores it', below.epochs[5].stage !== null, 'stage ' + below.epochs[5].stage + ' over ' + below.epochs[5].nMeasured + ' of ' + below.epochs[5].nInputs);
+      T.eq('…over 19 measured inputs of 36', below.epochs[5].nMeasured, 19);
+
+      /* A MEASURED 0 IS A VALUE. Every column of this block can rest at 0, so a refusal that reads
+           truthiness rather than finiteness would delete a legal epoch. */
+      var zeros = FV.features.map(function (r) {
+        return r.slice();
+      });
+      for (j = 0; j < zeros[6].length; j++) zeros[6][j] = 0;
+      var zst = S.stages(M, zeros);
+      T.ok('an epoch of measured zeros keeps its stage', zst.epochs[6].stage !== null, 'stage ' + zst.epochs[6].stage);
+      T.eq('…and it counts every input as measured', zst.epochs[6].nMeasured, 36);
+
+      /* A NIGHT WITH NO MEASURED FEATURE AT ALL refuses on every epoch, under its own reason: every
+           design column there rests on a substituted zero. */
+      var blank = FV.features.map(function (r) {
+        return r.map(function () {
+          return null;
+        });
+      });
+      var bst = S.stages(M, blank);
+      T.eq('a night with no measured feature scores no epoch', bst.scored, 0);
+      T.eq(
+        '…and every epoch names the night, not the epoch, as the reason',
+        bst.epochs.filter(function (e) {
+          return e.reason === 'no-measured-signal';
+        }).length,
+        blank.length
+      );
+
+      /* A SECOND MODEL FILE LOADS WITH NO CODE CHANGE (board #8464 rule 6). The file below is
+           synthetic and it uses EVERY design block and BOTH pass kinds, including the second pass over
+           the first pass's posterior — the shipped model uses 3 of those kinds, so without this leg the
+           other kinds would ship unexercised. The coefficients come from the rule the vector states,
+           and the posterior beside them comes from the reference evaluator of the fit. */
+      function coefficient(a, b, salt) {
+        return Math.round(Math.sin((a * 7.31 + b * 2.17 + salt) * 0.137) * 0.08 * 1e9) / 1e9;
+      }
+      function block(rows, width, salt) {
+        var W = [];
+        for (var a = 0; a < rows; a++) {
+          var r = [];
+          for (var b = 0; b < width; b++) r.push(coefficient(a, b, salt));
+          W.push(r);
+        }
+        return W;
+      }
+      var sec = MV.second;
+      var second = {
+        schema: M.schema,
+        id: sec.id,
+        classes: M.classes,
+        epoch_seconds: M.epoch_seconds,
+        inputs: M.inputs,
+        needs_whole_night: true,
+        design: sec.design,
+        passes: sec.passes.map(function (ps, k) {
+          var cols = sec.columns[k];
+          var p = { kind: ps.kind, columns: new Array(cols) };
+          if (ps.posterior_columns) p.posterior_columns = ps.posterior_columns;
+          if (ps.kind === 'tree') {
+            p.D = block(cols, ps.width, ps.salt);
+            p.c = ps.bias;
+          } else {
+            p.W = block(cols, ps.width, ps.salt);
+            p.b = ps.bias;
+          }
+          return p;
+        })
+      };
+      T.eq('the second file names every design block the evaluator holds', second.design.join(','), 'linear109,lagdiff72,products630,end_of_night38');
+      T.eq(
+        '…and both pass kinds, the second over the first pass’s posterior',
+        second.passes
+          .map(function (p) {
+            return p.kind + (p.posterior_columns ? ':' + p.posterior_columns : '');
+          })
+          .join(','),
+        'tree,softmax:pfeat55'
+      );
+      var sout = S.evaluate(second, FV.features);
+      var sworst = 0;
+      for (i = 0; i < sec.posterior.length; i++) for (j = 0; j < 4; j++) sworst = Math.max(sworst, Math.abs(sout.posterior[i][j] - sec.posterior[i][j]));
+      T.ok('the second file evaluates to the reference’s own posterior within 1e-6', sworst <= 1e-6, 'worst ' + sworst.toExponential(3));
+      T.eq('…over every epoch of the night', sout.posterior.length, sec.posterior.length);
+
+      /* IT REFUSES WHAT IT CANNOT READ, by name. A model file is data, so a wrong file must stop the
+           evaluator rather than return a number that looks like a stage. */
+      function refusal(mutate) {
+        var copy = JSON.parse(JSON.stringify({ s: M })).s;
+        mutate(copy);
+        try {
+          S.evaluate(copy, FV.features);
+          return '';
+        } catch (e) {
+          return String(e.message);
+        }
+      }
+      var r1 = refusal(function (m) {
+        m.schema = 'other/9';
+      });
+      var r2 = refusal(function (m) {
+        m.design = ['linear109', 'nosuchblock'];
+      });
+      var r3 = refusal(function (m) {
+        m.passes[0].kind = 'nosuchpass';
+      });
+      var r4 = refusal(function (m) {
+        m.passes[0].columns.pop();
+      });
+      var r5 = refusal(function (m) {
+        m.inputs.names[0] = 'eeg.lp.nosuch';
+      });
+      T.ok('another schema stops it', /tepna\.stage-formula\/1/.test(r1), r1 || 'it returned a posterior');
+      T.ok('an unknown design block stops it', /unknown design block/.test(r2), r2 || 'it returned a posterior');
+      T.ok('an unknown pass kind stops it', /unknown pass kind/.test(r3), r3 || 'it returned a posterior');
+      T.ok('a column count that misses the design stops it', /columns and the design gives/.test(r4), r4 || 'it returned a posterior');
+      T.ok('an input the model does not name stops it', /does not name the input/.test(r5), r5 || 'it returned a posterior');
+
+      /* THE FILE HOLDS THE NUMBER IT SAYS IT HOLDS, which the browser lane can read without a
+           digest: 739 columns times 4 classes plus 4 biases is the 2,960 the file declares. */
+      var count = 0;
+      M.passes.forEach(function (ps) {
+        (ps.W || ps.D || []).forEach(function (r) {
+          count += r.length;
+        });
+        count += (ps.b || ps.c || []).length;
+      });
+      T.eq('the shipped file carries the coefficient count it declares', count, M.coefficients);
+    });
 
     group('The EEGDex modules are executed by this lane, not only read', 'eegdex · wiring · availability', function (T) {
       T.ok('env.EEGDSP is published by the lane', !!env.EEGDSP, 'eegdex-dsp.js did not load — both loaders report that as a console line only');
