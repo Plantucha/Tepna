@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**364 tools** · 363 with a purpose line · **1 without**
+**365 tools** · 364 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -220,6 +220,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`pat-host-offset.mjs`](../tools/pat-host-offset.mjs) | PAT-UNDER-PERBLOCK-ALIGNMENT §3e.4, the shipped form of the scout. |
 | [`pat-hrv-windows.mjs`](../tools/pat-hrv-windows.mjs) | PAT THE WAY HRV IS DONE — 5-minute windows, artifact segments discarded, report the DISTRIBUTION. |
 | [`pat-literature-spec.mjs`](../tools/pat-literature-spec.mjs) | PAT MEASURED TO THE PUBLISHED SPEC, PLUS AN ERROR BUDGET THAT WORKS BACKWARDS FROM IT. |
+| [`pat-mask-census.mjs`](../tools/pat-mask-census.mjs) | HOW FAR WOULD THE PAT FOOT SET MOVE IF THE O2RING BEAT MARKERS WERE HELD OVER FIRST? |
 | [`pat-matchrate-strict.mjs`](../tools/pat-matchrate-strict.mjs) | PAT-UNDER-PERBLOCK-ALIGNMENT §4, open item 1: "A stricter `matchRate` whose chance floor is not 60 %. |
 | [`pat-mode-posture.mjs`](../tools/pat-mode-posture.mjs) | does the PAT lag mode follow the BODY or the CLOCK-ON-THE-WALL? |
 | [`pat-per-led.mjs`](../tools/pat-per-led.mjs) | EACH LED AS AN INDEPENDENT DETECTOR — and a three-cornered hat that measures FIDUCIAL JITTER directly. |
