@@ -74448,7 +74448,11 @@
       // MetricRegistry.badge( appears in the same tile construction (a short window before the value class).
       var BADGED = /\bev\s+ev-|evBadge\s*\(|metricValue\s*\(|MetricRegistry\.badge\s*\(/;
       function bareValueTiles(text) {
-        var re = /class="[^"]*\b(?:m-val|k-val|kpi-val|rs-val|q-val)\b[^"]*"/g,
+        /* `nr-dur` and `ndh-dur` joined 2026-11-25 (triage row M5). The two OxyDex night durations are
+           surfaced numbers that carry NO value class, so the five classes above never reached them and
+           both rendered bare for as long as the guard has run. The class list is the guard's whole
+           reach, so a surfaced number outside it is invisible here and not compliant. */
+        var re = /class="[^"]*\b(?:m-val|k-val|kpi-val|rs-val|q-val|nr-dur|ndh-dur)\b[^"]*"/g,
           _m,
           n = 0;
         for (const m of text.matchAll(re)) {
@@ -74506,6 +74510,61 @@
         bareValueTiles('<div class="metric"><div class="m-label">rMSSD<span class="ev ev-validated"></span></div><div class="m-val">42</div></div>') === 0
       );
       T.ok('self-test · guard flags a BARE (unbadged) value tile', bareValueTiles('<div class="metric"><div class="m-label">rMSSD</div><div class="m-val">42</div></div>') === 1);
+    });
+
+    /* ════ THE TWO OXYDEX NIGHT DURATIONS CARRY A BADGE (triage row M5) ════
+     The night-row header (`.nr-dur`) and the night-detail hero (`.ndh-dur`) each print a recording
+     span, and neither carried an evidence disc. CLAUDE.md §🎫 reads "every surfaced number carries a
+     badge", and a number with no badge states no grade at all. The grade is not new: the node registry
+     already holds `duration` at `measured`, with the cite "Total recording span — direct". These legs
+     pin the disc at both sites, pin the grade to the registry rather than to the fallback, and pin the
+     em dash to NO disc — a badge beside `—` grades a value the night does not hold. ════ */
+    group('The two OxyDex night durations carry a measured badge, and the em dash carries none', 'oxydex-render · oxydex-registry · badges · coverage-mandate · ∅', function (T) {
+      var rnd = (env.sources || {})['oxydex-render.js'];
+      if (rnd == null) {
+        T.skip('oxydex-render.js source available', 'oxydex-render.js is not in env.sources, so the source legs below cannot run');
+      } else {
+        T.ok(
+          'the night-row duration emits a badge inside the `.nr-dur` element',
+          /class="nr-dur">'\s*\+\s*durBadge\s*\+\s*durFmt/.test(rnd),
+          'the `.nr-dur` element does not lead with a badge expression'
+        );
+        T.ok(
+          'the night-row badge rides the same guard as the number, so the em dash gets none',
+          /var durBadge = durH == null \|\| typeof evBadge !== 'function' \? '' : evBadge\('Duration'\);/.test(rnd),
+          'durBadge is not guarded on the same `durH == null` test that prints the em dash'
+        );
+        T.ok(
+          'the night-detail hero emits a badge inside the `.ndh-dur` element',
+          /class="ndh-dur">'\s*\+\s*\(typeof evBadge === 'function' \? evBadge\('Duration'\) : ''\)\s*\+\s*_dur/.test(rnd),
+          'the `.ndh-dur` element does not lead with a badge expression'
+        );
+        T.ok(
+          'the hero duration reads `!= null` and not a truthiness test, so a measured zero keeps its chip',
+          /var _dur = s\.durationMin != null \?/.test(rnd),
+          'the hero still tests `s.durationMin` for truthiness, which reads a measured zero as absence'
+        );
+      }
+      var reg = env.OxyRegistry || (typeof window !== 'undefined' ? window.OxyRegistry : null);
+      if (!reg || typeof reg.badgeForLabel !== 'function') {
+        T.skip('OxyRegistry.badgeForLabel available', 'the node registry is not wired into this lane, so the grade legs cannot run');
+        return;
+      }
+      /* `false` turns the fallback off: the disc must come from an entry the registry holds, because a
+         minted `experimental` disc looks like a grade and is really the absence of one. */
+      var strict = reg.badgeForLabel('Duration', false);
+      T.ok('the label `Duration` resolves to a registry entry with the fallback OFF', typeof strict === 'string' && strict.length > 0, 'the label mints only the fabricated fallback disc');
+      T.ok('the disc the label mints reads `measured`', /\bev-measured\b/.test(String(strict)), 'the grade is not `measured`: ' + String(strict));
+      /* `OxyRegistry` exports no entry reader, so the declaration is read from the table it exports. */
+      var entry = (reg.REGISTRY || {}).duration || null;
+      T.ok('the registry holds an entry under the id `duration`', entry != null, 'the exported table has no `duration` key, so the badge above comes from somewhere else');
+      T.ok('the registry grades `duration` as measured', entry != null && entry.evidence === 'measured', 'the entry reads ' + String(entry && entry.evidence));
+      T.ok('the registry states the unit of `duration` in minutes', entry != null && entry.unit === 'min', 'the entry reads ' + String(entry && entry.unit));
+      T.ok(
+        'the label the render passes resolves to that same id',
+        typeof reg.idForLabel === 'function' && reg.idForLabel('Duration') === 'duration',
+        'the label resolves to ' + String(typeof reg.idForLabel === 'function' ? reg.idForLabel('Duration') : 'no resolver')
+      );
     });
 
     /* ════ HOUSE-INVARIANT LINT · retired vocabulary + frozen names (DEV-TOOLCHAIN Part A · A3) ════
