@@ -1,0 +1,258 @@
+{
+ "schema": "tepna.published-number-record/1",
+ "producer": "cohort-runner.html",
+ "producerCommit": null,
+ "producerCommitNote": "The two digests predate the first commit of this repository (2026-07-01), and neither digest names the code that wrote it beyond the pins below. The pins are cohort-gen/1.6-pilot and cohort-gen/1.7-pilot. The earliest cohort-gen.js in this history is cohort-gen/1.8, so no commit here re-runs either pin.",
+ "invocation": "cohort-runner.html, N = 20000, engine worker pool, lane FAST, seeds 0..19999; a hand export of summary.json, reduced to the digest under result",
+ "generated": "2026-11-24",
+ "inputs": {
+  "path": "none: each patient is CohortGen.patient(k), synthetic by construction",
+  "committed": false,
+  "files": 0,
+  "digest": null,
+  "note": "No person's data enters either run. The digests were the files named under result, sha256 over their bytes; both lived in the private corpus and git never held them."
+ },
+ "deterministic": "under the pins only; the pinned generator is not in this history (producerCommitNote)",
+ "publishedIn": "papers/robustness-benchmark.html Tables 1 and 2, sections 3.2, 3.3 and 5",
+ "claims": {
+  "note": "the values EXACTLY as the prose states them, so CLAIM … FROM … #claims/<key> compares equal; the whole of each digest is under result",
+  "patients": 20000,
+  "withOverlap": 19930,
+  "withoutOverlap": 70,
+  "noOverlapFlagged": 52,
+  "flaggedBefore": 4830,
+  "flaggedAfter": 4829,
+  "recallLowSevereBefore": 4787,
+  "recallLowSevereAfter": 4786,
+  "coverageMinCell": 1092,
+  "nightsAfter": 114934,
+  "slopeBefore": 0.136,
+  "slopeAfter": 0.384,
+  "biasBefore": -12.97,
+  "biasAfter": -7.87,
+  "r2Before": 0.917,
+  "r2After": 0.963,
+  "severeBiasBefore": -30.79,
+  "severeBiasAfter": -17.22,
+  "severeNightsAfter": 29564,
+  "rmssdAbsErrMedianAfter": 0.57,
+  "rmssdAbsErrNAfter": 18065,
+  "glucoHypoRecallMedianAfter": 0,
+  "glucoHypoRecallNAfter": 4104
+ },
+ "result": {
+  "before": {
+   "file": "uploads/cohort-robustness-summary-20k-v16.json",
+   "sha256": "83b3994e2d5eca9db5e43274dc637d747d1012c5c8e3209ac3a528d3e4d5181e",
+   "digest": {
+    "cohortGenVersion": "cohort-gen/1.6-pilot",
+    "patients": 20000,
+    "fusionRuns": 20000,
+    "withOverlap": 19931,
+    "kernelMismatch": 0,
+    "fatal": 0,
+    "cpapPatients": 11690,
+    "nodeThrew_all_zero": true,
+    "failureLedger": {
+     "count": 4830,
+     "recall_low_severe": 4787,
+     "no_overlap": 52
+    },
+    "odiVsTruthAHI": {
+     "slope": 0.136,
+     "r2": 0.917,
+     "bias": -12.97,
+     "n": 114913
+    },
+    "bySeverity": {
+     "none": {
+      "slope": 0.229,
+      "r2": 0.772,
+      "bias": -1.35,
+      "n": 25910
+     },
+     "mild": {
+      "slope": 0.224,
+      "r2": 0.876,
+      "bias": -5.13,
+      "n": 25705
+     },
+     "mod": {
+      "slope": 0.166,
+      "r2": 0.823,
+      "bias": -12.26,
+      "n": 33713
+     },
+     "severe": {
+      "slope": 0.136,
+      "r2": 0.919,
+      "bias": -30.79,
+      "n": 29585
+     }
+    },
+    "desatRecall": {
+     "median": 0.04,
+     "mean": 0.05,
+     "p90": 0.11,
+     "n": 18480
+    },
+    "rmssdAbsErr": {
+     "median": 0.6,
+     "mean": 0.85,
+     "p90": 1.42,
+     "max": 15.59,
+     "n": 18060
+    },
+    "cpapResidualAhiAbsErr": {
+     "median": 0.52,
+     "mean": 0.94,
+     "p90": 2.51,
+     "n": 11690
+    },
+    "coverage_all16cells_min": 1092,
+    "fusion": {
+     "meanOverlapMin": 2901.3,
+     "anyOverlapRate": 0.997
+    }
+   }
+  },
+  "after": {
+   "file": "uploads/cohort-robustness-summary-20k-v17-oxyfix.json",
+   "sha256": "635259a06e139c7e422f07d7804165a7f6cada3316fc15030afab71d93eb551e",
+   "digest": {
+    "_note": "AFTER run — combined OxyDex ceiling-baseline ODI fix (v22.36) + cohort-gen v1.7 (soft AHI-ceiling saturation). Same harness/seeds 0..19999 as the pre-fix baseline uploads/cohort-robustness-summary-20k-v16.json, which is retained as the BEFORE. Generated via cohort-runner.html (FAST lane, worker pool, from-seed-0).",
+    "cohortGenVersion": "cohort-gen/1.7-pilot",
+    "dexVersion": "1.0.0",
+    "kernelHash": "118ebed5",
+    "patients": 20000,
+    "fusionRuns": 20000,
+    "withOverlap": 19930,
+    "kernelMismatch": 0,
+    "fatal": 0,
+    "cpapPatients": 11690,
+    "nodeThrew_all_zero": true,
+    "failureLedger": {
+     "count": 4829,
+     "recall_low_severe": 4786,
+     "no_overlap": 52
+    },
+    "odiVsTruthAHI": {
+     "slope": 0.384,
+     "r2": 0.963,
+     "bias": -7.87,
+     "n": 114934
+    },
+    "bySeverity": {
+     "none": {
+      "slope": 0.38,
+      "r2": 0.834,
+      "bias": -1.02,
+      "n": 25875
+     },
+     "mild": {
+      "slope": 0.42,
+      "r2": 0.938,
+      "bias": -3.72,
+      "n": 25741
+     },
+     "mod": {
+      "slope": 0.384,
+      "r2": 0.901,
+      "bias": -8.1,
+      "n": 33754
+     },
+     "severe": {
+      "slope": 0.413,
+      "r2": 0.964,
+      "bias": -17.22,
+      "n": 29564
+     }
+    },
+    "desatRecall": {
+     "median": 0.04,
+     "mean": 0.05,
+     "p90": 0.1,
+     "n": 18479,
+     "_note": "per-event nadir-time match rate ~unchanged from v16 (median 0.04): the ceiling-baseline fix moved ODI's RATE, not the desat-PROFILE nadir detector (still on the trailing-mean baseline per OXYDEX-ODI-CEILING-FIX-BRIEF follow-up a). The rate-level calibration above is the faithful under-count measure."
+    },
+    "rmssdAbsErr": {
+     "median": 0.57,
+     "mean": 0.81,
+     "p90": 1.3,
+     "max": 16.78,
+     "n": 18065
+    },
+    "cpapResidualAhiAbsErr": {
+     "median": 0.49,
+     "mean": 0.78,
+     "p90": 1.97,
+     "n": 11690
+    },
+    "glucoHypoRecall": {
+     "median": 0,
+     "mean": 0.02,
+     "n": 4104
+    },
+    "coverage_all16cells_min": 1092,
+    "fusion": {
+     "meanOverlapMin": 2900.7,
+     "anyOverlapRate": 0.997
+    },
+    "beforeAfter_vs_v16": {
+     "severe_bias": [
+      -30.79,
+      -17.22
+     ],
+     "overall_slope": [
+      0.136,
+      0.384
+     ],
+     "overall_bias": [
+      -12.97,
+      -7.87
+     ],
+     "overall_r2": [
+      0.917,
+      0.963
+     ],
+     "bias_by_severity_none_mild_mod_severe": [
+      [
+       -1.35,
+       -1.02
+      ],
+      [
+       -5.13,
+       -3.72
+      ],
+      [
+       -12.26,
+       -8.1
+      ],
+      [
+       -30.79,
+       -17.22
+      ]
+     ],
+     "slope_by_severity_none_mild_mod_severe": [
+      [
+       0.229,
+       0.38
+      ],
+      [
+       0.224,
+       0.42
+      ],
+      [
+       0.166,
+       0.384
+      ],
+      [
+       0.136,
+       0.413
+      ]
+     ]
+    }
+   }
+  }
+ }
+}
