@@ -81,7 +81,10 @@ function inferFromData() {
   /* §∅ — the HRmax plausibility guard compares against the resting HR, and `null + 45` is 45, so an
      absent resting HR would have waved through any manual HRmax over 45. Guarded explicitly. */
   const _hrmaxV = _pp.hrmax_manual > 0 && _pp.hrmax_manual >= 140 && _hrRestV != null && _pp.hrmax_manual > _hrRestV + 45 ? _pp.hrmax_manual : _tanaka;
-  const _altF = _pp.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((_pp.elev - 1500) / 300) * 0.01);
+  /* §∅ — an ABSENT elevation corrects nothing, so the factor is 1. `null <= 1500` is also true, so
+     this line answered 1 before as well, by a coercion of null to 0 rather than by a rule. The guard
+     says the rule, and it mirrors `hrvdex-dsp.js` `_altFR`. */
+  const _altF = _pp.elev == null || !isFinite(_pp.elev) ? 1 : _pp.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((_pp.elev - 1500) / 300) * 0.01);
   /* §∅ — Uth-Sørensen divides by the resting HR. With none measured the quotient is not large, it is
      UNDEFINED — `_hrmaxV / null` is Infinity, and rounding it yields Infinity, not a VO₂. Refuse. */
   const vo2Est = _hrRestV > 0 ? Math.round(15.3 * (_hrmaxV / _hrRestV) * _altF * 10) / 10 : null; // Uth-Sørensen + altitude
@@ -279,6 +282,8 @@ function getProfile() {
       elev: p.elevation != null && isFinite(n(p.elevation, NaN)) ? n(p.elevation, 0) : null // §∅ — absent ≠ sea level
     };
   }
+  const _elevRaw = parseFloat(document.getElementById('prof_elev')?.value);
+  const _elevEntered = isFinite(_elevRaw) ? _elevRaw : null;
   return {
     age: parseFloat(document.getElementById('prof_age')?.value) || 35,
     /* ∅ — this arm runs only without the shared record, and the field already holds 35 as its own
@@ -299,7 +304,12 @@ function getProfile() {
     vo2gt: parseFloat(document.getElementById('prof_vo2gt')?.value) || 0,
     hrmax_manual: parseFloat(document.getElementById('prof_hrmax')?.value) || 0,
     hrrest_manual: parseFloat(document.getElementById('prof_hrrest')?.value) || 0,
-    elev: parseFloat(document.getElementById('prof_elev')?.value) || 0
+    /* §∅ — 0 m IS A LEGAL ELEVATION, so `|| 0` writes a sea-level MEASUREMENT for an empty field and
+       no consumer can tell the two apart. The DXP arm above already answers `null` here, and the two
+       arms must not disagree about the same absence. Both readers of this field take null: the
+       altitude factor in this file (two sites below) and `hrvdex-dsp.js` `_altFR` answer 1, which is
+       what an elevation at or under 1500 m also answers, so no shipped number moves. */
+    elev: _elevEntered
   };
 }
 
@@ -643,7 +653,8 @@ function updateProfile() {
   // Altitude factor for the VO₂ projection below. The lbl_* field hints that used to
   // render here were removed 2026-08-19: HRVDex.src.html defines no lbl_ id at all, so
   // every write was a guarded no-op (DEAD-FIELD-HINTS-FLEET-2026-08-19-BRIEF.md).
-  const altFactor = p.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p.elev - 1500) / 300) * 0.01);
+  // §∅ — the same explicit absent-elevation guard as `_altF` above; an absent elevation answers 1.
+  const altFactor = p.elev == null || !isFinite(p.elev) ? 1 : p.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p.elev - 1500) / 300) * 0.01);
   /* 🔴 THE COMMENT HERE WAS FALSE AND IS THE REASON THIS ROW EXISTS. It read "consumed by VO₂
      projection". No VO₂ projection reads it: the projection six lines below uses the LOCAL `altFactor`,
      and `_hrvProfileAlt` occurs repo-wide at exactly three sites — this line plus its inlined copies in
