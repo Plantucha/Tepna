@@ -125,6 +125,8 @@
         try {
           var r = parse(comp[k]);
           if (Array.isArray(r) && r.length) frame[k === 'magn' ? 'mag' : 'gyro'] = r;
+          // ∅ a companion that is present and gives no row is not an absent companion
+          else prov.warnings.push(k.toUpperCase() + ' companion present, and it gave no usable data');
         } catch (e) {
           prov.warnings.push(k.toUpperCase() + ' companion parse failed: ' + ((e && e.message) || e));
         }

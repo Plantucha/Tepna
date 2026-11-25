@@ -140,12 +140,19 @@
       // ECGDex.compute(frame) carries rec.deviceRR/deviceHR/deviceACC → analyze() stamps epochs[].position
       // (posture) + accExtras + the device cross-checks. No companions → fields stay absent (single-text
       // path byte-identical). A bad companion is a non-fatal warning, never a thrown route.
+      /* ∅ A companion that is present and gives no usable row is not an absent companion. The frame
+         shape is the same for both, so the warning is what separates them. */
+      var noteRows = function (kind, n, dropped) {
+        if (!n) prov.warnings.push(kind + ' companion present, and it gave no usable data' + (dropped ? ' (' + dropped + ' rows dropped)' : ''));
+        else if (dropped) prov.warnings.push(kind + ' companion: ' + dropped + ' of ' + (n + dropped) + ' rows dropped');
+      };
       var comp = ctx.companions;
       if (comp && typeof comp === 'object') {
         try {
           if (comp.rr && typeof ecg.parseDeviceRR === 'function') {
             var dr = ecg.parseDeviceRR(comp.rr);
             if (dr && dr.length) frame.deviceRR = dr;
+            noteRows('RR', dr && dr.length, dr && dr.rowsDropped);
           }
         } catch (e0) {
           prov.warnings.push('RR companion parse failed: ' + ((e0 && e0.message) || e0));
@@ -154,6 +161,7 @@
           if (comp.hr && typeof ecg.parseDeviceHR === 'function') {
             var dh = ecg.parseDeviceHR(comp.hr);
             if (dh && dh.length) frame.deviceHR = dh;
+            noteRows('HR', dh && dh.length, dh && dh.rowsDropped);
           }
         } catch (e1) {
           prov.warnings.push('HR companion parse failed: ' + ((e1 && e1.message) || e1));
@@ -164,6 +172,7 @@
             // companion kind ('accruns', never 'runs' — that slot is the ECG primary's). Absent it,
             // this is the exact single-argument call as before.
             var da = comp.accruns ? ecg.parseDeviceACC(comp.acc, { runsText: comp.accruns }) : ecg.parseDeviceACC(comp.acc);
+            noteRows('ACC', da && da.acc && da.acc.length, 0);
             if (da && da.acc && da.acc.length) {
               // a stampless ACC is relative-from-0 → re-base onto the ECG anchor (Clock Contract — never now()).
               if (da.acc._relBase && frame.t0Ms != null) {

@@ -531,7 +531,11 @@
       })
     )
       byKind.rr = byKind.rr.filter(function (it) {
-        return !isPPI(it.name);
+        if (!isPPI(it.name)) return true;
+        /* The PPI file is set aside by design and it is still a dropped file, so `skipped` names it.
+           An empty list told the reader that every file was used. */
+        skipped.push({ name: it.name, kind: 'supersededppi' });
+        return false;
       });
     // (7) companion lanes: part-group, then de-dupe a duplicated same-device-session sidecar group
     var companionLanes = {

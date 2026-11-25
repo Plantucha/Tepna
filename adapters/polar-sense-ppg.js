@@ -139,12 +139,18 @@
       // parsePPG/compute — the sensor parsers live on PPGDSP, so resolve them there (no ppgdex-dsp.js change).
       var dsp = ppg && typeof ppg.parseSensorXYZ === 'function' ? ppg : root.PPGDSP || ppg;
       var comp = ctx.companions;
+      /* ∅ A companion that is present and gives no row is not an absent companion. `parseDevicePPI`
+         refuses an unknown header with a reason, and the reason travels. */
+      var noteNoRows = function (kind, reason) {
+        prov.warnings.push(kind + ' companion present, and it gave no usable data' + (reason ? ' (' + reason + ')' : ''));
+      };
       if (comp && typeof comp === 'object' && dsp) {
         try {
           if (comp.acc && typeof dsp.parseSensorXYZ === 'function') {
             // §3.2 — the ACC's own sidecar, as `polar-acc.js` and `polar-h10-ecg.js` pass it.
             var a = comp.accruns ? dsp.parseSensorXYZ(comp.acc, { runsText: comp.accruns }) : dsp.parseSensorXYZ(comp.acc);
             if (a && a.length) frame.acc = a;
+            else noteNoRows('ACC');
           }
         } catch (e0) {
           prov.warnings.push('ACC companion parse failed: ' + ((e0 && e0.message) || e0));
@@ -153,6 +159,7 @@
           if (comp.gyro && typeof dsp.parseSensorXYZ === 'function') {
             var g = dsp.parseSensorXYZ(comp.gyro);
             if (g && g.length) frame.gyro = g;
+            else noteNoRows('GYRO');
           }
         } catch (e1) {
           prov.warnings.push('GYRO companion parse failed: ' + ((e1 && e1.message) || e1));
@@ -161,6 +168,7 @@
           if (comp.magn && typeof dsp.parseSensorXYZ === 'function') {
             var mg = dsp.parseSensorXYZ(comp.magn);
             if (mg && mg.length) frame.magn = mg;
+            else noteNoRows('MAGN');
           }
         } catch (e2) {
           prov.warnings.push('MAGN companion parse failed: ' + ((e2 && e2.message) || e2));
@@ -169,6 +177,7 @@
           if (comp.ppi && typeof dsp.parseDevicePPI === 'function') {
             var pp = dsp.parseDevicePPI(comp.ppi);
             if (pp && pp.length) frame.devicePPI = pp;
+            else noteNoRows('PPI', pp && pp.reason);
           }
         } catch (e3) {
           prov.warnings.push('PPI companion parse failed: ' + ((e3 && e3.message) || e3));

@@ -3189,6 +3189,14 @@
     refIdx: 'sampleIndexFractional'
   });
 
+  /* SD2 below half the published 0.01 ms step is a zero at the precision this node publishes. */
+  const ECG_SD2_MIN_MS = 0.005;
+  /* One band as a share of HF + LF, in percent. Null when a band is absent or the two hold no power. */
+  function nuOf(band, other) {
+    if (band == null || other == null || !(band + other > 0)) return null;
+    return +((band / (band + other)) * 100).toFixed(1);
+  }
+
   function analyze(rec, onProgress) {
     const prog = onProgress || (() => {});
     const { int16, fs } = rec;
@@ -3953,8 +3961,12 @@
       /* `sd1v / (sd2v || 1)` is the same fabrication as `hfnu` below: with sd2v null the `|| 1`
          substitutes a denominator that was never measured, and `null / 1` is 0 in JS — so a
          refusal would have surfaced as a ratio of exactly 0.000. Both derived metrics refuse
-         when either axis is absent. */
-      sd1sd2: sd1v == null || sd2v == null ? null : +(sd1v / (sd2v || 1)).toFixed(3),
+         when either axis is absent.
+         ∅ The ratio also refuses below `ECG_SD2_MIN_MS`. The retained `|| 1` divided by an invented
+         1 ms, so a series with no long-axis spread published SD1 itself as the ratio. PpgDex
+         (`PPG_SD2_MIN_MS`) and PulseDex (`PX_SD2_MIN_MS`) refuse at the same floor. `ellArea` keeps
+         its 0: a product over a measured zero width is a measured zero area. */
+      sd1sd2: sd1v == null || sd2v == null || sd2v < ECG_SD2_MIN_MS ? null : +(sd1v / sd2v).toFixed(3),
       ellArea: sd1v == null || sd2v == null ? null : +(Math.PI * sd1v * sd2v).toFixed(0),
       poincareNN,
       poincareRep: longRec && repSeg.length >= 20,
@@ -3975,12 +3987,13 @@
       /* 🔴 THE `|| 1` WAS THE WHOLE DEFECT, and it is worth naming precisely. With hf and lf both
          absent the expression read `null / (null + null || 1) * 100` — `null + null` is 0, `0 || 1`
          is 1, `null / 1` is 0 — producing a clean `0.0 %` on a `validated`-tier metric from an
-         input that was never transformed. The guard is on the MEASUREMENT, not on the denominator:
-         if either band is absent there are no normalised units to report. A genuinely measured
-         hf + lf === 0 still yields 0 via the retained `|| 1`, which is the case that guard was
-         actually for. */
-      hfnu: spec.hf == null || spec.lf == null ? null : +((spec.hf / (spec.hf + spec.lf || 1)) * 100).toFixed(1),
-      lfnu: spec.hf == null || spec.lf == null ? null : +((spec.lf / (spec.hf + spec.lf || 1)) * 100).toFixed(1),
+         input that was never transformed.
+         ∅ A MEASURED hf + lf === 0 REFUSES TOO (ruling #8826). The two shares partition one total,
+         so they sum to 100. Over no power they published 0.0 and 0.0: a share of nothing is not a
+         share. `hf`, `lf` and `tp` stay published as their measured zeros. `lfhf` guards itself
+         on the unrounded HF. */
+      hfnu: nuOf(spec.hf, spec.lf),
+      lfnu: nuOf(spec.lf, spec.hf),
       // non-linear
       dfa1,
       sampen,
@@ -6255,6 +6268,7 @@
     partKey,
     mergeMultipart,
     lombScargle,
+    nuOf,
     /* Exported so their refusal guards are directly assertable. Additive only — no existing caller
        reaches them through this surface, and the internal call sites are unchanged. */
     poincareGeo,
@@ -7773,16 +7787,39 @@
   // stampEpochPositions(deviceACC) → epochs[].position (posture) + accExtras. Mirrors PpgDex's
   // DSP-resident parseSensorXYZ/parseDevicePPI (companion parsers live in the DSP).
   // `*_RR.txt` (device RR, ms in the last column) → [{tsMs, rr}], 200–3000 ms.
+  /* ∅ A DROPPED ROW IS COUNTED. Both parsers below skip a row they cannot read and a row outside the
+     plausible band, and a file that lost half its rows published the same shape as a file that lost
+     none. The counts ride as own properties on the returned array, because `compute()` rebuilds the
+     recording and passes this array by reference (a sibling key on the recording would be lost there).
+       rowsDropped   every data row that gave no value
+       rowsOutOfBand the part of `rowsDropped` that held a number outside the band
+     A header is not data: the first line with no readable value and no readable stamp, and any exact
+     repeat of it (a multi-part file carries one header per part). */
   function parseDeviceRR(text) {
     var lines = String(text == null ? '' : text).split(/\r?\n/),
-      out = [];
+      out = /** @type {any} */ ([]),
+      hdr = null,
+      first = true;
+    out.rowsDropped = 0;
+    out.rowsOutOfBand = 0;
     for (var i = 0; i < lines.length; i++) {
       var t = lines[i].trim();
-      if (!t) continue;
+      if (!t || t === hdr) continue;
       var p = t.split(/[;\t,]/);
       var rr = parseFloat(p[p.length - 1]);
-      if (!isFinite(rr) || rr < 200 || rr > 3000) continue;
       var ts = parseTimestamp(p[0]);
+      if (first) {
+        first = false;
+        if (!isFinite(rr) && !ts) {
+          hdr = t;
+          continue;
+        }
+      }
+      if (!isFinite(rr) || rr < 200 || rr > 3000) {
+        out.rowsDropped++;
+        if (isFinite(rr)) out.rowsOutOfBand++;
+        continue;
+      }
       out.push({ tsMs: ts && ts.tMs != null ? ts.tMs : null, rr: rr });
     }
     return out;
@@ -7815,17 +7852,22 @@
   // `*_HR.txt` (device onboard HR) → [{tsMs, hr}], 20–260 bpm.
   function parseDeviceHR(text) {
     var lines = String(text == null ? '' : text).split(/\r?\n/),
-      out = [];
+      out = /** @type {any} */ ([]);
     var cols = null,
-      headerless = false;
+      headerless = false,
+      hdr = null;
+    out.rowsDropped = 0;
+    out.rowsOutOfBand = 0;
     for (var i = 0; i < lines.length; i++) {
       var t = lines[i].trim();
-      if (!t) continue;
+      if (!t || t === hdr) continue;
       var p = t.split(/[;\t,]/);
-      if (cols === null && !headerless) {
+      var first = cols === null && !headerless;
+      if (first) {
         var fromHdr = hrColsFromHeader(t);
         if (fromHdr) {
           cols = fromHdr;
+          hdr = t;
           continue; // the header line is not data
         }
         headerless = true;
@@ -7837,8 +7879,16 @@
       // milliseconds relabelled as bpm.
       var hrIdx = cols ? cols.hr : p.length === 1 ? 0 : 1;
       var hr = parseFloat(p[hrIdx]);
-      if (!isFinite(hr) || hr < 20 || hr > 260) continue;
       var ts = parseTimestamp(p[0]);
+      if (first && !isFinite(hr) && !ts) {
+        hdr = t; // a header that names no rate column
+        continue;
+      }
+      if (!isFinite(hr) || hr < 20 || hr > 260) {
+        out.rowsDropped++;
+        if (isFinite(hr)) out.rowsOutOfBand++;
+        continue;
+      }
       out.push({ tsMs: ts && ts.tMs != null ? ts.tMs : null, hr: hr }); // null stamp stays null — never fabricated
     }
     return out;
@@ -9589,6 +9639,9 @@
              block already applies above, so a measuring night keeps today's bytes. */
           ...(_v.devReason ? { devReason: _v.devReason } : {}),
           ...(_v.nDevAbsent ? { nDeviceAbsent: _v.nDevAbsent } : {}),
+          /* The rows `parseDeviceRR` could not use. Attached only when a row was lost, the same
+             no-null-key discipline as `nDeviceAbsent`, so a clean file keeps its bytes. */
+          ...(r.deviceRR.rowsDropped ? { deviceRowsDropped: r.deviceRR.rowsDropped, deviceRowsOutOfBand: r.deviceRR.rowsOutOfBand } : {}),
           dMeanPct: _v.dMean,
           dRMSSDPct: _v.dRMSSD,
           dSDNNPct: _v.dSDNN,
