@@ -265,6 +265,9 @@
 <script src="metric-registry.js"></script>
 <!-- the FUSER (public IntegratorDSP surface; bare globals are unique on this page) -->
 <script src="clock.js"></script>
+<!-- sq-table.js — the shared signal-quality table. It sits in `DEX_COLOAD.shared`, so every host
+     realm that routes a node DSP carries it (SIGNAL-QUALITY-TABLE-2026-11-14 §7.4). -->
+<script src="sq-table.js"></script>
 <script src="clock-seam.js"></script>
 <script src="event-coupling.js"></script>
 <script src="integrator-dsp.js"></script>

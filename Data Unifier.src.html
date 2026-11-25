@@ -194,6 +194,9 @@
 <script>window.__DEX_NAMESPACED__ = true;</script>
 <script src="oxydex-util.js"></script>
 <script src="clock.js"></script>
+<!-- sq-table.js — the shared signal-quality table. It sits in `DEX_COLOAD.shared`, so every host
+     realm that routes a node DSP carries it (SIGNAL-QUALITY-TABLE-2026-11-14 §7.4). -->
+<script src="sq-table.js"></script>
 <script src="clock-seam.js"></script>
 <script type="module" src="oxydex-dsp.js"></script>
 <script src="crossnight-envelope.js"></script>
