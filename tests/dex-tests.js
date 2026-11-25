@@ -104387,6 +104387,124 @@
       T.ok('∅ · control · the calibrated set still yields a usable frame', !!gfr && gfr.usable === true, gfr ? String(gfr.usable) : 'no frame');
     });
 
+    /* ════ ∅ THE REST OF THE SAME SHAPE DRIFT — `_scale`, `physMin`, `physMax` ═══════════
+       Row 2026-11-24-synthetic-edf-channels-carry-no-scale-or-physical-range, the remainder after
+       the `calibrated` half closed in #5689. `readEDF` writes all four fields in ONE object literal,
+       and `_mkSig` wrote none of these three, so each read `undefined` over the whole synthetic set.
+
+       The row logged no consumer, and that is why it stayed a row: the field set has one reader
+       repo-wide and it is the decoder itself. So this group pins the SHAPE and the decoder's own
+       INVARIANT, not a value a formula produced:
+
+         · `_scale` is the digital-to-physical factor. A synthetic channel never passed through
+           int16, so the identity 1 is the truthful factor, and null would read as uncalibrated.
+         · `readEDF` couples the pair — `_cal ? (physMax - physMin) / _dr : null` — so a channel is
+           calibrated with a numeric scale, or uncalibrated with a null one. No third pair exists.
+         · A synthetic channel declares no EDF header, so an undeclared physical range is null. The
+           data extremes are a DIFFERENT quantity, and the constant Crc16 channel would give them a
+           zero width, which is the fabricated denominator the row warns about.
+         · A percent range is definitional, so the SpO2 channel declares 0 to 100 and the group
+           reads a real range off the node's own set rather than off a hand-built literal. */
+    group('∅ every synthetic EDF channel carries `_scale`, `physMin` and `physMax`', 'cpapdex-dsp · adapters · absence-is-null · shape-parity', function (T) {
+      var CD = env.CpapDsp;
+      if (!CD || typeof CD._synthEdfSet !== 'function') {
+        T.skip('CpapDsp._synthEdfSet exposed', 'CPAPDex is not co-loaded in this lane, so the scan would read nothing');
+        return;
+      }
+      var chans = function (set) {
+        var out = [];
+        ['PLD', 'BRP', 'SA2'].forEach(function (k) {
+          var sigs = set && set[k] && set[k].signals;
+          if (sigs)
+            Object.keys(sigs).forEach(function (lab) {
+              out.push({ file: k, label: lab, sig: sigs[lab] });
+            });
+        });
+        return out;
+      };
+      var has = function (sig, f) {
+        return Object.prototype.hasOwnProperty.call(sig, f);
+      };
+      var numOrNull = function (v) {
+        return v === null || typeof v === 'number';
+      };
+      var base = chans(CD._synthEdfSet({ oxi: true, cs: true }));
+      // ANTI-VACUITY: a set that built no channel would pass every leg below over an empty list.
+      T.ok('∅ · the synthetic set builds the channels this group judges', base.length >= 13, base.length + ' channel(s)');
+      ['_scale', 'physMin', 'physMax'].forEach(function (f) {
+        var absent = base.filter(function (c) {
+          return !has(c.sig, f) || !numOrNull(c.sig[f]);
+        });
+        T.eq('∅ · no channel leaves `' + f + '` absent, so it is never `undefined`', absent.length, 0);
+        if (absent.length)
+          T.ok(
+            '∅ · …the channels that left `' + f + '` absent',
+            false,
+            absent
+              .map(function (c) {
+                return c.file + '/' + c.label;
+              })
+              .join(' · ')
+          );
+      });
+      var badScale = base.filter(function (c) {
+        return c.sig._scale !== 1;
+      });
+      T.eq('∅ · a channel built in physical units reads `_scale` 1, the identity factor', badScale.length, 0);
+      // THE DECODER'S OWN INVARIANT, over every channel: calibrated with a number, or null with false.
+      var brokenPair = base.filter(function (c) {
+        return c.sig.calibrated === true ? c.sig._scale === null : c.sig._scale !== null;
+      });
+      T.eq('∅ · every channel pairs `calibrated` with `_scale` the way `readEDF` pairs them', brokenPair.length, 0);
+      // A DECLARED range is real or absent, and never a zero-width denominator.
+      var degenerate = base.filter(function (c) {
+        return c.sig.physMin !== null && c.sig.physMax !== null && c.sig.physMax - c.sig.physMin <= 0;
+      });
+      T.eq('∅ · no channel declares a zero-width physical range, which is the fabricated denominator', degenerate.length, 0);
+      var byLabel = function (list, lab) {
+        return list.filter(function (c) {
+          return c.label === lab;
+        })[0];
+      };
+      var sp = byLabel(base, 'SpO2.1s');
+      T.ok(
+        '∅ · SpO2 declares the percent range 0 to 100, which is definitional',
+        !!sp && sp.sig.physMin === 0 && sp.sig.physMax === 100,
+        sp ? sp.sig.physMin + '…' + sp.sig.physMax : 'no SpO2 channel'
+      );
+      var pr = byLabel(base, 'Press.2s');
+      T.ok(
+        '∅ · a channel with no header range declares null, never 0 and never the data extremes',
+        !!pr && pr.sig.physMin === null && pr.sig.physMax === null,
+        pr ? String(pr.sig.physMin) + '…' + String(pr.sig.physMax) : 'no Press channel'
+      );
+      // PARITY with the real decoder, read from its own source rather than claimed in prose.
+      var edfSrc = (env.sources || {})['cpapdex-edf.js'] || '';
+      T.ok('∅ · `readEDF` writes `_scale` off the calibration flag, so the pair is its own', /_scale:\s*_cal \?/.test(edfSrc), edfSrc ? 'source read' : 'cpapdex-edf.js source not in env');
+      T.ok(
+        '∅ · `readEDF` writes `physMin` and `physMax` beside it, so this is parity',
+        /physMin:\s*physMin\[s2\],/.test(edfSrc) && /physMax:\s*physMax\[s2\],/.test(edfSrc),
+        edfSrc ? 'source read' : 'cpapdex-edf.js source not in env'
+      );
+      // REACHABILITY: `opts.uncal` must move BOTH fields, because the decoder moves both.
+      var uset = CD._synthEdfSet({ oxi: true, cs: true, uncal: ['Flow.40ms'] });
+      var uch = byLabel(chans(uset), 'Flow.40ms');
+      T.ok(
+        '∅ · `opts.uncal` nulls `_scale` on the named channel, as `readEDF` does',
+        !!uch && uch.sig.calibrated === false && uch.sig._scale === null,
+        uch ? uch.sig.calibrated + '/' + String(uch.sig._scale) : 'no Flow channel'
+      );
+      var uOthers = chans(uset).filter(function (c) {
+        return c.label !== 'Flow.40ms' && c.sig._scale !== 1;
+      });
+      T.eq('∅ · …and it touches no other channel', uOthers.length, 0);
+      // CONTROL · an unknown label changes nothing, so the option cannot silently blank a set.
+      var unk = chans(CD._synthEdfSet({ oxi: true, uncal: ['NoSuchChannel'] })).filter(function (c) {
+        return c.sig._scale !== 1;
+      });
+      T.eq('∅ · control · an unknown label leaves every `_scale` at 1', unk.length, 0);
+    });
+
     /* ── event-coupling.js — the shuffled-null cross-node coupling primitive ──────────────
        CPAP-REAL-CORPUS §P5, executing §M1. The point of the primitive is that a raw
        co-occurrence rate between two FREQUENT event streams is not evidence of anything: on
