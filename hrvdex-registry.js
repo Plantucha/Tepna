@@ -49,6 +49,36 @@
       evidence: 'validated',
       cite: 'VLF share of total power (Task Force 1996) — graded as ECGDex vlf and PulseDex vlf grade the same band'
     },
+    lnRMSSD: {
+      rendersAs: 'd_lnrmssd',
+      label: 'ln rMSSD',
+      unit: '',
+      goodDirection: 'up',
+      depth: 'advanced',
+      evidence: 'validated',
+      cite: 'Natural log of rMSSD (Task Force 1996) — a monotone transform, graded as rMSSD'
+    },
+    /* Brennan 2001, 10.1109/10.959330: SD1² = ½·SDSD² and SD2² = 2·SDNN² − ½·SDSD². This node reads
+       rMSSD for SDSD, which is the same number when the mean successive difference is 0. The identity
+       is exact, so both axes carry the grade of the ratio below that they form. */
+    sd1: {
+      rendersAs: 'd_sd1',
+      label: 'SD1',
+      unit: 'ms',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'validated',
+      cite: 'Poincaré SD1 = rMSSD/√2 (Brennan 2001) — short-axis width'
+    },
+    sd2: {
+      rendersAs: 'd_sd2',
+      label: 'SD2',
+      unit: 'ms',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'validated',
+      cite: 'Poincaré SD2 = √(2·SDNN² − SD1²) (Brennan 2001) — long-axis width, derived from SDNN and rMSSD'
+    },
     sd1sd2: {
       /* RENDERED AS `d_sd1_sd2` — the `d_` convention does not derive this key from the id.
          Confirmed by LABEL, not by name: registry 'SD1/SD2' ≡ render 'SD1/SD2'. */
@@ -293,9 +323,12 @@
     // lines took the fabricated-`experimental` floor instead of the grade the registry already
     // declares. Enumerated by running idForLabel over every PATTERN_METRICS label: three validated
     // metrics (rMSSD, SDNN, HFnu) and two emerging ones (VEI, Spectral Ent) read as an UNDER-grade,
-    // and the heuristic VO₂ family as an OVER-grade. `ln(rMSSD)`, `SD1 (ms)` and `SD2 (ms)` have no
-    // registry entry of their own, so they correctly keep the floor; a grade for them needs an entry
-    // with a citation, which is not this change.
+    // and the heuristic VO₂ family as an OVER-grade. `ln(rMSSD)`, `SD1 (ms)` and `SD2 (ms)` had no
+    // entry of their own and kept the floor; they have one now, with its citation.
+    'ln(rmssd)': 'lnRMSSD',
+    lnrmssd: 'lnRMSSD',
+    'sd1 (ms)': 'sd1',
+    'sd2 (ms)': 'sd2',
     'rmssd (ms)': 'rmssd',
     'sdnn (ms)': 'sdnn',
     'hfnu (%)': 'hfnu',

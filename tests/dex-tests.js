@@ -42789,37 +42789,22 @@
         for (const mm of block.matchAll(/\{\s*key:\s*'([^']*)'\s*,\s*label:\s*'((?:[^'\\]|\\.)*)'/g)) pats.push({ key: mm[1], label: mm[2] });
         T.ok('M3 · PATTERN_METRICS parsed from source (≥ 19 rows)', pats.length >= 19, pats.length + ' rows');
 
-        /* The three labels the registry holds no entry for. They are transforms of metrics it DOES hold
-         (ln(rMSSD) of rMSSD; SD1 and SD2 of the Poincaré pair it grades as the ratio `sd1sd2`), and a
-         grade for them needs an entry with a citation, which is a different unit. They keep the
-         honest `experimental` floor, and this list is the declaration of that — a new pattern metric
-         that resolves to nothing reds this leg instead of quietly taking the floor. */
-        var NO_ENTRY = { 'ln(rMSSD)': 1, 'SD1 (ms)': 1, 'SD2 (ms)': 1 };
+        /* Every pattern metric has a registry entry. A new one that resolves to nothing reds this leg
+         instead of quietly taking the `experimental` floor. */
         var unresolved = [];
         pats.forEach(function (m) {
-          if (!R.idForLabel(m.label) && !NO_ENTRY[m.label]) unresolved.push(m.label);
+          if (!R.idForLabel(m.label)) unresolved.push(m.label);
         });
-        T.eq('M3 · every pattern metric either resolves or is a declared registry gap (0 silent gaps)', unresolved.length, 0, 'silent: ' + unresolved.join(' · '));
-        var stillGapped = Object.keys(NO_ENTRY).filter(function (l) {
-          return !R.idForLabel(l);
-        });
-        T.eq(
-          'M3 · the declared gaps are still gaps (the list is not stale)',
-          stillGapped.length,
-          3,
-          'now resolving: ' +
-            Object.keys(NO_ENTRY)
-              .filter(function (l) {
-                return R.idForLabel(l);
-              })
-              .join(' · ')
-        );
+        T.eq('M3 · every pattern metric resolves to a registry id (0 silent gaps)', unresolved.length, 0, 'silent: ' + unresolved.join(' · '));
 
         // ── M3·b — the labels whose grade the fallback was getting WRONG now resolve to their true id.
         [
           ['rMSSD (ms)', 'rmssd', 'validated'],
           ['SDNN (ms)', 'sdnn', 'validated'],
           ['HFnu (%)', 'hfnu', 'validated'],
+          ['ln(rMSSD)', 'lnRMSSD', 'validated'],
+          ['SD1 (ms)', 'sd1', 'validated'],
+          ['SD2 (ms)', 'sd2', 'validated'],
           ['Vagal Efficiency', 'vei', 'emerging'],
           ['Spectral Entropy', 'spectralEnt', 'emerging'],
           ['Recovery Index', 'recovIndex', 'experimental'],
@@ -42840,6 +42825,12 @@
           if (id && env.HRV_REGISTRY[id] && (R.badgeForLabel(m.label, true) || '').indexOf('ev-' + env.HRV_REGISTRY[id].evidence) < 0) floorOverride.push(m.label);
         });
         T.eq('M3 · every resolving pattern metric badges at its registry grade', floorOverride.length, 0, 'floor-override: ' + floorOverride.join(' · '));
+
+        // The three stat lines write this label through innerHTML, so a failed lookup never echoes its key.
+        var plM = hRnd.match(/function _patLabel\(key\) \{[\s\S]*?\n\}/);
+        var pl = plM ? new Function('PATTERN_METRICS', plM[0] + '; return _patLabel;')(pats) : null;
+        T.eq('M3 · _patLabel reads the table', pl ? pl('d_sd1') : null, 'SD1 (ms)');
+        T.eq('M3 · _patLabel never returns a key the table does not hold', pl ? pl('<img src=x>') : null, 'unlisted metric');
 
         // ── M3·c — each of the three stat lines badges the SERIES it describes. Sliced per function, so a
         //           badge restored on one card cannot answer for another.
@@ -54897,6 +54888,48 @@
         );
       }
 
+      /* ── 1b · the parasympathetic leg answers for itself (row camq-score-publishes-no-indicator-count) ── */
+      T.ok('the DSP publishes the parasympathetic indicator count', typeof D.camqParaCount === 'function', typeof D.camqParaCount);
+      if (typeof D.camqParaCount === 'function') {
+        var night = { _rmssd: 20, _pnn50: 2, _hf: 300 };
+        T.eq('KNOWN · rMSSD alone scores 50', D.computeCAMQ({ _rmssd: 20 }), 50);
+        T.eq('KNOWN · pNN50 alone scores 8', D.computeCAMQ({ _pnn50: 2 }), 8);
+        T.eq('KNOWN · HF alone scores 69', D.computeCAMQ({ _hf: 300 }), 69);
+        T.eq('KNOWN · the three together score 42', D.computeCAMQ(night), 42);
+        T.eq('all three ⇒ 3', D.camqParaCount(night), 3);
+        T.eq('rMSSD alone ⇒ 1', D.camqParaCount({ _rmssd: 20 }), 1);
+        T.eq('pNN50 alone ⇒ 1', D.camqParaCount({ _pnn50: 2 }), 1);
+        T.eq('HF alone ⇒ 1', D.camqParaCount({ _hf: 300 }), 1);
+        T.eq('a measured pNN50 of 0 counts, as the score averages it', D.camqParaCount({ _rmssd: 20, _pnn50: 0 }), 2);
+        T.eq('an absent pNN50 does not count', D.camqParaCount({ _rmssd: 20, _pnn50: null }), 1);
+        T.eq("an HF of 0 is this node's absent band and does not count", D.camqParaCount({ _rmssd: 20, _hf: 0 }), 1);
+        T.eq('no indicator ⇒ 0, where the score refuses', D.camqParaCount({ _lf: 9999 }), 0);
+        T.eq('a non-row argument answers 0, rather than throwing', D.camqParaCount(null), 0);
+        // The count and the score read the same tests: a score exists exactly when the count is not 0.
+        var agree = true;
+        [null, 0, 2].forEach(function (p) {
+          [null, 0, 20].forEach(function (m) {
+            [null, 0, 300].forEach(function (h) {
+              var r = { _rmssd: m, _pnn50: p, _hf: h };
+              if (D.computeCAMQ(r) == null ? D.camqParaCount(r) !== 0 : D.camqParaCount(r) === 0) agree = false;
+            });
+          });
+        });
+        T.ok('over 27 rows, the score refuses exactly where the count is 0', agree);
+      }
+
+      /* ── 1c · SD2 (Brennan 2001): a pair no RR series can give is absent, never a measured 0 ── */
+      var sd2of = function (rm, sd) {
+        var rows = [{ _tMs: Date.UTC(2026, 5, 10, 3, 0, 0), _rmssd: rm, _sdnn: sd, _pnn50: 5 }];
+        D.computeDerived(rows);
+        return rows[0];
+      };
+      T.approx('SD2 of rMSSD 40 and SDNN 50 is √4200', sd2of(40, 50).d_sd2, Math.sqrt(4200), 1e-9);
+      T.ok('SD2 of an impossible pair (rMSSD 100, SDNN 20) is absent', Number.isNaN(sd2of(100, 20).d_sd2), String(sd2of(100, 20).d_sd2));
+      T.ok('…and so is the ratio', Number.isNaN(sd2of(100, 20).d_sd1_sd2), String(sd2of(100, 20).d_sd1_sd2));
+      T.approx('…while SD1 of that row stays its own measurement', sd2of(100, 20).d_sd1, 100 / Math.SQRT2, 1e-9);
+      T.eq('CONTROL · the boundary pair gives a measured SD2 of 0', sd2of(0, 0).d_sd2, 0);
+
       /* ── 2 · the AUC carries its coverage count (row hrvdex-dsp.js:886) ─────────────────────── */
       var DAY = 86400000;
       var week = function (stressAt) {
@@ -54929,12 +54962,33 @@
       if (rnd) {
         T.ok('the coverage count is a TABLE_COLS column, so the CSV and JSONL keys carry it too', /key: 'd_stress_auc_n'/.test(rnd));
         T.ok('ch_camq marks each point by the coverage answer', /pointStyles: camqPts\.map/.test(rnd) && /camqSympMeasured\(r\)/.test(rnd));
+        T.ok('ch_camq carries the indicator count on each point', /para: camqParaCount\(r\)/.test(rnd) && /pointNotes: camqPts\.map/.test(rnd));
+        /* Drive the marker functions themselves, so each leg of the two-way coverage has its own shape. */
+        var fnOf = function (name) {
+          var m = rnd.match(new RegExp(name + ': camqPts\\.map\\(function \\(p\\) \\{([\\s\\S]*?)\\n    \\}\\)'));
+          return m ? new Function('p', m[1]) : function () {};
+        };
+        var st = fnOf('pointStyles'),
+          col = fnOf('pointColors'),
+          rad = fnOf('pointRadii'),
+          note = fnOf('pointNotes');
+        T.eq('full coverage draws a circle', st({ symp: true, para: 3 }), 'circle');
+        T.eq('an unmeasured sympathetic leg draws a cross', st({ symp: false, para: 3 }), 'crossRot');
+        T.eq('fewer than three indicators draw a triangle', st({ symp: true, para: 2 }), 'triangle');
+        T.eq('both gaps draw a star', st({ symp: false, para: 1 }), 'star');
+        T.ok('a partial point is grey, as the cross is', col({ symp: true, para: 2 }) === col({ symp: false, para: 3 }) && col({ symp: true, para: 3 }) !== col({ symp: true, para: 2 }));
+        T.ok('…and larger than a full one', rad({ symp: true, para: 2 }) > rad({ symp: true, para: 3 }));
+        T.eq('the tooltip states the count', note({ symp: true, para: 2 }), '2 of 3 parasympathetic indicators');
+        T.eq('…and the absent correction', note({ symp: false, para: 3 }), '3 of 3 parasympathetic indicators · no sympathetic correction');
+        T.ok('drawSimpleLine prints that note in the tooltip', /opts\.pointNotes \? opts\.pointNotes\[c\.dataIndex\]/.test(rnd));
         T.ok('…and drawSimpleLine honours that per-point style', /pointStyle: opts\.pointStyles/.test(rnd));
         T.ok('…and the per-point colour too, because shape alone can be hard to see', /pointBackgroundColor: opts\.pointColors/.test(rnd));
       }
       var shell = (env.srcHtml || {})['HRVDex.src.html'] || '';
       T.ok('ANTI-VACUITY · the HRVDex shell is readable in this lane', shell.length > 1000, String(shell.length));
       if (shell) {
+        T.ok('the CAMQ card explains the triangle and the star', /grey triangle averages fewer than the three/.test(shell) && /grey star is both/.test(shell));
+        T.ok('the CAMQ card names no indicator that the score does not read', !/AMo50\)\. Lower scores/.test(shell));
         T.ok('the CAMQ card tells the reader what the marker means', /grey cross/.test(shell) && /no sympathetic correction applies/.test(shell));
       }
 
