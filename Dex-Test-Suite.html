@@ -1102,7 +1102,7 @@ let __rcRunning=false;
    setupRenderCoverageControls truncates ALL_GROUPS back to the headless baseline first. */
 async function runRenderCoverage(){
   if(__rcRunning) return;
-  __rcRunning=true; window.__rcState='running'; window.__rcBootSkips=[];
+  __rcRunning=true; window.__rcState='running'; window.__rcBootSkips=[]; window.__rcStrayLoads=[];
   // Per-rig wall-clock timings (BROWSER-GATES-CI-TIMEOUT 2026-07-03): a CI stall previously showed
   // up as just "rcState=running, N groups booted" with no further detail. This makes the NEXT such
   // failure self-diagnosing — tests/browser-gates.mjs reads window.__rcTimings on a timeout and
@@ -1115,6 +1115,7 @@ async function runRenderCoverage(){
   render();
   __rcDeadline = Date.now() + RC_TOTAL_BUDGET_MS;   // overall wall-clock ceiling for the whole render-coverage tail
   const want=rcWanted();
+  if(want('Render rig — boot accepts the requested page alone','browser-only · bootRig')){ ALL_GROUPS.push(await rigBootGate()); _rcMark('rigBootGate'); render(); }
   if(want('Render coverage — ECGDex computed → DOM','browser-only · ECGDex.html')){ ALL_GROUPS.push(await rcLeg('Render coverage — ECGDex computed → DOM','browser-only · ECGDex.html','ECGDex.html', renderCoverageECGDex)); _rcMark('ECGDex'); render(); }
   if(want('Render coverage — CPAPDex computed → DOM','browser-only · CPAPDex.html')){ ALL_GROUPS.push(await rcLeg('Render coverage — CPAPDex computed → DOM','browser-only · CPAPDex.html','CPAPDex.html', renderCoverageCPAPDex)); _rcMark('CPAPDex'); render(); }
   if(want('Render coverage — Integrator periodic breathing → DOM','browser-only · Integrator.html · §2')){ ALL_GROUPS.push(await rcLeg('Render coverage — Integrator periodic breathing → DOM','browser-only · Integrator.html · §2','Integrator.html', renderCoverageIntegratorPB)); _rcMark('IntegratorPB'); render(); }
@@ -1386,7 +1387,7 @@ async function renderCoverageECGDex(){
 
     const txt = (doc.body && doc.body.innerText) || '';
     add(g, 'no uncaught error during demo', !errored, errored);
-    add(g, 'dashboard rendered substantial content', txt.length > 2000, txt.length+' chars');
+    add(g, 'dashboard rendered substantial content', txt.length > 2000, txt.length+' chars'+(txt.length > 2000?'':rigRead(rig, doc)));
     // labels that only appear once metrics are computed + laid out
     ['rMSSD','SDNN','Analyzable'].forEach(lbl =>
       add(g, 'renders "'+lbl+'"', new RegExp(lbl,'i').test(txt)));
@@ -1562,7 +1563,7 @@ async function renderCoverageCPAPDex(){
     const txt = (doc.body && doc.body.innerText) || '';
     add(g, 'no uncaught error during demo', !errored, errored);
     add(g, 'results view revealed', getComputedStyle(doc.getElementById('resultsView')).display !== 'none');
-    add(g, 'dashboard rendered substantial content', txt.length > 2000, txt.length+' chars');
+    add(g, 'dashboard rendered substantial content', txt.length > 2000, txt.length+' chars'+(txt.length > 2000?'':rigRead(rig, doc)));
     ['Residual AHI','Pressure','Leak','Oximetry'].forEach(lbl =>
       add(g, 'renders "'+lbl+'"', new RegExp(lbl,'i').test(txt)));
     // computed numeric values reach the DOM (not blank/—)
@@ -1599,9 +1600,49 @@ function bootRig(rig, url, watchdogMs){
     let done=false;
     const finish=(ok)=>{ if(done) return; done=true; try{ rig.onload=null; }catch(_){} resolve(ok); };
     try{ rig.onload=null; rig.src='about:blank'; }catch(_){}
-    setTimeout(()=>{ if(done) return; rig.onload=()=>finish(true); try{ rig.src=url; }catch(_){ finish(false); } }, 50);
+    setTimeout(()=>{ if(done) return; rig.onload=()=>{ if(rigHolds(rig, url)) finish(true); else rigStray(rig, url); }; try{ rig.src=url; }catch(_){ finish(false); } }, 50);
     setTimeout(()=>finish(false), watchdogMs);
   });
+}
+/* A `load` event says that SOME document finished, never which one. `bootRig` took any of them, so a
+   load of the about:blank step could pass as the app's boot; the legs then read a document that the
+   app replaced a moment later (two CI runs, 2026-11-24 and 2026-11-25: ten HRVDex legs red at 0 chars on diffs
+   that touch no bundle). The frame's own path is the evidence. A stray load is recorded, and the wait
+   goes on until the watchdog. */
+function rigPath(rig){ try{ const l=rig.contentWindow.location; return l.protocol==='about:' ? l.href : l.pathname; }catch(_){ return null; } }
+function rigHolds(rig, url){
+  let want=null; try{ want=new URL(url, location.href).pathname; }catch(_){ return false; }
+  return rigPath(rig)===want && !!rig.contentDocument && rig.contentDocument.URL!=='about:blank';
+}
+function rigStray(rig, url){ try{ (window.__rcStrayLoads=window.__rcStrayLoads||[]).push(url+' ← '+rigPath(rig)); }catch(_){} }
+/* What a red leg read: the document's own URL, and whether the frame still shows that document. */
+function rigRead(rig, doc){
+  let u='unreadable'; try{ u=doc.URL; }catch(_){}
+  let same=false; try{ same=rig.contentDocument===doc; }catch(_){}
+  const stray=(window.__rcStrayLoads||[]).length;
+  return ' · read '+u.replace(/^.*\//,'')+(same?'':' — REPLACED since boot by '+rigPath(rig))+(stray?' · stray loads: '+window.__rcStrayLoads.join(', '):'');
+}
+
+/* The plant for `rigHolds`: a `load` event on the frame while it still shows about:blank. Both timers
+   are 50 ms, so this one runs right after the one that sets `src`, before the page can load. */
+async function rigBootGate(){
+  const g = mkGroup('Render rig — boot accepts the requested page alone', 'browser-only · bootRig');
+  const f=document.createElement('iframe'); f.style.cssText='width:1px;height:1px;position:absolute;left:-9999px';
+  document.body.appendChild(f);
+  const before=(window.__rcStrayLoads||[]).slice();
+  try{
+    const p=bootRig(f, 'dex-badges.css', 9000);
+    let at='unset';
+    await new Promise(r=>setTimeout(r,50));
+    at=rigPath(f); f.dispatchEvent(new Event('load'));
+    const ok=await p;
+    add(g, 'the plant fired a load while the frame held about:blank', at==='about:blank', String(at));
+    add(g, 'bootRig resolves true on the requested page', ok && rigHolds(f,'dex-badges.css'), 'frame holds '+rigPath(f));
+    add(g, 'the stray load is recorded', (window.__rcStrayLoads||[]).length===before.length+1, (window.__rcStrayLoads||[]).join(', '));
+    add(g, 'a document that the frame replaced reads as replaced', /REPLACED since boot/.test(rigRead(f, document)), rigRead(f, document));
+  }catch(e){ add(g, 'rig boot probe ran without throwing', false, e.message); }
+  finally{ window.__rcStrayLoads=before; try{ f.remove(); }catch(_){} }
+  return g;
 }
 
 /* Retry-once boot wrapper shared by EVERY render-coverage leg. A cold bundle boot (250–540 KB
@@ -2074,7 +2115,7 @@ async function renderCoverageApp(cfg){
     if(cfg.idbGuard){ _idbSnap = await _idbCounts(win, cfg.idbGuard.db, cfg.idbGuard.stores); }  // XII §1: durable-IndexedDB record-count snapshot BEFORE prep ingests
     if(cfg.prep){
       let ok=false; try{ ok=cfg.prep(doc,win); }catch(e){ errored=errored||e.message; }
-      add(g, 'synthetic data injected (demo path)', ok!==false, ok===false?'injection hook not found':'');
+      add(g, 'synthetic data injected (demo path)', ok!==false, ok===false?'injection hook not found'+rigRead(rig, doc):'');
     }
     /* EXPORT-PATH-UNREACHABLE §8 — when a leg declares an export bar, SETTLE ON IT. Two reasons, both
        found the day this probe was added. (1) It removes a race: GlucoDex's #demo lands asynchronously
@@ -2118,7 +2159,7 @@ async function renderCoverageApp(cfg){
        view, or a named finding — all genuinely data-dependent. */
     add(g, 'leg declares an export-bar guard (its token/label settle alone is satisfiable by the empty app)', !!cfg.exportBar,
       cfg.exportBar ? '' : 'add exportBar:{want:[…]} to this cfg — see EXPORT-PATH-UNREACHABLE-FOLLOWUPS §1');
-    add(g, 'dashboard rendered substantial content', txt.length>(cfg.minChars||1500), txt.length+' chars');
+    add(g, 'dashboard rendered substantial content', txt.length>(cfg.minChars||1500), txt.length+' chars'+(txt.length>(cfg.minChars||1500)?'':rigRead(rig, doc)));
     add(g, 'renders an expected metric label', (cfg.labels||[]).some(l=>new RegExp(l.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i').test(txt)),
       'looked for '+(cfg.labels||[]).join(' / '));
     if(cfg.evidenceRe) add(g, 'renders '+(cfg.evidenceName||'computed evidence'), cfg.evidenceRe.test(txt));
