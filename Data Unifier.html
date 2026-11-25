@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="57d83e5f29cd" data-compute-hash="28615365d1db"><head>
+<html lang="en" data-manifest-hash="ed36a5f56b9c" data-compute-hash="01c52ba41746"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BIY+O0WrFH2ifCpqPFpXTfX4odk1IYkRPUEdt6P/zoI=' 'sha256-CIK+HS7/1xOvtV34dY8m6yXaUzx3kMmgW6RsanoNH+Y=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UdJ88eeYm1W9tlVf66iAGR0D63hIgHQ6dBYrVftyKPE=' 'sha256-V2/wqKWd1yZWk6PE9UKyQT9YFfr5zC7csFcMRln4iqM=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gsfxF3U9fQYY6VBcjkxdisltp5OpMvk7xGo0quyFZm8=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-zxV4DCpRJohvPwd65AN+/CH0kNLzHAU+vIKI6BC4I28='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CIK+HS7/1xOvtV34dY8m6yXaUzx3kMmgW6RsanoNH+Y=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UdJ88eeYm1W9tlVf66iAGR0D63hIgHQ6dBYrVftyKPE=' 'sha256-V2/wqKWd1yZWk6PE9UKyQT9YFfr5zC7csFcMRln4iqM=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gsfxF3U9fQYY6VBcjkxdisltp5OpMvk7xGo0quyFZm8=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rrwTNRTy8mZYt5qyon4Ma49nrYCJgY1qfk1gCXfaR5o=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-v+ZDhUbvqeorKucOsmnsbIPPI+s5NEnBQknMfNbSmk8=' 'sha256-zxV4DCpRJohvPwd65AN+/CH0kNLzHAU+vIKI6BC4I28='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -47892,10 +47892,21 @@ __exports.MotionDex = window.MotionDex;
   /* Synthetic EDF file-set shaped like readEDF() outputs, for buildSessionFromEdf
    tests. opts: { oxi } valid oximeter w/ a gentle real desat, { squeeze } adds a
    perfusion-collapse artifact desat, { cs } adds a CSL Cheyne-Stokes span. */
-  function _mkSig(n, fn, fs, dim) {
+  /* ∅ A SYNTHETIC CHANNEL MUST CARRY THE SAME SHAPE AS A DECODED ONE. `readEDF` writes
+     `calibrated` on every non-annotation signal (`cpapdex-edf.js`, the per-signal loop), and this
+     builder wrote `data`, `fs`, `dim` and `_spr` alone. So the field read `undefined` over the whole
+     synthetic set, and the one consumer repo-wide reads it as `fl.calibrated === false`. An absent
+     field therefore passed, which left the refusal of #5623 unreachable from here. A later consumer
+     written `=== true` would refuse every synthetic night instead, and that is the direction that
+     hides a fault: the synthetic gates would red while real files pass.
+
+     A synthetic channel carries physical units already, so `true` is the truthful value. `cal` lets
+     a caller build an uncalibrated channel and reach the refusal path.
+     Row 2026-11-24-synthetic-edf-channels-carry-no-calibrated-field. */
+  function _mkSig(n, fn, fs, dim, cal) {
     var a = new Float32Array(n);
     for (var i = 0; i < n; i++) a[i] = fn(i);
-    return { data: a, fs: fs, dim: dim, _spr: Math.round(fs * 60) };
+    return { data: a, fs: fs, dim: dim, calibrated: cal !== false, _spr: Math.round(fs * 60) };
   }
   function _synthEdfSet(opts) {
     opts = opts || {};
@@ -48012,6 +48023,19 @@ __exports.MotionDex = window.MotionDex;
         )
       }
     };
+    /* ∅ `opts.uncal` names the channels a test wants uncalibrated, so the #5623 Flow refusal
+       becomes reachable from the synthetic set rather than from a hand-built frame. An unknown
+       label changes nothing, because a test that names a channel this set does not build has
+       already failed its own premise. */
+    if (opts.uncal) {
+      for (var u = 0; u < opts.uncal.length; u++) {
+        var usets = [PLD.signals, BRP.signals];
+        for (var us = 0; us < usets.length; us++) {
+          var usig = usets[us][opts.uncal[u]];
+          if (usig) usig.calibrated = false;
+        }
+      }
+    }
     var spo2 = new Float32Array(n1),
       pulse = new Float32Array(n1);
     if (opts.oxi) {
@@ -48044,8 +48068,10 @@ __exports.MotionDex = window.MotionDex;
       recordsRead: R,
       recDurSec: recDur,
       signals: {
-        'SpO2.1s': { data: spo2, fs: 1, dim: '%', _spr: 60 },
-        'Pulse.1s': { data: pulse, fs: 1, dim: 'bpm', _spr: 60 }
+        // ∅ The same shape parity as `_mkSig` above. `readEDF` writes `calibrated` on every
+        // non-annotation signal, and an oximeter channel is one.
+        'SpO2.1s': { data: spo2, fs: 1, dim: '%', calibrated: true, _spr: 60 },
+        'Pulse.1s': { data: pulse, fs: 1, dim: 'bpm', calibrated: true, _spr: 60 }
       }
     };
     var EVE = {
