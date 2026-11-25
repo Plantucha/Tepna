@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="f742a3cd0bb4" data-compute-hash="125e57bcbf0f">
+<html lang="en" data-manifest-hash="8e2e232a33ce" data-compute-hash="bc2e5ece891e">
 <head>
 <!--
   EEGDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). EEGDex ships zero
      inline scripts (all init lives in eegdex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/rXS83mLuRnld950D3LL35fXyBfSgxwggnv0xoCmIq8=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-2EhTu2g2o7ZMvcurgsf4UzBHvFbdn8ISGys/5ZBw7gs=' 'sha256-5qQ/Ie05Bfa/0CzXWHxhdGjnjTK/3PRrtMUYg5SEi78=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7hTtbE4VLWkaBh5MQ4eZeqcd7vfHW+BL+yZGmGS7oO0=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-G1PWEv4AW9Tmz77iywnn+PsWDI0Lrx/C8+4m24bSgro=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wYDQbx7BnjeWBpxiSXeMr45U444dBQ1yup2hvhEudhU=' 'sha256-ydcDcU9PST3H273GxCl0jqNGMcODN42+le6wT6uVlLY='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/rXS83mLuRnld950D3LL35fXyBfSgxwggnv0xoCmIq8=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-2EhTu2g2o7ZMvcurgsf4UzBHvFbdn8ISGys/5ZBw7gs=' 'sha256-5qQ/Ie05Bfa/0CzXWHxhdGjnjTK/3PRrtMUYg5SEi78=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7hTtbE4VLWkaBh5MQ4eZeqcd7vfHW+BL+yZGmGS7oO0=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-G1PWEv4AW9Tmz77iywnn+PsWDI0Lrx/C8+4m24bSgro=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-ihM5jTN4kvm/WXAwi+BZxdfDvKJHKqvx3rjPC+4keeU=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wYDQbx7BnjeWBpxiSXeMr45U444dBQ1yup2hvhEudhU='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>EEGDex — Sleep EEG Analyzer · v2.37.0</title>
@@ -7834,7 +7834,18 @@ global.EegRegistry = {
      zero crossing and the next positive-going one 0.3–1.0 s apart; a negative peak below −80 µV; a
      negative-to-positive peak-to-peak above 140 µV. `aasm` is the scoring manual's own amplitude
      figure (75 µV peak-to-peak, with no separate negative-peak figure), which is the form a
-     calibrated frontal-to-mastoid derivation takes, and the form this block uses. */
+     calibrated frontal-to-mastoid derivation takes, and the form this block uses.
+
+     SOURCES, so a reader can check each number rather than take it from this file:
+       the four `published` criteria — Massimini, Marcello et al. 2004, "The Sleep Slow Oscillation as
+         a Traveling Wave", The Journal of Neuroscience 24:6862-6870, doi:10.1523/JNEUROSCI.1318-04.2004
+       the 75 µV frontal figure — Davidson, Shaun et al. 2025, "Is it time to revisit the scoring of
+         slow wave (N3) sleep?", SLEEP 48(10) zsaf063, doi:10.1093/sleep/zsaf063
+     TWO LIMITS THE SOURCES THEMSELVES STATE, and this file does not step over:
+       Massimini applied those criteria to a LOCAL AVERAGE OF THE SCALP and not to one channel, so the
+         `published` pair is not a single-channel threshold and this block defaults to `aasm`;
+       Davidson RESTATES the scoring manual rather than deriving the figure, so it is cited as a
+         restatement of the manual and never as the origin of the 75 µV. */
   const SLOW = {
     band: [0.1, 4],
     halfWaveS: [0.3, 1.0],
@@ -7946,7 +7957,10 @@ global.EegRegistry = {
     return out;
   }
 
-  /* Share of each 30 s epoch covered by slow oscillations (t0…t1), the quantity the manual's "20 % of the epoch" refers to. */
+  /* Share of each 30 s epoch covered by slow oscillations (t0…t1), the quantity the manual's "20 % of
+     the epoch" refers to. The 20 % and the frontal derivation it reads on are restated by Davidson,
+     Shaun et al. 2025, SLEEP 48(10) zsaf063, doi:10.1093/sleep/zsaf063 — a restatement of the manual,
+     not the origin of the rule. */
   function slowWaveFraction(events, nEpochs, epochS = 30) {
     const f = new Float64Array(nEpochs);
     for (const e of events)
@@ -7955,7 +7969,10 @@ global.EegRegistry = {
     return f;
   }
 
-  /* Sleep spindle — the published single-channel four-feature detector, its four constants read at the paper:
+  /* Sleep spindle — the published single-channel four-feature detector, its four constants read at the
+   paper: Lacourse, Karine et al. 2019, "A sleep spindle detection algorithm that emulates human expert
+   spindle scoring", Journal of Neuroscience Methods 316:3-11, Table 2, doi:10.1016/j.jneumeth.2018.08.014.
+   The constants that paper gives:
    sigma band 11–16 Hz, broadband 0.3–30 Hz, windows of 0.3 s stepped 0.1 s;
      abs  = log10 of the mean squared sigma signal                                   threshold 1.25 (log10 µV²)
      rel  = log10 (sigma power / 4.5–30 Hz power), z-scored against a 30 s baseline  threshold 1.6
