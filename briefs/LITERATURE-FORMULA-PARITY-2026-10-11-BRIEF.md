@@ -30,6 +30,11 @@ its source comment; the paper's own sentence stating it (quoted, ≤ 15 words); 
     excluded      7   no local full text AND the claim is not in the abstract
     eligible     18
 
+**Addendum, 2026-11-25.** Items 11 and 12 (Allan 1966, Gray and Allan 1974) match, read from the free NIST
+copies. The ledger now reads checked 13, excluded 5, and keeps the counts above in `amendments`. Items 13
+and 14 stay excluded: the first author's method guide agrees with the spectrum and the height rule, and it
+fits the background differently from our code.
+
 **`tepna.verdict/1` → PASS** on the pre-stated criterion *"every code constant equals the paper's stated
 value in the paper's unit"*. Ledger: `audits/LITERATURE-FORMULA-PARITY-2026-10-11.json`.
 
