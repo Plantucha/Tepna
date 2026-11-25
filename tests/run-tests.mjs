@@ -4061,8 +4061,9 @@ async function main() {
       }
     })(),
     /* RESIDUE 2026-10-06-the-test-lanes-two-inventories-disagree-undetected — the browser lane keeps
-       TWO inventories: `SOURCE_FILES` (the text a scan can READ) and the `<script src>` tags plus the
-       `fetchText(…)` + `(0, eval)` loads (what it EVALUATES). Parsed here so a group can compare them;
+       TWO inventories: `SOURCE_FILES` (the text a scan can READ) and the `<script src>` tags, the
+       `fetchText(…)` + `(0, eval)` loads and a dynamic `import()` (what it EVALUATES). Parsed here so
+       a group can compare them;
        `sourceVisibility.browser` above drops `/` paths, so this parse keeps them. Node-lane only (fs). */
     browserLaneInventories: (() => {
       try {
@@ -4074,7 +4075,24 @@ async function main() {
         const evals = [...suite.matchAll(/await fetchText\('([^']+\.js)'\); if\(\w+\) \(0, eval\)/g)].map((m) => m[1]);
         const loop = /for \(const (\w+) of \[([^\]]*)\]\) \{\s*const (\w+) = await fetchText\(\1\); if\(\3\) \(0, eval\)/.exec(suite);
         const looped = loop ? [...loop[2].matchAll(/'([^']+\.js)'/g)].map((m) => m[1]) : [];
-        return { listed, evaluated: [...new Set(tags.concat(evals, looped))], tags: tags.length, evals: evals.length, looped: looped.length };
+        /* RESIDUE 2026-11-25-the-lane-inventory-gate-cannot-see-a-dynamic-import — THE FOURTH LOAD
+           FORM. A bare `import('./f.js')` evaluates the module with no tag, no `fetchText` and no
+           eval, so the three parses above read it as nothing and the comparison below cleared a file
+           the lane had already evaluated. `Dex-Test-Suite.html` loaded `ppgdex-render.js` that way
+           from 2026-11-18, and `browser-gates` reported `NEW: [meanSqi]` on PR #5719 rather than the
+           omission. The suite writes the specifier with a `./` prefix and `SOURCE_FILES` holds the
+           bare name, so strip that prefix; a real subdirectory path survives, as the note above asks.
+           Matching without `await` keeps a non-awaited import inside the population: the module
+           evaluates either way, and the stricter population is the honest one. */
+        const dyn = [...suite.matchAll(/\bimport\('([^']+\.js)'\)/g)].map((m) => m[1].replace(/^\.\//, ''));
+        return {
+          listed,
+          evaluated: [...new Set(tags.concat(evals, looped, dyn))],
+          tags: tags.length,
+          evals: evals.length,
+          looped: looped.length,
+          dyn: dyn.length
+        };
       } catch {
         return null;
       }
