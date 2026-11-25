@@ -362,6 +362,11 @@ self.onmessage = async (e) => {
       card.classList.add('loaded');
     }
   }
+  /* ∅ The rows a companion parser could not use, said beside the count it loaded. Empty when none. */
+  function _dropNote(out) {
+    if (!out.rowsDropped) return '';
+    return ' · ' + out.rowsDropped.toLocaleString() + ' row' + (out.rowsDropped > 1 ? 's' : '') + ' dropped' + (out.rowsOutOfBand ? ' (' + out.rowsOutOfBand.toLocaleString() + ' out of range)' : '');
+  }
   // device cross-check loaders ── DEEP-AUDIT 2026-07-01 Finding 2: parse via the Clock-Contract-
   // faithful DSP twins (ECGDSP.parseDeviceRR/parseDeviceHR/parseDeviceACC — regex parseTimestamp,
   // floating wall-clock, a missing stamp stays null). The old app-local parseRows used a locale
@@ -372,11 +377,11 @@ self.onmessage = async (e) => {
     fr.onload = (e) => {
       const out = DSP.parseDeviceRR(e.target.result);
       if (!out.length) {
-        showErr('No RR values parsed from file.');
+        showErr('No RR values parsed from file' + _dropNote(out) + '.');
         return;
       }
       DEVICE_RR = out;
-      setLoad('rr', '✅ ' + out.length.toLocaleString() + ' RR beats loaded');
+      setLoad('rr', '✅ ' + out.length.toLocaleString() + ' RR beats loaded' + _dropNote(out));
       if (RESULT) {
         RESULT.deviceRR = DEVICE_RR;
         renderValidation(RESULT);
@@ -389,11 +394,11 @@ self.onmessage = async (e) => {
     fr.onload = (e) => {
       const out = DSP.parseDeviceHR(e.target.result); // stampless rows keep tsMs:null — never a fabricated now()
       if (!out.length) {
-        showErr('No HR values parsed from file.');
+        showErr('No HR values parsed from file' + _dropNote(out) + '.');
         return;
       }
       DEVICE_HR = out;
-      setLoad('hr', '✅ ' + out.length.toLocaleString() + ' HR samples loaded');
+      setLoad('hr', '✅ ' + out.length.toLocaleString() + ' HR samples loaded' + _dropNote(out));
       if (RESULT) {
         RESULT.deviceHR = DEVICE_HR;
         renderHRValidation(RESULT);
@@ -1925,6 +1930,9 @@ self.onmessage = async (e) => {
     window.__summaryRows = rows; // structured source for the tidy CSV export (not a DOM scrape)
     $('tblBody').innerHTML = rows
       .map(
+        ([m, v, u, nr, g, n]) => [m, v == null ? '—' : v, u, nr, v == null ? 'neutral' : g, n] // ∅ an absent value prints a dash and takes no grade
+      )
+      .map(
         ([m, v, u, nr, s, n]) => `<tr>
     <td class="ecg-tbl-m" style="color:var(--text2);font-weight:600;font-family:Inter,sans-serif">${evBadge(m)}${m}</td>
     <td class="${s}">${v}</td><td style="color:var(--text3)">${u}</td><td style="color:var(--text3)">${nr}</td>
@@ -2128,6 +2136,7 @@ self.onmessage = async (e) => {
     cgm: 'glucose CGM (→ GlucoDex)',
     otherdevice: 'other-device sensor',
     duplicate: 'duplicate ECG',
+    supersededppi: 'PPI (the firmware RR file is used instead)',
     skip: 'non-ECG stream'
   };
   function _deviceName(key) {
@@ -2476,6 +2485,12 @@ self.onmessage = async (e) => {
   } catch (_rvx) {}
 
   function reportSkipped(foreign, nEcg) {
+    /* A PPI file set aside for the firmware RR beside it is no error: with no ECG in the drop, the RR
+       still loads. It keeps its line in the summary and never decides the message. */
+    if (nEcg === 0 && foreign.every((f) => f.kind === 'supersededppi')) {
+      showOK('Set aside ' + foreign.length + ' PPI file' + (foreign.length > 1 ? 's' : '') + ': the firmware RR file of this drop is used instead.');
+      return;
+    }
     const counts = {};
     foreign.forEach((f) => {
       let l = _FOREIGN_LABEL[f.kind] || 'non-ECG';
@@ -2491,7 +2506,7 @@ self.onmessage = async (e) => {
     }
     // §4: a companions-ONLY drop whose sidecars were ALL set aside as foreign-device — they don't belong
     // to the loaded recording. Report specifically (not the generic "no ECG → use PulseDex / OxyDex").
-    if (RESULT && RESULT.deviceKey && foreign.length && foreign.every((f) => f.kind === 'otherdevice')) {
+    if (RESULT && RESULT.deviceKey && foreign.some((f) => f.kind === 'otherdevice') && foreign.every((f) => f.kind === 'otherdevice' || f.kind === 'supersededppi')) {
       showErr(
         'Set aside ' +
           summary +

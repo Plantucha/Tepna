@@ -656,7 +656,10 @@
             '</span> → <b>' +
             esc(it.node) +
             '</b>' +
-            (it.runNote ? ' <span class="warn">· ' + esc(it.runNote) + '</span>' : it.computed ? ' <span class="ok">· ' + _computedDetail(it.computed) + '</span>' : '');
+            (it.runNote ? ' <span class="warn">· ' + esc(it.runNote) + '</span>' : it.computed ? ' <span class="ok">· ' + _computedDetail(it.computed) + '</span>' : '') +
+            (it.frame && it.frame.provenance && it.frame.provenance.warnings && it.frame.provenance.warnings.length
+              ? ' <span class="warn">· ' + esc(it.frame.provenance.warnings.join(' · ')) + '</span>'
+              : '');
         else if (k === 'export') right = '<b>' + esc(it.node) + '</b> <span class="muted">' + (it.nRecs > 1 ? it.nRecs + ' recs' : '1 rec') + '</span>';
         else if (k === 'ambiguous') right = ambiguousControl(it);
         else right = '<span class="muted">' + esc(it.note || '') + '</span>';

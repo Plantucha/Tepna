@@ -55407,6 +55407,217 @@
       }
     });
 
+    /* ∅ ECGDex COMPANIONS AND SHARES (claim ecgdex-absence-companions). Four reports that named an
+       absence as something else: a share of no power read 0.0, a ratio over no SD2 read SD1 itself, a
+       companion that lost rows read as one that lost none, and a present companion with no rows read
+       as an absent one. */
+    group('ECGDex ∅ — a share of no power, a ratio over no SD2, and the rows a companion lost', 'ecgdex-dsp · absence · companions', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.nuOf === 'function' && typeof D.parseDeviceRR === 'function' && typeof D.analyze === 'function')) {
+        T.ok('ECGDSP.nuOf + parseDeviceRR + analyze exposed', false, 'ECGDSP not loaded');
+        return;
+      }
+      // (1) the share of one band in HF + LF
+      T.eq('nuOf: no power in either band refuses, it is not 0.0', D.nuOf(0, 0), null);
+      T.eq('nuOf: an absent band refuses', JSON.stringify([D.nuOf(null, 5), D.nuOf(5, null)]), '[null,null]');
+      T.eq('nuOf: an empty band beside a real one is a measured 0', D.nuOf(0, 5), 0);
+      T.eq('nuOf: the two shares partition 100', JSON.stringify([D.nuOf(3, 1), D.nuOf(1, 3)]), '[75,25]');
+
+      // (2) the same refusals through analyze(), on a train whose beats are all 104 samples apart
+      var BEAT = [0, 20, 60, 120, 60, 0, -80, 400, 1200, 500, -200, -60, 0, 10, 30, 60, 90, 110, 90, 50, 20, 0];
+      var train = function (alt) {
+        var x = new Int16Array(200 * 104 + 200),
+          at = 40;
+        for (var b = 0; b < 200; b++) {
+          for (var j = 0; j < BEAT.length; j++) if (at + j < x.length) x[at + j] += BEAT[j];
+          at += 104 + (b % 2 ? alt : -alt);
+        }
+        return D.analyze({ int16: x, fs: 130, source: 'synthetic', t0Ms: Date.UTC(2026, 5, 17, 1, 0, 0) });
+      };
+      var flat = train(0),
+        alt = train(8);
+      T.eq('ANTI-VACUITY · the flat train measured SD1, SD2, HF and LF, and each is 0', JSON.stringify([flat.sd1, flat.sd2, flat.hf, flat.lf]), '[0,0,0,0]');
+      T.eq('flat train: HF and LF shares refuse (published 0.0 and 0.0)', JSON.stringify([flat.hfnu, flat.lfnu]), '[null,null]');
+      T.eq('flat train: SD1/SD2 refuses over an SD2 of 0 (published 0)', flat.sd1sd2, null);
+      T.eq('flat train: the ellipse area stays a measured 0', flat.ellArea, 0);
+      T.ok('CONTROL · an alternating train publishes its ratio', alt.sd2 > 0 && Math.abs(alt.sd1sd2 - alt.sd1 / alt.sd2) < 0.001, 'ratio ' + alt.sd1sd2 + ' of ' + alt.sd1 + '/' + alt.sd2);
+      T.approx('CONTROL · …and its two shares sum to 100', alt.hfnu + alt.lfnu, 100, 0.11);
+
+      // (3) parseDeviceRR / parseDeviceHR count the rows they could not use
+      var H = 'Phone timestamp;RR-interval [ms]\n',
+        row = function (s, v) {
+          return '2026-06-17T01:00:0' + s + '.000;' + v + '\n';
+        };
+      var cnt = function (o) {
+        return JSON.stringify([o.length, o.rowsDropped, o.rowsOutOfBand]);
+      };
+      T.eq('RR: a clean file drops nothing, and its header is not a drop', cnt(D.parseDeviceRR(H + row(1, 900) + row(2, 905))), '[2,0,0]');
+      T.eq('RR: an unreadable row and an out-of-band row are both counted', cnt(D.parseDeviceRR(H + row(1, 900) + row(2, 'x') + row(3, 4100) + row(4, 905))), '[2,2,1]');
+      T.eq('RR: the band edges are kept', cnt(D.parseDeviceRR(H + row(1, 200) + row(2, 3000))), '[2,0,0]');
+      T.eq('RR: a repeated header (a multi-part file) is not a drop', cnt(D.parseDeviceRR(H + row(1, 900) + H + row(2, 905))), '[2,0,0]');
+      T.eq('RR: a first row that has a stamp and no value is a drop, not a header', cnt(D.parseDeviceRR(row(1, 'x') + row(2, 905))), '[1,1,0]');
+      T.eq('RR: a first row with a value is data', cnt(D.parseDeviceRR(row(1, 900) + row(2, 905))), '[2,0,0]');
+      T.eq('RR: empty text drops nothing', cnt(D.parseDeviceRR('')), '[0,0,0]');
+      var HH = 'Phone timestamp;HR [bpm];HRV [ms];\n';
+      T.eq('HR: a clean file drops nothing', cnt(D.parseDeviceHR(HH + row(1, 57) + row(2, 58))), '[2,0,0]');
+      T.eq('HR: the all-zero onboard file says how many rows it lost (read as an empty file)', cnt(D.parseDeviceHR(HH + row(1, 0) + row(2, 0) + row(3, 0))), '[0,3,3]');
+      T.eq('HR: an unreadable row is counted apart from an out-of-band one', cnt(D.parseDeviceHR(HH + row(1, 57) + row(2, 'x') + row(3, 300))), '[1,2,1]');
+      T.eq('HR: the band edges are kept', cnt(D.parseDeviceHR(HH + row(1, 20) + row(2, 260))), '[2,0,0]');
+      T.eq('HR: a repeated header is not a drop', cnt(D.parseDeviceHR(HH + row(1, 57) + HH + row(2, 58))), '[2,0,0]');
+      T.eq('HR: a first line with no rate column and no stamp is a header', cnt(D.parseDeviceHR('time;value\n' + row(1, 57))), '[1,0,0]');
+      T.eq('HR: …and a first row with a stamp and no value is a drop', cnt(D.parseDeviceHR(row(1, 'x') + row(2, 57))), '[1,1,0]');
+      T.eq('HR: …and a second unreadable line is a drop, not a second header', cnt(D.parseDeviceHR('time;value\nfoo;bar\n' + row(1, 57))), '[1,1,0]');
+
+      // (4) the export states the RR rows that were lost, and a clean file keeps its shape
+      var EC = env.ECGDex;
+      if (EC && typeof EC.compute === 'function' && typeof D.genSynthetic === 'function') {
+        var dev = function (bad) {
+          var s = H,
+            t = Date.UTC(2026, 5, 17, 1, 0, 0);
+          for (var i = 0; i < 200; i++) {
+            t += 850;
+            s += new Date(t).toISOString().slice(0, 23) + ';' + (bad && i % 50 === 7 ? 9999 : 850 + ((i * 37) % 60)) + '\n';
+          }
+          return D.parseDeviceRR(s);
+        };
+        var val = function (rr) {
+          var syn = D.genSynthetic({ durSec: 8 * 60 });
+          syn.deviceRR = rr;
+          var e = EC.compute(syn, { rich: true });
+          return e && e.validation;
+        };
+        var vb = val(dev(true)),
+          vc = val(dev(false));
+        T.ok(
+          'ANTI-VACUITY · both arms ran the device comparison',
+          !!(vb && vc && vb.nDevice > 0 && vc.nDevice > 0),
+          'bad ' + JSON.stringify(vb && vb.nDevice) + ' clean ' + JSON.stringify(vc && vc.nDevice)
+        );
+        T.eq('export: 4 of 200 rows lost, all out of band', vb && JSON.stringify([vb.deviceRowsDropped, vb.deviceRowsOutOfBand]), '[4,4]');
+        T.eq('export: a clean file carries neither key', vc && ('deviceRowsDropped' in vc || 'deviceRowsOutOfBand' in vc), false);
+      } else T.ok('ECGDex.compute exposed', false, 'not loaded');
+
+      // (5) the surfaces say it: the load line, the set-aside message, the metric table, the two hosts
+      var src = env.sources || {},
+        app = src['ecgdex-app.js'] || '';
+      if (app) {
+        var cut = function (name) {
+          var at = app.indexOf('function ' + name + '('),
+            end = app.indexOf('\n  }\n', at);
+          return at < 0 || end < 0 ? '' : app.slice(at, end + 4);
+        };
+        var note = new Function(cut('_dropNote') + '; return _dropNote;')();
+        T.eq('load line: nothing lost, nothing said', note(D.parseDeviceRR(H + row(1, 900))), '');
+        T.eq('load line: one row', note(D.parseDeviceRR(H + row(1, 'x') + row(2, 900))), ' · 1 row dropped');
+        T.eq('load line: the part that was out of range is named', note(D.parseDeviceRR(H + row(1, 'x') + row(2, 9999) + row(3, 900))), ' · 2 rows dropped (1 out of range)');
+        T.eq('…and both loaders say it on success and on an empty result', (app.match(/\+ _dropNote\(out\)/g) || []).length, 4);
+        var report = function (foreign, nEcg, active) {
+          var said = null;
+          var f = new Function('showOK', 'showErr', 'RESULT', '_FOREIGN_LABEL', '_deviceName', cut('reportSkipped') + '; return reportSkipped;')(
+            function (m) {
+              said = 'OK ' + m;
+            },
+            function (m) {
+              said = 'ERR ' + m;
+            },
+            active ? { deviceKey: active } : null,
+            { supersededppi: 'PPI' },
+            function () {
+              return 'H10';
+            }
+          );
+          f(foreign, nEcg);
+          return String(said);
+        };
+        var ppi = { name: 'a_PPI.txt', kind: 'supersededppi' },
+          other = { name: 'b_ACC.txt', kind: 'otherdevice', device: 'POLAR_H10_X' };
+        T.ok('set-aside: a PPI alone with no ECG is no error', /^OK Set aside 1 PPI file: the firmware RR/.test(report([ppi], 0)), report([ppi], 0));
+        T.ok('set-aside: with an ECG the PPI is named in the summary', /^OK Loaded 1 ECG recording .*1× PPI/.test(report([ppi], 1)), report([ppi], 1));
+        T.ok(
+          'set-aside: a PPI beside an other-device sidecar keeps the specific message',
+          /^ERR Set aside .*loaded H10 recording/.test(report([ppi, other], 0, 'POLAR_H10_Y')),
+          report([ppi, other], 0, 'POLAR_H10_Y')
+        );
+        T.ok('set-aside: CONTROL · other-device alone reads as before', /^ERR Set aside .*loaded H10 recording/.test(report([other], 0, 'POLAR_H10_Y')), report([other], 0, 'POLAR_H10_Y'));
+        T.ok('metric table: an absent value prints a dash and takes no grade', /v == null \? '—' : v, u, nr, v == null \? 'neutral' : g/.test(app), 'the table maps a null straight to text');
+      }
+      ['data-unifier-app.js', 'overdex-app.js'].forEach(function (h) {
+        if (src[h]) T.ok(h + ' shows the adapter warnings, escaped', /esc\((?:f|it\.frame)\.provenance\.warnings\.join\(/.test(src[h]), 'a warning no surface prints is not a report');
+      });
+    });
+
+    group('Companion adapters ∅ — a present companion that gives nothing warns; an absent one does not', 'polar-h10-ecg · polar-acc · polar-sense-ppg · absence', function (T) {
+      var SA = env.SignalAdapters;
+      if (!SA || typeof SA.byId !== 'function' || !env.SignalFrame) {
+        T.ok('SignalAdapters loaded', false, 'not loaded');
+        return;
+      }
+      var stamp = function (ms) {
+        return new Date(Date.UTC(2026, 5, 17, 1, 0, 0) + ms).toISOString().slice(0, 23);
+      };
+      var warn = function (f) {
+        return ((f && f.provenance && f.provenance.warnings) || []).join(' | ');
+      };
+      // ECG
+      var ecg = SA.byId('polar-h10-ecg'),
+        el = ['Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]'];
+      for (var i = 0; i < 1300; i++) el.push(stamp((i * 1000) / 130) + ';0;' + ((i * 1000) / 130).toFixed(3) + ';' + (i % 104 === 40 ? 1200 : i % 7));
+      var eText = el.join('\n'),
+        rrH = 'Phone timestamp;RR-interval [ms]\n',
+        hrH = 'Phone timestamp;HR [bpm];\n',
+        eRun = function (c) {
+          return SA.runAdapter(ecg, eText, c ? { companions: c } : {});
+        };
+      T.eq('ECG: no companions, no warning', warn(eRun(null)), '');
+      T.ok('ECG: a header-only RR companion warns by name', /RR companion present/.test(warn(eRun({ rr: rrH }))), warn(eRun({ rr: rrH })));
+      T.ok(
+        'ECG: an all-zero HR companion warns and counts its rows',
+        /HR companion present.*\(2 rows dropped\)/.test(warn(eRun({ hr: hrH + stamp(0) + ';0\n' + stamp(1000) + ';0\n' }))),
+        warn(eRun({ hr: hrH + stamp(0) + ';0\n' + stamp(1000) + ';0\n' }))
+      );
+      T.ok(
+        'ECG: an ACC companion too short to use warns',
+        /ACC companion present/.test(warn(eRun({ acc: 'Phone timestamp;X;Y;Z\n' + stamp(0) + ';1;2;3\n' }))),
+        warn(eRun({ acc: 'Phone timestamp;X;Y;Z\n' + stamp(0) + ';1;2;3\n' }))
+      );
+      var part = eRun({ rr: rrH + stamp(0) + ';900\n' + stamp(900) + ';x\n' + stamp(1800) + ';905\n' });
+      T.ok('ECG: a companion that lost one row attaches and says so', part.deviceRR.length === 2 && /RR companion: 1 of 3 rows dropped/.test(warn(part)), warn(part));
+      T.eq('ECG: a clean RR companion attaches and warns nothing', warn(eRun({ rr: rrH + stamp(0) + ';900\n' + stamp(900) + ';905\n' })), '');
+      // ACC primary with gyro / magn beside it
+      var acc = SA.byId('polar-acc'),
+        aText = 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]\n';
+      for (var a = 0; a < 60; a++) aText += stamp(a * 40) + ';' + (600000000000000000 + a * 40000000) + ';' + (a % 5) + ';2;980\n';
+      var aCtx = { parseSensorXYZ: env.MotionDex && env.MotionDex.parseSensorXYZ },
+        aRun = function (c) {
+          return SA.runAdapter(acc, aText, Object.assign({ files: ['Polar_Sense_BBBB_20260617_010000_ACC.txt'] }, aCtx, c ? { companions: c } : {}));
+        };
+      T.eq('ACC: no companions, no warning', warn(aRun(null)), '');
+      var aBad = aRun({ gyro: 'Phone timestamp;X;Y;Z\n', magn: 'Phone timestamp;X;Y;Z\n' });
+      T.ok('ACC: header-only gyro and magn companions each warn by name', /GYRO companion present/.test(warn(aBad)) && /MAGN companion present/.test(warn(aBad)), warn(aBad));
+      T.eq('ACC: a gyro companion with rows warns nothing', warn(aRun({ gyro: aText })), '');
+      // PPG
+      var ppg = SA.byId('polar-sense-ppg'),
+        pText = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient\n';
+      for (var k = 0; k < 600; k++) {
+        var v = Math.round(1000 * Math.sin((2 * Math.PI * k) / 55));
+        pText += stamp((k * 1000) / 55) + ';' + (600000000000000000 + Math.round((k * 1e9) / 55)) + ';' + (300000 + v) + ';' + (310000 + v) + ';' + (320000 + v) + ';1000\n';
+      }
+      var pRun = function (c) {
+        return SA.runAdapter(ppg, pText, c ? { companions: c } : {});
+      };
+      T.eq('PPG: no companions, no warning', warn(pRun(null)), '');
+      var none = 'Phone timestamp;X;Y;Z\n',
+        pBad = pRun({ acc: none, gyro: none, magn: none, ppi: 'Phone timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact supported;hr [bpm]\n' });
+      ['ACC', 'GYRO', 'MAGN', 'PPI'].forEach(function (n) {
+        T.ok('PPG: a header-only ' + n + ' companion warns by name', new RegExp(n + ' companion present').test(warn(pBad)), warn(pBad));
+      });
+      T.ok(
+        'PPG: a PPI header with no interval column carries its reason',
+        /PPI companion present.*ppi-header-names-no-interval-column/.test(warn(pRun({ ppi: 'a;bogus;c\n1;2;3\n' }))),
+        warn(pRun({ ppi: 'a;bogus;c\n1;2;3\n' }))
+      );
+    });
+
     group('ECGDex device cross-check parsers — floating clock, no Date-parse/now() (Finding 2)', 'ecgdex-dsp · ecgdex-app', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.parseDeviceRR === 'function' && typeof D.parseDeviceHR === 'function' && typeof D.parseDeviceACC === 'function')) {
@@ -63097,7 +63308,13 @@
       // (b) _RR-over-_PPI: a Polar H10 session ships both; firmware _RR wins, _PPI drops from the rr lane.
       var pB = DI.planIngest([nm('Polar_H10_AAAA_20260617_010000_ECG.txt'), nm('Polar_H10_AAAA_20260617_010000_RR.txt'), nm('Polar_H10_AAAA_20260617_010000_PPI.txt')], { partKey: pk });
       T.eq('(b) rr lane keeps the firmware _RR only (deterministic, not last-wins)', JSON.stringify(laneNames(pB.companionLanes.rr)), JSON.stringify([['Polar_H10_AAAA_20260617_010000_RR.txt']]));
+      T.eq(
+        '(b) …and the set-aside _PPI is NAMED in skipped (an empty list read as "every file used")',
+        JSON.stringify(pB.skipped),
+        JSON.stringify([{ name: 'Polar_H10_AAAA_20260617_010000_PPI.txt', kind: 'supersededppi' }])
+      );
       var pBp = DI.planIngest([nm('Polar_H10_AAAA_20260617_010000_ECG.txt'), nm('Polar_H10_AAAA_20260617_010000_PPI.txt')], { partKey: pk });
+      T.eq('(b) a _PPI that is used is not in skipped', pBp.skipped.length, 0);
       T.eq('(b) _PPI feeds the rr lane when no _RR is dropped', JSON.stringify(laneNames(pBp.companionLanes.rr)), JSON.stringify([['Polar_H10_AAAA_20260617_010000_PPI.txt']]));
 
       // (c) duplicate-night set-aside vs genuine multi-night (device id + structured start second).

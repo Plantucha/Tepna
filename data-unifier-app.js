@@ -153,6 +153,7 @@
       body += '<div class="kv"><span>usable</span><b class="' + (f.usable ? 'good' : 'bad') + '">' + f.usable + '</b></div>';
       if (!f.usable && f.reason) body += '<div class="reason">' + esc(f.reason) + '</div>';
       body += '<div class="kv"><span>validateFrame</span><b class="' + (res.valid.ok ? 'good' : 'bad') + '">' + (res.valid.ok ? 'ok' : res.valid.errors.join('; ')) + '</b></div>';
+      if (f.provenance.warnings && f.provenance.warnings.length) body += '<div class="reason">' + esc(f.provenance.warnings.join(' · ')) + '</div>';
       body += '<div class="prov">adapter <code>' + esc(f.provenance.adapter) + '</code> · kernel <code>' + esc(f.provenance.kernelHash || '—') + '</code></div>';
     } else {
       body += '<div class="reason">' + esc(res.note || 'unrecognized file') + '</div>';
