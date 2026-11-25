@@ -692,7 +692,9 @@ import { CpapDsp } from './cpapdex-dsp.js';
         var metaBits = [];
         if (e.meta) {
           if (e.meta.class) metaBits.push(e.meta.class);
-          if (e.meta.durSec) metaBits.push(e.meta.durSec + 's');
+          // ∅ A stated span prints; an absent one (`null` from parseTAL) and the 0 of a marker pair
+          // print nothing, because neither names a length this row can show.
+          if (e.meta.durSec != null && e.meta.durSec > 0) metaBits.push(e.meta.durSec + 's');
           if (e.meta.depthPct) metaBits.push('−' + e.meta.depthPct + '%');
           if (e.meta.pctNight != null) metaBits.push(e.meta.pctNight + '% night');
         }
@@ -1346,7 +1348,8 @@ import { CpapDsp } from './cpapdex-dsp.js';
       if (m.p95Lpm != null) bits.push('p95 ' + m.p95Lpm + ' L/min');
     } else {
       if (m.class) bits.push(m.class);
-      if (m.durSec) bits.push(m.durSec + 's');
+      // ∅ Same read as the event row above: only a stated, non-zero span names a length.
+      if (m.durSec != null && m.durSec > 0) bits.push(m.durSec + 's');
     }
     return bits.join(' \u00b7 ');
   }
