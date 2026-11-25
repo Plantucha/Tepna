@@ -1,0 +1,495 @@
+{
+  "kernel": null,
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "PulseDex",
+    "nodeVersion": "1.0",
+    "multiRecording": true,
+    "generated": "2026-06-13T20:44:50.944Z",
+    "provenance": null,
+    "doc": "Array of per-recording PulseDex summaries + a ganglior.crossnight v1.0 aggregate header. Each element is the unmodified single-recording object."
+  },
+  "generated": "2026-06-13T20:44:50.944Z",
+  "recordingCount": 2,
+  "crossNight": {
+    "schema": {
+      "name": "ganglior.crossnight",
+      "version": "1.0",
+      "engine": "crossNight",
+      "engineVersion": "1.0.0",
+      "node": "PulseDex",
+      "nodeVersion": "1.0",
+      "generated": "2026-11-25T00:25:39.866Z"
+    },
+    "window": {
+      "unit": "recording",
+      "count": 2,
+      "firstT0Ms": 1781383490944,
+      "lastT0Ms": 1781478720400,
+      "spanDays": 1.1,
+      "coverageWeighted": true,
+      "qualityFloorPct": 50,
+      "lowQualityCount": 0,
+      "weightAbsentCount": 0
+    },
+    "metrics": {
+      "rmssd": {
+        "label": "rMSSD",
+        "unit": "ms",
+        "goodDirection": "up",
+        "evidence": "validated",
+        "cite": null,
+        "n": 0,
+        "central": {
+          "mean": null,
+          "sd": null,
+          "cv": null
+        },
+        "trend": {
+          "slopePerDay": null,
+          "slopePerRecording": null,
+          "slopeBasis": null,
+          "mannKendall": {
+            "tau": null,
+            "p": null
+          },
+          "label": "insufficient",
+          "dirDisagree": false
+        },
+        "change": null,
+        "baseline": {
+          "window": null,
+          "mean": null,
+          "sd": null,
+          "zLatest": null,
+          "zSaturated": false,
+          "flag": null
+        }
+      },
+      "sdnn": {
+        "label": "SDNN",
+        "unit": "ms",
+        "goodDirection": "up",
+        "evidence": "validated",
+        "cite": null,
+        "n": 0,
+        "central": {
+          "mean": null,
+          "sd": null,
+          "cv": null
+        },
+        "trend": {
+          "slopePerDay": null,
+          "slopePerRecording": null,
+          "slopeBasis": null,
+          "mannKendall": {
+            "tau": null,
+            "p": null
+          },
+          "label": "insufficient",
+          "dirDisagree": false
+        },
+        "change": null,
+        "baseline": {
+          "window": null,
+          "mean": null,
+          "sd": null,
+          "zLatest": null,
+          "zSaturated": false,
+          "flag": null
+        }
+      },
+      "lnRMSSD": {
+        "label": "ln rMSSD",
+        "unit": "",
+        "goodDirection": "up",
+        "evidence": "validated",
+        "cite": null,
+        "n": 2,
+        "central": {
+          "mean": 3.39,
+          "sd": 0.5,
+          "median": 3.39,
+          "iqr": 0.4,
+          "min": 3.01,
+          "max": 3.77,
+          "cv": 15.9
+        },
+        "trend": {
+          "slopePerIndex": -0.763,
+          "slopePerDay": -0.69,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
+          "r2": 1,
+          "r2date": 1,
+          "mannKendall": {
+            "tau": null,
+            "p": null
+          },
+          "label": "insufficient",
+          "dirDisagree": false
+        },
+        "change": null,
+        "baseline": {
+          "window": "prior-1",
+          "mean": null,
+          "sd": null,
+          "zLatest": null,
+          "zSaturated": false,
+          "flag": null
+        }
+      },
+      "hr": {
+        "label": "Pulse HR",
+        "unit": "bpm",
+        "goodDirection": "down",
+        "evidence": "measured",
+        "cite": null,
+        "n": 0,
+        "central": {
+          "mean": null,
+          "sd": null,
+          "cv": null
+        },
+        "trend": {
+          "slopePerDay": null,
+          "slopePerRecording": null,
+          "slopeBasis": null,
+          "mannKendall": {
+            "tau": null,
+            "p": null
+          },
+          "label": "insufficient",
+          "dirDisagree": false
+        },
+        "change": null,
+        "baseline": {
+          "window": null,
+          "mean": null,
+          "sd": null,
+          "zLatest": null,
+          "zSaturated": false,
+          "flag": null
+        }
+      },
+      "stress": {
+        "label": "Stress",
+        "unit": "",
+        "goodDirection": "down",
+        "evidence": "experimental",
+        "cite": null,
+        "n": 2,
+        "central": {
+          "mean": 51.5,
+          "sd": 7.8,
+          "median": 51.5,
+          "iqr": 5.5,
+          "min": 46,
+          "max": 57,
+          "cv": 15.1
+        },
+        "trend": {
+          "slopePerIndex": 11,
+          "slopePerDay": 9.98,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
+          "r2": 1,
+          "r2date": 1,
+          "mannKendall": {
+            "tau": null,
+            "p": null
+          },
+          "label": "insufficient",
+          "dirDisagree": false
+        },
+        "change": null,
+        "baseline": {
+          "window": "prior-1",
+          "mean": null,
+          "sd": null,
+          "zLatest": null,
+          "zSaturated": false,
+          "flag": null
+        }
+      },
+      "hrvScore": {
+        "label": "HRV Score",
+        "unit": "",
+        "goodDirection": "up",
+        "evidence": "experimental",
+        "cite": null,
+        "n": 2,
+        "central": {
+          "mean": 34,
+          "sd": 24,
+          "median": 34,
+          "iqr": 17,
+          "min": 17,
+          "max": 51,
+          "cv": 70.7
+        },
+        "trend": {
+          "slopePerIndex": -34,
+          "slopePerDay": -30.85,
+          "slopePerRecording": null,
+          "slopeBasis": "day",
+          "r2": 1,
+          "r2date": 1,
+          "mannKendall": {
+            "tau": null,
+            "p": null
+          },
+          "label": "insufficient",
+          "dirDisagree": false
+        },
+        "change": null,
+        "baseline": {
+          "window": "prior-1",
+          "mean": null,
+          "sd": null,
+          "zLatest": null,
+          "zSaturated": false,
+          "flag": null
+        }
+      },
+      "dfaAlpha1": {
+        "label": "DFA α1",
+        "unit": "",
+        "goodDirection": "up",
+        "evidence": "emerging",
+        "cite": null,
+        "n": 0,
+        "central": {
+          "mean": null,
+          "sd": null,
+          "cv": null
+        },
+        "trend": {
+          "slopePerDay": null,
+          "slopePerRecording": null,
+          "slopeBasis": null,
+          "mannKendall": {
+            "tau": null,
+            "p": null
+          },
+          "label": "insufficient",
+          "dirDisagree": false
+        },
+        "change": null,
+        "baseline": {
+          "window": null,
+          "mean": null,
+          "sd": null,
+          "zLatest": null,
+          "zSaturated": false,
+          "flag": null
+        }
+      },
+      "si": {
+        "label": "Baevsky SI",
+        "unit": "",
+        "goodDirection": "down",
+        "evidence": "validated",
+        "cite": null,
+        "n": 0,
+        "central": {
+          "mean": null,
+          "sd": null,
+          "cv": null
+        },
+        "trend": {
+          "slopePerDay": null,
+          "slopePerRecording": null,
+          "slopeBasis": null,
+          "mannKendall": {
+            "tau": null,
+            "p": null
+          },
+          "label": "insufficient",
+          "dirDisagree": false
+        },
+        "change": null,
+        "baseline": {
+          "window": null,
+          "mean": null,
+          "sd": null,
+          "zLatest": null,
+          "zSaturated": false,
+          "flag": null
+        }
+      }
+    },
+    "series": [
+      {
+        "i": 0,
+        "t0Ms": 1781383490944,
+        "date": "2026-06-13",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "lnRMSSD": 3.768,
+          "stress": 46,
+          "hrvScore": 51
+        }
+      },
+      {
+        "i": 1,
+        "t0Ms": 1781478720400,
+        "date": "2026-06-14",
+        "weight": 1,
+        "lowQuality": false,
+        "values": {
+          "lnRMSSD": 3.005,
+          "stress": 57,
+          "hrvScore": 17
+        }
+      }
+    ],
+    "headline": []
+  },
+  "recordings": [
+    {
+      "t0Ms": 1781383490944,
+      "offsetMin": null,
+      "clockSeamScan": {
+        "scanned": true,
+        "reason": null,
+        "n": 1799,
+        "seams": 0,
+        "dropouts": 0,
+        "reorders": 0,
+        "unsettled": 0,
+        "medianMs": 1000,
+        "madMs": 31,
+        "barMs": 1300,
+        "cadenceMs": null,
+        "dominantShare": 0.016675931072818232,
+        "forwardBlindShare": null,
+        "forwardDecidable": false
+      },
+      "clockSeamWindows": null,
+      "contentId": "86effda82fe2",
+      "mode": "spot",
+      "modeLabel": "⏱ Spot reading",
+      "longRec": false,
+      "durMin": 30,
+      "spanMin": 30,
+      "recordedMin": 30,
+      "durationBasis": "envelope",
+      "coverage": 100,
+      "N": 1800,
+      "artifactPct": 0,
+      "nArtifact": 0,
+      "nAbsentIn": 0,
+      "windows": null,
+      "meanRR": 1000.3,
+      "hr": 60,
+      "sdnn": 32.94,
+      "rmssd": 43.29,
+      "pnn50": 39,
+      "hrvReason": null,
+      "clockSeams": null,
+      "clockGaps": null,
+      "seamState": {
+        "deviceAxis": null,
+        "seams": null,
+        "examined": null,
+        "placed": null,
+        "unplaced": null,
+        "flatRows": null,
+        "boundMs": null,
+        "stream": null,
+        "reason": "no-seam-sidecar"
+      },
+      "tp": 1081,
+      "hf": 1006,
+      "lf": 1,
+      "vlf": 74,
+      "stress": 46,
+      "hrv": 51,
+      "energy": 36,
+      "focus": 44,
+      "coherence": 92,
+      "sns": 0,
+      "psns": 100,
+      "snsBal": 0.001,
+      "psnsBal": 1006,
+      "sd1": 30.62,
+      "sd2": 35.1,
+      "lnrmssd": 3.768,
+      "lfhf": 0.001
+    },
+    {
+      "t0Ms": 1781478720400,
+      "offsetMin": null,
+      "clockSeamScan": {
+        "scanned": true,
+        "reason": null,
+        "n": 1602,
+        "seams": 0,
+        "dropouts": 0,
+        "reorders": 0,
+        "unsettled": 0,
+        "medianMs": 1141,
+        "madMs": 74,
+        "barMs": 1799.2743999999998,
+        "cadenceMs": null,
+        "dominantShare": 0.010611735330836454,
+        "forwardBlindShare": null,
+        "forwardDecidable": false
+      },
+      "clockSeamWindows": null,
+      "contentId": "27774ff6a7fb",
+      "mode": "spot",
+      "modeLabel": "⏱ Spot reading",
+      "longRec": false,
+      "durMin": 30,
+      "spanMin": 30,
+      "recordedMin": 30,
+      "durationBasis": "envelope",
+      "coverage": 100,
+      "N": 1603,
+      "artifactPct": 0.25,
+      "nArtifact": 4,
+      "nAbsentIn": 0,
+      "windows": null,
+      "meanRR": 1123.1,
+      "hr": 53.4,
+      "sdnn": 102.99,
+      "rmssd": 20.19,
+      "pnn50": 1.1,
+      "hrvReason": null,
+      "clockSeams": null,
+      "clockGaps": null,
+      "seamState": {
+        "deviceAxis": null,
+        "seams": null,
+        "examined": null,
+        "placed": null,
+        "unplaced": null,
+        "flatRows": null,
+        "boundMs": null,
+        "stream": null,
+        "reason": "no-seam-sidecar"
+      },
+      "tp": 4535,
+      "hf": 263,
+      "lf": 559,
+      "vlf": 3713,
+      "stress": 57,
+      "hrv": 17,
+      "energy": 55,
+      "focus": 81,
+      "coherence": 14,
+      "sns": 73,
+      "psns": 27,
+      "snsBal": 2.125,
+      "psnsBal": 0.47,
+      "sd1": 14.28,
+      "sd2": 144.95,
+      "lnrmssd": 3.005,
+      "lfhf": 2.127
+    }
+  ]
+}
