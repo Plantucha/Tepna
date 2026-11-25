@@ -36,9 +36,8 @@ const {
   energyEst,
   focusEst,
   cohEst,
-  vo2Base,
   vo2Adj,
-  altVO2Factor,
+  altitudeVO2,
   periodicBreathingIndex,
   siCalc,
   efcIdx,
@@ -917,14 +916,13 @@ function calculate() {
   const vo2gt = _pp.vo2gt > 0 ? +Number(_pp.vo2gt).toFixed(1) : null;
   /* §∅ — absent ≠ sea level. `|| 0` published a coast night for an empty profile, and the
 altitude factor then sat at 1 without saying whether a height was entered at all. */
-  const elev = _pp.elev == null || !isFinite(_pp.elev) ? null : +_pp.elev;
-  /* ∅ — the factor PUBLISHES the null; `altApplied` carries the neutral 1 into the math only.
-     A single local could not say both things, and the one it said was the measured-looking one. */
-  const altFactor = elev == null ? null : altVO2Factor(elev); // ≤1 above 1500 m; null with no elevation entered
-  const altApplied = altFactor == null ? 1 : altFactor; // no elevation entered ⇒ no correction
-  /* §∅ — `(15.3 * null) / 60` is 0, not NaN, so an absent HRmax would publish VO₂ base 0.0 ml/kg/min:
-     an in-band figure on a research surface. The estimate refuses instead. */
-  const vo2b = hrmaxEff == null ? null : +(vo2Base(rhrEff, hrmaxEff) * altApplied).toFixed(1);
+  /* ∅ + ONE ROAD — `altitudeVO2` publishes the null factor, applies a neutral 1 to the math, and
+     refuses the VO₂ base with no HRmax. It also DECIDES the rounding order, which this road and the
+     re-render used to decide separately (see `pulsedex-dsp.js altitudeVO2`). */
+  const alt = altitudeVO2(_pp.elev, rhrEff, hrmaxEff);
+  const elev = alt.elev;
+  const altFactor = alt.altFactor; // already rounded to the published three decimals
+  const vo2b = alt.vo2base;
   const vo2a = lnrm == null || vo2b == null ? null : +vo2Adj(vo2b, lnrm).toFixed(1);
   const efc = _hrvRefused ? null : +efcIdx(energy, focus, coh).toFixed(1);
   const crs = _r1(crsIdx(coh, cRm, cPn, stress), 4);
@@ -1040,7 +1038,7 @@ altitude factor then sat at 1 without saying whether a height was entered at all
     tanaka,
     hrmaxRejected,
     elev,
-    altFactor: altFactor == null ? null : +altFactor.toFixed(3),
+    altFactor, // `altitudeVO2` rounds the published factor; a second rounding here is how the roads drifted
     pb,
     efc,
     crs,

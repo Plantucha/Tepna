@@ -1701,6 +1701,81 @@
        never left the function, while the app road published both keys. N1-34: `lombScargle` reported
        a 0.0 br/min breath rate when no bin rose in the HF band. N1-35: the five published estimators
        reached a number from nulls — `stressEst(null, null)` answered the clamped 100. */
+    /* ONE ROAD for the altitude-corrected VO₂ base. `pulsedex-app.js` multiplied by the FULL factor
+       and rounded `vo2base` last; the re-render in `pulsedex-render.js` rounded the factor to three
+       decimals first and multiplied after. One profile therefore read two values: at 1606 m with 45
+       and 190 bpm, 64.4 on one road and 64.3 on the other. Kestrel's grid (elevation 1501–5000 m in
+       1 m steps × 6 resting HR × 4 maximum HR, 84,000 points) separated 9,826 of them, largest
+       difference 0.1 ml/kg/min (board #8569). A grid is not a population, so that share says
+       nothing about users — but a profile edit alone could move the published number.
+       THE CONTRACT IS REPRODUCIBILITY FROM THE PAGE: the factor the surface publishes is the factor
+       that multiplies, so a reader can recompute the published VO₂ base from what they can see. */
+    group('PulseDex altitude VO₂ — one road, and the published factor is the one that multiplies', 'pulsedex-dsp · pulsedex-app · pulsedex-render · one-road', function (T) {
+      var P = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!P || typeof P.altitudeVO2 !== 'function') {
+        T.skip('PulseDex._bare.altitudeVO2 exposed', 'PulseDex not co-loaded in this runner');
+      } else {
+        var A = P.altitudeVO2;
+        var sv = function (v) {
+          return v === null ? 'null' : String(v);
+        };
+
+        /* The ONE example the two roads disagreed on, pinned to the reproducible answer. */
+        var ex = A(1606, 45, 190);
+        T.eq('1606 m publishes the factor rounded to three decimals', sv(ex.altFactor), '0.996');
+        T.eq('…and the VO₂ base that the PUBLISHED factor gives, not the full one (64.4 was the app road)', sv(ex.vo2base), '64.3');
+
+        /* THE CONTRACT, over a grid rather than one point: the published base must always be
+           recomputable from the published factor and the HR ratio. Under the app's old order this
+           leg reds on thousands of points. */
+        var drift = 0,
+          checked = 0,
+          firstBad = '';
+        for (var e = 1501; e <= 5000; e += 7) {
+          for (var rh = 40; rh <= 65; rh += 5) {
+            for (var hm = 170; hm <= 200; hm += 10) {
+              var g = A(e, rh, hm);
+              var fromPage = +(((15.3 * hm) / rh) * g.altFactor).toFixed(1);
+              checked++;
+              if (fromPage !== g.vo2base) {
+                drift++;
+                if (!firstBad) firstBad = e + ' m ' + rh + '/' + hm + ': page ' + fromPage + ' vs published ' + g.vo2base;
+              }
+            }
+          }
+        }
+        T.ok('the grid is not empty — a filter that matches nothing is not a pass', checked > 5000, String(checked) + ' point(s)');
+        T.eq('every point: the published VO₂ base is recomputable from the published factor', String(drift) + (firstBad ? ' (' + firstBad + ')' : ''), '0');
+
+        /* §∅ — absence, and the refusals the function carries for both roads. */
+        var none = A(null, 45, 190);
+        T.eq('no elevation entered: the factor PUBLISHES null, never a measured-looking 1.000', sv(none.altFactor), 'null');
+        T.eq('…while the math applies a neutral 1, so the estimate is still made', sv(none.vo2base), '64.6');
+        T.eq('…and an undefined elevation refuses the same way', sv(A(undefined, 45, 190).altFactor), 'null');
+        T.eq('0 m is a LEGAL measured elevation at factor 1 — the pair the old guard could not tell apart', sv(A(0, 45, 190).altFactor), '1');
+        var noMax = A(2000, 45, null);
+        T.eq('no HRmax: the VO₂ base refuses, because `(15.3 * null) / 45` is 0 — an in-band figure', sv(noMax.vo2base), 'null');
+        T.eq('…and it names the reason, so a caller cannot borrow another one', sv(noMax.reason), 'no-hrmax');
+        T.eq('no resting HR: a separate named refusal', sv(A(2000, 0, 190).reason), 'no-resting-hr');
+        T.eq('…and a complete profile refuses nothing', sv(ex.reason), 'null');
+
+        /* THE POPULATION IS TWO FILES. The drift came back whenever a road did the arithmetic
+           itself, so the legs above hold only while neither road still carries it. */
+        var srcOf = function (f) {
+          return ((env.sources || {})[f] || '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+        };
+        var roads = ['pulsedex-app.js', 'pulsedex-render.js'];
+        var own = [];
+        for (var ri = 0; ri < roads.length; ri++) {
+          var txt = srcOf(roads[ri]);
+          if (!txt) continue;
+          if (/altVO2Factor\s*\(/.test(txt)) own.push(roads[ri] + ':altVO2Factor');
+          if (/vo2Base\s*\(/.test(txt)) own.push(roads[ri] + ':vo2Base');
+        }
+        T.eq('neither road computes the factor or the base itself — both call altitudeVO2', own.join(','), '');
+      }
+    });
+
     group('∅ PulseDex — the artifact share, the absent respiration peak and the bare estimators (N1-33/34/35)', 'pulsedex-dsp · absence · named', function (T) {
       var P = (env.PulseDex && env.PulseDex._bare) || null;
       if (!P || typeof P.pdComputeResult !== 'function') {
@@ -51717,36 +51792,43 @@
       T.ok('the shared-record path keeps an absent elevation NULL', /elev:\s*n\(p\.elevation,\s*null\)/.test(ovw), (ovw.match(/elev:\s*n\(p\.elevation[^)]*\)/) || ['no site'])[0]);
       T.ok('the DOM fallback path keeps an absent elevation NULL', /elev:\s*v\('profElev',\s*null\)/.test(ovw), (ovw.match(/elev:\s*v\('profElev'[^)]*\)/) || ['no site'])[0]);
       // ── the two consumers ──
+      /* ── the two consumers, AFTER the one-road move ──
+         These legs used to read the two-local shape in each road, and both roads then decided the
+         rounding order for themselves and drifted (board #8569). `pulsedex-dsp.js altitudeVO2` owns
+         the decision now, so what is left to pin HERE is the delegation. The §∅ behaviour itself —
+         a null factor with no elevation, a neutral 1 in the math, the named refusals — runs over the
+         real function in `PulseDex altitude VO₂ — one road, …`. That is the stronger leg: a source
+         pin dies on any reflow of the line, and these seven did. */
       T.ok(
-        'the compute road keeps the null instead of publishing sea level',
-        /const elev = _pp\.elev == null \|\| !isFinite\(_pp\.elev\) \? null : \+_pp\.elev;/.test(app),
-        (app.match(/const elev = _pp\.elev[^;]*;/) || ['no site'])[0]
+        'the compute road delegates elevation, factor and VO2 base to the one road',
+        /const alt = altitudeVO2\(_pp\.elev, rhrEff, hrmaxEff\);/.test(app) &&
+          /const elev = alt\.elev;/.test(app) &&
+          /const altFactor = alt\.altFactor;/.test(app) &&
+          /const vo2b = alt\.vo2base;/.test(app),
+        (app.match(/const alt = altitudeVO2[^;]*;/) || ['no site'])[0]
       );
       T.ok(
-        'the compute road PUBLISHES the null, so the factor is not read as a measured x1',
-        /const altFactor = elev == null \? null : altVO2Factor\(elev\);/.test(app),
-        (app.match(/const altFactor = elev[^;]*;/) || ['no site'])[0]
+        '…and it keeps NO altitude arithmetic of its own, which is what let the two roads part',
+        !/altVO2Factor\s*\(/.test(app) && !/vo2Base\s*\(/.test(app) && !/altApplied/.test(app),
+        'the compute road still computes the correction itself'
       );
       T.ok(
-        '…and a SECOND local carries the neutral 1 into the VO2 math, so no correction is applied either',
-        /const altApplied = altFactor == null \? 1 : altFactor;/.test(app) && /vo2Base\(rhrEff, hrmaxEff\) \* altApplied/.test(app),
-        (app.match(/const altApplied = altFactor[^;]*;/) || ['no site'])[0]
+        '…and the export writes the published field straight through, with no SECOND rounding',
+        /^\s+altFactor, \/\//m.test(app) && !/altFactor: altFactor/.test(app),
+        (app.match(/^\s+altFactor,.*$/m) || ['no site'])[0]
       );
       T.ok(
-        '…and the export writes that null rather than 1.000 (the defect row 2026-11-24-pulsedex-publishes-a-neutral-altfactor-with-no-elevation)',
-        /altFactor: altFactor == null \? null : \+altFactor\.toFixed\(3\),/.test(app),
-        (app.match(/altFactor: altFactor[^,]*,/) || ['no site'])[0]
-      );
-      T.ok('the re-render road keeps the null', /r\.elev = _pp\.elev == null \|\| !isFinite\(_pp\.elev\) \? null : \+_pp\.elev;/.test(rnd), (rnd.match(/r\.elev = _pp\.elev[^;]*;/) || ['no site'])[0]);
-      T.ok(
-        'the re-render road publishes the null too',
-        /r\.altFactor = r\.elev == null \? null : \+altVO2Factor\(r\.elev\)\.toFixed\(3\);/.test(rnd),
-        (rnd.match(/r\.altFactor = r\.elev[^;]*;/) || ['no site'])[0]
+        'the re-render road delegates to the same function',
+        /const alt = altitudeVO2\(_pp\.elev, r\.rhrEff, r\.hrmaxEff\);/.test(rnd) &&
+          /r\.elev = alt\.elev;/.test(rnd) &&
+          /r\.altFactor = alt\.altFactor;/.test(rnd) &&
+          /r\.vo2base = alt\.vo2base;/.test(rnd),
+        (rnd.match(/const alt = altitudeVO2[^;]*;/) || ['no site'])[0]
       );
       T.ok(
-        '…over the same two-local shape, so the re-render VO2 base keeps the neutral 1',
-        /const altApplied = r\.altFactor == null \? 1 : r\.altFactor;/.test(rnd) && /vo2Base\(r\.rhrEff, r\.hrmaxEff\) \* altApplied/.test(rnd),
-        (rnd.match(/const altApplied = r\.altFactor[^;]*;/) || ['no site'])[0]
+        '…and it keeps no altitude arithmetic of its own either',
+        !/altVO2Factor\s*\(/.test(rnd) && !/vo2Base\s*\(/.test(rnd) && !/altApplied/.test(rnd),
+        'the re-render road still computes the correction itself'
       );
       T.ok('neither road restores the `|| 0` spelling on an elevation', !/elev \|\| 0/.test(app + rnd), 'a `|| 0` on an elevation is back');
       T.ok('the result object still publishes that same local', /^\s+elev,$/m.test(app), 'the published field and the null arm have parted ways');
@@ -51810,7 +51892,13 @@
         /const tanaka = age == null \? null : Math\.round\(208 - 0\.7 \* age\);/.test(app),
         (app.match(/const tanaka = [^;]*;/) || ['no site'])[0]
       );
-      T.ok('the compute road refuses the VO₂ estimate when no HRmax survives', /const vo2b = hrmaxEff == null \? null :/.test(app), (app.match(/const vo2b = [^;]*;/) || ['no site'])[0]);
+      /* The refusal moved INTO `altitudeVO2`, which names its reason (`no-hrmax`). A behaviour leg
+         reads it in `PulseDex altitude VO₂ — one road, …`; what is left here is the delegation. */
+      T.ok(
+        'the compute road takes its VO₂ refusal from the one altitude road',
+        /const alt = altitudeVO2\(_pp\.elev, rhrEff, hrmaxEff\);/.test(app) && /const vo2b = alt\.vo2base;/.test(app),
+        (app.match(/const vo2b = [^;]*;/) || ['no site'])[0]
+      );
       T.ok('the compute road carries the refusal into the adjusted VO₂', /const vo2a = lnrm == null \|\| vo2b == null \? null :/.test(app), (app.match(/const vo2a = [^;]*;/) || ['no site'])[0]);
       T.ok(
         'an entered HRmax still wins, so only the ESTIMATE goes away with the age',
@@ -51828,7 +51916,11 @@
         /const age = _pp\.age == null \|\| !isFinite\(_pp\.age\) \? null : \+_pp\.age;/.test(rnd),
         (rnd.match(/const age = _pp\.age[^;]*;/) || ['no site'])[0]
       );
-      T.ok('the re-render road refuses the VO₂ estimate when no HRmax survives', /r\.vo2base = r\.hrmaxEff == null \? null :/.test(rnd), (rnd.match(/r\.vo2base = [^;]*;/) || ['no site'])[0]);
+      T.ok(
+        'the re-render road takes its VO₂ refusal from the same road',
+        /const alt = altitudeVO2\(_pp\.elev, r\.rhrEff, r\.hrmaxEff\);/.test(rnd) && /r\.vo2base = alt\.vo2base;/.test(rnd),
+        (rnd.match(/r\.vo2base = [^;]*;/) || ['no site'])[0]
+      );
       T.ok(
         'the re-render road carries the refusal into the adjusted VO₂',
         /r\.vo2adj = r\.lnrmssd == null \|\| r\.vo2base == null \? null :/.test(rnd),
