@@ -2326,6 +2326,18 @@
    },
    "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. #3931 wired the primitive on 2026-10-25. `--verdict-sample` prints the object over a synthetic two-night snapshot, so the gate validates it without the corpus. It entered the population on 2026-10-25, when the enumerator stopped keying membership on a literal decision word and started reading a publication (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file). The word it prints is `population.status`, computed at run time, so no literal PASS or SHORTFALL ever appears in the source and the old grep could not see it."
   },
+  "tools/pat-mask-census.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pat-mask-census.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "PAT-MASK-CENSUS (row 2026-09-26-pat-finger-feet-detected-on-unmasked-156-rows): runs the SHIPPED ppgFootTimes twice per recording - once as it ships over the raw O2Ring pleth, once with { holdGaps: true }, which holds the 156 beat markers over the way the node's own analyze already does - and reports how far the consensus foot set moves. Feet pair by sample index within 40 ms, and the bar is the one Wren pre-stated on 2026-09-26: a median shift of 5 ms, an IQR of 10 ms, or more than 2 % of feet lost or gained. The population the criterion judges is the FINGER recordings, and the DSP decides that: parsePPG publishes gap only for the finger layout, so a recording whose record reads wouldHoldGapSamples == null is excluded with that reason rather than counted as one that held still. PASS = no reachable recording passes the bar; FAIL names how many do, which leaves the shipped default in place until the owner rules; UNDERPOWERED where fewer than three reachable recordings were read, or where every recording read was a wrist layout; NOT_RUN (exit 2) where no recording was read at all, which is CI and every fresh clone, so the sample there examines nothing and says so."
+  },
   "tools/pat-matchrate-strict.mjs": {
    "bin": "already-json",
    "status": "adopted",
