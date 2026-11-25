@@ -258,6 +258,12 @@ export const ALLOW = [
     match: "rc.innerHTML = evb(useMeas ? 'refNight' : 'hat') + ' ' + esc(",
     reason:
       "the night-list row caption. `useMeas` only chooses a branch and is never written into the markup. evb() returns MetricRegistry.badge() markup for one of two static EV keys, 'refNight' or 'hat', and the σ triple, the one value that carries numbers, goes through esc()."
+  },
+  {
+    file: 'hrvdex-render.js',
+    match: "srbLabel.innerHTML = (score != null ? evBadge('HRV Score') : '')",
+    reason:
+      "the sidebar readiness chip, read when this diff gave it the badge the hero already carried. `score` is tested against null and its value is never written into the markup. evBadge() returns MetricRegistry.badge() markup over the static registry key 'HRV Score', and that helper escapes its own attributes. The rest of the statement is the literal 'Readiness'."
   }
 ];
 
