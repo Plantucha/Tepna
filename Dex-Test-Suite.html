@@ -507,6 +507,23 @@ async function main(){
       return null;
     }
   })();
+  /* THE SECOND SHIPPED MODEL, the one of two passes, read by this lane through the same two steps.
+     It is a separate handle and not a swap: the groups hold the two files against each other. */
+  const stageModel2 = await fetchJSON('eeg-stage-model-two-pass-2026-11-24.json');
+  const stageModel2Digest = await (async () => {
+    try {
+      const r = await fetch('eeg-stage-model-two-pass-2026-11-24.json');
+      const b = await r.arrayBuffer();
+      const d = await crypto.subtle.digest('SHA-256', b);
+      return Array.from(new Uint8Array(d))
+        .map(x => x.toString(16).padStart(2, '0'))
+        .join('')
+        .slice(0, 16);
+    } catch (e) {
+      console.warn('two-pass stage model digest unavailable: ' + (e && e.message));
+      return null;
+    }
+  })();
   await Promise.all(Object.keys(FIXTURE_FILES).map(async k => { fixtures[k] = await fetchJSON(FIXTURE_FILES[k]); }));
   await Promise.all(SOURCE_FILES.map(async f => { const t = await fetchText(f); if(t!=null) sources[f]=t; }));
   // -II §1 / -IV §3 equivalence gate: a committed raw INPUT + its committed ganglior-export
@@ -1077,7 +1094,7 @@ async function main(){
     srcHtml, bundleCsp,
     // The realm global: in THIS lane the modules and the suite share one global (see run-tests.mjs).
     realmGlobal: window,
-    fixtures, sources, equiv, odiPilot, stageVectors, stageModel, stageModelDigest,
+    fixtures, sources, equiv, odiPilot, stageVectors, stageModel, stageModelDigest, stageModel2, stageModel2Digest,
     // published so `adapter sources reach BOTH lanes` can tell an EMPTY adapter manifest from a
     // lane that simply has no adapters — a silent `[]` there is the blindness that group closes.
     adapterSourcesMissing: window.__adapterSourcesMissing === true,
