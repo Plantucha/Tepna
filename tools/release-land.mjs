@@ -40,7 +40,9 @@
  * never double-creates and never re-stamps:
  *   plan      release.mjs --dry-run --skip-gates → the version this fold will produce
  *   worktree  a private checkout off origin/main (§👥.1); node_modules symlinked from the primary
- *   stamp     node tools/release.mjs (runs THE WALL: verify-fixtures --check; refuses on red)
+ *   stamp     node tools/build.mjs --all, then node tools/release.mjs (runs THE WALL: verify-fixtures
+ *             --check; refuses on red). The build comes first because an author PR carries no bundle, so
+ *             between a merge and the walker's regen PR main holds a stale one (v2.37.0, 2026-11-24)
  *   build     node tools/build.mjs --all  (⚠ bare build.mjs builds nothing — measured)
  *   docs      node tools/build-docs.mjs   (served copies; `verify:docs` reds until this runs)
  *   gate      npm run check — the FULL gate, on the final tree, once
@@ -86,6 +88,37 @@ const LATEST = join(STATE_DIR, 'latest.json');
 /* ── pure core ────────────────────────────────────────────────────────────────────────────────── */
 
 export const STEPS = ['plan', 'worktree', 'stamp', 'build', 'docs', 'gate', 'scan', 'commit', 'push', 'pr', 'merge', 'tag', 'release', 'cleanup'];
+
+/* The record of a failed child. Its STDERR comes first and whole up to the cap, because that is where a
+   refusal names itself; the stdout tail is context and takes what is left. `(err + out).slice(-3000)`
+   kept the end of a long stdout and dropped the one line that named the gate (v2.37.0, 2026-11-24). */
+export function failureText(what, r, logFile = null, cap = 3000) {
+  const how = r.signal ? `killed by ${r.signal}, no verdict` : `exit ${r.code}`;
+  const err = r.err.trim().slice(-cap);
+  const room = cap - err.length;
+  const out = room > 0 ? r.out.trim().slice(-room) : '';
+  return [`${what} ${how}:`, err, out && `--- stdout tail\n${out}`, logFile && `full output: ${logFile}`].filter(Boolean).join('\n');
+}
+
+/* What a refused pre-flight gate says about itself, in one short text for stderr: the command, how it
+   ended, every failing line and the last lines. A gate that a SIGNAL ended gave no verdict, so it is
+   never called red. Measured 2026-11-24: the v2.37.0 stamp refused and its record named no gate and no
+   failing assertion, because `process.exit` right after a large write to a pipe drops what is unflushed. */
+export function gateFailure(cmd, r) {
+  const how = r.error ? `did not start: ${r.error.message}` : r.status === null ? `was killed by ${r.signal || 'an unnamed signal'} and gave NO VERDICT` : `exited ${r.status}`;
+  const lines = (r.stdout || '')
+    .replace(/\x1b\[[0-9;]*m/g, '')
+    .split('\n')
+    .filter((l) => l.trim());
+  const red = lines.filter((l) => /^\s*(✕|✗|✖|not ok\b|FAIL\b)/.test(l));
+  const part = (head, ls) => (ls.length ? `\n  ${head}:\n${ls.map((l) => `    ${l.trim().slice(0, 300)}`).join('\n')}` : '');
+  return `Gate failed: ${cmd.join(' ')} ${how} — refusing to release. (--skip-gates is dev-only.)${part(`${red.length} failing line(s)${red.length > 20 ? ', the first 20' : ''}`, red.slice(0, 20))}${part('the last lines', lines.slice(-8))}`;
+}
+
+/* What a `--resume` keeps. A run that never finished its stamp wrote nothing into the release, so its
+   plan and its base are re-read: main has moved since, and the changesets that moved with it belong in
+   this cut. From the stamp on, every finished step stays finished. */
+export const resumeDone = (done) => (done.includes('stamp') ? done : []);
 
 /* ── transient API failures ─────────────────────────────────────────────────────────────────────
    Measured 2026-11-12: one transient GitHub error at the `pr` step killed the v2.32.0 chain AFTER
@@ -314,7 +347,7 @@ export function missingAssets(wanted, have) {
 
 function sh(cmd, args, opts = {}) {
   const r = spawnSync(cmd, args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, ...opts });
-  return { code: r.status === null ? 1 : r.status, out: r.stdout || '', err: r.stderr || '' };
+  return { code: r.status === null ? 1 : r.status, signal: r.signal || null, out: r.stdout || '', err: r.stderr || '' };
 }
 function must(cmd, args, opts = {}) {
   const r = sh(cmd, args, opts);
@@ -425,6 +458,7 @@ const RUN = {
     const r = sh('node', ['tools/release.mjs', '--dry-run', '--skip-gates'], { cwd: ROOT });
     const plan = parsePlan(r.out);
     if (!plan) throw new Error('release.mjs --dry-run did not report a version:\n' + (r.err || r.out).slice(-1500));
+    if (st.to && st.to !== plan.to) throw new Error(`this run is v${st.to}, and the changesets on main now make v${plan.to} — retire ${st.worktree} and start a new run`);
     Object.assign(st, plan);
     st.branch = st.branch || `claude/release-${plan.to}-${st.suffix}`;
     st.worktree = st.worktree || resolve(ROOT, '..', `wt-release-${plan.to}`);
@@ -438,15 +472,23 @@ const RUN = {
     } else {
       const b = must('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: st.worktree }).trim();
       if (b !== st.branch) throw new Error(`${st.worktree} exists on branch ${b}, not ${st.branch} — not mine, refusing`);
+      /* A resume before the stamp: take main's later commits. A tree that holds an edit, or a branch that
+         holds a commit, may be the operator's fix, so it stays as it is and the log says so. */
+      const dirty = must('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: st.worktree }).split('\n').filter(Boolean).length;
+      const ff = dirty ? null : sh('git', ['merge', '--ff-only', '-q', 'origin/main'], { cwd: st.worktree });
+      log(st, dirty ? `base not advanced: ${dirty} modified path(s) in ${st.worktree}` : ff.code === 0 ? 'base advanced to origin/main' : `base not advanced: ${ff.err.trim().split('\n')[0]}`);
     }
     const nm = join(st.worktree, 'node_modules');
     if (!existsSync(nm) && existsSync(join(ROOT, 'node_modules'))) symlinkSync(join(ROOT, 'node_modules'), nm);
     log(st, `worktree ready: ${st.worktree} [${st.branch}]`);
   },
   stamp(st) {
+    must('node', ['tools/build.mjs', '--all'], { cwd: st.worktree });
+    const logFile = join(STATE_DIR, `v${st.to}-stamp.log`);
     const r = sh('node', ['tools/release.mjs'], { cwd: st.worktree });
+    writeFileSync(logFile, r.out + r.err);
     st.stampOut = r.out.slice(-6000);
-    if (r.code !== 0) throw new Error(`release.mjs exit ${r.code}:\n${(r.err + r.out).slice(-3000)}`);
+    if (r.code !== 0) throw new Error(failureText('release.mjs', r, logFile));
     const v = JSON.parse(readFileSync(join(st.worktree, 'suite.manifest.json'), 'utf8')).version;
     if (v !== st.to) throw new Error(`stamped ${v}, planned ${st.to}`);
     /* README rows release.mjs could NOT check are a human's to read — echoed, never blocking. */
@@ -745,6 +787,7 @@ function main(argv) {
       return 1;
     }
     st.failed = null;
+    st.done = resumeDone(st.done);
     st.log.push(`[${nowIso().slice(11, 19)}] resume from ${remaining(st.done)[0] || 'nothing'}`);
   } else {
     st = newState(argv);
@@ -766,6 +809,8 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   ok(remaining([]).length === STEPS.length, 'nothing done → every step remains');
   ok(remaining(['plan', 'worktree', 'stamp'])[0] === 'build', 'resume picks the first unfinished step');
   ok(remaining(STEPS).length === 0, 'all done → nothing remains');
+  ok(remaining(resumeDone(['plan', 'worktree']))[0] === 'plan', 'a resume before the stamp plans again, on the main of now');
+  ok(remaining(resumeDone(['plan', 'worktree', 'stamp']))[0] === 'build', 'a resume after the stamp never plans or stamps again');
   // porcelain classification — planted: a modified ledger, a deleted changeset, an untracked file, a rename
   const cls = classifyStatus(' M CHANGELOG.md\nM  suite.manifest.json\n D changes/2026-09-01-x.md\n?? deploy/\nR  a.js -> b.js\nMM docs/OxyDex.html\n');
   ok(cls.add.length === 3 && cls.add.includes('docs/OxyDex.html'), 'modified (worktree, index, both) → add');
@@ -895,6 +940,23 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   const tr = [];
   mustRetrying('gh', ['x'], {}, { run: h.run, wait: h.wait, onRetry: (a, ms) => tr.push(`${a}/${ms}`) });
   ok(tr.join() === '1/2000,2/4000', 'every retry is reported to the log, because a silent retry reads as a slow step');
+  // the record of a failed stamp
+  const big = 'x'.repeat(9000);
+  ok(
+    failureText('release.mjs', { code: 3, signal: null, out: big, err: 'Gate failed: node a.mjs' }, '/l').includes('Gate failed: node a.mjs'),
+    'a long stdout never pushes the refusal out of the record'
+  );
+  ok(/exit 3:/.test(failureText('release.mjs', { code: 3, signal: null, out: '', err: '' })), 'the record names the exit code');
+  ok(/killed by SIGKILL, no verdict/.test(failureText('release.mjs', { code: 1, signal: 'SIGKILL', out: '', err: '' })), 'a killed child is no verdict, never an exit code');
+  ok(failureText('r', { code: 3, signal: null, out: big, err: big }).length < 3100, 'the record is capped, and a stderr at the cap leaves no stdout tail');
+  ok(failureText('r', { code: 3, signal: null, out: 'o', err: 'e' }, '/l').endsWith('full output: /l'), 'the record names the file that holds everything');
+  // the refusal of the stamp's own gate
+  const red = gateFailure(['node', 'tests/run-tests.mjs'], { status: 1, stdout: `${'  ✓ ok\n'.repeat(500)}  \x1b[31m✕ the red one\x1b[0m\n${'  ✓ ok\n'.repeat(500)}Tepna test suite  ✕ 1 failing\n` });
+  ok(/run-tests\.mjs exited 1/.test(red) && red.includes('✕ the red one'), 'a refusal names the gate and the failing assertion, wherever it stands in the output');
+  ok(red.includes('1 failing') && red.length < 1000, '…and the last lines, and stays short enough for the record');
+  ok(/killed by SIGKILL and gave NO VERDICT/.test(gateFailure(['x'], { status: null, signal: 'SIGKILL', stdout: '' })), 'a gate that a signal ended is never called red');
+  ok(/did not start: ENOENT/.test(gateFailure(['x'], { status: null, error: new Error('ENOENT') })), 'a gate that did not start says so');
+  ok(/first 20/.test(gateFailure(['x'], { status: 1, stdout: '✕ a\n'.repeat(30) })), 'a long list of failures is twenty and the count');
   // every step has a runner, in order
   ok(
     STEPS.every((s) => typeof RUN[s] === 'function'),

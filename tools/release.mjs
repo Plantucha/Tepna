@@ -38,6 +38,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { escapeRe } from './regex-escape-core.mjs';
+import { gateFailure } from './release-land.mjs';
 import { writeRootOrDie } from './write-root.mjs';
 
 /* THIS tool's own checkout, which is NOT necessarily the one a run was asked to stamp. A READ of a
@@ -242,8 +243,11 @@ function main() {
       const r = spawnSync(cmd[0], cmd.slice(1), { cwd: ROOT, stdio: ['inherit', 'pipe', 'inherit'], encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
       process.stdout.write(r.stdout || '');
       if (r.status !== 0) {
-        console.error('\nGate failed: ' + cmd.join(' ') + ' — refusing to release. (--skip-gates is dev-only.)');
-        process.exit(3);
+        console.error('\n' + gateFailure(cmd, r));
+        /* exitCode and return, never process.exit(): a pipe is written asynchronously, and the exit would
+           drop the tail that holds the suite's summary. */
+        process.exitCode = 3;
+        return;
       }
       if (cmd[1] === 'tests/run-tests.mjs') {
         const m = stripAnsi(r.stdout || '').match(/✓ all (\d+) assertions passed.*?\((\d+) groups\)/);
