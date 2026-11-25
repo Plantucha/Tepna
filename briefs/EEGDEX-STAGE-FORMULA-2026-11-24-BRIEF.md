@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS — 2026-11-24 · **Created:** 2026-11-24
+**Status:** DONE — 2026-11-25 · **Created:** 2026-11-24
 
 # Build Brief — the EEG stage formula for EEGDex (base model)
 
@@ -81,12 +81,16 @@ assertions in `tests/dex-tests.js`.
 
 ### PR 3 — the wiring in EEGDex
 
-- [ ] A hypnogram from the model file, behind a switch that is OFF by default.
-- [ ] The model id and the model's limits sit beside the hypnogram.
-- [ ] An unscored epoch reads as not scored, and never as a stage.
-- [ ] Each number on the screen carries an `experimental` badge or lower, until a blind read says
-      more (@kestrel, #8464 rule 5).
-- [ ] The app text states the limits: the fit used sleep-lab derivations and a small number of
+- [x] A hypnogram from the model file, behind a switch that is OFF by default. The reader turns
+      the switch on, and the reader gives the model file to the same drop zone that takes the EDF.
+- [x] The model id and the model's limits sit beside the hypnogram. The note names the id and the
+      16-character hash of the file that scored the night.
+- [x] An unscored epoch reads as not scored, and never as a stage. The strip draws a gap, and the
+      refusal tally equals the count of epochs that read null.
+- [x] Each number on the screen carries an `experimental` badge or lower, until a blind read says
+      more (@kestrel, #8464 rule 5). The surface shows NO number at all, because §6 forbids one
+      until the three thresholds hold a citation, and the registry grades the series `experimental`.
+- [x] The app text states the limits: the fit used sleep-lab derivations and a small number of
       forehead recordings; a frontal derivation recognises deep sleep less well than a central one;
       the stager scores after the night and not during it; it is a research aid and not a diagnosis.
 
@@ -127,9 +131,12 @@ that nobody ran. Board #8487 records that decision too.
 
 ## 6. Open questions
 
-- Whether the bundle inlines the 62 kB model file or loads it beside the page. The bundle rules
-  decide, and §🔏 governs either answer.
-- Which EEGDex surface shows the model id. PR 3 answers it.
+- ~~Whether the bundle inlines the 62 kB model file or loads it beside the page.~~ ANSWERED: the
+  page inlines NO model file. The reader gives the file to the drop zone, and the node recognises it
+  by its own `schema` field. This keeps 63 kB of coefficients out of the page, it adds no build
+  mechanism, and it makes a second model file a reader action rather than a code change.
+- ~~Which EEGDex surface shows the model id.~~ ANSWERED: a section of its own, before Sleep
+  Architecture, which stays hidden until the reader turns the switch on.
 - **The four published thresholds carry no DOI yet.** The slow-oscillation criteria, the scoring
   manual's amplitude figure and the spindle detector's four thresholds come to the port as constants
   with a described source and no checkable citation. §📚 forbids a fabricated one, so the port names
