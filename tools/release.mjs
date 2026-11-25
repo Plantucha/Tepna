@@ -38,6 +38,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { escapeRe } from './regex-escape-core.mjs';
+import { gateFailure } from './release-land.mjs';
 import { writeRootOrDie } from './write-root.mjs';
 
 /* THIS tool's own checkout, which is NOT necessarily the one a run was asked to stamp. A READ of a
@@ -116,20 +117,6 @@ function readChangesets() {
 }
 
 const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*m/g, '');
-
-/* What a refused pre-flight gate says about itself, in one short text for stderr: the command, how it
-   ended, every failing line and the last lines. A gate that a SIGNAL ended gave no verdict, so it is
-   never called red. Measured 2026-11-24: the v2.37.0 stamp refused and its record named no gate and no
-   failing assertion, because `process.exit` right after a large write to a pipe drops what is unflushed. */
-export function gateFailure(cmd, r) {
-  const how = r.error ? `did not start: ${r.error.message}` : r.status === null ? `was killed by ${r.signal || 'an unnamed signal'} and gave NO VERDICT` : `exited ${r.status}`;
-  const lines = stripAnsi(r.stdout || '')
-    .split('\n')
-    .filter((l) => l.trim());
-  const red = lines.filter((l) => /^\s*(✕|✗|✖|not ok\b|FAIL\b)/.test(l));
-  const part = (head, ls) => (ls.length ? `\n  ${head}:\n${ls.map((l) => `    ${l.trim().slice(0, 300)}`).join('\n')}` : '');
-  return `Gate failed: ${cmd.join(' ')} ${how} — refusing to release. (--skip-gates is dev-only.)${part(`${red.length} failing line(s)${red.length > 20 ? ', the first 20' : ''}`, red.slice(0, 20))}${part('the last lines', lines.slice(-8))}`;
-}
 const fmtInt = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 /* The capture lane's test count, by COLLECTION only (no run — check.sh owns the run). Reported as

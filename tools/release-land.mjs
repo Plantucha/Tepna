@@ -80,7 +80,6 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
 import { escapeRe } from './regex-escape-core.mjs';
-import { gateFailure } from './release.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const STATE_DIR = join(tmpdir(), 'tepna-release-land');
@@ -99,6 +98,21 @@ export function failureText(what, r, logFile = null, cap = 3000) {
   const room = cap - err.length;
   const out = room > 0 ? r.out.trim().slice(-room) : '';
   return [`${what} ${how}:`, err, out && `--- stdout tail\n${out}`, logFile && `full output: ${logFile}`].filter(Boolean).join('\n');
+}
+
+/* What a refused pre-flight gate says about itself, in one short text for stderr: the command, how it
+   ended, every failing line and the last lines. A gate that a SIGNAL ended gave no verdict, so it is
+   never called red. Measured 2026-11-24: the v2.37.0 stamp refused and its record named no gate and no
+   failing assertion, because `process.exit` right after a large write to a pipe drops what is unflushed. */
+export function gateFailure(cmd, r) {
+  const how = r.error ? `did not start: ${r.error.message}` : r.status === null ? `was killed by ${r.signal || 'an unnamed signal'} and gave NO VERDICT` : `exited ${r.status}`;
+  const lines = (r.stdout || '')
+    .replace(/\x1b\[[0-9;]*m/g, '')
+    .split('\n')
+    .filter((l) => l.trim());
+  const red = lines.filter((l) => /^\s*(✕|✗|✖|not ok\b|FAIL\b)/.test(l));
+  const part = (head, ls) => (ls.length ? `\n  ${head}:\n${ls.map((l) => `    ${l.trim().slice(0, 300)}`).join('\n')}` : '');
+  return `Gate failed: ${cmd.join(' ')} ${how} — refusing to release. (--skip-gates is dev-only.)${part(`${red.length} failing line(s)${red.length > 20 ? ', the first 20' : ''}`, red.slice(0, 20))}${part('the last lines', lines.slice(-8))}`;
 }
 
 /* What a `--resume` keeps. A run that never finished its stamp wrote nothing into the release, so its
