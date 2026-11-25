@@ -1810,10 +1810,21 @@
   /* Synthetic EDF file-set shaped like readEDF() outputs, for buildSessionFromEdf
    tests. opts: { oxi } valid oximeter w/ a gentle real desat, { squeeze } adds a
    perfusion-collapse artifact desat, { cs } adds a CSL Cheyne-Stokes span. */
-  function _mkSig(n, fn, fs, dim) {
+  /* ∅ A SYNTHETIC CHANNEL MUST CARRY THE SAME SHAPE AS A DECODED ONE. `readEDF` writes
+     `calibrated` on every non-annotation signal (`cpapdex-edf.js`, the per-signal loop), and this
+     builder wrote `data`, `fs`, `dim` and `_spr` alone. So the field read `undefined` over the whole
+     synthetic set, and the one consumer repo-wide reads it as `fl.calibrated === false`. An absent
+     field therefore passed, which left the refusal of #5623 unreachable from here. A later consumer
+     written `=== true` would refuse every synthetic night instead, and that is the direction that
+     hides a fault: the synthetic gates would red while real files pass.
+
+     A synthetic channel carries physical units already, so `true` is the truthful value. `cal` lets
+     a caller build an uncalibrated channel and reach the refusal path.
+     Row 2026-11-24-synthetic-edf-channels-carry-no-calibrated-field. */
+  function _mkSig(n, fn, fs, dim, cal) {
     var a = new Float32Array(n);
     for (var i = 0; i < n; i++) a[i] = fn(i);
-    return { data: a, fs: fs, dim: dim, _spr: Math.round(fs * 60) };
+    return { data: a, fs: fs, dim: dim, calibrated: cal !== false, _spr: Math.round(fs * 60) };
   }
   function _synthEdfSet(opts) {
     opts = opts || {};
@@ -1930,6 +1941,19 @@
         )
       }
     };
+    /* ∅ `opts.uncal` names the channels a test wants uncalibrated, so the #5623 Flow refusal
+       becomes reachable from the synthetic set rather than from a hand-built frame. An unknown
+       label changes nothing, because a test that names a channel this set does not build has
+       already failed its own premise. */
+    if (opts.uncal) {
+      for (var u = 0; u < opts.uncal.length; u++) {
+        var usets = [PLD.signals, BRP.signals];
+        for (var us = 0; us < usets.length; us++) {
+          var usig = usets[us][opts.uncal[u]];
+          if (usig) usig.calibrated = false;
+        }
+      }
+    }
     var spo2 = new Float32Array(n1),
       pulse = new Float32Array(n1);
     if (opts.oxi) {
@@ -1962,8 +1986,10 @@
       recordsRead: R,
       recDurSec: recDur,
       signals: {
-        'SpO2.1s': { data: spo2, fs: 1, dim: '%', _spr: 60 },
-        'Pulse.1s': { data: pulse, fs: 1, dim: 'bpm', _spr: 60 }
+        // ∅ The same shape parity as `_mkSig` above. `readEDF` writes `calibrated` on every
+        // non-annotation signal, and an oximeter channel is one.
+        'SpO2.1s': { data: spo2, fs: 1, dim: '%', calibrated: true, _spr: 60 },
+        'Pulse.1s': { data: pulse, fs: 1, dim: 'bpm', calibrated: true, _spr: 60 }
       }
     };
     var EVE = {
