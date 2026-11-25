@@ -42892,14 +42892,14 @@
         T.eq('M18 · both altitude sentences print the elevation', nBare, 2, nBare + ' uses');
         T.eq('M18 · and both badge it', nElev, nBare, nElev + ' badges for ' + nBare + ' elevations');
         T.eq('M18 · both badge the altitude correction factor', nFactor, nBare, nFactor + ' badges for ' + nBare + ' sentences');
-        T.ok('M18 · the periodic-breathing index carries a badge', /tierBadge\(\s*'emerging'[\s\S]{0,500}r\.pb\.frac/.test(ctxFn), 'the PB index is still bare');
+        T.ok('M18 · the periodic-breathing index carries a badge', /tierBadge\(\s*'experimental'[\s\S]{0,500}r\.pb\.frac/.test(ctxFn), 'the PB index is still bare');
         T.ok('M18 · the mode score carries a badge', /tierBadge\(\s*'heuristic'[\s\S]{0,500}r\.modeConf/.test(ctxFn), 'the mode score is still bare');
         var offLadder = [];
         for (const mm of ctxFn.matchAll(/tierBadge\(\s*'([a-z]+)'/g)) if (!LADDER[mm[1]]) offLadder.push(mm[1]);
         T.eq('M18 · every tier the banner states is ladder vocabulary', offLadder.length, 0, 'off-ladder: ' + offLadder.join(' · '));
         T.ok('M18 · the engine draws the disc, so the banner hardcodes no disc CSS', !/border-radius:\s*50%/.test(ctxFn), 'the banner draws its own disc');
         // and the engine really does mint a disc for each tier the two surfaces state.
-        ['measured', 'heuristic', 'emerging', 'experimental'].forEach(function (t) {
+        ['measured', 'heuristic', 'experimental'].forEach(function (t) {
           T.ok('M6/M18 · MetricRegistry mints a ' + t + ' disc', (MR.badge(t, '') || '').indexOf('ev-' + t) >= 0, 'badge(' + t + ') minted nothing');
         });
       }

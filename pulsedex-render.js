@@ -123,11 +123,14 @@ function renderContext(r) {
   if (r.pb && r.pb.strong) {
     pbNote =
       '🌬 <b>Periodic-breathing signature detected</b> (low-freq HR cycling, PB index ' +
-      // The same defect in the same banner: the index is this node's own detector reading, not a
-      // scored event count, and `emerging` is the grade the sibling oximetry detector carries.
+      /* The same defect in the same banner. The grade is `pbIndex`'s, the OxyDex sibling that is also
+         an INDEX: that entry reads `experimental`, and so does `periodicBreathing`, because each one
+         is a derived signature with no airflow channel. OxyDex's `pbEpisodes` reads `emerging`, but
+         that is a count of detected episodes, and a ratio of band power cannot hold a higher grade
+         than the rate it is drawn from (kestrel, board #8883, over oxydex-registry.js on main). */
       tierBadge(
-        'emerging',
-        'Periodic-breathing index — PulseDex detector on low-frequency heart-rate cycling alone. There is no airflow or effort channel in this recording, and no scorer scored it.'
+        'experimental',
+        'Periodic-breathing index — PulseDex detector on low-frequency heart-rate cycling alone. There is no airflow, effort or oximetry channel in this recording, and no scorer scored it. The grade follows OxyDex pbIndex.'
       ) +
       r.pb.frac +
       '). Common at altitude — it inflates VLF/LF and confounds LF/HF, Resp Rate and the SNS/PSNS split. Treat spectral & composite metrics with caution.';
