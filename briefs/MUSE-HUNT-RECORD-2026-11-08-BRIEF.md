@@ -29,8 +29,8 @@ the tables is Muse's number at that HEAD. Main has moved since then, so read the
 
 I read each open item again on 2026-11-25, on main at 680cbf2f4. I read the function, and that is the
 evidence for `fixed on main`. I did not run Muse's original input for each item. The exception is
-A-27, which ran as a sweep over the live functions. Eleven items still hold: U-3, U-4, U-5, U-6,
-U-7, U-9, M-4, M-5, M-6, M-7 and B-6.
+A-27, which ran as a sweep over the live functions. On that day eleven items still held: U-3, U-4,
+U-5, U-6, U-7, U-9, M-4, M-5, M-6, M-7 and B-6. Each table below names the fix of an item that has one.
 
 | state | meaning |
 |---|---|
@@ -162,10 +162,10 @@ EEGDex sleep-efficiency denominator · PulseDex `pttv` floor · HRVDex CAMQ aver
 | M-1 | `webmon.py` | `heartbeat_ms` not forwarded | fixed on main |
 | M-2 | `webmon.py` | `seal` not forwarded | fixed on main |
 | M-3 | `monitor.html` | the power block is read by nothing | row `2026-11-08-the-monitor-reads-no-o2ring-power-block` |
-| M-4 | `monitor.html` `loadState` | no failure path after boot; a stale state renders as live | holds on main: `setInterval(loadState, 5000)` has no failure path after boot, so the pill keeps its last text |
-| M-5 | Batteries card | a days-old level shows as current with no age stamp | holds on main: `renderBatt` falls back to `h.last`, which carries no stamp |
-| M-6 | nights fetch | a failure leaves "no nights on disk" after the toast fades | holds on main: a failed `loadNights` sets an empty list, and `if(!NIGHTS)` never tries again |
-| M-7 | CPAP daemon card | an unknown state renders idle with a fabricated next run | holds on main: `cpapStatusLabel` maps an unknown state to idle with `at_hour` 13, and `renderCpapSpool` has the same arm |
+| M-4 | `monitor.html` `loadState` | no failure path after boot; a stale state renders as live | fixed by the monitor PR of claim #8817: one poll owner with a 15 s limit, and a banner that says "No answer from the box" with the time of the last state |
+| M-5 | Batteries card | a days-old level shows as current with no age stamp | fixed by the monitor PR of claim #8817: the card names the hour of a level from a device that is not connected |
+| M-6 | nights fetch | a failure leaves "no nights on disk" after the toast fades | fixed by the monitor PR of claim #8817: the card says that the list did not load, and it tries again |
+| M-7 | CPAP daemon card | an unknown state renders idle with a fabricated next run | fixed by the monitor PR of claim #8817: a warning names the state |
 | B-1 | `tools/ntfy-board-bridge.mjs` `classify` | disk recoveries cannot close | fixed on main |
 | B-2 | the bridge | close matches content | row `2026-11-07-bridge-close-matches-content-and-a-crit-episode-cannot-close` (closed) |
 | B-3 | `ackSweep` | empty acks output retires every tracked urgent | fixed on main: `planRetire` refuses and logs |

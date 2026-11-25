@@ -26,6 +26,13 @@ body[data-conn="reconnecting"]::before{
   padding:.5rem 1rem; text-align:center;
   background:#8a6d1f; color:#fff; font:600 13px/1.4 system-ui,sans-serif;
 }
+/* AFTER the first load: the page is full of values, so the banner says which instant they are from. */
+body[data-conn="lost"]::before{
+  content:"no answer from the box · this page shows its state at " attr(data-conn-at);
+  position:fixed; inset:0 0 auto 0; z-index:9999;
+  padding:.5rem 1rem; text-align:center;
+  background:#8a6d1f; color:#fff; font:600 13px/1.4 system-ui,sans-serif;
+}
 /* ══════════════════════════════════════════════════════════════════════════
    Tepna design tokens — curated subset of ans-design.css §1 (dark) + §2 (light)
    ══════════════════════════════════════════════════════════════════════════ */
@@ -1516,7 +1523,7 @@ const NIGHT_RUN_LATE = {Integrator: 'OverDex did not finish reading them in 3 mi
 // Figure-only columns: the raw input on disk that reaches the app through another node, never a click.
 const NIGHT_WHY_NOT = {HRVDex:"HRVDex reads Welltory CSV or an ECGDex export — this raw Polar input reaches it through ECGDex"};
 const NIGHT_GROUP = {ECGDex:"polar",HRVDex:"polar",PulseDex:"polar",PPGDex:"polar",MotionDex:"polar",OxyDex:"wellue",CPAPDex:"resmed",GlucoDex:"fused",EEGDex:"fused",Integrator:"fused"};
-let NIGHTS = null, NIGHTS_PENDING = 0;
+let NIGHTS = null, NIGHTS_PENDING = 0, NIGHTS_ERR = null, NIGHTS_REASK = false;
 const nMB = b => b>=1e9 ? (b/1e9).toFixed(2)+' GB' : b>=1e6 ? Math.round(b/1e6)+' MB' : (b/1e3).toFixed(0)+' kB';
 const nHrs = h => h==null ? '?' : (h<1 ? Math.round(h*60)+' min' : h.toFixed(1)+' h');
 const nBase = f => f.split('/').pop();
@@ -1734,7 +1741,10 @@ function nDrawer(n){
   }).join('');
 }
 function renderNights(){
-  if(!NIGHTS || !NIGHTS.length){ $('#nightsTable').innerHTML='<tbody><tr><td class="nwhy">no nights on disk</td></tr></tbody>'; $('#nightsOverview').innerHTML=''; return; }
+  // "no nights on disk" is a claim about the disk, so only an index that was READ may make it. An index the
+  // page could not read says so, and keeps saying so: the toast that carried it fades after 9 s.
+  if(!NIGHTS || !NIGHTS.length){ const why = NIGHTS ? 'no nights on disk' : NIGHTS_ERR ? `the night index was not read: ${NIGHTS_ERR} · trying again` : 'reading the night index…';
+    $('#nightsTable').innerHTML=`<tbody><tr><td class="nwhy">${esc(why)}</td></tr></tbody>`; $('#nightsOverview').innerHTML=''; return; }
   const rows=[...NIGHTS].reverse(), recent=rows.slice(0,31), older=rows.slice(31);
   $('#navNightsN').style.display=''; $('#navNightsN').textContent=rows.length;
   document.querySelectorAll('[data-ntab]').forEach(b=>b.setAttribute('aria-selected', String(b.dataset.ntab===NIGHTS_TAB)));
@@ -1785,16 +1795,19 @@ function renderNights(){
   nLoadSolid(rows.map(n=>n.night));   // every night's verdict: the folded months count them too
 }
 let nightsPoll=null;
+function nightsReask(){ NIGHTS_REASK = true; return loadNights(); }
 async function loadNights(){
-  if(!NIGHTS){
-    try{ const r=await fetch('/api/nights?n=120'); const j=await r.json(); if(j.error) throw new Error(j.error); NIGHTS=j.nights; NIGHTS_PENDING=j.pending|0; }
-    catch(e){ nToast('nights index failed: '+e.message, true); NIGHTS=[]; NIGHTS_PENDING=0; }
+  if(!NIGHTS || NIGHTS_REASK){
+    NIGHTS_REASK = false;
+    try{ const r=await fetch('/api/nights?n=120'); const j=await r.json(); if(j.error) throw new Error(j.error); NIGHTS=j.nights; NIGHTS_PENDING=j.pending|0; NIGHTS_ERR=null; }
+    catch(e){ if(NIGHTS_ERR==null) nToast('nights index failed: '+e.message, true); NIGHTS_ERR=String(e.message||e); }   // NIGHTS keeps what was read before, or stays null
   }
   renderNights();
   // fragments/coverage are counted server-side within a time budget per request and cached per file;
   // while any stream is still pending, ask again (the cache fills, the "…" cells resolve, nothing re-counts)
   clearTimeout(nightsPoll);
-  if(NIGHTS_PENDING>0 && VIEW==='nights'){ nightsPoll=setTimeout(()=>{ NIGHTS=null; loadNights(); }, 4000); }
+  if(NIGHTS_PENDING>0 && VIEW==='nights'){ nightsPoll=setTimeout(nightsReask, 4000); }
+  else if(NIGHTS_ERR!=null && VIEW==='nights'){ nightsPoll=setTimeout(nightsReask, 10000); }
 }
 // THE LOAD. The apps and the monitor share one origin behind Caddy (vigil.local: apps at /, nights at
 // /captures/<night>/…, this page at /monitor), so this page can open the app, fetch the night's files
@@ -2870,9 +2883,11 @@ function cpapStatusLabel(c){
     // a harvest that had silently failed, which is precisely the reading this card exists to prevent.
     barren:  ['bad',  '✗ card answered but held nothing'],
     error:   ['bad',  `✗ ${c.detail||'harvest failed'}`],
-    idle:    ['idle', `idle · next run ${String(c.at_hour??13).padStart(2,'0')}:00`],
+    // The hour is the daemon's own; an absent one is stated, never a default that reads as scheduled.
+    idle:    ['idle', c.at_hour!=null ? `idle · next run ${String(c.at_hour).padStart(2,'0')}:00` : 'idle · next run time not stated'],
   };
-  return map[c.state] || map.idle;
+  // A state this page does not know is NOT idle: it is a daemon newer than the page, or a fault.
+  return Object.hasOwn(map, c.state) ? map[c.state] : ['warn', `state "${c.state??'not stated'}" is not known to this page`];
 }
 // THE ONE MAP for the live BLE side, beside the harvest map above and for the same reason: a fault the
 // operator must ACT on may not be spelled differently in two places. `fault_kind` is classified
@@ -2956,8 +2971,9 @@ function renderCpapSpool(s){
     running: ['idle', '⟳ stored-spool pull running…'],
     waiting: ['idle', `⏸ spool pull waiting — ${s.detail||'contended'}`],
     error:   ['bad',  `✗ spool pull — ${s.detail||'failed'}`],
+    idle:    ['idle', 'spool pull · idle'],
   };
-  const [cls, label] = map[s.state] || ['idle', `spool pull · ${s.state}`];
+  const [cls, label] = Object.hasOwn(map, s.state) ? map[s.state] : ['warn', `spool pull · state "${s.state}" is not known to this page`];
   el.innerHTML = `<span class="data-pill ${esc(cls)}"></span> ${esc(label)}`;
 }
 
@@ -2983,7 +2999,7 @@ document.addEventListener('click', async e => {
                         + `${j.skipped?' · '+j.skipped+' already on disk':''}`;
   }catch(err){ st.textContent = '✗ ' + err; }
   btns.forEach(x => x.disabled = false);
-  loadState();
+  pollState();
 });
 
 // ResMed BLE pairing — two requests to /api/cpap/pair. `start` connects and runs StartKeyExchange (the
@@ -3125,7 +3141,7 @@ $('#cpapPairBtn')?.addEventListener('click', async () => {
                         : j.session_ok === false ? ` · ⚠ session check failed: ${j.session_error}` : '');
     }
   }catch(err){ st.textContent = '✗ ' + err; btn.disabled = false; }
-  loadState();
+  pollState();
 });
 $('#cpapPairCancelBtn')?.addEventListener('click', async () => {
   try{ await cpapPair({action:'cancel'}); }catch(err){}
@@ -3183,13 +3199,41 @@ $('#nav').addEventListener('click', e=>{ const it=e.target.closest('.nav-item');
 $('#themeBtn').addEventListener('click', ()=>document.body.classList.toggle('light'));
 
 // live clock (viewer wall-clock — a monitor convenience, not a stored timestamp)
-function tick(){ const d=new Date(); $('#clock').textContent =
-  String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0'); }
+function hms(d){ return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0'); }
+function tick(){ $('#clock').textContent = hms(new Date()); paintConn(); }
+
+// ══ Is the box still answering? ══
+// `loadState` had no failure path after boot: a poll that rejected left every value on the page exactly as
+// the last good poll drew it, "3 streams live" included, for as long as the tab stayed open. Two ways to
+// stop answering, so two triggers: a poll that FAILED, and a poll that never came back at all (a powered-off
+// box or a dropped Wi-Fi link holds the fetch open for minutes before it rejects).
+const STATE_STALE_MS = 15000;            // three 5 s polls
+let STATE_OK_AT = null, STATE_FAILED = false;   // viewer-clock ms of the last good poll; the last poll's outcome
+function stateLost(nowMs){ return STATE_OK_AT != null && (STATE_FAILED || nowMs - STATE_OK_AT > STATE_STALE_MS); }
+function paintConn(){
+  if(!stateLost(Date.now())) return;     // the recovered side is drawn by the next good loadState
+  const at = hms(new Date(STATE_OK_AT));
+  document.body.setAttribute('data-conn', 'lost');
+  document.body.setAttribute('data-conn-at', at);
+  $('#connPill').classList.add('idle');
+  $('#connText').textContent = 'No answer from the box · last state '+at;
+}
+// Every caller's fetch. A failure is recorded and painted, then RE-THROWN: the boot retry reads it.
+async function fetchState(){
+  let s;
+  try{ s = await api('/api/state'); }
+  catch(e){ STATE_FAILED = true; paintConn(); throw e; }
+  STATE_FAILED = false; STATE_OK_AT = Date.now();
+  document.body.removeAttribute('data-conn');
+  return s;
+}
+// The repeating poll. Only an unanswered box is quiet here; a render fault still reaches the console.
+function pollState(){ return loadState().catch(e=>{ if(!STATE_FAILED) throw e; }); }
 setInterval(tick,1000); tick();
 
 // ══ State + device roster ══
 async function loadState(){
-  const s = await api('/api/state');
+  const s = await fetchState();
   STATE = s;
   STREAMS = s.streams || [];
   DEVICES = s.devices || [];
@@ -3241,7 +3285,7 @@ function renderDownload(devs){
   $('#dlFill').style.width = Math.max(2, Math.min(100, p.pct)) + '%';
   $('#dlPct').textContent = p.pct + '%';
   $('#dlTxt').title = `${mb} / ${tot} MB`;
-  if(!_dlFast) _dlFast = setInterval(loadState, 1000);
+  if(!_dlFast) _dlFast = setInterval(pollState, 1000);
 }
 
 // The settings for ONE device, folded into its own card — what the owner asked for: everything about
@@ -3396,7 +3440,7 @@ async function syncTime(address, btn){
     else if(r.readback) btn.textContent = `✓ set · skew ${r.skew_sec>=0?'+':''}${r.skew_sec}s`;
     else              btn.textContent = '✓ set (no read-back on this device)';
   }catch(e){ btn.textContent = 'failed: '+e; }
-  setTimeout(()=>{ btn.disabled=false; btn.textContent=t0; loadState(); }, 6000);
+  setTimeout(()=>{ btn.disabled=false; btn.textContent=t0; pollState(); }, 6000);
 }
 async function syncAllTime(btn){
   const t0 = btn.textContent; btn.disabled = true; btn.textContent = 'syncing host + devices…';
@@ -3411,7 +3455,7 @@ async function syncAllTime(btn){
     const okd = (r.devices||[]).filter(d=>d.ok).length;
     btn.textContent = `✓ host ${r.host&&r.host.ok?'ok':'—'} · ${okd}/${(r.devices||[]).length} devices`;
   }catch(e){ btn.textContent = 'failed: '+e; }
-  setTimeout(()=>{ btn.disabled=false; btn.textContent=t0; loadState(); }, 8000);
+  setTimeout(()=>{ btn.disabled=false; btn.textContent=t0; pollState(); }, 8000);
 }
 
 // ── Settings ─────────────────────────────────────────────────────────────────────────────────────
@@ -3946,11 +3990,11 @@ async function remember(dev, btn){
   // of the old unconditional 'remembered ✓' — that reported success for an entry the capture daemon
   // then refused to ever record. Re-enable so a re-scanned/renamed device can be retried.
   if(!r.ok){ btn.textContent = 'not recognised — needs '+((r.missing||[]).join(', ')||'vendor/model'); btn.disabled = false; return; }
-  btn.textContent='remembered ✓'; loadState();
+  btn.textContent='remembered ✓'; pollState();
 }
 async function forget(address){
   await api('/api/forget',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address})});
-  loadState();
+  pollState();
 }
 async function pullStored(btn){
   // Download the O2Ring's onboard-recorded .dat. One BLE link ⇒ live SpO₂ capture pauses while it runs.
@@ -3972,7 +4016,7 @@ async function pullStored(btn){
       btn.textContent = 'failed: ' + (r.detail||'error');
     }
   }catch(e){ btn.textContent = 'failed: '+e; }
-  setTimeout(()=>{ btn.disabled=false; btn.textContent=t0; loadState(); }, 8000);
+  setTimeout(()=>{ btn.disabled=false; btn.textContent=t0; pollState(); }, 8000);
 }
 // ── Polar onboard offline-recording pull (PS-FTP, PR #153) — lists device flash + downloads to captures/stored ──
 function recPanelId(addr){ return 'rec-'+(addr||'').replace(/[^0-9A-Za-z]/g,''); }
@@ -4459,7 +4503,7 @@ function renderBoxHealth(storage, qc, host, alerts, clk, cpap, cpapLive, heartbe
   if(cpap && cpap.enabled){
     const [ccls, clabel] = cpapStatusLabel(cpap);
     const word = {ok:'OK', partial:'Partial', running:'Harvesting…', waiting:'Waiting',
-                  barren:'Nothing found', error:'FAILED'}[cpap.state] || 'Idle';
+                  barren:'Nothing found', error:'FAILED', idle:'Idle'}[cpap.state] || 'Unknown';
     const colour = {ok:'var(--status-ok)', warn:'var(--status-caution)', bad:'var(--status-bad)'}[ccls];
     const csub = clabel + (cpap.last_ok ? ' · last good '+cpap.last_ok.replace('T',' ') : '');
     // ── IS THERAPY RUNNING NOW? A DIFFERENT QUESTION FROM THE HARVEST FIELDS ABOVE ───────────
@@ -4600,6 +4644,17 @@ function battSpark(pts){
     <polyline class="batt ${battClass(last)}" points="${xy}" fill="none" stroke="currentColor" stroke-width="1.4"
       vector-effect="non-scaling-stroke" style="border:0;padding:0;background:none"/></svg>`;
 }
+// A LEVEL IS CURRENT ONLY WHILE THE DEVICE IS CONNECTED. The daemon keeps the last reading in STATUS after a
+// link drops, and the history's `last` is hours or days old by construction, so both name the hour they come
+// from. The hour is a FLOATING box-local stamp (Clock Contract): shown via getUTC*, never aged against the
+// viewer's clock. `points` holds connected rows only, so its last hour is the last hour the device was read.
+function battAsOf(dev, h){
+  if(dev && dev.connected && dev.battery!=null) return '';
+  const pts = (h && h.points) || [];
+  if(!pts.length) return 'not connected · time of this reading not recorded';
+  const d = new Date(pts[pts.length-1][0]), p2 = x => String(x).padStart(2,'0');
+  return `last read ${d.getUTCFullYear()}-${p2(d.getUTCMonth()+1)}-${p2(d.getUTCDate())} ${p2(d.getUTCHours())}:00–${p2(d.getUTCHours())}:59`;
+}
 function renderBatt(){
   const card = $('#battCard'), title = $('#battTitle'), list = $('#battList');
   if(!card || !list) return;
@@ -4610,12 +4665,13 @@ function renderBatt(){
     const now = dev && dev.battery!=null ? dev.battery : (h ? h.last : null);
     const d24 = h ? h.d24 : null;
     const al = dev && dev.battery_alert;
+    const foot = [battAsOf(dev, h), al ? `alerted ${al.pct} % · ${al.at}` : ''].filter(Boolean).join(' · ');
     return `<div class="bt-row">
       <span class="bt-name" title="${esc(n)}">${esc(n)}</span>
       <span><span class="ev ev-measured" title="Measured — the device's own battery reading"></span>${battChip(now)}</span>
       <span class="bt-d24${d24!=null&&d24<0?' fall':''}">${d24==null?'24 h —':`<span class="ev ev-measured" title="Measured"></span>${d24>0?'+':''}${d24} % / 24 h`}</span>
       ${battSpark(h && h.points)}
-      <span class="bt-alert">${al?`alerted ${esc(String(al.pct))} % · ${esc(al.at)}`:''}</span>
+      <span class="bt-alert">${esc(foot)}</span>
     </div>`;
   });
   list.innerHTML = rows.join('');
@@ -5575,7 +5631,7 @@ loadBuild();
 (function boot(){
   loadState()
     .then(()=>{ document.body.removeAttribute('data-conn');
-                showView('overview'); setInterval(loadState, 5000); setInterval(analyze, 900); })
+                showView('overview'); setInterval(pollState, 5000); setInterval(analyze, 900); })
     .catch((e)=>{                       // box down / restarting / network blip — keep trying, and SAY SO
       /* `#streamgrid` does not exist in this file — the `|| document.body` fallback made the dead
          selector invisible, so this "surface the waiting state" path surfaced nothing. Marked on
