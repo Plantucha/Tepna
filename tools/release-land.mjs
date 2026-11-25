@@ -40,7 +40,9 @@
  * never double-creates and never re-stamps:
  *   plan      release.mjs --dry-run --skip-gates → the version this fold will produce
  *   worktree  a private checkout off origin/main (§👥.1); node_modules symlinked from the primary
- *   stamp     node tools/release.mjs (runs THE WALL: verify-fixtures --check; refuses on red)
+ *   stamp     node tools/build.mjs --all, then node tools/release.mjs (runs THE WALL: verify-fixtures
+ *             --check; refuses on red). The build comes first because an author PR carries no bundle, so
+ *             between a merge and the walker's regen PR main holds a stale one (v2.37.0, 2026-11-24)
  *   build     node tools/build.mjs --all  (⚠ bare build.mjs builds nothing — measured)
  *   docs      node tools/build-docs.mjs   (served copies; `verify:docs` reds until this runs)
  *   gate      npm run check — the FULL gate, on the final tree, once
@@ -98,6 +100,11 @@ export function failureText(what, r, logFile = null, cap = 3000) {
   const out = room > 0 ? r.out.trim().slice(-room) : '';
   return [`${what} ${how}:`, err, out && `--- stdout tail\n${out}`, logFile && `full output: ${logFile}`].filter(Boolean).join('\n');
 }
+
+/* What a `--resume` keeps. A run that never finished its stamp wrote nothing into the release, so its
+   plan and its base are re-read: main has moved since, and the changesets that moved with it belong in
+   this cut. From the stamp on, every finished step stays finished. */
+export const resumeDone = (done) => (done.includes('stamp') ? done : []);
 
 /* ── transient API failures ─────────────────────────────────────────────────────────────────────
    Measured 2026-11-12: one transient GitHub error at the `pr` step killed the v2.32.0 chain AFTER
@@ -437,6 +444,7 @@ const RUN = {
     const r = sh('node', ['tools/release.mjs', '--dry-run', '--skip-gates'], { cwd: ROOT });
     const plan = parsePlan(r.out);
     if (!plan) throw new Error('release.mjs --dry-run did not report a version:\n' + (r.err || r.out).slice(-1500));
+    if (st.to && st.to !== plan.to) throw new Error(`this run is v${st.to}, and the changesets on main now make v${plan.to} — retire ${st.worktree} and start a new run`);
     Object.assign(st, plan);
     st.branch = st.branch || `claude/release-${plan.to}-${st.suffix}`;
     st.worktree = st.worktree || resolve(ROOT, '..', `wt-release-${plan.to}`);
@@ -450,12 +458,18 @@ const RUN = {
     } else {
       const b = must('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: st.worktree }).trim();
       if (b !== st.branch) throw new Error(`${st.worktree} exists on branch ${b}, not ${st.branch} — not mine, refusing`);
+      /* A resume before the stamp: take main's later commits. A tree that holds an edit, or a branch that
+         holds a commit, may be the operator's fix, so it stays as it is and the log says so. */
+      const dirty = must('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: st.worktree }).split('\n').filter(Boolean).length;
+      const ff = dirty ? null : sh('git', ['merge', '--ff-only', '-q', 'origin/main'], { cwd: st.worktree });
+      log(st, dirty ? `base not advanced: ${dirty} modified path(s) in ${st.worktree}` : ff.code === 0 ? 'base advanced to origin/main' : `base not advanced: ${ff.err.trim().split('\n')[0]}`);
     }
     const nm = join(st.worktree, 'node_modules');
     if (!existsSync(nm) && existsSync(join(ROOT, 'node_modules'))) symlinkSync(join(ROOT, 'node_modules'), nm);
     log(st, `worktree ready: ${st.worktree} [${st.branch}]`);
   },
   stamp(st) {
+    must('node', ['tools/build.mjs', '--all'], { cwd: st.worktree });
     const logFile = join(STATE_DIR, `v${st.to}-stamp.log`);
     const r = sh('node', ['tools/release.mjs'], { cwd: st.worktree });
     writeFileSync(logFile, r.out + r.err);
@@ -759,6 +773,7 @@ function main(argv) {
       return 1;
     }
     st.failed = null;
+    st.done = resumeDone(st.done);
     st.log.push(`[${nowIso().slice(11, 19)}] resume from ${remaining(st.done)[0] || 'nothing'}`);
   } else {
     st = newState(argv);
@@ -780,6 +795,8 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   ok(remaining([]).length === STEPS.length, 'nothing done → every step remains');
   ok(remaining(['plan', 'worktree', 'stamp'])[0] === 'build', 'resume picks the first unfinished step');
   ok(remaining(STEPS).length === 0, 'all done → nothing remains');
+  ok(remaining(resumeDone(['plan', 'worktree']))[0] === 'plan', 'a resume before the stamp plans again, on the main of now');
+  ok(remaining(resumeDone(['plan', 'worktree', 'stamp']))[0] === 'build', 'a resume after the stamp never plans or stamps again');
   // porcelain classification — planted: a modified ledger, a deleted changeset, an untracked file, a rename
   const cls = classifyStatus(' M CHANGELOG.md\nM  suite.manifest.json\n D changes/2026-09-01-x.md\n?? deploy/\nR  a.js -> b.js\nMM docs/OxyDex.html\n');
   ok(cls.add.length === 3 && cls.add.includes('docs/OxyDex.html'), 'modified (worktree, index, both) → add');
