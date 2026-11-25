@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="bcd298bd67fb" data-compute-hash="aafa54911eab"><head>
+<html lang="en" data-manifest-hash="6210e5f64610" data-compute-hash="bb36460db051"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-/T+ENvly3qPaksx8t/Rm8H6XgK/DiuP9xd51MVwulbc=' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FV/TB0GWLAawcNhCICx6Shvm9lLfECci1wUypQlaWW0=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UdJ88eeYm1W9tlVf66iAGR0D63hIgHQ6dBYrVftyKPE=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-ZefGDlwmFb912RzQXkd/MPCVtnq49t0R4eFBnahHRVk=' 'sha256-gsfxF3U9fQYY6VBcjkxdisltp5OpMvk7xGo0quyFZm8=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lRjBNsCaN1onrmQCSzWhXTs/b9YNthVr/yE6cNRUb7U=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-v+ZDhUbvqeorKucOsmnsbIPPI+s5NEnBQknMfNbSmk8=' 'sha256-zxV4DCpRJohvPwd65AN+/CH0kNLzHAU+vIKI6BC4I28='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+uQfvQJZWnMeZvz3MD97OinG9A6EfKSgOrJ17iL14Zs=' 'sha256-+ymo5pnDZeiarLcoF3g/AbQ3dajnAKAHZCi56ST+FdI=' 'sha256-/T+ENvly3qPaksx8t/Rm8H6XgK/DiuP9xd51MVwulbc=' 'sha256-/YDV9qZ6OXHHPwrTh/vDlMhBafWrQLPf6Ar/kCQHke4=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0+aB771nHeyeyqLEOKAP6utBYUwyQtYkA4r8Q4XwIZA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-1aBgVTJAzW/LoTsyxg4L/GZ/L6NTK6/wgWHIEs4C0fc=' 'sha256-2QIwQwXQLukYiOSd3p2buQVCwXajp0u8i6gQ7M+nCTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FV/TB0GWLAawcNhCICx6Shvm9lLfECci1wUypQlaWW0=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UdJ88eeYm1W9tlVf66iAGR0D63hIgHQ6dBYrVftyKPE=' 'sha256-VsQ6aSVkvKzux54GI36o8t/t/fXzNgax1s8dZyoODwk=' 'sha256-gsfxF3U9fQYY6VBcjkxdisltp5OpMvk7xGo0quyFZm8=' 'sha256-icT2zmYZqbLvhanScgG65Xqmm6xhNa8ETsPY0NTS5yk=' 'sha256-jmuuwUIfqmZUO3jOgNO45nOOp6rkf/90tdmaMYZo7Zg=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lRjBNsCaN1onrmQCSzWhXTs/b9YNthVr/yE6cNRUb7U=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-v+ZDhUbvqeorKucOsmnsbIPPI+s5NEnBQknMfNbSmk8=' 'sha256-wktj1Df+isZKJxu0wGtJ0pZLbTfqdObxwLCd2Fo+wQg=' 'sha256-zxV4DCpRJohvPwd65AN+/CH0kNLzHAU+vIKI6BC4I28='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -30801,6 +30801,35 @@ __exports.HRVDex = window.HRVDex;
     if (elevM == null || !Number.isFinite(elevM)) return null;
     return elevM <= 1500 ? 1 : Math.max(0.55, 1 - ((elevM - 1500) / 300) * 0.01);
   }
+  /* ONE ROAD for the altitude-corrected VO₂ base. Two roads published two numbers for one profile:
+     `pulsedex-app.js` multiplied by the FULL factor and then rounded `vo2base`, while the re-render
+     in `pulsedex-render.js` rounded the factor to three decimals first and then multiplied. Over a
+     grid of elevation 1501–5000 m in 1 m steps × 6 resting HR × 4 maximum HR (84,000 points), 9,826
+     points disagreed, largest difference 0.1 ml/kg/min — one example 1606 m with 45 and 190 bpm,
+     where the two roads read 64.4 and 64.3 (measured by Kestrel, board #8569). The grid is not a
+     population, so that share says nothing about users; a profile edit alone could move the
+     published value with no new input.
+     THE ROUNDED FACTOR IS THE ONE THAT MULTIPLIES. The surface publishes `×0.996`, so a reader who
+     multiplies the factor on screen by the HR ratio must land on the VO₂ base on screen. The full
+     factor is not published anywhere and cannot be reconstructed from the page. Both roads call
+     this function, so neither can decide the order again. */
+  function altitudeVO2(elevM, hrRest, hrmax) {
+    const elev = elevM == null || !Number.isFinite(+elevM) ? null : +elevM;
+    const raw = altVO2Factor(elev);
+    const altFactor = raw == null ? null : +raw.toFixed(3); // ∅ the PUBLISHED factor, and the applied one
+    const applied = altFactor == null ? 1 : altFactor; // no elevation entered ⇒ no correction, not a 1.000 correction
+    /* §∅ — `(15.3 * null) / 60` is 0, not NaN, so an absent HRmax would publish VO₂ base
+       0.0 ml/kg/min: an in-band figure on a research surface. The estimate refuses instead. */
+    const okMax = Number.isFinite(hrmax) && hrmax > 0;
+    const okRest = Number.isFinite(hrRest) && hrRest > 0;
+    const reason = !okMax ? 'no-hrmax' : !okRest ? 'no-resting-hr' : null;
+    return {
+      elev,
+      altFactor,
+      vo2base: reason == null ? +(vo2Base(hrRest, hrmax) * applied).toFixed(1) : null,
+      reason
+    };
+  }
   // Periodic-breathing index from the RR tachogram: power concentration in the
   // 0.01–0.05 Hz band (30–100 s cycle) relative to total LF/VLF — the cyclic-HR
   // signature of high-altitude periodic breathing / Cheyne-Stokes.
@@ -33042,6 +33071,7 @@ __exports.HRVDex = window.HRVDex;
     vo2Base,
     vo2Adj,
     altVO2Factor,
+    altitudeVO2,
     periodicBreathingIndex,
     siCalc,
     efcIdx,

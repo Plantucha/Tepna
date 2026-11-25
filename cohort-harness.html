@@ -13725,6 +13725,35 @@ const OxyDex = window.OxyDex;
     if (elevM == null || !Number.isFinite(elevM)) return null;
     return elevM <= 1500 ? 1 : Math.max(0.55, 1 - ((elevM - 1500) / 300) * 0.01);
   }
+  /* ONE ROAD for the altitude-corrected VO₂ base. Two roads published two numbers for one profile:
+     `pulsedex-app.js` multiplied by the FULL factor and then rounded `vo2base`, while the re-render
+     in `pulsedex-render.js` rounded the factor to three decimals first and then multiplied. Over a
+     grid of elevation 1501–5000 m in 1 m steps × 6 resting HR × 4 maximum HR (84,000 points), 9,826
+     points disagreed, largest difference 0.1 ml/kg/min — one example 1606 m with 45 and 190 bpm,
+     where the two roads read 64.4 and 64.3 (measured by Kestrel, board #8569). The grid is not a
+     population, so that share says nothing about users; a profile edit alone could move the
+     published value with no new input.
+     THE ROUNDED FACTOR IS THE ONE THAT MULTIPLIES. The surface publishes `×0.996`, so a reader who
+     multiplies the factor on screen by the HR ratio must land on the VO₂ base on screen. The full
+     factor is not published anywhere and cannot be reconstructed from the page. Both roads call
+     this function, so neither can decide the order again. */
+  function altitudeVO2(elevM, hrRest, hrmax) {
+    const elev = elevM == null || !Number.isFinite(+elevM) ? null : +elevM;
+    const raw = altVO2Factor(elev);
+    const altFactor = raw == null ? null : +raw.toFixed(3); // ∅ the PUBLISHED factor, and the applied one
+    const applied = altFactor == null ? 1 : altFactor; // no elevation entered ⇒ no correction, not a 1.000 correction
+    /* §∅ — `(15.3 * null) / 60` is 0, not NaN, so an absent HRmax would publish VO₂ base
+       0.0 ml/kg/min: an in-band figure on a research surface. The estimate refuses instead. */
+    const okMax = Number.isFinite(hrmax) && hrmax > 0;
+    const okRest = Number.isFinite(hrRest) && hrRest > 0;
+    const reason = !okMax ? 'no-hrmax' : !okRest ? 'no-resting-hr' : null;
+    return {
+      elev,
+      altFactor,
+      vo2base: reason == null ? +(vo2Base(hrRest, hrmax) * applied).toFixed(1) : null,
+      reason
+    };
+  }
   // Periodic-breathing index from the RR tachogram: power concentration in the
   // 0.01–0.05 Hz band (30–100 s cycle) relative to total LF/VLF — the cyclic-HR
   // signature of high-altitude periodic breathing / Cheyne-Stokes.
@@ -15966,6 +15995,7 @@ const OxyDex = window.OxyDex;
     vo2Base,
     vo2Adj,
     altVO2Factor,
+    altitudeVO2,
     periodicBreathingIndex,
     siCalc,
     efcIdx,
