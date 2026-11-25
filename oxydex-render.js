@@ -2507,8 +2507,13 @@ function nightRowInner(n) {
   var readCls = n.karv ? n.karv.readinessColor : stabGradeClass(n.stab);
   var readPill = readScore != null ? '<span class="nr-readiness-pill ' + stsCls(readCls) + '">💪 ' + readScore + '</span>' : '';
 
-  // ── LEFT: date + readiness ──
-  var leftHtml = '<div class="nr-left">' + '<div class="nr-date-v22">' + n.date + '</div>' + '<div class="nr-dur">' + durFmt + '</div>' + readPill + '</div>';
+  /* ── LEFT: date + readiness ──
+     The disc goes on the number and never on the em dash, because a badge beside `—` grades a value
+     that this night does not hold. `duration` reads `measured` in the node registry: the recording
+     span is a direct read of the stamps and not a derived figure. The call sits AT the element, so
+     the badge-by-construction guard reads it in the same window as the class. */
+  var durBadge = durH == null || typeof evBadge !== 'function' ? '' : evBadge('Duration');
+  var leftHtml = '<div class="nr-left">' + '<div class="nr-date-v22">' + n.date + '</div>' + '<div class="nr-dur">' + durBadge + durFmt + '</div>' + readPill + '</div>';
 
   // ── CENTER: 5 core KPIs ──
   var centerHtml = '<div class="nr-center">';
@@ -3293,10 +3298,12 @@ function nightDetail(n, idx) {
 
   // ── Date header — always shown at top of expanded card ──────────
   var _dh = n.date || '';
-  var _dur = s.durationMin ? Math.floor(s.durationMin / 60) + 'h' + (Math.round(s.durationMin % 60) < 10 ? '0' : '') + Math.round(s.durationMin % 60) + 'm' : '';
+  /* `!= null` and not a truthiness test: a night of 0 minutes is a measured zero and it keeps its
+     chip, while an unknown span stays absent. The disc rides the same guard as the number. */
+  var _dur = s.durationMin != null ? Math.floor(s.durationMin / 60) + 'h' + (Math.round(s.durationMin % 60) < 10 ? '0' : '') + Math.round(s.durationMin % 60) + 'm' : '';
   html += '<div class="night-detail-header">';
   html += '<div class="ndh-date">' + _dh + '</div>';
-  if (_dur) html += '<div class="ndh-dur">' + _dur + '</div>';
+  if (_dur) html += '<div class="ndh-dur">' + (typeof evBadge === 'function' ? evBadge('Duration') : '') + _dur + '</div>';
   html += '<div class="ndh-file">📄 ' + sanitizeFname(n.fname) + '</div>';
   html += '</div>';
 
