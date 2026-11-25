@@ -1820,11 +1820,39 @@
 
      A synthetic channel carries physical units already, so `true` is the truthful value. `cal` lets
      a caller build an uncalibrated channel and reach the refusal path.
-     Row 2026-11-24-synthetic-edf-channels-carry-no-calibrated-field. */
+     Row 2026-11-24-synthetic-edf-channels-carry-no-calibrated-field.
+
+     ∅ THE REST OF THE SAME SHAPE DRIFT — `_scale`, `physMin` and `physMax`. `readEDF` writes all
+     three in the same object literal that writes `calibrated`, and this builder wrote none, so each
+     read `undefined` over the whole synthetic set. A reader after the physical range of a synthetic
+     channel would get `undefined` and could scale by a fabricated denominator, which is the fault
+     `readEDF` already refuses with a null `_scale`.
+
+     `_scale` is the digital-to-physical factor, and a synthetic channel never passed through int16,
+     so the truthful factor is the identity 1. The decoder couples the two fields — a calibrated
+     signal carries a number and an uncalibrated one carries null — so this builder keeps that pair,
+     and `opts.uncal` below moves both.
+
+     A synthetic channel declares no EDF header, so it has no declared physical range. An undeclared
+     range is therefore `null`, never 0 and never the extremes of the data: the data extremes are a
+     different quantity, and a constant channel such as Crc16 would give them a zero width — the zero
+     denominator this row warns about. The declared form sits on the SpO2 channel below, where a
+     percent range is definitional.
+     Row 2026-11-24-synthetic-edf-channels-carry-no-scale-or-physical-range. */
   function _mkSig(n, fn, fs, dim, cal) {
     var a = new Float32Array(n);
     for (var i = 0; i < n; i++) a[i] = fn(i);
-    return { data: a, fs: fs, dim: dim, calibrated: cal !== false, _spr: Math.round(fs * 60) };
+    var c = cal !== false;
+    return {
+      data: a,
+      fs: fs,
+      dim: dim,
+      calibrated: c,
+      _scale: c ? 1 : null,
+      physMin: null,
+      physMax: null,
+      _spr: Math.round(fs * 60)
+    };
   }
   function _synthEdfSet(opts) {
     opts = opts || {};
@@ -1950,7 +1978,13 @@
         var usets = [PLD.signals, BRP.signals];
         for (var us = 0; us < usets.length; us++) {
           var usig = usets[us][opts.uncal[u]];
-          if (usig) usig.calibrated = false;
+          /* ∅ `readEDF` writes a null `_scale` on exactly the signals it marks uncalibrated, so the
+             two fields move together here as well. A `calibrated:false` channel that kept a numeric
+             scale would be a pair the decoder never produces. */
+          if (usig) {
+            usig.calibrated = false;
+            usig._scale = null;
+          }
         }
       }
     }
@@ -1986,10 +2020,12 @@
       recordsRead: R,
       recDurSec: recDur,
       signals: {
-        // ∅ The same shape parity as `_mkSig` above. `readEDF` writes `calibrated` on every
-        // non-annotation signal, and an oximeter channel is one.
-        'SpO2.1s': { data: spo2, fs: 1, dim: '%', calibrated: true, _spr: 60 },
-        'Pulse.1s': { data: pulse, fs: 1, dim: 'bpm', calibrated: true, _spr: 60 }
+        /* ∅ The same shape parity as `_mkSig` above. `readEDF` writes `calibrated`, `_scale`,
+           `physMin` and `physMax` on every non-annotation signal, and an oximeter channel is one.
+           A saturation in percent has the range 0 to 100 by definition, so SpO2 declares it. The
+           pulse channel has no range the vendor header gives us, so it declares null. */
+        'SpO2.1s': { data: spo2, fs: 1, dim: '%', calibrated: true, _scale: 1, physMin: 0, physMax: 100, _spr: 60 },
+        'Pulse.1s': { data: pulse, fs: 1, dim: 'bpm', calibrated: true, _scale: 1, physMin: null, physMax: null, _spr: 60 }
       }
     };
     var EVE = {
