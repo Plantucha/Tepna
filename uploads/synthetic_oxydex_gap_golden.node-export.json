@@ -370,8 +370,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "7578a1661f52",
-        "computeHash": "f2d6acd2f905"
+        "manifestHash": "8c5fae4529c6",
+        "computeHash": "9743a9efa6ec"
       },
       "evidence": {
         "envelopeRef": null,
@@ -399,8 +399,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "7578a1661f52",
-        "computeHash": "f2d6acd2f905"
+        "manifestHash": "8c5fae4529c6",
+        "computeHash": "9743a9efa6ec"
       },
       "evidence": {
         "envelopeRef": null,
@@ -428,8 +428,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "7578a1661f52",
-        "computeHash": "f2d6acd2f905"
+        "manifestHash": "8c5fae4529c6",
+        "computeHash": "9743a9efa6ec"
       },
       "evidence": {
         "envelopeRef": null,
@@ -457,8 +457,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "7578a1661f52",
-        "computeHash": "f2d6acd2f905"
+        "manifestHash": "8c5fae4529c6",
+        "computeHash": "9743a9efa6ec"
       },
       "evidence": {
         "envelopeRef": null,
@@ -660,7 +660,7 @@
   },
   "crossSignal": {
     "autoArousalIdx": 1.5,
-    "crcIdx": 0.994,
+    "crcIdx": 0.448,
     "divergeCount": 0,
     "divergePct": 0,
     "hrRecovery": null
@@ -951,14 +951,14 @@
       "rmssdArcWindows": [
         0.2,
         0.2,
-        0,
+        null,
         0.2
       ],
-      "rmssdArcSlope": -0.02,
-      "rmssdArcR2": 0.067,
+      "rmssdArcSlope": 0,
+      "rmssdArcR2": 0,
       "rmssdFirstHalf": 0.2,
-      "rmssdLastHalf": 0.1,
-      "rmssdArcDelta": -0.1,
+      "rmssdLastHalf": 0.2,
+      "rmssdArcDelta": 0,
       "rmssdArcLabel": "Flat"
     },
     "spk50Rec": null,
@@ -1278,7 +1278,7 @@
       "circNadirHour": 0.9
     },
     "spo2Ent": {
-      "spo2SampEn": 0.0165,
+      "spo2SampEn": 0.0194,
       "spo2EnLabel": "Low(periodic)"
     },
     "hypLoad": {

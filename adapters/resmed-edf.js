@@ -225,14 +225,21 @@
          signal's absence and not the file's, so every other signal of the set survives untouched. */
       var samples = (fl && fl.data) || null;
       var flowCalibrated = !(fl && fl.calibrated === false);
-      var hasFlow = !!(samples && samples.length && flowCalibrated);
+      /* ∅ A RATE THE HEADER DOES NOT STATE IS NOT 25 Hz. `cpapdex-edf.js` writes `fs: null` when the
+         record duration is unreadable, and `|| 25` then published the usual AirSense rate as this
+         file's own: every consumer of the frame timed the waveform on a number no header carried
+         (Muse hunt U-10). The frame refuses, for the same reason an uncalibrated channel does. */
+      var flowFs = fl && typeof fl.fs === 'number' && isFinite(fl.fs) && fl.fs > 0 ? fl.fs : null;
+      var hasFlow = !!(samples && samples.length && flowCalibrated && flowFs != null);
       var flowReason = hasFlow
         ? null
         : !CD
           ? 'resmed-edf: CPAPDex/CpapDsp not in scope (load cpapdex-dsp.js before this adapter)'
           : samples && samples.length && !flowCalibrated
             ? 'resmed-edf: the BRP Flow channel is UNCALIBRATED (degenerate or blank digital range), so every sample reads NaN — the decoded sets still ride frame.edfSets'
-            : 'resmed-edf: no BRP Flow waveform in the set (events/PLD only) — the decoded sets still ride frame.edfSets';
+            : samples && samples.length && flowFs == null
+              ? 'resmed-edf: the BRP Flow sample rate is UNREADABLE (no usable record duration in the header), so the waveform has no time axis — the decoded sets still ride frame.edfSets'
+              : 'resmed-edf: no BRP Flow waveform in the set (events/PLD only) — the decoded sets still ride frame.edfSets';
       // `cpap` is a SAMPLES frame (signal-spec.js frameFields: samples/fs/t0Ms), and validateFrame
       // requires the payload when usable — so an EVE-only set (no BRP waveform) cannot ride as a
       // usable samples-frame however analyzable the night is. It comes back usable:false with the
@@ -242,7 +249,7 @@
         'cpap',
         {
           samples: samples,
-          fs: (fl && fl.fs) || 25,
+          fs: flowFs,
           t0Ms: t0,
           usable: hasFlow,
           reason: flowReason
