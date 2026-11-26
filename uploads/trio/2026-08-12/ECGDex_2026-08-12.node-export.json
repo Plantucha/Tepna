@@ -9,23 +9,44 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-10-12T20:59:44.268Z",
+    "generated": "2026-11-26T14:31:49.630Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
-    "scrubbed": true
+    "scrubbed": true,
+    "scrubDropped": [
+      "signalQuality"
+    ]
   },
   "recording": {
     "source": "ecg",
     "contentId": null,
     "startEpochMs": 1786567934633,
-    "durSec": 27325.907334364623,
+    "durSec": 27325.90733436464,
     "endEpochMs": 1786595260483,
     "offsetMin": null,
     "events": 110,
+    "timing": {
+      "timingSource": "device+host",
+      "independent": true,
+      "anchors": 7107,
+      "spanMs": 27324291.872192383,
+      "ppm": -19.749148327123315,
+      "spanPpm": -19.721359839931168,
+      "ppmEstimator": "end-to-end-median",
+      "ppmUncertainty": 6.7315659865256885,
+      "resyncs": 0,
+      "seams": 0,
+      "rate": 130.03334650630828,
+      "rateRaw": 130.03077845846065,
+      "rateApplied": true,
+      "reason": null
+    },
     "hostAxis": {
+      "ok": true,
       "applied": true,
       "anchors": 7107,
-      "ppm": -19.721359839931168,
+      "ppm": -19.749148327123315,
+      "spanPpm": -19.721359839931168,
       "ppmUncertainty": 6.7315659865256885,
       "maxStepMs": 15.1689453125,
       "spanMs": 27324291.872192383,
@@ -110,6 +131,15 @@
     "deviceEpoch": {
       "offsetMs": 14399910,
       "plausible": true
+    },
+    "validity": {
+      "seams": null,
+      "seamsExamined": null,
+      "seamsPlaced": null,
+      "seamsUnplaced": null,
+      "seamsBoundMs": null,
+      "seamsDeviceAxis": null,
+      "seamsReason": "no-seam-sidecar"
     }
   },
   "measurement": {
@@ -101222,7 +101252,7 @@
         0.994,
         0.994,
         0.994,
-        1,
+        0.994,
         1,
         1,
         1,
@@ -101251,7 +101281,7 @@
         0.975,
         0.975,
         0.976,
-        0.97,
+        0.972,
         0.968,
         0.969,
         0.969,
@@ -105296,7 +105326,8 @@
       "REM": 45,
       "Light": 310,
       "Deep": 60
-    }
+    },
+    "unstagedMin": 0
   },
   "apnea": {
     "cvhrIndex": 7.5,

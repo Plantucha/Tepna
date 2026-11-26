@@ -9,10 +9,13 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-10-12T21:10:33.973Z",
+    "generated": "2026-11-26T14:43:27.591Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
-    "scrubbed": true
+    "scrubbed": true,
+    "scrubDropped": [
+      "signalQuality"
+    ]
   },
   "recording": {
     "source": "ecg",
@@ -21,11 +24,29 @@
     "durSec": 22144.700608089828,
     "endEpochMs": 1788842044655,
     "offsetMin": null,
-    "events": 83,
+    "events": 82,
+    "timing": {
+      "timingSource": "device+host",
+      "independent": true,
+      "anchors": 5762,
+      "spanMs": 22407603.530395508,
+      "ppm": -284.5398164140922,
+      "spanPpm": -62.591717744617604,
+      "ppmEstimator": "end-to-end-median",
+      "ppmUncertainty": 246.20718331255514,
+      "resyncs": 0,
+      "seams": 0,
+      "rate": 129.99525951424218,
+      "rateRaw": 129.99525951424218,
+      "rateApplied": false,
+      "reason": "the rate correction did not reach the published rate: one anchor gap carries a 9179 ms step (> 1000 ms) — a host clock STEP, not a crystal rate, fs left on the device clock"
+    },
     "hostAxis": {
+      "ok": true,
       "applied": false,
       "anchors": 5762,
-      "ppm": 10.023191584068327,
+      "ppm": -284.5398164140922,
+      "spanPpm": -62.591717744617604,
       "ppmUncertainty": 246.20718331255514,
       "maxStepMs": 9178.647583007812,
       "spanMs": 22407603.530395508,
@@ -136,6 +157,15 @@
       "nWithDuration": 4,
       "n": 4,
       "source": "ble-dropout"
+    },
+    "validity": {
+      "seams": null,
+      "seamsExamined": null,
+      "seamsPlaced": null,
+      "seamsUnplaced": null,
+      "seamsBoundMs": null,
+      "seamsDeviceAxis": null,
+      "seamsReason": "no-seam-sidecar"
     }
   },
   "measurement": {
@@ -236,20 +266,6 @@
       "conf": 0.7,
       "sqi": null,
       "meta": {}
-    },
-    {
-      "t": "22:20:39",
-      "tMs": 1788819639051,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
     },
     {
       "t": "22:20:51",
@@ -79227,7 +79243,8 @@
       "REM": 35,
       "Light": 165,
       "Deep": 85
-    }
+    },
+    "unstagedMin": 0
   },
   "apnea": {
     "cvhrIndex": 5.4,
@@ -79244,7 +79261,7 @@
       "method": "CPC — coherence x cross-power of HR vs EDR (Thomas 2005), 512 s windows, 50 % overlap"
     },
     "surgeEscalationPct": 23,
-    "cvhrHours": 6.15
+    "cvhrHours": 6.06
   },
   "hrvStability": {
     "sigma_lnRMSSD_slope": -0.0017,

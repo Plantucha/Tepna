@@ -9,21 +9,40 @@
     "node": "PpgDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-10-12T21:13:44.742Z",
+    "generated": "2026-11-26T14:48:40.980Z",
     "provenance": null,
     "doc": "PpgDex PPG-derived events → Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
-    "scrubbed": true
+    "scrubbed": true,
+    "scrubDropped": [
+      "signalQuality"
+    ]
   },
   "recording": {
     "source": "ppg",
     "contentId": null,
     "startEpochMs": 1789432691529,
     "endEpochMs": 1789447027944,
-    "durSec": 14261.500556350342,
+    "durSec": 14262.634130832206,
     "sessions": 1,
     "events": 5,
     "site": "finger",
     "siteSource": "device-default",
+    "timing": {
+      "timingSource": "host",
+      "independent": true,
+      "anchors": 3589,
+      "spanMs": 14321395.386168,
+      "ppm": null,
+      "spanPpm": null,
+      "ppmEstimator": null,
+      "ppmUncertainty": null,
+      "resyncs": 0,
+      "seams": 0,
+      "rate": 125.81,
+      "rateRaw": 125.92,
+      "rateApplied": true,
+      "reason": "O2Ring finger layout — the device column is host-synthesised by construction (DA-V §2.7 F17), whatever the 0.09 % delta share says"
+    },
     "coverage": {
       "kind": "sparse",
       "spanSec": 14337,
@@ -678,9 +697,33 @@
       "n": 161,
       "source": "ble-dropout"
     },
+    "validity": {
+      "seams": null,
+      "seamsExamined": null,
+      "seamsPlaced": null,
+      "seamsUnplaced": null,
+      "seamsBoundMs": null,
+      "seamsDeviceAxis": null,
+      "seamsReason": "no-seam-sidecar"
+    },
     "hostAxis": {
+      "ok": true,
       "anchors": 3589,
-      "ppm": 835.546175029655,
+      "ppm": null,
+      "ppmReason": "drawn-column — the device column is host-synthesised, so a rate against it describes a counter with no oscillator",
+      "drawnColumn": {
+        "ppm": 846.0086644395763,
+        "spanPpm": 834.6682365564584
+      },
+      "spanMs": 14321395.386168,
+      "spanPpm": null,
+      "flat": false,
+      "flatResidualMs": 1803.0271046101902,
+      "flatJitterMs": 22.391570000443608,
+      "segments": 1,
+      "rate": "unknown",
+      "rateReason": "the device column is drawn (0.1 % of its deltas are one value) — a rate over it measures a counter with no oscillator, whatever the span",
+      "rateApplied": true,
       "maxStepMs": 8132.36361300014,
       "totalMs": 11966.187136000022,
       "independent": true,
@@ -688,8 +731,12 @@
       "inertReason": null,
       "drawn": true,
       "quantizedShare": 0.0009217658224391461,
+      "applied": true,
       "timingSource": "host",
-      "stability": null
+      "stability": null,
+      "deviceDrawn": true,
+      "drawnShare": 0.016164994425863992,
+      "drawnReason": "O2Ring finger layout — the device column is host-synthesised by construction (DA-V §2.7 F17), whatever the 0.09 % delta share says"
     }
   },
   "ganglior_events": [
@@ -701,7 +748,7 @@
       "conf": 0.7,
       "sqi": 0.96,
       "meta": {
-        "rmssdFrom": 90.2,
+        "rmssdFrom": 73.9,
         "rmssdTo": 37.3,
         "position": null
       }
@@ -793,7 +840,7 @@
     },
     "rmssd": {
       "metricId": "rmssd",
-      "value": 36.3,
+      "value": 35.9,
       "window": {
         "startTMs": 1789432691529,
         "endTMs": 1789447027944,
@@ -832,8 +879,8 @@
     "devRawRMSSD": 109.7,
     "deviceAgreementPct": 99.6,
     "stability": {
-      "slope": -1.0221216727235116,
-      "slopeSE": 0.005623153573314068,
+      "slope": -1.022121548038637,
+      "slopeSE": 0.005623168914389681,
       "nTau": 13,
       "noise": "white/flicker-phase",
       "candidates": null,
@@ -841,75 +888,75 @@
       "beatsPaired": 12746,
       "tau0Sec": 1.11,
       "atShortestMs": 46.79,
-      "atLongestMs": 0.010477037470080112,
-      "atShortestPpm": 46788.95,
-      "atLongestPpm": 10.477037470080111,
+      "atLongestMs": 0.010477028091005022,
+      "atShortestPpm": 46788.86,
+      "atLongestPpm": 10.477028091005023,
       "tauMaxSec": 4527,
       "optimalTauSec": 4527,
       "curve": [
         {
           "tauSec": 1.11,
-          "adevPpm": 46788.95456414439,
+          "adevPpm": 46788.85584727075,
           "n": 12744
         },
         {
           "tauSec": 2.21,
-          "adevPpm": 23904.39637078269,
+          "adevPpm": 23904.36046998209,
           "n": 12742
         },
         {
           "tauSec": 4.42,
-          "adevPpm": 12486.329778343827,
+          "adevPpm": 12486.315064742133,
           "n": 12738
         },
         {
           "tauSec": 8.84,
-          "adevPpm": 6099.290880822061,
+          "adevPpm": 6099.279754413117,
           "n": 12730
         },
         {
           "tauSec": 17.68,
-          "adevPpm": 3137.9027005792777,
+          "adevPpm": 3137.8992022264774,
           "n": 12714
         },
         {
           "tauSec": 35.37,
-          "adevPpm": 1528.9203993188146,
+          "adevPpm": 1528.9192672731401,
           "n": 12682
         },
         {
           "tauSec": 70.73,
-          "adevPpm": 750.3022418432937,
+          "adevPpm": 750.3014820138462,
           "n": 12618
         },
         {
           "tauSec": 141.47,
-          "adevPpm": 363.17398102295283,
+          "adevPpm": 363.17368675780483,
           "n": 12490
         },
         {
           "tauSec": 282.94,
-          "adevPpm": 184.31542798419312,
+          "adevPpm": 184.31527887335565,
           "n": 12234
         },
         {
           "tauSec": 565.88,
-          "adevPpm": 86.44887077635227,
+          "adevPpm": 86.44879443046075,
           "n": 11722
         },
         {
           "tauSec": 1131.75,
-          "adevPpm": 38.781744909291,
+          "adevPpm": 38.781716053060535,
           "n": 10698
         },
         {
           "tauSec": 2263.5,
-          "adevPpm": 19.548652407179155,
+          "adevPpm": 19.548636103268297,
           "n": 8650
         },
         {
           "tauSec": 4527.01,
-          "adevPpm": 10.477037470080111,
+          "adevPpm": 10.477028091005023,
           "n": 4554
         }
       ],
@@ -921,7 +968,8 @@
     "analyzablePct": 99,
     "cleanBeatPct": 99,
     "coveragePct": 99,
-    "motionRejectedPct": 0,
+    "motionRejectedPct": null,
+    "motionRejectedPctReason": "no inertial stream was loaded — no beat was examined for motion",
     "correctionRatePct": 2.4,
     "ledAgreementPct": null,
     "ppiSpine": "foot",
@@ -965,36 +1013,36 @@
     "pinnedCoverage": [
       {
         "channel": 0,
-        "rail": {
-          "lo": 0,
-          "hi": 199
-        },
-        "spans": 107,
-        "samplesUnmeasured": 3192,
-        "samplesAbsent": 1711,
+        "rail": null,
+        "spans": 109,
+        "samplesUnmeasured": 24122,
+        "samplesAbsent": 22641,
         "samplesSaturated": 1481
       }
     ],
     "timingSource": "host",
     "axisDrawn": true,
     "axisQuantizedShare": 0.0009,
-    "timebase": "host-disciplined"
+    "timebase": "host-disciplined",
+    "timebaseSource": "embedded"
   },
   "hrv": {
     "time": {
-      "meanRR": 1051,
+      "meanRR": 1052,
       "hr": 57,
-      "sdnn": 74.9,
-      "rmssd": 36.3,
-      "pnn50": 11.2,
+      "sdnn": 73.7,
+      "rmssd": 35.9,
+      "pnn50": 11.1,
       "sdnnIndex": 55,
       "sdnnRobust": 53.5,
-      "sd2Robust": 71.2,
+      "sd2Robust": 71.3,
+      "wholeRecordHR": 57,
+      "hrWindow": "epochMedian5min",
       "window": "wholeRecord",
       "units": "ms",
       "lowConfidence": false,
       "lowConfidenceReason": null,
-      "windowNote": "sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node’s wholeRecord SDNN/RMSSD.",
+      "windowNote": "sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node’s wholeRecord SDNN/RMSSD. hr is the DISPLAY rate instead: the 5-min epoch median on a record over 90 min, the whole-record rate below that. hrWindow names which one this export carries, and wholeRecordHR is the cross-node HR axis.",
       "sdnnNote": "whole-record sdnn runs high on optical — SDANN/baseline-wander inflation the chest ECG does not carry. sdnnIndex (mean of per-5-min SDNN) and sdnnRobust (quality-gated MEDIAN of per-5-min SDNN) both remove it, sdnnRobust the most; use sdnnRobust for cross-node SDNN comparison. Bias magnitudes are deliberately not quoted here: the earlier figures came from a single paired night and did not reproduce on the multi-night corpus."
     },
     "frequency": {
@@ -1007,9 +1055,9 @@
       "method": "Lomb-Scargle",
       "lowConfidence": false,
       "hfRobustLowMotion": null,
-      "wholeRecordLf": 1869,
-      "wholeRecordHf": 1130,
-      "wholeRecordLfhf": 1.65,
+      "wholeRecordLf": 1910,
+      "wholeRecordHf": 1035,
+      "wholeRecordLfhf": 1.84,
       "respRate": 17.58,
       "respRateMethod": "RSA (HF-peak of RR spectrum)"
     },
@@ -1037,9 +1085,9 @@
     }
   },
   "apnea": {
-    "cvhrIndex": 6.9,
-    "cvhrEvents": 27,
-    "cvhrHours": 3.9,
+    "cvhrIndex": 5.6,
+    "cvhrEvents": 20,
+    "cvhrHours": 3.58,
     "cvhrMethod": "CVHR events/h from finger PPI NN (Hayano apnea-band 20–45 s; ports ECGDex detectCVHR)",
     "cvhrTier": "emerging"
   },
@@ -1050,13 +1098,15 @@
         "tMin": 0,
         "hr": 63,
         "hrStat": "rate-of-mean",
-        "rmssd": 90.2,
+        "rmssd": 73.9,
         "sdnn": 124.5,
         "lfhf": 0.41,
+        "spanSec": 297.89,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1067,10 +1117,12 @@
         "rmssd": 37.3,
         "sdnn": 55.8,
         "lfhf": 1.12,
+        "spanSec": 299.18,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1081,10 +1133,12 @@
         "rmssd": 46.3,
         "sdnn": 70,
         "lfhf": 0.65,
+        "spanSec": 293.54,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1095,10 +1149,12 @@
         "rmssd": 38.7,
         "sdnn": 86.5,
         "lfhf": 0.85,
+        "spanSec": 296.61,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1109,10 +1165,12 @@
         "rmssd": 59.6,
         "sdnn": 88.4,
         "lfhf": 0.77,
+        "spanSec": 299.58,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1123,10 +1181,12 @@
         "rmssd": 29,
         "sdnn": 33.7,
         "lfhf": 1.94,
+        "spanSec": 298.58,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1137,10 +1197,12 @@
         "rmssd": 25.9,
         "sdnn": 23.6,
         "lfhf": 1.04,
+        "spanSec": 299.25,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1151,10 +1213,12 @@
         "rmssd": 25.5,
         "sdnn": 27.1,
         "lfhf": 1.65,
+        "spanSec": 298.19,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1165,10 +1229,12 @@
         "rmssd": 26,
         "sdnn": 26.9,
         "lfhf": 1.98,
+        "spanSec": 298.83,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1179,10 +1245,12 @@
         "rmssd": 29.1,
         "sdnn": 36.6,
         "lfhf": 2.86,
+        "spanSec": 299.44,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1193,10 +1261,12 @@
         "rmssd": 24.3,
         "sdnn": 62,
         "lfhf": 3.94,
+        "spanSec": 299.06,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1207,10 +1277,12 @@
         "rmssd": 22.7,
         "sdnn": 44.7,
         "lfhf": 5.52,
+        "spanSec": 298.3,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1221,10 +1293,12 @@
         "rmssd": 57.9,
         "sdnn": 99.2,
         "lfhf": 2.15,
+        "spanSec": 299.5,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1235,10 +1309,12 @@
         "rmssd": 39.5,
         "sdnn": 75.5,
         "lfhf": 3.76,
+        "spanSec": 298.46,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1249,10 +1325,12 @@
         "rmssd": 24.3,
         "sdnn": 29,
         "lfhf": 2.38,
+        "spanSec": 299.41,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1263,10 +1341,12 @@
         "rmssd": 21.8,
         "sdnn": 24.9,
         "lfhf": 2,
+        "spanSec": 298.18,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1277,10 +1357,12 @@
         "rmssd": 26.2,
         "sdnn": 31.1,
         "lfhf": 2.62,
+        "spanSec": 299.17,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1291,10 +1373,12 @@
         "rmssd": 24.6,
         "sdnn": 23.9,
         "lfhf": 1.08,
+        "spanSec": 299.03,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1305,10 +1389,12 @@
         "rmssd": 24.1,
         "sdnn": 24.6,
         "lfhf": 1.65,
+        "spanSec": 299.27,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1319,10 +1405,12 @@
         "rmssd": 28,
         "sdnn": 28.6,
         "lfhf": 1.44,
+        "spanSec": 298.49,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1333,10 +1421,12 @@
         "rmssd": 24.7,
         "sdnn": 29,
         "lfhf": 2.64,
+        "spanSec": 299.43,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1347,10 +1437,12 @@
         "rmssd": 25,
         "sdnn": 25.6,
         "lfhf": 0.91,
+        "spanSec": 299.09,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1361,10 +1453,12 @@
         "rmssd": 35.3,
         "sdnn": 91.4,
         "lfhf": 3.85,
+        "spanSec": 298.66,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1375,10 +1469,12 @@
         "rmssd": 32.7,
         "sdnn": 58.3,
         "lfhf": 1.75,
+        "spanSec": 298.74,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1389,10 +1485,12 @@
         "rmssd": 24.3,
         "sdnn": 74.9,
         "lfhf": 3.52,
+        "spanSec": 299.14,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1403,10 +1501,12 @@
         "rmssd": 37.6,
         "sdnn": 55.9,
         "lfhf": 2.85,
+        "spanSec": 299.42,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1417,10 +1517,12 @@
         "rmssd": 33.5,
         "sdnn": 37.3,
         "lfhf": 1.23,
+        "spanSec": 298.92,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1431,10 +1533,12 @@
         "rmssd": 32,
         "sdnn": 43.1,
         "lfhf": 3.61,
+        "spanSec": 298.16,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1445,10 +1549,12 @@
         "rmssd": 41.2,
         "sdnn": 91.9,
         "lfhf": 1.15,
+        "spanSec": 299.68,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1459,10 +1565,12 @@
         "rmssd": 33.7,
         "sdnn": 40.2,
         "lfhf": 1.65,
+        "spanSec": 298.19,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1473,10 +1581,12 @@
         "rmssd": 32.9,
         "sdnn": 37.7,
         "lfhf": 2.33,
+        "spanSec": 299.17,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1487,10 +1597,12 @@
         "rmssd": 30.8,
         "sdnn": 38.5,
         "lfhf": 2.13,
+        "spanSec": 298.49,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1501,10 +1613,12 @@
         "rmssd": 33.2,
         "sdnn": 53.5,
         "lfhf": 1.19,
+        "spanSec": 298.88,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1515,10 +1629,12 @@
         "rmssd": 23.1,
         "sdnn": 25.7,
         "lfhf": 1.89,
+        "spanSec": 299.42,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1529,10 +1645,12 @@
         "rmssd": 23.1,
         "sdnn": 28.1,
         "lfhf": 2.61,
+        "spanSec": 299.12,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1543,10 +1661,12 @@
         "rmssd": 25.9,
         "sdnn": 26.2,
         "lfhf": 1.13,
+        "spanSec": 298.53,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1557,10 +1677,12 @@
         "rmssd": 54.9,
         "sdnn": 86.5,
         "lfhf": 0.74,
+        "spanSec": 298.71,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1571,10 +1693,12 @@
         "rmssd": 35.4,
         "sdnn": 38.9,
         "lfhf": 1.18,
+        "spanSec": 299.79,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1585,10 +1709,12 @@
         "rmssd": 34.9,
         "sdnn": 62.8,
         "lfhf": 0.55,
+        "spanSec": 298.87,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1599,10 +1725,12 @@
         "rmssd": 40.8,
         "sdnn": 100.7,
         "lfhf": 0.96,
+        "spanSec": 298.96,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1613,10 +1741,12 @@
         "rmssd": 43.4,
         "sdnn": 64.9,
         "lfhf": 1.06,
+        "spanSec": 298.83,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1627,10 +1757,12 @@
         "rmssd": 40.5,
         "sdnn": 82.2,
         "lfhf": 2.89,
+        "spanSec": 299.02,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1641,10 +1773,12 @@
         "rmssd": 40.9,
         "sdnn": 60.6,
         "lfhf": 1.28,
+        "spanSec": 298.52,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1655,10 +1789,12 @@
         "rmssd": 40.9,
         "sdnn": 98.2,
         "lfhf": 1.02,
+        "spanSec": 298.6,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1669,10 +1805,12 @@
         "rmssd": 44.4,
         "sdnn": 59.8,
         "lfhf": 0.62,
+        "spanSec": 299.41,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1683,10 +1821,12 @@
         "rmssd": 48.9,
         "sdnn": 72.7,
         "lfhf": 0.76,
+        "spanSec": 299.52,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1697,10 +1837,12 @@
         "rmssd": 61.7,
         "sdnn": 82.7,
         "lfhf": 0.4,
+        "spanSec": 290.98,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       }
@@ -2643,7 +2785,7 @@
         1120.53,
         1121.671,
         1122.785,
-        1123.826,
+        1123.827,
         1124.912,
         1126.023,
         1127.131,
@@ -2944,7 +3086,7 @@
         1467.009,
         1468.071,
         1469.117,
-        1470.13,
+        1470.131,
         1471.18,
         1472.218,
         1473.217,
@@ -3613,7 +3755,7 @@
         2221.369,
         2222.52,
         2223.691,
-        2224.861,
+        2224.862,
         2226.029,
         2227.171,
         2228.322,
@@ -3669,7 +3811,7 @@
         2283.794,
         2284.911,
         2286.032,
-        2287.195,
+        2287.196,
         2288.306,
         2289.414,
         2290.534,
@@ -4071,7 +4213,7 @@
         2731.654,
         2732.789,
         2733.947,
-        2735.054,
+        2735.055,
         2736.182,
         2737.331,
         2738.472,
@@ -4173,7 +4315,7 @@
         2845.794,
         2846.943,
         2848.078,
-        2849.213,
+        2849.214,
         2850.32,
         2851.458,
         2852.583,
@@ -4562,7 +4704,7 @@
         3250.492,
         3251.549,
         3252.573,
-        3253.611,
+        3253.612,
         3254.636,
         3255.681,
         3256.729,
@@ -4803,7 +4945,7 @@
         3504.081,
         3505.049,
         3505.993,
-        3506.964,
+        3506.965,
         3507.917,
         3508.868,
         3509.854,
@@ -4861,7 +5003,7 @@
         3564.404,
         3565.487,
         3566.552,
-        3567.64,
+        3567.641,
         3568.713,
         3569.775,
         3570.787,
@@ -5025,7 +5167,7 @@
         3729.552,
         3730.471,
         3731.408,
-        3733.389,
+        3733.39,
         3734.303,
         3735.175,
         3736.025,
@@ -5271,7 +5413,7 @@
         3965.631,
         3966.495,
         3967.34,
-        3968.17,
+        3968.171,
         3969.033,
         3969.922,
         3970.914,
@@ -6309,7 +6451,7 @@
         5048.903,
         5049.952,
         5051.042,
-        5052.133,
+        5052.134,
         5053.217,
         5054.283,
         5055.352,
@@ -7300,7 +7442,7 @@
         6083.502,
         6084.523,
         6085.542,
-        6086.569,
+        6086.57,
         6087.641,
         6088.684,
         6089.718,
@@ -7743,7 +7885,7 @@
         6545.231,
         6546.276,
         6547.299,
-        6548.352,
+        6548.353,
         6549.41,
         6550.452,
         6551.522,
@@ -11101,7 +11243,7 @@
         10148.571,
         10149.679,
         10150.838,
-        10151.988,
+        10151.989,
         10153.086,
         10154.199,
         10155.289,
@@ -11436,7 +11578,7 @@
         10509.487,
         10510.592,
         10511.682,
-        10512.752,
+        10512.753,
         10513.833,
         10514.947,
         10516.019,
@@ -11459,7 +11601,7 @@
         10534.603,
         10535.716,
         10536.838,
-        10537.925,
+        10537.926,
         10539.02,
         10540.101,
         10541.19,
@@ -11936,7 +12078,7 @@
         11043.877,
         11045.185,
         11046.785,
-        11047.671,
+        11047.672,
         11048.636,
         11049.809,
         11050.534,
@@ -12108,7 +12250,7 @@
         11223.315,
         11224.392,
         11225.448,
-        11226.487,
+        11226.488,
         11227.514,
         11228.565,
         11229.682,
@@ -12455,7 +12597,7 @@
         11607.844,
         11608.875,
         11609.933,
-        11610.975,
+        11610.976,
         11612.028,
         11613.07,
         11614.107,
@@ -14751,7 +14893,7 @@
         14074.264,
         14075.25,
         14076.159,
-        14077.036,
+        14077.037,
         14077.912,
         14078.879,
         14079.859,
@@ -14930,7 +15072,7 @@
         1001,
         833,
         940,
-        927,
+        926,
         708,
         811,
         995,
@@ -15521,7 +15663,7 @@
         979,
         1456,
         1011,
-        1040,
+        1039,
         1032,
         1105,
         1011,
@@ -15817,7 +15959,7 @@
         1018,
         1226,
         1044,
-        1122,
+        1121,
         837,
         1171,
         1013,
@@ -27304,7 +27446,7 @@
         1055,
         991,
         1091,
-        1071,
+        1072,
         1022,
         1056,
         1065,
@@ -27809,7 +27951,7 @@
         910,
         877,
         876,
-        967,
+        966,
         980,
         1024,
         1055,
@@ -41683,7 +41825,7 @@
         0.975,
         0.975,
         0.944,
-        0.944,
+        0.975,
         0.975,
         0.975,
         0.975,
@@ -43565,7 +43707,7 @@
         0.714,
         0.714,
         0.714,
-        0.785,
+        0.714,
         0.785,
         0.785,
         0.785,
@@ -44273,8 +44415,8 @@
         0.084,
         0.084,
         0.037,
-        0.084,
-        0.084,
+        0.037,
+        0.037,
         0.037,
         0.084,
         0.084,
@@ -44310,9 +44452,9 @@
         0.217,
         0.145,
         0.145,
+        0.145,
         0.217,
         0.217,
-        0.297,
         0.297,
         0.297,
         0.297,
@@ -44342,14 +44484,14 @@
         0.382,
         0.382,
         0.468,
+        0.468,
+        0.468,
         0.382,
-        0.382,
-        0.382,
+        0.554,
         0.468,
         0.468,
         0.468,
         0.468,
-        0.468,
         0.554,
         0.554,
         0.554,
@@ -44371,16 +44513,16 @@
         0.636,
         0.636,
         0.636,
-        0.714,
         0.714,
         0.714,
         0.714,
         0.714,
         0.714,
         0.785,
+        0.785,
         0.714,
         0.714,
-        0.636,
+        0.714,
         0.636,
         0.636,
         0.636,
@@ -44407,7 +44549,7 @@
         0.785,
         0.785,
         0.718,
-        0.785,
+        0.714,
         0.785,
         0.714,
         0.714,
@@ -47652,7 +47794,7 @@
         0.382,
         0.382,
         0.382,
-        0.382,
+        0.297,
         0.297,
         0.297,
         0.297,
@@ -48786,12 +48928,12 @@
         0.994,
         0.994,
         0.994,
+        0.994,
+        0.975,
         0.975,
         0.975,
         0.975,
         0.975,
-        0.975,
-        0.975,
         0.994,
         0.994,
         0.994,
@@ -51085,7 +51227,7 @@
         0.994,
         0.994,
         0.994,
-        0.975,
+        0.994,
         0.944,
         0.975,
         0.944,
@@ -51605,7 +51747,7 @@
         0.994,
         1,
         1,
-        1,
+        0.994,
         1,
         1,
         1,
@@ -52986,7 +53128,7 @@
         0.994,
         0.994,
         0.994,
-        0.994,
+        0.975,
         0.994,
         0.975,
         0.994,
@@ -53047,7 +53189,7 @@
         0.785,
         0.785,
         0.785,
-        0.785,
+        0.848,
         0.785,
         0.848,
         0.785,
@@ -53584,7 +53726,7 @@
         0.975,
         0.975,
         0.975,
-        1,
+        0.994,
         0.975,
         0.975,
         0.994,
@@ -53642,7 +53784,7 @@
         0.994,
         0.994,
         0.99,
-        0.99,
+        0.994,
         0.996,
         0.997,
         0.996,
@@ -53932,6 +54074,432 @@
         1,
         1,
         1
+      ],
+      "spansGapRuns": [
+        [
+          19,
+          2
+        ],
+        [
+          67,
+          1
+        ],
+        [
+          74,
+          1
+        ],
+        [
+          85,
+          1
+        ],
+        [
+          92,
+          1
+        ],
+        [
+          101,
+          1
+        ],
+        [
+          108,
+          1
+        ],
+        [
+          112,
+          1
+        ],
+        [
+          115,
+          1
+        ],
+        [
+          119,
+          1
+        ],
+        [
+          136,
+          1
+        ],
+        [
+          139,
+          1
+        ],
+        [
+          146,
+          1
+        ],
+        [
+          171,
+          1
+        ],
+        [
+          180,
+          1
+        ],
+        [
+          193,
+          1
+        ],
+        [
+          202,
+          1
+        ],
+        [
+          206,
+          1
+        ],
+        [
+          221,
+          1
+        ],
+        [
+          226,
+          1
+        ],
+        [
+          239,
+          1
+        ],
+        [
+          243,
+          1
+        ],
+        [
+          248,
+          1
+        ],
+        [
+          269,
+          1
+        ],
+        [
+          278,
+          1
+        ],
+        [
+          291,
+          1
+        ],
+        [
+          296,
+          1
+        ],
+        [
+          308,
+          2
+        ],
+        [
+          327,
+          1
+        ],
+        [
+          334,
+          1
+        ],
+        [
+          337,
+          1
+        ],
+        [
+          351,
+          1
+        ],
+        [
+          379,
+          1
+        ],
+        [
+          384,
+          1
+        ],
+        [
+          395,
+          1
+        ],
+        [
+          404,
+          1
+        ],
+        [
+          416,
+          1
+        ],
+        [
+          430,
+          1
+        ],
+        [
+          437,
+          1
+        ],
+        [
+          447,
+          1
+        ],
+        [
+          452,
+          1
+        ],
+        [
+          454,
+          1
+        ],
+        [
+          500,
+          1
+        ],
+        [
+          508,
+          1
+        ],
+        [
+          517,
+          1
+        ],
+        [
+          523,
+          1
+        ],
+        [
+          541,
+          1
+        ],
+        [
+          547,
+          1
+        ],
+        [
+          554,
+          1
+        ],
+        [
+          557,
+          1
+        ],
+        [
+          570,
+          1
+        ],
+        [
+          587,
+          1
+        ],
+        [
+          599,
+          1
+        ],
+        [
+          608,
+          1
+        ],
+        [
+          613,
+          1
+        ],
+        [
+          621,
+          1
+        ],
+        [
+          629,
+          1
+        ],
+        [
+          643,
+          1
+        ],
+        [
+          650,
+          1
+        ],
+        [
+          657,
+          1
+        ],
+        [
+          668,
+          1
+        ],
+        [
+          671,
+          2
+        ],
+        [
+          678,
+          1
+        ],
+        [
+          698,
+          1
+        ],
+        [
+          711,
+          1
+        ],
+        [
+          722,
+          1
+        ],
+        [
+          728,
+          1
+        ],
+        [
+          744,
+          1
+        ],
+        [
+          746,
+          1
+        ],
+        [
+          752,
+          1
+        ],
+        [
+          757,
+          1
+        ],
+        [
+          762,
+          1
+        ],
+        [
+          767,
+          1
+        ],
+        [
+          769,
+          1
+        ],
+        [
+          771,
+          1
+        ],
+        [
+          777,
+          1
+        ],
+        [
+          807,
+          1
+        ],
+        [
+          812,
+          1
+        ],
+        [
+          825,
+          1
+        ],
+        [
+          834,
+          1
+        ],
+        [
+          841,
+          1
+        ],
+        [
+          847,
+          1
+        ],
+        [
+          876,
+          1
+        ],
+        [
+          883,
+          1
+        ],
+        [
+          891,
+          1
+        ],
+        [
+          897,
+          1
+        ],
+        [
+          901,
+          1
+        ],
+        [
+          907,
+          1
+        ],
+        [
+          918,
+          1
+        ],
+        [
+          926,
+          1
+        ],
+        [
+          938,
+          1
+        ],
+        [
+          942,
+          1
+        ],
+        [
+          946,
+          1
+        ],
+        [
+          951,
+          1
+        ],
+        [
+          967,
+          1
+        ],
+        [
+          975,
+          1
+        ],
+        [
+          986,
+          1
+        ],
+        [
+          990,
+          1
+        ],
+        [
+          1004,
+          1
+        ],
+        [
+          1012,
+          1
+        ],
+        [
+          1022,
+          1
+        ],
+        [
+          1030,
+          1
+        ],
+        [
+          1038,
+          1
+        ],
+        [
+          1046,
+          1
+        ],
+        [
+          1053,
+          1
+        ],
+        [
+          1055,
+          1
+        ]
       ]
     }
   }

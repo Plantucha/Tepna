@@ -1,0 +1,16 @@
+{
+  "inputsDigest": "62bcfee61259783a",
+  "inputsContent": "151a4176fd4ec817",
+  "codeDigest": "01cf791fcdb3c077",
+  "nodes": [
+    "ECGDex",
+    "OxyDex",
+    "PpgDex"
+  ],
+  "exports": {
+    "ECGDex_2026-10-07.node-export.json": "f6207c88e501f7cc4c6b3984e5820d8eec96c9c876bb6973b3266eee4f53f54f",
+    "OxyDex_2026-10-07.node-export.json": "4319f8dbd9c2ad046f7a70f05ac0370c79a47c2340aad330f288179df8f1f7a9",
+    "PpgDexFinger_2026-10-07.node-export.json": "ed7a98f26b94b99b07c13ad051088544e98733d244bf6d79a42507fc5f8d2230",
+    "PpgDex_2026-10-07.node-export.json": "9285ac337b78f928f8b574d5cda26aa08ad43b60dafc633119b9846e0c3eb659"
+  }
+}
