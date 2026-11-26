@@ -895,7 +895,11 @@
   const PD_SEAM_NO_DEVICE_CLOCK = /^(ppi|hr)\b/;
 
   function parsePdSeams(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ An absent text is `null`; a PRESENT, EMPTY one is a named refusal, never zero rows — the
+       writer stamps its header on open, so 0 bytes is a capture that stopped before the first flush
+       (ruling 2026-11-26; the full reading sits on `parsePinnedRuns` in `ppgdex-dsp.js`). */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     const out = /** @type {any} */ ({
       params: null,
       rule: null,
@@ -1045,6 +1049,14 @@
     if (!obj) return obj;
     const sc = typeof seams === 'string' ? parsePdSeams(seams) : seams && typeof seams === 'object' && Array.isArray(seams.rows) ? seams : null;
     if (!sc) return obj;
+    /* ∅ A PRESENT, EMPTY sidecar: the validity is absent, and the reason says so rather than
+       letting the refusal read as a sidecar that examined intervals and kept nothing. */
+    if (sc.err) {
+      obj._recordedSeams = null;
+      obj._recordedSeamsReason =
+        'seam sidecar present and empty (' + sc.err + ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero seams';
+      return obj;
+    }
     obj._seamsSidecar = sc;
     /* §∅ — `[]` is the honest answer for a sidecar that examined intervals and recorded nothing
        placeable, and the WRONG answer for one whose rows this reader could not keep. `null` is the

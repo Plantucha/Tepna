@@ -7319,7 +7319,11 @@
      (read · looked and found nothing · rows unplaceable · wrong stream) and the same `comparable`
      flag, so a consumer can tell a sidecar that stated its rule from one that did not. */
   function parseEcgSeams(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ An absent text is `null`; a PRESENT, EMPTY one is a named refusal, never zero rows — the
+       writer stamps its header on open, so 0 bytes is a capture that stopped before the first flush
+       (ruling 2026-11-26; the full reading sits on `parsePinnedRuns` in `ppgdex-dsp.js`). */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     var out = /** @type {any} */ ({
       params: null,
       rule: null,
@@ -7633,6 +7637,13 @@
     /* …and the box's own clock-seam sidecar beside the same stream (SEAM-SIDECAR-CONSUMPTION §4,
        owner ruling 2026-11-05), on the same footing. */
     var seams = parseEcgSeams(opts && opts.seamsText);
+    /* ∅ A PRESENT, EMPTY sidecar: absent validity with a named reason, never zero seams. */
+    if (seams && seams.err) {
+      rec.recordedSeams = null;
+      rec.recordedSeamsReason =
+        'seam sidecar present and empty (' + seams.err + ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero seams';
+      return rec;
+    }
     if (seams) {
       rec.seamsSidecar = seams;
       /* §∅ — `[]` is the honest answer for a sidecar that examined intervals and recorded no seam,

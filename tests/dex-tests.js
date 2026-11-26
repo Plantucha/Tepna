@@ -27043,7 +27043,20 @@
         var _noRule = 'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule\n' + iso(T0) + ';channel 0;100;0;9;1;1;stuck\n';
         T.eq('…and a sidecar with NO rule line (comparable:false, never a default min_run)', JSON.stringify(P._parsePinnedRuns(_noRule)), JSON.stringify(env.PPGDSP.parsePinnedRuns(_noRule)));
       } else T.ok('PPGDSP.parsePinnedRuns reachable for the parity compare', false, 'the two copies are ungated in this runner');
-      T.ok('no sidecar → null, never an empty observation', P._parsePinnedRuns(undefined) === null && P._parsePinnedRuns('') === null);
+      T.ok('no sidecar → null, never an empty observation', P._parsePinnedRuns(undefined) === null);
+      /* ∅ ruling 2026-11-26 (board #9027): a PRESENT, EMPTY sidecar is a named refusal on both copies,
+         and the parity gate reads it too — the writer stamps its header on open, so 0 bytes is a
+         capture that stopped before the first flush, and the validity is absent rather than zero. */
+      T.eq('∅ an EMPTY sidecar is the named refusal, not an absent one', JSON.stringify(P._parsePinnedRuns('')), JSON.stringify({ err: 'sidecar-empty' }));
+      T.ok('∅ …and whitespace alone reads the same way', P._parsePinnedRuns('  \n ').err === 'sidecar-empty');
+      if (env.PPGDSP && typeof env.PPGDSP.parsePinnedRuns === 'function')
+        T.eq('∅ …and the two copies agree on the refusal', JSON.stringify(P._parsePinnedRuns('')), JSON.stringify(env.PPGDSP.parsePinnedRuns('')));
+      var _emptyRun = P.parsePPG2W(mkText(900, 300, 360), { runsText: '' });
+      T.ok(
+        '∅ a ring night with an EMPTY runs sidecar maps no span and names the absence',
+        _emptyRun.runs === null && _emptyRun.blankSpans.length === 0 && /present and empty \(sidecar-empty\)/.test(_emptyRun.runsAbsentReason)
+      );
+      T.ok('∅ …and a night with NO sidecar carries no such key', P.parsePPG2W(mkText(900, 300, 360)).runsAbsentReason === undefined);
 
       // ── 2 · THE SPAN LANDS ON THE RIGHT WALL TIME ─────────────────────────────────────────────
       var r = P.parsePPG2W(mkText(900, 300, 360), { runsText: RUNS });
@@ -65345,6 +65358,14 @@
         T.eq("parseECG · an ACC sidecar's rows are not this stream's, and the refusal is counted", wrong.seamsSidecar.rejected + '/' + wrong.seamsSidecar.dataRows, '1/1');
         T.eq('∅ · rows present and NONE placed yields null, never an empty list that reads as a seam-free stream', wrong.recordedSeams, null);
         T.ok('∅ · …with the reason naming the stream that went unplaced', /stream=acc/.test(String(wrong.recordedSeamsReason)), String(wrong.recordedSeamsReason));
+        /* ∅ ruling 2026-11-26 (board #9027): PRESENT AND EMPTY is absent validity, never zero seams.
+           The box stamps the sidecar's rule header on open, so 0 bytes is a capture that stopped
+           before the first buffer flush — not a stream the box watched and found seam-free. */
+        var scEmpty = E.parseECG(HDR, { seamsText: '' });
+        T.eq('∅ · an EMPTY seam sidecar yields no recorded seams', scEmpty.recordedSeams, null);
+        T.ok('∅ · …and the reason says the file was present and empty', /present and empty \(sidecar-empty\)/.test(String(scEmpty.recordedSeamsReason)), String(scEmpty.recordedSeamsReason));
+        T.ok('∅ · …and no sidecar object is published for a file that states nothing', scEmpty.seamsSidecar == null);
+        T.ok('∅ · CONTROL · no sidecar at all still carries no reason', E.parseECG(HDR).recordedSeamsReason === undefined);
         /* §∅ — the MEASURED zero. The box examined 89,999 intervals and recorded no seam, which is a
            real observation and must not read like an unread channel. */
         var zero = E.parseECG(HDR, {
@@ -65820,6 +65841,11 @@
           T.eq("parsePPG · an ECG sidecar's rows are not this stream's, and the refusal is counted", wrong.seamsSidecar.rejected + '/' + wrong.seamsSidecar.dataRows, '1/1');
           T.eq('∅ · rows present and NONE placed yields null, never an empty list that reads as a seam-free stream', wrong.recordedSeams, null);
           T.ok('∅ · …with the reason naming the stream that went unplaced', /stream=ecg/.test(String(wrong.recordedSeamsReason)), String(wrong.recordedSeamsReason));
+          /* ∅ ruling 2026-11-26 (board #9027) — the same reading on this node's own road. */
+          var pgEmpty = P.parsePPG(HDR, { seamsText: '' });
+          T.eq('∅ · an EMPTY seam sidecar yields no recorded seams', pgEmpty.recordedSeams, null);
+          T.ok('∅ · …and the reason says the file was present and empty', /present and empty \(sidecar-empty\)/.test(String(pgEmpty.recordedSeamsReason)), String(pgEmpty.recordedSeamsReason));
+          T.ok('∅ · …and no sidecar object is published for a file that states nothing', pgEmpty.seamsSidecar == null);
           /* §∅ — the MEASURED zero. The box examined 89,999 intervals and recorded no seam, which is a
              real observation and must not read like an unread channel. */
           var zero = P.parsePPG(HDR, {
@@ -66728,6 +66754,11 @@
             '1/0/0'
           );
           T.ok('∅ · …and the reason names the host gap rather than borrowing the seam vocabulary', /flat device axis/.test(String(flat._recordedSeamsReason)), String(flat._recordedSeamsReason));
+          /* ∅ ruling 2026-11-26 (board #9027): present and empty is absent validity, never zero seams. */
+          var pdEmpty = parseRRInput(rrText(40), { seamsText: '' });
+          T.eq('∅ · an EMPTY seam sidecar yields no recorded seams', pdEmpty._recordedSeams, null);
+          T.ok('∅ · …and the reason says the file was present and empty', /present and empty \(sidecar-empty\)/.test(String(pdEmpty._recordedSeamsReason)), String(pdEmpty._recordedSeamsReason));
+          T.ok('∅ · …and no sidecar object is published for a file that states nothing', pdEmpty._seamsSidecar == null);
           T.eq('∅ · the state is UNKNOWN under its own pre-stated reason, never a zero', pdSeamVerdict(flat, flat.tsMs).ann.reason, 'seam-basis-no-device-clock');
           /* A row with NO device-step column at all is the same finding, never a step of zero. */
           var noDev = parseRRInput(rrText(40), { seamsText: seamText('ppi', '', '122070.3', 4500) });
@@ -69036,6 +69067,12 @@
           withRuns = P.parsePPG(text, { runsText: RUNS });
         T.ok('parsePPG · no sidecar → pinnedCrossCheck is null (absent is unknown, never "no absences")', without.pinnedCrossCheck == null);
         T.ok('parsePPG · a planted `_PPGRUNS` sidecar → pinnedCrossCheck is populated', withRuns.pinnedCrossCheck != null);
+        /* ∅ ruling 2026-11-26 (board #9027): an EMPTY runs sidecar takes the absent road, because that
+           road publishes the absence — and the new key names which of the two absences it is. */
+        var runsEmpty = P.parsePPG(text, { runsText: '' });
+        T.ok('∅ · an EMPTY runs sidecar leaves pinnedCrossCheck null, never a zero cross-check', runsEmpty.pinnedCrossCheck == null);
+        T.ok('∅ · …and the record names the file as present and empty', /present and empty \(sidecar-empty\)/.test(String(runsEmpty.pinnedSidecarReason)), String(runsEmpty.pinnedSidecarReason));
+        T.ok('∅ · CONTROL · the no-sidecar record carries no such key, so neither road reads as the other', without.pinnedSidecarReason === undefined && withRuns.pinnedSidecarReason === undefined);
       } else T.skip('PpgDex.parsePPG unavailable');
       // (5) SOURCE-MIRRORS — the three production callers pass the text (no multi-file drop runs headless).
       var src = env.sources || {};
