@@ -289,6 +289,19 @@ export function buildVerdict({ rows, refused, unreachable, eligible, scanned, tr
   });
 }
 
+/* ── the summary line ────────────────────────────────────────────────────────────────────────── */
+/* THE SAMPLE IS NOT THE WALK (residue 2026-11-26-pat-mask-census-prose-divides-the-sample-by-the-walk).
+   This line divided the reachable rows by every WALKED recording, so a default run of 24 printed
+   "24 of <corpus> recording(s) reachable" — a reachability share over recordings the run never
+   opened. The verdict object always held the two apart: `population.eligible` counts the sample's
+   own members and `result.eligibleWalked` holds the walk. Only the prose joined them.
+   Each number now prints beside the denominator it belongs to, and the sample size prints at all.
+   A pure function, so the selftest reads the line CI cannot reach over a real corpus. */
+export function summaryLine({ reachable, sampled, walked, tree, unreachable, refused, unjudged, movers, judged }) {
+  const share = movers === null ? 'no mover share' : `${movers} of ${judged} judged past the bar`;
+  return `pat-mask-census: ${reachable} of ${sampled} SAMPLED recording(s) reachable · the sample holds ${sampled} of ${walked} walked recording(s) under ${tree} · ${unreachable} wrist layout · ${refused} refused · ${unjudged} unjudged · ${share}`;
+}
+
 /* ── the record id a published verdict may carry ─────────────────────────────────────────────── */
 /* A capture filename carries a device serial, so a member list holds the VENDOR and a digest. */
 export function maskRecord(p) {
@@ -353,6 +366,20 @@ export async function selftest() {
   ok('∅ the median of nothing is null, never 0', medianOf([]) === null);
   ok('the quartiles interpolate', quantileOf([0, 1, 2, 3, 4], 0.25) === 1 && quantileOf([0, 1, 2, 3, 4], 0.75) === 3);
   ok('∅ a quantile of nothing is null, never 0', quantileOf([], 0.25) === null);
+
+  /* ── THE SUMMARY LINE NAMES ITS OWN DENOMINATORS ────────────────────────────────────────────
+     The residue this fixes: a default run sampled 24 recordings and printed the reachable count
+     against the WHOLE walk, which a reader takes for a reachability share. These legs pin both
+     denominators and the sample size, over numbers CI can hold without a corpus. */
+  const line = summaryLine({ reachable: 20, sampled: 24, walked: 311, tree: 'uploads/', unreachable: 3, refused: 1, unjudged: 2, movers: 0, judged: 18 });
+  ok('the reachable count divides by the SAMPLE, never by the walk', /20 of 24 SAMPLED recording\(s\) reachable/.test(line), line);
+  ok('…and the walk prints beside the sample size, so the sample is visible at all', /the sample holds 24 of 311 walked recording\(s\)/.test(line), line);
+  ok('CONTROL · the walked count never stands as the reachable denominator', !/20 of 311/.test(line), line);
+  ok('the mover share keeps its own denominator', /0 of 18 judged past the bar/.test(line), line);
+  ok(
+    '∅ no mover share prints as a named absence, never as 0 of 0',
+    /no mover share/.test(summaryLine({ reachable: 0, sampled: 24, walked: 311, tree: 'uploads/', unreachable: 24, refused: 0, unjudged: 0, movers: null, judged: 0 }))
+  );
 
   const sEmpty = summarise([]);
   ok('∅ a summary over no recording reports null shares and a reason, never 0', sEmpty.movers === null && sEmpty.moverShare === null && /quotient of nothing/.test(sEmpty.reason));
@@ -540,7 +567,17 @@ async function main() {
   const verdict = buildVerdict({ rows, refused, unreachable, eligible: all.length, scanned: paired.scanned, treeReason: paired.reason });
   const sum = summarise(rows);
   console.log(
-    `pat-mask-census: ${rows.length} of ${all.length} recording(s) reachable under ${displayTree(String(tree))} · ${unreachable} wrist layout · ${refused} refused · ${sum.unjudged} unjudged · ${sum.movers === null ? 'no mover share' : `${sum.movers} of ${sum.judged} judged past the bar`}`
+    summaryLine({
+      reachable: rows.length,
+      sampled: sample.length,
+      walked: all.length,
+      tree: displayTree(String(tree)),
+      unreachable,
+      refused,
+      unjudged: sum.unjudged,
+      movers: sum.movers,
+      judged: sum.judged
+    })
   );
   printVerdict(verdict, { json: has('--json') });
   process.exit(verdict.status === 'FAIL' ? 1 : verdict.status === 'NOT_RUN' ? 2 : 0);
