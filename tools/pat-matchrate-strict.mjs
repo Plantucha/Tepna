@@ -235,7 +235,16 @@ function rPeakTimesOnAxis(rec, positions, opts) {
   return t;
 }
 /* ── @port-from pat-feasibility-worker.js#ecgRpeakTimes ──────────────────────────────
-   @port-sha a0779492738e
+   @port-sha d58780e3ea28
+   RECONCILED 2026-11-26 against that source text, for row
+   2026-11-26-the-pat-worker-holds-a-knobless-piecewise-ecg-axis. The worker's leg gained `opts.axis`
+   at position three, over the three axis names this copy already carries, and it gained the
+   sortedness refusal the shared `rPeakTimesOnAxis` has held since #4783. THE TWO DEFAULTS DIFFER BY
+   DESIGN: the worker keeps `piecewise`, the axis its pages shipped, and this copy keeps `counter`.
+   A flip on either side moves published numbers, so each default stays a PAT-programme and owner
+   call. The worker also publishes `ecgAxis` beside its train. DELIBERATELY NOT PORTED: a caller here
+   names its axis through `axisOpts` and already holds the answer, while the worker's own consumers
+   carried no request at all, which is the row's defect.
    RECONCILED 2026-11-05 against that source text, for row
    2026-10-28-pat-legs-refuse-only-the-spans-a-sidecar-confirmed. The worker's leg now publishes a
    validity record on all three companion states rather than a bare `null`, and holds its unmeasured

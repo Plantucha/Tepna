@@ -47742,6 +47742,133 @@
       }
     });
 
+    /* ── THE AXIS REQUEST, END TO END IN THE WORKER'S OWN REALM ────────────────────────────────────
+       Row 2026-11-26-the-pat-worker-holds-a-knobless-piecewise-ecg-axis: this leg timed every R peak
+       on `rec.tMsAt` and took no axis request, so a page could not ask for the counter axis the PAT
+       tools default to. ASSERTED BEHAVIOURALLY, in the shim realm the sibling group below
+       establishes: a source scan would read the knob and never run it, and the defect was a surface
+       that READS one axis and OFFERS none. */
+    group('∅ PAT worker — the ECG leg takes an axis request, and refuses a backwards train', 'pat · worker · ecg-axis', function (T) {
+      var wsrc = (env.sources && env.sources['pat-feasibility-worker.js']) || '';
+      var E = env.ECGDSP;
+      var P = env.PPGDSP;
+      if (!wsrc || !E || !P || !env.PATGate || !env.ConsensusDissent || typeof E.parseECG !== 'function') {
+        T.ok('worker source + ECGDSP/PPGDSP/PATGate/ConsensusDissent available', false, 'not loaded in this lane');
+        return;
+      }
+      var legs = null;
+      try {
+        var body = wsrc.replace(/self\.onmessage[\s\S]*$/, '');
+        var shim = { postMessage: function () {} };
+        shim.self = shim;
+        legs = new Function(
+          'ECGDSP',
+          'PPGDSP',
+          'PATGate',
+          'ConsensusDissent',
+          'self',
+          'importScripts',
+          'XMLHttpRequest',
+          body + '\nreturn { ecg: typeof ecgRpeakTimes === "function" ? ecgRpeakTimes : null };'
+        )(
+          E,
+          P,
+          env.PATGate,
+          env.ConsensusDissent,
+          shim,
+          function () {},
+          function () {}
+        );
+      } catch (e) {
+        T.ok('the worker body EVALUATES with the DSPs in scope', false, e.message);
+        return;
+      }
+      T.ok('the worker body EVALUATES and exposes the ECG leg', !!(legs && legs.ecg));
+      if (!legs || !legs.ecg) return;
+      /* A DRIFTING PHONE STAMP is what separates the three axes. The piecewise map carries the host
+         interpolation, the counter axis carries the device counter under the ppm scale, and the
+         linear axis carries the mean rate alone. On a file whose two clocks agree all three read the
+         same, so such a file would pass every leg below with nothing wired — the control at the end
+         holds that file and asserts the agreement. */
+      var HDR = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      var T0 = Date.UTC(2026, 6, 26, 22, 0, 0);
+      var FS = 130;
+      var N = 12000;
+      var mk = function (hostAt, nsAt) {
+        var rows = [HDR];
+        for (var i = 0; i < N; i++) {
+          var ph = (i % 130) / 130;
+          var v = 40 * Math.sin(2 * Math.PI * ph);
+          if (ph > 0.2 && ph < 0.3) v += 900 * Math.exp(-Math.pow((ph - 0.2537) / 0.012, 2)); // apex off-grid
+          var ns = nsAt ? nsAt(i) : Math.round((i * 1e9) / FS);
+          rows.push(new Date(Math.round(hostAt(i))).toISOString().slice(0, 23) + ';' + ns + ';' + Math.round((i * 1000) / FS) + ';' + Math.round(v));
+        }
+        return rows.join('\n');
+      };
+      /* TWO FACTS, BOTH NEEDED, MEASURED 2026-11-26 while this fixture was built. A host clock that
+         drifts 2 % separates the PIECEWISE map from the other two, and nothing else does: with the
+         two clocks in step `parseECG` reads `tMsCorrected` false and all three axes agree. A 10 s
+         DROPOUT in the device counter then separates COUNTER from LINEAR, because the counter spans
+         the hole and the mean rate does not. A fixture carrying only one of the two reads two axes
+         as one and would pass while a knob was wired to nothing. */
+      var hole = function (i) {
+        return Math.round(((i + (i > N / 2 ? 1300 : 0)) * 1e9) / FS);
+      };
+      var drift = mk(function (i) {
+        return T0 + (i / FS) * 1000 * 1.02 + (i > N / 2 ? 10000 : 0);
+      }, hole);
+      var dflt = legs.ecg(drift);
+      T.ok('ANTI-VACUITY · the leg finds beats at all', !!(dflt && dflt.n > 40), 'n=' + (dflt && dflt.n));
+      if (!dflt || !(dflt.n > 40)) return;
+      var worst = function (a, b) {
+        var m = 0;
+        for (var k = 0; k < Math.min(a.length, b.length); k++) m = Math.max(m, Math.abs(a[k] - b[k]));
+        return m;
+      };
+      var pw = legs.ecg(drift, null, { axis: 'piecewise' });
+      var ct = legs.ecg(drift, null, { axis: 'counter' });
+      var lin = legs.ecg(drift, null, { axis: 'linear' });
+      T.eq('the default names itself on the train it timed', dflt.ecgAxis, 'piecewise');
+      T.eq('…and a request travels out beside the train', ct.ecgAxis, 'counter');
+      T.eq('the default is EXACTLY the piecewise axis — no number this surface published moved', worst(dflt.times, pw.times), 0);
+      T.ok('the counter axis DIFFERS from the default on a drifting host clock', worst(dflt.times, ct.times) > 1, 'max |Δ| ' + worst(dflt.times, ct.times).toFixed(2) + ' ms');
+      T.ok('the linear axis differs from the default too', worst(dflt.times, lin.times) > 1, 'max |Δ| ' + worst(dflt.times, lin.times).toFixed(2) + ' ms');
+      T.ok('…and the three axes are three answers, never two', worst(ct.times, lin.times) > 1, 'counter vs linear max |Δ| ' + worst(ct.times, lin.times).toFixed(2) + ' ms');
+      var bogus = null;
+      try {
+        legs.ecg(drift, null, { axis: 'bogus' });
+      } catch (e2) {
+        bogus = e2.message;
+      }
+      T.ok('an unknown axis refuses BY NAME', !!bogus && /piecewise, counter or linear/.test(bogus) && /bogus/.test(bogus), String(bogus));
+      var nameless = null;
+      try {
+        legs.ecg(drift, null, { axis: undefined });
+      } catch (e3) {
+        nameless = e3.message;
+      }
+      T.ok('a caller that WROTE the key and spelled nothing refuses rather than taking the default', !!nameless && /omit the opts object/.test(nameless), String(nameless));
+      /* ── THE BACKWARDS TRAIN IS PINNED BY SOURCE, AND THE REASON IS MEASURED ────────────────────
+         1 of the 57 box fragments that reached this arithmetic on 2026-11-26 built a non-monotone
+         PIECEWISE train, where the device clock steps 8.7 s, and the ported copy in `tools/` refused
+         it while this leg posted it. NO SYNTHETIC REACHES THAT STATE, and three were measured the
+         same day: a host stamp that steps back 20 s, a host clock that runs backwards mid-file and a
+         device counter that steps back all read `tMsCorrected` false, because `parseECG` refuses a
+         non-monotone host and nulls `devMsAt` for a backwards counter. So the refusal is asserted
+         where it can be — once, over every axis, naming the axis and the beat. */
+      T.eq('the sortedness refusal is there, exactly once', (wsrc.match(/broke sortedness at beat/g) || []).length, 1);
+      T.ok('…and it guards EVERY axis rather than a requested one', /for \(var _s = 1; _s < t\.length; _s\+\+\)/.test(wsrc), 'the loop runs unconditionally');
+      T.ok('…and the message names the axis and the beat', /throw new Error\(axis \+ ' ECG axis broke sortedness at beat ' \+ _s\)/.test(wsrc), 'the throw');
+      /* CONTROL — the two clocks agree, so the knob changes nothing and the difference above belongs
+         to the drift rather than to the arithmetic. */
+      var flat = mk(function (i) {
+        return T0 + (i / FS) * 1000 + (i > N / 2 ? 10000 : 0);
+      }, hole);
+      var fd = legs.ecg(flat);
+      var fc = legs.ecg(flat, null, { axis: 'counter' });
+      T.ok('CONTROL · on an agreeing pair of clocks the counter axis reads the default', worst(fd.times, fc.times) < 2, 'max |Δ| ' + worst(fd.times, fc.times).toFixed(3) + ' ms');
+    });
+
     group('PAT worker — both legs EXECUTE at sub-sample positions on the measured axis', 'pat · worker · regression', function (T) {
       /* PAT-FORENSICS-AXIS-LEG-ASYMMETRY names one leg ❌ and marks the other ✅. Re-measured
          2026-09-14, BOTH were quantising, and the ✅ was true of the FUNCTION and false of the LEG.
@@ -100925,7 +101052,12 @@
         T.eq(
           'and neither reaches the shared function, which is the state the remaining default governs',
           PAT_WORKERS.filter(function (f) {
-            return /rPeakTimesOnAxis/.test(SRC[f]);
+            /* A CALL, NEVER A MENTION (2026-11-26, row
+               2026-11-26-the-pat-worker-holds-a-knobless-piecewise-ecg-axis). The worker's axis block
+               names the shared function in prose, to say which default it matches, and a bare name
+               match read that sentence as a call. The sibling group above states the same rule for its
+               own literal matcher: prose must not satisfy it. */
+            return /\brPeakTimesOnAxis\s*\(/.test(SRC[f]);
           }).join(', '),
           ''
         );
