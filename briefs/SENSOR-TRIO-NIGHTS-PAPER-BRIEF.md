@@ -764,6 +764,95 @@ the nights an estimator cannot solve, then quoting the median of the rest, is th
 quantity being estimated.** The fused figure is the lowest of the four and is computed on the most
 favourable subset. It should not be quoted without its n and its 10 exclusions.
 
+### 📄 THE PAPER READING of the 127-night result — 2026-11-26 (Osprey, board #9224)
+
+The RE-DERIVED block above asks the paper owner to interpret the 127-night result, and this block
+interprets it. It cuts nothing new. Every figure comes from
+`analysis/published-numbers/tch-pooled-hat-2026-11-26.json`, from the 90-night record that one
+supersedes, or from the single measurement named in point 3. The record offered
+CLAIM tch5Offered = 185 FROM analysis/published-numbers/tch-pooled-hat-2026-11-26.json#result/offered nights and skipped
+CLAIM tch5Skipped = 58 FROM analysis/published-numbers/tch-pooled-hat-2026-11-26.json#result/skipped of them.
+
+**The estimators in σ, not σ².** The record stores variances, so every σ below is their square root.
+`medianSigma` is already a σ.
+
+| corner | median over nights | seconds-weighted | pooled-seconds | span, median → pooled | 90-night pooled | 90-night median |
+|---|---|---|---|---|---|---|
+| h10 | 0.722 | 1.284 | 1.288 | 1.78× | 1.387 | 0.774 |
+| verity | 0.839 | 1.154 | 1.154 | 1.38× | 1.295 | 0.930 |
+| o2 | 3.280 | 3.344 | 3.347 | 1.02× | 3.464 | 3.330 |
+
+**1 · The refutation holds, and the band behind it should go.** The between-night shares
+read 0.333 / 0.242 / 0.169 % of within, and §10 pre-stated the target: the term must explain a 2.5×
+spread. A 2.5× σ ratio needs `B/within` near 525 %, so the observed 0.333 % misses the mark by three
+orders of magnitude.
+
+The 0.19–0.46 % band is a photograph of one cut, not a prediction. Verity↔O2Ring has sat under its
+floor at every cut since 2026-09-29: 0.178, then 0.176, then 0.175, now 0.169. Three blocks above
+report that value as inside the range, so the band's bookkeeping is wrong three times over. `B/within`
+is a property of the night set, so an in-or-out verdict against a stale band carries no inferential
+content. The paper states the magnitude instead: on every corner and every cut since 2026-08-27 the
+between-night term stays under 0.5 % of within.
+
+**2 · The honest estimator span is 1.4×, not 1.9×.** The ✅ block above reads 0.72 → 1.35 over 54
+nights, and its 0.72 end is the fused median over n = 44 of 54. The ⚠️ block beside it already rules
+that figure unquotable without its n and its 10 exclusions, so the 1.9× rests on the corner the brief
+itself distrusts.
+
+Over 127 nights the unweighted median → pooled span reads 1.78× on h10, 1.38× on verity and 1.02× on
+o2. Over 90 nights it read 1.79× / 1.39× / 1.04×. The span therefore survives a 41 % increase in
+nights and a change of fold closure, which makes it the sturdier headline. The paper quotes 1.4× for
+σ_Verity and names the fused 1.9× as the anti-selected variant.
+
+**3 · `medianSigma` reports no n, and I measured it.** The tool drops every night whose own solve
+returns a negative variance (`tools/tch-pooled-hat.mjs:108`), and the record carries no n for the
+median. I re-solved the same 127 nights at producer commit `af66d481`: h10 keeps 124, verity keeps 126
+and o2 keeps 127. Swap the exclusion for a median over the SIGNED per-night variances and σ moves
+−3.4 % on h10, −0.9 % on verity and 0 % on o2. The exclusion is therefore immaterial at this corpus,
+unlike the fused estimator's 10 of 54, and the 0.839 figure survives it. Report the n beside the
+median anyway, because the exclusion correlates with the quantity.
+
+**4 · The published headline reproduces on one corner of three, and the two misses point opposite
+ways.** The published fused headline is 2.41 / 1.28 / 1.42 for O2Ring / H10 / Verity. The fused hat is
+a third weighting, so the test is whether the estimator FAMILY reaches each figure, exactly as §11
+argued for 3.51. H10 passes it: the family 0.722–1.288 brackets 1.28, and the pooled end sits 0.6 %
+away. Verity fails it: the family tops out at 1.154, which is 19 % under 1.42.
+
+O2Ring fails it in the other direction, because the family floor 3.280 is 36 % above 2.41. At 54
+nights the family top was 1.35, only 5 % under 1.42, so the growing corpus has moved 1.42 out of
+reach. The figure now joins 3.51 in the class §12 retired, as a number no weighting choice reproduces
+over this corpus. O2Ring's 2.41 is the same kind of miss with the sign reversed, and no estimator
+choice brings the family down to it. That pair of opposite directions is the result the paper should
+carry forward, because one shared cause cannot produce both.
+
+**5 · Three things moved at once, not two.** The RE-DERIVED block states that the night set and the
+code both changed. The mean night also lengthened, from 16,779 s to 17,860 s, which is 4.66 h to
+4.96 h and a rise of 6.4 %. §12 correction 1 calls window length load-bearing, and worth up to +49 %
+on a σ, so the window is the third term and no two-way split can be honest. All six σ figures in the
+table above fell. A direction shared across three corners and both estimators is what a change in the
+shared input produces, while a change in the night set alone need not produce it.
+
+**The split test, and what blocks it.** Re-cut the table over the 90-night subset under closure
+`252c85071f0cd2d7`. Neither record names its nights, because `corpus.scopedToNightsRead` reads null in
+both, so the 90 names must come from the 10-12 fold stamps rather than from the records.
+
+**What this reading does NOT claim.** I re-cut nothing, so the split between night set, code and
+window stays unmeasured. The 1.4× span is a property of this corpus and these three estimators. The
+verdict below decides the pre-stated attribution test of §10 and nothing else.
+
+```json
+{ "schema": "tepna.verdict/1", "gate": "tch-pooled-hat-attribution", "status": "FAIL",
+  "population": { "checked": 127, "eligible": 185, "excluded": 58 },
+  "criterion": { "name": "b_share_of_within_needed_for_the_pre_stated_2_5x_spread", "threshold": 525, "unit": "%", "direction": "gte" },
+  "result": { "shareHV": 0.333, "shareHO": 0.242, "shareVO": 0.169, "maxShare": 0.333 },
+  "evidence": ["analysis/published-numbers/tch-pooled-hat-2026-11-26.json", "tools/tch-pooled-hat.mjs", "briefs/SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md §10"],
+  "reason": "the between-night term reaches 0.333 % of within, and a 2.5x spread needs about 525 %, so the pre-registered attribution is refuted and not partial",
+  "producedBy": { "tool": "briefs/SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md §11 reading", "commit": "af66d481" }, "at": "2026-11-26T20:45:00Z" }
+```
+
+No tool emits that object. I hand-authored it from the committed record, and `commit` names the
+producer run the figures come from.
+
 ## 12. Where 3.51 came from, 2026-08-27 — a RETIRED GENERATION, and no surviving configuration reproduces it
 
 §11 retired the weighting class: no estimator choice over the current corpus reaches 3.51 (family spans
