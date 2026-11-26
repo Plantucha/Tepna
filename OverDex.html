@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="176f083bdec9" data-compute-hash="8c46a09624d0"><head>
+<html lang="en" data-manifest-hash="b72e2b6e9e4e" data-compute-hash="0858cae14de5"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/VJg0iL4BTIOQo1MBGNaCyjASkthShp7aMZCanB9k3A=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-2c3velFfSLNAC5jrCyn6cBTvi048ZOdXnJBmosvpvTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6vRsd8wVQoTSJKZCJmwjUOk0mO0dhv4yfkPzZA204MI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-9pxFCJPFipgaRs8G3wH7bh1NlNw0+rSdVQp4xMLxMqc=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-F3vpy36kLZJl/T9D9ou857W7+A/FPw0YXAqL5hvaGqo=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G73E908mGzZSzGnycAfYtgzAkAHMoWN+0fdZLpQ+vSE=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-Hjjq/dyCl54f7PO5KlTqSvb1kgh7Gm/NWD/7cWt770E=' 'sha256-IkoMy5gaSZB78svoNIZIL2ktLgpZKVC/niY+oBHTILk=' 'sha256-IlE6E9zWDqugqN32sR7f10CSNjO2VD//iePm9vZhdIU=' 'sha256-LOX2kTLNzMeRckNuBODeMYhv3brmvdtXZdZ8uEwPyy8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SploFxN8y41QfXBKeMXZ3VVUDPeaXF7mfHd2/kuq43U=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VwGqHWLSbaEDNL4p+AGh+MW4SneiHEn07RjprPzHgDU=' 'sha256-WldNv6ZaczXfSpdI9/QwglNtPxw2x/dd1j50BSnl680=' 'sha256-XhoVrB9BEhIhXlJd1jwCh7RHO4FOkVbzNeegg72RUoo=' 'sha256-biiHe0emfmUwcQd5Pyue/Fau47ELBDIFcEj5LYEobr8=' 'sha256-e8170odGJFoMGeKcTjWRUs5iHkAOyFMpt6z2GWfyQ/w=' 'sha256-gd9IuoPK0m0h+mwKmCjCmBpm6ebuTXqb8O27YnJNX04=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nbCcwjX4Ba9w3RBLEB+5up9PRhrS11tY5toYvGccPHI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-siTJEQpoDNnQ91b99O0dbWcjjTAHcnriuo4RN8xHJak=' 'sha256-voG5FOxK9EscA+uaXp7M2jU1JtX/IItWxJB4xuUEhEg=' 'sha256-yFPiGik662jFYAbvMxIGlhr8nHZY5SUqMK7xfqYl2hM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/VJg0iL4BTIOQo1MBGNaCyjASkthShp7aMZCanB9k3A=' 'sha256-/lPOk+s2QoSg4i0C35KgxSY1+/L0Dmv/E7Vcntix5gA=' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-2c3velFfSLNAC5jrCyn6cBTvi048ZOdXnJBmosvpvTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6vRsd8wVQoTSJKZCJmwjUOk0mO0dhv4yfkPzZA204MI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-9pxFCJPFipgaRs8G3wH7bh1NlNw0+rSdVQp4xMLxMqc=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-F3vpy36kLZJl/T9D9ou857W7+A/FPw0YXAqL5hvaGqo=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G73E908mGzZSzGnycAfYtgzAkAHMoWN+0fdZLpQ+vSE=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-Hjjq/dyCl54f7PO5KlTqSvb1kgh7Gm/NWD/7cWt770E=' 'sha256-IkoMy5gaSZB78svoNIZIL2ktLgpZKVC/niY+oBHTILk=' 'sha256-IlE6E9zWDqugqN32sR7f10CSNjO2VD//iePm9vZhdIU=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-ODUME6rCG5dZwSNAxzyg/ltBf8WI5wedxK4LJUnYE0E=' 'sha256-OjFw5SzuoM3mO8yed1StziEZ8zKmqLnsd3bLCp4pgwU=' 'sha256-QwMsZ9lD/yy6nbb3W+f6RRaWml36jKtSe1wnj5VTR1M=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SploFxN8y41QfXBKeMXZ3VVUDPeaXF7mfHd2/kuq43U=' 'sha256-Ty5sbmjrYDif1HD/obwEp7p6XtZVUcgPeg5bshSHXHk=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VwGqHWLSbaEDNL4p+AGh+MW4SneiHEn07RjprPzHgDU=' 'sha256-WldNv6ZaczXfSpdI9/QwglNtPxw2x/dd1j50BSnl680=' 'sha256-XhoVrB9BEhIhXlJd1jwCh7RHO4FOkVbzNeegg72RUoo=' 'sha256-biiHe0emfmUwcQd5Pyue/Fau47ELBDIFcEj5LYEobr8=' 'sha256-e8170odGJFoMGeKcTjWRUs5iHkAOyFMpt6z2GWfyQ/w=' 'sha256-gd9IuoPK0m0h+mwKmCjCmBpm6ebuTXqb8O27YnJNX04=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nbCcwjX4Ba9w3RBLEB+5up9PRhrS11tY5toYvGccPHI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-siTJEQpoDNnQ91b99O0dbWcjjTAHcnriuo4RN8xHJak=' 'sha256-voG5FOxK9EscA+uaXp7M2jU1JtX/IItWxJB4xuUEhEg=' 'sha256-yFPiGik662jFYAbvMxIGlhr8nHZY5SUqMK7xfqYl2hM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -9296,6 +9296,10 @@ function fuseHRVConsensus(recs, dtMs) {
       var rm = spread('rmssd'),
         sd = spread('sdnn'),
         lf = spread('lfhf');
+      /* Null, never an empty array, when nothing is caveated — and null too when SDNN was never
+         compared, because an axis that resolved no value needs no caveat about its calibration. */
+      var _axisCaveats = sd ? axisSiteCaveats(like) : [];
+      var axisCaveats = _axisCaveats.length ? _axisCaveats : null;
       /* DEEP-AUDIT-2026-07-11 §12: spread() correctly returns NULL for a key no two sources share (each
        node honestly nulls what it lacks — legal under the node-export contract). `|| 0` converted that
        ABSENCE into a measured 0 % divergence, which then drove qc:'agreement' and the surfaced note
@@ -9412,6 +9416,19 @@ function fuseHRVConsensus(recs, dtMs) {
             ? 'Cross-device divergence ' + worst + '% on ' + _worstMetric + ' (' + win + ') — flag as data-quality issue; reconcile before trusting a single value. Per metric: ' + _perMetric + '.'
             : 'Sources agree within ' + worst + '% on ' + win + ' HRV — reconciled autonomic state is reliable. Per metric: ' + _perMetric + '.') +
         (lowQExcluded ? ' Excluded low-quality source(s): ' + lowQExcluded.join(', ') + '.' : '');
+      if (axisCaveats)
+        note +=
+          ' \u26a0 ' +
+          axisCaveats
+            .map(function (c) {
+              return c.node + ' (' + c.site + ')';
+            })
+            .join(', ') +
+          ' is compared on the ' +
+          SDNN_ROBUST_AXIS_SITE +
+          '-calibrated SDNN axis (' +
+          axisCaveats[0].axis +
+          '), so part of any SDNN agreement or divergence here is the site, not the sensors. PpgDex measured the forehead beat-to-beat spread 1 to 18 % above a chest ECG over the same beats, on 7 recordings of one wearer.';
       if (tch && tch.ok)
         note += ' TCH: ' + tch.culprit + ' carries the largest error variance (σ²≈' + Math.round(tch.sigma2[tch.culprit]) + ' ms², ' + tch.method + ') — down-weight it in the reconciled value.';
       if (tchHR && tchHR.ok)
@@ -9454,6 +9471,9 @@ function fuseHRVConsensus(recs, dtMs) {
            per-metric blocks. A new field, so an older consumer reads the export unchanged. */
         divergenceMetric: _worstMetric,
         lowQualityExcluded: lowQExcluded,
+        /* The machine-readable sibling of the \u26a0 above, and the selector the renderer reads to
+           drop the card one tier. Additive: null on every block that compares one site. */
+        axisCaveats: axisCaveats,
         tch: tch && tch.ok ? tch : null,
         tchStatus: tch ? (tch.ok ? 'ok' : tch.reason) : 'not-attempted',
         tchHR: tchHR && tchHR.ok ? tchHR : null,
@@ -13518,6 +13538,45 @@ function gradeFor(node, id) {
    folded in with whatever it resembles; and a `null` or `undefined` is still mixed, because an absent
    statistic name is not evidence that the legs agree. */
 var HR_STAT_CLASS = { 'rate-of-mean': 'mean-of-rr', 'mean-rate': 'mean-of-rr', 'median-rate': 'median-of-rate' };
+/* ── THE SDNN AXIS WAS CALIBRATED AT ONE SITE, and the consensus applies it at every site ──────
+   `_cmpVal` below resolves every PpgDex SDNN to `summary.sdnnRobustMs`, because the bare optical
+   SDNN runs baseline-wander-inflated. That swap is right, and its agreement figure is not
+   site-free: the ~+3.5 % against a chest ECG was measured on WRIST nights. A forehead headband
+   record is a source in this consensus today (its optics export declares `site: 'forehead'`), and
+   PpgDex states its own forehead bias on the page — rMSSD read 1 to 18 % above a chest ECG over the
+   same beats, over 7 recordings of one wearer (`ppgdex-app.js` `siteControlHtml`).
+
+   So the consensus must SAY that it resolved a record of one site on another site's axis. REPORTED,
+   NOT REFUSED, for the same reason `hrStatMixed` reports a mixed HR statistic rather than
+   suppressing the hat: dropping the source loses the only cross-node-comparable axis it has, while
+   a silent comparison publishes an agreement the calibration does not support. The flag is also what
+   drops the card one evidence tier, exactly as `tch.pseudo` does.
+
+   A record that declares NO site gains NO caveat. `_siteIdent` answers null for an
+   `integrator-default` site, so this layer never states a site it inferred itself, and no committed
+   fixture of a site-less night moves. */
+var SDNN_ROBUST_AXIS_SITE = 'wrist';
+function axisSiteCaveats(sources) {
+  return (sources || [])
+    .filter(function (s) {
+      if (!s || s.node !== 'PpgDex') return false;
+      var sm = s.summary || {};
+      /* The caveat tracks the SWAP, so it fires only where `_cmpVal` actually swaps: a record with
+         no robust axis is compared on the field it published, and that is a different question. */
+      if (!(sm.sdnnRobustMs != null && isFinite(sm.sdnnRobustMs))) return false;
+      var site = _siteIdent(s);
+      return site != null && site !== SDNN_ROBUST_AXIS_SITE;
+    })
+    .map(function (s) {
+      return {
+        node: s.node,
+        site: _siteIdent(s),
+        axis: 'sdnnRobustMs',
+        calibratedAt: SDNN_ROBUST_AXIS_SITE,
+        reason: 'axis-calibrated-at-another-site'
+      };
+    });
+}
 function hrStatMixed(stats) {
   var list = stats || [];
   if (list.indexOf(null) >= 0 || list.indexOf(undefined) >= 0) return true;
@@ -13566,6 +13625,9 @@ window.IntegratorDSP = {
   /* The publishable site name, shared with the renderer so the chips, the lanes, the corner labels
      and the consensus rows all answer the same question the same way. */
   siteIdent: _siteIdent,
+  /* Exported for the suite and for any consumer that must know an axis crossed a site boundary
+     without re-running a fusion. */
+  axisSiteCaveats,
   normalizeFile,
   consumeMeasurements,
   dedupeRecs,
