@@ -7,7 +7,7 @@
 
 A fleet of single-signal physiological analyzers — **OxyDex** (SpO₂), **HRVDex** (HRV summaries),
 **PulseDex** (raw RR → HRV), **GlucoDex** (CGM), **ECGDex** (raw ECG), **CPAPDex** (CPAP EDF),
-**MotionDex** (IMU), planned **EEGDex** — plus the event bus **"Ganglior"** (name FROZEN; the Integrator
+**MotionDex** (IMU), **EEGDex** (raw EEG) — plus the event bus **"Ganglior"** (name FROZEN; the Integrator
 still reads a `fascia` alias on input) and the fusion layer **"Integrator"**
 (`briefs/INTEGRATOR-BUILD-BRIEF.md`). Each app is built from `*-dsp.js` / `*-render.js` / `*-app.js`
 referenced by `Foo.src.html` and bundled to a standalone `Foo.html`. **Edit the `.js` + `.src.html`,
@@ -415,7 +415,7 @@ detectPeaks`). Never fuse or compare onboard summaries.
 
 **A real tri-device corpus exists** — O2Ring + Polar H10 (device `H10-01`) + Polar Verity Sense
 (device `VERITY-01`), 2026-06-10 → 2026-07-05, **CLAIM trioEligibleNights = 17 FROM analysis/tri_device_nights.json#result/window/count eligible nights** (~10 with clean Verity) — the ground truth behind the reference-free σ work. `tools/trio-eligible-nights.mjs` writes the night NAMES
-from each night's own fold stamp, held against its tracked exports; 90 nights qualify corpus-wide.
+from each night's own fold stamp, held against its tracked exports; 127 nights qualify corpus-wide.
 
 ## 🧪 Regression gate — after ANY `*-dsp.js` / `*-cross.js` / `*-app.js` change
 **`Dex-Test-Suite.html`** runs the real modules + `tests/dex-tests.js` (the same suite as
