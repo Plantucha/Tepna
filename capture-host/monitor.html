@@ -1175,9 +1175,23 @@ function oxyStormChip(d){
   }
   return '';
 }
+// THE DEVICE CLOCK'S RATE, beside its offset. `clock_rate_ppm` is a Theil-Sen slope over the 10-min
+// floors of (host - device) in this link session (capture.py drift_rate): + means the device clock runs
+// fast. Absent until 6 windows close, and the pill then says how many have. A ppm never shows without
+// its window count and span (Clock Contract §7). No field at all ⇒ the device has no clock we read.
+function driftChip(dev){
+  if(!dev || !dev.connected || dev.clock_rate_windows == null) return '';
+  const p = dev.clock_rate_ppm, n = dev.clock_rate_windows;
+  if(p == null || !isFinite(p))
+    return `<span class="clk" title="${esc(`device clock rate: ${n} of 6 ten-minute windows closed in this link session`)}">⏱ rate ${n}/6</span>`;
+  const h = (dev.clock_rate_span_s || 0) / 3600;
+  const t = `device clock runs ${p>=0?'+':''}${p} ppm against the host clock (+ = fast), Theil-Sen over ${n} ten-minute floors spanning ${h.toFixed(1)} h of this link session`
+          + ` · ${(Math.abs(p) * 3.6 * 8 / 1000).toFixed(2)} s over an 8 h night`;
+  return `<span class="clk ${Math.abs(p) > 500 ? 'warn' : 'ok'}" title="${esc(t)}">⏱ ${p>=0?'+':''}${Math.round(p)} ppm</span>`;
+}
 function clkChip(dev){
   const st = clockStatus(dev);
-  if(!st) return '';
+  if(!st) return driftChip(dev);
   const s = dev.clock_skew_sec;
   const f = dev.clock_skew_floor_sec;
   const t = `device clock ${dev.device_time}`
@@ -1192,7 +1206,7 @@ function clkChip(dev){
           // the delivery latency, which is the thing worth seeing — a re-sync explained by an envelope
           // the operator cannot see reads as the daemon acting at random.
           + (f!=null ? ` · windowed floor ${f>=0?'+':''}${Math.abs(f)>=3600?(f/3600).toFixed(1)+'h':Math.round(f)+'s'} over ${dev.clock_skew_n||0} frames` : ' · window not yet measured');
-  return `<span class="clk ${st.cls}" title="${esc(t)}">🕐 ${st.txt}</span>`;
+  return `<span class="clk ${st.cls}" title="${esc(t)}">🕐 ${st.txt}</span>` + driftChip(dev);
 }
 // Charging pill. A Polar on its dock REFUSES every PMD START with status 0x0D `in_charger` — that is
 // the device working as designed, not a fault, so it must never render as a red/amber error. The daemon
