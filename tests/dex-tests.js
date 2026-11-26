@@ -78268,6 +78268,37 @@
       var sr = TR.scoreSeries(short, H, V, O);
       T.ok('§∅ fewer shared seconds than MIN_SECONDS refuses with a named reason', sr.ok === false && /< 1000/.test(sr.reason) && sr.n === 10, JSON.stringify(sr));
 
+      /* ── THE OPTIONAL FOUR-WAY RESTRICTION (row `2026-11-26-four-corner-hat-still-over-reads-the-chest`) ──
+         `solveFourCorners` builds its hat over the four-way overlap while this reference rode the
+         three-way one, so a ratio of the two sigmas compared two different second sets. A fourth
+         required map can only NARROW the key set, so the restricted read must cover fewer seconds
+         AND the unrestricted call must still answer exactly what it answered before (board #8984,
+         decision 1 — the headline never moves). */
+      var M4 = new Map();
+      for (s = 0; s < 1800; s++) M4.set(s, 60);
+      var sc4 = TR.scoreSeries(REF, H, V, O, [M4]);
+      T.eq('a fourth required map narrows the key set to the seconds it covers', sc4.ok ? sc4.n : 'refused', 1800);
+      T.ok('CONTROL · the unrestricted call still scores every shared second', sc.ok && sc.n === 3000, JSON.stringify(sc.n));
+      T.ok(
+        'the restricted σ stays within 10 % of the unrestricted one over the same planted errors',
+        sc4.ok && Math.abs(sc4.trueSd.h10 / sc.trueSd.h10 - 1) < 0.1,
+        sc4.ok ? JSON.stringify([sc4.trueSd.h10, sc.trueSd.h10]) : 'refused'
+      );
+      T.eq('CONTROL · an empty restriction array scores the unrestricted key set', TR.scoreSeries(REF, H, V, O, []).n, 3000);
+      T.eq('CONTROL · a null restriction scores the unrestricted key set', TR.scoreSeries(REF, H, V, O, null).n, 3000);
+      T.eq('∅ a restriction that is not a map is LEFT OUT, never read as an all-seconds map', TR.scoreSeries(REF, H, V, O, [null, 7]).n, 3000);
+      var narrow4 = new Map();
+      for (s = 0; s < 40; s++) narrow4.set(s, 60);
+      var sc4r = TR.scoreSeries(REF, H, V, O, [narrow4]);
+      T.ok('§∅ a four-way overlap under MIN_SECONDS refuses, and the reason counts FOUR corners', sc4r.ok === false && /all 4 corners/.test(sc4r.reason) && sc4r.n === 40, JSON.stringify(sc4r));
+      T.ok('CONTROL · the three-corner refusal text did not move, so no shipped message changed', /all three corners/.test(sr.reason), sr.reason);
+      T.ok(
+        'the worker hands the forehead map to a SECOND scoring, beside the headline one',
+        /scoreSeries\(B\.REF, H, V, O, \[M\]\)/.test(wk) && /nightReference\(f, Hrec, H, V, O, pg, M\)/.test(wk),
+        'the worker carries no four-way reference'
+      );
+      T.ok('the worker NAMES the refusal when a night carries no forehead corner', /no forehead corner, so no four-way reference exists/.test(wk), 'an absent fourth corner reads as an absent field');
+
       /* the worker's refusals, run through the real function body */
       var nrSrc = fnText(wk, 'nightReference');
       T.ok('the worker defines nightReference', !!nrSrc);

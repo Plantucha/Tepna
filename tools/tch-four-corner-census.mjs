@@ -299,13 +299,15 @@ export function censusVerdict(a) {
           cornerReasons: countCornerReasons(rows),
           /* the corner-ordering question, with its span caveat recorded beside it (§3b) */
           referenceDirection: referenceDirection(rows),
+          referenceDirectionSameSeconds: referenceDirectionSameSeconds(rows),
           fourthCornerShift: fourthCornerShift(rows),
           /* THE POPULATION'S OWN STABILITY, carried so a reader of this verdict alone can see
              whether the root moved under the run and which nights that cost (§∅ — a move is
              reduced coverage, which annotates, and never a silent narrowing). */
           populationStability: a.popStability ? { status: a.popStability.status, reason: a.popStability.reason } : null,
           nightsDroppedForPopulationMove: a.dropped && a.dropped.length ? a.dropped : [],
-          referenceSpanCaveat: 'the firmware reference is scored over the three-way overlap, not the four-way one, so read the per-night direction and not the ratio',
+          referenceSpanCaveat:
+            'the headline firmware reference is scored over the three-way overlap, not the four-way one, so read its per-night direction and never its ratio; `referenceDirectionSameSeconds` carries the same count over one second set',
           excludedNights: excluded.map((e) => ({ night: e.night, reason: e.reason }))
         };
   return {
@@ -335,17 +337,17 @@ export function censusVerdict(a) {
    needs `scoreSeries` restricted to the four-way key set, which is a change to the shipped worker
    and a separate unit. */
 
-/** Per corner: how often the four-corner sigma sits ABOVE the night's own firmware reference. PURE. */
-export function referenceDirection(rows) {
+/** The direction count against whichever reference sigma map `pick` returns for a night. PURE. */
+function directionAgainst(rows, pick) {
   const out = {};
   for (const nm of TRIO_NAMES) {
     const ratios = [];
     let above = 0;
     let below = 0;
     for (const r of rows || []) {
-      const rf = r && r.reference;
       const sg = r && r.four && r.four.sigma ? r.four.sigma[nm] : null;
-      const rs = rf && rf.ok && rf.sigma ? rf.sigma[nm] : null;
+      const map = pick(r);
+      const rs = map ? map[nm] : null;
       if (!Number.isFinite(sg) || !Number.isFinite(rs) || rs <= 0) continue;
       ratios.push(sg / rs);
       if (sg > rs) above++;
@@ -354,6 +356,31 @@ export function referenceDirection(rows) {
     out[nm] = { n: ratios.length, above, below, medianRatio: median(ratios) };
   }
   return out;
+}
+
+/** Per corner: how often the four-corner sigma sits ABOVE the night's own firmware reference. PURE. */
+export function referenceDirection(rows) {
+  return directionAgainst(rows, (r) => {
+    const rf = r && r.reference;
+    return rf && rf.ok && rf.sigma ? rf.sigma : null;
+  });
+}
+
+/* THE SAME-SECONDS COUNT (row `2026-11-26-four-corner-hat-still-over-reads-the-chest`). The count
+   above reads a reference scored over the THREE-way overlap against a hat built over the four-way
+   one, so its RATIO is not a same-seconds figure and §3b says to read the direction instead. The
+   worker now carries a second reference restricted to the four-way key set, so this count reads a
+   ratio of two sigmas over ONE second set. Both travel, and neither replaces the other: the headline
+   reference keeps the key set every published number used (board #8984, decision 1). A night with no
+   forehead corner, or a four-way overlap under the reference floor, contributes to NO count here and
+   carries its own named refusal in `reference.fourWay.reason` (∅). */
+/** Per corner: the same count against the FOUR-WAY reference, so the ratio is same-seconds. PURE. */
+export function referenceDirectionSameSeconds(rows) {
+  return directionAgainst(rows, (r) => {
+    const rf = r && r.reference;
+    const w = rf && rf.ok ? rf.fourWay : null;
+    return w && w.ok && w.sigma ? w.sigma : null;
+  });
 }
 
 /** Per corner: how far the FOURTH corner moved it off the same-seconds three-corner hat. PURE. */
@@ -669,6 +696,16 @@ export function reportLines(rows, excluded, verdict) {
         `  ${nm.padEnd(8)} above the reference on ${d.above}/${d.n} night(s) · median ratio ${fmt(d.medianRatio)}${nm === 'h10' ? ' (and the reference is a LOWER BOUND, so this understates it)' : ''}`
       );
     }
+    const rdS = referenceDirectionSameSeconds(rows);
+    if (TRIO_NAMES.some((nm) => rdS[nm].n > 0)) {
+      L.push('  the SAME count against the FOUR-WAY reference, where the ratio IS same-seconds');
+      for (const nm of TRIO_NAMES) {
+        const d = rdS[nm];
+        L.push(d.n ? `  ${nm.padEnd(8)} above on ${d.above}/${d.n} night(s) · median ratio ${fmt(d.medianRatio)}` : `  ${nm.padEnd(8)} no four-way reference sigma on any night`);
+      }
+    } else {
+      L.push('  no night carries a four-way reference sigma, so this population supports no same-seconds ratio');
+    }
     L.push('  how far the FOURTH corner moved each corner off the same-seconds three-corner hat');
     for (const nm of TRIO_NAMES) {
       const s = fs2[nm];
@@ -897,6 +934,30 @@ function selftest() {
   ok('the prose carries the differing-span caveat beside the ratio', /not same-seconds; the per-night direction is the figure/.test(rdL));
   ok('the prose says the chest reference understates the gap', /LOWER BOUND, so this understates it/.test(rdL));
   ok('the ordering block is absent when no night carries a reference', !/corner ordering/.test(reportLines([nightRow('c', p, { four })], [], vp).join('\n')));
+  /* ── THE SAME-SECONDS COUNT (row `2026-11-26-four-corner-hat-still-over-reads-the-chest`) ──
+     The two counts must be able to DISAGREE, or the new field reads the old one. So this night puts
+     the chest above its three-way reference and below its four-way one, and the two counts must
+     split. A four-way refusal must drop the night from the new count and leave the headline alone. */
+  const sfFour = { ok: true, seconds: 4000, spanMin: 70, names: FOUR_NAMES, sigma: { h10: 2, verity: 1, o2: 3, forehead: 1 }, subHats: [] };
+  const sfRef = (fw) => ({ ok: true, n: 9000, sigma: { h10: 1, verity: 4, o2: 3 }, fourWay: fw });
+  const sfRows = [nightRow('e', p, { four: sfFour, reference: sfRef({ ok: true, n: 3800, sigma: { h10: 4, verity: 4, o2: 3 } }) })];
+  ok(
+    'the same-seconds count reads the four-way reference and counts the chest BELOW',
+    referenceDirectionSameSeconds(sfRows).h10.below === 1,
+    JSON.stringify(referenceDirectionSameSeconds(sfRows).h10)
+  );
+  ok('CONTROL · the headline count reads the three-way reference and counts it ABOVE', referenceDirection(sfRows).h10.above === 1, JSON.stringify(referenceDirection(sfRows).h10));
+  ok(
+    'the same-seconds ratio divides the four-way sigma, never the headline one',
+    referenceDirectionSameSeconds(sfRows).h10.medianRatio === 0.5,
+    String(referenceDirectionSameSeconds(sfRows).h10.medianRatio)
+  );
+  const sfRefused = [nightRow('f', p, { four: sfFour, reference: sfRef({ ok: false, reason: 'the night carried no forehead corner, so no four-way reference exists', n: null }) })];
+  ok('a refused four-way reference contributes to NO same-seconds count', referenceDirectionSameSeconds(sfRefused).h10.n === 0);
+  ok('CONTROL · and that night still counts in the headline one', referenceDirection(sfRefused).h10.n === 1);
+  ok('a night with no fourWay field at all contributes to no same-seconds count', referenceDirectionSameSeconds(rdRows).h10.n === 0);
+  ok('the prose names the same-seconds block', /the SAME count against the FOUR-WAY reference/.test(reportLines(sfRows, [], vp).join('\n')));
+  ok('the prose says a population with no four-way reference supports no same-seconds ratio', /supports no same-seconds ratio/.test(rdL));
   /* the fourth corner's own displacement: sigma 2 against a same-seconds trio sigma of 1 is 1.0 */
   const fsh = fourthCornerShift([
     nightRow('e', p, {
@@ -908,7 +969,13 @@ function selftest() {
     'the verdict publishes both aggregates and the span caveat',
     (() => {
       const v = censusVerdict({ rows: rdRows, excluded: [], eligible: 2 });
-      return !!v.result.referenceDirection && !!v.result.fourthCornerShift && /not the four-way one/.test(v.result.referenceSpanCaveat);
+      return (
+        !!v.result.referenceDirection &&
+        !!v.result.referenceDirectionSameSeconds &&
+        !!v.result.fourthCornerShift &&
+        /not the four-way one/.test(v.result.referenceSpanCaveat) &&
+        /referenceDirectionSameSeconds/.test(v.result.referenceSpanCaveat)
+      );
     })()
   );
   ok('a NOT_RUN still publishes no aggregate', censusVerdict({ rows: [], excluded: [], eligible: 0 }).result === null);

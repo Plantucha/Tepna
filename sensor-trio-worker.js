@@ -1313,7 +1313,7 @@ function o2MarkerHrMap(text, runsText) {
    ECGDex's beats and the H10 firmware's beats, paired in time; the intervals the two detectors agree on
    within 8 ms give a per-second reference HR. Each corner's σ is its SD against that reference over the
    seconds all four share. The H10's σ is a LOWER BOUND: the reference is built from its own beats. */
-async function nightReference(f, rec, H, V, O, pg) {
+async function nightReference(f, rec, H, V, O, pg, M) {
   if (!f.h10rr) return { ok: false, reason: 'no H10 _RR.txt was selected for this night' };
   if (!rec) return { ok: false, reason: 'the H10 corner was not read from its raw _ECG.txt, so there are no ECGDex beats to pair with the firmware' };
   if (typeof TrioReference === 'undefined' || !TrioReference || typeof TrioReference.buildReference !== 'function')
@@ -1326,7 +1326,23 @@ async function nightReference(f, rec, H, V, O, pg) {
     if (!B.ok) return { ok: false, reason: B.reason };
     var s = TrioReference.scoreSeries(B.REF, H, V, O);
     if (!s.ok) return { ok: false, reason: s.reason, n: s.n };
-    return { ok: true, n: s.n, sigma: s.trueSd, bias: s.bias, rho: s.rho, seconds: B.REF.size, agreeing: B.cp.pairs.length, beats: B.ref.nn.length, referenceAxis: B.ref.axis };
+    /* THE SAME-SECONDS REFERENCE, beside the headline and never over it (row
+       `2026-11-26-four-corner-hat-still-over-reads-the-chest`). `solveFourCorners` builds its hat
+       over the FOUR-way overlap while the reference above rides the three-way one, so a ratio of
+       the two sigmas compared two different second sets. This second scoring restricts the key set
+       to the seconds the forehead corner also covers, which makes the ratio a same-seconds figure.
+       🔴 The headline `sigma` above keeps the three-way key set, by board #8984 decision 1: a fourth
+       corner can only narrow the intersection, so routing the headline through it would move a
+       published number on every four-signal night to answer a question about a new panel.
+       ∅ A night with no forehead corner carries a NAMED refusal here rather than an absent field,
+       so a reader can tell "no fourth corner" from "the four-way overlap fell under the floor". */
+    var f4 = M && typeof M.has === 'function' ? TrioReference.scoreSeries(B.REF, H, V, O, [M]) : null;
+    var fourWay = f4
+      ? f4.ok
+        ? { ok: true, n: f4.n, sigma: f4.trueSd, bias: f4.bias, rho: f4.rho }
+        : { ok: false, reason: f4.reason, n: f4.n }
+      : { ok: false, reason: 'the night carried no forehead corner, so no four-way reference exists', n: null };
+    return { ok: true, n: s.n, sigma: s.trueSd, bias: s.bias, rho: s.rho, fourWay: fourWay, seconds: B.REF.size, agreeing: B.cp.pairs.length, beats: B.ref.nn.length, referenceAxis: B.ref.axis };
   } catch (e) {
     return { ok: false, reason: 'the beat reference threw: ' + String((e && e.message) || e).slice(0, 160) };
   }
@@ -1548,7 +1564,7 @@ async function runRealNight(m) {
        and the two optical corners share part of theirs, so the hat moves error between corners. On a
        night with the H10's `_RR.txt` this measures each corner directly instead, with the code the
        published record runs (`trio-reference.js`). A refusal names its reason (§∅). */
-    var reference = await nightReference(f, Hrec, H, V, O, pg);
+    var reference = await nightReference(f, Hrec, H, V, O, pg, M);
     var out = {
       skip: false,
       n: ks.length,
