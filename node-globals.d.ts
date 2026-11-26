@@ -37,6 +37,7 @@ declare var _oxyW2: any; // window state — pending _PPG2W.txt texts awaiting t
 declare var _oxyW2S: any; // window state — parsed _SPO2.csv rows awaiting their _PPG2W.txt pair
 declare var _oxyW2R: any; // window state — pending _PPG2WRUNS.txt validity sidecars, keyed by the SAME stem as _oxyW2 (SAMPLE-VALIDITY-ENVELOPE §3.2)
 declare var _oxyRtcLog: any; // window state — parsed *_rtclog.csv rows awaiting matching to their .bin/.dat nights (FINISHED-WORK §A 2a)
+declare var _oxyRtcSidecarEmpty: any; // window state — a *_rtclog.csv arrived and held nothing, so the RTC verification is UNMEASURED rather than unpaired (∅ ruling 2026-11-26)
 declare var _oxyAcqEvidence: any; // window state — parsed *.meta.json acquisition-evidence envelopes keyed by session_id, awaiting matching to their .dat nights (ACQ-EVIDENCE-CONTRACT Phase C)
 declare var oxyRenderSpo2w: any; // oxydex-app.js — waveform-SpO₂ section renderer, called by the DSP pairing intake
 

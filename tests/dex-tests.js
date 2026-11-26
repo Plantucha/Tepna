@@ -23913,7 +23913,7 @@
       T.ok('…the drop-batch matcher exists', /function\s+_o2AttachRtcVerification\s*\(\s*night\s*,\s*log\s*\)/.test(dsp), 'expected `function _o2AttachRtcVerification(night, log)`');
       T.ok(
         '…the sidecar is stashed on `window._oxyRtcLog` (drop order does not matter)',
-        /_rtclog\\\.csv\$\/i\.test\(file\.name\)[\s\S]{0,300}window\._oxyRtcLog/.test(dsp),
+        /_rtclog\\\.csv\$\/i\.test\(file\.name\)[\s\S]{0,900}window\._oxyRtcLog/.test(dsp),
         'the `_rtclog.csv` branch is not stashing on `window._oxyRtcLog`'
       );
       T.ok('…the .bin/.dat night is MARKED as RTC-auditable (CSV nights are host-stamped)', /_binNight\._o2BinSource\s*=\s*true/.test(dsp), 'the isO2RingBin branch is not marking `_o2BinSource`');
@@ -23979,7 +23979,13 @@
         '2026-06-25T05:00:00;push;;discharging;73;;\n' +
         '2026-06-25T05:00:00;battery;;discharging;73;41;0\n' +
         '2026-06-25T05:30:00;read;-1.8;discharging;72;;\n';
-      T.ok('parseRingClockLog · no text places no clock read', OB.parseRingClockLog(undefined).length === 0 && OB.parseRingClockLog('').length === 0);
+      /* ∅ ruling 2026-11-26 (board #9027). This leg read `[]` on BOTH roads as the contract, which
+         made an absence a list of zero clock reads. The contract is now the two absences told apart:
+         an ABSENT text answers `null`, and a PRESENT, EMPTY one answers the named refusal. A list of
+         zero reads stays the answer for a file that stated its columns and found none, which the
+         sibling group `∅ the six sibling sidecar parsers …` holds as its CONTROL. */
+      T.ok('parseRingClockLog · an ABSENT text places no clock read, and answers null', OB.parseRingClockLog(undefined) === null);
+      T.ok('parseRingClockLog · …and a PRESENT, EMPTY text is the named refusal, never zero reads', OB.parseRingClockLog('').err === 'sidecar-empty');
       var log = OB.parseRingClockLog(CSV);
       T.ok('parseRingClockLog reads every event type', log.length === 4, 'expected 4 rows, got ' + log.length);
       T.ok('…and coerces offset to a finite number on read events', log[0].offsetS === -1.2 && log[3].offsetS === -1.8, 'offset column not parsed as number');
@@ -119445,8 +119451,13 @@
       /* mutant: bool || → &&  @ if (typeof text !== 'string' || !text) return [];
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function should return an empty array when input is not a string or is empty, rather than throwing an erro */
       {
+        /* ∅ RECONCILED 2026-11-26 — the recorded output `[]` WAS the defect: a non-string text is an
+           ABSENT sidecar, and the empty list published it as a sidecar that recorded no clock read. The
+           one guard line the mutant names is now two, so a non-string answers `null` and a present,
+           empty text answers the named refusal. The leg keeps the same road — a non-string input must
+           not throw — and records the honest answer. The ruling sits on `parseRingClockLog` itself. */
         var out = NS.parseRingClockLog(1);
-        T.eq('OxyDex.parseRingClockLog(1) → out.length', JSON.stringify(out.length), '0');
+        T.eq('OxyDex.parseRingClockLog(1) → out (an ABSENT text, never zero reads)', JSON.stringify(out), 'null');
       }
       /* mutant: cmp > → >=  @ var label = dip > 10 ? 'Good (intra-night)' : dip > 5 ? 'Moderate (intra-night)' : 'Lo
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly formats the intra-night dip label to include the full phrase "intra-night" rather than */
@@ -120072,8 +120083,10 @@
         /* mutant: bool || → &&  @ if (typeof text !== 'string' || !text) return [];
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly returns an empty array when input is not a string or is empty, instead of throwing an e */
         {
+          /* ∅ RECONCILED 2026-11-26 — same reading as the b1 draft above: the empty array was absence
+             published as an observation. A non-string text answers `null` now. */
           var out = NS.parseRingClockLog(1);
-          T.eq('NS.parseRingClockLog(1) → out', JSON.stringify(out), '[]');
+          T.eq('NS.parseRingClockLog(1) → out (an ABSENT text, never zero reads)', JSON.stringify(out), 'null');
         }
         /* mutant: cmp > → >=  @ var label = dip > 10 ? 'Good (intra-night)' : dip > 5 ? 'Moderate (intra-night)' :
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The intra-night dip level label is correctly formatted with a trailing parenthesis. */
@@ -122095,6 +122108,108 @@
           P._setStore();
         } catch (_e) {}
       }
+    });
+    /* ════ ∅ THE SIX SIBLING SIDECAR PARSERS — A PRESENT, EMPTY FILE IS A NAMED REFUSAL ════════════
+       The ruling of 2026-11-26 (board #9027) covered the four parsers that #5894 repaired, and six
+       siblings read the same files one key over: `parseEcgRuns` and `parseAccRunsTimed` in ECGDex,
+       `parseAccRunsTimed` in PpgDex, `parseAccRuns` and `parseAccSeams` in MotionDex, and
+       `parseRingClockLog` in OxyDex. Five of them answered `null` for a present, empty text, which
+       is the ABSENT answer — so a truncated capture reported that nobody looked, and the reason a
+       consumer published named the wrong absence. The sixth answered an EMPTY ARRAY on both roads,
+       so a batch with no ring-clock sidecar and a batch whose sidecar held nothing arrived at the
+       matcher alike: absence as zero reads, which §∅ refuses by name.
+
+       Every leg below pairs with a CONTROL on the road that must not move — a stream paired with no
+       sidecar keeps the bytes it has today, and a HEADER-ONLY file stays a measurement, because the
+       writer stamps its rule on open and a stated rule with no row found is a real observation. */
+    group('∅ the six sibling sidecar parsers read a present, empty file as a named refusal', 'ecgdex-dsp · ppgdex-dsp · motiondex-dsp · oxydex-dsp · absence · §∅', function (T) {
+      var RE = /present and empty \(sidecar-empty\)/;
+      var E = env.ECGDSP;
+      // ── (1) ECGDex · the ECG run sidecar ─────────────────────────────────────────────────────
+      if (E && typeof E.parseECG === 'function') {
+        var HDR = 'Phone timestamp;sensor timestamp [ns];ecg [uV]\n';
+        var RUNHDR = '# stream=ecg rule=stuck min_run=200 t_stuck=200 merge_gap_max=8\n';
+        var rEmpty = E.parseECG(HDR, { runsText: '' });
+        T.eq('∅ · ECGDex · an EMPTY run sidecar publishes NO blanking spans, never zero spans', rEmpty.blankingSpans, null);
+        T.ok('∅ · …and the reason names the file as present and empty', RE.test(String(rEmpty.blankingSpansReason)), String(rEmpty.blankingSpansReason));
+        T.ok('∅ · …and no sidecar object is hung for a file that states nothing', rEmpty.runsSidecar == null);
+        T.ok('∅ · …and whitespace alone reads the same way', RE.test(String(E.parseECG(HDR, { runsText: '  \n ' }).blankingSpansReason)));
+        T.ok('∅ · CONTROL · no run sidecar at all carries no reason, so neither absence reads as the other', E.parseECG(HDR).blankingSpansReason === undefined);
+        var rHdr = E.parseECG(HDR, { runsText: RUNHDR + 'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule\n' });
+        T.ok('∅ · CONTROL · a HEADER-ONLY run sidecar is a rule stated and no run found, so it still parses', rHdr.runsSidecar != null && rHdr.blankingSpansReason === undefined);
+      } else T.skip('ECGDSP.parseECG unavailable');
+      // ── (2) ECGDex · the MOTION run sidecar beside the same stream ────────────────────────────
+      var ACCHDR = 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]\n';
+      var accText = function () {
+        var rows = ACCHDR;
+        for (var i = 0; i < 60; i++) {
+          var d = new Date(Date.UTC(2026, 5, 13, 20, 44, 0, 0) + i * 40);
+          rows += d.toISOString().replace('Z', '').slice(0, 23) + ';' + (599631585300704528 + i * 40000000) + ';' + (100 + i) + ';86;990\n';
+        }
+        return rows;
+      };
+      if (E && typeof E.parseDeviceACC === 'function') {
+        var aText = accText();
+        var aEmpty = E.parseDeviceACC(aText, { runsText: '' });
+        T.ok('∅ · ECGDex motion · an EMPTY run sidecar names its own absence', RE.test(String(aEmpty.acc && aEmpty.acc._runsSidecarReason)), String(aEmpty.acc && aEmpty.acc._runsSidecarReason));
+        T.ok('∅ · …and hangs no sidecar object, because one carrying no rows is not a sidecar', aEmpty.acc && aEmpty.acc._runsSidecar == null);
+        T.ok('∅ · CONTROL · the stream paired with none carries no reason', E.parseDeviceACC(aText).acc._runsSidecarReason === undefined);
+      } else T.skip('ECGDSP.parseDeviceACC unavailable');
+      // ── (3) PpgDex · the node-local copy of that parser ───────────────────────────────────────
+      var P = env.PPGDSP;
+      if (P && typeof P.parseSensorXYZ === 'function') {
+        var pText = accText();
+        var pEmpty = P.parseSensorXYZ(pText, { runsText: '' });
+        T.ok('∅ · PpgDex motion · an EMPTY run sidecar names its own absence', RE.test(String(pEmpty && pEmpty._runsSidecarReason)), String(pEmpty && pEmpty._runsSidecarReason));
+        T.ok('∅ · …and hangs no sidecar object', pEmpty && pEmpty._runsSidecar == null);
+        T.ok('∅ · CONTROL · the stream paired with none carries no reason', P.parseSensorXYZ(pText)._runsSidecarReason === undefined);
+      } else T.skip('PPGDSP.parseSensorXYZ unavailable');
+      // ── (4) MotionDex · its run sidecar, and (5) its seam sidecar ────────────────────────────
+      var M = env.MOTIONDSP;
+      if (M && typeof M.parseSensorXYZ === 'function') {
+        var mHdr = 'Phone timestamp;sensor timestamp [ns];X;Y;Z';
+        var mRows = [mHdr];
+        for (var k = 0; k < 60; k++) {
+          var mt = new Date(Date.UTC(2026, 6, 1) + k * 38).toISOString().replace('T', ' ').replace('Z', '');
+          mRows.push(mt + ';' + k * 38461538 + ';0;0;1000');
+        }
+        var mText = mRows.join('\n');
+        var mEmpty = M.parseSensorXYZ(mText, { runsText: '' });
+        T.ok('∅ · MotionDex · an EMPTY run sidecar names its own absence', RE.test(String(mEmpty && mEmpty._runsSidecarReason)), String(mEmpty && mEmpty._runsSidecarReason));
+        T.ok('∅ · …and hangs no sidecar object', mEmpty && mEmpty._runsSidecar == null);
+        T.ok('∅ · CONTROL · the stream paired with none carries no reason', M.parseSensorXYZ(mText)._runsSidecarReason === undefined);
+      } else T.skip('MOTIONDSP.parseSensorXYZ unavailable');
+      if (M && typeof M.attachAccSeams === 'function') {
+        var sEmpty = M.attachAccSeams([], '');
+        T.eq('∅ · MotionDex seams · an EMPTY seam sidecar publishes NO recorded seams', sEmpty._recordedSeams, null);
+        T.ok('∅ · …and the reason names the file as present and empty', RE.test(String(sEmpty._recordedSeamsReason)), String(sEmpty._recordedSeamsReason));
+        T.ok('∅ · …and hangs no sidecar object', sEmpty._seamsSidecar == null);
+        T.ok('∅ · CONTROL · a stream handed no seam text keeps both keys absent', M.attachAccSeams([], null)._recordedSeamsReason === undefined);
+      } else T.skip('MOTIONDSP.attachAccSeams unavailable');
+      // ── (6) OxyDex · the ring-clock sidecar, the one that answered a NUMBER for an absence ────
+      var O = env.OxyDex;
+      if (O && typeof O.parseRingClockLog === 'function') {
+        T.eq('∅ · OxyDex · an ABSENT ring-clock text is null, no longer an empty list of reads', O.parseRingClockLog(undefined), null);
+        T.eq('∅ · …a PRESENT, EMPTY one is the named refusal', JSON.stringify(O.parseRingClockLog('')), JSON.stringify({ err: 'sidecar-empty' }));
+        T.ok('∅ · …and whitespace alone reads the same way', O.parseRingClockLog(' \n ').err === 'sidecar-empty');
+        /* The HEADER-ONLY file is the measurement that must keep answering `[]`: the writer stated
+           its columns and the session recorded no clock read, which is a real observation. */
+        var ringHdr = O.parseRingClockLog('Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n');
+        T.ok('∅ · CONTROL · a HEADER-ONLY ring-clock file still answers an empty list of reads', Array.isArray(ringHdr) && ringHdr.length === 0);
+        var ringOne = O.parseRingClockLog('Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n2026-10-14T21:41:18.000;read;-1.8;ok;88;0;0\n');
+        T.eq('∅ · CONTROL · a real read still parses, so the guard did not eat the rows', Array.isArray(ringOne) ? ringOne.length + '@' + ringOne[0].offsetS : 'NO-PARSE', '1@-1.8');
+      } else T.skip('OxyDex.parseRingClockLog unavailable');
+      /* SOURCE MIRRORS — the drop lane, the matcher and the export block are DOM-side roads that no
+         headless call reaches, and a reader that parses the refusal and then discards it would pass
+         every functional leg above (the lesson #4413 paid for: a carrier wired is not a consumer
+         wired). These pin the three sites that carry the ring-clock refusal to its published key. */
+      var src = env.sources || {};
+      var oxy = src['oxydex-dsp.js'];
+      if (oxy) {
+        T.ok('∅ · the drop lane routes the refusal to its own flag, never into the row bag', /_rtcRows\.err\)\s*\{\s*\n\s*window\._oxyRtcSidecarEmpty = true;/.test(oxy));
+        T.ok('∅ · the matcher reads that flag and names the reason on the night', /_oxyRtcSidecarEmpty === true/.test(oxy) && /_n\.rtcSidecarReason =/.test(oxy));
+        T.ok('∅ · the export publishes the reason, so a consumer folding the fleet reads WHY no verification is attached', /_out\.recording\.rtcSidecarReason = night\.rtcSidecarReason/.test(oxy));
+      } else T.skip('oxydex-dsp.js source unavailable');
     });
 
     /* Selection already happened at declaration time (see group() above) — a group that

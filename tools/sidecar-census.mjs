@@ -237,8 +237,8 @@ export const REGISTRY = [
         kind: 'node',
         file: 'oxydex-dsp.js',
         anchor: 'function parseRingClockLog(',
-        onAbsent: 'no text gives [], so the drop handler stashes no clock read',
-        test: 'tests/dex-tests.js::parseRingClockLog · no text places no clock read'
+        onAbsent: 'no text answers null, and a present but empty text answers the named refusal sidecar-empty, so the drop handler stashes no clock read either way',
+        test: 'tests/dex-tests.js::parseRingClockLog · an ABSENT text places no clock read, and answers null'
       },
       {
         kind: 'box',

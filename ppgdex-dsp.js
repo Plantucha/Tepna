@@ -4708,7 +4708,16 @@
      -PRINCIPLES §2). Column 0 is the run's first-sample stamp, column 5 its duration in ms. A row that
      does not parse adds no span, so a damaged sidecar can only blank LESS, never invent a run. */
   function parseAccRunsTimed(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ A PRESENT, EMPTY SIDECAR IS NOT AN ABSENT ONE (owner-deputy ruling 2026-11-26, board
+       #9027; the full reading sits on `parsePinnedRuns` in `ppgdex-dsp.js`). The writer stamps its
+       own `# stream=… rule=…` header the moment it opens a new file, and that header sits in a
+       64 KB buffer, so a capture that stopped before the first flush leaves exactly 0 bytes. The box
+       side already names that state (`capture-host/solid_night_inputs.py` `_sidecar_unflushed`), and
+       a HEADER-ONLY file is the other fact — a rule stated and no run found — which still parses
+       below. So an ABSENT text answers `null`, and an EMPTY one answers a NAMED REFUSAL: the
+       validity is absent here, and it is never zero runs. */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     const out = /** @type {any} */ ({ minRun: null, spans: [], emitted: 0, comparable: false });
     for (const raw of text.split(/\r?\n/)) {
       const line = raw.trim();
@@ -4838,10 +4847,13 @@
     /* §∅ — A SIDECAR THAT FOUND NO RUN IS A MEASUREMENT, AND ITS ABSENCE IS NOT. Spans alone
        cannot carry that difference, so `_runsSidecar` rides beside them and is present exactly when a
        sidecar parsed. Absent means nobody looked, which is validity UNKNOWN. Same field and same
-       reason as MotionDex's parser of this name and as ECGDex's `parseDeviceACC`. A zero-byte sidecar
-       still reads as absent here, which row
-       `2026-11-04-a-zero-byte-sidecar-hides-rows-the-device-did-send` owns. */
-    if (_accRuns) {
+       reason as MotionDex's parser of this name and as ECGDex's `parseDeviceACC`. A PRESENT, EMPTY
+       sidecar is a third state, and it answers the named refusal of the ruling of 2026-11-26; the
+       reason below attributes that absence rather than borrowing the one that means nobody looked. */
+    if (_accRuns && _accRuns.err) {
+      /** @type {any} */ (out)._runsSidecarReason =
+        'run sidecar present and empty (' + _accRuns.err + ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero runs';
+    } else if (_accRuns) {
       /** @type {any} */ (out)._runsSidecar = _accRuns;
       if (_accRuns.spans.length) /** @type {any} */ (out)._blankSpans = _accRuns.spans;
     }
