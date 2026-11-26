@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="03cd9926ad11" data-compute-hash="64b0561b87a9"><head>
+<html lang="en" data-manifest-hash="a851ce2aafb1" data-compute-hash="6ac547c25849"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/VJg0iL4BTIOQo1MBGNaCyjASkthShp7aMZCanB9k3A=' 'sha256-2c3velFfSLNAC5jrCyn6cBTvi048ZOdXnJBmosvpvTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6vRsd8wVQoTSJKZCJmwjUOk0mO0dhv4yfkPzZA204MI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BOhDyyKtUF76TrmfO8vDviRzS9fbpDUpWlYI9At2z4c=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G73E908mGzZSzGnycAfYtgzAkAHMoWN+0fdZLpQ+vSE=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IkoMy5gaSZB78svoNIZIL2ktLgpZKVC/niY+oBHTILk=' 'sha256-L95+f1CJkFsGZmJsXTzg1qxjuBQQkQLCtzLxyAOtSps=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-PpBpm1uOMgKMNYtYEz40yk6Rax4+gk858PuQoCj/cZI=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SploFxN8y41QfXBKeMXZ3VVUDPeaXF7mfHd2/kuq43U=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VwGqHWLSbaEDNL4p+AGh+MW4SneiHEn07RjprPzHgDU=' 'sha256-biiHe0emfmUwcQd5Pyue/Fau47ELBDIFcEj5LYEobr8=' 'sha256-cumr3An7W+Q6iJlTfa/0x/W0WcDr47x/lyahofIzqPo=' 'sha256-e8170odGJFoMGeKcTjWRUs5iHkAOyFMpt6z2GWfyQ/w=' 'sha256-gd9IuoPK0m0h+mwKmCjCmBpm6ebuTXqb8O27YnJNX04=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-hAE+LZ0d7JPx/cG5gi0PG8EUxoe7vCTWHxVkdkT8kvI=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nbCcwjX4Ba9w3RBLEB+5up9PRhrS11tY5toYvGccPHI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-voG5FOxK9EscA+uaXp7M2jU1JtX/IItWxJB4xuUEhEg=' 'sha256-y6atEKP/AbE4LZCyEBh76Xb2piWlZ5rxz4CQYkPXkFc=' 'sha256-yFPiGik662jFYAbvMxIGlhr8nHZY5SUqMK7xfqYl2hM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/VJg0iL4BTIOQo1MBGNaCyjASkthShp7aMZCanB9k3A=' 'sha256-2c3velFfSLNAC5jrCyn6cBTvi048ZOdXnJBmosvpvTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6vRsd8wVQoTSJKZCJmwjUOk0mO0dhv4yfkPzZA204MI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-9pxFCJPFipgaRs8G3wH7bh1NlNw0+rSdVQp4xMLxMqc=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G73E908mGzZSzGnycAfYtgzAkAHMoWN+0fdZLpQ+vSE=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IkoMy5gaSZB78svoNIZIL2ktLgpZKVC/niY+oBHTILk=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SploFxN8y41QfXBKeMXZ3VVUDPeaXF7mfHd2/kuq43U=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VC75YFysNFYzb6BqrZxn3ZPMqsUWEfZ4YqasYxxqJIg=' 'sha256-VwGqHWLSbaEDNL4p+AGh+MW4SneiHEn07RjprPzHgDU=' 'sha256-XhoVrB9BEhIhXlJd1jwCh7RHO4FOkVbzNeegg72RUoo=' 'sha256-biiHe0emfmUwcQd5Pyue/Fau47ELBDIFcEj5LYEobr8=' 'sha256-cumr3An7W+Q6iJlTfa/0x/W0WcDr47x/lyahofIzqPo=' 'sha256-e8170odGJFoMGeKcTjWRUs5iHkAOyFMpt6z2GWfyQ/w=' 'sha256-gd9IuoPK0m0h+mwKmCjCmBpm6ebuTXqb8O27YnJNX04=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-hAE+LZ0d7JPx/cG5gi0PG8EUxoe7vCTWHxVkdkT8kvI=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nbCcwjX4Ba9w3RBLEB+5up9PRhrS11tY5toYvGccPHI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-siTJEQpoDNnQ91b99O0dbWcjjTAHcnriuo4RN8xHJak=' 'sha256-voG5FOxK9EscA+uaXp7M2jU1JtX/IItWxJB4xuUEhEg=' 'sha256-yFPiGik662jFYAbvMxIGlhr8nHZY5SUqMK7xfqYl2hM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -15940,7 +15940,11 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
      The field names are the PpgDex ones on purpose — the parity assertion is a deep compare, so a
      rename here would make the gate vacuous. */
   function _parsePinnedRuns(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ An absent text is `null`; a PRESENT, EMPTY one is a named refusal, never zero rows — the
+       writer stamps its header on open, so 0 bytes is a capture that stopped before the first flush
+       (ruling 2026-11-26; the full reading sits on the twin `parsePinnedRuns` in `ppgdex-dsp.js`). */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     /* The `any` cast is PpgDex's too, and for the same reason: every field starts null and is filled
        from the file, so inference pins each one to `null` and rejects the assignment that is the point. */
     var out = /** @type {any} */ ({
@@ -16075,15 +16079,25 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       if (!isFinite(a) || !isFinite(b)) continue;
       rows.push({ tMs: ts.tMs, ch0: a, ch1: b, motion: isFinite(mo) ? mo : null, src: src });
     }
-    var runs = _parsePinnedRuns(opts && opts.runsText);
+    var runsParsed = _parsePinnedRuns(opts && opts.runsText);
+    /* ∅ A PRESENT, EMPTY sidecar maps no span, so it takes the no-sidecar road and names itself. */
+    var runsEmptyReason = runsParsed && runsParsed.err ? runsParsed.err : null;
+    var runs = runsEmptyReason ? null : runsParsed;
     var mapped = _ppg2wBlankSpans(rows, runs);
-    return {
+    var out = {
       t0Ms: rows.length ? rows[0].tMs : null,
       rows: rows,
       runs: runs,
       blankSpans: mapped.spans,
       spansUnmapped: mapped.unmapped
     };
+    /* The key exists only on this road, so a night with a sidecar or with none is byte-identical. */
+    if (runsEmptyReason)
+      /** @type {any} */ (out).runsAbsentReason =
+        'pinned-runs sidecar present and empty (' +
+        runsEmptyReason +
+        ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero runs';
+    return out;
   }
 
   /** Per-buffer {ac, dc}: linear-detrended RMS + |mean|. RMS (not peak-to-peak) won the 2026-08-20
@@ -20945,7 +20959,11 @@ __exports.HRVDex = window.HRVDex;
   const PD_SEAM_NO_DEVICE_CLOCK = /^(ppi|hr)\b/;
 
   function parsePdSeams(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ An absent text is `null`; a PRESENT, EMPTY one is a named refusal, never zero rows — the
+       writer stamps its header on open, so 0 bytes is a capture that stopped before the first flush
+       (ruling 2026-11-26; the full reading sits on `parsePinnedRuns` in `ppgdex-dsp.js`). */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     const out = /** @type {any} */ ({
       params: null,
       rule: null,
@@ -21095,6 +21113,14 @@ __exports.HRVDex = window.HRVDex;
     if (!obj) return obj;
     const sc = typeof seams === 'string' ? parsePdSeams(seams) : seams && typeof seams === 'object' && Array.isArray(seams.rows) ? seams : null;
     if (!sc) return obj;
+    /* ∅ A PRESENT, EMPTY sidecar: the validity is absent, and the reason says so rather than
+       letting the refusal read as a sidecar that examined intervals and kept nothing. */
+    if (sc.err) {
+      obj._recordedSeams = null;
+      obj._recordedSeamsReason =
+        'seam sidecar present and empty (' + sc.err + ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero seams';
+      return obj;
+    }
     obj._seamsSidecar = sc;
     /* §∅ — `[]` is the honest answer for a sidecar that examined intervals and recorded nothing
        placeable, and the WRONG answer for one whose rows this reader could not keep. `null` is the
@@ -26283,7 +26309,16 @@ __exports.GlucoDex = window.GlucoDex;
      report a parameter difference as a disagreement on every file in the corpus — the
      same-name-two-populations error with a threshold in place of a denominator. */
   function parsePinnedRuns(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ A PRESENT, EMPTY SIDECAR IS NOT AN ABSENT ONE (owner-deputy ruling 2026-11-26, board #9027).
+       The writer stamps its own `# stream=… rule=…` header the moment it opens a new file
+       (`capture-host/writers.py` `_RunSidecar` and `_SeamSidecar`), and that header sits in a 64 KB
+       buffer. So a capture that stopped before the first flush leaves exactly 0 bytes, which the box
+       side already names (`capture-host/solid_night_inputs.py` `_sidecar_unflushed`). A HEADER-ONLY
+       file is the other fact — a rule stated and no run found — and it still parses below.
+       An ABSENT text therefore answers `null`, and an EMPTY one answers a NAMED REFUSAL: the
+       validity is absent here, and it is never zero runs. */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     const out = /** @type {any} */ ({
       params: null,
       minRun: null,
@@ -26772,7 +26807,11 @@ __exports.GlucoDex = window.GlucoDex;
      device-minus-host` is about exactly that. A row this reader cannot place is counted and named
      (§∅), never dropped and never placed at a guessed second. */
   function parsePpgSeams(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ An absent text is `null`; a PRESENT, EMPTY one is a named refusal, never zero rows — the
+       writer stamps its header on open, so 0 bytes is a capture that stopped before the first flush
+       (ruling 2026-11-26; the full reading sits on `parsePinnedRuns` in `ppgdex-dsp.js`). */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     const out = /** @type {any} */ ({
       params: null,
       rule: null,
@@ -27026,7 +27065,16 @@ __exports.GlucoDex = window.GlucoDex;
      why no existing fixture input moves. */
   function attachPpgSeams(rec, opts) {
     if (!rec) return rec;
-    const seams = parsePpgSeams(opts && opts.seamsText);
+    const _scPpg = parsePpgSeams(opts && opts.seamsText);
+    /* ∅ A PRESENT, EMPTY sidecar says nothing about seams, so the validity is ABSENT and the reader
+       is told why. Without this the refusal would read as a parsed sidecar carrying no row. */
+    if (_scPpg && _scPpg.err) {
+      /** @type {any} */ (rec).recordedSeams = null;
+      /** @type {any} */ (rec).recordedSeamsReason =
+        'seam sidecar present and empty (' + _scPpg.err + ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero seams';
+      return rec;
+    }
+    const seams = _scPpg;
     if (seams) {
       /** @type {any} */ (rec).seamsSidecar = seams;
       /* §∅ — `[]` is the honest answer for a sidecar that examined intervals and recorded no seam, and
@@ -27738,7 +27786,11 @@ __exports.GlucoDex = window.GlucoDex;
        here rather than per channel, and keyed by the writer's own channel LABEL (`channel 0`),
        which is the same label `_PPG.txt`'s header uses — so the two sides are joined on a name
        both files actually carry, not on an index one of them merely implies. */
-    const _runs = parsePinnedRuns(opts && opts.runsText);
+    const _runsParsed = parsePinnedRuns(opts && opts.runsText);
+    /* ∅ A PRESENT, EMPTY sidecar takes the NO-SIDECAR road below, because that road publishes the
+       absence (`pinnedCrossCheck: null`) rather than a zero. The reason travels on the record. */
+    const _runsEmptyReason = _runsParsed && _runsParsed.err ? _runsParsed.err : null;
+    const _runs = _runsEmptyReason ? null : _runsParsed;
     const _chanKey = function (ci) {
       return 'channel ' + ci;
     };
@@ -28276,6 +28328,14 @@ __exports.GlucoDex = window.GlucoDex;
     };
     /* `opts.seamsText` is the `…_PPGSEAMS.txt` companion's bytes when the caller paired one. LAST and
        OPTIONAL per §🧪: a call without it leaves `_rec` byte-identical, so no existing fixture moves. */
+    /* ∅ `pinnedCrossCheck` is null on both roads, and a reader cannot tell "no sidecar was paired"
+       from "the paired sidecar was empty". This key names the second, and it exists on no other
+       road, so no record that carries a sidecar or none moves. */
+    if (_runsEmptyReason)
+      /** @type {any} */ (_rec).pinnedSidecarReason =
+        'pinned-runs sidecar present and empty (' +
+        _runsEmptyReason +
+        ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero runs';
     return attachPpgSeams(_rec, { seamsText: opts && opts.seamsText });
   }
 
@@ -43155,7 +43215,11 @@ __exports.PpgDex = window.PpgDex;
      (read · looked and found nothing · rows unplaceable · wrong stream) and the same `comparable`
      flag, so a consumer can tell a sidecar that stated its rule from one that did not. */
   function parseEcgSeams(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ An absent text is `null`; a PRESENT, EMPTY one is a named refusal, never zero rows — the
+       writer stamps its header on open, so 0 bytes is a capture that stopped before the first flush
+       (ruling 2026-11-26; the full reading sits on `parsePinnedRuns` in `ppgdex-dsp.js`). */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     var out = /** @type {any} */ ({
       params: null,
       rule: null,
@@ -43469,6 +43533,13 @@ __exports.PpgDex = window.PpgDex;
     /* …and the box's own clock-seam sidecar beside the same stream (SEAM-SIDECAR-CONSUMPTION §4,
        owner ruling 2026-11-05), on the same footing. */
     var seams = parseEcgSeams(opts && opts.seamsText);
+    /* ∅ A PRESENT, EMPTY sidecar: absent validity with a named reason, never zero seams. */
+    if (seams && seams.err) {
+      rec.recordedSeams = null;
+      rec.recordedSeamsReason =
+        'seam sidecar present and empty (' + seams.err + ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero seams';
+      return rec;
+    }
     if (seams) {
       rec.seamsSidecar = seams;
       /* §∅ — `[]` is the honest answer for a sidecar that examined intervals and recorded no seam,
