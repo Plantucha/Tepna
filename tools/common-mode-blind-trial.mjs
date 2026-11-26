@@ -349,7 +349,9 @@ export function trial({ uploads, nights, seed, detector }) {
    The band is pre-stated, so it is not reinterpreted after the fact. A FAIL here names TWO causes —
    the detector, or the physiology the reference measures instead — and is never an accuracy claim.
    An arm that flags nothing is UNDERPOWERED and never a PASS: a blind instrument agrees with a quiet
-   corpus perfectly, which is the whole reason the plant exists. */
+   corpus perfectly, which is the whole reason the plant exists. It is not a FAIL either: kappa needs
+   two live margins, so a constant arm puts `po` at `pe` and drives kappa to 0 by construction,
+   whatever the other arm does. A FAIL there would claim a disagreement the statistic never measured. */
 export function verdictFor(res, commit, opts = {}) {
   const checked = res.rows ? res.rows.length : 0;
   const excluded = res.excluded ? res.excluded.length : 0;

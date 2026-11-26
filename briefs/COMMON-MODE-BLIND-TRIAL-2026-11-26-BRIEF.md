@@ -77,6 +77,23 @@ lag-2 figure sits at most 0.0032 below it and 0.0002 above it. The exported seri
 whole-percent rounding, which is the condition the lag-1 fault needs, so the change moves no verdict
 here. That is the same answer the 42 real ring nights gave in PR #5904.
 
+### Why the status is UNDERPOWERED, and not FAIL
+
+Kappa needs two live margins. The detector arm is constant here, so `po` equals `pe` and kappa is 0
+by construction, whatever the reference does. Read this run's own cells: both arms call 5 nights
+negative, so `po` is 5 of 17, and the detector's zero marginal puts `pe` at 5 of 17 as well. The
+0.0000 is therefore a property of a constant arm, and never a measured disagreement. A FAIL would
+claim a disagreement the statistic did not measure.
+
+The degenerate-arm rule predates the run. The tool file carrying that branch, and the selftest `a
+detector arm that flags nothing answers UNDERPOWERED, never PASS`, has a timestamp of 04:00:39 local,
+and the run record stamps 04:05:21.
+
+⚠ `statedHash` covers the thresholds in `STATED`, and never the status ladder. So the record alone
+does not prove the order above. The next run of this trial carries the ladder inside the hashed
+object. This run's frozen object stays untouched, because an edit after the fact would break the
+freeze it exists to record.
+
 ## 5 · What this establishes
 
 - The protocol RAN, on an occasion nobody manufactured, and its record is machine-readable.
