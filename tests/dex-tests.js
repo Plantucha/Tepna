@@ -20833,6 +20833,38 @@
         T.eq('…claiming no commit identity, because the sample measured nothing', obj.producedBy && obj.producedBy.commit, null);
         T.ok('…and saying why in commitReason', /synthetic/.test(String(obj.producedBy && obj.producedBy.commitReason)), String(obj.producedBy && obj.producedBy.commitReason));
       }
+      /* KNOWN ANSWER · a Muse `_RAW.txt` reads as MUSE and returns its planted rate. Before 2026-11-26
+         the tool matched no Muse file, and its label read every non-Polar name as O2RING. The
+         synthetic device clock runs 50 ppm fast. The host stamps carry 0–100 ms of one-sided delivery
+         delay, so the fragment is independent and the slope must still find −50 ppm. */
+      var fsM = typeof require === 'function' ? require('node:fs') : null;
+      var pathM = typeof require === 'function' ? require('node:path') : null;
+      if (fsM && pathM) {
+        var museArgs = [];
+        var museRun = probe('tools/dual-clock-rate.mjs', museArgs, {
+          timeoutMs: 60000,
+          seedTmp: function (dir) {
+            var t0 = Date.UTC(2026, 10, 24, 22, 0, 0);
+            var hex = ';0;75;' + new Array(41).join('4b00');
+            var rows = ['Phone timestamp;sensor timestamp [ns];counter;bytes;hex'];
+            var seed = 12345,
+              devMs = 0;
+            for (var k = 0; devMs < 2 * 3600 * 1000; k++) {
+              devMs += 100 + (k % 7) * 10;
+              seed = (seed * 1103515245 + 12345) % 2147483648;
+              var hostMs = t0 + devMs / (1 + 50e-6) + Math.floor((seed / 2147483648) * 100);
+              rows.push(new Date(hostMs).toISOString().slice(0, 23) + ';' + devMs * 1e6 + hex);
+            }
+            fsM.writeFileSync(pathM.join(dir, 'Muse_S-Athena_TEST0001_20261124220000_RAW.txt'), rows.join('\n') + '\n');
+            museArgs.push(dir);
+          }
+        });
+        var museRow = /^MUSE\s+([\d.]+)\s+(-?[\d.]+)/m.exec(String(museRun.out));
+        T.ok('a Muse _RAW.txt yields a MUSE row, never an O2RING one', museRow != null, String(museRun.out).slice(-400));
+        T.ok('…whose rate is the planted −50 ppm within 2 ppm', museRow != null && Math.abs(Number(museRow[2]) + 50) <= 2, museRow && museRow[2]);
+      } else {
+        T.skip('the Muse planted-rate leg', 'Node-lane only (writes a synthetic file)');
+      }
     });
     /* ════ FOUR RECURSIVE WALKERS, AND THE ONE THAT DIVIDED BY ITS SURVIVORS ══════════════════════
        Row 2026-10-21-forty-one-corpus-enumerators-report-no-population. `acc-acc-control.mjs`,
