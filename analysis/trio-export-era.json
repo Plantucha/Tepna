@@ -4,8 +4,8 @@
   "status": "PASS",
   "scope": "internal",
   "population": {
-    "checked": 415,
-    "eligible": 415,
+    "checked": 566,
+    "eligible": 566,
     "excluded": 0
   },
   "criterion": {
@@ -15,19 +15,19 @@
     "direction": "lte"
   },
   "result": {
-    "nights": 147,
-    "stamped": 90,
-    "unstamped": 57,
+    "nights": 185,
+    "stamped": 127,
+    "unstamped": 58,
     "exports": {
-      "total": 415,
-      "recorded": 335,
-      "unrecorded": 80
+      "total": 566,
+      "recorded": 483,
+      "unrecorded": 83
     },
     "unrecordedByNode": {
       "ECGDex": 5,
-      "OxyDex": 57,
-      "PpgDex": 9,
-      "PpgDexFinger": 9
+      "OxyDex": 58,
+      "PpgDex": 10,
+      "PpgDexFinger": 10
     },
     "unrecordedNights": [
       {
@@ -327,7 +327,7 @@
           "OxyDex",
           "PpgDex"
         ],
-        "reason": "no-fold-record"
+        "reason": "folded-not-stamped"
       },
       {
         "night": "2026-06-21",
@@ -387,7 +387,7 @@
           "PpgDex",
           "PpgDexFinger"
         ],
-        "reason": "no-fold-record"
+        "reason": "folded-not-stamped"
       },
       {
         "night": "2026-08-22",
@@ -405,7 +405,16 @@
           "PpgDex",
           "PpgDexFinger"
         ],
-        "reason": "no-fold-record"
+        "reason": "folded-not-stamped"
+      },
+      {
+        "night": "2026-08-30",
+        "nodes": [
+          "OxyDex",
+          "PpgDex",
+          "PpgDexFinger"
+        ],
+        "reason": "folded-not-stamped"
       },
       {
         "night": "2026-09-01",
@@ -432,7 +441,7 @@
           "PpgDex",
           "PpgDexFinger"
         ],
-        "reason": "no-fold-record"
+        "reason": "folded-not-stamped"
       },
       {
         "night": "2026-09-18",
@@ -454,18 +463,19 @@
       }
     ],
     "unstampedByReason": {
-      "no-fold-record": 57
+      "folded-not-stamped": 5,
+      "no-fold-record": 53
     },
     "foldLedger": {
       "path": "provenance/trio-fold.json",
       "ok": true,
       "reason": null,
-      "folds": 1,
-      "nights": 89
+      "folds": 2,
+      "nights": 132
     },
     "proxy": {
-      "threeLegNights": 90,
-      "stampedNights": 90,
+      "threeLegNights": 127,
+      "stampedNights": 127,
       "disagreements": []
     },
     "proxies": [
@@ -484,11 +494,11 @@
           "tools/tch-bootstrap-ci.mjs",
           "tools/tch-fused-corpus.mjs"
         ],
-        "tripleNights": 90,
+        "tripleNights": 127,
         "unstampedHolding": 0,
         "unstampedHoldingNights": [],
         "stampedNotHolding": 0,
-        "oneAway": 14,
+        "oneAway": 15,
         "oneAwayNights": [
           "2026-06-06",
           "2026-06-07",
@@ -510,18 +520,18 @@
           "tools/closure-tol-hac.mjs",
           "tools/beat-comb-analysis.mjs"
         ],
-        "tripleNights": 65,
+        "tripleNights": 102,
         "unstampedHolding": 0,
         "unstampedHoldingNights": [],
         "stampedNotHolding": 25,
-        "oneAway": 9,
+        "oneAway": 10,
         "oneAwayNights": [
           "2026-07-31",
           "2026-08-04",
           "2026-08-22",
           "2026-08-29",
-          "2026-09-01",
-          "2026-09-02"
+          "2026-08-30",
+          "2026-09-01"
         ]
       }
     ]
@@ -533,7 +543,7 @@
   "reason": null,
   "producedBy": {
     "tool": "tools/fold-generation.mjs",
-    "commit": "4338e00c"
+    "commit": "16972e98"
   },
-  "at": "2026-11-01T16:16:28Z"
+  "at": "2026-11-26T15:32:58Z"
 }

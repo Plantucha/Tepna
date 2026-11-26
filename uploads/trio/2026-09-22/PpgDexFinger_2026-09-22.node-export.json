@@ -9,10 +9,13 @@
     "node": "PpgDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-10-12T21:17:15.722Z",
+    "generated": "2026-11-26T14:56:12.322Z",
     "provenance": null,
     "doc": "PpgDex PPG-derived events → Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
-    "scrubbed": true
+    "scrubbed": true,
+    "scrubDropped": [
+      "signalQuality"
+    ]
   },
   "recording": {
     "source": "ppg",
@@ -21,9 +24,25 @@
     "endEpochMs": 1790137626492,
     "durSec": 20755.412946428572,
     "sessions": 1,
-    "events": 11,
+    "events": 10,
     "site": "finger",
     "siteSource": "device-default",
+    "timing": {
+      "timingSource": "host",
+      "independent": true,
+      "anchors": 5208,
+      "spanMs": 20800876.698984,
+      "ppm": null,
+      "spanPpm": null,
+      "ppmEstimator": null,
+      "ppmUncertainty": null,
+      "resyncs": 0,
+      "seams": 0,
+      "rate": 125.44,
+      "rateRaw": 125.78,
+      "rateApplied": true,
+      "reason": "O2Ring finger layout — the device column is host-synthesised by construction (DA-V §2.7 F17), whatever the 0.02 % delta share says"
+    },
     "coverage": {
       "kind": "sparse",
       "spanSec": 20801,
@@ -518,9 +537,59 @@
       "n": 121,
       "source": "ble-dropout"
     },
+    "validity": {
+      "seams": null,
+      "seamsExamined": null,
+      "seamsPlaced": null,
+      "seamsUnplaced": null,
+      "seamsBoundMs": null,
+      "seamsDeviceAxis": null,
+      "seamsReason": "no-seam-sidecar"
+    },
+    "offsetSegments": [
+      {
+        "fromDevMs": 0,
+        "toDevMs": 20588309.584321,
+        "anchors": 5178,
+        "spanS": 20588,
+        "flatOffsetMs": 3608.078909000382,
+        "residualRmsMs": 14659.189241124684,
+        "jitterMs": 16.565579000860453,
+        "ppm": null,
+        "rate": "unknown",
+        "rateReason": "residual 14659.2 ms about the flat offset is over 3x this segment's own 16.6 ms jitter — it holds structure the flat model has not removed (sub-bound replays)"
+      },
+      {
+        "fromDevMs": 20684886.789697,
+        "toDevMs": 20800876.698984,
+        "anchors": 30,
+        "spanS": 116,
+        "flatOffsetMs": 56801.151091000065,
+        "residualRmsMs": 12.996644995853433,
+        "jitterMs": 14.818500000983477,
+        "ppm": null,
+        "rate": "unknown",
+        "rateReason": "spans 116 s, under the 2400 s a rate needs"
+      }
+    ],
     "hostAxis": {
+      "ok": true,
       "anchors": 5208,
-      "ppm": 2730.6643396321047,
+      "ppm": null,
+      "ppmReason": "drawn-column — the device column is host-synthesised, so a rate against it describes a counter with no oscillator",
+      "drawnColumn": {
+        "ppm": 2736.499666817628,
+        "spanPpm": 2730.1878588017894
+      },
+      "spanMs": 20800876.698984,
+      "spanPpm": null,
+      "flat": false,
+      "flatResidualMs": 14659.189241124684,
+      "flatJitterMs": 16.565579000860453,
+      "segments": 2,
+      "rate": "unknown",
+      "rateReason": "the device column is drawn (0 % of its deltas are one value) — a rate over it measures a counter with no oscillator, whatever the span",
+      "rateApplied": true,
       "maxStepMs": 10040.260552998632,
       "totalMs": 56800.212234999985,
       "independent": true,
@@ -528,24 +597,15 @@
       "inertReason": null,
       "drawn": true,
       "quantizedShare": 0.00015286767075376438,
+      "applied": true,
       "timingSource": "host",
-      "stability": null
+      "stability": null,
+      "deviceDrawn": true,
+      "drawnShare": 0.00806606491261763,
+      "drawnReason": "O2Ring finger layout — the device column is host-synthesised by construction (DA-V §2.7 F17), whatever the 0.02 % delta share says"
     }
   },
   "ganglior_events": [
-    {
-      "t": "22:44:28",
-      "tMs": 1790117068347,
-      "impulse": "hrv_drop",
-      "node": "PpgDex",
-      "conf": 0.7,
-      "sqi": 0.82,
-      "meta": {
-        "rmssdFrom": 97.5,
-        "rmssdTo": 62.9,
-        "position": null
-      }
-    },
     {
       "t": "00:39:28",
       "tMs": 1790123968347,
@@ -712,7 +772,7 @@
     },
     "rmssd": {
       "metricId": "rmssd",
-      "value": 39.5,
+      "value": 39,
       "window": {
         "startTMs": 1790116768347,
         "endTMs": 1790137626492,
@@ -845,7 +905,8 @@
     "analyzablePct": 99,
     "cleanBeatPct": 99,
     "coveragePct": 99,
-    "motionRejectedPct": 0,
+    "motionRejectedPct": null,
+    "motionRejectedPctReason": "no inertial stream was loaded — no beat was examined for motion",
     "correctionRatePct": 2,
     "ledAgreementPct": null,
     "ppiSpine": "foot",
@@ -889,36 +950,36 @@
     "pinnedCoverage": [
       {
         "channel": 0,
-        "rail": {
-          "lo": 0,
-          "hi": 199
-        },
-        "spans": 125,
-        "samplesUnmeasured": 3886,
-        "samplesAbsent": 2090,
+        "rail": null,
+        "spans": 127,
+        "samplesUnmeasured": 24840,
+        "samplesAbsent": 23044,
         "samplesSaturated": 1796
       }
     ],
     "timingSource": "host",
     "axisDrawn": true,
     "axisQuantizedShare": 0.0002,
-    "timebase": "host-disciplined"
+    "timebase": "host-disciplined",
+    "timebaseSource": "embedded"
   },
   "hrv": {
     "time": {
       "meanRR": 1116,
       "hr": 53,
-      "sdnn": 68.1,
-      "rmssd": 39.5,
-      "pnn50": 10,
+      "sdnn": 67.4,
+      "rmssd": 39,
+      "pnn50": 9.9,
       "sdnnIndex": 53.1,
       "sdnnRobust": 47.9,
-      "sd2Robust": 61.7,
+      "sd2Robust": 61.9,
+      "wholeRecordHR": 54,
+      "hrWindow": "epochMedian5min",
       "window": "wholeRecord",
       "units": "ms",
       "lowConfidence": false,
       "lowConfidenceReason": null,
-      "windowNote": "sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node’s wholeRecord SDNN/RMSSD.",
+      "windowNote": "sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node’s wholeRecord SDNN/RMSSD. hr is the DISPLAY rate instead: the 5-min epoch median on a record over 90 min, the whole-record rate below that. hrWindow names which one this export carries, and wholeRecordHR is the cross-node HR axis.",
       "sdnnNote": "whole-record sdnn runs high on optical — SDANN/baseline-wander inflation the chest ECG does not carry. sdnnIndex (mean of per-5-min SDNN) and sdnnRobust (quality-gated MEDIAN of per-5-min SDNN) both remove it, sdnnRobust the most; use sdnnRobust for cross-node SDNN comparison. Bias magnitudes are deliberately not quoted here: the earlier figures came from a single paired night and did not reproduce on the multi-night corpus."
     },
     "frequency": {
@@ -931,10 +992,10 @@
       "method": "Lomb-Scargle",
       "lowConfidence": false,
       "hfRobustLowMotion": null,
-      "wholeRecordLf": 886,
-      "wholeRecordHf": 803,
-      "wholeRecordLfhf": 1.1,
-      "respRate": 23.34,
+      "wholeRecordLf": 812,
+      "wholeRecordHf": 780,
+      "wholeRecordLfhf": 1.04,
+      "respRate": 17.58,
       "respRateMethod": "RSA (HF-peak of RR spectrum)"
     },
     "confidence": {
@@ -961,9 +1022,9 @@
     }
   },
   "apnea": {
-    "cvhrIndex": 4.4,
-    "cvhrEvents": 25,
-    "cvhrHours": 5.71,
+    "cvhrIndex": 3.3,
+    "cvhrEvents": 18,
+    "cvhrHours": 5.44,
     "cvhrMethod": "CVHR events/h from finger PPI NN (Hayano apnea-band 20–45 s; ports ECGDex detectCVHR)",
     "cvhrTier": "emerging"
   },
@@ -974,13 +1035,15 @@
         "tMin": 0,
         "hr": 59,
         "hrStat": "rate-of-mean",
-        "rmssd": 97.5,
+        "rmssd": 77,
         "sdnn": 105.5,
         "lfhf": 0.32,
+        "spanSec": 298.11,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -991,10 +1054,12 @@
         "rmssd": 62.9,
         "sdnn": 85.1,
         "lfhf": 0.3,
+        "spanSec": 298.12,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1005,10 +1070,12 @@
         "rmssd": 61.5,
         "sdnn": 94,
         "lfhf": 1.38,
+        "spanSec": 297.63,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1019,10 +1086,12 @@
         "rmssd": 60.9,
         "sdnn": 78.1,
         "lfhf": 0.81,
+        "spanSec": 298.86,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1033,10 +1102,12 @@
         "rmssd": 42.4,
         "sdnn": 69.9,
         "lfhf": 1.45,
+        "spanSec": 298.69,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1047,10 +1118,12 @@
         "rmssd": 32.4,
         "sdnn": 31.1,
         "lfhf": 0.97,
+        "spanSec": 299.05,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1061,10 +1134,12 @@
         "rmssd": 29.6,
         "sdnn": 28.7,
         "lfhf": 1.15,
+        "spanSec": 299.55,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1075,10 +1150,12 @@
         "rmssd": 30.9,
         "sdnn": 26.2,
         "lfhf": 0.68,
+        "spanSec": 298.6,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1089,10 +1166,12 @@
         "rmssd": 32.7,
         "sdnn": 28.2,
         "lfhf": 0.73,
+        "spanSec": 299.23,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1103,10 +1182,12 @@
         "rmssd": 33.5,
         "sdnn": 32.2,
         "lfhf": 1.14,
+        "spanSec": 298.53,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1117,10 +1198,12 @@
         "rmssd": 33.1,
         "sdnn": 37.3,
         "lfhf": 1.22,
+        "spanSec": 298.33,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1131,10 +1214,12 @@
         "rmssd": 26.8,
         "sdnn": 51.3,
         "lfhf": 4.27,
+        "spanSec": 298.72,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1145,10 +1230,12 @@
         "rmssd": 43.7,
         "sdnn": 57.3,
         "lfhf": 2.03,
+        "spanSec": 297.92,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1159,10 +1246,12 @@
         "rmssd": 34.1,
         "sdnn": 56.4,
         "lfhf": 1.28,
+        "spanSec": 298.97,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1173,10 +1262,12 @@
         "rmssd": 52.6,
         "sdnn": 59,
         "lfhf": 0.69,
+        "spanSec": 298.86,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1187,10 +1278,12 @@
         "rmssd": 45.9,
         "sdnn": 87.4,
         "lfhf": 0.83,
+        "spanSec": 299.11,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1201,10 +1294,12 @@
         "rmssd": 35.1,
         "sdnn": 38.9,
         "lfhf": 1.32,
+        "spanSec": 298.78,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1215,10 +1310,12 @@
         "rmssd": 38.7,
         "sdnn": 43.2,
         "lfhf": 1.39,
+        "spanSec": 298.95,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1229,10 +1326,12 @@
         "rmssd": 27.1,
         "sdnn": 29.2,
         "lfhf": 0.79,
+        "spanSec": 299.53,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1243,10 +1342,12 @@
         "rmssd": 26.4,
         "sdnn": 32.8,
         "lfhf": 1.8,
+        "spanSec": 298.81,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1257,10 +1358,12 @@
         "rmssd": 25.2,
         "sdnn": 25.1,
         "lfhf": 0.82,
+        "spanSec": 298.58,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1271,10 +1374,12 @@
         "rmssd": 31.8,
         "sdnn": 26.5,
         "lfhf": 0.66,
+        "spanSec": 298.93,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1285,10 +1390,12 @@
         "rmssd": 41,
         "sdnn": 81.5,
         "lfhf": 1.92,
+        "spanSec": 298.53,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1299,10 +1406,12 @@
         "rmssd": 53.2,
         "sdnn": 80.1,
         "lfhf": 2.61,
+        "spanSec": 299.3,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1313,10 +1422,12 @@
         "rmssd": 28,
         "sdnn": 26.9,
         "lfhf": 1.11,
+        "spanSec": 298.7,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1327,10 +1438,12 @@
         "rmssd": 33.3,
         "sdnn": 61.5,
         "lfhf": 2.3,
+        "spanSec": 298.46,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1341,10 +1454,12 @@
         "rmssd": 21.2,
         "sdnn": 24.2,
         "lfhf": 1.24,
+        "spanSec": 299.2,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1355,10 +1470,12 @@
         "rmssd": 42,
         "sdnn": 72.8,
         "lfhf": 2.03,
+        "spanSec": 298.44,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1369,10 +1486,12 @@
         "rmssd": 28.5,
         "sdnn": 44.2,
         "lfhf": 3.21,
+        "spanSec": 298.99,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1383,10 +1502,12 @@
         "rmssd": 37.5,
         "sdnn": 45.8,
         "lfhf": 1.59,
+        "spanSec": 298.47,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1397,10 +1518,12 @@
         "rmssd": 24.2,
         "sdnn": 24.7,
         "lfhf": 1,
+        "spanSec": 299.48,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1411,10 +1534,12 @@
         "rmssd": 41.1,
         "sdnn": 65.7,
         "lfhf": 1.5,
+        "spanSec": 298.41,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1425,10 +1550,12 @@
         "rmssd": 40.1,
         "sdnn": 47.9,
         "lfhf": 1.52,
+        "spanSec": 298.96,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1439,10 +1566,12 @@
         "rmssd": 20.9,
         "sdnn": 41.5,
         "lfhf": 2.74,
+        "spanSec": 299.44,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1453,10 +1582,12 @@
         "rmssd": 24.7,
         "sdnn": 39.2,
         "lfhf": 2.03,
+        "spanSec": 298.29,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1467,10 +1598,12 @@
         "rmssd": 44,
         "sdnn": 69.6,
         "lfhf": 1.19,
+        "spanSec": 299.52,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1481,10 +1614,12 @@
         "rmssd": 47.2,
         "sdnn": 60,
         "lfhf": 0.58,
+        "spanSec": 298.31,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1495,10 +1630,12 @@
         "rmssd": 44.6,
         "sdnn": 34.3,
         "lfhf": 0.49,
+        "spanSec": 298.9,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1509,10 +1646,12 @@
         "rmssd": 30.5,
         "sdnn": 60,
         "lfhf": 2.11,
+        "spanSec": 298.99,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1523,10 +1662,12 @@
         "rmssd": 30.7,
         "sdnn": 48.1,
         "lfhf": 4.61,
+        "spanSec": 299.81,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1537,10 +1678,12 @@
         "rmssd": 38.4,
         "sdnn": 54.3,
         "lfhf": 2.46,
+        "spanSec": 298.9,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1551,10 +1694,12 @@
         "rmssd": 56.1,
         "sdnn": 81.7,
         "lfhf": 1.12,
+        "spanSec": 298.11,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1565,10 +1710,12 @@
         "rmssd": 35.8,
         "sdnn": 40.6,
         "lfhf": 1.37,
+        "spanSec": 299.61,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1579,10 +1726,12 @@
         "rmssd": 22.1,
         "sdnn": 25.5,
         "lfhf": 1.79,
+        "spanSec": 298.82,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1593,10 +1742,12 @@
         "rmssd": 36.9,
         "sdnn": 85.2,
         "lfhf": 1.18,
+        "spanSec": 298.48,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1607,10 +1758,12 @@
         "rmssd": 28.4,
         "sdnn": 31.4,
         "lfhf": 0.74,
+        "spanSec": 299.11,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1621,10 +1774,12 @@
         "rmssd": 60.3,
         "sdnn": 76.8,
         "lfhf": 1.1,
+        "spanSec": 299.01,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1635,10 +1790,12 @@
         "rmssd": 28.4,
         "sdnn": 27.9,
         "lfhf": 0.76,
+        "spanSec": 298.1,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1649,10 +1806,12 @@
         "rmssd": 46.6,
         "sdnn": 56.1,
         "lfhf": 0.53,
+        "spanSec": 299.5,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1663,10 +1822,12 @@
         "rmssd": 41.7,
         "sdnn": 58.8,
         "lfhf": 1.65,
+        "spanSec": 298.41,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1677,10 +1838,12 @@
         "rmssd": 29.5,
         "sdnn": 28.2,
         "lfhf": 0.7,
+        "spanSec": 298.99,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1691,10 +1854,12 @@
         "rmssd": 37.1,
         "sdnn": 36.6,
         "lfhf": 0.61,
+        "spanSec": 298.98,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1705,10 +1870,12 @@
         "rmssd": 27.2,
         "sdnn": 27.9,
         "lfhf": 1.06,
+        "spanSec": 298.34,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1719,10 +1886,12 @@
         "rmssd": 45.9,
         "sdnn": 80.2,
         "lfhf": 1.05,
+        "spanSec": 299.22,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1733,10 +1902,12 @@
         "rmssd": 29.6,
         "sdnn": 36,
         "lfhf": 3.06,
+        "spanSec": 298.4,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1747,10 +1918,12 @@
         "rmssd": 34.4,
         "sdnn": 53.9,
         "lfhf": 0.91,
+        "spanSec": 299.84,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1761,10 +1934,12 @@
         "rmssd": 39.8,
         "sdnn": 47,
         "lfhf": 1.05,
+        "spanSec": 298.07,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1775,10 +1950,12 @@
         "rmssd": 56.7,
         "sdnn": 88.6,
         "lfhf": 2.01,
+        "spanSec": 299.62,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1789,10 +1966,12 @@
         "rmssd": 28.8,
         "sdnn": 47.7,
         "lfhf": 2.02,
+        "spanSec": 298.41,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1803,10 +1982,12 @@
         "rmssd": 36.3,
         "sdnn": 84.5,
         "lfhf": 0.9,
+        "spanSec": 299.24,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1817,10 +1998,12 @@
         "rmssd": 25.4,
         "sdnn": 41.8,
         "lfhf": 3.07,
+        "spanSec": 298.63,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1831,10 +2014,12 @@
         "rmssd": 34.8,
         "sdnn": 48.9,
         "lfhf": 2.39,
+        "spanSec": 299.54,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1845,10 +2030,12 @@
         "rmssd": 31.1,
         "sdnn": 86.1,
         "lfhf": 1.97,
+        "spanSec": 297.87,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1859,10 +2046,12 @@
         "rmssd": 25.3,
         "sdnn": 30.5,
         "lfhf": 2.25,
+        "spanSec": 299.65,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1873,10 +2062,12 @@
         "rmssd": 60.9,
         "sdnn": 86.5,
         "lfhf": 0.64,
+        "spanSec": 298.95,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1887,10 +2078,12 @@
         "rmssd": 30.5,
         "sdnn": 34.3,
         "lfhf": 1.5,
+        "spanSec": 298.26,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1901,10 +2094,12 @@
         "rmssd": 42.5,
         "sdnn": 37.7,
         "lfhf": 0.81,
+        "spanSec": 298.79,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1915,10 +2110,12 @@
         "rmssd": 51,
         "sdnn": 106,
         "lfhf": 1.38,
+        "spanSec": 299.8,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -1929,10 +2126,12 @@
         "rmssd": 65.1,
         "sdnn": 70.8,
         "lfhf": 0.64,
+        "spanSec": 185.91,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       }
@@ -58928,7 +59127,7 @@
         0.847,
         0.86,
         0.873,
-        0.901,
+        0.888,
         0.912,
         0.922,
         0.926,
@@ -65099,7 +65298,7 @@
         0.975,
         0.975,
         0.975,
-        0.975,
+        0.901,
         0.901,
         0.901,
         0.901,
@@ -74040,6 +74239,352 @@
         1,
         1,
         1
+      ],
+      "spansGapRuns": [
+        [
+          14,
+          1
+        ],
+        [
+          25,
+          1
+        ],
+        [
+          42,
+          1
+        ],
+        [
+          56,
+          1
+        ],
+        [
+          67,
+          1
+        ],
+        [
+          81,
+          1
+        ],
+        [
+          109,
+          1
+        ],
+        [
+          124,
+          1
+        ],
+        [
+          137,
+          1
+        ],
+        [
+          150,
+          1
+        ],
+        [
+          160,
+          1
+        ],
+        [
+          174,
+          1
+        ],
+        [
+          184,
+          1
+        ],
+        [
+          191,
+          1
+        ],
+        [
+          195,
+          1
+        ],
+        [
+          199,
+          1
+        ],
+        [
+          207,
+          1
+        ],
+        [
+          235,
+          1
+        ],
+        [
+          264,
+          1
+        ],
+        [
+          270,
+          1
+        ],
+        [
+          279,
+          1
+        ],
+        [
+          281,
+          1
+        ],
+        [
+          286,
+          1
+        ],
+        [
+          314,
+          1
+        ],
+        [
+          319,
+          1
+        ],
+        [
+          326,
+          1
+        ],
+        [
+          339,
+          1
+        ],
+        [
+          343,
+          1
+        ],
+        [
+          348,
+          1
+        ],
+        [
+          370,
+          1
+        ],
+        [
+          376,
+          1
+        ],
+        [
+          381,
+          1
+        ],
+        [
+          406,
+          1
+        ],
+        [
+          411,
+          1
+        ],
+        [
+          421,
+          1
+        ],
+        [
+          428,
+          1
+        ],
+        [
+          435,
+          1
+        ],
+        [
+          449,
+          1
+        ],
+        [
+          454,
+          1
+        ],
+        [
+          466,
+          1
+        ],
+        [
+          468,
+          1
+        ],
+        [
+          475,
+          1
+        ],
+        [
+          479,
+          1
+        ],
+        [
+          491,
+          2
+        ],
+        [
+          506,
+          1
+        ],
+        [
+          510,
+          1
+        ],
+        [
+          512,
+          1
+        ],
+        [
+          519,
+          1
+        ],
+        [
+          537,
+          1
+        ],
+        [
+          546,
+          1
+        ],
+        [
+          552,
+          1
+        ],
+        [
+          569,
+          1
+        ],
+        [
+          578,
+          1
+        ],
+        [
+          586,
+          1
+        ],
+        [
+          590,
+          1
+        ],
+        [
+          602,
+          1
+        ],
+        [
+          608,
+          1
+        ],
+        [
+          618,
+          1
+        ],
+        [
+          626,
+          1
+        ],
+        [
+          638,
+          1
+        ],
+        [
+          642,
+          1
+        ],
+        [
+          649,
+          1
+        ],
+        [
+          653,
+          1
+        ],
+        [
+          655,
+          1
+        ],
+        [
+          678,
+          1
+        ],
+        [
+          689,
+          1
+        ],
+        [
+          694,
+          1
+        ],
+        [
+          704,
+          1
+        ],
+        [
+          713,
+          1
+        ],
+        [
+          715,
+          1
+        ],
+        [
+          719,
+          1
+        ],
+        [
+          725,
+          1
+        ],
+        [
+          729,
+          1
+        ],
+        [
+          731,
+          1
+        ],
+        [
+          749,
+          1
+        ],
+        [
+          758,
+          1
+        ],
+        [
+          770,
+          1
+        ],
+        [
+          781,
+          1
+        ],
+        [
+          791,
+          1
+        ],
+        [
+          798,
+          1
+        ],
+        [
+          808,
+          1
+        ],
+        [
+          812,
+          1
+        ],
+        [
+          817,
+          1
+        ],
+        [
+          827,
+          1
+        ],
+        [
+          832,
+          1
+        ],
+        [
+          857,
+          1
+        ]
       ]
     }
   }

@@ -9,10 +9,13 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-10-12T21:14:11.411Z",
+    "generated": "2026-11-26T14:48:02.827Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
-    "scrubbed": true
+    "scrubbed": true,
+    "scrubDropped": [
+      "signalQuality"
+    ]
   },
   "recording": {
     "source": "ecg",
@@ -21,11 +24,29 @@
     "durSec": 38047.608546154996,
     "endEpochMs": 1789280356909,
     "offsetMin": null,
-    "events": 212,
+    "events": 207,
+    "timing": {
+      "timingSource": "device+host",
+      "independent": true,
+      "anchors": 9887,
+      "spanMs": 40552464.143066406,
+      "ppm": -152.6917454984578,
+      "spanPpm": -20.56947916810797,
+      "ppmEstimator": "end-to-end-median",
+      "ppmUncertainty": 236.2906294847308,
+      "resyncs": 0,
+      "seams": 0,
+      "rate": 129.98010246389907,
+      "rateRaw": 129.98010246389907,
+      "rateApplied": false,
+      "reason": "the rate correction did not reach the published rate: one anchor gap carries a 16493 ms step (> 1000 ms) — a host clock STEP, not a crystal rate, fs left on the device clock"
+    },
     "hostAxis": {
+      "ok": true,
       "applied": false,
       "anchors": 9887,
-      "ppm": -20.645302651749184,
+      "ppm": -152.6917454984578,
+      "spanPpm": -20.56947916810797,
       "ppmUncertainty": 236.2906294847308,
       "maxStepMs": 16493.081420898438,
       "spanMs": 40552464.143066406,
@@ -384,6 +405,15 @@
       "nWithDuration": 63,
       "n": 63,
       "source": "ble-dropout"
+    },
+    "validity": {
+      "seams": null,
+      "seamsExamined": null,
+      "seamsPlaced": null,
+      "seamsUnplaced": null,
+      "seamsBoundMs": null,
+      "seamsDeviceAxis": null,
+      "seamsReason": "no-seam-sidecar"
     }
   },
   "measurement": {
@@ -1326,23 +1356,6 @@
       }
     },
     {
-      "t": "20:13:03",
-      "tMs": 1789243983802,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.74,
-      "sqi": 0.75,
-      "meta": {
-        "ampBpm": 14,
-        "periodSec": 17,
-        "peakTMs": 1789244000802,
-        "position": "supine",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
       "t": "20:16:33",
       "tMs": 1789244193052,
       "impulse": "movement_onset",
@@ -1424,23 +1437,6 @@
           "acc"
         ],
         "site": "chest"
-      }
-    },
-    {
-      "t": "20:21:26",
-      "tMs": 1789244486802,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.62,
-      "sqi": 0.89,
-      "meta": {
-        "ampBpm": 8.2,
-        "periodSec": 35,
-        "peakTMs": 1789244521802,
-        "position": "lateral",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
       }
     },
     {
@@ -1712,23 +1708,6 @@
       "meta": {}
     },
     {
-      "t": "20:56:02",
-      "tMs": 1789246562802,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.66,
-      "sqi": 0.82,
-      "meta": {
-        "ampBpm": 10.2,
-        "periodSec": 19,
-        "peakTMs": 1789246581802,
-        "position": "supine",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
       "t": "20:56:54",
       "tMs": 1789246614052,
       "impulse": "movement_onset",
@@ -1753,23 +1732,6 @@
         "ampBpm": 14.9,
         "periodSec": 17,
         "peakTMs": 1789246693802,
-        "position": "supine",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "21:01:21",
-      "tMs": 1789246881802,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.64,
-      "sqi": 0.84,
-      "meta": {
-        "ampBpm": 9.3,
-        "periodSec": 19,
-        "peakTMs": 1789246900802,
         "position": "supine",
         "osaLabel": null,
         "osaConf": null,
@@ -1819,23 +1781,6 @@
           "acc"
         ],
         "site": "chest"
-      }
-    },
-    {
-      "t": "21:12:42",
-      "tMs": 1789247562802,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.76,
-      "sqi": 0.81,
-      "meta": {
-        "ampBpm": 14.7,
-        "periodSec": 32,
-        "peakTMs": 1789247594802,
-        "position": "supine",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
       }
     },
     {
@@ -3362,6 +3307,7 @@
         "periodSec": 14,
         "peakTMs": 1789278117802,
         "position": "unknown",
+        "positionReason": "low-acc-coverage",
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
@@ -3379,6 +3325,7 @@
         "periodSec": 22,
         "peakTMs": 1789278157802,
         "position": "unknown",
+        "positionReason": "low-acc-coverage",
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
@@ -3405,6 +3352,7 @@
         "periodSec": 17,
         "peakTMs": 1789278696802,
         "position": "unknown",
+        "positionReason": "low-acc-coverage",
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
@@ -3422,6 +3370,7 @@
         "periodSec": 16,
         "peakTMs": 1789279369802,
         "position": "unknown",
+        "positionReason": "low-acc-coverage",
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
@@ -3439,6 +3388,7 @@
         "periodSec": 20,
         "peakTMs": 1789279406802,
         "position": "unknown",
+        "positionReason": "low-acc-coverage",
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
@@ -3456,6 +3406,7 @@
         "periodSec": 17,
         "peakTMs": 1789279868802,
         "position": "unknown",
+        "positionReason": "low-acc-coverage",
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
@@ -3473,6 +3424,7 @@
         "periodSec": 45,
         "peakTMs": 1789280254802,
         "position": "unknown",
+        "positionReason": "low-acc-coverage",
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
@@ -5639,7 +5591,8 @@
         "sqi": 0.894,
         "beats": 252,
         "motionIndex": null,
-        "position": "unknown"
+        "position": "unknown",
+        "positionReason": "low-acc-coverage"
       },
       {
         "tMin": 635,
@@ -5656,7 +5609,8 @@
         "sqi": 0.886,
         "beats": 268,
         "motionIndex": null,
-        "position": "unknown"
+        "position": "unknown",
+        "positionReason": "low-acc-coverage"
       },
       {
         "tMin": 640,
@@ -5673,7 +5627,8 @@
         "sqi": 0.895,
         "beats": 260,
         "motionIndex": null,
-        "position": "unknown"
+        "position": "unknown",
+        "positionReason": "low-acc-coverage"
       },
       {
         "tMin": 645,
@@ -5690,7 +5645,8 @@
         "sqi": 0.888,
         "beats": 270,
         "motionIndex": null,
-        "position": "unknown"
+        "position": "unknown",
+        "positionReason": "low-acc-coverage"
       },
       {
         "tMin": 650,
@@ -5707,7 +5663,8 @@
         "sqi": 0.9,
         "beats": 264,
         "motionIndex": null,
-        "position": "unknown"
+        "position": "unknown",
+        "positionReason": "low-acc-coverage"
       },
       {
         "tMin": 655,
@@ -5724,7 +5681,8 @@
         "sqi": 0.894,
         "beats": 264,
         "motionIndex": null,
-        "position": "unknown"
+        "position": "unknown",
+        "positionReason": "low-acc-coverage"
       },
       {
         "tMin": 660,
@@ -5741,7 +5699,8 @@
         "sqi": 0.904,
         "beats": 278,
         "motionIndex": null,
-        "position": "unknown"
+        "position": "unknown",
+        "positionReason": "low-acc-coverage"
       },
       {
         "tMin": 665,
@@ -5758,7 +5717,8 @@
         "sqi": 0.906,
         "beats": 279,
         "motionIndex": null,
-        "position": "unknown"
+        "position": "unknown",
+        "positionReason": "low-acc-coverage"
       },
       {
         "tMin": 670,
@@ -5775,7 +5735,8 @@
         "sqi": 0.887,
         "beats": 236,
         "motionIndex": null,
-        "position": "unknown"
+        "position": "unknown",
+        "positionReason": "low-acc-coverage"
       }
     ],
     "sleepStages": [
@@ -146492,11 +146453,12 @@
       "REM": 85,
       "Light": 360,
       "Deep": 115
-    }
+    },
+    "unstagedMin": 0
   },
   "apnea": {
-    "cvhrIndex": 6,
-    "cvhrEvents": 63,
+    "cvhrIndex": 5.7,
+    "cvhrEvents": 58,
     "onCPAP": false,
     "method": "CVHR index (cyclic variation of HR, Hayano) + CPC band shares (Thomas 2005). NOT an apnea–hypopnea index: against device-scored residual AHI over 39 paired nights the CVHR index did not track it (r = −0.151, p = 0.36); only cpc.hfcPct did (r = −0.408, p = 0.009). Screen-adjacent signal, not diagnosis.",
     "cpc": {
@@ -146508,8 +146470,8 @@
       "vlfcPct": 22.2,
       "method": "CPC — coherence x cross-power of HR vs EDR (Thomas 2005), 512 s windows, 50 % overlap"
     },
-    "surgeEscalationPct": 43,
-    "cvhrHours": 10.57
+    "surgeEscalationPct": 93,
+    "cvhrHours": 10.09
   },
   "hrvStability": {
     "sigma_lnRMSSD_slope": -0.0136,

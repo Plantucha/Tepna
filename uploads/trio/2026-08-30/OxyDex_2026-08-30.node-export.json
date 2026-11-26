@@ -9,10 +9,13 @@
     "node": "OxyDex",
     "nodeVersion": "1.0",
     "multiNight": false,
-    "generated": "2026-10-12T21:07:30.053Z",
+    "generated": "2026-11-26T14:39:52.091Z",
     "provenance": null,
     "doc": "OxyDex single-night SpO₂/oximetry summary computed headless from a SignalFrame(spo2). Emits ganglior_events[] (desat_event from desatProfile + periodic_breathing from oscillation episodes); OxyDex infers respiration from an SpO₂ proxy, not airflow. tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.",
-    "scrubbed": true
+    "scrubbed": true,
+    "scrubDropped": [
+      "nights[].file"
+    ]
   },
   "recording": {
     "source": "spo2",
@@ -21,20 +24,36 @@
     "durationMin": 332.4,
     "beats": 19678,
     "coveragePct": null,
+    "timing": {
+      "timingSource": "device-only",
+      "independent": false,
+      "anchors": null,
+      "spanMs": null,
+      "ppm": null,
+      "spanPpm": null,
+      "ppmEstimator": null,
+      "ppmUncertainty": null,
+      "resyncs": null,
+      "seams": 0,
+      "rate": null,
+      "rateRaw": null,
+      "rateApplied": null,
+      "reason": "no host stamp column on this input, so there is no second clock to discipline the device rate against; this node does not look for device-clock resyncs, so that count is unknown rather than zero"
+    },
     "coverage": {
       "kind": "sparse",
       "spanSec": 19943,
       "segments": [
         {
-          "startMs": "2026-08-30T22:48:19.000Z",
+          "startMs": 1788130099000,
           "durSec": 7068
         },
         {
-          "startMs": "2026-08-31T00:46:25.000Z",
+          "startMs": 1788137185000,
           "durSec": 9053
         },
         {
-          "startMs": "2026-08-31T03:17:33.000Z",
+          "startMs": 1788146253000,
           "durSec": 3789
         }
       ],
@@ -42,6 +61,14 @@
       "nWithDuration": 3,
       "n": 3,
       "source": "sensor-dropout"
+    },
+    "validity": {
+      "seams": null,
+      "seamsExamined": null,
+      "seamsPlaced": null,
+      "seamsUnplaced": null,
+      "seamsBoundMs": null,
+      "seamsReason": "no-seam-sidecar"
     }
   },
   "ganglior_events": [
@@ -287,407 +314,474 @@
     }
   ],
   "timeseries": {
-    "doc": "5-min epochs — cross-node feed for three-cornered-hat: hr = median pulse-HR (bpm), motionIndex = mean O2Ring motion count. HR-hat 3rd corner (ECG+PPG+Oxy) + a 2nd per-epoch motion series for the correlated-TCH ρ.",
+    "doc": "5-min epochs — cross-node feed for three-cornered-hat: hr = mean pulse-HR (bpm) or null when under 60 covered samples, hrN = the covered sample count, motionIndex = mean O2Ring motion count. HR-hat 3rd corner (ECG+PPG+Oxy) + a 2nd per-epoch motion series for the correlated-TCH ρ. `epochs` is ABSENT, with `epochsReason` naming why, when no window of the night held either channel.",
     "epochs": [
       {
         "tMin": 0,
         "hr": 63.7,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0.017
       },
       {
         "tMin": 5,
         "hr": 52.5,
+        "hrN": 298,
         "hrStat": "mean-rate",
         "motionIndex": 0.252
       },
       {
         "tMin": 10,
         "hr": 50.9,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 15,
         "hr": 49.9,
+        "hrN": 298,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 20,
         "hr": 50.3,
+        "hrN": 298,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 25,
         "hr": 51.2,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 30,
         "hr": 52.2,
+        "hrN": 298,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 35,
         "hr": 52.6,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 40,
         "hr": 53.5,
+        "hrN": 298,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 45,
         "hr": 52.7,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 50,
         "hr": 55.2,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 55,
         "hr": 58.3,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 60,
         "hr": 58.3,
+        "hrN": 298,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 65,
         "hr": 57.4,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 70,
         "hr": 56.8,
+        "hrN": 298,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 75,
         "hr": 56.9,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0.007
       },
       {
         "tMin": 80,
         "hr": 55.6,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 85,
         "hr": 54.3,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 90,
         "hr": 50.9,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0.091
       },
       {
         "tMin": 95,
         "hr": 50.6,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 100,
         "hr": 52.9,
+        "hrN": 298,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 105,
         "hr": 53.2,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 110,
         "hr": 53.3,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 115,
         "hr": 53.8,
+        "hrN": 281,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 120,
         "hr": 53.4,
+        "hrN": 293,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 125,
         "hr": 53.8,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 130,
         "hr": 53.6,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 135,
         "hr": 53.4,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 140,
         "hr": 53.3,
+        "hrN": 298,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 145,
         "hr": 53,
+        "hrN": 295,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 150,
         "hr": 51.1,
+        "hrN": 298,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 155,
         "hr": 50.8,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 160,
         "hr": 55.6,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 165,
         "hr": 56.1,
+        "hrN": 295,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 170,
         "hr": 51,
+        "hrN": 298,
         "hrStat": "mean-rate",
         "motionIndex": 0.003
       },
       {
         "tMin": 175,
         "hr": 51.1,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 180,
         "hr": 54.3,
+        "hrN": 298,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 185,
         "hr": 54.6,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 190,
         "hr": 52.9,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 195,
         "hr": 53.5,
+        "hrN": 298,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 200,
         "hr": 54.3,
+        "hrN": 295,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 205,
         "hr": 53.5,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 210,
         "hr": 53.8,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 215,
         "hr": 53.1,
+        "hrN": 298,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 220,
         "hr": 53.4,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 225,
         "hr": 53.2,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0.007
       },
       {
         "tMin": 230,
         "hr": 51.6,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 235,
         "hr": 51.8,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 240,
         "hr": 50.9,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 245,
         "hr": 52.1,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 250,
         "hr": 51,
+        "hrN": 295,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 255,
         "hr": 52.4,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 260,
         "hr": 53.1,
+        "hrN": 294,
         "hrStat": "mean-rate",
         "motionIndex": 0.112
       },
       {
         "tMin": 265,
         "hr": 52.5,
+        "hrN": 284,
         "hrStat": "mean-rate",
         "motionIndex": 0.437
       },
       {
         "tMin": 270,
         "hr": 52,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 275,
         "hr": 53,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 280,
         "hr": 54,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0.02
       },
       {
         "tMin": 285,
         "hr": 53.5,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 290,
         "hr": 53,
+        "hrN": 294,
         "hrStat": "mean-rate",
         "motionIndex": 0.003
       },
       {
         "tMin": 295,
         "hr": 52.4,
+        "hrN": 295,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 300,
         "hr": 52,
+        "hrN": 293,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 305,
         "hr": 52,
+        "hrN": 295,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 310,
         "hr": 51.8,
+        "hrN": 294,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 315,
         "hr": 52.2,
+        "hrN": 295,
         "hrStat": "mean-rate",
         "motionIndex": 0.007
       },
       {
         "tMin": 320,
         "hr": 53.7,
+        "hrN": 294,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 325,
         "hr": 54.4,
+        "hrN": 295,
         "hrStat": "mean-rate",
         "motionIndex": 0.007
       },
       {
         "tMin": 330,
         "hr": 58.1,
+        "hrN": 141,
         "hrStat": "mean-rate",
         "motionIndex": 0.071
       }
@@ -40599,6 +40693,29 @@
     {
       "date": "2026-08-30",
       "t0Ms": 1788130099000,
+      "clockSeamScan": {
+        "scanned": true,
+        "reason": null,
+        "n": 19677,
+        "seams": 0,
+        "dropouts": 422,
+        "reorders": 0,
+        "unsettled": 0,
+        "medianMs": 1000,
+        "madMs": 0,
+        "barMs": 1300,
+        "cadenceMs": 1000,
+        "dominantShare": 0.9783500923455777,
+        "forwardBlindShare": 0.1,
+        "forwardDecidable": true
+      },
+      "rowsDropped": {
+        "total": 0,
+        "short": 0,
+        "unreadable": 0,
+        "outOfRange": 0,
+        "stamp": 0
+      },
       "contentId": null,
       "provenance": null,
       "kernel": {
@@ -40929,9 +41046,10 @@
         "hrFloor": 50,
         "hrSlope": -0.31,
         "rsaProxy": 0.424,
-        "rmssd": 0.53,
+        "rmssd": 0.52,
         "maxHr": 79,
-        "n": 19633
+        "n": 19633,
+        "hrPairs": 18994
       },
       "hypoxicBurden": {
         "total": 57,
@@ -41552,9 +41670,11 @@
       "hrProfile": {
         "circadianScore": -0.56,
         "decCapacity": 3.05,
-        "apEn": 1.0108,
+        "apEn": 1.0074,
         "bradyCount": 0,
-        "tachyCount": 0
+        "tachyCount": 0,
+        "hrCoveredN": 19633,
+        "hrSpanN": 19633
       },
       "crossSignal": {
         "autoArousalIdx": 2.3,
@@ -41578,11 +41698,12 @@
         }
       },
       "hrAdvanced": {
-        "rmssd": 0.53,
+        "rmssd": 0.52,
         "hrIQR": 3,
         "meanHRpb": 53,
         "meanHRnonPb": 53.5,
-        "hrPbContrast": -0.5
+        "hrPbContrast": -0.5,
+        "hrPairs": 18994
       },
       "composite": {
         "couplingScore": 8,
@@ -41599,7 +41720,10 @@
         "pred3pQ": "Q2"
       },
       "desSev": {
-        "desSev": 3.31
+        "desSev": 3.31,
+        "desSevReason": null,
+        "desSevCoveredSec": 244,
+        "desSevAbsentSec": 0
       },
       "ctPrecise": {
         "ct90s": 0,
@@ -41610,7 +41734,16 @@
         "ct90m": 0,
         "ct89m": 0,
         "ct88m": 0,
-        "ct85m": 0
+        "ct85m": 0,
+        "ct90n": 0,
+        "ct89n": 0,
+        "ct88n": 0,
+        "ct85n": 0,
+        "ct80n": 0,
+        "ctSource": "stamps",
+        "ctCadenceMs": 1000,
+        "ctCoveredSec": 19915,
+        "ctUncoveredSec": 29
       },
       "sleepStability": {
         "score": 59,
@@ -41660,6 +41793,8 @@
           "driftSlope": -0.011,
           "driftPerHr": -0.132,
           "driftR2": 0.035,
+          "driftWindows": 65,
+          "driftWindowsPossible": 65,
           "driftLabel": "Stable"
         },
         "odi2": {
@@ -41674,7 +41809,10 @@
         "spo2Ac1": {
           "ac1": 0.981,
           "ac1Label": "Sustained (hypoventilation)",
-          "basis": "wholeRecord"
+          "basis": "wholeRecord",
+          "nMeasured": 19678,
+          "nTotal": 19678,
+          "nPairs": 19677
         },
         "hrFreqBands": {
           "hrBandsN": 18000,
@@ -41682,11 +41820,15 @@
           "hrLfPow": 2.3,
           "hrHfPow": 0.1,
           "hrLfHf": 19.5,
-          "hrLfHfLabel": "SNS dominant",
+          "hrLfHfLabel": "Not resolvable — band ratio outside physiology at 1 Hz",
           "basis": "medianOf30minWindows",
           "windowsUsed": 10
         },
-        "respRate": null,
+        "respRate": {
+          "respRateBpm": null,
+          "respRateLabel": null,
+          "reason": "proxy-uninformative"
+        },
         "hrAsymmetry": {
           "hrAccelAsym": 0.991,
           "meanUpBpm": 1.09,
@@ -41700,7 +41842,9 @@
           "hrQ4": 52.9,
           "hrArc": -1.6,
           "remReemergence": false,
-          "hrArcLabel": "Flat"
+          "hrArcLabel": "Flat",
+          "hrCoveredN": 19678,
+          "hrSpanN": 19678
         },
         "spo2HRLag": {
           "crossCorrLag": 54,
@@ -41724,7 +41868,9 @@
         "hrFlatlines": {
           "flatlineCount": 25,
           "maxFlatlineSec": 56,
-          "flatlineLabel": "Frequent (firmware artifact)"
+          "flatlineLabel": "Frequent (firmware artifact)",
+          "nMeasured": 19678,
+          "nTotal": 19678
         },
         "spo2Ceiling": {
           "ceilingRuns": 2,
@@ -41821,7 +41967,8 @@
           "nadirTrendSlope": -0.2622,
           "nadirTrendR2": 0.659,
           "nadirTrendN": 12,
-          "nadirTrendLabel": "Worsening (REM-load)"
+          "nadirTrendLabel": "Worsening (REM-load)",
+          "nadirTrendGate": null
         },
         "iei": {
           "ieiMeanSec": 1115.9,
@@ -41839,7 +41986,9 @@
           "hrNadirMinFromStart": 16,
           "hrNadirFrac": 0.05,
           "hrNadirSmoothed": 49.7,
-          "hrNadirLabel": "Early nadir (good alignment)"
+          "hrNadirLabel": "Early nadir (good alignment)",
+          "hrCoveredN": 19678,
+          "hrSpanN": 19678
         },
         "spo2NadirT": {
           "spo2NadirMinFromStart": 219,
@@ -41894,7 +42043,7 @@
           "dfaAdj": 0,
           "dfaNote": "DFA α1 computed on SpO₂ (not HR) — SpO₂ DFA is always >1.0 at short scales; HR-DFA sedentary thresholds do not apply. Adjustment disabled.",
           "rmssdAdj": -0.9,
-          "rmssdNote": "RMSSD 0.53bpm (1Hz proxy) → adj -0.9",
+          "rmssdNote": "RMSSD 0.52bpm (1Hz proxy) → adj -0.9",
           "formula": "Uth-Sørensen 2004 (VO2max = 15.3 × HRmax/HRrest)",
           "label": "Top-25% for age 49 (assumed)",
           "ageAssumed": true,
@@ -42015,7 +42164,9 @@
           "mafAdj": "-10 (recovery deficit)",
           "lthr": 153,
           "lthrNote": "Zone 4 top ≈ LTHR. Confirm with field test (30-min max effort, avg last 20 min).",
-          "method": "Karvonen HRR (ACSM 2022) · Tanaka HRmax · MAF 180-formula"
+          "ageUsed": 49,
+          "ageAssumed": true,
+          "method": "Karvonen HRR (ACSM 2022) · Tanaka HRmax · MAF 180-formula · age 49 ASSUMED (not entered)"
         }
       },
       "research": {
@@ -42153,12 +42304,18 @@
         "fft": {
           "peakFreqHz": null,
           "peakCycSec": null,
-          "snr": 11.46,
-          "threshold": 19.05,
-          "bins": 295,
-          "strided": true,
+          "snr": 10.5,
+          "threshold": 21.46,
+          "bins": 885,
+          "bandBinsN": 885,
+          "strided": false,
           "rhoLag1": 0.9808,
-          "detected": false
+          "rhoBg": 0.9804,
+          "coveredN": 19678,
+          "spanN": 19678,
+          "absentRunMaxN": 0,
+          "detected": false,
+          "reason": null
         },
         "hrEnt": {
           "sampEn": 1.3984,
@@ -42180,6 +42337,7 @@
         "hypLoad": {
           "hypoxicLoad": 8.067,
           "hlLabel": "High",
+          "hlReason": null,
           "hl_nadirCount": 27,
           "hl_meanDepth": 4,
           "hl_meanDurSec": 25

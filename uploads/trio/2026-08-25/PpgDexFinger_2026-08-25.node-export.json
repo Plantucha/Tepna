@@ -9,10 +9,13 @@
     "node": "PpgDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-10-12T21:05:58.536Z",
+    "generated": "2026-11-26T14:38:42.189Z",
     "provenance": null,
     "doc": "PpgDex PPG-derived events → Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
-    "scrubbed": true
+    "scrubbed": true,
+    "scrubDropped": [
+      "signalQuality"
+    ]
   },
   "recording": {
     "source": "ppg",
@@ -21,9 +24,25 @@
     "endEpochMs": null,
     "durSec": 33792.101741705,
     "sessions": 1,
-    "events": 20,
+    "events": 19,
     "site": "finger",
     "siteSource": "device-default",
+    "timing": {
+      "timingSource": "host",
+      "independent": true,
+      "anchors": null,
+      "spanMs": null,
+      "ppm": null,
+      "spanPpm": null,
+      "ppmEstimator": null,
+      "ppmUncertainty": null,
+      "resyncs": 0,
+      "seams": 0,
+      "rate": 128.05,
+      "rateRaw": null,
+      "rateApplied": null,
+      "reason": "the device axis is drawn — a synthesised counter, not a clock, so there is no second timebase to discipline the rate against"
+    },
     "coverage": {
       "kind": "sparse",
       "spanSec": 33792,
@@ -7698,9 +7717,33 @@
       "n": 1916,
       "source": "ble-dropout"
     },
+    "validity": {
+      "seams": null,
+      "seamsExamined": null,
+      "seamsPlaced": null,
+      "seamsUnplaced": null,
+      "seamsBoundMs": null,
+      "seamsDeviceAxis": null,
+      "seamsReason": "no-seam-sidecar"
+    },
     "hostAxis": {
+      "ok": true,
       "anchors": null,
       "ppm": null,
+      "ppmReason": "drawn-column — the device column is host-synthesised, so a rate against it describes a counter with no oscillator",
+      "drawnColumn": {
+        "ppm": null,
+        "spanPpm": null
+      },
+      "spanMs": null,
+      "spanPpm": null,
+      "flat": null,
+      "flatResidualMs": null,
+      "flatJitterMs": null,
+      "segments": null,
+      "rate": "unknown",
+      "rateReason": "the device column is drawn (1.8 % of its deltas are one value) — a rate over it measures a counter with no oscillator, whatever the span",
+      "rateApplied": null,
       "maxStepMs": null,
       "totalMs": null,
       "independent": true,
@@ -7708,8 +7751,12 @@
       "inertReason": null,
       "drawn": true,
       "quantizedShare": 0.017860003247888178,
+      "applied": null,
       "timingSource": "host",
-      "stability": null
+      "stability": null,
+      "deviceDrawn": null,
+      "drawnShare": null,
+      "drawnReason": null
     }
   },
   "ganglior_events": [
@@ -7734,8 +7781,8 @@
       "conf": 0.7,
       "sqi": 0.96,
       "meta": {
-        "rmssdFrom": 80.9,
-        "rmssdTo": 51.6,
+        "rmssdFrom": 69.2,
+        "rmssdTo": 41.8,
         "position": null
       }
     },
@@ -7747,21 +7794,8 @@
       "conf": 0.7,
       "sqi": 0.43,
       "meta": {
-        "rmssdFrom": 138.3,
-        "rmssdTo": 64.8,
-        "position": null
-      }
-    },
-    {
-      "t": "23:17:22",
-      "tMs": 1787699842104,
-      "impulse": "hrv_drop",
-      "node": "PpgDex",
-      "conf": 0.7,
-      "sqi": 0.83,
-      "meta": {
-        "rmssdFrom": 113.4,
-        "rmssdTo": 56.6,
+        "rmssdFrom": 139.1,
+        "rmssdTo": 61.1,
         "position": null
       }
     },
@@ -7773,8 +7807,8 @@
       "conf": 0.7,
       "sqi": 0.61,
       "meta": {
-        "rmssdFrom": 118.4,
-        "rmssdTo": 46.7,
+        "rmssdFrom": 119.3,
+        "rmssdTo": 38.4,
         "position": null
       }
     },
@@ -7786,8 +7820,8 @@
       "conf": 0.7,
       "sqi": 0.79,
       "meta": {
-        "rmssdFrom": 126.1,
-        "rmssdTo": 75.6,
+        "rmssdFrom": 121.4,
+        "rmssdTo": 70.1,
         "position": null
       }
     },
@@ -7799,7 +7833,7 @@
       "conf": 0.7,
       "sqi": 0.87,
       "meta": {
-        "rmssdFrom": 75.6,
+        "rmssdFrom": 70.1,
         "rmssdTo": 38.1,
         "position": null
       }
@@ -7929,8 +7963,8 @@
       "conf": 0.7,
       "sqi": 0.94,
       "meta": {
-        "rmssdFrom": 82.4,
-        "rmssdTo": 49.1,
+        "rmssdFrom": 79.8,
+        "rmssdTo": 48.7,
         "position": null
       }
     },
@@ -7942,7 +7976,7 @@
       "conf": 0.7,
       "sqi": 0.84,
       "meta": {
-        "rmssdFrom": 107.6,
+        "rmssdFrom": 96.5,
         "rmssdTo": 59.5,
         "position": null
       }
@@ -7955,8 +7989,8 @@
       "conf": 0.7,
       "sqi": 0.84,
       "meta": {
-        "rmssdFrom": 124.6,
-        "rmssdTo": 71.4,
+        "rmssdFrom": 124.5,
+        "rmssdTo": 70.5,
         "position": null
       }
     },
@@ -7968,8 +8002,8 @@
       "conf": 0.7,
       "sqi": 0.44,
       "meta": {
-        "rmssdFrom": 135.5,
-        "rmssdTo": 68.3,
+        "rmssdFrom": 119.7,
+        "rmssdTo": 67.3,
         "position": null
       }
     }
@@ -8011,7 +8045,7 @@
     },
     "rmssd": {
       "metricId": "rmssd",
-      "value": 57.8,
+      "value": 56.2,
       "window": {
         "startTMs": 1787692642104,
         "endTMs": 1787726434206,
@@ -8045,7 +8079,8 @@
     "analyzablePct": 92,
     "cleanBeatPct": 92,
     "coveragePct": 92,
-    "motionRejectedPct": 0,
+    "motionRejectedPct": null,
+    "motionRejectedPctReason": "no inertial stream was loaded — no beat was examined for motion",
     "correctionRatePct": 7.9,
     "ledAgreementPct": null,
     "ppiSpine": "foot",
@@ -8053,42 +8088,53 @@
     "ppiCorrFootPct": 7.9,
     "ppiCorrPeakPct": 6.7,
     "deviceBeats": null,
-    "pinnedCoverage": [],
+    "pinnedCoverage": [
+      {
+        "channel": 0,
+        "rail": null,
+        "spans": 624,
+        "samplesUnmeasured": 19810,
+        "samplesAbsent": 10880,
+        "samplesSaturated": 8930
+      }
+    ],
     "timingSource": "host",
     "axisDrawn": true,
     "axisQuantizedShare": 0.0179
   },
   "hrv": {
     "time": {
-      "meanRR": 1129,
+      "meanRR": 1130,
       "hr": 53,
-      "sdnn": 100.8,
-      "rmssd": 57.8,
-      "pnn50": 17.3,
+      "sdnn": 98.7,
+      "rmssd": 56.2,
+      "pnn50": 17,
       "sdnnIndex": 83.7,
       "sdnnRobust": 76.3,
-      "sd2Robust": 99.9,
+      "sd2Robust": 100.3,
+      "wholeRecordHR": 53,
+      "hrWindow": "epochMedian5min",
       "window": "wholeRecord",
       "units": "ms",
       "lowConfidence": false,
       "lowConfidenceReason": null,
-      "windowNote": "sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node’s wholeRecord SDNN/RMSSD.",
+      "windowNote": "sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node’s wholeRecord SDNN/RMSSD. hr is the DISPLAY rate instead: the 5-min epoch median on a record over 90 min, the whole-record rate below that. hrWindow names which one this export carries, and wholeRecordHR is the cross-node HR axis.",
       "sdnnNote": "whole-record sdnn runs high on optical — SDANN/baseline-wander inflation the chest ECG does not carry. sdnnIndex (mean of per-5-min SDNN) and sdnnRobust (quality-gated MEDIAN of per-5-min SDNN) both remove it, sdnnRobust the most; use sdnnRobust for cross-node SDNN comparison. Bias magnitudes are deliberately not quoted here: the earlier figures came from a single paired night and did not reproduce on the multi-night corpus."
     },
     "frequency": {
       "vlf": 1576,
-      "lf": 1544,
+      "lf": 1545,
       "hf": 1686,
-      "totalPower": 4806,
+      "totalPower": 4807,
       "lfhf": 0.7,
       "window": "epochMedian5min",
       "method": "Lomb-Scargle",
       "lowConfidence": false,
       "hfRobustLowMotion": null,
-      "wholeRecordLf": 2285,
-      "wholeRecordHf": 2390,
-      "wholeRecordLfhf": 0.96,
-      "respRate": 15.3,
+      "wholeRecordLf": 2150,
+      "wholeRecordHf": 2376,
+      "wholeRecordLfhf": 0.9,
+      "respRate": 15.78,
       "respRateMethod": "RSA (HF-peak of RR spectrum)"
     },
     "confidence": {
@@ -8115,9 +8161,9 @@
     }
   },
   "apnea": {
-    "cvhrIndex": 11.9,
-    "cvhrEvents": 110,
-    "cvhrHours": 9.24,
+    "cvhrIndex": 7.9,
+    "cvhrEvents": 59,
+    "cvhrHours": 7.45,
     "cvhrMethod": "CVHR events/h from finger PPI NN (Hayano apnea-band 20–45 s; ports ECGDex detectCVHR)",
     "cvhrTier": "emerging"
   },
@@ -8128,13 +8174,15 @@
         "tMin": 0,
         "hr": 62,
         "hrStat": "rate-of-mean",
-        "rmssd": 80.1,
+        "rmssd": 80.3,
         "sdnn": 75.3,
         "lfhf": 0.56,
+        "spanSec": 298.89,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8145,10 +8193,12 @@
         "rmssd": 94.7,
         "sdnn": 91.5,
         "lfhf": 0.52,
+        "spanSec": 299.22,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8156,13 +8206,15 @@
         "tMin": 10,
         "hr": 57,
         "hrStat": "rate-of-mean",
-        "rmssd": 62.2,
+        "rmssd": 62.9,
         "sdnn": 95.4,
         "lfhf": 0.46,
+        "spanSec": 252.76,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8173,10 +8225,12 @@
         "rmssd": 74.3,
         "sdnn": 78,
         "lfhf": 0.5,
+        "spanSec": 297.11,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8187,10 +8241,12 @@
         "rmssd": 40.4,
         "sdnn": 67.6,
         "lfhf": 0.41,
+        "spanSec": 297.8,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8201,10 +8257,12 @@
         "rmssd": 45.5,
         "sdnn": 51,
         "lfhf": 0.62,
+        "spanSec": 298.22,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8212,13 +8270,15 @@
         "tMin": 30,
         "hr": 55,
         "hrStat": "rate-of-mean",
-        "rmssd": 40.6,
-        "sdnn": 127.2,
+        "rmssd": 40.5,
+        "sdnn": 127.3,
         "lfhf": 0.56,
+        "spanSec": 298.27,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8229,10 +8289,12 @@
         "rmssd": 45.6,
         "sdnn": 77.9,
         "lfhf": 1.04,
+        "spanSec": 298.86,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8240,13 +8302,15 @@
         "tMin": 40,
         "hr": 56,
         "hrStat": "rate-of-mean",
-        "rmssd": 43.8,
+        "rmssd": 42.6,
         "sdnn": 89.8,
         "lfhf": 0.76,
+        "spanSec": 298.83,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8254,13 +8318,15 @@
         "tMin": 45,
         "hr": 57,
         "hrStat": "rate-of-mean",
-        "rmssd": 80.9,
+        "rmssd": 69.2,
         "sdnn": 90.5,
         "lfhf": 0.46,
+        "spanSec": 299.5,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8268,13 +8334,15 @@
         "tMin": 50,
         "hr": 57,
         "hrStat": "rate-of-mean",
-        "rmssd": 51.6,
+        "rmssd": 41.8,
         "sdnn": 69.8,
         "lfhf": 0.68,
+        "spanSec": 298.46,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8285,10 +8353,12 @@
         "rmssd": 45,
         "sdnn": 62.3,
         "lfhf": 0.77,
+        "spanSec": 298.84,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8296,13 +8366,15 @@
         "tMin": 60,
         "hr": 60,
         "hrStat": "rate-of-mean",
-        "rmssd": 138.3,
+        "rmssd": 139.1,
         "sdnn": 123.9,
         "lfhf": 0.37,
+        "spanSec": 299.74,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8310,13 +8382,15 @@
         "tMin": 65,
         "hr": 57,
         "hrStat": "rate-of-mean",
-        "rmssd": 64.8,
+        "rmssd": 61.1,
         "sdnn": 113,
         "lfhf": 0.58,
+        "spanSec": 295.45,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8324,13 +8398,15 @@
         "tMin": 70,
         "hr": 55,
         "hrStat": "rate-of-mean",
-        "rmssd": 57.4,
+        "rmssd": 57.8,
         "sdnn": 154.8,
         "lfhf": 0.39,
+        "spanSec": 298.54,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8338,13 +8414,15 @@
         "tMin": 75,
         "hr": 56,
         "hrStat": "rate-of-mean",
-        "rmssd": 114.3,
+        "rmssd": 96,
         "sdnn": 162.1,
         "lfhf": 0.34,
+        "spanSec": 296.3,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8352,13 +8430,15 @@
         "tMin": 80,
         "hr": 52,
         "hrStat": "rate-of-mean",
-        "rmssd": 101,
+        "rmssd": 102.6,
         "sdnn": 165.1,
         "lfhf": 0.41,
+        "spanSec": 294.84,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8366,13 +8446,15 @@
         "tMin": 85,
         "hr": 54,
         "hrStat": "rate-of-mean",
-        "rmssd": 105.4,
+        "rmssd": 106,
         "sdnn": 151.7,
         "lfhf": 0.57,
+        "spanSec": 291.95,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8380,13 +8462,15 @@
         "tMin": 90,
         "hr": 52,
         "hrStat": "rate-of-mean",
-        "rmssd": 83.2,
+        "rmssd": 72.4,
         "sdnn": 102.2,
         "lfhf": 0.33,
+        "spanSec": 298,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8394,13 +8478,15 @@
         "tMin": 95,
         "hr": 54,
         "hrStat": "rate-of-mean",
-        "rmssd": 77.5,
+        "rmssd": 51.9,
         "sdnn": 127.3,
         "lfhf": 0.38,
+        "spanSec": 298.86,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8408,13 +8494,15 @@
         "tMin": 100,
         "hr": 53,
         "hrStat": "rate-of-mean",
-        "rmssd": 79,
+        "rmssd": 78.9,
         "sdnn": 128,
         "lfhf": 0.43,
+        "spanSec": 298.46,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8422,13 +8510,15 @@
         "tMin": 105,
         "hr": 54,
         "hrStat": "rate-of-mean",
-        "rmssd": 110.1,
+        "rmssd": 82.2,
         "sdnn": 141.8,
         "lfhf": 0.31,
+        "spanSec": 297.48,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8439,10 +8529,12 @@
         "rmssd": 123.9,
         "sdnn": 142.4,
         "lfhf": 0.39,
+        "spanSec": 299.8,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8450,13 +8542,15 @@
         "tMin": 115,
         "hr": 54,
         "hrStat": "rate-of-mean",
-        "rmssd": 113.4,
+        "rmssd": 82.7,
         "sdnn": 161.9,
         "lfhf": 0.43,
+        "spanSec": 298.84,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8464,13 +8558,15 @@
         "tMin": 120,
         "hr": 52,
         "hrStat": "rate-of-mean",
-        "rmssd": 56.6,
+        "rmssd": 56.3,
         "sdnn": 92.1,
         "lfhf": 0.57,
+        "spanSec": 298.24,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8478,13 +8574,15 @@
         "tMin": 125,
         "hr": 53,
         "hrStat": "rate-of-mean",
-        "rmssd": 118.4,
+        "rmssd": 119.3,
         "sdnn": 174,
         "lfhf": 0.46,
+        "spanSec": 298.52,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8492,13 +8590,15 @@
         "tMin": 130,
         "hr": 54,
         "hrStat": "rate-of-mean",
-        "rmssd": 46.7,
+        "rmssd": 38.4,
         "sdnn": 120.3,
         "lfhf": 0.66,
+        "spanSec": 289.32,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8506,13 +8606,15 @@
         "tMin": 135,
         "hr": 61,
         "hrStat": "rate-of-mean",
-        "rmssd": 126.1,
+        "rmssd": 121.4,
         "sdnn": 226.5,
         "lfhf": 0.51,
+        "spanSec": 299.28,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8520,13 +8622,15 @@
         "tMin": 140,
         "hr": 51,
         "hrStat": "rate-of-mean",
-        "rmssd": 75.6,
+        "rmssd": 70.1,
         "sdnn": 109.2,
         "lfhf": 0.56,
+        "spanSec": 298.63,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8537,10 +8641,12 @@
         "rmssd": 38.1,
         "sdnn": 61.7,
         "lfhf": 0.68,
+        "spanSec": 298.53,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8551,10 +8657,12 @@
         "rmssd": 29.3,
         "sdnn": 50.2,
         "lfhf": 0.33,
+        "spanSec": 298.97,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8565,10 +8673,12 @@
         "rmssd": 87.8,
         "sdnn": 61.2,
         "lfhf": 0.37,
+        "spanSec": 299.1,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8579,10 +8689,12 @@
         "rmssd": 36.7,
         "sdnn": 55.3,
         "lfhf": 0.55,
+        "spanSec": 298.35,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8593,10 +8705,12 @@
         "rmssd": 42.4,
         "sdnn": 38.4,
         "lfhf": 1.07,
+        "spanSec": 299.8,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8607,10 +8721,12 @@
         "rmssd": 23.6,
         "sdnn": 49.3,
         "lfhf": 4.14,
+        "spanSec": 298.4,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8621,10 +8737,12 @@
         "rmssd": 22,
         "sdnn": 42.1,
         "lfhf": 3.11,
+        "spanSec": 298.93,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8635,10 +8753,12 @@
         "rmssd": 50,
         "sdnn": 84.7,
         "lfhf": 1.47,
+        "spanSec": 298.86,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8649,10 +8769,12 @@
         "rmssd": 34.2,
         "sdnn": 61.4,
         "lfhf": 3.1,
+        "spanSec": 298.59,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8660,13 +8782,15 @@
         "tMin": 190,
         "hr": 52,
         "hrStat": "rate-of-mean",
-        "rmssd": 51.7,
+        "rmssd": 46.6,
         "sdnn": 97.4,
         "lfhf": 3.24,
+        "spanSec": 299.25,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8677,10 +8801,12 @@
         "rmssd": 48.8,
         "sdnn": 79.2,
         "lfhf": 1.88,
+        "spanSec": 297.16,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8691,10 +8817,12 @@
         "rmssd": 48.7,
         "sdnn": 68,
         "lfhf": 1.68,
+        "spanSec": 299.73,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8705,10 +8833,12 @@
         "rmssd": 30.1,
         "sdnn": 76.8,
         "lfhf": 1.11,
+        "spanSec": 298.82,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8719,10 +8849,12 @@
         "rmssd": 62.9,
         "sdnn": 52.4,
         "lfhf": 0.76,
+        "spanSec": 298.7,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8733,10 +8865,12 @@
         "rmssd": 46.7,
         "sdnn": 97.4,
         "lfhf": 1.01,
+        "spanSec": 298.63,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8747,10 +8881,12 @@
         "rmssd": 43.7,
         "sdnn": 59.7,
         "lfhf": 1.07,
+        "spanSec": 297.99,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8761,10 +8897,12 @@
         "rmssd": 31.2,
         "sdnn": 64.4,
         "lfhf": 2.23,
+        "spanSec": 299.06,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8775,10 +8913,12 @@
         "rmssd": 34,
         "sdnn": 33.2,
         "lfhf": 0.7,
+        "spanSec": 299.53,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8786,13 +8926,15 @@
         "tMin": 235,
         "hr": 50,
         "hrStat": "rate-of-mean",
-        "rmssd": 48.7,
+        "rmssd": 48.8,
         "sdnn": 64,
         "lfhf": 0.28,
+        "spanSec": 298.71,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8803,10 +8945,12 @@
         "rmssd": 41.6,
         "sdnn": 34,
         "lfhf": 0.77,
+        "spanSec": 298.91,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8817,10 +8961,12 @@
         "rmssd": 43.6,
         "sdnn": 34.9,
         "lfhf": 0.58,
+        "spanSec": 298.74,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8831,10 +8977,12 @@
         "rmssd": 50.9,
         "sdnn": 52.6,
         "lfhf": 0.9,
+        "spanSec": 298.24,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8845,10 +8993,12 @@
         "rmssd": 41,
         "sdnn": 74.9,
         "lfhf": 1.59,
+        "spanSec": 299.37,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8859,10 +9009,12 @@
         "rmssd": 29.7,
         "sdnn": 58.9,
         "lfhf": 1.1,
+        "spanSec": 298.67,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8873,10 +9025,12 @@
         "rmssd": 45.2,
         "sdnn": 59.6,
         "lfhf": 0.37,
+        "spanSec": 298.87,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8887,10 +9041,12 @@
         "rmssd": 40.7,
         "sdnn": 87.9,
         "lfhf": 2.29,
+        "spanSec": 298.88,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8901,10 +9057,12 @@
         "rmssd": 55.8,
         "sdnn": 57.5,
         "lfhf": 1.03,
+        "spanSec": 298.49,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8915,10 +9073,12 @@
         "rmssd": 41.2,
         "sdnn": 47.6,
         "lfhf": 0.92,
+        "spanSec": 299,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8929,10 +9089,12 @@
         "rmssd": 28.2,
         "sdnn": 72.9,
         "lfhf": 0.69,
+        "spanSec": 299.55,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8943,10 +9105,12 @@
         "rmssd": 46.3,
         "sdnn": 55.6,
         "lfhf": 1.09,
+        "spanSec": 298.63,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8957,10 +9121,12 @@
         "rmssd": 25,
         "sdnn": 36,
         "lfhf": 1.83,
+        "spanSec": 298.74,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8971,10 +9137,12 @@
         "rmssd": 50.3,
         "sdnn": 55.4,
         "lfhf": 1.9,
+        "spanSec": 298.89,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8985,10 +9153,12 @@
         "rmssd": 63.6,
         "sdnn": 63.7,
         "lfhf": 0.93,
+        "spanSec": 298.37,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -8999,10 +9169,12 @@
         "rmssd": 47.4,
         "sdnn": 89.8,
         "lfhf": 1.43,
+        "spanSec": 299.01,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9013,10 +9185,12 @@
         "rmssd": 40.9,
         "sdnn": 45.6,
         "lfhf": 1.2,
+        "spanSec": 299.61,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9027,10 +9201,12 @@
         "rmssd": 87.6,
         "sdnn": 62.3,
         "lfhf": 0.42,
+        "spanSec": 298.7,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9041,10 +9217,12 @@
         "rmssd": 31.9,
         "sdnn": 37.3,
         "lfhf": 1.66,
+        "spanSec": 298.19,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9052,13 +9230,15 @@
         "tMin": 330,
         "hr": 52,
         "hrStat": "rate-of-mean",
-        "rmssd": 76.9,
+        "rmssd": 76.4,
         "sdnn": 81.2,
         "lfhf": 0.43,
+        "spanSec": 299.46,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9069,10 +9249,12 @@
         "rmssd": 62.6,
         "sdnn": 92.8,
         "lfhf": 1.14,
+        "spanSec": 299.08,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9083,10 +9265,12 @@
         "rmssd": 56.9,
         "sdnn": 58.8,
         "lfhf": 0.79,
+        "spanSec": 298.56,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9097,10 +9281,12 @@
         "rmssd": 41.3,
         "sdnn": 76.3,
         "lfhf": 2.13,
+        "spanSec": 297.86,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9111,10 +9297,12 @@
         "rmssd": 34.8,
         "sdnn": 44.5,
         "lfhf": 1.56,
+        "spanSec": 299.4,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9125,10 +9313,12 @@
         "rmssd": 46,
         "sdnn": 48.7,
         "lfhf": 1.15,
+        "spanSec": 298.59,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9139,10 +9329,12 @@
         "rmssd": 62.7,
         "sdnn": 47.9,
         "lfhf": 0.49,
+        "spanSec": 298.63,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9153,10 +9345,12 @@
         "rmssd": 30.6,
         "sdnn": 31.6,
         "lfhf": 1.54,
+        "spanSec": 299.44,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9167,10 +9361,12 @@
         "rmssd": 65.8,
         "sdnn": 55.1,
         "lfhf": 0.56,
+        "spanSec": 298.44,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9181,10 +9377,12 @@
         "rmssd": 52.3,
         "sdnn": 103.6,
         "lfhf": 1.76,
+        "spanSec": 298.62,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9195,10 +9393,12 @@
         "rmssd": 60.4,
         "sdnn": 48.5,
         "lfhf": 0.53,
+        "spanSec": 299.28,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9209,10 +9409,12 @@
         "rmssd": 35.5,
         "sdnn": 37.6,
         "lfhf": 1.35,
+        "spanSec": 298.31,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9223,10 +9425,12 @@
         "rmssd": 69.4,
         "sdnn": 90,
         "lfhf": 0.73,
+        "spanSec": 299.02,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9237,10 +9441,12 @@
         "rmssd": 44.6,
         "sdnn": 51.1,
         "lfhf": 1.61,
+        "spanSec": 298.52,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9251,10 +9457,12 @@
         "rmssd": 42.7,
         "sdnn": 50,
         "lfhf": 0.77,
+        "spanSec": 299.2,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9265,10 +9473,12 @@
         "rmssd": 46.9,
         "sdnn": 49.8,
         "lfhf": 0.52,
+        "spanSec": 298.12,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9279,10 +9489,12 @@
         "rmssd": 35.2,
         "sdnn": 52.5,
         "lfhf": 2.16,
+        "spanSec": 299.52,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9293,10 +9505,12 @@
         "rmssd": 53,
         "sdnn": 77.9,
         "lfhf": 0.94,
+        "spanSec": 299.26,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9307,10 +9521,12 @@
         "rmssd": 71.1,
         "sdnn": 82.5,
         "lfhf": 0.98,
+        "spanSec": 298.86,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9321,10 +9537,12 @@
         "rmssd": 44.3,
         "sdnn": 64.8,
         "lfhf": 1.57,
+        "spanSec": 298.74,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9335,10 +9553,12 @@
         "rmssd": 43.8,
         "sdnn": 57,
         "lfhf": 2.26,
+        "spanSec": 298.79,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9349,10 +9569,12 @@
         "rmssd": 57.9,
         "sdnn": 76.1,
         "lfhf": 1.47,
+        "spanSec": 298.74,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9363,10 +9585,12 @@
         "rmssd": 78.8,
         "sdnn": 94.5,
         "lfhf": 0.99,
+        "spanSec": 298.39,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9377,10 +9601,12 @@
         "rmssd": 63.9,
         "sdnn": 63.7,
         "lfhf": 0.85,
+        "spanSec": 299,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9388,13 +9614,15 @@
         "tMin": 450,
         "hr": 49,
         "hrStat": "rate-of-mean",
-        "rmssd": 71.7,
+        "rmssd": 69.3,
         "sdnn": 97.9,
         "lfhf": 0.88,
+        "spanSec": 299.11,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9405,10 +9633,12 @@
         "rmssd": 53.6,
         "sdnn": 97.6,
         "lfhf": 0.69,
+        "spanSec": 299.11,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9419,10 +9649,12 @@
         "rmssd": 48.6,
         "sdnn": 81.3,
         "lfhf": 1.57,
+        "spanSec": 298.82,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9430,13 +9662,15 @@
         "tMin": 465,
         "hr": 54,
         "hrStat": "rate-of-mean",
-        "rmssd": 80.8,
+        "rmssd": 79.2,
         "sdnn": 84.1,
         "lfhf": 0.63,
+        "spanSec": 298.01,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9444,13 +9678,15 @@
         "tMin": 470,
         "hr": 56,
         "hrStat": "rate-of-mean",
-        "rmssd": 82.4,
+        "rmssd": 79.8,
         "sdnn": 104.1,
         "lfhf": 0.49,
+        "spanSec": 298.99,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9458,13 +9694,15 @@
         "tMin": 475,
         "hr": 54,
         "hrStat": "rate-of-mean",
-        "rmssd": 49.1,
+        "rmssd": 48.7,
         "sdnn": 70.1,
         "lfhf": 1.12,
+        "spanSec": 299.48,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9475,10 +9713,12 @@
         "rmssd": 42.3,
         "sdnn": 53.7,
         "lfhf": 0.47,
+        "spanSec": 298.89,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9486,13 +9726,15 @@
         "tMin": 485,
         "hr": 54,
         "hrStat": "rate-of-mean",
-        "rmssd": 41,
+        "rmssd": 40.8,
         "sdnn": 59.1,
         "lfhf": 1.09,
+        "spanSec": 298.04,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9500,13 +9742,15 @@
         "tMin": 490,
         "hr": 54,
         "hrStat": "rate-of-mean",
-        "rmssd": 47.4,
+        "rmssd": 42.8,
         "sdnn": 74.6,
         "lfhf": 0.31,
+        "spanSec": 299.34,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9514,13 +9758,15 @@
         "tMin": 495,
         "hr": 54,
         "hrStat": "rate-of-mean",
-        "rmssd": 45.6,
+        "rmssd": 43,
         "sdnn": 84.7,
         "lfhf": 0.48,
+        "spanSec": 299.45,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9531,10 +9777,12 @@
         "rmssd": 58.3,
         "sdnn": 65.2,
         "lfhf": 0.81,
+        "spanSec": 298.06,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9545,10 +9793,12 @@
         "rmssd": 55.5,
         "sdnn": 89.9,
         "lfhf": 0.79,
+        "spanSec": 299.1,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9559,10 +9809,12 @@
         "rmssd": 75.4,
         "sdnn": 114.3,
         "lfhf": 0.41,
+        "spanSec": 297.58,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9570,13 +9822,15 @@
         "tMin": 515,
         "hr": 56,
         "hrStat": "rate-of-mean",
-        "rmssd": 76.6,
+        "rmssd": 69.5,
         "sdnn": 112.4,
         "lfhf": 0.27,
+        "spanSec": 299.12,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9584,13 +9838,15 @@
         "tMin": 520,
         "hr": 57,
         "hrStat": "rate-of-mean",
-        "rmssd": 107.6,
+        "rmssd": 96.5,
         "sdnn": 92.6,
         "lfhf": 0.47,
+        "spanSec": 299.21,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9601,10 +9857,12 @@
         "rmssd": 59.5,
         "sdnn": 135.9,
         "lfhf": 0.73,
+        "spanSec": 298.26,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9612,13 +9870,15 @@
         "tMin": 530,
         "hr": 57,
         "hrStat": "rate-of-mean",
-        "rmssd": 80.6,
+        "rmssd": 77.7,
         "sdnn": 130.2,
         "lfhf": 0.48,
+        "spanSec": 298.99,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9626,13 +9886,15 @@
         "tMin": 535,
         "hr": 58,
         "hrStat": "rate-of-mean",
-        "rmssd": 124.6,
+        "rmssd": 124.5,
         "sdnn": 151.2,
         "lfhf": 0.41,
+        "spanSec": 298.97,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9640,13 +9902,15 @@
         "tMin": 540,
         "hr": 53,
         "hrStat": "rate-of-mean",
-        "rmssd": 71.4,
+        "rmssd": 70.5,
         "sdnn": 116.2,
         "lfhf": 0.58,
+        "spanSec": 299.08,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9654,13 +9918,15 @@
         "tMin": 545,
         "hr": 54,
         "hrStat": "rate-of-mean",
-        "rmssd": 94.2,
+        "rmssd": 94.1,
         "sdnn": 148.6,
         "lfhf": 0.39,
+        "spanSec": 297.18,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9668,13 +9934,15 @@
         "tMin": 550,
         "hr": 58,
         "hrStat": "rate-of-mean",
-        "rmssd": 135.5,
+        "rmssd": 119.7,
         "sdnn": 160.9,
         "lfhf": 0.43,
+        "spanSec": 297.43,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9682,13 +9950,15 @@
         "tMin": 555,
         "hr": 54,
         "hrStat": "rate-of-mean",
-        "rmssd": 68.3,
+        "rmssd": 67.3,
         "sdnn": 87.2,
         "lfhf": 0.62,
+        "spanSec": 293.43,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -9699,10 +9969,12 @@
         "rmssd": 120.1,
         "sdnn": 116.9,
         "lfhf": 0.34,
+        "spanSec": 70.63,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       }
@@ -10227,7 +10499,7 @@
         578.247,
         579.373,
         580.571,
-        581.696,
+        581.697,
         582.848,
         583.936,
         587.312,
@@ -10265,7 +10537,7 @@
         628.392,
         629.407,
         630.467,
-        631.449,
+        631.45,
         632.519,
         633.517,
         634.701,
@@ -10409,7 +10681,7 @@
         816.521,
         817.709,
         818.795,
-        820.14,
+        820.141,
         821.165,
         822.315,
         825.613,
@@ -10539,7 +10811,7 @@
         1021.992,
         1023.151,
         1024.57,
-        1027.472,
+        1027.473,
         1028.337,
         1029.775,
         1030.918,
@@ -10712,7 +10984,7 @@
         1233.343,
         1234.515,
         1235.621,
-        1236.704,
+        1236.705,
         1237.833,
         1238.968,
         1240.124,
@@ -10881,7 +11153,7 @@
         1439.062,
         1440.225,
         1441.371,
-        1442.603,
+        1442.604,
         1443.792,
         1444.939,
         1446.165,
@@ -11107,7 +11379,7 @@
         1704.78,
         1705.895,
         1707.068,
-        1708.235,
+        1708.236,
         1709.358,
         1710.455,
         1711.63,
@@ -11319,7 +11591,7 @@
         1953.933,
         1955.127,
         1956.245,
-        1957.384,
+        1957.385,
         1958.556,
         1959.791,
         1960.976,
@@ -11509,7 +11781,7 @@
         2164.018,
         2164.987,
         2165.98,
-        2166.994,
+        2166.995,
         2168.164,
         2169.223,
         2170.347,
@@ -11569,7 +11841,7 @@
         2232.444,
         2233.43,
         2234.398,
-        2235.375,
+        2235.376,
         2236.389,
         2237.425,
         2238.477,
@@ -11642,7 +11914,7 @@
         2311.365,
         2312.506,
         2313.571,
-        2314.528,
+        2314.529,
         2315.408,
         2316.388,
         2317.362,
@@ -12235,7 +12507,7 @@
         3032.117,
         3033.219,
         3034.329,
-        3035.435,
+        3035.436,
         3036.577,
         3037.671,
         3038.737,
@@ -12249,7 +12521,7 @@
         3047.351,
         3048.444,
         3049.515,
-        3050.53,
+        3050.531,
         3051.628,
         3052.671,
         3053.629,
@@ -12384,7 +12656,7 @@
         3206.831,
         3209.993,
         3211.062,
-        3212.116,
+        3212.117,
         3213.184,
         3214.261,
         3215.325,
@@ -12664,7 +12936,7 @@
         3508.991,
         3510.043,
         3511.069,
-        3512.121,
+        3512.122,
         3513.185,
         3514.203,
         3515.021,
@@ -12775,7 +13047,7 @@
         3627.903,
         3628.755,
         3629.642,
-        3631.271,
+        3631.27,
         3634.267,
         3635.212,
         3635.963,
@@ -13207,7 +13479,7 @@
         4193.229,
         4194.316,
         4195.272,
-        4196.343,
+        4196.342,
         4197.629,
         4198.945,
         4199.906,
@@ -13278,7 +13550,7 @@
         4280.072,
         4281.727,
         4286.306,
-        4290.783,
+        4290.784,
         4291.735,
         4292.757,
         4293.777,
@@ -13311,7 +13583,7 @@
         4334.286,
         4335.435,
         4336.577,
-        4339.878,
+        4339.879,
         4340.913,
         4341.971,
         4343.008,
@@ -13320,7 +13592,7 @@
         4346.047,
         4346.969,
         4348.299,
-        4349.295,
+        4349.296,
         4350.423,
         4351.525,
         4352.596,
@@ -13401,7 +13673,7 @@
         4514.945,
         4519.222,
         4520.415,
-        4521.545,
+        4521.546,
         4522.802,
         4523.953,
         4525.152,
@@ -14253,7 +14525,7 @@
         5791.025,
         5794.446,
         5795.583,
-        5796.673,
+        5796.674,
         5797.764,
         5798.869,
         5799.998,
@@ -14302,7 +14574,7 @@
         5863.787,
         5864.636,
         5865.87,
-        5867.023,
+        5867.024,
         5868.168,
         5869.413,
         5871.469,
@@ -14363,7 +14635,7 @@
         5971.466,
         5972.765,
         5973.881,
-        5974.904,
+        5974.905,
         5976.046,
         5977.044,
         5978.321,
@@ -14530,9 +14802,9 @@
         6191.698,
         6196.579,
         6199.426,
-        6200.307,
+        6200.308,
         6203.015,
-        6203.956,
+        6203.957,
         6205.032,
         6206.163,
         6207.266,
@@ -14845,7 +15117,7 @@
         6665.298,
         6666.279,
         6667.107,
-        6669.755,
+        6669.756,
         6670.896,
         6672.02,
         6673.177,
@@ -15021,7 +15293,7 @@
         6904.75,
         6905.957,
         6909.222,
-        6911.97,
+        6911.971,
         6913.189,
         6914.456,
         6915.674,
@@ -15058,7 +15330,7 @@
         6951.86,
         6952.7,
         6953.627,
-        6954.527,
+        6954.528,
         6955.135,
         6956.142,
         6957.219,
@@ -15081,7 +15353,7 @@
         6988.359,
         6990.558,
         6991.496,
-        6992.167,
+        6992.166,
         6995.13,
         6998.477,
         7000.863,
@@ -15168,7 +15440,7 @@
         7106.195,
         7107.35,
         7108.516,
-        7109.69,
+        7109.691,
         7110.873,
         7112.067,
         7113.326,
@@ -15186,7 +15458,7 @@
         7126.891,
         7127.701,
         7130.119,
-        7132.818,
+        7132.819,
         7136.608,
         7137.621,
         7138.321,
@@ -15564,7 +15836,7 @@
         7607.615,
         7608.443,
         7609.896,
-        7611.874,
+        7611.875,
         7612.861,
         7613.998,
         7616.604,
@@ -15818,7 +16090,7 @@
         7978.733,
         7979.82,
         7980.955,
-        7982.11,
+        7982.111,
         7983.266,
         7984.509,
         7985.588,
@@ -16016,14 +16288,14 @@
         8276.77,
         8277.911,
         8279.07,
-        8280.402,
+        8280.403,
         8281.423,
         8282.584,
         8283.897,
         8284.95,
         8286.062,
         8287.298,
-        8288.523,
+        8288.524,
         8289.719,
         8290.987,
         8292.177,
@@ -16099,7 +16371,7 @@
         8396.896,
         8398.079,
         8399.295,
-        8400.476,
+        8400.477,
         8401.639,
         8402.842,
         8404.045,
@@ -16506,7 +16778,7 @@
         8912.237,
         8913.523,
         8914.748,
-        8915.953,
+        8915.954,
         8917.245,
         8918.421,
         8919.598,
@@ -16799,7 +17071,7 @@
         9271.014,
         9272.227,
         9273.403,
-        9274.556,
+        9274.557,
         9275.864,
         9277.074,
         9278.224,
@@ -17030,7 +17302,7 @@
         9549.987,
         9551.146,
         9552.338,
-        9553.503,
+        9553.504,
         9554.698,
         9555.89,
         9557.152,
@@ -17897,7 +18169,7 @@
         10571.249,
         10572.335,
         10573.451,
-        10574.61,
+        10574.611,
         10575.81,
         10576.997,
         10578.14,
@@ -17945,7 +18217,7 @@
         10625.664,
         10626.778,
         10627.904,
-        10629.04,
+        10629.041,
         10630.152,
         10631.266,
         10632.399,
@@ -17962,7 +18234,7 @@
         10644.9,
         10646.043,
         10647.168,
-        10648.333,
+        10648.334,
         10649.517,
         10650.676,
         10651.826,
@@ -18649,7 +18921,7 @@
         11403.682,
         11404.829,
         11405.982,
-        11407.127,
+        11407.128,
         11408.278,
         11409.422,
         11410.542,
@@ -18661,7 +18933,7 @@
         11417.182,
         11418.35,
         11419.523,
-        11420.702,
+        11420.703,
         11421.868,
         11422.992,
         11424.16,
@@ -18706,7 +18978,7 @@
         11468.742,
         11469.879,
         11471.018,
-        11472.14,
+        11472.141,
         11473.282,
         11474.419,
         11475.558,
@@ -18822,7 +19094,7 @@
         11615.67,
         11616.862,
         11618.089,
-        11619.271,
+        11619.272,
         11620.431,
         11621.645,
         11622.874,
@@ -18832,7 +19104,7 @@
         11627.797,
         11629.053,
         11630.305,
-        11631.559,
+        11631.56,
         11632.821,
         11634.095,
         11635.365,
@@ -18962,7 +19234,7 @@
         11779.66,
         11780.829,
         11782.005,
-        11783.167,
+        11783.168,
         11784.308,
         11785.45,
         11786.601,
@@ -19483,7 +19755,7 @@
         12384.523,
         12385.602,
         12386.702,
-        12387.789,
+        12387.79,
         12388.858,
         12389.989,
         12391.211,
@@ -19499,7 +19771,7 @@
         12402.523,
         12403.602,
         12404.698,
-        12405.752,
+        12405.753,
         12406.774,
         12407.814,
         12408.889,
@@ -19561,7 +19833,7 @@
         12475.841,
         12477.022,
         12478.207,
-        12479.371,
+        12479.372,
         12480.519,
         12481.647,
         12482.764,
@@ -19698,7 +19970,7 @@
         12638.747,
         12640.009,
         12641.226,
-        12642.464,
+        12642.465,
         12643.723,
         12644.957,
         12646.209,
@@ -19795,7 +20067,7 @@
         12757.849,
         12759.092,
         12760.333,
-        12761.602,
+        12761.603,
         12762.866,
         12764.135,
         12765.378,
@@ -19891,7 +20163,7 @@
         12876.224,
         12877.397,
         12878.561,
-        12879.754,
+        12879.755,
         12880.996,
         12882.301,
         12883.527,
@@ -20009,7 +20281,7 @@
         13021.944,
         13023.156,
         13024.365,
-        13025.597,
+        13025.598,
         13026.804,
         13028.062,
         13029.308,
@@ -20021,7 +20293,7 @@
         13036.362,
         13037.536,
         13038.77,
-        13039.979,
+        13039.98,
         13041.256,
         13042.524,
         13043.786,
@@ -20174,7 +20446,7 @@
         13240.252,
         13241.492,
         13242.693,
-        13243.908,
+        13243.909,
         13245.146,
         13246.407,
         13247.648,
@@ -20349,7 +20621,7 @@
         13479.51,
         13480.697,
         13481.881,
-        13483.053,
+        13483.054,
         13484.23,
         13485.417,
         13486.6,
@@ -20409,7 +20681,7 @@
         13551.027,
         13552.177,
         13553.348,
-        13554.523,
+        13554.524,
         13555.682,
         13556.869,
         13558.043,
@@ -20918,7 +21190,7 @@
         14190.624,
         14191.833,
         14193.044,
-        14194.251,
+        14194.252,
         14195.462,
         14196.653,
         14197.864,
@@ -20977,7 +21249,7 @@
         14260.377,
         14261.577,
         14262.785,
-        14264.004,
+        14264.005,
         14265.203,
         14266.372,
         14267.514,
@@ -21336,7 +21608,7 @@
         14701.085,
         14702.248,
         14703.394,
-        14704.528,
+        14704.529,
         14705.699,
         14718.355,
         14719.517,
@@ -21665,7 +21937,7 @@
         15122.34,
         15123.492,
         15124.619,
-        15125.768,
+        15125.769,
         15126.931,
         15128.049,
         15129.17,
@@ -21720,7 +21992,7 @@
         15184.487,
         15185.641,
         15186.781,
-        15187.896,
+        15187.897,
         15189.029,
         15190.178,
         15191.308,
@@ -21824,10 +22096,10 @@
         15301.418,
         15302.523,
         15303.65,
-        15304.814,
+        15304.815,
         15306.018,
         15307.169,
-        15308.344,
+        15308.345,
         15309.513,
         15310.694,
         15311.867,
@@ -21898,7 +22170,7 @@
         15409.066,
         15410.221,
         15411.394,
-        15412.54,
+        15412.541,
         15413.692,
         15414.858,
         15416.029,
@@ -22076,7 +22348,7 @@
         15612.545,
         15613.67,
         15614.755,
-        15615.861,
+        15615.862,
         15616.992,
         15618.123,
         15619.275,
@@ -22227,11 +22499,11 @@
         15807.92,
         15809.085,
         15810.221,
-        15811.366,
+        15811.367,
         15812.489,
         15813.613,
         15814.764,
-        15815.888,
+        15815.889,
         15816.987,
         15818.105,
         15819.235,
@@ -22272,7 +22544,7 @@
         15858.732,
         15859.839,
         15860.946,
-        15862.062,
+        15862.063,
         15863.217,
         15864.368,
         15865.519,
@@ -22350,7 +22622,7 @@
         15947.887,
         15948.99,
         15950.103,
-        15951.221,
+        15951.222,
         15952.295,
         15953.401,
         15954.523,
@@ -22481,7 +22753,7 @@
         16115.441,
         16116.607,
         16117.761,
-        16118.981,
+        16118.982,
         16120.119,
         16121.24,
         16122.336,
@@ -24095,7 +24367,7 @@
         18001.734,
         18002.921,
         18004.121,
-        18005.337,
+        18005.338,
         18006.569,
         18007.758,
         18008.902,
@@ -24333,7 +24605,7 @@
         18274.242,
         18275.429,
         18276.598,
-        18277.738,
+        18277.739,
         18278.907,
         18280.052,
         18281.208,
@@ -24586,7 +24858,7 @@
         18569.368,
         18570.571,
         18571.761,
-        18572.983,
+        18572.984,
         18574.212,
         18575.453,
         18576.667,
@@ -24702,7 +24974,7 @@
         18706.505,
         18707.646,
         18708.759,
-        18709.894,
+        18709.895,
         18711.004,
         18712.131,
         18713.274,
@@ -24900,7 +25172,7 @@
         18941.554,
         18942.673,
         18943.854,
-        18945.004,
+        18945.005,
         18946.144,
         18947.282,
         18948.431,
@@ -24938,7 +25210,7 @@
         18985.884,
         18987.057,
         18988.223,
-        18989.389,
+        18989.39,
         18990.586,
         18991.813,
         18993.045,
@@ -25177,7 +25449,7 @@
         19267.936,
         19269.143,
         19270.313,
-        19271.479,
+        19271.48,
         19272.665,
         19273.818,
         19274.943,
@@ -25235,7 +25507,7 @@
         19335.512,
         19336.913,
         19337.86,
-        19338.959,
+        19338.96,
         19340.474,
         19341.48,
         19342.886,
@@ -25247,7 +25519,7 @@
         19350.272,
         19351.53,
         19352.626,
-        19353.594,
+        19353.595,
         19354.38,
         19355.618,
         19356.872,
@@ -26608,7 +26880,7 @@
         20972.857,
         20974.1,
         20975.349,
-        20976.595,
+        20976.596,
         20977.849,
         20979.085,
         20980.334,
@@ -26617,7 +26889,7 @@
         20983.999,
         20985.233,
         20986.454,
-        20987.635,
+        20987.636,
         20988.9,
         20990.145,
         20991.417,
@@ -27106,7 +27378,7 @@
         21570.407,
         21571.625,
         21572.81,
-        21573.962,
+        21573.963,
         21575.142,
         21576.318,
         21577.442,
@@ -27132,7 +27404,7 @@
         21600.713,
         21601.931,
         21603.089,
-        21604.299,
+        21604.3,
         21605.525,
         21606.734,
         21607.897,
@@ -27260,7 +27532,7 @@
         21755.026,
         21756.177,
         21757.36,
-        21758.532,
+        21758.533,
         21759.731,
         21760.944,
         21762.161,
@@ -27316,7 +27588,7 @@
         21819.628,
         21820.786,
         21821.953,
-        21823.111,
+        21823.112,
         21824.267,
         21825.44,
         21826.575,
@@ -27707,7 +27979,7 @@
         22270.7,
         22271.866,
         22273.027,
-        22274.193,
+        22274.194,
         22275.351,
         22276.491,
         22277.662,
@@ -28286,7 +28558,7 @@
         22953.382,
         22954.609,
         22955.819,
-        22957.062,
+        22957.063,
         22958.339,
         22959.692,
         22960.597,
@@ -28356,7 +28628,7 @@
         23039.315,
         23040.54,
         23041.749,
-        23042.854,
+        23042.855,
         23044.023,
         23045.187,
         23046.326,
@@ -28618,7 +28890,7 @@
         23353.807,
         23354.992,
         23356.214,
-        23357.401,
+        23357.402,
         23358.565,
         23359.737,
         23360.931,
@@ -28887,7 +29159,7 @@
         23681.972,
         23683.184,
         23684.383,
-        23685.578,
+        23685.579,
         23686.699,
         23687.858,
         23689.014,
@@ -28947,7 +29219,7 @@
         23752.994,
         23754.16,
         23755.26,
-        23756.398,
+        23756.399,
         23757.468,
         23758.565,
         23759.668,
@@ -28972,7 +29244,7 @@
         23782.449,
         23783.72,
         23784.928,
-        23786.141,
+        23786.142,
         23787.38,
         23788.657,
         23789.886,
@@ -29450,7 +29722,7 @@
         24331.641,
         24332.757,
         24333.872,
-        24334.993,
+        24334.994,
         24336.092,
         24337.23,
         24338.353,
@@ -29554,7 +29826,7 @@
         24447.405,
         24448.478,
         24449.549,
-        24450.638,
+        24450.639,
         24451.74,
         24452.84,
         24453.962,
@@ -29924,7 +30196,7 @@
         24871.276,
         24872.468,
         24873.673,
-        24874.866,
+        24874.867,
         24876.076,
         24877.298,
         24878.492,
@@ -30028,7 +30300,7 @@
         24996.585,
         24997.788,
         24998.971,
-        25000.162,
+        25000.163,
         25001.344,
         25002.491,
         25003.647,
@@ -30441,7 +30713,7 @@
         25498.737,
         25499.87,
         25500.979,
-        25502.189,
+        25502.19,
         25503.424,
         25504.63,
         25505.79,
@@ -30783,7 +31055,7 @@
         25906.327,
         25907.467,
         25908.622,
-        25909.778,
+        25909.779,
         25910.896,
         25912.044,
         25913.158,
@@ -31082,7 +31354,7 @@
         26277.165,
         26282.153,
         26284.155,
-        26286.202,
+        26286.203,
         26288.245,
         26289.451,
         26290.667,
@@ -31443,7 +31715,7 @@
         26712.563,
         26713.731,
         26714.918,
-        26716.088,
+        26716.089,
         26717.23,
         26718.4,
         26719.557,
@@ -31474,7 +31746,7 @@
         26749.094,
         26750.316,
         26751.498,
-        26752.636,
+        26752.637,
         26753.781,
         26754.911,
         26756.063,
@@ -31612,7 +31884,7 @@
         26909.624,
         26910.771,
         26912.009,
-        26913.221,
+        26913.222,
         26914.43,
         26915.635,
         26916.825,
@@ -31645,7 +31917,7 @@
         26955.014,
         26956.183,
         26957.358,
-        26958.567,
+        26958.568,
         26959.779,
         26960.991,
         26962.23,
@@ -32248,7 +32520,7 @@
         27717.53,
         27718.719,
         27719.859,
-        27720.914,
+        27720.915,
         27722.029,
         27723.168,
         27724.333,
@@ -32466,7 +32738,7 @@
         27994.509,
         27995.548,
         27996.571,
-        27997.596,
+        27997.597,
         27998.626,
         27999.452,
         28000.79,
@@ -32748,7 +33020,7 @@
         28325.782,
         28326.851,
         28327.998,
-        28329.137,
+        28329.138,
         28330.259,
         28331.336,
         28332.494,
@@ -32786,7 +33058,7 @@
         28384.33,
         28386.672,
         28389.392,
-        28392.524,
+        28392.523,
         28393.841,
         28398.5,
         28399.436,
@@ -32990,7 +33262,7 @@
         28620.831,
         28622.031,
         28623.15,
-        28624.225,
+        28624.226,
         28625.327,
         28626.348,
         28627.34,
@@ -33082,7 +33354,7 @@
         28723.08,
         28724.149,
         28725.239,
-        28726.324,
+        28726.325,
         28727.388,
         28728.509,
         28729.565,
@@ -33180,10 +33452,10 @@
         28833.063,
         28834.179,
         28835.304,
-        28836.315,
+        28836.316,
         28837.414,
         28838.543,
-        28839.606,
+        28839.607,
         28840.814,
         28841.988,
         28843.105,
@@ -33436,7 +33708,7 @@
         29127.495,
         29128.629,
         29129.768,
-        29130.889,
+        29130.89,
         29131.987,
         29133.171,
         29134.366,
@@ -33566,7 +33838,7 @@
         29273.756,
         29274.846,
         29275.931,
-        29277.034,
+        29277.035,
         29278.126,
         29279.209,
         29280.24,
@@ -33852,7 +34124,7 @@
         29607.948,
         29609.085,
         29610.196,
-        29611.266,
+        29611.267,
         29612.387,
         29613.534,
         29614.685,
@@ -34680,7 +34952,7 @@
         30585.281,
         30586.44,
         30587.58,
-        30588.703,
+        30588.704,
         30589.778,
         30590.893,
         30592.029,
@@ -34800,7 +35072,7 @@
         30728.33,
         30729.479,
         30730.531,
-        30731.337,
+        30731.336,
         30734.365,
         30737.227,
         30738.519,
@@ -35197,7 +35469,7 @@
         31286.456,
         31287.535,
         31288.569,
-        31289.643,
+        31289.644,
         31290.765,
         31291.846,
         31292.903,
@@ -35410,7 +35682,7 @@
         31536.657,
         31537.809,
         31540.615,
-        31545.866,
+        31545.867,
         31547.342,
         31548.712,
         31550.376,
@@ -35521,7 +35793,7 @@
         31699.825,
         31700.963,
         31702.107,
-        31703.253,
+        31703.254,
         31704.399,
         31705.518,
         31706.667,
@@ -35643,7 +35915,7 @@
         31889.928,
         31891.08,
         31892.225,
-        31893.355,
+        31893.356,
         31894.452,
         31895.571,
         31898.85,
@@ -35947,7 +36219,7 @@
         32361.543,
         32362.81,
         32363.944,
-        32364.965,
+        32364.966,
         32366.077,
         32367.102,
         32368.287,
@@ -36211,7 +36483,7 @@
         32720.395,
         32721.563,
         32722.738,
-        32723.942,
+        32723.943,
         32725.096,
         32726.265,
         32727.414,
@@ -36319,7 +36591,7 @@
         32859.35,
         32860.713,
         32888.133,
-        32900.551,
+        32900.55,
         32901.537,
         32902.521,
         32903.599,
@@ -36342,7 +36614,7 @@
         32937.774,
         32938.906,
         32939.936,
-        32941.037,
+        32941.038,
         32942.253,
         32943.424,
         32944.514,
@@ -36400,7 +36672,7 @@
         33024.926,
         33026.043,
         33027.134,
-        33028.112,
+        33028.113,
         33031.512,
         33032.517,
         33033.647,
@@ -36515,7 +36787,7 @@
         33246.059,
         33248.087,
         33249.072,
-        33249.976,
+        33249.977,
         33250.957,
         33251.956,
         33252.968,
@@ -36537,7 +36809,7 @@
         33272.147,
         33273.29,
         33275.474,
-        33277.487,
+        33277.486,
         33283.609,
         33284.589,
         33285.65,
@@ -37119,7 +37391,7 @@
         848,
         902,
         928,
-        1031,
+        1032,
         842,
         975,
         1020,
@@ -37386,7 +37658,7 @@
         1064,
         1059,
         1157,
-        919,
+        918,
         1077,
         1086,
         1000,
@@ -39077,7 +39349,7 @@
         1136,
         1170,
         1135,
-        1148,
+        1147,
         1098,
         1050,
         1051,
@@ -39509,10 +39781,10 @@
         1027,
         1280,
         1166,
-        1154,
+        1153,
         989,
         770,
-        1102,
+        1101,
         1243,
         904,
         1042,
@@ -39921,7 +40193,7 @@
         1074,
         945,
         751,
-        1148,
+        1147,
         1010,
         966,
         1006,
@@ -39934,7 +40206,7 @@
         973,
         1041,
         1064,
-        994,
+        995,
         1037,
         936,
         1025,
@@ -39952,7 +40224,7 @@
         1043,
         1016,
         887,
-        1166,
+        1167,
         853,
         981,
         989,
@@ -40362,7 +40634,7 @@
         1115,
         1092,
         1079,
-        1096,
+        1095,
         855,
         1325,
         1125,
@@ -40407,7 +40679,7 @@
         1064,
         1173,
         1286,
-        972,
+        971,
         825,
         1232,
         1295,
@@ -40419,7 +40691,7 @@
         1229,
         1619,
         1655,
-        1128,
+        1129,
         1311,
         952,
         1022,
@@ -40428,7 +40700,7 @@
         872,
         1086,
         967,
-        816,
+        817,
         1072,
         1139,
         1180,
@@ -40792,7 +41064,7 @@
         1613,
         1132,
         1793,
-        1604,
+        1603,
         1808,
         1640,
         1159,
@@ -40804,7 +41076,7 @@
         1292,
         1204,
         1232,
-        890,
+        889,
         1192,
         1495,
         1239,
@@ -40812,7 +41084,7 @@
         1213,
         1228,
         1270,
-        1089,
+        1090,
         1148,
         1009,
         1191,
@@ -41099,7 +41371,7 @@
         1227,
         1232,
         1197,
-        1335,
+        1336,
         1020,
         1541,
         1255,
@@ -41169,7 +41441,7 @@
         1151,
         1149,
         903,
-        1379,
+        1378,
         1290,
         1152,
         1033,
@@ -41200,7 +41472,7 @@
         1135,
         1154,
         1149,
-        1266,
+        1267,
         1434,
         1134,
         1151,
@@ -41445,7 +41717,7 @@
         849,
         1234,
         1154,
-        1145,
+        1144,
         1245,
         930,
         1303,
@@ -41475,7 +41747,7 @@
         874,
         921,
         877,
-        1013,
+        1012,
         673,
         1111,
         706,
@@ -41537,7 +41809,7 @@
         1123,
         1290,
         1471,
-        1414,
+        1415,
         1186,
         1232,
         1112,
@@ -41545,7 +41817,7 @@
         1055,
         1052,
         1295,
-        911,
+        912,
         1237,
         1239,
         1021,
@@ -41872,7 +42144,7 @@
         1200,
         1337,
         1110,
-        1254,
+        1253,
         1537,
         1091,
         1575,
@@ -41911,7 +42183,7 @@
         1131,
         1168,
         1100,
-        1033,
+        1032,
         1058,
         1122,
         1288,
@@ -42057,7 +42329,7 @@
         949,
         813,
         1030,
-        1078,
+        1079,
         1220,
         1124,
         1131,
@@ -42110,7 +42382,7 @@
         1287,
         1064,
         1051,
-        1352,
+        1353,
         1276,
         1128,
         1421,
@@ -42299,7 +42571,7 @@
         1110,
         1232,
         1105,
-        1119,
+        1120,
         924,
         1006,
         1061,
@@ -42712,7 +42984,7 @@
         763,
         1023,
         869,
-        864,
+        863,
         1160,
         703,
         618,
@@ -42991,7 +43263,7 @@
         1131,
         1108,
         1154,
-        1118,
+        1117,
         1117,
         1217,
         1107,
@@ -43002,7 +43274,7 @@
         1190,
         1157,
         1371,
-        1155,
+        1156,
         1249,
         891,
         1171,
@@ -43159,7 +43431,7 @@
         1141,
         1159,
         1332,
-        1021,
+        1020,
         1161,
         859,
         1053,
@@ -43199,7 +43471,7 @@
         1262,
         981,
         1112,
-        1034,
+        1035,
         901,
         909,
         1105,
@@ -43214,7 +43486,7 @@
         1344,
         1101,
         1023,
-        1105,
+        1104,
         1126,
         1115,
         1199,
@@ -43478,7 +43750,7 @@
         1162,
         1244,
         1234,
-        1315,
+        1314,
         1290,
         1192,
         1193,
@@ -43591,7 +43863,7 @@
         1259,
         1200,
         1225,
-        1166,
+        1165,
         1165,
         1155,
         1138,
@@ -44348,7 +44620,7 @@
         1158,
         1148,
         1170,
-        1019,
+        1018,
         1153,
         1341,
         1368,
@@ -44361,7 +44633,7 @@
         1162,
         1192,
         1190,
-        1183,
+        1184,
         1206,
         1179,
         1141,
@@ -44396,7 +44668,7 @@
         1298,
         1239,
         1196,
-        1231,
+        1230,
         1219,
         1186,
         1211,
@@ -53990,7 +54262,7 @@
         1179,
         1192,
         1209,
-        1182,
+        1181,
         1213,
         1190,
         1178,
@@ -57119,7 +57391,7 @@
         1207,
         1180,
         1222,
-        1200,
+        1201,
         1164,
         1330,
         1411,
@@ -57248,7 +57520,7 @@
         1322,
         1323,
         1370,
-        1317,
+        1318,
         1265,
         1310,
         1175,
@@ -57881,7 +58153,7 @@
         1190,
         1180,
         1175,
-        1239,
+        1238,
         1263,
         1231,
         1204,
@@ -58140,7 +58412,7 @@
         1143,
         1110,
         1121,
-        1171,
+        1170,
         1190,
         1145,
         1189,
@@ -59161,7 +59433,7 @@
         1218,
         1260,
         1294,
-        1468,
+        1469,
         1153,
         1302,
         1290,
@@ -59501,7 +59773,7 @@
         1167,
         1187,
         1110,
-        1201,
+        1200,
         1199,
         1136,
         1159,
@@ -60626,7 +60898,7 @@
         1017,
         1095,
         1079,
-        1344,
+        1345,
         859,
         1064,
         1028,
@@ -61470,7 +61742,7 @@
         1137,
         1055,
         1103,
-        1027,
+        1028,
         999,
         1019,
         1025,
@@ -61530,7 +61802,7 @@
         1151,
         1214,
         1155,
-        1104,
+        1105,
         1115,
         1056,
         1088,
@@ -61661,7 +61933,7 @@
         1080,
         1042,
         1178,
-        901,
+        900,
         1002,
         995,
         1065,
@@ -62015,7 +62287,7 @@
         971,
         1056,
         763,
-        875,
+        876,
         1009,
         1025,
         924,
@@ -62024,8 +62296,8 @@
         956,
         1055,
         1111,
-        1072,
-        1162,
+        1073,
+        1161,
         1088,
         1104,
         1071,
@@ -62398,7 +62670,7 @@
         881,
         1200,
         1067,
-        761,
+        760,
         1125,
         1015,
         921,
@@ -62583,7 +62855,7 @@
         851,
         832,
         643,
-        826,
+        825,
         1031,
         1071,
         877,
@@ -62740,7 +63012,7 @@
         1132,
         1142,
         1128,
-        1429,
+        1430,
         1173,
         1135,
         819,
@@ -63006,7 +63278,7 @@
         1151,
         911,
         1212,
-        1081,
+        1080,
         1082,
         983,
         1076,
@@ -63182,7 +63454,7 @@
         1184,
         888,
         1286,
-        1093,
+        1092,
         1159,
         833,
         1306,
@@ -63546,7 +63818,7 @@
         1128,
         1005,
         1130,
-        1153,
+        1154,
         1096,
         1127,
         1100,
@@ -63554,7 +63826,7 @@
         943,
         1174,
         798,
-        1411,
+        1412,
         1054,
         1212,
         1128,
@@ -63568,7 +63840,7 @@
         1057,
         981,
         1081,
-        1083,
+        1084,
         1097,
         1074,
         1104,
@@ -91174,7 +91446,7 @@
         0.554,
         0.636,
         0.554,
-        0.558,
+        0.559,
         0.581,
         0.581,
         0.593,
@@ -91193,7 +91465,7 @@
         0.586,
         0.554,
         0.554,
-        0.535,
+        0.536,
         0.554,
         0.562,
         0.563,
@@ -91204,7 +91476,7 @@
         0.592,
         0.59,
         0.596,
-        0.622,
+        0.623,
         0.631,
         0.628,
         0.628,
@@ -91277,7 +91549,7 @@
         0.793,
         0.79,
         0.788,
-        0.787,
+        0.788,
         0.785,
         0.786,
         0.786,
@@ -91290,9 +91562,9 @@
         0.756,
         0.756,
         0.715,
-        0.682,
+        0.683,
         0.687,
-        0.691,
+        0.692,
         0.68,
         0.705,
         0.707,
@@ -91333,7 +91605,7 @@
         0.822,
         0.821,
         0.822,
-        0.821,
+        0.822,
         0.822,
         0.82,
         0.82,
@@ -91342,7 +91614,7 @@
         0.848,
         0.847,
         0.882,
-        0.899,
+        0.9,
         0.9,
         0.866,
         0.875,
@@ -91361,17 +91633,17 @@
         0.744,
         0.747,
         0.743,
-        0.737,
+        0.738,
         0.731,
         0.715,
         0.712,
         0.703,
         0.695,
         0.666,
-        0.656,
+        0.657,
         0.645,
         0.646,
-        0.641,
+        0.642,
         0.66,
         0.663,
         0.658,
@@ -91417,11 +91689,11 @@
         0.817,
         0.824,
         0.829,
-        0.849,
+        0.85,
         0.859,
         0.869,
         0.868,
-        0.867,
+        0.868,
         0.867,
         0.868,
         0.869,
@@ -91464,7 +91736,7 @@
         0.777,
         0.774,
         0.755,
-        0.745,
+        0.746,
         0.741,
         0.739,
         0.739,
@@ -91617,7 +91889,7 @@
         0.944,
         0.944,
         0.944,
-        0.975,
+        0.944,
         0.975,
         0.975,
         0.975,
@@ -91667,7 +91939,7 @@
         0.994,
         0.994,
         0.994,
-        0.975,
+        0.994,
         0.975,
         0.975,
         0.975,
@@ -92885,7 +93157,7 @@
         0.934,
         0.934,
         0.935,
-        0.934,
+        0.935,
         0.934,
         0.934,
         0.932,
@@ -92899,7 +93171,7 @@
         0.914,
         0.916,
         0.919,
-        0.919,
+        0.92,
         0.917,
         0.917,
         0.915,
@@ -92992,7 +93264,7 @@
         0.97,
         0.97,
         0.97,
-        0.971,
+        0.972,
         0.973,
         0.974,
         0.975,
@@ -93015,7 +93287,7 @@
         0.983,
         0.983,
         0.982,
-        0.979,
+        0.98,
         0.972,
         0.963,
         0.948,
@@ -93026,7 +93298,7 @@
         0.898,
         0.897,
         0.895,
-        0.884,
+        0.89,
         0.883,
         0.88,
         0.853,
@@ -93046,7 +93318,7 @@
         0.84,
         0.84,
         0.837,
-        0.837,
+        0.838,
         0.836,
         0.839,
         0.839,
@@ -93125,7 +93397,7 @@
         0.893,
         0.896,
         0.898,
-        0.896,
+        0.897,
         0.898,
         0.901,
         0.903,
@@ -93274,7 +93546,7 @@
         0.983,
         0.973,
         0.971,
-        0.968,
+        0.969,
         0.966,
         0.975,
         0.975,
@@ -93325,7 +93597,7 @@
         0.853,
         0.848,
         0.848,
-        0.901,
+        0.848,
         0.848,
         0.848,
         0.848,
@@ -93379,7 +93651,7 @@
         0.901,
         0.901,
         0.901,
-        0.852,
+        0.901,
         0.85,
         0.852,
         0.851,
@@ -93507,7 +93779,7 @@
         0.944,
         0.944,
         0.944,
-        0.944,
+        0.975,
         0.944,
         0.975,
         0.975,
@@ -93701,7 +93973,7 @@
         0.848,
         0.848,
         0.848,
-        0.901,
+        0.848,
         0.901,
         0.901,
         0.901,
@@ -93947,7 +94219,7 @@
         0.992,
         0.986,
         0.985,
-        0.985,
+        0.986,
         0.985,
         0.984,
         0.98,
@@ -93965,7 +94237,7 @@
         0.922,
         0.922,
         0.923,
-        0.923,
+        0.924,
         0.924,
         0.924,
         0.924,
@@ -94397,7 +94669,7 @@
         0.944,
         0.901,
         0.901,
-        0.944,
+        0.901,
         0.944,
         0.901,
         0.901,
@@ -94648,7 +94920,7 @@
         0.975,
         0.975,
         0.975,
-        0.975,
+        0.994,
         0.994,
         0.994,
         0.994,
@@ -94675,8 +94947,8 @@
         0.944,
         0.944,
         0.975,
+        0.975,
         0.944,
-        0.944,
         0.975,
         0.975,
         0.975,
@@ -94776,7 +95048,7 @@
         1,
         1,
         1,
-        0.994,
+        1,
         1,
         0.994,
         0.975,
@@ -94899,7 +95171,7 @@
         0.636,
         0.636,
         0.636,
-        0.636,
+        0.554,
         0.636,
         0.714,
         0.554,
@@ -95459,7 +95731,7 @@
         0.105,
         0.113,
         0.137,
-        0.15,
+        0.151,
         0.178,
         0.198,
         0.269,
@@ -95479,14 +95751,14 @@
         0.264,
         0.27,
         0.275,
-        0.307,
+        0.308,
         0.302,
         0.325,
         0.342,
         0.363,
         0.392,
         0.437,
-        0.457,
+        0.458,
         0.488,
         0.523,
         0.539,
@@ -95496,7 +95768,7 @@
         0.626,
         0.631,
         0.598,
-        0.585,
+        0.586,
         0.573,
         0.566,
         0.552,
@@ -95507,7 +95779,7 @@
         0.602,
         0.634,
         0.657,
-        0.63,
+        0.631,
         0.663,
         0.685,
         0.707,
@@ -96164,7 +96436,7 @@
         1,
         1,
         1,
-        1,
+        0.994,
         0.994,
         0.994,
         0.994,
@@ -96332,7 +96604,7 @@
         0.848,
         0.848,
         0.848,
-        0.901,
+        0.848,
         0.901,
         0.848,
         0.848,
@@ -96477,7 +96749,7 @@
         0.554,
         0.636,
         0.636,
-        0.636,
+        0.554,
         0.554,
         0.554,
         0.554,
@@ -96993,14 +97265,14 @@
         0.901,
         0.848,
         0.785,
-        0.785,
+        0.714,
         0.636,
         0.636,
         0.636,
         0.554,
         0.554,
         0.554,
-        0.382,
+        0.468,
         0.382,
         0.297,
         0.297,
@@ -97022,7 +97294,7 @@
         0.944,
         0.944,
         0.975,
-        0.944,
+        0.975,
         0.994,
         0.975,
         0.994,
@@ -97233,7 +97505,7 @@
         0.999,
         0.999,
         0.997,
-        0.997,
+        0.996,
         0.996,
         0.997,
         0.997,
@@ -97244,21 +97516,21 @@
         0.997,
         0.997,
         0.997,
-        0.997,
+        0.996,
         0.996,
         0.996,
         0.996,
         0.995,
         0.995,
         0.995,
-        0.995,
+        0.994,
         0.994,
         0.998,
         0.998,
-        0.998,
+        0.997,
         0.997,
         0.99,
-        0.99,
+        0.989,
         0.982,
         0.982,
         0.975,
@@ -97273,10 +97545,10 @@
         0.975,
         0.961,
         0.961,
-        0.961,
-        0.961,
+        0.96,
         0.961,
         0.96,
+        0.959,
         0.975,
         0.975,
         0.975,
@@ -97327,7 +97599,7 @@
         0.636,
         0.785,
         0.636,
-        0.714,
+        0.636,
         0.785,
         0.901,
         0.848,
@@ -97350,7 +97622,7 @@
         0.057,
         0.057,
         0.045,
-        0.037,
+        0.084,
         0.037,
         0.009,
         0.017,
@@ -97393,8 +97665,8 @@
         0,
         0,
         0.002,
-        0.003,
-        0.003,
+        0.004,
+        0.004,
         0.005,
         0.007,
         0.015,
@@ -97406,20 +97678,20 @@
         0.02,
         0.021,
         0.021,
-        0.022,
-        0.022,
+        0.023,
+        0.023,
         0.015,
         0.015,
         0.015,
         0.019,
         0.019,
-        0.018,
+        0.019,
         0.016,
         0.031,
         0.05,
         0.059,
         0.063,
-        0.127,
+        0.128,
         0.221,
         0.636,
         0.785,
@@ -97670,7 +97942,7 @@
         0.994,
         0.994,
         0.994,
-        1,
+        0.994,
         1,
         1,
         1,
@@ -99792,7 +100064,7 @@
         0.981,
         0.981,
         0.97,
-        0.97,
+        0.971,
         0.962,
         0.962,
         0.962,
@@ -100323,7 +100595,7 @@
         0.994,
         0.994,
         0.994,
-        0.994,
+        0.995,
         0.995,
         0.995,
         0.996,
@@ -101050,7 +101322,7 @@
         0.938,
         0.934,
         0.933,
-        0.932,
+        0.936,
         0.935,
         0.933,
         0.932,
@@ -101078,7 +101350,7 @@
         0.944,
         0.944,
         0.944,
-        0.975,
+        0.944,
         0.944,
         0.944,
         0.944,
@@ -107286,7 +107558,7 @@
         0.861,
         0.858,
         0.856,
-        0.861,
+        0.862,
         0.854,
         0.854,
         0.853,
@@ -109482,7 +109754,7 @@
         0.848,
         0.848,
         0.848,
-        0.944,
+        0.901,
         0.944,
         0.944,
         0.944,
@@ -113553,7 +113825,7 @@
         0.975,
         0.975,
         0.975,
-        0.975,
+        0.944,
         0.944,
         0.944,
         0.975,
@@ -113718,7 +113990,7 @@
         0.944,
         0.975,
         0.944,
-        0.975,
+        0.944,
         0.975,
         0.975,
         0.975,
@@ -113870,7 +114142,7 @@
         0.975,
         0.975,
         0.994,
-        0.994,
+        0.975,
         0.975,
         0.975,
         0.975,
@@ -113947,8 +114219,8 @@
         0.994,
         0.994,
         0.994,
+        0.994,
         1,
-        1,
         0.994,
         0.975,
         0.994,
@@ -113995,7 +114267,7 @@
         0.975,
         0.975,
         0.975,
-        0.944,
+        0.975,
         0.975,
         0.994,
         0.994,
@@ -114226,7 +114498,7 @@
         0.785,
         0.785,
         0.714,
-        0.848,
+        0.785,
         0.785,
         0.714,
         0.714,
@@ -114250,7 +114522,7 @@
         0.948,
         0.964,
         0.964,
-        0.968,
+        0.967,
         0.972,
         0.982,
         0.982,
@@ -114315,7 +114587,7 @@
         0.946,
         0.93,
         0.923,
-        0.921,
+        0.922,
         0.919,
         0.944,
         0.901,
@@ -115059,7 +115331,7 @@
         0.993,
         0.988,
         0.987,
-        0.983,
+        0.987,
         0.982,
         0.982,
         0.982,
@@ -115114,7 +115386,7 @@
         0.999,
         0.997,
         0.995,
-        0.995,
+        0.992,
         0.99,
         0.99,
         0.994,
@@ -115338,7 +115610,7 @@
         0.995,
         0.994,
         0.997,
-        0.998,
+        0.997,
         0.998,
         0.999,
         0.999,
@@ -115725,13 +115997,13 @@
         0.972,
         0.971,
         0.97,
-        0.982,
+        0.983,
         0.982,
         0.975,
         0.957,
         0.953,
         0.95,
-        0.949,
+        0.95,
         0.95,
         0.951,
         0.935,
@@ -116080,7 +116352,7 @@
         0.848,
         0.848,
         0.848,
-        0.944,
+        0.901,
         0.944,
         0.944,
         0.944,
@@ -116138,12 +116410,12 @@
         0.963,
         0.963,
         0.963,
-        0.966,
+        0.964,
         0.966,
         0.966,
         0.964,
         0.965,
-        0.966,
+        0.967,
         0.969,
         0.972,
         0.985,
@@ -116277,7 +116549,7 @@
         0.848,
         0.848,
         0.785,
-        0.785,
+        0.848,
         0.785,
         0.785,
         0.848,
@@ -116312,7 +116584,7 @@
         0.714,
         0.714,
         0.714,
-        0.785,
+        0.714,
         0.714,
         0.714,
         0.636,
@@ -116520,7 +116792,7 @@
         0.901,
         0.901,
         0.901,
-        0.901,
+        0.944,
         0.944,
         0.944,
         0.944,
@@ -116577,7 +116849,7 @@
         0.848,
         0.848,
         0.848,
-        0.848,
+        0.82,
         0.819,
         0.793,
         0.785,
@@ -116700,7 +116972,7 @@
         0.944,
         0.901,
         0.848,
-        0.848,
+        0.901,
         0.901,
         0.901,
         0.901,
@@ -116727,7 +116999,7 @@
         0.941,
         0.94,
         0.939,
-        0.944,
+        0.946,
         0.964,
         0.965,
         0.965,
@@ -116742,7 +117014,7 @@
         0.958,
         0.956,
         0.954,
-        0.952,
+        0.953,
         0.952,
         0.952,
         0.953,
@@ -116757,7 +117029,7 @@
         0.969,
         0.959,
         0.961,
-        0.961,
+        0.963,
         0.949,
         0.935,
         0.937,
@@ -116872,7 +117144,7 @@
         0.084,
         0.084,
         0.145,
-        0.084,
+        0.145,
         0.217,
         0.217,
         0.297,
@@ -118278,6 +118550,5080 @@
         1,
         1,
         1
+      ],
+      "spansGapRuns": [
+        [
+          2,
+          1
+        ],
+        [
+          5,
+          1
+        ],
+        [
+          43,
+          1
+        ],
+        [
+          52,
+          1
+        ],
+        [
+          54,
+          1
+        ],
+        [
+          72,
+          1
+        ],
+        [
+          81,
+          1
+        ],
+        [
+          93,
+          1
+        ],
+        [
+          100,
+          1
+        ],
+        [
+          105,
+          1
+        ],
+        [
+          107,
+          1
+        ],
+        [
+          116,
+          1
+        ],
+        [
+          120,
+          1
+        ],
+        [
+          124,
+          1
+        ],
+        [
+          134,
+          1
+        ],
+        [
+          165,
+          1
+        ],
+        [
+          171,
+          1
+        ],
+        [
+          175,
+          1
+        ],
+        [
+          177,
+          1
+        ],
+        [
+          186,
+          1
+        ],
+        [
+          201,
+          1
+        ],
+        [
+          208,
+          1
+        ],
+        [
+          212,
+          1
+        ],
+        [
+          214,
+          1
+        ],
+        [
+          221,
+          1
+        ],
+        [
+          223,
+          1
+        ],
+        [
+          227,
+          1
+        ],
+        [
+          232,
+          1
+        ],
+        [
+          236,
+          1
+        ],
+        [
+          243,
+          1
+        ],
+        [
+          245,
+          1
+        ],
+        [
+          257,
+          1
+        ],
+        [
+          271,
+          1
+        ],
+        [
+          273,
+          1
+        ],
+        [
+          275,
+          1
+        ],
+        [
+          288,
+          1
+        ],
+        [
+          290,
+          1
+        ],
+        [
+          297,
+          1
+        ],
+        [
+          301,
+          1
+        ],
+        [
+          309,
+          1
+        ],
+        [
+          316,
+          1
+        ],
+        [
+          322,
+          1
+        ],
+        [
+          325,
+          1
+        ],
+        [
+          328,
+          1
+        ],
+        [
+          338,
+          1
+        ],
+        [
+          346,
+          1
+        ],
+        [
+          352,
+          1
+        ],
+        [
+          356,
+          1
+        ],
+        [
+          359,
+          1
+        ],
+        [
+          368,
+          1
+        ],
+        [
+          372,
+          1
+        ],
+        [
+          375,
+          1
+        ],
+        [
+          378,
+          1
+        ],
+        [
+          391,
+          1
+        ],
+        [
+          425,
+          1
+        ],
+        [
+          427,
+          1
+        ],
+        [
+          433,
+          1
+        ],
+        [
+          436,
+          1
+        ],
+        [
+          441,
+          1
+        ],
+        [
+          445,
+          1
+        ],
+        [
+          451,
+          1
+        ],
+        [
+          454,
+          1
+        ],
+        [
+          459,
+          1
+        ],
+        [
+          463,
+          1
+        ],
+        [
+          468,
+          1
+        ],
+        [
+          472,
+          2
+        ],
+        [
+          484,
+          1
+        ],
+        [
+          493,
+          2
+        ],
+        [
+          497,
+          1
+        ],
+        [
+          510,
+          1
+        ],
+        [
+          514,
+          1
+        ],
+        [
+          520,
+          1
+        ],
+        [
+          522,
+          1
+        ],
+        [
+          552,
+          1
+        ],
+        [
+          556,
+          1
+        ],
+        [
+          568,
+          1
+        ],
+        [
+          577,
+          2
+        ],
+        [
+          581,
+          1
+        ],
+        [
+          584,
+          1
+        ],
+        [
+          587,
+          1
+        ],
+        [
+          591,
+          1
+        ],
+        [
+          593,
+          1
+        ],
+        [
+          598,
+          1
+        ],
+        [
+          600,
+          1
+        ],
+        [
+          608,
+          1
+        ],
+        [
+          610,
+          1
+        ],
+        [
+          615,
+          1
+        ],
+        [
+          618,
+          1
+        ],
+        [
+          621,
+          1
+        ],
+        [
+          625,
+          2
+        ],
+        [
+          633,
+          1
+        ],
+        [
+          636,
+          1
+        ],
+        [
+          643,
+          1
+        ],
+        [
+          647,
+          1
+        ],
+        [
+          669,
+          1
+        ],
+        [
+          674,
+          1
+        ],
+        [
+          677,
+          1
+        ],
+        [
+          680,
+          1
+        ],
+        [
+          683,
+          1
+        ],
+        [
+          691,
+          1
+        ],
+        [
+          697,
+          1
+        ],
+        [
+          700,
+          1
+        ],
+        [
+          703,
+          1
+        ],
+        [
+          706,
+          1
+        ],
+        [
+          708,
+          1
+        ],
+        [
+          712,
+          1
+        ],
+        [
+          716,
+          1
+        ],
+        [
+          719,
+          1
+        ],
+        [
+          771,
+          1
+        ],
+        [
+          773,
+          1
+        ],
+        [
+          778,
+          1
+        ],
+        [
+          781,
+          2
+        ],
+        [
+          790,
+          1
+        ],
+        [
+          793,
+          1
+        ],
+        [
+          801,
+          1
+        ],
+        [
+          805,
+          1
+        ],
+        [
+          809,
+          1
+        ],
+        [
+          817,
+          1
+        ],
+        [
+          821,
+          1
+        ],
+        [
+          824,
+          3
+        ],
+        [
+          829,
+          1
+        ],
+        [
+          836,
+          1
+        ],
+        [
+          840,
+          1
+        ],
+        [
+          842,
+          1
+        ],
+        [
+          845,
+          1
+        ],
+        [
+          873,
+          1
+        ],
+        [
+          875,
+          1
+        ],
+        [
+          884,
+          1
+        ],
+        [
+          888,
+          1
+        ],
+        [
+          891,
+          1
+        ],
+        [
+          893,
+          1
+        ],
+        [
+          899,
+          1
+        ],
+        [
+          903,
+          1
+        ],
+        [
+          908,
+          1
+        ],
+        [
+          912,
+          2
+        ],
+        [
+          918,
+          1
+        ],
+        [
+          923,
+          2
+        ],
+        [
+          926,
+          1
+        ],
+        [
+          929,
+          1
+        ],
+        [
+          934,
+          2
+        ],
+        [
+          940,
+          1
+        ],
+        [
+          944,
+          1
+        ],
+        [
+          948,
+          1
+        ],
+        [
+          950,
+          2
+        ],
+        [
+          955,
+          1
+        ],
+        [
+          958,
+          1
+        ],
+        [
+          964,
+          1
+        ],
+        [
+          970,
+          1
+        ],
+        [
+          991,
+          1
+        ],
+        [
+          1001,
+          1
+        ],
+        [
+          1004,
+          1
+        ],
+        [
+          1008,
+          1
+        ],
+        [
+          1011,
+          1
+        ],
+        [
+          1016,
+          1
+        ],
+        [
+          1019,
+          1
+        ],
+        [
+          1021,
+          1
+        ],
+        [
+          1024,
+          1
+        ],
+        [
+          1028,
+          1
+        ],
+        [
+          1032,
+          1
+        ],
+        [
+          1034,
+          1
+        ],
+        [
+          1037,
+          1
+        ],
+        [
+          1041,
+          1
+        ],
+        [
+          1045,
+          1
+        ],
+        [
+          1047,
+          1
+        ],
+        [
+          1052,
+          1
+        ],
+        [
+          1055,
+          1
+        ],
+        [
+          1057,
+          1
+        ],
+        [
+          1059,
+          1
+        ],
+        [
+          1064,
+          1
+        ],
+        [
+          1067,
+          1
+        ],
+        [
+          1071,
+          1
+        ],
+        [
+          1074,
+          1
+        ],
+        [
+          1077,
+          3
+        ],
+        [
+          1093,
+          1
+        ],
+        [
+          1096,
+          1
+        ],
+        [
+          1123,
+          1
+        ],
+        [
+          1128,
+          2
+        ],
+        [
+          1132,
+          2
+        ],
+        [
+          1140,
+          1
+        ],
+        [
+          1143,
+          1
+        ],
+        [
+          1147,
+          2
+        ],
+        [
+          1155,
+          1
+        ],
+        [
+          1159,
+          1
+        ],
+        [
+          1163,
+          1
+        ],
+        [
+          1166,
+          1
+        ],
+        [
+          1169,
+          1
+        ],
+        [
+          1172,
+          1
+        ],
+        [
+          1175,
+          1
+        ],
+        [
+          1179,
+          1
+        ],
+        [
+          1181,
+          1
+        ],
+        [
+          1187,
+          1
+        ],
+        [
+          1191,
+          1
+        ],
+        [
+          1195,
+          1
+        ],
+        [
+          1200,
+          1
+        ],
+        [
+          1203,
+          2
+        ],
+        [
+          1207,
+          1
+        ],
+        [
+          1211,
+          1
+        ],
+        [
+          1213,
+          1
+        ],
+        [
+          1216,
+          1
+        ],
+        [
+          1249,
+          1
+        ],
+        [
+          1255,
+          1
+        ],
+        [
+          1257,
+          1
+        ],
+        [
+          1261,
+          1
+        ],
+        [
+          1264,
+          3
+        ],
+        [
+          1269,
+          1
+        ],
+        [
+          1273,
+          2
+        ],
+        [
+          1278,
+          1
+        ],
+        [
+          1282,
+          1
+        ],
+        [
+          1285,
+          1
+        ],
+        [
+          1287,
+          1
+        ],
+        [
+          1289,
+          1
+        ],
+        [
+          1292,
+          2
+        ],
+        [
+          1302,
+          1
+        ],
+        [
+          1305,
+          1
+        ],
+        [
+          1308,
+          1
+        ],
+        [
+          1310,
+          2
+        ],
+        [
+          1314,
+          1
+        ],
+        [
+          1316,
+          1
+        ],
+        [
+          1321,
+          1
+        ],
+        [
+          1324,
+          1
+        ],
+        [
+          1326,
+          1
+        ],
+        [
+          1330,
+          1
+        ],
+        [
+          1332,
+          1
+        ],
+        [
+          1336,
+          2
+        ],
+        [
+          1339,
+          1
+        ],
+        [
+          1344,
+          1
+        ],
+        [
+          1346,
+          4
+        ],
+        [
+          1378,
+          1
+        ],
+        [
+          1382,
+          2
+        ],
+        [
+          1385,
+          1
+        ],
+        [
+          1389,
+          2
+        ],
+        [
+          1392,
+          1
+        ],
+        [
+          1394,
+          2
+        ],
+        [
+          1398,
+          2
+        ],
+        [
+          1401,
+          2
+        ],
+        [
+          1410,
+          1
+        ],
+        [
+          1413,
+          2
+        ],
+        [
+          1419,
+          2
+        ],
+        [
+          1423,
+          1
+        ],
+        [
+          1426,
+          1
+        ],
+        [
+          1429,
+          1
+        ],
+        [
+          1433,
+          2
+        ],
+        [
+          1436,
+          1
+        ],
+        [
+          1438,
+          1
+        ],
+        [
+          1441,
+          1
+        ],
+        [
+          1444,
+          1
+        ],
+        [
+          1448,
+          2
+        ],
+        [
+          1452,
+          1
+        ],
+        [
+          1454,
+          1
+        ],
+        [
+          1457,
+          1
+        ],
+        [
+          1460,
+          1
+        ],
+        [
+          1462,
+          1
+        ],
+        [
+          1465,
+          1
+        ],
+        [
+          1467,
+          1
+        ],
+        [
+          1469,
+          1
+        ],
+        [
+          1471,
+          1
+        ],
+        [
+          1474,
+          1
+        ],
+        [
+          1476,
+          1
+        ],
+        [
+          1478,
+          1
+        ],
+        [
+          1482,
+          2
+        ],
+        [
+          1488,
+          1
+        ],
+        [
+          1491,
+          2
+        ],
+        [
+          1496,
+          2
+        ],
+        [
+          1502,
+          3
+        ],
+        [
+          1508,
+          2
+        ],
+        [
+          1512,
+          1
+        ],
+        [
+          1515,
+          1
+        ],
+        [
+          1519,
+          1
+        ],
+        [
+          1535,
+          1
+        ],
+        [
+          1538,
+          1
+        ],
+        [
+          1542,
+          1
+        ],
+        [
+          1547,
+          1
+        ],
+        [
+          1550,
+          1
+        ],
+        [
+          1553,
+          1
+        ],
+        [
+          1556,
+          1
+        ],
+        [
+          1558,
+          1
+        ],
+        [
+          1561,
+          2
+        ],
+        [
+          1566,
+          1
+        ],
+        [
+          1569,
+          1
+        ],
+        [
+          1572,
+          1
+        ],
+        [
+          1576,
+          1
+        ],
+        [
+          1579,
+          1
+        ],
+        [
+          1581,
+          2
+        ],
+        [
+          1585,
+          1
+        ],
+        [
+          1588,
+          1
+        ],
+        [
+          1591,
+          1
+        ],
+        [
+          1595,
+          1
+        ],
+        [
+          1597,
+          1
+        ],
+        [
+          1601,
+          2
+        ],
+        [
+          1605,
+          1
+        ],
+        [
+          1607,
+          1
+        ],
+        [
+          1609,
+          1
+        ],
+        [
+          1611,
+          1
+        ],
+        [
+          1614,
+          1
+        ],
+        [
+          1616,
+          1
+        ],
+        [
+          1618,
+          1
+        ],
+        [
+          1622,
+          1
+        ],
+        [
+          1630,
+          1
+        ],
+        [
+          1634,
+          2
+        ],
+        [
+          1638,
+          1
+        ],
+        [
+          1642,
+          1
+        ],
+        [
+          1646,
+          1
+        ],
+        [
+          1649,
+          2
+        ],
+        [
+          1664,
+          2
+        ],
+        [
+          1669,
+          1
+        ],
+        [
+          1671,
+          1
+        ],
+        [
+          1675,
+          2
+        ],
+        [
+          1679,
+          1
+        ],
+        [
+          1683,
+          1
+        ],
+        [
+          1685,
+          1
+        ],
+        [
+          1690,
+          1
+        ],
+        [
+          1697,
+          1
+        ],
+        [
+          1699,
+          1
+        ],
+        [
+          1704,
+          1
+        ],
+        [
+          1707,
+          1
+        ],
+        [
+          1711,
+          1
+        ],
+        [
+          1713,
+          1
+        ],
+        [
+          1717,
+          1
+        ],
+        [
+          1720,
+          1
+        ],
+        [
+          1723,
+          1
+        ],
+        [
+          1726,
+          1
+        ],
+        [
+          1729,
+          2
+        ],
+        [
+          1732,
+          1
+        ],
+        [
+          1740,
+          1
+        ],
+        [
+          1746,
+          1
+        ],
+        [
+          1751,
+          2
+        ],
+        [
+          1756,
+          1
+        ],
+        [
+          1760,
+          1
+        ],
+        [
+          1762,
+          1
+        ],
+        [
+          1766,
+          2
+        ],
+        [
+          1770,
+          1
+        ],
+        [
+          1777,
+          1
+        ],
+        [
+          1779,
+          1
+        ],
+        [
+          1782,
+          1
+        ],
+        [
+          1787,
+          1
+        ],
+        [
+          1789,
+          1
+        ],
+        [
+          1793,
+          1
+        ],
+        [
+          1798,
+          1
+        ],
+        [
+          1800,
+          1
+        ],
+        [
+          1810,
+          3
+        ],
+        [
+          1845,
+          1
+        ],
+        [
+          1849,
+          1
+        ],
+        [
+          1852,
+          1
+        ],
+        [
+          1854,
+          1
+        ],
+        [
+          1858,
+          2
+        ],
+        [
+          1862,
+          1
+        ],
+        [
+          1864,
+          1
+        ],
+        [
+          1868,
+          1
+        ],
+        [
+          1870,
+          1
+        ],
+        [
+          1873,
+          1
+        ],
+        [
+          1877,
+          1
+        ],
+        [
+          1880,
+          2
+        ],
+        [
+          1885,
+          1
+        ],
+        [
+          1888,
+          2
+        ],
+        [
+          1894,
+          1
+        ],
+        [
+          1897,
+          1
+        ],
+        [
+          1899,
+          1
+        ],
+        [
+          1903,
+          1
+        ],
+        [
+          1907,
+          1
+        ],
+        [
+          1909,
+          1
+        ],
+        [
+          1911,
+          1
+        ],
+        [
+          1916,
+          1
+        ],
+        [
+          1919,
+          1
+        ],
+        [
+          1923,
+          1
+        ],
+        [
+          1925,
+          1
+        ],
+        [
+          1928,
+          1
+        ],
+        [
+          1932,
+          1
+        ],
+        [
+          1934,
+          1
+        ],
+        [
+          1940,
+          1
+        ],
+        [
+          1942,
+          1
+        ],
+        [
+          1944,
+          1
+        ],
+        [
+          1948,
+          1
+        ],
+        [
+          1950,
+          1
+        ],
+        [
+          1954,
+          1
+        ],
+        [
+          1960,
+          2
+        ],
+        [
+          1967,
+          1
+        ],
+        [
+          1971,
+          1
+        ],
+        [
+          1973,
+          1
+        ],
+        [
+          1979,
+          1
+        ],
+        [
+          1982,
+          1
+        ],
+        [
+          1985,
+          1
+        ],
+        [
+          1988,
+          1
+        ],
+        [
+          1992,
+          1
+        ],
+        [
+          1994,
+          1
+        ],
+        [
+          1996,
+          1
+        ],
+        [
+          2001,
+          2
+        ],
+        [
+          2005,
+          2
+        ],
+        [
+          2009,
+          1
+        ],
+        [
+          2011,
+          1
+        ],
+        [
+          2014,
+          1
+        ],
+        [
+          2018,
+          1
+        ],
+        [
+          2021,
+          2
+        ],
+        [
+          2026,
+          2
+        ],
+        [
+          2029,
+          1
+        ],
+        [
+          2032,
+          2
+        ],
+        [
+          2035,
+          1
+        ],
+        [
+          2037,
+          1
+        ],
+        [
+          2043,
+          1
+        ],
+        [
+          2048,
+          1
+        ],
+        [
+          2050,
+          1
+        ],
+        [
+          2053,
+          1
+        ],
+        [
+          2055,
+          1
+        ],
+        [
+          2058,
+          2
+        ],
+        [
+          2061,
+          1
+        ],
+        [
+          2064,
+          1
+        ],
+        [
+          2077,
+          1
+        ],
+        [
+          2080,
+          1
+        ],
+        [
+          2084,
+          1
+        ],
+        [
+          2087,
+          2
+        ],
+        [
+          2092,
+          2
+        ],
+        [
+          2098,
+          1
+        ],
+        [
+          2100,
+          1
+        ],
+        [
+          3264,
+          1
+        ],
+        [
+          3349,
+          1
+        ],
+        [
+          3351,
+          1
+        ],
+        [
+          3353,
+          1
+        ],
+        [
+          3380,
+          1
+        ],
+        [
+          3388,
+          1
+        ],
+        [
+          3415,
+          1
+        ],
+        [
+          3425,
+          1
+        ],
+        [
+          3435,
+          1
+        ],
+        [
+          3457,
+          2
+        ],
+        [
+          3462,
+          1
+        ],
+        [
+          3465,
+          1
+        ],
+        [
+          3469,
+          1
+        ],
+        [
+          3471,
+          1
+        ],
+        [
+          3497,
+          1
+        ],
+        [
+          3499,
+          1
+        ],
+        [
+          3511,
+          2
+        ],
+        [
+          3517,
+          1
+        ],
+        [
+          3534,
+          1
+        ],
+        [
+          3548,
+          1
+        ],
+        [
+          3555,
+          1
+        ],
+        [
+          3557,
+          1
+        ],
+        [
+          3563,
+          1
+        ],
+        [
+          3586,
+          1
+        ],
+        [
+          3623,
+          1
+        ],
+        [
+          3625,
+          1
+        ],
+        [
+          3631,
+          1
+        ],
+        [
+          3636,
+          1
+        ],
+        [
+          3638,
+          1
+        ],
+        [
+          3645,
+          1
+        ],
+        [
+          3658,
+          1
+        ],
+        [
+          3660,
+          1
+        ],
+        [
+          3663,
+          1
+        ],
+        [
+          3665,
+          1
+        ],
+        [
+          3668,
+          1
+        ],
+        [
+          3689,
+          1
+        ],
+        [
+          3694,
+          1
+        ],
+        [
+          3699,
+          1
+        ],
+        [
+          3704,
+          1
+        ],
+        [
+          3710,
+          1
+        ],
+        [
+          3713,
+          1
+        ],
+        [
+          3715,
+          1
+        ],
+        [
+          3717,
+          1
+        ],
+        [
+          3722,
+          1
+        ],
+        [
+          3725,
+          1
+        ],
+        [
+          3729,
+          1
+        ],
+        [
+          3736,
+          1
+        ],
+        [
+          3741,
+          1
+        ],
+        [
+          3744,
+          1
+        ],
+        [
+          3748,
+          1
+        ],
+        [
+          3755,
+          1
+        ],
+        [
+          3781,
+          2
+        ],
+        [
+          3788,
+          2
+        ],
+        [
+          3791,
+          1
+        ],
+        [
+          3795,
+          1
+        ],
+        [
+          3798,
+          2
+        ],
+        [
+          3804,
+          1
+        ],
+        [
+          3808,
+          1
+        ],
+        [
+          3819,
+          1
+        ],
+        [
+          3826,
+          1
+        ],
+        [
+          3833,
+          1
+        ],
+        [
+          3839,
+          1
+        ],
+        [
+          3845,
+          1
+        ],
+        [
+          3851,
+          1
+        ],
+        [
+          3855,
+          1
+        ],
+        [
+          3859,
+          1
+        ],
+        [
+          3861,
+          1
+        ],
+        [
+          3869,
+          1
+        ],
+        [
+          3872,
+          1
+        ],
+        [
+          3877,
+          1
+        ],
+        [
+          3879,
+          4
+        ],
+        [
+          3910,
+          1
+        ],
+        [
+          3916,
+          1
+        ],
+        [
+          3922,
+          1
+        ],
+        [
+          3925,
+          1
+        ],
+        [
+          3929,
+          1
+        ],
+        [
+          3932,
+          2
+        ],
+        [
+          3935,
+          1
+        ],
+        [
+          3939,
+          3
+        ],
+        [
+          3943,
+          1
+        ],
+        [
+          3945,
+          1
+        ],
+        [
+          3947,
+          2
+        ],
+        [
+          3950,
+          3
+        ],
+        [
+          3957,
+          1
+        ],
+        [
+          3959,
+          1
+        ],
+        [
+          3968,
+          1
+        ],
+        [
+          3972,
+          1
+        ],
+        [
+          3974,
+          1
+        ],
+        [
+          3981,
+          1
+        ],
+        [
+          3984,
+          1
+        ],
+        [
+          3989,
+          1
+        ],
+        [
+          3993,
+          1
+        ],
+        [
+          3995,
+          1
+        ],
+        [
+          3998,
+          1
+        ],
+        [
+          4002,
+          1
+        ],
+        [
+          4009,
+          1
+        ],
+        [
+          4016,
+          1
+        ],
+        [
+          4021,
+          2
+        ],
+        [
+          4029,
+          1
+        ],
+        [
+          4032,
+          1
+        ],
+        [
+          4037,
+          1
+        ],
+        [
+          4040,
+          1
+        ],
+        [
+          4044,
+          3
+        ],
+        [
+          4062,
+          1
+        ],
+        [
+          4071,
+          1
+        ],
+        [
+          4074,
+          1
+        ],
+        [
+          4079,
+          1
+        ],
+        [
+          4089,
+          2
+        ],
+        [
+          4117,
+          1
+        ],
+        [
+          4119,
+          1
+        ],
+        [
+          4123,
+          1
+        ],
+        [
+          4125,
+          1
+        ],
+        [
+          4131,
+          1
+        ],
+        [
+          4135,
+          1
+        ],
+        [
+          4139,
+          2
+        ],
+        [
+          4143,
+          1
+        ],
+        [
+          4147,
+          1
+        ],
+        [
+          4154,
+          1
+        ],
+        [
+          4157,
+          1
+        ],
+        [
+          4160,
+          2
+        ],
+        [
+          4166,
+          1
+        ],
+        [
+          4172,
+          1
+        ],
+        [
+          4184,
+          1
+        ],
+        [
+          4189,
+          1
+        ],
+        [
+          4195,
+          1
+        ],
+        [
+          4200,
+          1
+        ],
+        [
+          4207,
+          2
+        ],
+        [
+          4215,
+          2
+        ],
+        [
+          4218,
+          1
+        ],
+        [
+          4221,
+          1
+        ],
+        [
+          4223,
+          1
+        ],
+        [
+          4226,
+          2
+        ],
+        [
+          4230,
+          1
+        ],
+        [
+          4244,
+          1
+        ],
+        [
+          4249,
+          1
+        ],
+        [
+          4252,
+          1
+        ],
+        [
+          4256,
+          1
+        ],
+        [
+          4258,
+          1
+        ],
+        [
+          4262,
+          1
+        ],
+        [
+          4265,
+          2
+        ],
+        [
+          4270,
+          1
+        ],
+        [
+          4272,
+          1
+        ],
+        [
+          4277,
+          2
+        ],
+        [
+          4280,
+          1
+        ],
+        [
+          4286,
+          1
+        ],
+        [
+          4289,
+          1
+        ],
+        [
+          4294,
+          1
+        ],
+        [
+          4297,
+          2
+        ],
+        [
+          4308,
+          1
+        ],
+        [
+          4310,
+          1
+        ],
+        [
+          4315,
+          2
+        ],
+        [
+          4319,
+          1
+        ],
+        [
+          4324,
+          1
+        ],
+        [
+          4334,
+          1
+        ],
+        [
+          4348,
+          1
+        ],
+        [
+          4378,
+          1
+        ],
+        [
+          4407,
+          1
+        ],
+        [
+          4431,
+          3
+        ],
+        [
+          4461,
+          1
+        ],
+        [
+          4474,
+          1
+        ],
+        [
+          4486,
+          1
+        ],
+        [
+          4491,
+          1
+        ],
+        [
+          4503,
+          1
+        ],
+        [
+          4516,
+          1
+        ],
+        [
+          4521,
+          1
+        ],
+        [
+          4536,
+          1
+        ],
+        [
+          4539,
+          1
+        ],
+        [
+          4558,
+          2
+        ],
+        [
+          4565,
+          1
+        ],
+        [
+          4567,
+          1
+        ],
+        [
+          4588,
+          1
+        ],
+        [
+          4592,
+          1
+        ],
+        [
+          4595,
+          1
+        ],
+        [
+          4598,
+          1
+        ],
+        [
+          4603,
+          1
+        ],
+        [
+          4605,
+          1
+        ],
+        [
+          4607,
+          1
+        ],
+        [
+          4612,
+          1
+        ],
+        [
+          4614,
+          1
+        ],
+        [
+          4616,
+          1
+        ],
+        [
+          4634,
+          1
+        ],
+        [
+          4637,
+          1
+        ],
+        [
+          4642,
+          1
+        ],
+        [
+          4648,
+          2
+        ],
+        [
+          4654,
+          1
+        ],
+        [
+          4684,
+          1
+        ],
+        [
+          4688,
+          1
+        ],
+        [
+          4692,
+          2
+        ],
+        [
+          4699,
+          1
+        ],
+        [
+          4704,
+          1
+        ],
+        [
+          4707,
+          1
+        ],
+        [
+          4717,
+          1
+        ],
+        [
+          4722,
+          1
+        ],
+        [
+          4725,
+          1
+        ],
+        [
+          4731,
+          1
+        ],
+        [
+          4734,
+          1
+        ],
+        [
+          4743,
+          1
+        ],
+        [
+          4753,
+          2
+        ],
+        [
+          4765,
+          1
+        ],
+        [
+          4768,
+          1
+        ],
+        [
+          4775,
+          1
+        ],
+        [
+          4803,
+          1
+        ],
+        [
+          4806,
+          1
+        ],
+        [
+          4810,
+          1
+        ],
+        [
+          4828,
+          1
+        ],
+        [
+          4830,
+          1
+        ],
+        [
+          4837,
+          1
+        ],
+        [
+          4842,
+          1
+        ],
+        [
+          4845,
+          1
+        ],
+        [
+          4849,
+          2
+        ],
+        [
+          4854,
+          1
+        ],
+        [
+          4857,
+          3
+        ],
+        [
+          4887,
+          1
+        ],
+        [
+          4893,
+          1
+        ],
+        [
+          4895,
+          1
+        ],
+        [
+          4901,
+          1
+        ],
+        [
+          4904,
+          1
+        ],
+        [
+          4907,
+          2
+        ],
+        [
+          4910,
+          1
+        ],
+        [
+          4920,
+          1
+        ],
+        [
+          4924,
+          1
+        ],
+        [
+          4928,
+          1
+        ],
+        [
+          4933,
+          1
+        ],
+        [
+          4935,
+          1
+        ],
+        [
+          4940,
+          1
+        ],
+        [
+          4942,
+          2
+        ],
+        [
+          4947,
+          2
+        ],
+        [
+          4952,
+          1
+        ],
+        [
+          4955,
+          1
+        ],
+        [
+          4958,
+          1
+        ],
+        [
+          4961,
+          1
+        ],
+        [
+          4963,
+          1
+        ],
+        [
+          4965,
+          1
+        ],
+        [
+          4972,
+          1
+        ],
+        [
+          4974,
+          1
+        ],
+        [
+          4978,
+          1
+        ],
+        [
+          4981,
+          1
+        ],
+        [
+          4983,
+          1
+        ],
+        [
+          4987,
+          1
+        ],
+        [
+          4989,
+          1
+        ],
+        [
+          5013,
+          1
+        ],
+        [
+          5015,
+          1
+        ],
+        [
+          5018,
+          2
+        ],
+        [
+          5024,
+          1
+        ],
+        [
+          5027,
+          1
+        ],
+        [
+          5031,
+          1
+        ],
+        [
+          5036,
+          1
+        ],
+        [
+          5042,
+          1
+        ],
+        [
+          5046,
+          1
+        ],
+        [
+          5048,
+          1
+        ],
+        [
+          5053,
+          1
+        ],
+        [
+          5056,
+          1
+        ],
+        [
+          5060,
+          1
+        ],
+        [
+          5062,
+          1
+        ],
+        [
+          5065,
+          1
+        ],
+        [
+          5071,
+          1
+        ],
+        [
+          5074,
+          1
+        ],
+        [
+          5077,
+          1
+        ],
+        [
+          5079,
+          1
+        ],
+        [
+          5086,
+          1
+        ],
+        [
+          5088,
+          1
+        ],
+        [
+          5099,
+          1
+        ],
+        [
+          5104,
+          1
+        ],
+        [
+          5106,
+          1
+        ],
+        [
+          5110,
+          1
+        ],
+        [
+          5118,
+          1
+        ],
+        [
+          5123,
+          1
+        ],
+        [
+          5126,
+          1
+        ],
+        [
+          5132,
+          1
+        ],
+        [
+          5138,
+          1
+        ],
+        [
+          5144,
+          1
+        ],
+        [
+          5151,
+          2
+        ],
+        [
+          5155,
+          1
+        ],
+        [
+          5162,
+          1
+        ],
+        [
+          5165,
+          1
+        ],
+        [
+          5169,
+          4
+        ],
+        [
+          5176,
+          1
+        ],
+        [
+          5180,
+          1
+        ],
+        [
+          5183,
+          1
+        ],
+        [
+          5199,
+          1
+        ],
+        [
+          5203,
+          2
+        ],
+        [
+          5207,
+          1
+        ],
+        [
+          5212,
+          1
+        ],
+        [
+          5216,
+          1
+        ],
+        [
+          5220,
+          1
+        ],
+        [
+          5226,
+          1
+        ],
+        [
+          5229,
+          1
+        ],
+        [
+          5231,
+          1
+        ],
+        [
+          5249,
+          1
+        ],
+        [
+          5251,
+          1
+        ],
+        [
+          5255,
+          1
+        ],
+        [
+          5257,
+          2
+        ],
+        [
+          5262,
+          1
+        ],
+        [
+          5269,
+          1
+        ],
+        [
+          5273,
+          3
+        ],
+        [
+          5280,
+          1
+        ],
+        [
+          5288,
+          1
+        ],
+        [
+          5292,
+          1
+        ],
+        [
+          5294,
+          1
+        ],
+        [
+          5296,
+          1
+        ],
+        [
+          5304,
+          1
+        ],
+        [
+          5311,
+          1
+        ],
+        [
+          5315,
+          1
+        ],
+        [
+          5320,
+          1
+        ],
+        [
+          5322,
+          1
+        ],
+        [
+          5328,
+          1
+        ],
+        [
+          5335,
+          2
+        ],
+        [
+          5341,
+          1
+        ],
+        [
+          5343,
+          1
+        ],
+        [
+          5353,
+          2
+        ],
+        [
+          5361,
+          1
+        ],
+        [
+          5365,
+          2
+        ],
+        [
+          5369,
+          1
+        ],
+        [
+          5379,
+          1
+        ],
+        [
+          5383,
+          1
+        ],
+        [
+          5395,
+          1
+        ],
+        [
+          5403,
+          1
+        ],
+        [
+          5407,
+          1
+        ],
+        [
+          5412,
+          1
+        ],
+        [
+          5414,
+          1
+        ],
+        [
+          5417,
+          1
+        ],
+        [
+          5422,
+          1
+        ],
+        [
+          5424,
+          1
+        ],
+        [
+          5428,
+          1
+        ],
+        [
+          5431,
+          1
+        ],
+        [
+          5434,
+          1
+        ],
+        [
+          5439,
+          1
+        ],
+        [
+          5443,
+          1
+        ],
+        [
+          5451,
+          1
+        ],
+        [
+          5459,
+          2
+        ],
+        [
+          5462,
+          1
+        ],
+        [
+          5470,
+          1
+        ],
+        [
+          5473,
+          1
+        ],
+        [
+          5502,
+          1
+        ],
+        [
+          5505,
+          1
+        ],
+        [
+          5508,
+          1
+        ],
+        [
+          5529,
+          1
+        ],
+        [
+          5534,
+          1
+        ],
+        [
+          5537,
+          1
+        ],
+        [
+          5541,
+          2
+        ],
+        [
+          5547,
+          1
+        ],
+        [
+          5550,
+          1
+        ],
+        [
+          5556,
+          1
+        ],
+        [
+          5560,
+          1
+        ],
+        [
+          5567,
+          1
+        ],
+        [
+          5570,
+          1
+        ],
+        [
+          5574,
+          1
+        ],
+        [
+          5579,
+          3
+        ],
+        [
+          5585,
+          1
+        ],
+        [
+          5595,
+          1
+        ],
+        [
+          5599,
+          1
+        ],
+        [
+          5603,
+          1
+        ],
+        [
+          5607,
+          2
+        ],
+        [
+          5612,
+          1
+        ],
+        [
+          5616,
+          1
+        ],
+        [
+          5620,
+          1
+        ],
+        [
+          5623,
+          1
+        ],
+        [
+          5627,
+          1
+        ],
+        [
+          5629,
+          1
+        ],
+        [
+          5634,
+          1
+        ],
+        [
+          5636,
+          1
+        ],
+        [
+          5640,
+          1
+        ],
+        [
+          5643,
+          1
+        ],
+        [
+          5646,
+          1
+        ],
+        [
+          5649,
+          1
+        ],
+        [
+          5651,
+          1
+        ],
+        [
+          5656,
+          1
+        ],
+        [
+          5658,
+          1
+        ],
+        [
+          5672,
+          1
+        ],
+        [
+          5674,
+          1
+        ],
+        [
+          5676,
+          1
+        ],
+        [
+          5683,
+          1
+        ],
+        [
+          5686,
+          1
+        ],
+        [
+          5690,
+          1
+        ],
+        [
+          5698,
+          1
+        ],
+        [
+          5702,
+          1
+        ],
+        [
+          5706,
+          1
+        ],
+        [
+          5710,
+          1
+        ],
+        [
+          5714,
+          1
+        ],
+        [
+          5717,
+          1
+        ],
+        [
+          5721,
+          1
+        ],
+        [
+          5723,
+          1
+        ],
+        [
+          5725,
+          1
+        ],
+        [
+          5728,
+          1
+        ],
+        [
+          5732,
+          1
+        ],
+        [
+          5735,
+          1
+        ],
+        [
+          5768,
+          1
+        ],
+        [
+          5770,
+          1
+        ],
+        [
+          5773,
+          1
+        ],
+        [
+          5775,
+          1
+        ],
+        [
+          5778,
+          1
+        ],
+        [
+          5780,
+          1
+        ],
+        [
+          5784,
+          1
+        ],
+        [
+          5788,
+          1
+        ],
+        [
+          5790,
+          1
+        ],
+        [
+          5793,
+          1
+        ],
+        [
+          5796,
+          1
+        ],
+        [
+          5798,
+          1
+        ],
+        [
+          5803,
+          1
+        ],
+        [
+          5805,
+          1
+        ],
+        [
+          5807,
+          1
+        ],
+        [
+          5809,
+          1
+        ],
+        [
+          5816,
+          1
+        ],
+        [
+          5819,
+          1
+        ],
+        [
+          5823,
+          1
+        ],
+        [
+          5827,
+          2
+        ],
+        [
+          5831,
+          1
+        ],
+        [
+          5836,
+          1
+        ],
+        [
+          5840,
+          2
+        ],
+        [
+          5844,
+          3
+        ],
+        [
+          5849,
+          1
+        ],
+        [
+          5851,
+          1
+        ],
+        [
+          5861,
+          1
+        ],
+        [
+          5864,
+          1
+        ],
+        [
+          5866,
+          1
+        ],
+        [
+          5875,
+          2
+        ],
+        [
+          5881,
+          2
+        ],
+        [
+          5884,
+          1
+        ],
+        [
+          5892,
+          2
+        ],
+        [
+          5896,
+          1
+        ],
+        [
+          5901,
+          1
+        ],
+        [
+          5904,
+          1
+        ],
+        [
+          5909,
+          2
+        ],
+        [
+          5915,
+          1
+        ],
+        [
+          5918,
+          1
+        ],
+        [
+          5921,
+          2
+        ],
+        [
+          5924,
+          1
+        ],
+        [
+          5930,
+          1
+        ],
+        [
+          5938,
+          1
+        ],
+        [
+          5941,
+          1
+        ],
+        [
+          5945,
+          1
+        ],
+        [
+          5947,
+          2
+        ],
+        [
+          5951,
+          1
+        ],
+        [
+          5954,
+          1
+        ],
+        [
+          5976,
+          1
+        ],
+        [
+          5978,
+          1
+        ],
+        [
+          5981,
+          1
+        ],
+        [
+          5983,
+          2
+        ],
+        [
+          5986,
+          1
+        ],
+        [
+          5990,
+          1
+        ],
+        [
+          5995,
+          2
+        ],
+        [
+          5998,
+          1
+        ],
+        [
+          6002,
+          2
+        ],
+        [
+          6011,
+          1
+        ],
+        [
+          6014,
+          1
+        ],
+        [
+          6017,
+          1
+        ],
+        [
+          6019,
+          1
+        ],
+        [
+          6024,
+          1
+        ],
+        [
+          6027,
+          1
+        ],
+        [
+          6031,
+          1
+        ],
+        [
+          6033,
+          1
+        ],
+        [
+          6036,
+          1
+        ],
+        [
+          6039,
+          1
+        ],
+        [
+          6043,
+          1
+        ],
+        [
+          6045,
+          1
+        ],
+        [
+          6048,
+          1
+        ],
+        [
+          6051,
+          1
+        ],
+        [
+          6054,
+          3
+        ],
+        [
+          6060,
+          1
+        ],
+        [
+          6062,
+          1
+        ],
+        [
+          6065,
+          1
+        ],
+        [
+          6068,
+          1
+        ],
+        [
+          6070,
+          1
+        ],
+        [
+          6072,
+          1
+        ],
+        [
+          6076,
+          1
+        ],
+        [
+          6078,
+          1
+        ],
+        [
+          6080,
+          1
+        ],
+        [
+          6084,
+          1
+        ],
+        [
+          6087,
+          1
+        ],
+        [
+          6091,
+          2
+        ],
+        [
+          6095,
+          1
+        ],
+        [
+          6099,
+          2
+        ],
+        [
+          6102,
+          2
+        ],
+        [
+          6108,
+          1
+        ],
+        [
+          6112,
+          1
+        ],
+        [
+          6114,
+          1
+        ],
+        [
+          6121,
+          1
+        ],
+        [
+          6123,
+          1
+        ],
+        [
+          6127,
+          1
+        ],
+        [
+          6129,
+          1
+        ],
+        [
+          6131,
+          1
+        ],
+        [
+          6136,
+          2
+        ],
+        [
+          6139,
+          1
+        ],
+        [
+          6145,
+          2
+        ],
+        [
+          6151,
+          1
+        ],
+        [
+          6153,
+          2
+        ],
+        [
+          6157,
+          1
+        ],
+        [
+          6161,
+          1
+        ],
+        [
+          6164,
+          1
+        ],
+        [
+          6168,
+          1
+        ],
+        [
+          6171,
+          1
+        ],
+        [
+          6173,
+          1
+        ],
+        [
+          6175,
+          2
+        ],
+        [
+          6178,
+          1
+        ],
+        [
+          6182,
+          1
+        ],
+        [
+          6186,
+          3
+        ],
+        [
+          6192,
+          1
+        ],
+        [
+          6194,
+          2
+        ],
+        [
+          6198,
+          2
+        ],
+        [
+          6227,
+          2
+        ],
+        [
+          6231,
+          1
+        ],
+        [
+          6235,
+          1
+        ],
+        [
+          6237,
+          1
+        ],
+        [
+          6241,
+          1
+        ],
+        [
+          6243,
+          1
+        ],
+        [
+          6247,
+          1
+        ],
+        [
+          6249,
+          1
+        ],
+        [
+          6251,
+          2
+        ],
+        [
+          6255,
+          1
+        ],
+        [
+          6260,
+          2
+        ],
+        [
+          6272,
+          1
+        ],
+        [
+          6276,
+          1
+        ],
+        [
+          6282,
+          4
+        ],
+        [
+          6290,
+          1
+        ],
+        [
+          6293,
+          1
+        ],
+        [
+          6296,
+          1
+        ],
+        [
+          6299,
+          1
+        ],
+        [
+          6301,
+          2
+        ],
+        [
+          6304,
+          1
+        ],
+        [
+          6307,
+          1
+        ],
+        [
+          6310,
+          1
+        ],
+        [
+          6313,
+          1
+        ],
+        [
+          6316,
+          2
+        ],
+        [
+          6320,
+          2
+        ],
+        [
+          6324,
+          1
+        ],
+        [
+          6327,
+          1
+        ],
+        [
+          6329,
+          1
+        ],
+        [
+          6333,
+          1
+        ],
+        [
+          6336,
+          1
+        ],
+        [
+          6339,
+          4
+        ],
+        [
+          6349,
+          1
+        ],
+        [
+          6353,
+          1
+        ],
+        [
+          6356,
+          2
+        ],
+        [
+          6359,
+          1
+        ],
+        [
+          6363,
+          1
+        ],
+        [
+          6365,
+          1
+        ],
+        [
+          6367,
+          1
+        ],
+        [
+          6369,
+          1
+        ],
+        [
+          6371,
+          1
+        ],
+        [
+          6373,
+          1
+        ],
+        [
+          6376,
+          1
+        ],
+        [
+          6378,
+          2
+        ],
+        [
+          6382,
+          1
+        ],
+        [
+          6385,
+          2
+        ],
+        [
+          6390,
+          1
+        ],
+        [
+          6392,
+          1
+        ],
+        [
+          6395,
+          1
+        ],
+        [
+          6397,
+          1
+        ],
+        [
+          6400,
+          2
+        ],
+        [
+          6404,
+          1
+        ],
+        [
+          6408,
+          2
+        ],
+        [
+          6413,
+          1
+        ],
+        [
+          6416,
+          2
+        ],
+        [
+          6422,
+          1
+        ],
+        [
+          6424,
+          1
+        ],
+        [
+          6427,
+          1
+        ],
+        [
+          6429,
+          1
+        ],
+        [
+          6432,
+          2
+        ],
+        [
+          6437,
+          1
+        ],
+        [
+          6441,
+          1
+        ],
+        [
+          6445,
+          4
+        ],
+        [
+          6457,
+          1
+        ],
+        [
+          6461,
+          1
+        ],
+        [
+          6465,
+          1
+        ],
+        [
+          6468,
+          1
+        ],
+        [
+          6470,
+          1
+        ],
+        [
+          6474,
+          2
+        ],
+        [
+          6477,
+          1
+        ],
+        [
+          6480,
+          1
+        ],
+        [
+          6482,
+          1
+        ],
+        [
+          6484,
+          3
+        ],
+        [
+          6490,
+          1
+        ],
+        [
+          6492,
+          1
+        ],
+        [
+          6495,
+          2
+        ],
+        [
+          6500,
+          1
+        ],
+        [
+          6503,
+          1
+        ],
+        [
+          6505,
+          1
+        ],
+        [
+          6509,
+          1
+        ],
+        [
+          6514,
+          1
+        ],
+        [
+          6522,
+          1
+        ],
+        [
+          6526,
+          1
+        ],
+        [
+          6528,
+          2
+        ],
+        [
+          6532,
+          1
+        ],
+        [
+          6534,
+          2
+        ],
+        [
+          6541,
+          1
+        ],
+        [
+          6546,
+          2
+        ],
+        [
+          6554,
+          1
+        ],
+        [
+          6557,
+          1
+        ],
+        [
+          6562,
+          2
+        ],
+        [
+          6566,
+          1
+        ],
+        [
+          6569,
+          2
+        ],
+        [
+          6574,
+          1
+        ],
+        [
+          6576,
+          1
+        ],
+        [
+          6578,
+          1
+        ],
+        [
+          6580,
+          1
+        ],
+        [
+          6585,
+          2
+        ],
+        [
+          6590,
+          1
+        ],
+        [
+          6593,
+          1
+        ],
+        [
+          6595,
+          1
+        ],
+        [
+          6598,
+          1
+        ],
+        [
+          6601,
+          2
+        ],
+        [
+          6605,
+          1
+        ],
+        [
+          6609,
+          1
+        ],
+        [
+          6612,
+          2
+        ],
+        [
+          6617,
+          1
+        ],
+        [
+          6619,
+          1
+        ],
+        [
+          6622,
+          1
+        ],
+        [
+          6624,
+          2
+        ],
+        [
+          6629,
+          1
+        ],
+        [
+          6631,
+          1
+        ],
+        [
+          6633,
+          3
+        ],
+        [
+          6638,
+          1
+        ],
+        [
+          6643,
+          1
+        ],
+        [
+          6649,
+          1
+        ],
+        [
+          6653,
+          1
+        ],
+        [
+          6660,
+          1
+        ],
+        [
+          6663,
+          2
+        ],
+        [
+          6668,
+          2
+        ],
+        [
+          6672,
+          1
+        ],
+        [
+          6675,
+          2
+        ],
+        [
+          6678,
+          2
+        ],
+        [
+          6682,
+          3
+        ],
+        [
+          6711,
+          2
+        ],
+        [
+          6716,
+          2
+        ],
+        [
+          6721,
+          1
+        ],
+        [
+          6726,
+          2
+        ],
+        [
+          6729,
+          2
+        ],
+        [
+          6733,
+          2
+        ],
+        [
+          6736,
+          1
+        ],
+        [
+          6741,
+          1
+        ],
+        [
+          6743,
+          1
+        ],
+        [
+          6745,
+          1
+        ],
+        [
+          6747,
+          1
+        ],
+        [
+          6751,
+          2
+        ],
+        [
+          6755,
+          1
+        ],
+        [
+          6758,
+          2
+        ],
+        [
+          6763,
+          1
+        ],
+        [
+          6766,
+          2
+        ],
+        [
+          6769,
+          1
+        ],
+        [
+          6771,
+          1
+        ],
+        [
+          6775,
+          2
+        ],
+        [
+          6779,
+          2
+        ],
+        [
+          6787,
+          1
+        ],
+        [
+          6789,
+          1
+        ],
+        [
+          6791,
+          2
+        ],
+        [
+          6795,
+          1
+        ],
+        [
+          6798,
+          1
+        ],
+        [
+          6800,
+          1
+        ],
+        [
+          6803,
+          1
+        ],
+        [
+          6807,
+          1
+        ],
+        [
+          6809,
+          1
+        ],
+        [
+          6811,
+          2
+        ],
+        [
+          6816,
+          3
+        ],
+        [
+          6821,
+          2
+        ],
+        [
+          6824,
+          1
+        ],
+        [
+          6826,
+          1
+        ],
+        [
+          6829,
+          2
+        ],
+        [
+          6833,
+          2
+        ],
+        [
+          6837,
+          1
+        ],
+        [
+          6842,
+          1
+        ],
+        [
+          6845,
+          1
+        ],
+        [
+          6849,
+          1
+        ],
+        [
+          6853,
+          2
+        ],
+        [
+          6856,
+          1
+        ],
+        [
+          6859,
+          1
+        ],
+        [
+          6861,
+          2
+        ],
+        [
+          6866,
+          2
+        ],
+        [
+          6870,
+          2
+        ],
+        [
+          6873,
+          1
+        ],
+        [
+          6876,
+          1
+        ],
+        [
+          6879,
+          1
+        ],
+        [
+          6881,
+          1
+        ],
+        [
+          6884,
+          1
+        ],
+        [
+          6886,
+          1
+        ],
+        [
+          6888,
+          1
+        ],
+        [
+          6892,
+          2
+        ],
+        [
+          6896,
+          1
+        ],
+        [
+          6899,
+          1
+        ],
+        [
+          6901,
+          2
+        ],
+        [
+          6906,
+          1
+        ],
+        [
+          6908,
+          1
+        ],
+        [
+          6910,
+          1
+        ],
+        [
+          6914,
+          3
+        ],
+        [
+          6919,
+          1
+        ],
+        [
+          6922,
+          1
+        ],
+        [
+          6926,
+          1
+        ],
+        [
+          6930,
+          2
+        ],
+        [
+          6934,
+          2
+        ],
+        [
+          6938,
+          3
+        ],
+        [
+          6943,
+          2
+        ],
+        [
+          6948,
+          1
+        ],
+        [
+          6952,
+          1
+        ],
+        [
+          6954,
+          1
+        ],
+        [
+          6957,
+          2
+        ],
+        [
+          6960,
+          1
+        ],
+        [
+          6989,
+          1
+        ],
+        [
+          6992,
+          1
+        ],
+        [
+          6994,
+          2
+        ],
+        [
+          6997,
+          1
+        ],
+        [
+          6999,
+          1
+        ],
+        [
+          7001,
+          1
+        ],
+        [
+          7003,
+          1
+        ],
+        [
+          7005,
+          1
+        ],
+        [
+          7009,
+          1
+        ],
+        [
+          7011,
+          1
+        ],
+        [
+          7015,
+          2
+        ],
+        [
+          7020,
+          1
+        ],
+        [
+          7022,
+          3
+        ],
+        [
+          7034,
+          1
+        ],
+        [
+          7036,
+          1
+        ],
+        [
+          7038,
+          1
+        ],
+        [
+          7041,
+          2
+        ],
+        [
+          7044,
+          2
+        ],
+        [
+          7050,
+          1
+        ],
+        [
+          7055,
+          1
+        ],
+        [
+          7058,
+          1
+        ],
+        [
+          7060,
+          1
+        ],
+        [
+          7062,
+          1
+        ],
+        [
+          7066,
+          2
+        ],
+        [
+          7070,
+          1
+        ],
+        [
+          7072,
+          1
+        ],
+        [
+          7074,
+          1
+        ],
+        [
+          7077,
+          1
+        ],
+        [
+          7079,
+          1
+        ],
+        [
+          7084,
+          2
+        ],
+        [
+          7088,
+          1
+        ],
+        [
+          7091,
+          1
+        ],
+        [
+          7093,
+          1
+        ],
+        [
+          7095,
+          2
+        ],
+        [
+          7098,
+          1
+        ],
+        [
+          7101,
+          1
+        ],
+        [
+          7103,
+          1
+        ],
+        [
+          7107,
+          1
+        ],
+        [
+          7110,
+          1
+        ],
+        [
+          7114,
+          1
+        ],
+        [
+          7116,
+          2
+        ],
+        [
+          7119,
+          1
+        ],
+        [
+          7121,
+          2
+        ],
+        [
+          7126,
+          3
+        ],
+        [
+          7130,
+          1
+        ],
+        [
+          7133,
+          1
+        ],
+        [
+          7136,
+          1
+        ],
+        [
+          7138,
+          3
+        ],
+        [
+          7142,
+          1
+        ],
+        [
+          7145,
+          1
+        ],
+        [
+          7147,
+          1
+        ],
+        [
+          7151,
+          2
+        ],
+        [
+          7156,
+          1
+        ],
+        [
+          7158,
+          3
+        ],
+        [
+          7164,
+          2
+        ],
+        [
+          7168,
+          1
+        ],
+        [
+          7170,
+          1
+        ],
+        [
+          7172,
+          1
+        ],
+        [
+          7174,
+          2
+        ],
+        [
+          7178,
+          1
+        ],
+        [
+          7182,
+          1
+        ],
+        [
+          7184,
+          1
+        ],
+        [
+          7186,
+          1
+        ],
+        [
+          7189,
+          2
+        ],
+        [
+          7192,
+          1
+        ],
+        [
+          7194,
+          1
+        ],
+        [
+          7197,
+          1
+        ],
+        [
+          7199,
+          1
+        ],
+        [
+          7202,
+          1
+        ],
+        [
+          7206,
+          2
+        ],
+        [
+          7210,
+          1
+        ],
+        [
+          7212,
+          2
+        ],
+        [
+          7215,
+          1
+        ],
+        [
+          7218,
+          1
+        ],
+        [
+          7220,
+          1
+        ],
+        [
+          7222,
+          2
+        ],
+        [
+          7231,
+          1
+        ],
+        [
+          7233,
+          1
+        ],
+        [
+          7236,
+          2
+        ],
+        [
+          7239,
+          2
+        ],
+        [
+          7242,
+          1
+        ],
+        [
+          7245,
+          1
+        ],
+        [
+          7247,
+          1
+        ],
+        [
+          7249,
+          1
+        ],
+        [
+          7251,
+          1
+        ],
+        [
+          7256,
+          1
+        ],
+        [
+          7260,
+          1
+        ],
+        [
+          7262,
+          2
+        ],
+        [
+          7266,
+          2
+        ],
+        [
+          7270,
+          1
+        ],
+        [
+          7272,
+          1
+        ],
+        [
+          7274,
+          1
+        ],
+        [
+          7277,
+          1
+        ],
+        [
+          7279,
+          1
+        ],
+        [
+          7283,
+          1
+        ],
+        [
+          7286,
+          1
+        ],
+        [
+          7290,
+          1
+        ],
+        [
+          7293,
+          2
+        ],
+        [
+          7296,
+          2
+        ],
+        [
+          7300,
+          2
+        ],
+        [
+          7303,
+          1
+        ],
+        [
+          7309,
+          2
+        ],
+        [
+          7312,
+          1
+        ],
+        [
+          7314,
+          2
+        ],
+        [
+          7319,
+          3
+        ],
+        [
+          7325,
+          1
+        ],
+        [
+          7328,
+          1
+        ],
+        [
+          7330,
+          2
+        ],
+        [
+          7333,
+          1
+        ],
+        [
+          7335,
+          1
+        ],
+        [
+          7340,
+          1
+        ],
+        [
+          7343,
+          1
+        ],
+        [
+          7345,
+          1
+        ],
+        [
+          7348,
+          1
+        ],
+        [
+          7352,
+          1
+        ],
+        [
+          7355,
+          2
+        ],
+        [
+          7358,
+          1
+        ],
+        [
+          7360,
+          2
+        ],
+        [
+          7366,
+          2
+        ],
+        [
+          7369,
+          1
+        ],
+        [
+          7371,
+          2
+        ],
+        [
+          7375,
+          1
+        ],
+        [
+          7377,
+          1
+        ],
+        [
+          7380,
+          3
+        ],
+        [
+          7387,
+          2
+        ],
+        [
+          7391,
+          1
+        ],
+        [
+          7393,
+          1
+        ],
+        [
+          7397,
+          1
+        ],
+        [
+          7399,
+          2
+        ],
+        [
+          7403,
+          2
+        ],
+        [
+          7406,
+          1
+        ],
+        [
+          7408,
+          1
+        ],
+        [
+          7410,
+          1
+        ],
+        [
+          7413,
+          1
+        ],
+        [
+          7416,
+          1
+        ],
+        [
+          7418,
+          2
+        ],
+        [
+          7422,
+          1
+        ],
+        [
+          7426,
+          2
+        ],
+        [
+          7430,
+          1
+        ],
+        [
+          7432,
+          2
+        ],
+        [
+          7436,
+          2
+        ],
+        [
+          7441,
+          1
+        ],
+        [
+          7444,
+          1
+        ],
+        [
+          7446,
+          1
+        ],
+        [
+          7449,
+          1
+        ],
+        [
+          7451,
+          1
+        ],
+        [
+          7453,
+          2
+        ],
+        [
+          7457,
+          1
+        ],
+        [
+          7459,
+          1
+        ],
+        [
+          7461,
+          1
+        ],
+        [
+          7463,
+          1
+        ],
+        [
+          7465,
+          1
+        ],
+        [
+          7469,
+          1
+        ],
+        [
+          7473,
+          1
+        ],
+        [
+          7476,
+          3
+        ],
+        [
+          7481,
+          2
+        ],
+        [
+          7485,
+          2
+        ],
+        [
+          7489,
+          2
+        ],
+        [
+          7494,
+          1
+        ],
+        [
+          7496,
+          4
+        ],
+        [
+          11360,
+          1
+        ]
       ]
     }
   }

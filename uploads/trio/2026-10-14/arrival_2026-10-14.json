@@ -1,0 +1,588 @@
+{
+  "night": "2026-10-14",
+  "packets": 256542,
+  "files": 5,
+  "devices": [
+    {
+      "device": "Polar H10 02849638",
+      "anchors": 183684,
+      "ok": true,
+      "independent": true,
+      "spreadMs": 869.11,
+      "ppm": -19.8,
+      "maxStepMs": 49.6,
+      "plausibleCrystal": true,
+      "deviceDrawn": false,
+      "drawnShare": 0.044,
+      "offsetMs": 946670399835.4,
+      "offsetMadMs": 119.8,
+      "t0DevMs": 845343686599,
+      "t0HostMs": 1792014086715,
+      "spanSec": 24779
+    },
+    {
+      "device": "Polar Sense 0C301E3F",
+      "anchors": 48277,
+      "ok": true,
+      "independent": true,
+      "spreadMs": 1411.34,
+      "ppm": -27,
+      "maxStepMs": 110.6,
+      "plausibleCrystal": true,
+      "deviceDrawn": false,
+      "drawnShare": 0.004,
+      "offsetMs": 946670399936.8,
+      "offsetMadMs": 176.5,
+      "t0DevMs": 845343605745,
+      "t0HostMs": 1792014006087,
+      "spanSec": 24745
+    },
+    {
+      "device": "Wellue O2Ring-S",
+      "anchors": 24581,
+      "ok": true,
+      "independent": true,
+      "spreadMs": 686312,
+      "ppm": 28684.5,
+      "maxStepMs": 685982,
+      "plausibleCrystal": false,
+      "deviceDrawn": true,
+      "drawnShare": 0.958,
+      "offsetMs": 1792014816918,
+      "offsetMadMs": 17,
+      "t0DevMs": 1000,
+      "t0HostMs": 1792014131909,
+      "spanSec": 24607
+    }
+  ],
+  "ringClock": {
+    "files": 2,
+    "reads": 49,
+    "pushes": 2,
+    "resets": 0,
+    "batteries": 49,
+    "firstOffsetS": -1.1,
+    "lastOffsetS": -1,
+    "driftS": 0.1,
+    "firstReadMs": 1792010533140,
+    "lastReadMs": 1792038863039,
+    "spanH": 7.9,
+    "rows": [
+      {
+        "tMs": 1792010533140,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792010533158,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792011134164,
+        "event": "read",
+        "offsetS": -1.2
+      },
+      {
+        "tMs": 1792011134182,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792011742887,
+        "event": "read",
+        "offsetS": -0.9
+      },
+      {
+        "tMs": 1792011742887,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792012342909,
+        "event": "read",
+        "offsetS": -0.9
+      },
+      {
+        "tMs": 1792012342910,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792012943894,
+        "event": "read",
+        "offsetS": -0.9
+      },
+      {
+        "tMs": 1792012943912,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792013544917,
+        "event": "read",
+        "offsetS": -0.9
+      },
+      {
+        "tMs": 1792013544917,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792014146067,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792014146067,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792014747013,
+        "event": "read",
+        "offsetS": -1
+      },
+      {
+        "tMs": 1792014747043,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792014789854,
+        "event": "push",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792015347117,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792015347118,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792015948112,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792015948112,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792016548103,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792016548103,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792017149107,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792017149107,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792017749088,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792017749088,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792018350086,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792018350086,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792018950059,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792018950059,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792019550057,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792019550057,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792020151008,
+        "event": "read",
+        "offsetS": -1
+      },
+      {
+        "tMs": 1792020151008,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792020751043,
+        "event": "read",
+        "offsetS": -1
+      },
+      {
+        "tMs": 1792020751043,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792021352095,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792021352095,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792021952095,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792021952095,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792022552074,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792022552075,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792023153078,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792023153078,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792023753122,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792023753122,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792024354233,
+        "event": "read",
+        "offsetS": -1.2
+      },
+      {
+        "tMs": 1792024354234,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792024955078,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792024955078,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792025555122,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792025555123,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792026155137,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792026155137,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792026756082,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792026756082,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792027357046,
+        "event": "read",
+        "offsetS": -1
+      },
+      {
+        "tMs": 1792027357046,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792027957036,
+        "event": "read",
+        "offsetS": -1
+      },
+      {
+        "tMs": 1792027957037,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792028557022,
+        "event": "read",
+        "offsetS": -1
+      },
+      {
+        "tMs": 1792028557052,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792029157117,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792029157117,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792029757040,
+        "event": "read",
+        "offsetS": -1
+      },
+      {
+        "tMs": 1792029757041,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792030358112,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792030358112,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792030958135,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792030958135,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792031558080,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792031558080,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792032159084,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792032159084,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792032759125,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1792032759125,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792033360071,
+        "event": "read",
+        "offsetS": -0.1
+      },
+      {
+        "tMs": 1792033360071,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792033960096,
+        "event": "read",
+        "offsetS": -0.1
+      },
+      {
+        "tMs": 1792033960096,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792034561089,
+        "event": "read",
+        "offsetS": -0.1
+      },
+      {
+        "tMs": 1792034561090,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792035161044,
+        "event": "read",
+        "offsetS": 0
+      },
+      {
+        "tMs": 1792035161044,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792035761188,
+        "event": "read",
+        "offsetS": -0.2
+      },
+      {
+        "tMs": 1792035761188,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792036362203,
+        "event": "read",
+        "offsetS": -0.2
+      },
+      {
+        "tMs": 1792036362203,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792036962014,
+        "event": "read",
+        "offsetS": 0
+      },
+      {
+        "tMs": 1792036962014,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792037563051,
+        "event": "read",
+        "offsetS": -0.1
+      },
+      {
+        "tMs": 1792037563051,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792038164314,
+        "event": "read",
+        "offsetS": -0.3
+      },
+      {
+        "tMs": 1792038164314,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792038740855,
+        "event": "push",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792038763977,
+        "event": "read",
+        "offsetS": -1
+      },
+      {
+        "tMs": 1792038763978,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1792038863039,
+        "event": "read",
+        "offsetS": -1
+      },
+      {
+        "tMs": 1792038863039,
+        "event": "battery",
+        "offsetS": null
+      }
+    ]
+  },
+  "datTimefit": {
+    "converged": true,
+    "attempts": 2,
+    "lagS": 0,
+    "datStartHostMs": 1792014130000,
+    "spo2LagS": 0,
+    "pulseLagS": 0,
+    "pulseErr": 0.002,
+    "dat": "Wellue_O2Ring-S_20261014214210_STORED.dat",
+    "csv": "Wellue_O2Ring-S_S8AW2100_20261014214118_SPO2.csv",
+    "reportedOffsetS": -1,
+    "deltaS": 1,
+    "driftAllowanceS": 0.1,
+    "disagrees": false
+  }
+}

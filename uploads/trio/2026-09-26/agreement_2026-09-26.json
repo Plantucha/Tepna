@@ -4,7 +4,7 @@
   "quality": {
     "tolBpm": 3,
     "flagged": 3,
-    "compared": 100,
+    "compared": 99,
     "flaggedPct": 3
   },
   "nodes": [
@@ -12,8 +12,8 @@
     "ECGDex",
     "OxyDex"
   ],
-  "compared": 100,
-  "adjudicable": 99,
+  "compared": 99,
+  "adjudicable": 98,
   "droppedFragments": 0,
   "flagged": 0,
   "flaggedPct": 0,

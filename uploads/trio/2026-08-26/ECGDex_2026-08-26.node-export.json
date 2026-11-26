@@ -9,10 +9,14 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-10-12T21:05:24.291Z",
+    "generated": "2026-11-26T14:37:58.341Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
-    "scrubbed": true
+    "scrubbed": true,
+    "scrubDropped": [
+      "recording.clockResyncs",
+      "signalQuality"
+    ]
   },
   "recording": {
     "source": "ecg",
@@ -21,11 +25,29 @@
     "durSec": 31471.067223027017,
     "endEpochMs": 1787815464874,
     "offsetMin": null,
-    "events": 167,
+    "events": 166,
+    "timing": {
+      "timingSource": "device+host",
+      "independent": true,
+      "anchors": 8112,
+      "spanMs": 31263403.592773438,
+      "ppm": -10.035062561876131,
+      "spanPpm": -11.150186268205216,
+      "ppmEstimator": "end-to-end-median",
+      "ppmUncertainty": 163.93266731863926,
+      "resyncs": 1,
+      "seams": 1,
+      "rate": 129.97296235113754,
+      "rateRaw": 129.97296235113754,
+      "rateApplied": false,
+      "reason": "the rate correction did not reach the published rate: one anchor gap carries a 3000 ms step (> 1000 ms) — a host clock STEP, not a crystal rate, fs left on the device clock"
+    },
     "hostAxis": {
+      "ok": true,
       "applied": false,
       "anchors": 8112,
-      "ppm": -10.022712827190935,
+      "ppm": -10.035062561876131,
+      "spanPpm": -11.150186268205216,
       "ppmUncertainty": 163.93266731863926,
       "maxStepMs": 2999.7061767578125,
       "spanMs": 31263403.592773438,
@@ -111,15 +133,6 @@
       "offsetMs": -241483068337,
       "plausible": false
     },
-    "clockResyncs": [
-      {
-        "idx": 34894,
-        "deviceStepMs": 241497525413,
-        "phoneDeltaMs": 57348,
-        "atRelMs": 268531.83957,
-        "hostOffsetMs": -135
-      }
-    ],
     "epochsRefused": [
       {
         "tMin": 5,
@@ -148,6 +161,15 @@
       "nWithDuration": 3,
       "n": 3,
       "source": "ble-dropout"
+    },
+    "validity": {
+      "seams": null,
+      "seamsExamined": null,
+      "seamsPlaced": null,
+      "seamsUnplaced": null,
+      "seamsBoundMs": null,
+      "seamsDeviceAxis": null,
+      "seamsReason": "no-seam-sidecar"
     }
   },
   "measurement": {
@@ -365,23 +387,6 @@
           "acc"
         ],
         "site": "chest"
-      }
-    },
-    {
-      "t": "22:43:22",
-      "tMs": 1787784202153,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.73,
-      "sqi": 0.74,
-      "meta": {
-        "ampBpm": 13.6,
-        "periodSec": 30,
-        "peakTMs": 1787784232153,
-        "position": "supine",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
       }
     },
     {
@@ -120048,11 +120053,12 @@
       "REM": 75,
       "Light": 185,
       "Deep": 105
-    }
+    },
+    "unstagedMin": 0
   },
   "apnea": {
-    "cvhrIndex": 8.4,
-    "cvhrEvents": 73,
+    "cvhrIndex": 8.3,
+    "cvhrEvents": 72,
     "onCPAP": false,
     "method": "CVHR index (cyclic variation of HR, Hayano) + CPC band shares (Thomas 2005). NOT an apnea–hypopnea index: against device-scored residual AHI over 39 paired nights the CVHR index did not track it (r = −0.151, p = 0.36); only cpc.hfcPct did (r = −0.408, p = 0.009). Screen-adjacent signal, not diagnosis.",
     "cpc": {
@@ -120064,8 +120070,8 @@
       "vlfcPct": 11.1,
       "method": "CPC — coherence x cross-power of HR vs EDR (Thomas 2005), 512 s windows, 50 % overlap"
     },
-    "surgeEscalationPct": 265,
-    "cvhrHours": 8.74
+    "surgeEscalationPct": 343,
+    "cvhrHours": 8.68
   },
   "hrvStability": {
     "sigma_lnRMSSD_slope": 0.0019,

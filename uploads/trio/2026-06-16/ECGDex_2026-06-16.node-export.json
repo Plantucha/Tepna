@@ -9,10 +9,13 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-10-12T20:38:49.167Z",
+    "generated": "2026-11-26T14:13:57.654Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
-    "scrubbed": true
+    "scrubbed": true,
+    "scrubDropped": [
+      "signalQuality"
+    ]
   },
   "recording": {
     "source": "ecg",
@@ -22,6 +25,22 @@
     "endEpochMs": null,
     "offsetMin": null,
     "events": 68,
+    "timing": {
+      "timingSource": "device",
+      "independent": null,
+      "anchors": null,
+      "spanMs": null,
+      "ppm": null,
+      "spanPpm": null,
+      "ppmEstimator": null,
+      "ppmUncertainty": null,
+      "resyncs": 0,
+      "seams": 0,
+      "rate": 129.95684819235817,
+      "rateRaw": null,
+      "rateApplied": null,
+      "reason": "the host axis refused: merged night — per-fragment axes; fs carries the longest fragment’s correction"
+    },
     "timingSource": "device",
     "deviceEpoch": {
       "offsetMs": -235343518918,
@@ -44,6 +63,15 @@
       "nWithDuration": 2,
       "n": 2,
       "source": "ble-dropout"
+    },
+    "validity": {
+      "seams": null,
+      "seamsExamined": null,
+      "seamsPlaced": null,
+      "seamsUnplaced": null,
+      "seamsBoundMs": null,
+      "seamsDeviceAxis": null,
+      "seamsReason": "no-seam-sidecar"
     }
   },
   "measurement": {
@@ -78932,7 +78960,8 @@
       "REM": 35,
       "Light": 250,
       "Deep": 30
-    }
+    },
+    "unstagedMin": 0
   },
   "apnea": {
     "cvhrIndex": 5.1,
@@ -78949,7 +78978,7 @@
       "method": "CPC — coherence x cross-power of HR vs EDR (Thomas 2005), 512 s windows, 50 % overlap"
     },
     "surgeEscalationPct": 139,
-    "cvhrHours": 5.9
+    "cvhrHours": 5.87
   },
   "hrvStability": {
     "sigma_lnRMSSD_slope": -0.0037,
