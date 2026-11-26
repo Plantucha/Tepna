@@ -14355,7 +14355,16 @@ const OxyDex = window.OxyDex;
            written 0 as the 0 the device wrote. A duration that does not parse is also `null`. */
         var durSec = dur ? parseFloat(duration) : null;
         if (durSec != null && !isFinite(durSec)) durSec = null;
-        if (text.length && !isNaN(onsetSec)) {
+        /* ∅ A NON-FINITE ONSET IS NOT A PLACEABLE STAMP (row
+           `2026-11-26-cpapdex-tal-onset-guard-admits-a-non-finite-onset`). `!isNaN(onsetSec)` admitted
+           Infinity, because `parseFloat('+1e999')` answers Infinity and `isNaN(Infinity)` is false. The
+           annotation then reached the stamp below, and it published `tMs = t0Ms + Infinity` as the
+           annotation's time. An onset this reader cannot place is the same fact as an onset that does
+           not parse, and this guard already dropped that one, so `isFinite` covers both. The sibling
+           `durSec` read above has guarded `isFinite` since the duration fix, and `pbOnsetSec` in
+           cpapdex-dsp.js states the same reason for the exported span reader. A written 0 is a real
+           onset at lights-out and stays. */
+        if (text.length && isFinite(onsetSec)) {
           out.push({ onsetSec: onsetSec, durSec: durSec, text: text });
         }
         if (j < n && bytes[j] === 0x00) break; // end of this TAL
