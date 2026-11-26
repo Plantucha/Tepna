@@ -9,23 +9,44 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-10-12T21:18:48.666Z",
+    "generated": "2026-11-26T14:58:16.371Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
-    "scrubbed": true
+    "scrubbed": true,
+    "scrubDropped": [
+      "signalQuality"
+    ]
   },
   "recording": {
     "source": "ecg",
     "contentId": null,
     "startEpochMs": 1790547141853,
-    "durSec": 22086.230362919734,
+    "durSec": 22086.23036292131,
     "endEpochMs": 1790569279555,
     "offsetMin": null,
-    "events": 152,
+    "events": 151,
+    "timing": {
+      "timingSource": "device+host",
+      "independent": true,
+      "anchors": 5744,
+      "spanMs": 22134483.76904297,
+      "ppm": -18.571485728447158,
+      "spanPpm": -19.732515450828362,
+      "ppmEstimator": "end-to-end-median",
+      "ppmUncertainty": 7.898630837879979,
+      "resyncs": 0,
+      "seams": 0,
+      "rate": 130.03027815835597,
+      "rateRaw": 130.02786330290087,
+      "rateApplied": true,
+      "reason": null
+    },
     "hostAxis": {
+      "ok": true,
       "applied": true,
       "anchors": 5744,
-      "ppm": -18.633426850303284,
+      "ppm": -18.571485728447158,
+      "spanPpm": -19.732515450828362,
       "ppmUncertainty": 7.898630837879979,
       "maxStepMs": 30.6744384765625,
       "spanMs": 22134483.76904297,
@@ -111,6 +132,13 @@
       "offsetMs": 14399891,
       "plausible": true
     },
+    "epochsRefused": [
+      {
+        "tMin": 340,
+        "n": 271,
+        "reason": "blanking-run"
+      }
+    ],
     "coverage": {
       "kind": "sparse",
       "spanSec": 22138,
@@ -128,6 +156,15 @@
       "nWithDuration": 2,
       "n": 2,
       "source": "ble-dropout"
+    },
+    "validity": {
+      "seams": null,
+      "seamsExamined": null,
+      "seamsPlaced": null,
+      "seamsUnplaced": null,
+      "seamsBoundMs": null,
+      "seamsDeviceAxis": null,
+      "seamsReason": "no-seam-sidecar"
     }
   },
   "measurement": {
@@ -1201,7 +1238,7 @@
     {
       "t": "01:07:21",
       "tMs": 1790557641853,
-      "impulse": "stage_wake",
+      "impulse": "stage_light",
       "node": "ECGDex",
       "conf": 0.7,
       "sqi": null,
@@ -1257,15 +1294,6 @@
         "osaConf": null,
         "deltaSBP": null
       }
-    },
-    {
-      "t": "01:12:21",
-      "tMs": 1790557941853,
-      "impulse": "stage_light",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
     },
     {
       "t": "01:13:01",
@@ -1817,15 +1845,6 @@
       }
     },
     {
-      "t": "03:52:21",
-      "tMs": 1790567541853,
-      "impulse": "stage_deep",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
-    },
-    {
       "t": "03:52:42",
       "tMs": 1790567562853,
       "impulse": "movement_onset",
@@ -1900,6 +1919,15 @@
         ],
         "site": "chest"
       }
+    },
+    {
+      "t": "03:57:21",
+      "tMs": 1790567841853,
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "03:59:30",
@@ -2378,9 +2406,9 @@
       "hr": 55.8,
       "meanRR": 1074.6,
       "sdnn": 43.4,
-      "rmssd": 31,
-      "pnn50": 10.2,
-      "sdnnIndex": 52,
+      "rmssd": 30.9,
+      "pnn50": 10,
+      "sdnnIndex": 51.2,
       "wholeRecordHR": 55.8,
       "wholeRecordSDNN": 67.2,
       "wholeRecordRMSSD": 31.4,
@@ -2392,11 +2420,11 @@
       "windowNote": "sdnn/rmssd/pnn50 here are DISPLAY values = representative 5-min epoch median on overnight recordings (short recs: whole-record). For CROSS-NODE comparison use wholeRecordSDNN/wholeRecordRMSSD."
     },
     "frequency": {
-      "vlf": 836,
-      "lf": 501,
-      "hf": 279,
-      "totalPower": 1616,
-      "lfhf": 1.747,
+      "vlf": 835,
+      "lf": 488,
+      "hf": 277,
+      "totalPower": 1600,
+      "lfhf": 1.749,
       "window": "epochMedian5min",
       "method": "Lomb–Scargle",
       "respRate": 16.2,
@@ -2425,7 +2453,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.849,
         "beats": 284,
-        "motionIndex": 7.5,
+        "motionIndex": 8.3,
         "position": "supine"
       },
       {
@@ -2629,7 +2657,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.855,
         "beats": 297,
-        "motionIndex": 3.3,
+        "motionIndex": 4.1,
         "position": "supine"
       },
       {
@@ -2646,7 +2674,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.855,
         "beats": 293,
-        "motionIndex": 51.5,
+        "motionIndex": 51.9,
         "position": "supine"
       },
       {
@@ -2663,7 +2691,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.855,
         "beats": 286,
-        "motionIndex": 18.5,
+        "motionIndex": 19.2,
         "position": "supine"
       },
       {
@@ -2680,7 +2708,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.849,
         "beats": 284,
-        "motionIndex": 4.1,
+        "motionIndex": 4.9,
         "position": "supine"
       },
       {
@@ -2731,7 +2759,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.851,
         "beats": 279,
-        "motionIndex": 0,
+        "motionIndex": 0.9,
         "position": "supine"
       },
       {
@@ -2782,7 +2810,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.859,
         "beats": 280,
-        "motionIndex": 36.3,
+        "motionIndex": 36.8,
         "position": "supine"
       },
       {
@@ -2799,7 +2827,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.854,
         "beats": 276,
-        "motionIndex": 39,
+        "motionIndex": 39.6,
         "position": "supine"
       },
       {
@@ -2816,7 +2844,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.852,
         "beats": 272,
-        "motionIndex": 31,
+        "motionIndex": 31.6,
         "position": "supine"
       },
       {
@@ -2833,7 +2861,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.853,
         "beats": 277,
-        "motionIndex": 37.7,
+        "motionIndex": 38.2,
         "position": "supine"
       },
       {
@@ -2884,7 +2912,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.841,
         "beats": 274,
-        "motionIndex": 8.6,
+        "motionIndex": 9.4,
         "position": "supine"
       },
       {
@@ -2901,7 +2929,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.824,
         "beats": 276,
-        "motionIndex": 65.8,
+        "motionIndex": 66.1,
         "position": "supine"
       },
       {
@@ -2935,7 +2963,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.836,
         "beats": 287,
-        "motionIndex": 24.5,
+        "motionIndex": 25.2,
         "position": "supine"
       },
       {
@@ -2986,7 +3014,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.835,
         "beats": 283,
-        "motionIndex": 19,
+        "motionIndex": 19.7,
         "position": "supine"
       },
       {
@@ -3207,7 +3235,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.835,
         "beats": 266,
-        "motionIndex": 45.9,
+        "motionIndex": 46.3,
         "position": "supine"
       },
       {
@@ -3224,7 +3252,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.852,
         "beats": 271,
-        "motionIndex": 44.8,
+        "motionIndex": 45.3,
         "position": "supine"
       },
       {
@@ -3241,7 +3269,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.864,
         "beats": 268,
-        "motionIndex": 14,
+        "motionIndex": 14.7,
         "position": "supine"
       },
       {
@@ -3258,7 +3286,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.862,
         "beats": 271,
-        "motionIndex": 11,
+        "motionIndex": 11.7,
         "position": "supine"
       },
       {
@@ -3275,7 +3303,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.861,
         "beats": 265,
-        "motionIndex": 4.6,
+        "motionIndex": 5.5,
         "position": "supine"
       },
       {
@@ -3377,7 +3405,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.845,
         "beats": 283,
-        "motionIndex": 36.3,
+        "motionIndex": 36.9,
         "position": "supine"
       },
       {
@@ -3394,7 +3422,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.845,
         "beats": 278,
-        "motionIndex": 91.9,
+        "motionIndex": 92,
         "position": "supine"
       },
       {
@@ -3428,7 +3456,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.846,
         "beats": 279,
-        "motionIndex": 88.7,
+        "motionIndex": 88.8,
         "position": "supine"
       },
       {
@@ -3445,7 +3473,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.847,
         "beats": 278,
-        "motionIndex": 58.8,
+        "motionIndex": 59.2,
         "position": "supine"
       },
       {
@@ -3462,7 +3490,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.857,
         "beats": 280,
-        "motionIndex": 61.7,
+        "motionIndex": 62.1,
         "position": "supine"
       },
       {
@@ -3479,7 +3507,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.858,
         "beats": 273,
-        "motionIndex": 15.3,
+        "motionIndex": 16,
         "position": "supine"
       },
       {
@@ -3496,7 +3524,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.85,
         "beats": 273,
-        "motionIndex": 21.9,
+        "motionIndex": 22.6,
         "position": "supine"
       },
       {
@@ -3530,7 +3558,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.854,
         "beats": 268,
-        "motionIndex": 13.4,
+        "motionIndex": 14.1,
         "position": "supine"
       },
       {
@@ -3547,7 +3575,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.862,
         "beats": 267,
-        "motionIndex": 38.4,
+        "motionIndex": 38.9,
         "position": "supine"
       },
       {
@@ -3564,24 +3592,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.862,
         "beats": 266,
-        "motionIndex": 41.2,
-        "position": "supine"
-      },
-      {
-        "tMin": 340,
-        "hr": 54.3,
-        "rmssd": 39.4,
-        "sdnn": 110.1,
-        "vlf": 8766,
-        "lf": 640,
-        "hf": 367,
-        "totalPower": 9773,
-        "lfhf": 1.744,
-        "resp": 15.8,
-        "hrStat": "rate-of-mean",
-        "sqi": 0.845,
-        "beats": 271,
-        "motionIndex": 58.9,
+        "motionIndex": 41.7,
         "position": "supine"
       },
       {
@@ -3598,7 +3609,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.837,
         "beats": 267,
-        "motionIndex": 9.2,
+        "motionIndex": 10,
         "position": "supine"
       },
       {
@@ -3666,7 +3677,7 @@
         "hrStat": "rate-of-mean",
         "sqi": 0.846,
         "beats": 94,
-        "motionIndex": 70.7,
+        "motionIndex": 70.9,
         "position": "supine"
       }
     ],
@@ -3813,7 +3824,7 @@
       },
       {
         "tMin": 175,
-        "stage": "Wake"
+        "stage": "Light"
       },
       {
         "tMin": 180,
@@ -3942,10 +3953,6 @@
       {
         "tMin": 335,
         "stage": "Light"
-      },
-      {
-        "tMin": 340,
-        "stage": "Deep"
       },
       {
         "tMin": 345,
@@ -68168,7 +68175,7 @@
         0.994,
         0.992,
         0.991,
-        0.994,
+        0.993,
         0.995,
         0.995,
         0.996,
@@ -72925,7 +72932,7 @@
         0.901,
         0.901,
         0.82,
-        0.81,
+        0.809,
         0.79,
         0.785,
         0.785,
@@ -73631,43 +73638,43 @@
         0.516,
         0.534,
         0.551,
-        0.533,
+        0.532,
         0.547,
-        0.569,
+        0.568,
         0.567,
         0.582,
         0.597,
-        0.608,
+        0.607,
         0.612,
         0.623,
         0.634,
         0.644,
-        0.653,
+        0.652,
         0.663,
         0.677,
         0.679,
-        0.681,
+        0.68,
         0.684,
         0.691,
-        0.7,
-        0.715,
+        0.699,
+        0.714,
         0.718,
         0.734,
         0.738,
         0.738,
         0.748,
-        0.749,
-        0.758,
+        0.748,
+        0.757,
         0.761,
         0.761,
-        0.763,
+        0.762,
         0.772,
         0.779,
         0.779,
         0.789,
         0.79,
-        0.79,
-        0.79,
+        0.789,
+        0.789,
         0.797,
         0.802,
         0.811,
@@ -73682,8 +73689,8 @@
         0.853,
         0.854,
         0.86,
-        0.865,
-        0.872,
+        0.864,
+        0.871,
         0.88,
         0.886,
         0.888,
@@ -73692,7 +73699,7 @@
         0.912,
         0.924,
         0.926,
-        0.925,
+        0.924,
         0.975,
         1,
         1,
@@ -73891,7 +73898,7 @@
         0.909,
         0.919,
         0.92,
-        0.927,
+        0.926,
         0.935,
         0.94,
         0.944,
@@ -74905,7 +74912,7 @@
         0.975,
         0.975,
         0.901,
-        0.864,
+        0.863,
         0.865,
         0.874,
         0.869,
@@ -74917,7 +74924,7 @@
         0.885,
         0.88,
         0.876,
-        0.878,
+        0.877,
         0.883,
         0.883,
         0.887,
@@ -74936,7 +74943,7 @@
         0.869,
         0.869,
         0.866,
-        0.865,
+        0.864,
         0.866,
         0.865,
         0.861,
@@ -74954,7 +74961,7 @@
         0.872,
         0.874,
         0.87,
-        0.869,
+        0.868,
         0.866,
         0.863,
         0.859,
@@ -75023,7 +75030,7 @@
         0.884,
         0.885,
         0.883,
-        0.887,
+        0.886,
         0.889,
         0.888,
         0.901,
@@ -75075,7 +75082,7 @@
         0.876,
         0.875,
         0.876,
-        0.883,
+        0.882,
         0.89,
         0.89,
         0.897,
@@ -75088,7 +75095,7 @@
         0.914,
         0.914,
         0.912,
-        0.911,
+        0.91,
         0.917,
         0.92,
         0.92,
@@ -75115,7 +75122,7 @@
         0.969,
         0.97,
         0.973,
-        0.973,
+        0.976,
         0.973,
         0.98,
         0.98,
@@ -75173,7 +75180,7 @@
         1,
         1,
         1,
-        1,
+        0.975,
         0.975,
         0.975,
         0.975,
@@ -75268,8 +75275,8 @@
         0.879,
         0.891,
         0.903,
-        0.904,
-        0.904,
+        0.903,
+        0.903,
         0.915,
         0.921,
         0.923,
@@ -76679,7 +76686,7 @@
         0.995,
         0.995,
         0.995,
-        0.996,
+        0.995,
         0.996,
         0.997,
         0.997,
@@ -76704,7 +76711,7 @@
         0.994,
         0.996,
         0.997,
-        0.996,
+        0.995,
         0.997,
         0.995,
         0.996,
@@ -76922,7 +76929,7 @@
         0.985,
         0.984,
         0.986,
-        0.988,
+        0.987,
         0.987,
         0.986,
         0.987,
@@ -77097,7 +77104,7 @@
         1,
         0.987,
         0.985,
-        0.986,
+        0.985,
         0.986,
         0.984,
         0.983,
@@ -78075,7 +78082,7 @@
         0.901,
         0.82,
         0.789,
-        0.776,
+        0.775,
         0.779,
         0.763,
         0.744,
@@ -78101,8 +78108,8 @@
         0.659,
         0.659,
         0.662,
-        0.658,
-        0.647,
+        0.657,
+        0.646,
         0.651,
         0.785,
         0.785,
@@ -80923,7 +80930,7 @@
         0.965,
         0.96,
         0.956,
-        0.958,
+        0.957,
         0.958,
         0.958,
         0.956,
@@ -80934,7 +80941,7 @@
         0.937,
         0.941,
         0.941,
-        0.936,
+        0.933,
         0.927,
         0.931,
         0.931,
@@ -80954,7 +80961,7 @@
         0.909,
         0.901,
         0.901,
-        0.894,
+        0.893,
         0.893,
         0.893,
         0.889,
@@ -80967,8 +80974,8 @@
         0.853,
         0.871,
         0.884,
-        0.886,
-        0.884,
+        0.885,
+        0.882,
         0.887,
         0.901,
         0.987,
@@ -82309,14 +82316,14 @@
         0.994,
         0.995,
         0.996,
-        0.996,
+        0.995,
         0.996,
         0.992,
         0.992,
         0.989,
         0.98,
         0.983,
-        0.983,
+        0.98,
         0.986,
         0.988,
         0.989,
@@ -84249,7 +84256,7 @@
         0.918,
         0.92,
         0.921,
-        0.919,
+        0.918,
         0.927,
         0.92,
         0.975,
@@ -84551,22 +84558,6 @@
         0.901,
         0.901,
         0.785,
-        0.785,
-        0.636,
-        0.636,
-        0.636,
-        0.785,
-        0.785,
-        0.785,
-        0.785,
-        0.636,
-        0.636,
-        0.636,
-        0.785,
-        0.785,
-        0.785,
-        0.785,
-        0.636,
         0.636,
         0.636,
         0.636,
@@ -84582,10 +84573,26 @@
         0.785,
         0.785,
         0.785,
+        0.636,
+        0.636,
+        0.636,
+        0.636,
         0.785,
         0.785,
         0.785,
         0.785,
+        0.785,
+        0.636,
+        0.636,
+        0.636,
+        0.785,
+        0.785,
+        0.785,
+        0.785,
+        0.785,
+        0.785,
+        0.785,
+        0.636,
         0.636,
         0.785,
         0.785,
@@ -85401,7 +85408,7 @@
         0.997,
         0.997,
         0.997,
-        0.996,
+        0.997,
         0.996,
         0.996,
         0.995,
@@ -85630,13 +85637,14 @@
     }
   },
   "sleep": {
-    "totalSleepMin": 285,
+    "totalSleepMin": 290,
     "stageMinutes": {
-      "Wake": 85,
+      "Wake": 80,
       "REM": 30,
-      "Light": 190,
-      "Deep": 65
-    }
+      "Light": 200,
+      "Deep": 60
+    },
+    "unstagedMin": 0
   },
   "apnea": {
     "cvhrIndex": 5.9,
@@ -85653,12 +85661,12 @@
       "method": "CPC — coherence x cross-power of HR vs EDR (Thomas 2005), 512 s windows, 50 % overlap"
     },
     "surgeEscalationPct": 204,
-    "cvhrHours": 6.14
+    "cvhrHours": 6.1
   },
   "hrvStability": {
-    "sigma_lnRMSSD_slope": -0.009,
-    "var_lnRMSSD_slope": -0.0046,
-    "mean_lnRMSSD_slope": 0.0303,
+    "sigma_lnRMSSD_slope": -0.0109,
+    "var_lnRMSSD_slope": -0.005,
+    "mean_lnRMSSD_slope": 0.0276,
     "classification": "Flat — no clear nocturnal trend",
     "windows": 12,
     "ref": "Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]",
@@ -85732,9 +85740,9 @@
       },
       {
         "tMin": 330,
-        "lnSD": 0.118,
-        "lnMean": 3.502,
-        "n": 6
+        "lnSD": 0.093,
+        "lnMean": 3.467,
+        "n": 5
       }
     ]
   }

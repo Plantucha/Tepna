@@ -9,10 +9,13 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-10-12T21:08:31.555Z",
+    "generated": "2026-11-26T14:41:01.881Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
-    "scrubbed": true
+    "scrubbed": true,
+    "scrubDropped": [
+      "signalQuality"
+    ]
   },
   "recording": {
     "source": "ecg",
@@ -21,7 +24,23 @@
     "durSec": 29525.434582071226,
     "endEpochMs": null,
     "offsetMin": null,
-    "events": 232,
+    "events": 135,
+    "timing": {
+      "timingSource": "device+host",
+      "independent": null,
+      "anchors": null,
+      "spanMs": null,
+      "ppm": null,
+      "spanPpm": null,
+      "ppmEstimator": null,
+      "ppmUncertainty": null,
+      "resyncs": 0,
+      "seams": 0,
+      "rate": 129.98123748128359,
+      "rateRaw": null,
+      "rateApplied": null,
+      "reason": "the host axis refused: merged night — per-fragment axes; fs carries the longest fragment’s correction"
+    },
     "timingSource": "device+host",
     "deviceEpoch": {
       "offsetMs": 14399868,
@@ -1800,6 +1819,15 @@
       "nWithDuration": 441,
       "n": 441,
       "source": "ble-dropout"
+    },
+    "validity": {
+      "seams": null,
+      "seamsExamined": null,
+      "seamsPlaced": null,
+      "seamsUnplaced": null,
+      "seamsBoundMs": null,
+      "seamsDeviceAxis": null,
+      "seamsReason": "no-seam-sidecar"
     }
   },
   "measurement": {
@@ -1908,127 +1936,6 @@
       "meta": {}
     },
     {
-      "t": "20:56:48",
-      "tMs": 1788555408752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.62,
-      "sqi": 0.81,
-      "meta": {
-        "ampBpm": 8.3,
-        "periodSec": 46,
-        "peakTMs": 1788555454752,
-        "position": "lateral",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "20:59:30",
-      "tMs": 1788555570502,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "20:59:33",
-      "tMs": 1788555573752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.63,
-      "sqi": 0.76,
-      "meta": {
-        "ampBpm": 8.8,
-        "periodSec": 33,
-        "peakTMs": 1788555606752,
-        "position": "lateral",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "21:00:57",
-      "tMs": 1788555657752,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "21:01:42",
-      "tMs": 1788555702002,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "21:04:18",
-      "tMs": 1788555858752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.59,
-      "sqi": 0.75,
-      "meta": {
-        "ampBpm": 6.7,
-        "periodSec": 33,
-        "peakTMs": 1788555891752,
-        "position": "lateral",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "21:04:20",
-      "tMs": 1788555860002,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "21:10:03",
-      "tMs": 1788556203502,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
       "t": "21:10:15",
       "tMs": 1788556215752,
       "impulse": "stage_light",
@@ -2036,146 +1943,6 @@
       "conf": 0.7,
       "sqi": null,
       "meta": {}
-    },
-    {
-      "t": "21:10:58",
-      "tMs": 1788556258502,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "21:12:41",
-      "tMs": 1788556361502,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "21:13:32",
-      "tMs": 1788556412002,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "21:15:02",
-      "tMs": 1788556502752,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "21:17:23",
-      "tMs": 1788556643502,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "21:19:30",
-      "tMs": 1788556770252,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "21:20:51",
-      "tMs": 1788556851752,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "21:26:04",
-      "tMs": 1788557164252,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "21:31:27",
-      "tMs": 1788557487002,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "21:32:53",
-      "tMs": 1788557573502,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
     },
     {
       "t": "21:40:15",
@@ -2187,102 +1954,6 @@
       "meta": {}
     },
     {
-      "t": "21:43:34",
-      "tMs": 1788558214752,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "21:48:15",
-      "tMs": 1788558495752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.66,
-      "sqi": 0.77,
-      "meta": {
-        "ampBpm": 9.9,
-        "periodSec": 41,
-        "peakTMs": 1788558536752,
-        "position": "lateral",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "21:58:57",
-      "tMs": 1788559137752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.64,
-      "sqi": 0.78,
-      "meta": {
-        "ampBpm": 9,
-        "periodSec": 43,
-        "peakTMs": 1788559180752,
-        "position": "lateral",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "22:04:28",
-      "tMs": 1788559468752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.66,
-      "sqi": 0.77,
-      "meta": {
-        "ampBpm": 10.1,
-        "periodSec": 18,
-        "peakTMs": 1788559486752,
-        "position": "lateral",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "22:10:35",
-      "tMs": 1788559835752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.66,
-      "sqi": 0.77,
-      "meta": {
-        "ampBpm": 10,
-        "periodSec": 14,
-        "peakTMs": 1788559849752,
-        "position": "lateral",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "22:30:06",
-      "tMs": 1788561006752,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
       "t": "22:30:15",
       "tMs": 1788561015752,
       "impulse": "stage_light",
@@ -2290,57 +1961,6 @@
       "conf": 0.7,
       "sqi": null,
       "meta": {}
-    },
-    {
-      "t": "22:32:01",
-      "tMs": 1788561121752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.67,
-      "sqi": 0.77,
-      "meta": {
-        "ampBpm": 10.5,
-        "periodSec": 32,
-        "peakTMs": 1788561153752,
-        "position": "lateral",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "22:37:29",
-      "tMs": 1788561449752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.87,
-      "sqi": 0.76,
-      "meta": {
-        "ampBpm": 20.1,
-        "periodSec": 15,
-        "peakTMs": 1788561464752,
-        "position": "lateral",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "22:38:02",
-      "tMs": 1788561482752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.77,
-      "sqi": 0.87,
-      "meta": {
-        "ampBpm": 15.5,
-        "periodSec": 41,
-        "peakTMs": 1788561523752,
-        "position": "lateral",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
     },
     {
       "t": "22:38:57",
@@ -2369,23 +1989,6 @@
       "meta": {}
     },
     {
-      "t": "22:46:44",
-      "tMs": 1788562004752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.58,
-      "sqi": 0.82,
-      "meta": {
-        "ampBpm": 6.3,
-        "periodSec": 23,
-        "peakTMs": 1788562027752,
-        "position": "lateral",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
       "t": "22:55:15",
       "tMs": 1788562515752,
       "impulse": "stage_light",
@@ -2405,141 +2008,6 @@
         "ampBpm": 17.1,
         "periodSec": 17,
         "peakTMs": 1788562913752,
-        "position": "lateral",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "23:02:12",
-      "tMs": 1788562932752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.64,
-      "sqi": 0.85,
-      "meta": {
-        "ampBpm": 9.3,
-        "periodSec": 18,
-        "peakTMs": 1788562950752,
-        "position": "lateral",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "23:05:00",
-      "tMs": 1788563100752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.65,
-      "sqi": 0.77,
-      "meta": {
-        "ampBpm": 9.5,
-        "periodSec": 14,
-        "peakTMs": 1788563114752,
-        "position": "lateral",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "23:05:00",
-      "tMs": 1788563100752,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "23:25:10",
-      "tMs": 1788564310252,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "23:32:32",
-      "tMs": 1788564752252,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "23:37:56",
-      "tMs": 1788565076752,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "23:45:40",
-      "tMs": 1788565540002,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "23:46:11",
-      "tMs": 1788565571502,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "23:46:39",
-      "tMs": 1788565599752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.62,
-      "sqi": 0.86,
-      "meta": {
-        "ampBpm": 8.2,
-        "periodSec": 20,
-        "peakTMs": 1788565619752,
         "position": "lateral",
         "osaLabel": null,
         "osaConf": null,
@@ -2608,37 +2076,6 @@
       }
     },
     {
-      "t": "01:17:05",
-      "tMs": 1788571025752,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "01:34:33",
-      "tMs": 1788572073752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.87,
-      "sqi": 0.78,
-      "meta": {
-        "ampBpm": 20.1,
-        "periodSec": 19,
-        "peakTMs": 1788572092752,
-        "position": "lateral",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
       "t": "01:35:09",
       "tMs": 1788572109752,
       "impulse": "autonomic_surge",
@@ -2674,127 +2111,6 @@
       "meta": {}
     },
     {
-      "t": "02:13:06",
-      "tMs": 1788574386752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.67,
-      "sqi": 0.78,
-      "meta": {
-        "ampBpm": 10.5,
-        "periodSec": 16,
-        "peakTMs": 1788574402752,
-        "position": "lateral",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "02:13:09",
-      "tMs": 1788574389752,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "02:17:33",
-      "tMs": 1788574653502,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "02:27:01",
-      "tMs": 1788575221752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.82,
-      "sqi": 0.84,
-      "meta": {
-        "ampBpm": 17.8,
-        "periodSec": 16,
-        "peakTMs": 1788575237752,
-        "position": "lateral",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "02:27:34",
-      "tMs": 1788575254752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.63,
-      "sqi": 0.85,
-      "meta": {
-        "ampBpm": 8.7,
-        "periodSec": 20,
-        "peakTMs": 1788575274752,
-        "position": "lateral",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "02:35:58",
-      "tMs": 1788575758252,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "02:37:08",
-      "tMs": 1788575828502,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "02:39:02",
-      "tMs": 1788575942252,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
       "t": "02:39:43",
       "tMs": 1788575983252,
       "impulse": "movement_onset",
@@ -2818,23 +2134,6 @@
       "meta": {}
     },
     {
-      "t": "02:40:37",
-      "tMs": 1788576037752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.72,
-      "sqi": 0.76,
-      "meta": {
-        "ampBpm": 13,
-        "periodSec": 19,
-        "peakTMs": 1788576056752,
-        "position": "supine",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
       "t": "02:42:38",
       "tMs": 1788576158752,
       "impulse": "autonomic_surge",
@@ -2849,20 +2148,6 @@
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
-      }
-    },
-    {
-      "t": "02:43:01",
-      "tMs": 1788576181252,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
       }
     },
     {
@@ -2883,20 +2168,6 @@
       }
     },
     {
-      "t": "02:45:00",
-      "tMs": 1788576300502,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
       "t": "02:45:15",
       "tMs": 1788576315752,
       "impulse": "stage_light",
@@ -2906,165 +2177,8 @@
       "meta": {}
     },
     {
-      "t": "02:45:52",
-      "tMs": 1788576352252,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "02:46:06",
-      "tMs": 1788576366752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.69,
-      "sqi": 0.79,
-      "meta": {
-        "ampBpm": 11.5,
-        "periodSec": 19,
-        "peakTMs": 1788576385752,
-        "position": "supine",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "02:46:34",
-      "tMs": 1788576394502,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "02:47:14",
-      "tMs": 1788576434002,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "02:47:55",
-      "tMs": 1788576475752,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "02:49:25",
-      "tMs": 1788576565002,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "02:49:58",
-      "tMs": 1788576598002,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "02:51:05",
-      "tMs": 1788576665002,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "02:52:07",
-      "tMs": 1788576727252,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "02:52:51",
-      "tMs": 1788576771752,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "02:53:52",
-      "tMs": 1788576832252,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "02:54:56",
-      "tMs": 1788576896252,
+      "t": "02:55:24",
+      "tMs": 1788576924252,
       "impulse": "movement_onset",
       "node": "ECGDex",
       "conf": 0.6,
@@ -3079,20 +2193,6 @@
     {
       "t": "03:02:27",
       "tMs": 1788577347502,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "03:06:49",
-      "tMs": 1788577609502,
       "impulse": "movement_onset",
       "node": "ECGDex",
       "conf": 0.6,
@@ -3213,34 +2313,6 @@
       "meta": {}
     },
     {
-      "t": "03:21:38",
-      "tMs": 1788578498752,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "03:22:50",
-      "tMs": 1788578570752,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
       "t": "03:24:45",
       "tMs": 1788578685502,
       "impulse": "movement_onset",
@@ -3264,76 +2336,6 @@
       "meta": {}
     },
     {
-      "t": "03:25:44",
-      "tMs": 1788578744252,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "03:26:52",
-      "tMs": 1788578812252,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "03:27:46",
-      "tMs": 1788578866252,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "03:28:58",
-      "tMs": 1788578938502,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "03:31:43",
-      "tMs": 1788579103002,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
       "t": "03:33:04",
       "tMs": 1788579184752,
       "impulse": "autonomic_surge",
@@ -3344,23 +2346,6 @@
         "ampBpm": 15,
         "periodSec": 20,
         "peakTMs": 1788579204752,
-        "position": "supine",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "03:35:39",
-      "tMs": 1788579339752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.75,
-      "sqi": 0.82,
-      "meta": {
-        "ampBpm": 14.5,
-        "periodSec": 20,
-        "peakTMs": 1788579359752,
         "position": "supine",
         "osaLabel": null,
         "osaConf": null,
@@ -3399,20 +2384,6 @@
       }
     },
     {
-      "t": "03:38:46",
-      "tMs": 1788579526252,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
       "t": "03:40:15",
       "tMs": 1788579615752,
       "impulse": "stage_light",
@@ -3420,20 +2391,6 @@
       "conf": 0.7,
       "sqi": null,
       "meta": {}
-    },
-    {
-      "t": "03:41:11",
-      "tMs": 1788579671252,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
     },
     {
       "t": "03:43:52",
@@ -3450,84 +2407,8 @@
       }
     },
     {
-      "t": "03:44:52",
-      "tMs": 1788579892502,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "03:45:39",
-      "tMs": 1788579939252,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "03:46:10",
-      "tMs": 1788579970002,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "03:51:19",
-      "tMs": 1788580279752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.78,
-      "sqi": 0.81,
-      "meta": {
-        "ampBpm": 15.6,
-        "periodSec": 15,
-        "peakTMs": 1788580294752,
-        "position": "supine",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "03:51:51",
-      "tMs": 1788580311752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": 0.84,
-      "meta": {
-        "ampBpm": 7.3,
-        "periodSec": 32,
-        "peakTMs": 1788580343752,
-        "position": "supine",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "03:56:04",
-      "tMs": 1788580564502,
+      "t": "03:46:04",
+      "tMs": 1788579964002,
       "impulse": "movement_onset",
       "node": "ECGDex",
       "conf": 0.6,
@@ -3597,162 +2478,8 @@
       "meta": {}
     },
     {
-      "t": "04:00:39",
-      "tMs": 1788580839752,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
       "t": "04:01:21",
       "tMs": 1788580881502,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "04:01:53",
-      "tMs": 1788580913752,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "04:02:23",
-      "tMs": 1788580943752,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "04:03:00",
-      "tMs": 1788580980752,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "04:04:45",
-      "tMs": 1788581085752,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "04:05:33",
-      "tMs": 1788581133502,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "04:06:04",
-      "tMs": 1788581164252,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "04:07:07",
-      "tMs": 1788581227252,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "04:08:08",
-      "tMs": 1788581288002,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "04:08:56",
-      "tMs": 1788581336002,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "04:09:48",
-      "tMs": 1788581388502,
       "impulse": "movement_onset",
       "node": "ECGDex",
       "conf": 0.6,
@@ -3858,22 +2585,8 @@
       }
     },
     {
-      "t": "04:13:49",
-      "tMs": 1788581629252,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "04:14:25",
-      "tMs": 1788581665002,
+      "t": "04:14:15",
+      "tMs": 1788581655502,
       "impulse": "movement_onset",
       "node": "ECGDex",
       "conf": 0.6,
@@ -3956,20 +2669,6 @@
       }
     },
     {
-      "t": "04:18:06",
-      "tMs": 1788581886252,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
       "t": "04:19:30",
       "tMs": 1788581970752,
       "impulse": "movement_onset",
@@ -3991,20 +2690,6 @@
       "conf": 0.7,
       "sqi": null,
       "meta": {}
-    },
-    {
-      "t": "04:20:24",
-      "tMs": 1788582024502,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
     },
     {
       "t": "04:21:05",
@@ -4214,8 +2899,8 @@
       "meta": {}
     },
     {
-      "t": "04:35:37",
-      "tMs": 1788582937252,
+      "t": "04:36:03",
+      "tMs": 1788582963252,
       "impulse": "movement_onset",
       "node": "ECGDex",
       "conf": 0.6,
@@ -4228,8 +2913,8 @@
       }
     },
     {
-      "t": "04:36:11",
-      "tMs": 1788582971252,
+      "t": "04:36:34",
+      "tMs": 1788582994252,
       "impulse": "movement_onset",
       "node": "ECGDex",
       "conf": 0.6,
@@ -4242,8 +2927,8 @@
       }
     },
     {
-      "t": "04:36:44",
-      "tMs": 1788583004752,
+      "t": "04:37:05",
+      "tMs": 1788583025002,
       "impulse": "movement_onset",
       "node": "ECGDex",
       "conf": 0.6,
@@ -4357,23 +3042,6 @@
       "conf": 0.7,
       "sqi": null,
       "meta": {}
-    },
-    {
-      "t": "04:55:35",
-      "tMs": 1788584135752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": 0.85,
-      "meta": {
-        "ampBpm": 11.8,
-        "periodSec": 36,
-        "peakTMs": 1788584171752,
-        "position": "supine",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
     },
     {
       "t": "04:55:55",
@@ -4745,23 +3413,6 @@
       "meta": {}
     },
     {
-      "t": "05:50:51",
-      "tMs": 1788587451752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.79,
-      "sqi": 0.8,
-      "meta": {
-        "ampBpm": 16.1,
-        "periodSec": 27,
-        "peakTMs": 1788587478752,
-        "position": "upright",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
       "t": "05:51:34",
       "tMs": 1788587494752,
       "impulse": "autonomic_surge",
@@ -4916,40 +3567,6 @@
       }
     },
     {
-      "t": "06:48:42",
-      "tMs": 1788590922752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.61,
-      "sqi": 0.91,
-      "meta": {
-        "ampBpm": 7.6,
-        "periodSec": 32,
-        "peakTMs": 1788590954752,
-        "position": "lateral",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "06:50:24",
-      "tMs": 1788591024752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.77,
-      "sqi": 0.83,
-      "meta": {
-        "ampBpm": 15.4,
-        "periodSec": 16,
-        "peakTMs": 1788591040752,
-        "position": "unknown",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
       "t": "06:53:29",
       "tMs": 1788591209752,
       "impulse": "autonomic_surge",
@@ -4961,6 +3578,7 @@
         "periodSec": 18,
         "peakTMs": 1788591227752,
         "position": "unknown",
+        "positionReason": "low-acc-coverage",
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
@@ -4978,6 +3596,7 @@
         "periodSec": 42,
         "peakTMs": 1788591282752,
         "position": "unknown",
+        "positionReason": "low-acc-coverage",
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
@@ -4995,6 +3614,7 @@
         "periodSec": 36,
         "peakTMs": 1788591384752,
         "position": "unknown",
+        "positionReason": "low-acc-coverage",
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
@@ -5012,23 +3632,7 @@
         "periodSec": 44,
         "peakTMs": 1788591565752,
         "position": "unknown",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "07:01:51",
-      "tMs": 1788591711752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.81,
-      "sqi": 0.84,
-      "meta": {
-        "ampBpm": 17.4,
-        "periodSec": 18,
-        "peakTMs": 1788591729752,
-        "position": "unknown",
+        "positionReason": "low-acc-coverage",
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
@@ -5046,23 +3650,7 @@
         "periodSec": 36,
         "peakTMs": 1788591782752,
         "position": "unknown",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
-    },
-    {
-      "t": "07:06:55",
-      "tMs": 1788592015752,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.72,
-      "sqi": 0.82,
-      "meta": {
-        "ampBpm": 12.8,
-        "periodSec": 19,
-        "peakTMs": 1788592034752,
-        "position": "unknown",
+        "positionReason": "low-acc-coverage",
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
@@ -5080,6 +3668,7 @@
         "periodSec": 19,
         "peakTMs": 1788592146752,
         "position": "unknown",
+        "positionReason": "low-acc-coverage",
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
@@ -5097,6 +3686,7 @@
         "periodSec": 38,
         "peakTMs": 1788592205752,
         "position": "unknown",
+        "positionReason": "low-acc-coverage",
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
@@ -5123,6 +3713,7 @@
         "periodSec": 17,
         "peakTMs": 1788592300752,
         "position": "unknown",
+        "positionReason": "low-acc-coverage",
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
@@ -5140,6 +3731,7 @@
         "periodSec": 19,
         "peakTMs": 1788592474752,
         "position": "unknown",
+        "positionReason": "low-acc-coverage",
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
@@ -5157,6 +3749,7 @@
         "periodSec": 24,
         "peakTMs": 1788593568752,
         "position": "unknown",
+        "positionReason": "low-acc-coverage",
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
@@ -5174,6 +3767,7 @@
         "periodSec": 22,
         "peakTMs": 1788593603752,
         "position": "unknown",
+        "positionReason": "low-acc-coverage",
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
@@ -5191,6 +3785,7 @@
         "periodSec": 41,
         "peakTMs": 1788593861752,
         "position": "unknown",
+        "positionReason": "low-acc-coverage",
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
@@ -5208,6 +3803,7 @@
         "periodSec": 16,
         "peakTMs": 1788593965752,
         "position": "unknown",
+        "positionReason": "low-acc-coverage",
         "osaLabel": null,
         "osaConf": null,
         "deltaSBP": null
@@ -7179,7 +5775,8 @@
         "sqi": 0.871,
         "beats": 289,
         "motionIndex": null,
-        "position": "unknown"
+        "position": "unknown",
+        "positionReason": "low-acc-coverage"
       },
       {
         "tMin": 615,
@@ -7196,7 +5793,8 @@
         "sqi": 0.846,
         "beats": 284,
         "motionIndex": null,
-        "position": "unknown"
+        "position": "unknown",
+        "positionReason": "low-acc-coverage"
       },
       {
         "tMin": 620,
@@ -7213,7 +5811,8 @@
         "sqi": 0.866,
         "beats": 225,
         "motionIndex": null,
-        "position": "unknown"
+        "position": "unknown",
+        "positionReason": "low-acc-coverage"
       },
       {
         "tMin": 625,
@@ -7230,7 +5829,8 @@
         "sqi": 0.873,
         "beats": 219,
         "motionIndex": null,
-        "position": "unknown"
+        "position": "unknown",
+        "positionReason": "low-acc-coverage"
       },
       {
         "tMin": 630,
@@ -7247,7 +5847,8 @@
         "sqi": 0.897,
         "beats": 282,
         "motionIndex": null,
-        "position": "unknown"
+        "position": "unknown",
+        "positionReason": "low-acc-coverage"
       },
       {
         "tMin": 635,
@@ -7264,7 +5865,8 @@
         "sqi": 0.901,
         "beats": 198,
         "motionIndex": null,
-        "position": "unknown"
+        "position": "unknown",
+        "positionReason": "low-acc-coverage"
       },
       {
         "tMin": 640,
@@ -7281,7 +5883,8 @@
         "sqi": 0.901,
         "beats": 252,
         "motionIndex": null,
-        "position": "unknown"
+        "position": "unknown",
+        "positionReason": "low-acc-coverage"
       },
       {
         "tMin": 645,
@@ -7298,7 +5901,8 @@
         "sqi": 0.902,
         "beats": 254,
         "motionIndex": null,
-        "position": "unknown"
+        "position": "unknown",
+        "positionReason": "low-acc-coverage"
       },
       {
         "tMin": 650,
@@ -7315,7 +5919,8 @@
         "sqi": 0.899,
         "beats": 269,
         "motionIndex": null,
-        "position": "unknown"
+        "position": "unknown",
+        "positionReason": "low-acc-coverage"
       },
       {
         "tMin": 655,
@@ -7332,7 +5937,8 @@
         "sqi": 0.898,
         "beats": 278,
         "motionIndex": null,
-        "position": "unknown"
+        "position": "unknown",
+        "positionReason": "low-acc-coverage"
       },
       {
         "tMin": 660,
@@ -7349,7 +5955,8 @@
         "sqi": 0.821,
         "beats": 49,
         "motionIndex": null,
-        "position": "unknown"
+        "position": "unknown",
+        "positionReason": "low-acc-coverage"
       }
     ],
     "sleepStages": [
@@ -120006,11 +118613,12 @@
       "REM": 135,
       "Light": 340,
       "Deep": 115
-    }
+    },
+    "unstagedMin": 0
   },
   "apnea": {
-    "cvhrIndex": 10.6,
-    "cvhrEvents": 87,
+    "cvhrIndex": 9.6,
+    "cvhrEvents": 58,
     "onCPAP": false,
     "method": "CVHR index (cyclic variation of HR, Hayano) + CPC band shares (Thomas 2005). NOT an apnea–hypopnea index: against device-scored residual AHI over 39 paired nights the CVHR index did not track it (r = −0.151, p = 0.36); only cpc.hfcPct did (r = −0.408, p = 0.009). Screen-adjacent signal, not diagnosis.",
     "cpc": {
@@ -120022,8 +118630,8 @@
       "vlfcPct": 48.3,
       "method": "CPC — coherence x cross-power of HR vs EDR (Thomas 2005), 512 s windows, 50 % overlap"
     },
-    "surgeEscalationPct": 345,
-    "cvhrHours": 8.2
+    "surgeEscalationPct": 2671,
+    "cvhrHours": 6.02
   },
   "hrvStability": {
     "sigma_lnRMSSD_slope": -0.0043,

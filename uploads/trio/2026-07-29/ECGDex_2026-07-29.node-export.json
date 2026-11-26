@@ -9,10 +9,13 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-10-12T20:51:42.627Z",
+    "generated": "2026-11-26T14:25:35.241Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
-    "scrubbed": true
+    "scrubbed": true,
+    "scrubDropped": [
+      "signalQuality"
+    ]
   },
   "recording": {
     "source": "ecg",
@@ -21,7 +24,23 @@
     "durSec": 9022.981725441725,
     "endEpochMs": null,
     "offsetMin": null,
-    "events": 31,
+    "events": 29,
+    "timing": {
+      "timingSource": "device+host",
+      "independent": null,
+      "anchors": null,
+      "spanMs": null,
+      "ppm": null,
+      "spanPpm": null,
+      "ppmEstimator": null,
+      "ppmUncertainty": null,
+      "resyncs": 0,
+      "seams": 0,
+      "rate": 129.99000645982315,
+      "rateRaw": null,
+      "rateApplied": null,
+      "reason": "the host axis refused: merged night — per-fragment axes; fs carries the longest fragment’s correction"
+    },
     "timingSource": "device+host",
     "deviceEpoch": {
       "offsetMs": 14399770,
@@ -108,6 +127,15 @@
       "nWithDuration": 18,
       "n": 18,
       "source": "ble-dropout"
+    },
+    "validity": {
+      "seams": null,
+      "seamsExamined": null,
+      "seamsPlaced": null,
+      "seamsUnplaced": null,
+      "seamsBoundMs": null,
+      "seamsDeviceAxis": null,
+      "seamsReason": "no-seam-sidecar"
     }
   },
   "measurement": {
@@ -258,22 +286,8 @@
       }
     },
     {
-      "t": "21:25:32",
-      "tMs": 1785360332411,
-      "impulse": "movement_onset",
-      "node": "ECGDex",
-      "conf": 0.6,
-      "sqi": null,
-      "meta": {
-        "streams": [
-          "acc"
-        ],
-        "site": "chest"
-      }
-    },
-    {
-      "t": "21:26:08",
-      "tMs": 1785360368661,
+      "t": "21:25:56",
+      "tMs": 1785360356411,
       "impulse": "movement_onset",
       "node": "ECGDex",
       "conf": 0.6,
@@ -507,23 +521,6 @@
       "conf": 0.7,
       "sqi": null,
       "meta": {}
-    },
-    {
-      "t": "22:54:48",
-      "tMs": 1785365688911,
-      "impulse": "autonomic_surge",
-      "node": "ECGDex",
-      "conf": 0.71,
-      "sqi": 0.72,
-      "meta": {
-        "ampBpm": 12.3,
-        "periodSec": 20,
-        "peakTMs": 1785365708911,
-        "position": "supine",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
     },
     {
       "t": "23:14:15",
@@ -30076,11 +30073,12 @@
       "REM": 10,
       "Light": 85,
       "Deep": 30
-    }
+    },
+    "unstagedMin": 0
   },
   "apnea": {
-    "cvhrIndex": 2.8,
-    "cvhrEvents": 7,
+    "cvhrIndex": 2.9,
+    "cvhrEvents": 6,
     "onCPAP": false,
     "method": "CVHR index (cyclic variation of HR, Hayano) + CPC band shares (Thomas 2005). NOT an apnea–hypopnea index: against device-scored residual AHI over 39 paired nights the CVHR index did not track it (r = −0.151, p = 0.36); only cpc.hfcPct did (r = −0.408, p = 0.009). Screen-adjacent signal, not diagnosis.",
     "cpc": {
@@ -30092,8 +30090,8 @@
       "vlfcPct": 26.4,
       "method": "CPC — coherence x cross-power of HR vs EDR (Thomas 2005), 512 s windows, 50 % overlap"
     },
-    "surgeEscalationPct": 0,
-    "cvhrHours": 2.51
+    "surgeEscalationPct": -50,
+    "cvhrHours": 2.04
   },
   "hrvStability": {
     "sigma_lnRMSSD_slope": 0.0281,

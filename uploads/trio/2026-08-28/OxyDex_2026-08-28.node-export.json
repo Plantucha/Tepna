@@ -9,10 +9,13 @@
     "node": "OxyDex",
     "nodeVersion": "1.0",
     "multiNight": false,
-    "generated": "2026-10-12T21:07:01.375Z",
+    "generated": "2026-11-26T14:39:29.018Z",
     "provenance": null,
     "doc": "OxyDex single-night SpO₂/oximetry summary computed headless from a SignalFrame(spo2). Emits ganglior_events[] (desat_event from desatProfile + periodic_breathing from oscillation episodes); OxyDex infers respiration from an SpO₂ proxy, not airflow. tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.",
-    "scrubbed": true
+    "scrubbed": true,
+    "scrubDropped": [
+      "nights[].file"
+    ]
   },
   "recording": {
     "source": "spo2",
@@ -21,3984 +24,4000 @@
     "durationMin": 411.6,
     "beats": 16180,
     "coveragePct": null,
+    "timing": {
+      "timingSource": "device-only",
+      "independent": false,
+      "anchors": null,
+      "spanMs": null,
+      "ppm": null,
+      "spanPpm": null,
+      "ppmEstimator": null,
+      "ppmUncertainty": null,
+      "resyncs": null,
+      "seams": 0,
+      "rate": null,
+      "rateRaw": null,
+      "rateApplied": null,
+      "reason": "no host stamp column on this input, so there is no second clock to discipline the device rate against; this node does not look for device-clock resyncs, so that count is unknown rather than zero"
+    },
     "coverage": {
       "kind": "sparse",
       "spanSec": 24698,
       "segments": [
         {
-          "startMs": "2026-08-28T23:22:47.000Z",
+          "startMs": 1787959367000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-28T23:23:55.000Z",
+          "startMs": 1787959435000,
           "durSec": 14
         },
         {
-          "startMs": "2026-08-28T23:24:28.000Z",
+          "startMs": 1787959468000,
           "durSec": 428
         },
         {
-          "startMs": "2026-08-28T23:31:44.000Z",
+          "startMs": 1787959904000,
           "durSec": 29
         },
         {
-          "startMs": "2026-08-28T23:32:17.000Z",
+          "startMs": 1787959937000,
           "durSec": 374
         },
         {
-          "startMs": "2026-08-28T23:38:34.000Z",
+          "startMs": 1787960314000,
           "durSec": 322
         },
         {
-          "startMs": "2026-08-28T23:43:59.000Z",
+          "startMs": 1787960639000,
           "durSec": 329
         },
         {
-          "startMs": "2026-08-28T23:49:31.000Z",
+          "startMs": 1787960971000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-28T23:49:37.000Z",
+          "startMs": 1787960977000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-28T23:49:43.000Z",
+          "startMs": 1787960983000,
           "durSec": 308
         },
         {
-          "startMs": "2026-08-28T23:54:54.000Z",
+          "startMs": 1787961294000,
           "durSec": 338
         },
         {
-          "startMs": "2026-08-29T00:00:35.000Z",
+          "startMs": 1787961635000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T00:00:39.000Z",
+          "startMs": 1787961639000,
           "durSec": 312
         },
         {
-          "startMs": "2026-08-29T00:06:18.000Z",
+          "startMs": 1787961978000,
           "durSec": 304
         },
         {
-          "startMs": "2026-08-29T00:11:25.000Z",
+          "startMs": 1787962285000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T00:11:31.000Z",
+          "startMs": 1787962291000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T00:11:35.000Z",
+          "startMs": 1787962295000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T00:11:43.000Z",
+          "startMs": 1787962303000,
           "durSec": 307
         },
         {
-          "startMs": "2026-08-29T00:16:53.000Z",
+          "startMs": 1787962613000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T00:16:59.000Z",
+          "startMs": 1787962619000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T00:17:03.000Z",
+          "startMs": 1787962623000,
           "durSec": 319
         },
         {
-          "startMs": "2026-08-29T00:22:25.000Z",
+          "startMs": 1787962945000,
           "durSec": 12
         },
         {
-          "startMs": "2026-08-29T00:22:40.000Z",
+          "startMs": 1787962960000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T00:22:46.000Z",
+          "startMs": 1787962966000,
           "durSec": 303
         },
         {
-          "startMs": "2026-08-29T00:27:52.000Z",
+          "startMs": 1787963272000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T00:27:57.000Z",
+          "startMs": 1787963277000,
           "durSec": 16
         },
         {
-          "startMs": "2026-08-29T00:28:16.000Z",
+          "startMs": 1787963296000,
           "durSec": 310
         },
         {
-          "startMs": "2026-08-29T00:33:36.000Z",
+          "startMs": 1787963616000,
           "durSec": 331
         },
         {
-          "startMs": "2026-08-29T00:39:10.000Z",
+          "startMs": 1787963950000,
           "durSec": 309
         },
         {
-          "startMs": "2026-08-29T00:44:22.000Z",
+          "startMs": 1787964262000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T00:44:33.000Z",
+          "startMs": 1787964273000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T00:44:41.000Z",
+          "startMs": 1787964281000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T00:44:48.000Z",
+          "startMs": 1787964288000,
           "durSec": 640
         },
         {
-          "startMs": "2026-08-29T00:55:34.000Z",
+          "startMs": 1787964934000,
           "durSec": 314
         },
         {
-          "startMs": "2026-08-29T01:00:54.000Z",
+          "startMs": 1787965254000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T01:01:03.000Z",
+          "startMs": 1787965263000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T01:01:08.000Z",
+          "startMs": 1787965268000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T01:01:12.000Z",
+          "startMs": 1787965272000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T01:01:17.000Z",
+          "startMs": 1787965277000,
           "durSec": 301
         },
         {
-          "startMs": "2026-08-29T01:06:21.000Z",
+          "startMs": 1787965581000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T01:06:25.000Z",
+          "startMs": 1787965585000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T01:06:29.000Z",
+          "startMs": 1787965589000,
           "durSec": 319
         },
         {
-          "startMs": "2026-08-29T01:11:54.000Z",
+          "startMs": 1787965914000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T01:11:58.000Z",
+          "startMs": 1787965918000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T01:12:02.000Z",
+          "startMs": 1787965922000,
           "durSec": 329
         },
         {
-          "startMs": "2026-08-29T01:17:34.000Z",
+          "startMs": 1787966254000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T01:17:43.000Z",
+          "startMs": 1787966263000,
           "durSec": 307
         },
         {
-          "startMs": "2026-08-29T01:22:53.000Z",
+          "startMs": 1787966573000,
           "durSec": 9
         },
         {
-          "startMs": "2026-08-29T01:23:05.000Z",
+          "startMs": 1787966585000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T01:23:12.000Z",
+          "startMs": 1787966592000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T01:23:18.000Z",
+          "startMs": 1787966598000,
           "durSec": 326
         },
         {
-          "startMs": "2026-08-29T01:28:47.000Z",
+          "startMs": 1787966927000,
           "durSec": 310
         },
         {
-          "startMs": "2026-08-29T01:34:00.000Z",
+          "startMs": 1787967240000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T01:34:08.000Z",
+          "startMs": 1787967248000,
           "durSec": 320
         },
         {
-          "startMs": "2026-08-29T01:39:34.000Z",
+          "startMs": 1787967574000,
           "durSec": 320
         },
         {
-          "startMs": "2026-08-29T01:44:57.000Z",
+          "startMs": 1787967897000,
           "durSec": 12
         },
         {
-          "startMs": "2026-08-29T01:45:12.000Z",
+          "startMs": 1787967912000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T01:45:47.000Z",
+          "startMs": 1787967947000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T01:46:53.000Z",
+          "startMs": 1787968013000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T01:46:58.000Z",
+          "startMs": 1787968018000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T01:47:49.000Z",
+          "startMs": 1787968069000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T01:47:56.000Z",
+          "startMs": 1787968076000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T01:48:55.000Z",
+          "startMs": 1787968135000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T01:49:18.000Z",
+          "startMs": 1787968158000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T01:49:30.000Z",
+          "startMs": 1787968170000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T01:49:34.000Z",
+          "startMs": 1787968174000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T01:51:08.000Z",
+          "startMs": 1787968268000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T01:51:42.000Z",
+          "startMs": 1787968302000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T01:52:07.000Z",
+          "startMs": 1787968327000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T01:52:14.000Z",
+          "startMs": 1787968334000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T01:52:38.000Z",
+          "startMs": 1787968358000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T01:52:42.000Z",
+          "startMs": 1787968362000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T01:52:46.000Z",
+          "startMs": 1787968366000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T01:53:28.000Z",
+          "startMs": 1787968408000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T01:53:37.000Z",
+          "startMs": 1787968417000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T01:53:50.000Z",
+          "startMs": 1787968430000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T01:54:04.000Z",
+          "startMs": 1787968444000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T01:54:13.000Z",
+          "startMs": 1787968453000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T01:54:18.000Z",
+          "startMs": 1787968458000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T01:54:29.000Z",
+          "startMs": 1787968469000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T01:54:43.000Z",
+          "startMs": 1787968483000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T01:54:56.000Z",
+          "startMs": 1787968496000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T01:55:00.000Z",
+          "startMs": 1787968500000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T01:55:09.000Z",
+          "startMs": 1787968509000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T01:55:27.000Z",
+          "startMs": 1787968527000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T01:55:32.000Z",
+          "startMs": 1787968532000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T01:55:37.000Z",
+          "startMs": 1787968537000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T01:56:02.000Z",
+          "startMs": 1787968562000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T01:56:39.000Z",
+          "startMs": 1787968599000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T01:57:40.000Z",
+          "startMs": 1787968660000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T01:57:58.000Z",
+          "startMs": 1787968678000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T01:58:33.000Z",
+          "startMs": 1787968713000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T01:58:44.000Z",
+          "startMs": 1787968724000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T02:00:04.000Z",
+          "startMs": 1787968804000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T02:00:21.000Z",
+          "startMs": 1787968821000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:00:32.000Z",
+          "startMs": 1787968832000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:00:37.000Z",
+          "startMs": 1787968837000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:02:32.000Z",
+          "startMs": 1787968952000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T02:02:41.000Z",
+          "startMs": 1787968961000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:02:47.000Z",
+          "startMs": 1787968967000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:03:17.000Z",
+          "startMs": 1787968997000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:03:21.000Z",
+          "startMs": 1787969001000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T02:03:55.000Z",
+          "startMs": 1787969035000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:04:00.000Z",
+          "startMs": 1787969040000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:04:27.000Z",
+          "startMs": 1787969067000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T02:04:42.000Z",
+          "startMs": 1787969082000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:04:48.000Z",
+          "startMs": 1787969088000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:04:55.000Z",
+          "startMs": 1787969095000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:05:10.000Z",
+          "startMs": 1787969110000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:05:16.000Z",
+          "startMs": 1787969116000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:05:48.000Z",
+          "startMs": 1787969148000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:05:56.000Z",
+          "startMs": 1787969156000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:06:17.000Z",
+          "startMs": 1787969177000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T02:06:29.000Z",
+          "startMs": 1787969189000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:06:50.000Z",
+          "startMs": 1787969210000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T02:07:00.000Z",
+          "startMs": 1787969220000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:07:10.000Z",
+          "startMs": 1787969230000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:07:18.000Z",
+          "startMs": 1787969238000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T02:07:25.000Z",
+          "startMs": 1787969245000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:07:35.000Z",
+          "startMs": 1787969255000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:07:42.000Z",
+          "startMs": 1787969262000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T02:08:10.000Z",
+          "startMs": 1787969290000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:08:15.000Z",
+          "startMs": 1787969295000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:08:20.000Z",
+          "startMs": 1787969300000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T02:08:31.000Z",
+          "startMs": 1787969311000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:08:37.000Z",
+          "startMs": 1787969317000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:08:44.000Z",
+          "startMs": 1787969324000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:08:58.000Z",
+          "startMs": 1787969338000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:09:13.000Z",
+          "startMs": 1787969353000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T02:09:21.000Z",
+          "startMs": 1787969361000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:09:26.000Z",
+          "startMs": 1787969366000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:09:53.000Z",
+          "startMs": 1787969393000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:10:02.000Z",
+          "startMs": 1787969402000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:10:52.000Z",
+          "startMs": 1787969452000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:11:17.000Z",
+          "startMs": 1787969477000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:11:24.000Z",
+          "startMs": 1787969484000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:13:12.000Z",
+          "startMs": 1787969592000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:13:29.000Z",
+          "startMs": 1787969609000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:14:10.000Z",
+          "startMs": 1787969650000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:14:18.000Z",
+          "startMs": 1787969658000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:14:27.000Z",
+          "startMs": 1787969667000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:14:38.000Z",
+          "startMs": 1787969678000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:15:08.000Z",
+          "startMs": 1787969708000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T02:15:15.000Z",
+          "startMs": 1787969715000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:15:21.000Z",
+          "startMs": 1787969721000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:15:25.000Z",
+          "startMs": 1787969725000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:16:28.000Z",
+          "startMs": 1787969788000,
           "durSec": 13
         },
         {
-          "startMs": "2026-08-29T02:17:05.000Z",
+          "startMs": 1787969825000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:17:11.000Z",
+          "startMs": 1787969831000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:17:16.000Z",
+          "startMs": 1787969836000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:17:22.000Z",
+          "startMs": 1787969842000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T02:18:04.000Z",
+          "startMs": 1787969884000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:20:02.000Z",
+          "startMs": 1787970002000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:20:10.000Z",
+          "startMs": 1787970010000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:20:39.000Z",
+          "startMs": 1787970039000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:20:46.000Z",
+          "startMs": 1787970046000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:22:03.000Z",
+          "startMs": 1787970123000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:22:12.000Z",
+          "startMs": 1787970132000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:23:04.000Z",
+          "startMs": 1787970184000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:23:32.000Z",
+          "startMs": 1787970212000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:24:10.000Z",
+          "startMs": 1787970250000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:24:15.000Z",
+          "startMs": 1787970255000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:24:19.000Z",
+          "startMs": 1787970259000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:25:27.000Z",
+          "startMs": 1787970327000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:25:35.000Z",
+          "startMs": 1787970335000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:25:42.000Z",
+          "startMs": 1787970342000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:26:17.000Z",
+          "startMs": 1787970377000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:26:48.000Z",
+          "startMs": 1787970408000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:27:02.000Z",
+          "startMs": 1787970422000,
           "durSec": 9
         },
         {
-          "startMs": "2026-08-29T02:27:18.000Z",
+          "startMs": 1787970438000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:27:29.000Z",
+          "startMs": 1787970449000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:27:35.000Z",
+          "startMs": 1787970455000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:28:01.000Z",
+          "startMs": 1787970481000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:28:07.000Z",
+          "startMs": 1787970487000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:28:15.000Z",
+          "startMs": 1787970495000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:28:20.000Z",
+          "startMs": 1787970500000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:28:24.000Z",
+          "startMs": 1787970504000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:28:28.000Z",
+          "startMs": 1787970508000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:28:53.000Z",
+          "startMs": 1787970533000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:29:03.000Z",
+          "startMs": 1787970543000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:29:14.000Z",
+          "startMs": 1787970554000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:29:40.000Z",
+          "startMs": 1787970580000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:29:50.000Z",
+          "startMs": 1787970590000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:29:54.000Z",
+          "startMs": 1787970594000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:29:59.000Z",
+          "startMs": 1787970599000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:30:34.000Z",
+          "startMs": 1787970634000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:30:40.000Z",
+          "startMs": 1787970640000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:31:12.000Z",
+          "startMs": 1787970672000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:31:22.000Z",
+          "startMs": 1787970682000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:31:28.000Z",
+          "startMs": 1787970688000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:32:43.000Z",
+          "startMs": 1787970763000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:32:47.000Z",
+          "startMs": 1787970767000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:32:55.000Z",
+          "startMs": 1787970775000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:33:01.000Z",
+          "startMs": 1787970781000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T02:33:08.000Z",
+          "startMs": 1787970788000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:33:25.000Z",
+          "startMs": 1787970805000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T02:33:35.000Z",
+          "startMs": 1787970815000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T02:34:15.000Z",
+          "startMs": 1787970855000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:36:33.000Z",
+          "startMs": 1787970993000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:36:39.000Z",
+          "startMs": 1787970999000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:36:47.000Z",
+          "startMs": 1787971007000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:36:56.000Z",
+          "startMs": 1787971016000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:37:31.000Z",
+          "startMs": 1787971051000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:37:38.000Z",
+          "startMs": 1787971058000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:37:45.000Z",
+          "startMs": 1787971065000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:37:56.000Z",
+          "startMs": 1787971076000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:38:27.000Z",
+          "startMs": 1787971107000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:38:32.000Z",
+          "startMs": 1787971112000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T02:39:11.000Z",
+          "startMs": 1787971151000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:39:17.000Z",
+          "startMs": 1787971157000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:39:22.000Z",
+          "startMs": 1787971162000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T02:39:30.000Z",
+          "startMs": 1787971170000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:39:36.000Z",
+          "startMs": 1787971176000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:40:36.000Z",
+          "startMs": 1787971236000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:40:55.000Z",
+          "startMs": 1787971255000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:41:01.000Z",
+          "startMs": 1787971261000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:41:12.000Z",
+          "startMs": 1787971272000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:41:16.000Z",
+          "startMs": 1787971276000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:41:24.000Z",
+          "startMs": 1787971284000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T02:41:34.000Z",
+          "startMs": 1787971294000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T02:42:01.000Z",
+          "startMs": 1787971321000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:42:08.000Z",
+          "startMs": 1787971328000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:42:29.000Z",
+          "startMs": 1787971349000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:42:36.000Z",
+          "startMs": 1787971356000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:42:42.000Z",
+          "startMs": 1787971362000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:42:49.000Z",
+          "startMs": 1787971369000,
           "durSec": 9
         },
         {
-          "startMs": "2026-08-29T02:43:31.000Z",
+          "startMs": 1787971411000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:43:38.000Z",
+          "startMs": 1787971418000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:43:49.000Z",
+          "startMs": 1787971429000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:43:54.000Z",
+          "startMs": 1787971434000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:43:59.000Z",
+          "startMs": 1787971439000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:44:04.000Z",
+          "startMs": 1787971444000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:44:09.000Z",
+          "startMs": 1787971449000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:44:15.000Z",
+          "startMs": 1787971455000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:44:24.000Z",
+          "startMs": 1787971464000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T02:44:32.000Z",
+          "startMs": 1787971472000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:44:36.000Z",
+          "startMs": 1787971476000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:45:11.000Z",
+          "startMs": 1787971511000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:45:22.000Z",
+          "startMs": 1787971522000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:45:28.000Z",
+          "startMs": 1787971528000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:46:27.000Z",
+          "startMs": 1787971587000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:46:41.000Z",
+          "startMs": 1787971601000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:47:10.000Z",
+          "startMs": 1787971630000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:47:41.000Z",
+          "startMs": 1787971661000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T02:47:53.000Z",
+          "startMs": 1787971673000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:48:18.000Z",
+          "startMs": 1787971698000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T02:48:30.000Z",
+          "startMs": 1787971710000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:48:38.000Z",
+          "startMs": 1787971718000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:48:44.000Z",
+          "startMs": 1787971724000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T02:50:04.000Z",
+          "startMs": 1787971804000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:50:10.000Z",
+          "startMs": 1787971810000,
           "durSec": 10
         },
         {
-          "startMs": "2026-08-29T02:50:24.000Z",
+          "startMs": 1787971824000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T02:50:34.000Z",
+          "startMs": 1787971834000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:50:55.000Z",
+          "startMs": 1787971855000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:51:00.000Z",
+          "startMs": 1787971860000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:51:35.000Z",
+          "startMs": 1787971895000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:51:40.000Z",
+          "startMs": 1787971900000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:52:03.000Z",
+          "startMs": 1787971923000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:52:08.000Z",
+          "startMs": 1787971928000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:52:20.000Z",
+          "startMs": 1787971940000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T02:52:27.000Z",
+          "startMs": 1787971947000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:53:34.000Z",
+          "startMs": 1787972014000,
           "durSec": 9
         },
         {
-          "startMs": "2026-08-29T02:54:14.000Z",
+          "startMs": 1787972054000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:54:24.000Z",
+          "startMs": 1787972064000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:54:51.000Z",
+          "startMs": 1787972091000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T02:54:59.000Z",
+          "startMs": 1787972099000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:55:05.000Z",
+          "startMs": 1787972105000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:55:10.000Z",
+          "startMs": 1787972110000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:55:16.000Z",
+          "startMs": 1787972116000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:55:26.000Z",
+          "startMs": 1787972126000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T02:55:33.000Z",
+          "startMs": 1787972133000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:55:38.000Z",
+          "startMs": 1787972138000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:55:43.000Z",
+          "startMs": 1787972143000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:55:51.000Z",
+          "startMs": 1787972151000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:55:55.000Z",
+          "startMs": 1787972155000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T02:56:03.000Z",
+          "startMs": 1787972163000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:57:25.000Z",
+          "startMs": 1787972245000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T02:57:33.000Z",
+          "startMs": 1787972253000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:57:45.000Z",
+          "startMs": 1787972265000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T02:58:18.000Z",
+          "startMs": 1787972298000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T02:58:26.000Z",
+          "startMs": 1787972306000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:58:36.000Z",
+          "startMs": 1787972316000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T02:59:13.000Z",
+          "startMs": 1787972353000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T02:59:33.000Z",
+          "startMs": 1787972373000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:59:40.000Z",
+          "startMs": 1787972380000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:59:45.000Z",
+          "startMs": 1787972385000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T02:59:49.000Z",
+          "startMs": 1787972389000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:00:22.000Z",
+          "startMs": 1787972422000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:00:26.000Z",
+          "startMs": 1787972426000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:00:33.000Z",
+          "startMs": 1787972433000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:00:37.000Z",
+          "startMs": 1787972437000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T03:00:47.000Z",
+          "startMs": 1787972447000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T03:00:57.000Z",
+          "startMs": 1787972457000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:01:10.000Z",
+          "startMs": 1787972470000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:01:16.000Z",
+          "startMs": 1787972476000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:01:21.000Z",
+          "startMs": 1787972481000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:01:25.000Z",
+          "startMs": 1787972485000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:01:30.000Z",
+          "startMs": 1787972490000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:01:36.000Z",
+          "startMs": 1787972496000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:01:43.000Z",
+          "startMs": 1787972503000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:01:48.000Z",
+          "startMs": 1787972508000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T03:02:04.000Z",
+          "startMs": 1787972524000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:02:16.000Z",
+          "startMs": 1787972536000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T03:02:24.000Z",
+          "startMs": 1787972544000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:02:29.000Z",
+          "startMs": 1787972549000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:02:51.000Z",
+          "startMs": 1787972571000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:02:56.000Z",
+          "startMs": 1787972576000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:03:08.000Z",
+          "startMs": 1787972588000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:03:13.000Z",
+          "startMs": 1787972593000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:03:17.000Z",
+          "startMs": 1787972597000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:03:24.000Z",
+          "startMs": 1787972604000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:03:50.000Z",
+          "startMs": 1787972630000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:04:15.000Z",
+          "startMs": 1787972655000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:04:25.000Z",
+          "startMs": 1787972665000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:04:33.000Z",
+          "startMs": 1787972673000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:04:41.000Z",
+          "startMs": 1787972681000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:04:47.000Z",
+          "startMs": 1787972687000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T03:04:57.000Z",
+          "startMs": 1787972697000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:05:07.000Z",
+          "startMs": 1787972707000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:05:12.000Z",
+          "startMs": 1787972712000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:05:22.000Z",
+          "startMs": 1787972722000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:05:27.000Z",
+          "startMs": 1787972727000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:05:39.000Z",
+          "startMs": 1787972739000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:05:49.000Z",
+          "startMs": 1787972749000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:05:57.000Z",
+          "startMs": 1787972757000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:06:02.000Z",
+          "startMs": 1787972762000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:06:13.000Z",
+          "startMs": 1787972773000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:06:19.000Z",
+          "startMs": 1787972779000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:06:25.000Z",
+          "startMs": 1787972785000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:06:34.000Z",
+          "startMs": 1787972794000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:06:54.000Z",
+          "startMs": 1787972814000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:07:20.000Z",
+          "startMs": 1787972840000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T03:07:43.000Z",
+          "startMs": 1787972863000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:07:49.000Z",
+          "startMs": 1787972869000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:09:01.000Z",
+          "startMs": 1787972941000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:09:12.000Z",
+          "startMs": 1787972952000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:09:25.000Z",
+          "startMs": 1787972965000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:09:30.000Z",
+          "startMs": 1787972970000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:09:37.000Z",
+          "startMs": 1787972977000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T03:09:50.000Z",
+          "startMs": 1787972990000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:09:56.000Z",
+          "startMs": 1787972996000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T03:10:30.000Z",
+          "startMs": 1787973030000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:10:35.000Z",
+          "startMs": 1787973035000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:10:41.000Z",
+          "startMs": 1787973041000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:11:18.000Z",
+          "startMs": 1787973078000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:11:24.000Z",
+          "startMs": 1787973084000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T03:11:32.000Z",
+          "startMs": 1787973092000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:11:38.000Z",
+          "startMs": 1787973098000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:11:46.000Z",
+          "startMs": 1787973106000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:11:52.000Z",
+          "startMs": 1787973112000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T03:12:05.000Z",
+          "startMs": 1787973125000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T03:12:15.000Z",
+          "startMs": 1787973135000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:12:21.000Z",
+          "startMs": 1787973141000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:12:27.000Z",
+          "startMs": 1787973147000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T03:12:37.000Z",
+          "startMs": 1787973157000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T03:13:08.000Z",
+          "startMs": 1787973188000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:13:13.000Z",
+          "startMs": 1787973193000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:13:22.000Z",
+          "startMs": 1787973202000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:13:28.000Z",
+          "startMs": 1787973208000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:13:34.000Z",
+          "startMs": 1787973214000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:14:01.000Z",
+          "startMs": 1787973241000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:14:09.000Z",
+          "startMs": 1787973249000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:14:17.000Z",
+          "startMs": 1787973257000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:14:22.000Z",
+          "startMs": 1787973262000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T03:14:29.000Z",
+          "startMs": 1787973269000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:16:00.000Z",
+          "startMs": 1787973360000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T03:16:24.000Z",
+          "startMs": 1787973384000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:16:31.000Z",
+          "startMs": 1787973391000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:16:36.000Z",
+          "startMs": 1787973396000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:16:41.000Z",
+          "startMs": 1787973401000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:17:12.000Z",
+          "startMs": 1787973432000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T03:17:19.000Z",
+          "startMs": 1787973439000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:17:47.000Z",
+          "startMs": 1787973467000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:17:54.000Z",
+          "startMs": 1787973474000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:18:08.000Z",
+          "startMs": 1787973488000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:18:14.000Z",
+          "startMs": 1787973494000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:18:20.000Z",
+          "startMs": 1787973500000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:18:25.000Z",
+          "startMs": 1787973505000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:18:32.000Z",
+          "startMs": 1787973512000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:18:37.000Z",
+          "startMs": 1787973517000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:18:44.000Z",
+          "startMs": 1787973524000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:19:05.000Z",
+          "startMs": 1787973545000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T03:19:37.000Z",
+          "startMs": 1787973577000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:19:44.000Z",
+          "startMs": 1787973584000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:19:51.000Z",
+          "startMs": 1787973591000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:20:05.000Z",
+          "startMs": 1787973605000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T03:20:12.000Z",
+          "startMs": 1787973612000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T03:20:20.000Z",
+          "startMs": 1787973620000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:20:53.000Z",
+          "startMs": 1787973653000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:20:58.000Z",
+          "startMs": 1787973658000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:21:04.000Z",
+          "startMs": 1787973664000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:21:10.000Z",
+          "startMs": 1787973670000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:21:14.000Z",
+          "startMs": 1787973674000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:21:21.000Z",
+          "startMs": 1787973681000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:21:46.000Z",
+          "startMs": 1787973706000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:21:56.000Z",
+          "startMs": 1787973716000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:22:23.000Z",
+          "startMs": 1787973743000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:22:29.000Z",
+          "startMs": 1787973749000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:22:37.000Z",
+          "startMs": 1787973757000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T03:23:13.000Z",
+          "startMs": 1787973793000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:23:18.000Z",
+          "startMs": 1787973798000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:23:24.000Z",
+          "startMs": 1787973804000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:23:46.000Z",
+          "startMs": 1787973826000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:24:34.000Z",
+          "startMs": 1787973874000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:24:45.000Z",
+          "startMs": 1787973885000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:25:17.000Z",
+          "startMs": 1787973917000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:25:21.000Z",
+          "startMs": 1787973921000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:25:26.000Z",
+          "startMs": 1787973926000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:25:40.000Z",
+          "startMs": 1787973940000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T03:25:48.000Z",
+          "startMs": 1787973948000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:25:53.000Z",
+          "startMs": 1787973953000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:26:00.000Z",
+          "startMs": 1787973960000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T03:26:08.000Z",
+          "startMs": 1787973968000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:26:17.000Z",
+          "startMs": 1787973977000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T03:26:47.000Z",
+          "startMs": 1787974007000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:27:20.000Z",
+          "startMs": 1787974040000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:27:27.000Z",
+          "startMs": 1787974047000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T03:27:35.000Z",
+          "startMs": 1787974055000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:27:40.000Z",
+          "startMs": 1787974060000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:28:04.000Z",
+          "startMs": 1787974084000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:28:10.000Z",
+          "startMs": 1787974090000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:28:41.000Z",
+          "startMs": 1787974121000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:28:47.000Z",
+          "startMs": 1787974127000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:28:52.000Z",
+          "startMs": 1787974132000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:29:18.000Z",
+          "startMs": 1787974158000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T03:29:28.000Z",
+          "startMs": 1787974168000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:29:32.000Z",
+          "startMs": 1787974172000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:29:36.000Z",
+          "startMs": 1787974176000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:30:27.000Z",
+          "startMs": 1787974227000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T03:30:38.000Z",
+          "startMs": 1787974238000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T03:30:46.000Z",
+          "startMs": 1787974246000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:31:23.000Z",
+          "startMs": 1787974283000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T03:31:34.000Z",
+          "startMs": 1787974294000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:31:41.000Z",
+          "startMs": 1787974301000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:32:14.000Z",
+          "startMs": 1787974334000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:32:26.000Z",
+          "startMs": 1787974346000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:32:33.000Z",
+          "startMs": 1787974353000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:32:58.000Z",
+          "startMs": 1787974378000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:33:02.000Z",
+          "startMs": 1787974382000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:33:43.000Z",
+          "startMs": 1787974423000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:33:49.000Z",
+          "startMs": 1787974429000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:34:15.000Z",
+          "startMs": 1787974455000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:34:20.000Z",
+          "startMs": 1787974460000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:35:48.000Z",
+          "startMs": 1787974548000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:35:54.000Z",
+          "startMs": 1787974554000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:36:01.000Z",
+          "startMs": 1787974561000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:36:05.000Z",
+          "startMs": 1787974565000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:36:35.000Z",
+          "startMs": 1787974595000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T03:36:45.000Z",
+          "startMs": 1787974605000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:36:50.000Z",
+          "startMs": 1787974610000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T03:37:08.000Z",
+          "startMs": 1787974628000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:37:37.000Z",
+          "startMs": 1787974657000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:37:42.000Z",
+          "startMs": 1787974662000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:37:48.000Z",
+          "startMs": 1787974668000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:37:54.000Z",
+          "startMs": 1787974674000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:38:50.000Z",
+          "startMs": 1787974730000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:38:57.000Z",
+          "startMs": 1787974737000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:39:05.000Z",
+          "startMs": 1787974745000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:39:09.000Z",
+          "startMs": 1787974749000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:39:39.000Z",
+          "startMs": 1787974779000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:39:48.000Z",
+          "startMs": 1787974788000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:40:15.000Z",
+          "startMs": 1787974815000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:40:24.000Z",
+          "startMs": 1787974824000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:40:28.000Z",
+          "startMs": 1787974828000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:40:40.000Z",
+          "startMs": 1787974840000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:40:49.000Z",
+          "startMs": 1787974849000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:41:44.000Z",
+          "startMs": 1787974904000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:41:51.000Z",
+          "startMs": 1787974911000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:42:22.000Z",
+          "startMs": 1787974942000,
           "durSec": 12
         },
         {
-          "startMs": "2026-08-29T03:42:57.000Z",
+          "startMs": 1787974977000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:43:03.000Z",
+          "startMs": 1787974983000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:43:10.000Z",
+          "startMs": 1787974990000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:43:14.000Z",
+          "startMs": 1787974994000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:43:48.000Z",
+          "startMs": 1787975028000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:43:53.000Z",
+          "startMs": 1787975033000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:44:05.000Z",
+          "startMs": 1787975045000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T03:44:35.000Z",
+          "startMs": 1787975075000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:44:39.000Z",
+          "startMs": 1787975079000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:44:45.000Z",
+          "startMs": 1787975085000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:45:13.000Z",
+          "startMs": 1787975113000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T03:45:23.000Z",
+          "startMs": 1787975123000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:45:56.000Z",
+          "startMs": 1787975156000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:46:07.000Z",
+          "startMs": 1787975167000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:46:12.000Z",
+          "startMs": 1787975172000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:46:21.000Z",
+          "startMs": 1787975181000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:46:28.000Z",
+          "startMs": 1787975188000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:47:06.000Z",
+          "startMs": 1787975226000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:47:17.000Z",
+          "startMs": 1787975237000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:47:25.000Z",
+          "startMs": 1787975245000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:47:36.000Z",
+          "startMs": 1787975256000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:47:41.000Z",
+          "startMs": 1787975261000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:48:23.000Z",
+          "startMs": 1787975303000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:48:39.000Z",
+          "startMs": 1787975319000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:48:45.000Z",
+          "startMs": 1787975325000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:48:52.000Z",
+          "startMs": 1787975332000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:48:59.000Z",
+          "startMs": 1787975339000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:49:05.000Z",
+          "startMs": 1787975345000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:49:31.000Z",
+          "startMs": 1787975371000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:49:37.000Z",
+          "startMs": 1787975377000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:49:44.000Z",
+          "startMs": 1787975384000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:50:13.000Z",
+          "startMs": 1787975413000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:50:19.000Z",
+          "startMs": 1787975419000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:50:23.000Z",
+          "startMs": 1787975423000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:50:48.000Z",
+          "startMs": 1787975448000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:50:55.000Z",
+          "startMs": 1787975455000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:51:00.000Z",
+          "startMs": 1787975460000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:51:05.000Z",
+          "startMs": 1787975465000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T03:51:15.000Z",
+          "startMs": 1787975475000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T03:51:22.000Z",
+          "startMs": 1787975482000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:51:27.000Z",
+          "startMs": 1787975487000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:52:17.000Z",
+          "startMs": 1787975537000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:52:25.000Z",
+          "startMs": 1787975545000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:52:35.000Z",
+          "startMs": 1787975555000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:53:01.000Z",
+          "startMs": 1787975581000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:53:35.000Z",
+          "startMs": 1787975615000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:54:13.000Z",
+          "startMs": 1787975653000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:54:21.000Z",
+          "startMs": 1787975661000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:54:51.000Z",
+          "startMs": 1787975691000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:54:56.000Z",
+          "startMs": 1787975696000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:55:14.000Z",
+          "startMs": 1787975714000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:55:19.000Z",
+          "startMs": 1787975719000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:55:24.000Z",
+          "startMs": 1787975724000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:56:19.000Z",
+          "startMs": 1787975779000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:56:27.000Z",
+          "startMs": 1787975787000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:56:32.000Z",
+          "startMs": 1787975792000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T03:57:01.000Z",
+          "startMs": 1787975821000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:57:05.000Z",
+          "startMs": 1787975825000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:57:37.000Z",
+          "startMs": 1787975857000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:57:42.000Z",
+          "startMs": 1787975862000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:57:48.000Z",
+          "startMs": 1787975868000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T03:57:54.000Z",
+          "startMs": 1787975874000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:58:24.000Z",
+          "startMs": 1787975904000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:58:29.000Z",
+          "startMs": 1787975909000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T03:58:38.000Z",
+          "startMs": 1787975918000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:58:47.000Z",
+          "startMs": 1787975927000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T03:59:08.000Z",
+          "startMs": 1787975948000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:59:15.000Z",
+          "startMs": 1787975955000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T03:59:19.000Z",
+          "startMs": 1787975959000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:59:24.000Z",
+          "startMs": 1787975964000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T03:59:51.000Z",
+          "startMs": 1787975991000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T03:59:58.000Z",
+          "startMs": 1787975998000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:00:06.000Z",
+          "startMs": 1787976006000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:00:13.000Z",
+          "startMs": 1787976013000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:00:18.000Z",
+          "startMs": 1787976018000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:00:23.000Z",
+          "startMs": 1787976023000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:00:27.000Z",
+          "startMs": 1787976027000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:00:55.000Z",
+          "startMs": 1787976055000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:01:02.000Z",
+          "startMs": 1787976062000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T04:01:17.000Z",
+          "startMs": 1787976077000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:01:27.000Z",
+          "startMs": 1787976087000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:01:32.000Z",
+          "startMs": 1787976092000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:01:40.000Z",
+          "startMs": 1787976100000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:01:49.000Z",
+          "startMs": 1787976109000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:02:23.000Z",
+          "startMs": 1787976143000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:02:27.000Z",
+          "startMs": 1787976147000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:02:33.000Z",
+          "startMs": 1787976153000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:02:37.000Z",
+          "startMs": 1787976157000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:02:43.000Z",
+          "startMs": 1787976163000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:02:59.000Z",
+          "startMs": 1787976179000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:03:04.000Z",
+          "startMs": 1787976184000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:03:14.000Z",
+          "startMs": 1787976194000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:03:19.000Z",
+          "startMs": 1787976199000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:03:25.000Z",
+          "startMs": 1787976205000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T04:03:40.000Z",
+          "startMs": 1787976220000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:03:45.000Z",
+          "startMs": 1787976225000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:03:50.000Z",
+          "startMs": 1787976230000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:03:58.000Z",
+          "startMs": 1787976238000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:04:05.000Z",
+          "startMs": 1787976245000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:04:12.000Z",
+          "startMs": 1787976252000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:04:22.000Z",
+          "startMs": 1787976262000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:04:27.000Z",
+          "startMs": 1787976267000,
           "durSec": 13
         },
         {
-          "startMs": "2026-08-29T04:04:45.000Z",
+          "startMs": 1787976285000,
           "durSec": 10
         },
         {
-          "startMs": "2026-08-29T04:04:58.000Z",
+          "startMs": 1787976298000,
           "durSec": 13
         },
         {
-          "startMs": "2026-08-29T04:05:14.000Z",
+          "startMs": 1787976314000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:05:19.000Z",
+          "startMs": 1787976319000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:05:25.000Z",
+          "startMs": 1787976325000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T04:05:34.000Z",
+          "startMs": 1787976334000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:07:57.000Z",
+          "startMs": 1787976477000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:08:06.000Z",
+          "startMs": 1787976486000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:08:21.000Z",
+          "startMs": 1787976501000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:08:34.000Z",
+          "startMs": 1787976514000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:08:39.000Z",
+          "startMs": 1787976519000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T04:08:59.000Z",
+          "startMs": 1787976539000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:09:06.000Z",
+          "startMs": 1787976546000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:09:13.000Z",
+          "startMs": 1787976553000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:09:39.000Z",
+          "startMs": 1787976579000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:09:45.000Z",
+          "startMs": 1787976585000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:09:54.000Z",
+          "startMs": 1787976594000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:09:59.000Z",
+          "startMs": 1787976599000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:10:04.000Z",
+          "startMs": 1787976604000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T04:10:14.000Z",
+          "startMs": 1787976614000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:11:03.000Z",
+          "startMs": 1787976663000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T04:11:19.000Z",
+          "startMs": 1787976679000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T04:11:31.000Z",
+          "startMs": 1787976691000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:11:37.000Z",
+          "startMs": 1787976697000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:11:41.000Z",
+          "startMs": 1787976701000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:12:08.000Z",
+          "startMs": 1787976728000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:12:19.000Z",
+          "startMs": 1787976739000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:12:48.000Z",
+          "startMs": 1787976768000,
           "durSec": 13
         },
         {
-          "startMs": "2026-08-29T04:13:29.000Z",
+          "startMs": 1787976809000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:13:35.000Z",
+          "startMs": 1787976815000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:13:40.000Z",
+          "startMs": 1787976820000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T04:13:50.000Z",
+          "startMs": 1787976830000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:14:47.000Z",
+          "startMs": 1787976887000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:14:51.000Z",
+          "startMs": 1787976891000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:15:04.000Z",
+          "startMs": 1787976904000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:15:10.000Z",
+          "startMs": 1787976910000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:15:16.000Z",
+          "startMs": 1787976916000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:15:21.000Z",
+          "startMs": 1787976921000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:15:28.000Z",
+          "startMs": 1787976928000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:15:34.000Z",
+          "startMs": 1787976934000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:15:38.000Z",
+          "startMs": 1787976938000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:16:04.000Z",
+          "startMs": 1787976964000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:16:12.000Z",
+          "startMs": 1787976972000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:16:20.000Z",
+          "startMs": 1787976980000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:16:29.000Z",
+          "startMs": 1787976989000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:16:35.000Z",
+          "startMs": 1787976995000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T04:17:01.000Z",
+          "startMs": 1787977021000,
           "durSec": 10
         },
         {
-          "startMs": "2026-08-29T04:17:24.000Z",
+          "startMs": 1787977044000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T04:17:48.000Z",
+          "startMs": 1787977068000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:17:58.000Z",
+          "startMs": 1787977078000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:18:05.000Z",
+          "startMs": 1787977085000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T04:18:15.000Z",
+          "startMs": 1787977095000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:18:43.000Z",
+          "startMs": 1787977123000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T04:18:51.000Z",
+          "startMs": 1787977131000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:18:57.000Z",
+          "startMs": 1787977137000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:19:02.000Z",
+          "startMs": 1787977142000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T04:19:12.000Z",
+          "startMs": 1787977152000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T04:19:41.000Z",
+          "startMs": 1787977181000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:19:45.000Z",
+          "startMs": 1787977185000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:19:54.000Z",
+          "startMs": 1787977194000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:20:18.000Z",
+          "startMs": 1787977218000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:20:23.000Z",
+          "startMs": 1787977223000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:20:27.000Z",
+          "startMs": 1787977227000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:20:52.000Z",
+          "startMs": 1787977252000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T04:20:59.000Z",
+          "startMs": 1787977259000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:21:06.000Z",
+          "startMs": 1787977266000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:21:11.000Z",
+          "startMs": 1787977271000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T04:21:19.000Z",
+          "startMs": 1787977279000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:21:43.000Z",
+          "startMs": 1787977303000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:21:48.000Z",
+          "startMs": 1787977308000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:21:53.000Z",
+          "startMs": 1787977313000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:22:31.000Z",
+          "startMs": 1787977351000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T04:22:40.000Z",
+          "startMs": 1787977360000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:23:05.000Z",
+          "startMs": 1787977385000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:23:10.000Z",
+          "startMs": 1787977390000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:23:15.000Z",
+          "startMs": 1787977395000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:23:43.000Z",
+          "startMs": 1787977423000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:23:48.000Z",
+          "startMs": 1787977428000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:23:56.000Z",
+          "startMs": 1787977436000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:24:02.000Z",
+          "startMs": 1787977442000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T04:24:34.000Z",
+          "startMs": 1787977474000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:24:39.000Z",
+          "startMs": 1787977479000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:24:47.000Z",
+          "startMs": 1787977487000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:24:51.000Z",
+          "startMs": 1787977491000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T04:25:01.000Z",
+          "startMs": 1787977501000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T04:26:06.000Z",
+          "startMs": 1787977566000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T04:26:18.000Z",
+          "startMs": 1787977578000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:26:25.000Z",
+          "startMs": 1787977585000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:26:49.000Z",
+          "startMs": 1787977609000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:26:55.000Z",
+          "startMs": 1787977615000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:27:25.000Z",
+          "startMs": 1787977645000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:27:53.000Z",
+          "startMs": 1787977673000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:28:34.000Z",
+          "startMs": 1787977714000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T04:28:42.000Z",
+          "startMs": 1787977722000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:29:05.000Z",
+          "startMs": 1787977745000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T04:29:16.000Z",
+          "startMs": 1787977756000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:29:47.000Z",
+          "startMs": 1787977787000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:29:52.000Z",
+          "startMs": 1787977792000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:30:59.000Z",
+          "startMs": 1787977859000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:31:07.000Z",
+          "startMs": 1787977867000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:31:15.000Z",
+          "startMs": 1787977875000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T04:31:44.000Z",
+          "startMs": 1787977904000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:32:06.000Z",
+          "startMs": 1787977926000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:32:41.000Z",
+          "startMs": 1787977961000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:32:57.000Z",
+          "startMs": 1787977977000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:33:03.000Z",
+          "startMs": 1787977983000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:33:08.000Z",
+          "startMs": 1787977988000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:33:42.000Z",
+          "startMs": 1787978022000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:33:49.000Z",
+          "startMs": 1787978029000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:33:56.000Z",
+          "startMs": 1787978036000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:34:47.000Z",
+          "startMs": 1787978087000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:34:57.000Z",
+          "startMs": 1787978097000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:35:03.000Z",
+          "startMs": 1787978103000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:35:28.000Z",
+          "startMs": 1787978128000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:35:36.000Z",
+          "startMs": 1787978136000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:35:42.000Z",
+          "startMs": 1787978142000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:36:32.000Z",
+          "startMs": 1787978192000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:37:07.000Z",
+          "startMs": 1787978227000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:37:35.000Z",
+          "startMs": 1787978255000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:37:42.000Z",
+          "startMs": 1787978262000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T04:37:50.000Z",
+          "startMs": 1787978270000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:37:58.000Z",
+          "startMs": 1787978278000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T04:38:09.000Z",
+          "startMs": 1787978289000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:38:37.000Z",
+          "startMs": 1787978317000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:38:43.000Z",
+          "startMs": 1787978323000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:38:53.000Z",
+          "startMs": 1787978333000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:38:58.000Z",
+          "startMs": 1787978338000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:39:03.000Z",
+          "startMs": 1787978343000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:39:45.000Z",
+          "startMs": 1787978385000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:39:49.000Z",
+          "startMs": 1787978389000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T04:40:20.000Z",
+          "startMs": 1787978420000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:40:25.000Z",
+          "startMs": 1787978425000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:40:29.000Z",
+          "startMs": 1787978429000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:40:58.000Z",
+          "startMs": 1787978458000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:41:02.000Z",
+          "startMs": 1787978462000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:41:09.000Z",
+          "startMs": 1787978469000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:41:41.000Z",
+          "startMs": 1787978501000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:41:51.000Z",
+          "startMs": 1787978511000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:41:57.000Z",
+          "startMs": 1787978517000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:42:02.000Z",
+          "startMs": 1787978522000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:42:29.000Z",
+          "startMs": 1787978549000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:42:34.000Z",
+          "startMs": 1787978554000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:43:12.000Z",
+          "startMs": 1787978592000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:43:22.000Z",
+          "startMs": 1787978602000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:43:30.000Z",
+          "startMs": 1787978610000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:43:35.000Z",
+          "startMs": 1787978615000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:43:44.000Z",
+          "startMs": 1787978624000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:44:22.000Z",
+          "startMs": 1787978662000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T04:44:39.000Z",
+          "startMs": 1787978679000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:45:06.000Z",
+          "startMs": 1787978706000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:45:14.000Z",
+          "startMs": 1787978714000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:45:34.000Z",
+          "startMs": 1787978734000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:45:43.000Z",
+          "startMs": 1787978743000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:46:05.000Z",
+          "startMs": 1787978765000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:46:11.000Z",
+          "startMs": 1787978771000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:46:17.000Z",
+          "startMs": 1787978777000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:47:41.000Z",
+          "startMs": 1787978861000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:47:48.000Z",
+          "startMs": 1787978868000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:47:55.000Z",
+          "startMs": 1787978875000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:48:07.000Z",
+          "startMs": 1787978887000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:48:42.000Z",
+          "startMs": 1787978922000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:48:56.000Z",
+          "startMs": 1787978936000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:49:03.000Z",
+          "startMs": 1787978943000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:49:32.000Z",
+          "startMs": 1787978972000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:49:37.000Z",
+          "startMs": 1787978977000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:49:48.000Z",
+          "startMs": 1787978988000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:49:54.000Z",
+          "startMs": 1787978994000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:50:19.000Z",
+          "startMs": 1787979019000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:50:26.000Z",
+          "startMs": 1787979026000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:50:34.000Z",
+          "startMs": 1787979034000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:51:15.000Z",
+          "startMs": 1787979075000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:51:27.000Z",
+          "startMs": 1787979087000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:51:34.000Z",
+          "startMs": 1787979094000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:51:38.000Z",
+          "startMs": 1787979098000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:51:43.000Z",
+          "startMs": 1787979103000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:51:49.000Z",
+          "startMs": 1787979109000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T04:52:52.000Z",
+          "startMs": 1787979172000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:52:56.000Z",
+          "startMs": 1787979176000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:53:00.000Z",
+          "startMs": 1787979180000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:53:31.000Z",
+          "startMs": 1787979211000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:53:35.000Z",
+          "startMs": 1787979215000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:54:09.000Z",
+          "startMs": 1787979249000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:54:15.000Z",
+          "startMs": 1787979255000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:54:22.000Z",
+          "startMs": 1787979262000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T04:54:30.000Z",
+          "startMs": 1787979270000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T04:54:36.000Z",
+          "startMs": 1787979276000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:55:08.000Z",
+          "startMs": 1787979308000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:55:16.000Z",
+          "startMs": 1787979316000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:56:00.000Z",
+          "startMs": 1787979360000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:56:10.000Z",
+          "startMs": 1787979370000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:56:15.000Z",
+          "startMs": 1787979375000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:56:52.000Z",
+          "startMs": 1787979412000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:57:48.000Z",
+          "startMs": 1787979468000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:57:57.000Z",
+          "startMs": 1787979477000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T04:58:09.000Z",
+          "startMs": 1787979489000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:58:17.000Z",
+          "startMs": 1787979497000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T04:58:24.000Z",
+          "startMs": 1787979504000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:59:11.000Z",
+          "startMs": 1787979551000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:59:17.000Z",
+          "startMs": 1787979557000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:59:25.000Z",
+          "startMs": 1787979565000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T04:59:32.000Z",
+          "startMs": 1787979572000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T04:59:37.000Z",
+          "startMs": 1787979577000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:00:05.000Z",
+          "startMs": 1787979605000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:01:14.000Z",
+          "startMs": 1787979674000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:01:21.000Z",
+          "startMs": 1787979681000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:01:35.000Z",
+          "startMs": 1787979695000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:01:42.000Z",
+          "startMs": 1787979702000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:02:14.000Z",
+          "startMs": 1787979734000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:02:21.000Z",
+          "startMs": 1787979741000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:04:42.000Z",
+          "startMs": 1787979882000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:04:48.000Z",
+          "startMs": 1787979888000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:05:26.000Z",
+          "startMs": 1787979926000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:05:40.000Z",
+          "startMs": 1787979940000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:06:15.000Z",
+          "startMs": 1787979975000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:06:56.000Z",
+          "startMs": 1787980016000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:07:48.000Z",
+          "startMs": 1787980068000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:07:57.000Z",
+          "startMs": 1787980077000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:08:01.000Z",
+          "startMs": 1787980081000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:09:20.000Z",
+          "startMs": 1787980160000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:09:26.000Z",
+          "startMs": 1787980166000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:09:51.000Z",
+          "startMs": 1787980191000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:10:01.000Z",
+          "startMs": 1787980201000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:10:10.000Z",
+          "startMs": 1787980210000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:10:44.000Z",
+          "startMs": 1787980244000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:12:16.000Z",
+          "startMs": 1787980336000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:12:22.000Z",
+          "startMs": 1787980342000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:12:30.000Z",
+          "startMs": 1787980350000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T05:12:37.000Z",
+          "startMs": 1787980357000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:13:03.000Z",
+          "startMs": 1787980383000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:13:09.000Z",
+          "startMs": 1787980389000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:13:19.000Z",
+          "startMs": 1787980399000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T05:13:29.000Z",
+          "startMs": 1787980409000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:14:02.000Z",
+          "startMs": 1787980442000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:14:44.000Z",
+          "startMs": 1787980484000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:14:49.000Z",
+          "startMs": 1787980489000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:15:18.000Z",
+          "startMs": 1787980518000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:15:23.000Z",
+          "startMs": 1787980523000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:15:48.000Z",
+          "startMs": 1787980548000,
           "durSec": 8
         },
         {
-          "startMs": "2026-08-29T05:16:25.000Z",
+          "startMs": 1787980585000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:16:41.000Z",
+          "startMs": 1787980601000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:17:15.000Z",
+          "startMs": 1787980635000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:17:26.000Z",
+          "startMs": 1787980646000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:17:46.000Z",
+          "startMs": 1787980666000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:18:30.000Z",
+          "startMs": 1787980710000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:18:38.000Z",
+          "startMs": 1787980718000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:19:10.000Z",
+          "startMs": 1787980750000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T05:19:23.000Z",
+          "startMs": 1787980763000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:19:28.000Z",
+          "startMs": 1787980768000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T05:19:37.000Z",
+          "startMs": 1787980777000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:20:18.000Z",
+          "startMs": 1787980818000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:20:42.000Z",
+          "startMs": 1787980842000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:20:46.000Z",
+          "startMs": 1787980846000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:20:53.000Z",
+          "startMs": 1787980853000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:20:59.000Z",
+          "startMs": 1787980859000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:21:07.000Z",
+          "startMs": 1787980867000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T05:21:42.000Z",
+          "startMs": 1787980902000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:21:47.000Z",
+          "startMs": 1787980907000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:21:51.000Z",
+          "startMs": 1787980911000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:21:59.000Z",
+          "startMs": 1787980919000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T05:22:07.000Z",
+          "startMs": 1787980927000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:22:18.000Z",
+          "startMs": 1787980938000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:22:22.000Z",
+          "startMs": 1787980942000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T05:22:50.000Z",
+          "startMs": 1787980970000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:23:04.000Z",
+          "startMs": 1787980984000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:23:34.000Z",
+          "startMs": 1787981014000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:23:41.000Z",
+          "startMs": 1787981021000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:24:06.000Z",
+          "startMs": 1787981046000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:24:12.000Z",
+          "startMs": 1787981052000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:25:49.000Z",
+          "startMs": 1787981149000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:25:58.000Z",
+          "startMs": 1787981158000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T05:26:31.000Z",
+          "startMs": 1787981191000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:26:51.000Z",
+          "startMs": 1787981211000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:26:55.000Z",
+          "startMs": 1787981215000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:27:01.000Z",
+          "startMs": 1787981221000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:27:26.000Z",
+          "startMs": 1787981246000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:27:30.000Z",
+          "startMs": 1787981250000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:27:38.000Z",
+          "startMs": 1787981258000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T05:27:48.000Z",
+          "startMs": 1787981268000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:28:00.000Z",
+          "startMs": 1787981280000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T05:28:33.000Z",
+          "startMs": 1787981313000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:28:42.000Z",
+          "startMs": 1787981322000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:28:52.000Z",
+          "startMs": 1787981332000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T05:29:03.000Z",
+          "startMs": 1787981343000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:29:08.000Z",
+          "startMs": 1787981348000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:31:25.000Z",
+          "startMs": 1787981485000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:31:31.000Z",
+          "startMs": 1787981491000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:31:59.000Z",
+          "startMs": 1787981519000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:32:05.000Z",
+          "startMs": 1787981525000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:32:09.000Z",
+          "startMs": 1787981529000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:32:17.000Z",
+          "startMs": 1787981537000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:32:25.000Z",
+          "startMs": 1787981545000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:32:55.000Z",
+          "startMs": 1787981575000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:33:08.000Z",
+          "startMs": 1787981588000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:33:14.000Z",
+          "startMs": 1787981594000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:33:20.000Z",
+          "startMs": 1787981600000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:33:28.000Z",
+          "startMs": 1787981608000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:33:34.000Z",
+          "startMs": 1787981614000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:34:06.000Z",
+          "startMs": 1787981646000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:34:14.000Z",
+          "startMs": 1787981654000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:34:23.000Z",
+          "startMs": 1787981663000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:34:30.000Z",
+          "startMs": 1787981670000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:34:34.000Z",
+          "startMs": 1787981674000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T05:34:45.000Z",
+          "startMs": 1787981685000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:35:22.000Z",
+          "startMs": 1787981722000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:35:28.000Z",
+          "startMs": 1787981728000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:35:32.000Z",
+          "startMs": 1787981732000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:36:02.000Z",
+          "startMs": 1787981762000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T05:36:45.000Z",
+          "startMs": 1787981805000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:36:51.000Z",
+          "startMs": 1787981811000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:36:59.000Z",
+          "startMs": 1787981819000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:37:11.000Z",
+          "startMs": 1787981831000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T05:37:23.000Z",
+          "startMs": 1787981843000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:37:48.000Z",
+          "startMs": 1787981868000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:37:52.000Z",
+          "startMs": 1787981872000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:38:00.000Z",
+          "startMs": 1787981880000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:38:04.000Z",
+          "startMs": 1787981884000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:38:09.000Z",
+          "startMs": 1787981889000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:38:32.000Z",
+          "startMs": 1787981912000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:38:39.000Z",
+          "startMs": 1787981919000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T05:39:17.000Z",
+          "startMs": 1787981957000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T05:39:47.000Z",
+          "startMs": 1787981987000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T05:40:12.000Z",
+          "startMs": 1787982012000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:40:21.000Z",
+          "startMs": 1787982021000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:40:33.000Z",
+          "startMs": 1787982033000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:40:37.000Z",
+          "startMs": 1787982037000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:42:16.000Z",
+          "startMs": 1787982136000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:42:33.000Z",
+          "startMs": 1787982153000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T05:42:48.000Z",
+          "startMs": 1787982168000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:43:18.000Z",
+          "startMs": 1787982198000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:43:47.000Z",
+          "startMs": 1787982227000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:43:52.000Z",
+          "startMs": 1787982232000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:43:57.000Z",
+          "startMs": 1787982237000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:44:33.000Z",
+          "startMs": 1787982273000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T05:45:04.000Z",
+          "startMs": 1787982304000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:45:08.000Z",
+          "startMs": 1787982308000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:45:15.000Z",
+          "startMs": 1787982315000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:45:56.000Z",
+          "startMs": 1787982356000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:46:02.000Z",
+          "startMs": 1787982362000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:46:32.000Z",
+          "startMs": 1787982392000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:46:38.000Z",
+          "startMs": 1787982398000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:47:40.000Z",
+          "startMs": 1787982460000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T05:48:15.000Z",
+          "startMs": 1787982495000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T05:48:25.000Z",
+          "startMs": 1787982505000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:48:54.000Z",
+          "startMs": 1787982534000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:50:21.000Z",
+          "startMs": 1787982621000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:50:30.000Z",
+          "startMs": 1787982630000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:50:57.000Z",
+          "startMs": 1787982657000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:51:33.000Z",
+          "startMs": 1787982693000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:51:37.000Z",
+          "startMs": 1787982697000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:52:10.000Z",
+          "startMs": 1787982730000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:52:16.000Z",
+          "startMs": 1787982736000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:53:19.000Z",
+          "startMs": 1787982799000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:53:31.000Z",
+          "startMs": 1787982811000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:53:37.000Z",
+          "startMs": 1787982817000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:53:41.000Z",
+          "startMs": 1787982821000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:54:11.000Z",
+          "startMs": 1787982851000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:54:21.000Z",
+          "startMs": 1787982861000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:54:28.000Z",
+          "startMs": 1787982868000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:54:32.000Z",
+          "startMs": 1787982872000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:55:00.000Z",
+          "startMs": 1787982900000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T05:55:09.000Z",
+          "startMs": 1787982909000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:55:33.000Z",
+          "startMs": 1787982933000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:55:40.000Z",
+          "startMs": 1787982940000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:55:51.000Z",
+          "startMs": 1787982951000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:56:41.000Z",
+          "startMs": 1787983001000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:56:47.000Z",
+          "startMs": 1787983007000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:57:12.000Z",
+          "startMs": 1787983032000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T05:57:21.000Z",
+          "startMs": 1787983041000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:58:53.000Z",
+          "startMs": 1787983133000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:58:57.000Z",
+          "startMs": 1787983137000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:59:29.000Z",
+          "startMs": 1787983169000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:59:34.000Z",
+          "startMs": 1787983174000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T05:59:47.000Z",
+          "startMs": 1787983187000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T05:59:51.000Z",
+          "startMs": 1787983191000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T05:59:57.000Z",
+          "startMs": 1787983197000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T06:00:02.000Z",
+          "startMs": 1787983202000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T06:00:10.000Z",
+          "startMs": 1787983210000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T06:01:16.000Z",
+          "startMs": 1787983276000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T06:01:24.000Z",
+          "startMs": 1787983284000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T06:01:33.000Z",
+          "startMs": 1787983293000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T06:01:42.000Z",
+          "startMs": 1787983302000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T06:02:23.000Z",
+          "startMs": 1787983343000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T06:02:31.000Z",
+          "startMs": 1787983351000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T06:02:57.000Z",
+          "startMs": 1787983377000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T06:03:03.000Z",
+          "startMs": 1787983383000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T06:03:09.000Z",
+          "startMs": 1787983389000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T06:03:18.000Z",
+          "startMs": 1787983398000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T06:04:25.000Z",
+          "startMs": 1787983465000,
           "durSec": 7
         },
         {
-          "startMs": "2026-08-29T06:04:57.000Z",
+          "startMs": 1787983497000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T06:05:07.000Z",
+          "startMs": 1787983507000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T06:05:32.000Z",
+          "startMs": 1787983532000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T06:05:42.000Z",
+          "startMs": 1787983542000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T06:05:47.000Z",
+          "startMs": 1787983547000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T06:05:57.000Z",
+          "startMs": 1787983557000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T06:06:07.000Z",
+          "startMs": 1787983567000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T06:06:11.000Z",
+          "startMs": 1787983571000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T06:06:18.000Z",
+          "startMs": 1787983578000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T06:06:42.000Z",
+          "startMs": 1787983602000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T06:06:48.000Z",
+          "startMs": 1787983608000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T06:06:56.000Z",
+          "startMs": 1787983616000,
           "durSec": 5
         },
         {
-          "startMs": "2026-08-29T06:07:06.000Z",
+          "startMs": 1787983626000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T06:07:27.000Z",
+          "startMs": 1787983647000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T06:07:34.000Z",
+          "startMs": 1787983654000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T06:07:39.000Z",
+          "startMs": 1787983659000,
           "durSec": 6
         },
         {
-          "startMs": "2026-08-29T06:08:08.000Z",
+          "startMs": 1787983688000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T06:08:13.000Z",
+          "startMs": 1787983693000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T06:08:18.000Z",
+          "startMs": 1787983698000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T06:08:42.000Z",
+          "startMs": 1787983722000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T06:08:49.000Z",
+          "startMs": 1787983729000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T06:08:54.000Z",
+          "startMs": 1787983734000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T06:09:41.000Z",
+          "startMs": 1787983781000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T06:09:47.000Z",
+          "startMs": 1787983787000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T06:11:18.000Z",
+          "startMs": 1787983878000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T06:11:24.000Z",
+          "startMs": 1787983884000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T06:11:50.000Z",
+          "startMs": 1787983910000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T06:11:58.000Z",
+          "startMs": 1787983918000,
           "durSec": 2
         },
         {
-          "startMs": "2026-08-29T06:12:24.000Z",
+          "startMs": 1787983944000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T06:12:28.000Z",
+          "startMs": 1787983948000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T06:13:29.000Z",
+          "startMs": 1787984009000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T06:13:42.000Z",
+          "startMs": 1787984022000,
           "durSec": 1
         },
         {
-          "startMs": "2026-08-29T06:13:48.000Z",
+          "startMs": 1787984028000,
           "durSec": 3
         },
         {
-          "startMs": "2026-08-29T06:14:16.000Z",
+          "startMs": 1787984056000,
           "durSec": 4
         },
         {
-          "startMs": "2026-08-29T06:14:23.000Z",
+          "startMs": 1787984063000,
           "durSec": 2
         }
       ],
@@ -4006,6 +4025,14 @@
       "nWithDuration": 994,
       "n": 994,
       "source": "sensor-dropout"
+    },
+    "validity": {
+      "seams": null,
+      "seamsExamined": null,
+      "seamsPlaced": null,
+      "seamsUnplaced": null,
+      "seamsBoundMs": null,
+      "seamsReason": "no-seam-sidecar"
     }
   },
   "ganglior_events": [
@@ -4087,497 +4114,586 @@
     }
   ],
   "timeseries": {
-    "doc": "5-min epochs — cross-node feed for three-cornered-hat: hr = median pulse-HR (bpm), motionIndex = mean O2Ring motion count. HR-hat 3rd corner (ECG+PPG+Oxy) + a 2nd per-epoch motion series for the correlated-TCH ρ.",
+    "doc": "5-min epochs — cross-node feed for three-cornered-hat: hr = mean pulse-HR (bpm) or null when under 60 covered samples, hrN = the covered sample count, motionIndex = mean O2Ring motion count. HR-hat 3rd corner (ECG+PPG+Oxy) + a 2nd per-epoch motion series for the correlated-TCH ρ. `epochs` is ABSENT, with `epochsReason` naming why, when no window of the night held either channel.",
     "epochs": [
       {
         "tMin": 0,
         "hr": 61.9,
+        "hrN": 219,
         "hrStat": "mean-rate",
         "motionIndex": 0.123
       },
       {
         "tMin": 5,
         "hr": 53.8,
+        "hrN": 290,
         "hrStat": "mean-rate",
         "motionIndex": 0.11
       },
       {
         "tMin": 10,
         "hr": 52.6,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0.03
       },
       {
         "tMin": 15,
         "hr": 50.6,
+        "hrN": 298,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 20,
         "hr": 50.8,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 25,
         "hr": 51.1,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 30,
         "hr": 50.2,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0.051
       },
       {
         "tMin": 35,
         "hr": 51.9,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0.01
       },
       {
         "tMin": 40,
         "hr": 50.1,
+        "hrN": 271,
         "hrStat": "mean-rate",
         "motionIndex": 0.026
       },
       {
         "tMin": 45,
         "hr": 49.4,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0.02
       },
       {
         "tMin": 50,
         "hr": 47.5,
+        "hrN": 295,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 55,
         "hr": 46.9,
+        "hrN": 295,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 60,
         "hr": 47.8,
+        "hrN": 299,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 65,
         "hr": 49.1,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 70,
         "hr": 47.2,
+        "hrN": 292,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 75,
         "hr": 47.6,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 80,
         "hr": 47.4,
+        "hrN": 298,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 85,
         "hr": 48.3,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 90,
         "hr": 51.7,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 95,
         "hr": 57.6,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 100,
         "hr": 56.6,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 105,
         "hr": 55.8,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 110,
         "hr": 65.1,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 115,
         "hr": 56.8,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 120,
         "hr": 54.3,
+        "hrN": 295,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 125,
         "hr": 52.4,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0.007
       },
       {
         "tMin": 130,
         "hr": 50.4,
+        "hrN": 297,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 135,
         "hr": 53,
+        "hrN": 296,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 140,
         "hr": 49.9,
+        "hrN": 183,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 145,
         "hr": 50.1,
+        "hrN": 117,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 150,
         "hr": 51.5,
+        "hrN": 174,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 155,
         "hr": 52.2,
+        "hrN": 123,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 160,
         "hr": 50.9,
+        "hrN": 188,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 165,
         "hr": 52.6,
+        "hrN": 126,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 170,
         "hr": 54.4,
+        "hrN": 142,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 175,
         "hr": 53.9,
+        "hrN": 72,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 180,
         "hr": 54.1,
+        "hrN": 122,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 185,
         "hr": 51.4,
+        "hrN": 126,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 190,
         "hr": 52.4,
+        "hrN": 129,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 195,
         "hr": 55.9,
+        "hrN": 156,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 200,
         "hr": 53.2,
+        "hrN": 181,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 205,
         "hr": 55.1,
+        "hrN": 147,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 210,
         "hr": 57,
+        "hrN": 151,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 215,
         "hr": 55.5,
+        "hrN": 221,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 220,
         "hr": 54.3,
+        "hrN": 229,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 225,
         "hr": 56.5,
+        "hrN": 201,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 230,
         "hr": 56.8,
+        "hrN": 114,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 235,
         "hr": 56.3,
+        "hrN": 194,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 240,
         "hr": 56.5,
+        "hrN": 167,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 245,
         "hr": 56.5,
+        "hrN": 151,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 250,
         "hr": 57.6,
+        "hrN": 141,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 255,
         "hr": 61.2,
+        "hrN": 133,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 260,
         "hr": 63.5,
+        "hrN": 171,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 265,
         "hr": 58.6,
+        "hrN": 174,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 270,
         "hr": 56.5,
+        "hrN": 138,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 275,
         "hr": 58.2,
+        "hrN": 197,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 280,
         "hr": 57.8,
+        "hrN": 162,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 285,
         "hr": 55.4,
+        "hrN": 164,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 290,
         "hr": 56.4,
+        "hrN": 167,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 295,
         "hr": 55,
+        "hrN": 172,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 300,
         "hr": 56.1,
+        "hrN": 131,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 305,
         "hr": 55.3,
+        "hrN": 142,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 310,
         "hr": 57.2,
+        "hrN": 136,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 315,
         "hr": 56.8,
+        "hrN": 148,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 320,
         "hr": 57.5,
+        "hrN": 139,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 325,
         "hr": 58.2,
+        "hrN": 152,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 330,
         "hr": 57.7,
+        "hrN": 130,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 335,
         "hr": 59.6,
+        "hrN": 140,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 340,
         "hr": 58.4,
+        "hrN": 95,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 345,
         "hr": 58.7,
+        "hrN": 117,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 350,
         "hr": 61.2,
+        "hrN": 142,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 355,
         "hr": 61.7,
+        "hrN": 157,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 360,
         "hr": 62.7,
+        "hrN": 141,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 365,
         "hr": 55.1,
+        "hrN": 113,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 370,
         "hr": 59,
+        "hrN": 177,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 375,
         "hr": 58.2,
+        "hrN": 129,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 380,
         "hr": 56.9,
+        "hrN": 122,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 385,
         "hr": 55.2,
+        "hrN": 97,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 390,
         "hr": 55.3,
+        "hrN": 122,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 395,
         "hr": 58.7,
+        "hrN": 123,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 400,
         "hr": 56.8,
+        "hrN": 163,
         "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 405,
         "hr": 55.9,
+        "hrN": 96,
+        "hrStat": "mean-rate",
+        "motionIndex": 0
+      },
+      {
+        "tMin": 410,
+        "hr": null,
+        "hrN": 45,
         "hrStat": "mean-rate",
         "motionIndex": 0
       }
@@ -53999,6 +54115,29 @@
     {
       "date": "2026-08-28",
       "t0Ms": 1787959367000,
+      "clockSeamScan": {
+        "scanned": true,
+        "reason": null,
+        "n": 16179,
+        "seams": 0,
+        "dropouts": 3214,
+        "reorders": 0,
+        "unsettled": 0,
+        "medianMs": 1000,
+        "madMs": 0,
+        "barMs": 1300,
+        "cadenceMs": 1000,
+        "dominantShare": 0.7240254164520007,
+        "forwardBlindShare": 0.1,
+        "forwardDecidable": true
+      },
+      "rowsDropped": {
+        "total": 0,
+        "short": 0,
+        "unreadable": 0,
+        "outOfRange": 0,
+        "stamp": 0
+      },
       "contentId": null,
       "provenance": null,
       "kernel": {
@@ -54034,8 +54173,8 @@
           {
             "key": "odi1",
             "label": "ODI-1/hr",
-            "value": 43.2,
-            "displayVal": "43.2/hr",
+            "value": 42.9,
+            "displayVal": "42.9/hr",
             "score": 8,
             "sev": "r",
             "cat": "spo2"
@@ -54279,8 +54418,8 @@
           {
             "key": "odi1",
             "label": "ODI-1/hr",
-            "value": 43.2,
-            "displayVal": "43.2/hr",
+            "value": 42.9,
+            "displayVal": "42.9/hr",
             "score": 8,
             "sev": "r",
             "cat": "spo2"
@@ -54322,7 +54461,7 @@
             "cat": null
           }
         ],
-        "impression": "Clean night: ODI-1/hr 43.2/hr, impaired SpO₂ recovery (idx 0.063).",
+        "impression": "Clean night: ODI-1/hr 42.9/hr, impaired SpO₂ recovery (idx 0.063).",
         "overallScore": 7
       },
       "odi4": {
@@ -54336,13 +54475,14 @@
       "hrv": {
         "hrSdnnProxy": 5.28,
         "hrSdnn": 5.28,
-        "pnn3": 2.2,
+        "pnn3": 0.5,
         "hrFloor": 47,
         "hrSlope": 1.37,
         "rsaProxy": 0.352,
-        "rmssd": 0.89,
+        "rmssd": 0.61,
         "maxHr": 93,
-        "n": 16083
+        "n": 16083,
+        "hrPairs": 8358
       },
       "hypoxicBurden": {
         "total": 22.6,
@@ -54752,14 +54892,16 @@
           }
         ],
         "artifactCount": 4,
-        "dip3Rate": 6.2
+        "dip3Rate": 6
       },
       "hrProfile": {
         "circadianScore": 6.78,
         "decCapacity": 0.68,
-        "apEn": 1.106,
+        "apEn": 1.1058,
         "bradyCount": 0,
-        "tachyCount": 0
+        "tachyCount": 0,
+        "hrCoveredN": 16083,
+        "hrSpanN": 16083
       },
       "crossSignal": {
         "autoArousalIdx": 0.7,
@@ -54783,11 +54925,12 @@
         }
       },
       "hrAdvanced": {
-        "rmssd": 0.89,
+        "rmssd": 0.61,
         "hrIQR": 7,
         "meanHRpb": 55.5,
         "meanHRnonPb": 54,
-        "hrPbContrast": 1.5
+        "hrPbContrast": 1.5,
+        "hrPairs": 8358
       },
       "composite": {
         "couplingScore": 25,
@@ -54804,18 +54947,30 @@
         "pred3pQ": "Q1(low)"
       },
       "desSev": {
-        "desSev": 1.9
+        "desSev": 1.9,
+        "desSevReason": null,
+        "desSevCoveredSec": 117,
+        "desSevAbsentSec": 0
       },
       "ctPrecise": {
-        "ct90s": 31,
-        "ct89s": 22,
-        "ct88s": 22,
-        "ct85s": 22,
-        "ct80s": 7,
-        "ct90m": 0.5,
+        "ct90s": 33,
+        "ct89s": 24,
+        "ct88s": 24,
+        "ct85s": 24,
+        "ct80s": 8,
+        "ct90m": 0.6,
         "ct89m": 0.4,
         "ct88m": 0.4,
-        "ct85m": 0.4
+        "ct85m": 0.4,
+        "ct90n": 31,
+        "ct89n": 22,
+        "ct88n": 22,
+        "ct85n": 22,
+        "ct80n": 7,
+        "ctSource": "stamps",
+        "ctCadenceMs": 1000,
+        "ctCoveredSec": 14861,
+        "ctUncoveredSec": 9838
       },
       "sleepStability": {
         "score": 77,
@@ -54863,6 +55018,8 @@
           "driftSlope": -0.0188,
           "driftPerHr": -0.226,
           "driftR2": 0.101,
+          "driftWindows": 53,
+          "driftWindowsPossible": 53,
           "driftLabel": "Stable"
         },
         "odi2": {
@@ -54877,7 +55034,10 @@
         "spo2Ac1": {
           "ac1": 0.973,
           "ac1Label": "Sustained (hypoventilation)",
-          "basis": "wholeRecord"
+          "basis": "wholeRecord",
+          "nMeasured": 16180,
+          "nTotal": 16180,
+          "nPairs": 16179
         },
         "hrFreqBands": {
           "hrBandsN": 14400,
@@ -54885,11 +55045,15 @@
           "hrLfPow": 4.8,
           "hrHfPow": 0.3,
           "hrLfHf": 12.73,
-          "hrLfHfLabel": "SNS dominant",
+          "hrLfHfLabel": "Not resolvable — band ratio outside physiology at 1 Hz",
           "basis": "medianOf30minWindows",
           "windowsUsed": 8
         },
-        "respRate": null,
+        "respRate": {
+          "respRateBpm": null,
+          "respRateLabel": null,
+          "reason": "proxy-uninformative"
+        },
         "hrAsymmetry": {
           "hrAccelAsym": 0.918,
           "meanUpBpm": 1.45,
@@ -54903,7 +55067,9 @@
           "hrQ4": 57.6,
           "hrArc": 4,
           "remReemergence": true,
-          "hrArcLabel": "Rising (arousal)"
+          "hrArcLabel": "Rising (arousal)",
+          "hrCoveredN": 16180,
+          "hrSpanN": 16180
         },
         "spo2HRLag": {
           "crossCorrLag": 46,
@@ -54927,7 +55093,9 @@
         "hrFlatlines": {
           "flatlineCount": 29,
           "maxFlatlineSec": 59,
-          "flatlineLabel": "Frequent (firmware artifact)"
+          "flatlineLabel": "Frequent (firmware artifact)",
+          "nMeasured": 16180,
+          "nTotal": 16180
         },
         "spo2Ceiling": {
           "ceilingRuns": 1,
@@ -55024,7 +55192,8 @@
           "nadirTrendSlope": -0.2,
           "nadirTrendR2": 0.067,
           "nadirTrendN": 4,
-          "nadirTrendLabel": "Worsening (REM-load)"
+          "nadirTrendLabel": "No clear trend",
+          "nadirTrendGate": "n<8"
         },
         "iei": {
           "ieiMeanSec": 3415,
@@ -55037,7 +55206,9 @@
           "hrNadirMinFromStart": 52,
           "hrNadirFrac": 0.19,
           "hrNadirSmoothed": 47.2,
-          "hrNadirLabel": "Early nadir (good alignment)"
+          "hrNadirLabel": "Early nadir (good alignment)",
+          "hrCoveredN": 16180,
+          "hrSpanN": 16180
         },
         "spo2NadirT": {
           "spo2NadirMinFromStart": 159,
@@ -55049,18 +55220,18 @@
           "rmssdArcWindows": [
             0.5,
             0.5,
-            0.5,
+            0.6,
             0.8,
-            0.7,
-            0.9,
-            1.2,
-            1.1
+            0.6,
+            0.6,
+            0.8,
+            0.4
           ],
-          "rmssdArcSlope": 0.1048,
-          "rmssdArcR2": 0.862,
+          "rmssdArcSlope": 0.0071,
+          "rmssdArcR2": 0.015,
           "rmssdFirstHalf": 0.6,
-          "rmssdLastHalf": 1,
-          "rmssdArcDelta": 0.4,
+          "rmssdLastHalf": 0.6,
+          "rmssdArcDelta": 0,
           "rmssdArcLabel": "Flat"
         },
         "spk50Rec": null,
@@ -55077,9 +55248,9 @@
           "nremDeepLabel": "Moderate"
         },
         "vo2est": {
-          "vo2est": 56.1,
-          "vo2Low": 45.3,
-          "vo2High": 66.9,
+          "vo2est": 55.8,
+          "vo2Low": 45,
+          "vo2High": 66.6,
           "vo2Category": "Unknown",
           "vo2Pct": "—",
           "vo2Conf": 85,
@@ -55089,8 +55260,8 @@
           "see": 10.8,
           "dfaAdj": 0,
           "dfaNote": "DFA α1 computed on SpO₂ (not HR) — SpO₂ DFA is always >1.0 at short scales; HR-DFA sedentary thresholds do not apply. Adjustment disabled.",
-          "rmssdAdj": -0.5,
-          "rmssdNote": "RMSSD 0.89bpm (1Hz proxy) → adj -0.5",
+          "rmssdAdj": -0.8,
+          "rmssdNote": "RMSSD 0.61bpm (1Hz proxy) → adj -0.8",
           "formula": "Uth-Sørensen 2004 (VO2max = 15.3 × HRmax/HRrest)",
           "label": "Top-25% for age 49 (assumed)",
           "ageAssumed": true,
@@ -55175,7 +55346,7 @@
               "purpose": "Peak VO₂max, high-intensity intervals"
             }
           ],
-          "readiness": 42,
+          "readiness": 36,
           "readinessBasis": {
             "scored": [
               "rmssd",
@@ -55187,8 +55358,8 @@
             "weightPresent": 100,
             "weightTotal": 100
           },
-          "readinessTier": "Low",
-          "readinessColor": "warn",
+          "readinessTier": "Rest Day",
+          "readinessColor": "bad",
           "recZones": [
             {
               "low": 111,
@@ -55196,18 +55367,11 @@
               "name": "Z1 Recovery",
               "color": "#56d364",
               "purpose": "Active recovery, easy walk/swim"
-            },
-            {
-              "low": 123,
-              "high": 136,
-              "name": "Z2 Aerobic Base",
-              "color": "#79c0ff",
-              "purpose": "Fat oxidation, base fitness, Zone 2 training"
             }
           ],
-          "trainingNote": "Recovery or easy Zone 2 only. Prioritize sleep tonight.",
+          "trainingNote": "Rest or active recovery walk only. Training will deepen deficit.",
           "scores": {
-            "rmssd": 10,
+            "rmssd": 4,
             "spo2": 7,
             "sleep": 9,
             "sleepMax": 20,
@@ -55218,7 +55382,9 @@
           "mafAdj": "-10 (recovery deficit)",
           "lthr": 153,
           "lthrNote": "Zone 4 top ≈ LTHR. Confirm with field test (30-min max effort, avg last 20 min).",
-          "method": "Karvonen HRR (ACSM 2022) · Tanaka HRmax · MAF 180-formula"
+          "ageUsed": 49,
+          "ageAssumed": true,
+          "method": "Karvonen HRR (ACSM 2022) · Tanaka HRmax · MAF 180-formula · age 49 ASSUMED (not entered)"
         }
       },
       "research": {
@@ -55304,8 +55470,8 @@
           "ultradianValleys": 4
         },
         "odi1": {
-          "odi1Rate": 43.2,
-          "odi1Total": 194
+          "odi1Rate": 42.9,
+          "odi1Total": 193
         },
         "mos": {
           "mos": 1,
@@ -55356,12 +55522,18 @@
         "fft": {
           "peakFreqHz": null,
           "peakCycSec": null,
-          "snr": 6.87,
-          "threshold": 19.51,
-          "bins": 365,
-          "strided": true,
+          "snr": 7.23,
+          "threshold": 21.04,
+          "bins": 729,
+          "bandBinsN": 729,
+          "strided": false,
           "rhoLag1": 0.9727,
-          "detected": false
+          "rhoBg": 0.9749,
+          "coveredN": 16180,
+          "spanN": 16180,
+          "absentRunMaxN": 0,
+          "detected": false,
+          "reason": null
         },
         "hrEnt": {
           "sampEn": 0.9422,
@@ -55383,13 +55555,14 @@
         "hypLoad": {
           "hypoxicLoad": 4.784,
           "hlLabel": "Moderate",
+          "hlReason": null,
           "hl_nadirCount": 11,
           "hl_meanDepth": 3.7,
           "hl_meanDurSec": 32
         },
         "vagal": {
-          "vagalIndex": 0.1329,
-          "vagalLabel": "High"
+          "vagalIndex": 0.0302,
+          "vagalLabel": "Moderate"
         },
         "recIdx": {
           "recoveryIndex": 0.063,

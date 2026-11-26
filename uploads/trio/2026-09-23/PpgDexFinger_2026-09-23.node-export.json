@@ -9,21 +9,40 @@
     "node": "PpgDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-10-12T21:17:31.143Z",
+    "generated": "2026-11-26T14:56:23.246Z",
     "provenance": null,
     "doc": "PpgDex PPG-derived events → Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
-    "scrubbed": true
+    "scrubbed": true,
+    "scrubDropped": [
+      "signalQuality"
+    ]
   },
   "recording": {
     "source": "ppg",
     "contentId": null,
     "startEpochMs": 1790205230456,
     "endEpochMs": 1790223928395,
-    "durSec": 18646.947535771065,
+    "durSec": 18648.42992288735,
     "sessions": 1,
     "events": 4,
     "site": "finger",
     "siteSource": "device-default",
+    "timing": {
+      "timingSource": "host",
+      "independent": true,
+      "anchors": 4692,
+      "spanMs": 18669990.818148,
+      "ppm": null,
+      "spanPpm": null,
+      "ppmEstimator": null,
+      "ppmUncertainty": null,
+      "resyncs": 0,
+      "seams": 0,
+      "rate": 125.79,
+      "rateRaw": 125.97,
+      "rateApplied": true,
+      "reason": "O2Ring finger layout — the device column is host-synthesised by construction (DA-V §2.7 F17), whatever the 0.05 % delta share says"
+    },
     "coverage": {
       "kind": "sparse",
       "spanSec": 18672,
@@ -1878,9 +1897,59 @@
       "n": 461,
       "source": "ble-dropout"
     },
+    "validity": {
+      "seams": null,
+      "seamsExamined": null,
+      "seamsPlaced": null,
+      "seamsUnplaced": null,
+      "seamsBoundMs": null,
+      "seamsDeviceAxis": null,
+      "seamsReason": "no-seam-sidecar"
+    },
+    "offsetSegments": [
+      {
+        "fromDevMs": 0,
+        "toDevMs": 18505908.350408,
+        "anchors": 4662,
+        "spanS": 18506,
+        "flatOffsetMs": -863.4026500005275,
+        "residualRmsMs": 626.4452547381699,
+        "jitterMs": 21.222509000450373,
+        "ppm": null,
+        "rate": "unknown",
+        "rateReason": "residual 626.4 ms about the flat offset is over 3x this segment's own 21.2 ms jitter — it holds structure the flat model has not removed (sub-bound replays)"
+      },
+      {
+        "fromDevMs": 18552817.406868,
+        "toDevMs": 18669990.818148,
+        "anchors": 30,
+        "spanS": 117,
+        "flatOffsetMs": 25656.74682000093,
+        "residualRmsMs": 14.682778691607526,
+        "jitterMs": 19.711000002920628,
+        "ppm": null,
+        "rate": "unknown",
+        "rateReason": "spans 117 s, under the 2400 s a rate needs"
+      }
+    ],
     "hostAxis": {
+      "ok": true,
       "anchors": 4692,
-      "ppm": 1374.2722983590318,
+      "ppm": null,
+      "ppmReason": "drawn-column — the device column is host-synthesised, so a rate against it describes a counter with no oscillator",
+      "drawnColumn": {
+        "ppm": 1382.0863297328033,
+        "spanPpm": 1374.2471596216246
+      },
+      "spanMs": 18669990.818148,
+      "spanPpm": null,
+      "flat": false,
+      "flatResidualMs": 626.4452547381699,
+      "flatJitterMs": 21.222509000450373,
+      "segments": 2,
+      "rate": "unknown",
+      "rateReason": "the device column is drawn (0 % of its deltas are one value) — a rate over it measures a counter with no oscillator, whatever the span",
+      "rateApplied": true,
       "maxStepMs": 26508.98359199986,
       "totalMs": 25657.651191998273,
       "independent": true,
@@ -1888,8 +1957,12 @@
       "inertReason": null,
       "drawn": true,
       "quantizedShare": 0.0004761730183401214,
+      "applied": true,
       "timingSource": "host",
-      "stability": null
+      "stability": null,
+      "deviceDrawn": true,
+      "drawnShare": 0.04860370923044127,
+      "drawnReason": "O2Ring finger layout — the device column is host-synthesised by construction (DA-V §2.7 F17), whatever the 0.05 % delta share says"
     }
   },
   "ganglior_events": [
@@ -1901,7 +1974,7 @@
       "conf": 0.7,
       "sqi": 0.74,
       "meta": {
-        "rmssdFrom": 130,
+        "rmssdFrom": 139.5,
         "rmssdTo": 51,
         "position": null
       }
@@ -1981,7 +2054,7 @@
     },
     "rmssd": {
       "metricId": "rmssd",
-      "value": 33.8,
+      "value": 33.6,
       "window": {
         "startTMs": 1790205230456,
         "endTMs": 1790223928395,
@@ -2020,8 +2093,8 @@
     "devRawRMSSD": 87.3,
     "deviceAgreementPct": 99.8,
     "stability": {
-      "slope": -0.9992478454745579,
-      "slopeSE": 0.009810636989334164,
+      "slope": -0.9992477019029222,
+      "slopeSE": 0.00981063686328216,
       "nTau": 14,
       "noise": "white/flicker-phase",
       "candidates": null,
@@ -2029,80 +2102,80 @@
       "beatsPaired": 17476,
       "tau0Sec": 1.06,
       "atShortestMs": 34.77,
-      "atLongestMs": 0.005634352017922535,
-      "atShortestPpm": 34769.83,
-      "atLongestPpm": 5.634352017922534,
+      "atLongestMs": 0.005634348218559824,
+      "atShortestPpm": 34769.73,
+      "atLongestPpm": 5.634348218559824,
       "tauMaxSec": 8650,
       "optimalTauSec": 8650,
       "curve": [
         {
           "tauSec": 1.06,
-          "adevPpm": 34769.82728283718,
+          "adevPpm": 34769.7343068115,
           "n": 17474
         },
         {
           "tauSec": 2.11,
-          "adevPpm": 16849.794749500063,
+          "adevPpm": 16849.774313692098,
           "n": 17472
         },
         {
           "tauSec": 4.22,
-          "adevPpm": 8818.451920491923,
+          "adevPpm": 8818.433854234945,
           "n": 17468
         },
         {
           "tauSec": 8.45,
-          "adevPpm": 4495.31602219403,
+          "adevPpm": 4495.308465160331,
           "n": 17460
         },
         {
           "tauSec": 16.9,
-          "adevPpm": 2326.5320803964128,
+          "adevPpm": 2326.5291110362073,
           "n": 17444
         },
         {
           "tauSec": 33.79,
-          "adevPpm": 1130.667220200663,
+          "adevPpm": 1130.6661785475821,
           "n": 17412
         },
         {
           "tauSec": 67.58,
-          "adevPpm": 560.2996659897859,
+          "adevPpm": 560.2988622215269,
           "n": 17348
         },
         {
           "tauSec": 135.16,
-          "adevPpm": 275.24890258138106,
+          "adevPpm": 275.24850235538753,
           "n": 17220
         },
         {
           "tauSec": 270.32,
-          "adevPpm": 133.4879385634974,
+          "adevPpm": 133.48772064291518,
           "n": 16964
         },
         {
           "tauSec": 540.65,
-          "adevPpm": 63.24900380555123,
+          "adevPpm": 63.24893215849689,
           "n": 16452
         },
         {
           "tauSec": 1081.3,
-          "adevPpm": 30.252891960951914,
+          "adevPpm": 30.252869659844272,
           "n": 15428
         },
         {
           "tauSec": 2162.59,
-          "adevPpm": 15.043990403303855,
+          "adevPpm": 15.043978662935313,
           "n": 13380
         },
         {
           "tauSec": 4325.19,
-          "adevPpm": 8.007459882988373,
+          "adevPpm": 8.00745213460421,
           "n": 9284
         },
         {
           "tauSec": 8650.38,
-          "adevPpm": 5.634352017922534,
+          "adevPpm": 5.634348218559824,
           "n": 1092
         }
       ],
@@ -2114,7 +2187,8 @@
     "analyzablePct": 99,
     "cleanBeatPct": 99,
     "coveragePct": 99,
-    "motionRejectedPct": 0,
+    "motionRejectedPct": null,
+    "motionRejectedPctReason": "no inertial stream was loaded — no beat was examined for motion",
     "correctionRatePct": 1.3,
     "ledAgreementPct": null,
     "ppiSpine": "foot",
@@ -2129,14 +2203,14 @@
       "matched": 17464,
       "unmatchedSelf": 425,
       "unmatchedDevice": 144,
-      "latencyMedianMs": 175.6,
+      "latencyMedianMs": 175.59,
       "latencyMadMs": 8.17,
       "sampleMs": 8,
       "madWithinOneSample": false,
       "byWindow": [
         172.61,
         168.64,
-        167.58,
+        167.57,
         177.55,
         182,
         181.22,
@@ -2145,7 +2219,7 @@
         181.45,
         176.02
       ],
-      "latencySpreadMs": 14.42,
+      "latencySpreadMs": 14.43,
       "pairTolSec": 0.3,
       "spanSec": 18452.8,
       "nSelfPPI": 17888,
@@ -2158,36 +2232,36 @@
     "pinnedCoverage": [
       {
         "channel": 0,
-        "rail": {
-          "lo": 0,
-          "hi": 199
-        },
-        "spans": 78,
-        "samplesUnmeasured": 2522,
-        "samplesAbsent": 1327,
+        "rail": null,
+        "spans": 80,
+        "samplesUnmeasured": 23569,
+        "samplesAbsent": 22374,
         "samplesSaturated": 1195
       }
     ],
     "timingSource": "host",
     "axisDrawn": true,
     "axisQuantizedShare": 0.0005,
-    "timebase": "host-disciplined"
+    "timebase": "host-disciplined",
+    "timebaseSource": "embedded"
   },
   "hrv": {
     "time": {
       "meanRR": 1026,
       "hr": 58,
-      "sdnn": 69.1,
-      "rmssd": 33.8,
+      "sdnn": 68,
+      "rmssd": 33.6,
       "pnn50": 9.2,
       "sdnnIndex": 51.6,
       "sdnnRobust": 43.3,
       "sd2Robust": 56.4,
+      "wholeRecordHR": 58,
+      "hrWindow": "epochMedian5min",
       "window": "wholeRecord",
       "units": "ms",
       "lowConfidence": false,
       "lowConfidenceReason": null,
-      "windowNote": "sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node’s wholeRecord SDNN/RMSSD.",
+      "windowNote": "sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node’s wholeRecord SDNN/RMSSD. hr is the DISPLAY rate instead: the 5-min epoch median on a record over 90 min, the whole-record rate below that. hrWindow names which one this export carries, and wholeRecordHR is the cross-node HR axis.",
       "sdnnNote": "whole-record sdnn runs high on optical — SDANN/baseline-wander inflation the chest ECG does not carry. sdnnIndex (mean of per-5-min SDNN) and sdnnRobust (quality-gated MEDIAN of per-5-min SDNN) both remove it, sdnnRobust the most; use sdnnRobust for cross-node SDNN comparison. Bias magnitudes are deliberately not quoted here: the earlier figures came from a single paired night and did not reproduce on the multi-night corpus."
     },
     "frequency": {
@@ -2200,9 +2274,9 @@
       "method": "Lomb-Scargle",
       "lowConfidence": false,
       "hfRobustLowMotion": null,
-      "wholeRecordLf": 1256,
-      "wholeRecordHf": 858,
-      "wholeRecordLfhf": 1.46,
+      "wholeRecordLf": 1262,
+      "wholeRecordHf": 815,
+      "wholeRecordLfhf": 1.55,
       "respRate": 16.14,
       "respRateMethod": "RSA (HF-peak of RR spectrum)"
     },
@@ -2231,8 +2305,8 @@
   },
   "apnea": {
     "cvhrIndex": 5.3,
-    "cvhrEvents": 27,
-    "cvhrHours": 5.12,
+    "cvhrEvents": 22,
+    "cvhrHours": 4.17,
     "cvhrMethod": "CVHR events/h from finger PPI NN (Hayano apnea-band 20–45 s; ports ECGDex detectCVHR)",
     "cvhrTier": "emerging"
   },
@@ -2243,13 +2317,15 @@
         "tMin": 0,
         "hr": 59,
         "hrStat": "rate-of-mean",
-        "rmssd": 130,
+        "rmssd": 139.5,
         "sdnn": 154.3,
         "lfhf": 0.64,
+        "spanSec": 294.95,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2260,10 +2336,12 @@
         "rmssd": 51,
         "sdnn": 67.4,
         "lfhf": 0.63,
+        "spanSec": 296.94,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2274,10 +2352,12 @@
         "rmssd": 55.6,
         "sdnn": 98.5,
         "lfhf": 0.68,
+        "spanSec": 297.54,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2288,10 +2368,12 @@
         "rmssd": 36.3,
         "sdnn": 89.5,
         "lfhf": 1.28,
+        "spanSec": 298.81,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2302,10 +2384,12 @@
         "rmssd": 26.2,
         "sdnn": 37.1,
         "lfhf": 0.8,
+        "spanSec": 299.16,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2316,10 +2400,12 @@
         "rmssd": 26.3,
         "sdnn": 43.8,
         "lfhf": 1.22,
+        "spanSec": 297.98,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2330,10 +2416,12 @@
         "rmssd": 25.3,
         "sdnn": 38.7,
         "lfhf": 1.08,
+        "spanSec": 299.82,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2344,10 +2432,12 @@
         "rmssd": 27.4,
         "sdnn": 42.3,
         "lfhf": 1.26,
+        "spanSec": 298.26,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2358,10 +2448,12 @@
         "rmssd": 22.1,
         "sdnn": 33,
         "lfhf": 0.65,
+        "spanSec": 299.25,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2372,10 +2464,12 @@
         "rmssd": 28,
         "sdnn": 39.6,
         "lfhf": 1.36,
+        "spanSec": 298.71,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2386,10 +2480,12 @@
         "rmssd": 23.7,
         "sdnn": 32,
         "lfhf": 1.02,
+        "spanSec": 299.08,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2400,10 +2496,12 @@
         "rmssd": 25.9,
         "sdnn": 37.9,
         "lfhf": 1.08,
+        "spanSec": 299.29,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2414,10 +2512,12 @@
         "rmssd": 21.2,
         "sdnn": 52.9,
         "lfhf": 1.94,
+        "spanSec": 298.83,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2428,10 +2528,12 @@
         "rmssd": 19.1,
         "sdnn": 38,
         "lfhf": 4.76,
+        "spanSec": 299.08,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2442,10 +2544,12 @@
         "rmssd": 23.7,
         "sdnn": 56.5,
         "lfhf": 0.84,
+        "spanSec": 299.21,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2456,10 +2560,12 @@
         "rmssd": 29.5,
         "sdnn": 70.9,
         "lfhf": 2.72,
+        "spanSec": 298.97,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2470,10 +2576,12 @@
         "rmssd": 27.7,
         "sdnn": 42,
         "lfhf": 3.48,
+        "spanSec": 298.39,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2484,10 +2592,12 @@
         "rmssd": 28.8,
         "sdnn": 38.5,
         "lfhf": 2.52,
+        "spanSec": 299.48,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2498,10 +2608,12 @@
         "rmssd": 33,
         "sdnn": 40.3,
         "lfhf": 2.79,
+        "spanSec": 298.88,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2512,10 +2624,12 @@
         "rmssd": 36.5,
         "sdnn": 36.5,
         "lfhf": 1.49,
+        "spanSec": 299.42,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2526,10 +2640,12 @@
         "rmssd": 27.7,
         "sdnn": 28.1,
         "lfhf": 1.15,
+        "spanSec": 298.24,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2540,10 +2656,12 @@
         "rmssd": 23.1,
         "sdnn": 23.6,
         "lfhf": 1.62,
+        "spanSec": 299.52,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2554,10 +2672,12 @@
         "rmssd": 21.8,
         "sdnn": 57.3,
         "lfhf": 2.74,
+        "spanSec": 298.74,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2568,10 +2688,12 @@
         "rmssd": 37.6,
         "sdnn": 54.2,
         "lfhf": 1.72,
+        "spanSec": 298.63,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2582,10 +2704,12 @@
         "rmssd": 24,
         "sdnn": 23.3,
         "lfhf": 1.27,
+        "spanSec": 297.34,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2596,10 +2720,12 @@
         "rmssd": 30.6,
         "sdnn": 72.1,
         "lfhf": 1.08,
+        "spanSec": 298.27,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2610,10 +2736,12 @@
         "rmssd": 28.7,
         "sdnn": 30,
         "lfhf": 1.31,
+        "spanSec": 299.87,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2624,10 +2752,12 @@
         "rmssd": 42.3,
         "sdnn": 74,
         "lfhf": 2.74,
+        "spanSec": 298.92,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2638,10 +2768,12 @@
         "rmssd": 28.9,
         "sdnn": 30.7,
         "lfhf": 1.26,
+        "spanSec": 298.67,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2652,10 +2784,12 @@
         "rmssd": 45.4,
         "sdnn": 88,
         "lfhf": 1.77,
+        "spanSec": 298.79,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2666,10 +2800,12 @@
         "rmssd": 23,
         "sdnn": 24.7,
         "lfhf": 1.43,
+        "spanSec": 298.89,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2680,10 +2816,12 @@
         "rmssd": 22.9,
         "sdnn": 22.3,
         "lfhf": 1.13,
+        "spanSec": 299.44,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2694,10 +2832,12 @@
         "rmssd": 22.4,
         "sdnn": 25.4,
         "lfhf": 1.53,
+        "spanSec": 298.11,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2708,10 +2848,12 @@
         "rmssd": 23.3,
         "sdnn": 23.1,
         "lfhf": 1.51,
+        "spanSec": 299.8,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2722,10 +2864,12 @@
         "rmssd": 23.7,
         "sdnn": 27.8,
         "lfhf": 2.57,
+        "spanSec": 298.74,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2736,10 +2880,12 @@
         "rmssd": 24.5,
         "sdnn": 25.7,
         "lfhf": 1.26,
+        "spanSec": 299.13,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2750,10 +2896,12 @@
         "rmssd": 29.1,
         "sdnn": 70.1,
         "lfhf": 3.62,
+        "spanSec": 299.07,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2764,10 +2912,12 @@
         "rmssd": 33.7,
         "sdnn": 36.6,
         "lfhf": 1.58,
+        "spanSec": 298.53,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2778,10 +2928,12 @@
         "rmssd": 24.7,
         "sdnn": 51.7,
         "lfhf": 4.34,
+        "spanSec": 299.42,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2792,10 +2944,12 @@
         "rmssd": 27.9,
         "sdnn": 49.7,
         "lfhf": 3.46,
+        "spanSec": 299.08,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2806,10 +2960,12 @@
         "rmssd": 21.5,
         "sdnn": 25.8,
         "lfhf": 1.62,
+        "spanSec": 298.55,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2820,10 +2976,12 @@
         "rmssd": 40.8,
         "sdnn": 87.1,
         "lfhf": 1.33,
+        "spanSec": 299.86,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2834,10 +2992,12 @@
         "rmssd": 36.5,
         "sdnn": 43.2,
         "lfhf": 1.82,
+        "spanSec": 298.51,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2848,10 +3008,12 @@
         "rmssd": 35.5,
         "sdnn": 43.5,
         "lfhf": 1.67,
+        "spanSec": 298.87,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2862,10 +3024,12 @@
         "rmssd": 36.1,
         "sdnn": 73.7,
         "lfhf": 2.52,
+        "spanSec": 299.59,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2876,10 +3040,12 @@
         "rmssd": 29.2,
         "sdnn": 27.4,
         "lfhf": 1.25,
+        "spanSec": 298.47,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2890,10 +3056,12 @@
         "rmssd": 34.4,
         "sdnn": 43.6,
         "lfhf": 1.07,
+        "spanSec": 298.68,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2904,10 +3072,12 @@
         "rmssd": 34.1,
         "sdnn": 32.4,
         "lfhf": 0.91,
+        "spanSec": 299.27,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2918,10 +3088,12 @@
         "rmssd": 36.1,
         "sdnn": 43.4,
         "lfhf": 1.68,
+        "spanSec": 299.61,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2932,10 +3104,12 @@
         "rmssd": 41.2,
         "sdnn": 85.5,
         "lfhf": 1.51,
+        "spanSec": 298.24,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2946,10 +3120,12 @@
         "rmssd": 37.8,
         "sdnn": 59.5,
         "lfhf": 2.15,
+        "spanSec": 299.02,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2960,10 +3136,12 @@
         "rmssd": 36.5,
         "sdnn": 47.6,
         "lfhf": 1.19,
+        "spanSec": 299.44,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2974,10 +3152,12 @@
         "rmssd": 47.7,
         "sdnn": 83.3,
         "lfhf": 0.84,
+        "spanSec": 298.71,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -2988,10 +3168,12 @@
         "rmssd": 31.2,
         "sdnn": 40,
         "lfhf": 1.49,
+        "spanSec": 298.44,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -3002,10 +3184,12 @@
         "rmssd": 35.5,
         "sdnn": 44.9,
         "lfhf": 2.73,
+        "spanSec": 299.71,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -3016,10 +3200,12 @@
         "rmssd": 36.3,
         "sdnn": 56.2,
         "lfhf": 1.65,
+        "spanSec": 298.65,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -3030,10 +3216,12 @@
         "rmssd": 34.3,
         "sdnn": 77.2,
         "lfhf": 1.02,
+        "spanSec": 298.87,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -3044,10 +3232,12 @@
         "rmssd": 18.8,
         "sdnn": 40.5,
         "lfhf": 3.24,
+        "spanSec": 299.38,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -3058,10 +3248,12 @@
         "rmssd": 41.3,
         "sdnn": 87.4,
         "lfhf": 2.42,
+        "spanSec": 299.18,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -3072,10 +3264,12 @@
         "rmssd": 28.7,
         "sdnn": 40.8,
         "lfhf": 3.02,
+        "spanSec": 299.29,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -3086,10 +3280,12 @@
         "rmssd": 39.1,
         "sdnn": 88,
         "lfhf": 2.36,
+        "spanSec": 298.56,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       },
@@ -3100,10 +3296,12 @@
         "rmssd": 54.4,
         "sdnn": 101,
         "lfhf": 0.9,
+        "spanSec": 155.07,
         "motionIndex": null,
         "ledAgreementPct": null,
         "position": "unknown",
         "positionConf": null,
+        "positionReason": "no-posture-datum",
         "headingDeg": null,
         "magInterference": null
       }
@@ -3135,7 +3333,7 @@
         69.809,
         70.784,
         71.774,
-        74.619,
+        74.62,
         75.692,
         76.652,
         77.612,
@@ -4906,7 +5104,7 @@
         2044.055,
         2045.146,
         2046.203,
-        2047.246,
+        2047.247,
         2048.324,
         2049.428,
         2050.512,
@@ -5360,7 +5558,7 @@
         2543.08,
         2544.129,
         2545.176,
-        2546.247,
+        2546.248,
         2547.333,
         2548.444,
         2549.539,
@@ -8509,7 +8707,7 @@
         5847.507,
         5848.589,
         5849.658,
-        5850.686,
+        5850.687,
         5851.707,
         5852.746,
         5853.789,
@@ -9367,7 +9565,7 @@
         6756.266,
         6757.285,
         6758.313,
-        6759.347,
+        6759.348,
         6760.373,
         6761.458,
         6762.523,
@@ -9460,7 +9658,7 @@
         6852.891,
         6853.91,
         6854.923,
-        6855.968,
+        6855.969,
         6857.006,
         6858.042,
         6859.097,
@@ -10648,7 +10846,7 @@
         8142.26,
         8143.331,
         8144.391,
-        8145.43,
+        8145.431,
         8146.497,
         8147.585,
         8148.678,
@@ -10921,7 +11119,7 @@
         8448.676,
         8449.774,
         8450.841,
-        8451.862,
+        8451.863,
         8452.895,
         8453.944,
         8454.97,
@@ -13280,7 +13478,7 @@
         10907.388,
         10908.406,
         10909.458,
-        10910.513,
+        10910.514,
         10911.525,
         10912.617,
         10913.69,
@@ -13466,7 +13664,7 @@
         11096.256,
         11097.17,
         11098.066,
-        11098.951,
+        11098.952,
         11099.846,
         11100.764,
         11101.667,
@@ -13936,7 +14134,7 @@
         11539.154,
         11540.236,
         11541.372,
-        11542.471,
+        11542.472,
         11543.547,
         11544.583,
         11545.63,
@@ -14329,7 +14527,7 @@
         11907.852,
         11908.85,
         11909.836,
-        11910.831,
+        11910.832,
         11911.845,
         11912.866,
         11913.89,
@@ -15442,7 +15640,7 @@
         12995.672,
         12996.755,
         12997.756,
-        12998.765,
+        12998.766,
         12999.798,
         13000.825,
         13001.837,
@@ -15542,7 +15740,7 @@
         13096.996,
         13097.996,
         13099.01,
-        13099.981,
+        13099.982,
         13100.957,
         13101.948,
         13102.977,
@@ -15869,7 +16067,7 @@
         13424.736,
         13425.746,
         13426.701,
-        13427.664,
+        13427.665,
         13428.605,
         13429.611,
         13430.643,
@@ -16347,7 +16545,7 @@
         13911.006,
         13912.044,
         13913.049,
-        13914.093,
+        13914.094,
         13915.173,
         13916.199,
         13917.205,
@@ -16532,14 +16730,14 @@
         14103.065,
         14104.093,
         14105.132,
-        14106.154,
+        14106.155,
         14107.18,
         14108.253,
         14109.337,
         14110.368,
         14111.401,
         14112.45,
-        14113.489,
+        14113.49,
         14114.498,
         14115.477,
         14116.452,
@@ -17659,7 +17857,7 @@
         15281.993,
         15282.946,
         15283.933,
-        15284.925,
+        15284.926,
         15285.877,
         15286.854,
         15287.844,
@@ -18007,7 +18205,7 @@
         15641.036,
         15642.055,
         15643.109,
-        15644.159,
+        15644.16,
         15645.204,
         15646.254,
         15647.342,
@@ -18619,7 +18817,7 @@
         16286.543,
         16287.607,
         16288.65,
-        16289.675,
+        16289.676,
         16290.721,
         16291.767,
         16292.82,
@@ -29841,7 +30039,7 @@
         1035,
         1027,
         1000,
-        1032,
+        1033,
         1040,
         1003,
         1012,
@@ -37497,7 +37695,7 @@
         876,
         724,
         835,
-        652,
+        653,
         749,
         695,
         683,
@@ -60174,7 +60372,7 @@
         0.991,
         0.991,
         0.991,
-        0.987,
+        0.99,
         0.975,
         0.96,
         0.949,
@@ -60205,7 +60403,7 @@
         0.901,
         0.901,
         0.944,
-        0.901,
+        0.944,
         0.901,
         0.901,
         0.901,
@@ -60215,7 +60413,7 @@
         0.944,
         0.944,
         0.975,
-        0.994,
+        0.975,
         0.994,
         0.994,
         0.994,
@@ -62469,7 +62667,7 @@
         1,
         1,
         1,
-        0.994,
+        1,
         0.994,
         0.975,
         0.975,
@@ -66170,7 +66368,7 @@
         1,
         0.999,
         0.996,
-        0.987,
+        0.986,
         0.948,
         0.944,
         0.944,
@@ -66754,43 +66952,6 @@
         0.714,
         0.714,
         0.714,
-        0.714,
-        0.636,
-        0.636,
-        0.636,
-        0.636,
-        0.636,
-        0.714,
-        0.714,
-        0.714,
-        0.714,
-        0.714,
-        0.714,
-        0.714,
-        0.636,
-        0.636,
-        0.636,
-        0.636,
-        0.636,
-        0.714,
-        0.714,
-        0.714,
-        0.714,
-        0.714,
-        0.636,
-        0.636,
-        0.636,
-        0.636,
-        0.636,
-        0.636,
-        0.636,
-        0.714,
-        0.714,
-        0.714,
-        0.714,
-        0.636,
-        0.636,
-        0.636,
         0.636,
         0.636,
         0.636,
@@ -66804,6 +66965,36 @@
         0.714,
         0.714,
         0.714,
+        0.636,
+        0.636,
+        0.636,
+        0.636,
+        0.636,
+        0.714,
+        0.714,
+        0.714,
+        0.714,
+        0.714,
+        0.636,
+        0.636,
+        0.636,
+        0.636,
+        0.636,
+        0.636,
+        0.636,
+        0.714,
+        0.714,
+        0.714,
+        0.714,
+        0.636,
+        0.636,
+        0.636,
+        0.636,
+        0.636,
+        0.636,
+        0.636,
+        0.636,
+        0.636,
         0.714,
         0.714,
         0.714,
@@ -66822,6 +67013,13 @@
         0.714,
         0.714,
         0.714,
+        0.714,
+        0.714,
+        0.714,
+        0.714,
+        0.714,
+        0.785,
+        0.785,
         0.785,
         0.785,
         0.785,
@@ -66905,7 +67103,7 @@
         0.944,
         0.944,
         0.944,
-        0.924,
+        0.944,
         0.927,
         0.93,
         0.944,
@@ -66967,7 +67165,7 @@
         0.636,
         0.636,
         0.636,
-        0.714,
+        0.636,
         0.636,
         0.636,
         0.636,
@@ -67134,7 +67332,7 @@
         0.714,
         0.714,
         0.714,
-        0.714,
+        0.785,
         0.714,
         0.714,
         0.785,
@@ -67197,7 +67395,7 @@
         0.944,
         0.944,
         0.944,
-        0.944,
+        0.903,
         0.944,
         0.944,
         0.944,
@@ -67402,9 +67600,9 @@
         0.714,
         0.714,
         0.714,
-        0.714,
         0.636,
         0.636,
+        0.636,
         0.714,
         0.714,
         0.714,
@@ -67464,7 +67662,7 @@
         0.785,
         0.785,
         0.785,
-        0.785,
+        0.848,
         0.848,
         0.848,
         0.785,
@@ -67975,7 +68173,7 @@
         0.901,
         0.905,
         0.912,
-        0.919,
+        0.918,
         0.929,
         0.94,
         0.952,
@@ -68011,7 +68209,7 @@
         0.948,
         0.946,
         0.943,
-        0.942,
+        0.941,
         0.945,
         0.948,
         0.95,
@@ -68097,7 +68295,7 @@
         0.966,
         0.966,
         0.959,
-        0.954,
+        0.953,
         0.948,
         0.945,
         0.941,
@@ -68242,7 +68440,7 @@
         1,
         1,
         0.999,
-        0.999,
+        0.997,
         0.996,
         0.995,
         0.993,
@@ -68273,7 +68471,7 @@
         0.973,
         0.976,
         0.977,
-        0.978,
+        0.979,
         0.98,
         0.981,
         0.981,
@@ -68573,7 +68771,7 @@
         0.998,
         0.995,
         0.993,
-        0.989,
+        0.988,
         0.982,
         0.976,
         0.975,
@@ -68800,7 +68998,7 @@
         0.98,
         0.98,
         0.981,
-        0.982,
+        0.983,
         0.984,
         0.985,
         0.984,
@@ -69232,7 +69430,7 @@
         0.99,
         0.983,
         0.976,
-        0.975,
+        0.962,
         0.952,
         0.945,
         0.944,
@@ -69247,6 +69445,7 @@
         0.928,
         0.928,
         0.928,
+        0.927,
         0.927,
         0.944,
         0.944,
@@ -69265,7 +69464,6 @@
         0.944,
         0.944,
         0.946,
-        0.946,
         0.948,
         0.95,
         0.953,
@@ -69276,7 +69474,7 @@
         0.965,
         0.967,
         0.969,
-        0.975,
+        0.994,
         0.994,
         0.994,
         0.994,
@@ -70534,8 +70732,8 @@
         0.865,
         0.864,
         0.864,
-        0.864,
-        0.864,
+        0.863,
+        0.863,
         0.862,
         0.856,
         0.85,
@@ -70580,7 +70778,7 @@
         0.994,
         0.994,
         0.994,
-        1,
+        0.994,
         1,
         1,
         1,
@@ -71794,7 +71992,7 @@
         0.994,
         0.994,
         0.994,
-        0.994,
+        0.985,
         0.985,
         0.986,
         0.986,
@@ -71878,7 +72076,7 @@
         0.959,
         0.959,
         0.959,
-        0.957,
+        0.956,
         0.957,
         0.956,
         0.975,
@@ -71974,7 +72172,7 @@
         0.991,
         0.99,
         0.989,
-        0.987,
+        0.988,
         0.985,
         0.982,
         0.978,
@@ -72064,7 +72262,7 @@
         1,
         1,
         0.998,
-        0.976,
+        0.975,
         0.975,
         0.975,
         0.975,
@@ -72192,7 +72390,7 @@
         1,
         1,
         0.999,
-        1,
+        0.998,
         0.997,
         0.997,
         0.997,
@@ -72547,7 +72745,7 @@
         0.848,
         0.848,
         0.848,
-        0.848,
+        0.901,
         0.848,
         0.848,
         0.848,
@@ -72611,7 +72809,7 @@
         0.956,
         0.961,
         0.966,
-        0.975,
+        0.97,
         0.976,
         0.98,
         0.984,
@@ -72730,9 +72928,9 @@
         0.975,
         0.956,
         0.953,
-        0.952,
         0.951,
-        0.95,
+        0.951,
+        0.951,
         0.951,
         0.953,
         0.956,
@@ -72941,7 +73139,7 @@
         0.999,
         0.999,
         1,
-        0.999,
+        1,
         0.998,
         0.997,
         0.997,
@@ -73049,7 +73247,7 @@
         0.989,
         0.991,
         0.99,
-        0.989,
+        0.99,
         0.989,
         0.987,
         0.985,
@@ -73080,7 +73278,7 @@
         0.931,
         0.931,
         0.929,
-        0.928,
+        0.944,
         0.944,
         0.944,
         0.944,
@@ -73739,6 +73937,1560 @@
         1,
         1,
         1
+      ],
+      "spansGapRuns": [
+        [
+          14,
+          1
+        ],
+        [
+          19,
+          1
+        ],
+        [
+          26,
+          1
+        ],
+        [
+          29,
+          1
+        ],
+        [
+          33,
+          1
+        ],
+        [
+          37,
+          1
+        ],
+        [
+          43,
+          1
+        ],
+        [
+          47,
+          1
+        ],
+        [
+          66,
+          2
+        ],
+        [
+          72,
+          1
+        ],
+        [
+          77,
+          1
+        ],
+        [
+          85,
+          1
+        ],
+        [
+          93,
+          2
+        ],
+        [
+          107,
+          1
+        ],
+        [
+          121,
+          1
+        ],
+        [
+          123,
+          1
+        ],
+        [
+          129,
+          2
+        ],
+        [
+          138,
+          1
+        ],
+        [
+          156,
+          1
+        ],
+        [
+          163,
+          1
+        ],
+        [
+          175,
+          1
+        ],
+        [
+          178,
+          1
+        ],
+        [
+          189,
+          1
+        ],
+        [
+          200,
+          1
+        ],
+        [
+          208,
+          1
+        ],
+        [
+          215,
+          1
+        ],
+        [
+          221,
+          1
+        ],
+        [
+          224,
+          1
+        ],
+        [
+          232,
+          1
+        ],
+        [
+          246,
+          1
+        ],
+        [
+          259,
+          1
+        ],
+        [
+          263,
+          1
+        ],
+        [
+          272,
+          1
+        ],
+        [
+          282,
+          2
+        ],
+        [
+          298,
+          1
+        ],
+        [
+          304,
+          1
+        ],
+        [
+          310,
+          1
+        ],
+        [
+          320,
+          1
+        ],
+        [
+          333,
+          1
+        ],
+        [
+          338,
+          1
+        ],
+        [
+          341,
+          1
+        ],
+        [
+          347,
+          1
+        ],
+        [
+          349,
+          1
+        ],
+        [
+          369,
+          1
+        ],
+        [
+          377,
+          1
+        ],
+        [
+          382,
+          1
+        ],
+        [
+          392,
+          1
+        ],
+        [
+          400,
+          1
+        ],
+        [
+          408,
+          1
+        ],
+        [
+          414,
+          1
+        ],
+        [
+          424,
+          1
+        ],
+        [
+          426,
+          1
+        ],
+        [
+          439,
+          1
+        ],
+        [
+          442,
+          1
+        ],
+        [
+          448,
+          1
+        ],
+        [
+          453,
+          1
+        ],
+        [
+          461,
+          1
+        ],
+        [
+          465,
+          1
+        ],
+        [
+          468,
+          1
+        ],
+        [
+          471,
+          1
+        ],
+        [
+          495,
+          1
+        ],
+        [
+          505,
+          1
+        ],
+        [
+          512,
+          1
+        ],
+        [
+          517,
+          1
+        ],
+        [
+          522,
+          1
+        ],
+        [
+          532,
+          1
+        ],
+        [
+          549,
+          2
+        ],
+        [
+          561,
+          1
+        ],
+        [
+          572,
+          1
+        ],
+        [
+          580,
+          1
+        ],
+        [
+          589,
+          1
+        ],
+        [
+          592,
+          1
+        ],
+        [
+          596,
+          1
+        ],
+        [
+          619,
+          1
+        ],
+        [
+          630,
+          1
+        ],
+        [
+          637,
+          1
+        ],
+        [
+          641,
+          2
+        ],
+        [
+          653,
+          1
+        ],
+        [
+          658,
+          1
+        ],
+        [
+          671,
+          1
+        ],
+        [
+          684,
+          1
+        ],
+        [
+          690,
+          1
+        ],
+        [
+          696,
+          1
+        ],
+        [
+          701,
+          1
+        ],
+        [
+          710,
+          2
+        ],
+        [
+          715,
+          1
+        ],
+        [
+          736,
+          1
+        ],
+        [
+          762,
+          1
+        ],
+        [
+          771,
+          1
+        ],
+        [
+          776,
+          1
+        ],
+        [
+          789,
+          1
+        ],
+        [
+          804,
+          1
+        ],
+        [
+          813,
+          1
+        ],
+        [
+          816,
+          1
+        ],
+        [
+          827,
+          1
+        ],
+        [
+          836,
+          1
+        ],
+        [
+          840,
+          2
+        ],
+        [
+          871,
+          1
+        ],
+        [
+          885,
+          1
+        ],
+        [
+          890,
+          1
+        ],
+        [
+          893,
+          2
+        ],
+        [
+          897,
+          1
+        ],
+        [
+          921,
+          1
+        ],
+        [
+          932,
+          1
+        ],
+        [
+          935,
+          1
+        ],
+        [
+          949,
+          1
+        ],
+        [
+          952,
+          1
+        ],
+        [
+          960,
+          1
+        ],
+        [
+          979,
+          1
+        ],
+        [
+          986,
+          1
+        ],
+        [
+          999,
+          1
+        ],
+        [
+          1007,
+          1
+        ],
+        [
+          1011,
+          1
+        ],
+        [
+          1021,
+          1
+        ],
+        [
+          1027,
+          1
+        ],
+        [
+          1035,
+          1
+        ],
+        [
+          1045,
+          1
+        ],
+        [
+          1052,
+          2
+        ],
+        [
+          1060,
+          1
+        ],
+        [
+          1078,
+          1
+        ],
+        [
+          1085,
+          1
+        ],
+        [
+          1102,
+          1
+        ],
+        [
+          1112,
+          1
+        ],
+        [
+          1117,
+          1
+        ],
+        [
+          1127,
+          1
+        ],
+        [
+          1136,
+          1
+        ],
+        [
+          1145,
+          1
+        ],
+        [
+          1159,
+          1
+        ],
+        [
+          1161,
+          1
+        ],
+        [
+          1176,
+          1
+        ],
+        [
+          1190,
+          1
+        ],
+        [
+          1197,
+          1
+        ],
+        [
+          1200,
+          1
+        ],
+        [
+          1202,
+          1
+        ],
+        [
+          1224,
+          1
+        ],
+        [
+          1227,
+          1
+        ],
+        [
+          1240,
+          1
+        ],
+        [
+          1250,
+          1
+        ],
+        [
+          1262,
+          1
+        ],
+        [
+          1268,
+          2
+        ],
+        [
+          1272,
+          1
+        ],
+        [
+          1287,
+          1
+        ],
+        [
+          1296,
+          1
+        ],
+        [
+          1301,
+          1
+        ],
+        [
+          1306,
+          1
+        ],
+        [
+          1312,
+          1
+        ],
+        [
+          1321,
+          2
+        ],
+        [
+          1334,
+          1
+        ],
+        [
+          1343,
+          1
+        ],
+        [
+          1351,
+          1
+        ],
+        [
+          1357,
+          1
+        ],
+        [
+          1360,
+          1
+        ],
+        [
+          1374,
+          1
+        ],
+        [
+          1376,
+          1
+        ],
+        [
+          1385,
+          1
+        ],
+        [
+          1395,
+          1
+        ],
+        [
+          1407,
+          1
+        ],
+        [
+          1416,
+          1
+        ],
+        [
+          1418,
+          1
+        ],
+        [
+          1430,
+          2
+        ],
+        [
+          1444,
+          1
+        ],
+        [
+          1454,
+          1
+        ],
+        [
+          1473,
+          1
+        ],
+        [
+          1480,
+          1
+        ],
+        [
+          1492,
+          1
+        ],
+        [
+          1501,
+          1
+        ],
+        [
+          1504,
+          1
+        ],
+        [
+          1508,
+          1
+        ],
+        [
+          1511,
+          1
+        ],
+        [
+          1524,
+          1
+        ],
+        [
+          1530,
+          1
+        ],
+        [
+          1540,
+          1
+        ],
+        [
+          1552,
+          1
+        ],
+        [
+          1555,
+          1
+        ],
+        [
+          1563,
+          1
+        ],
+        [
+          1569,
+          1
+        ],
+        [
+          1575,
+          1
+        ],
+        [
+          1581,
+          1
+        ],
+        [
+          1592,
+          1
+        ],
+        [
+          1597,
+          1
+        ],
+        [
+          1600,
+          1
+        ],
+        [
+          1609,
+          1
+        ],
+        [
+          1615,
+          1
+        ],
+        [
+          1621,
+          2
+        ],
+        [
+          1631,
+          1
+        ],
+        [
+          1642,
+          1
+        ],
+        [
+          1657,
+          1
+        ],
+        [
+          1670,
+          1
+        ],
+        [
+          1681,
+          1
+        ],
+        [
+          1687,
+          1
+        ],
+        [
+          1697,
+          1
+        ],
+        [
+          1706,
+          1
+        ],
+        [
+          1713,
+          1
+        ],
+        [
+          1725,
+          1
+        ],
+        [
+          1735,
+          2
+        ],
+        [
+          1741,
+          1
+        ],
+        [
+          1746,
+          1
+        ],
+        [
+          1748,
+          1
+        ],
+        [
+          1765,
+          1
+        ],
+        [
+          1779,
+          1
+        ],
+        [
+          1786,
+          1
+        ],
+        [
+          1806,
+          1
+        ],
+        [
+          1812,
+          1
+        ],
+        [
+          1819,
+          1
+        ],
+        [
+          1830,
+          1
+        ],
+        [
+          1836,
+          1
+        ],
+        [
+          1845,
+          1
+        ],
+        [
+          1851,
+          1
+        ],
+        [
+          1853,
+          1
+        ],
+        [
+          1857,
+          1
+        ],
+        [
+          1881,
+          2
+        ],
+        [
+          1893,
+          1
+        ],
+        [
+          1899,
+          1
+        ],
+        [
+          1902,
+          1
+        ],
+        [
+          1908,
+          1
+        ],
+        [
+          1919,
+          1
+        ],
+        [
+          1922,
+          1
+        ],
+        [
+          1937,
+          1
+        ],
+        [
+          1954,
+          1
+        ],
+        [
+          1958,
+          1
+        ],
+        [
+          1967,
+          1
+        ],
+        [
+          1972,
+          1
+        ],
+        [
+          1986,
+          1
+        ],
+        [
+          1992,
+          1
+        ],
+        [
+          2006,
+          1
+        ],
+        [
+          2015,
+          1
+        ],
+        [
+          2028,
+          1
+        ],
+        [
+          2031,
+          1
+        ],
+        [
+          2040,
+          2
+        ],
+        [
+          2047,
+          1
+        ],
+        [
+          2056,
+          1
+        ],
+        [
+          2063,
+          1
+        ],
+        [
+          2074,
+          1
+        ],
+        [
+          2079,
+          1
+        ],
+        [
+          2081,
+          1
+        ],
+        [
+          2089,
+          1
+        ],
+        [
+          2094,
+          1
+        ],
+        [
+          2107,
+          1
+        ],
+        [
+          2118,
+          2
+        ],
+        [
+          2133,
+          1
+        ],
+        [
+          2141,
+          2
+        ],
+        [
+          2156,
+          1
+        ],
+        [
+          2162,
+          1
+        ],
+        [
+          2175,
+          1
+        ],
+        [
+          2195,
+          1
+        ],
+        [
+          2203,
+          1
+        ],
+        [
+          2212,
+          1
+        ],
+        [
+          2217,
+          1
+        ],
+        [
+          2238,
+          1
+        ],
+        [
+          2241,
+          1
+        ],
+        [
+          2249,
+          1
+        ],
+        [
+          2257,
+          1
+        ],
+        [
+          2259,
+          1
+        ],
+        [
+          2262,
+          1
+        ],
+        [
+          2274,
+          1
+        ],
+        [
+          2278,
+          1
+        ],
+        [
+          2291,
+          1
+        ],
+        [
+          2296,
+          1
+        ],
+        [
+          2306,
+          1
+        ],
+        [
+          2310,
+          1
+        ],
+        [
+          2323,
+          1
+        ],
+        [
+          2327,
+          1
+        ],
+        [
+          2337,
+          1
+        ],
+        [
+          2351,
+          1
+        ],
+        [
+          2361,
+          1
+        ],
+        [
+          2365,
+          1
+        ],
+        [
+          2373,
+          1
+        ],
+        [
+          2378,
+          1
+        ],
+        [
+          2396,
+          1
+        ],
+        [
+          2405,
+          1
+        ],
+        [
+          2412,
+          1
+        ],
+        [
+          2424,
+          2
+        ],
+        [
+          2446,
+          2
+        ],
+        [
+          2463,
+          1
+        ],
+        [
+          2466,
+          1
+        ],
+        [
+          2471,
+          1
+        ],
+        [
+          2478,
+          1
+        ],
+        [
+          2495,
+          1
+        ],
+        [
+          2505,
+          1
+        ],
+        [
+          2513,
+          1
+        ],
+        [
+          2526,
+          1
+        ],
+        [
+          2530,
+          1
+        ],
+        [
+          2532,
+          1
+        ],
+        [
+          2539,
+          1
+        ],
+        [
+          2549,
+          1
+        ],
+        [
+          2571,
+          1
+        ],
+        [
+          2587,
+          1
+        ],
+        [
+          2594,
+          1
+        ],
+        [
+          2605,
+          1
+        ],
+        [
+          2616,
+          1
+        ],
+        [
+          2622,
+          1
+        ],
+        [
+          2629,
+          1
+        ],
+        [
+          2635,
+          1
+        ],
+        [
+          2644,
+          1
+        ],
+        [
+          2657,
+          1
+        ],
+        [
+          2661,
+          1
+        ],
+        [
+          2671,
+          1
+        ],
+        [
+          2684,
+          1
+        ],
+        [
+          2694,
+          2
+        ],
+        [
+          2702,
+          1
+        ],
+        [
+          2709,
+          1
+        ],
+        [
+          2722,
+          1
+        ],
+        [
+          2725,
+          1
+        ],
+        [
+          2732,
+          1
+        ],
+        [
+          2749,
+          1
+        ],
+        [
+          2752,
+          1
+        ],
+        [
+          2760,
+          1
+        ],
+        [
+          2763,
+          1
+        ],
+        [
+          2776,
+          1
+        ],
+        [
+          2778,
+          1
+        ],
+        [
+          2796,
+          1
+        ],
+        [
+          2805,
+          1
+        ],
+        [
+          2814,
+          1
+        ],
+        [
+          2816,
+          1
+        ],
+        [
+          2820,
+          1
+        ],
+        [
+          2835,
+          1
+        ],
+        [
+          2849,
+          1
+        ],
+        [
+          2858,
+          1
+        ],
+        [
+          2867,
+          1
+        ],
+        [
+          2871,
+          1
+        ],
+        [
+          2880,
+          1
+        ],
+        [
+          2891,
+          1
+        ],
+        [
+          2895,
+          1
+        ],
+        [
+          2902,
+          1
+        ],
+        [
+          2916,
+          1
+        ],
+        [
+          2920,
+          1
+        ],
+        [
+          2932,
+          2
+        ],
+        [
+          2937,
+          1
+        ],
+        [
+          2959,
+          1
+        ],
+        [
+          2966,
+          1
+        ],
+        [
+          2980,
+          1
+        ],
+        [
+          2983,
+          1
+        ],
+        [
+          3002,
+          2
+        ],
+        [
+          3019,
+          1
+        ],
+        [
+          3026,
+          1
+        ],
+        [
+          3033,
+          1
+        ],
+        [
+          3048,
+          1
+        ],
+        [
+          3059,
+          1
+        ],
+        [
+          3064,
+          1
+        ],
+        [
+          3070,
+          1
+        ],
+        [
+          3089,
+          1
+        ],
+        [
+          3101,
+          1
+        ],
+        [
+          3108,
+          1
+        ],
+        [
+          3119,
+          1
+        ],
+        [
+          3134,
+          1
+        ],
+        [
+          3142,
+          2
+        ],
+        [
+          3149,
+          1
+        ],
+        [
+          3153,
+          1
+        ],
+        [
+          3170,
+          1
+        ],
+        [
+          3173,
+          1
+        ],
+        [
+          3184,
+          1
+        ],
+        [
+          3205,
+          1
+        ],
+        [
+          3209,
+          1
+        ],
+        [
+          3222,
+          1
+        ],
+        [
+          3225,
+          1
+        ],
+        [
+          3234,
+          1
+        ],
+        [
+          3236,
+          1
+        ],
+        [
+          3242,
+          1
+        ],
+        [
+          3249,
+          2
+        ],
+        [
+          3262,
+          1
+        ],
+        [
+          3269,
+          1
+        ],
+        [
+          3274,
+          1
+        ],
+        [
+          3292,
+          1
+        ],
+        [
+          3299,
+          1
+        ],
+        [
+          3316,
+          1
+        ],
+        [
+          3319,
+          1
+        ],
+        [
+          3328,
+          1
+        ],
+        [
+          3340,
+          1
+        ],
+        [
+          3342,
+          1
+        ],
+        [
+          3345,
+          1
+        ],
+        [
+          3368,
+          1
+        ],
+        [
+          3373,
+          1
+        ],
+        [
+          3378,
+          1
+        ],
+        [
+          3387,
+          1
+        ],
+        [
+          3390,
+          1
+        ],
+        [
+          3408,
+          1
+        ],
+        [
+          3424,
+          1
+        ],
+        [
+          3427,
+          1
+        ],
+        [
+          3447,
+          1
+        ],
+        [
+          3449,
+          1
+        ],
+        [
+          3457,
+          1
+        ],
+        [
+          3467,
+          1
+        ],
+        [
+          3488,
+          1
+        ],
+        [
+          3495,
+          1
+        ],
+        [
+          3504,
+          1
+        ],
+        [
+          3509,
+          1
+        ],
+        [
+          3514,
+          1
+        ],
+        [
+          3516,
+          1
+        ]
       ]
     }
   }

@@ -1,0 +1,108 @@
+{
+  "schema": "tepna.published-number-record/1",
+  "producer": "tools/tch-pooled-hat.mjs",
+  "producerCommit": "d9988f37",
+  "invocation": "node tools/tch-pooled-hat.mjs --dir uploads/trio --json",
+  "generated": "2026-11-26",
+  "inputs": {
+    "path": "uploads/trio",
+    "committed": true,
+    "files": 923,
+    "digest": "e7d2f87042dc",
+    "note": "sha256[0:12] over path\\0sha12(bytes) of every git-tracked file under uploads/trio at producerCommit — a RESOLVABLE upstream node: recompute it and a moved corpus is visible"
+  },
+  "publishedIn": "briefs/SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md §11 (re-derived over 127 nights after the 2026-11-26 re-fold under closure 01cf791fcdb3c077)",
+  "supersedes": "analysis/published-numbers/tch-pooled-hat-2026-10-12.json (inputs 5daa4fc8ded5 at its last re-stamp, 90 nights; the 2026-11-26 re-fold rewrote every export under closure 01cf791fcdb3c077 and the fold admits 127 nights, so the population changed as well as the fold)",
+  "claims": {
+    "note": "the values EXACTLY as the prose states them (9 dp), so CLAIM … FROM … #claims/<key> compares equal; full precision is under result",
+    "gapH10": 0.009877134,
+    "gapVerity": 0.000042802,
+    "gapO2": 0.02112691,
+    "lhsH10": 0.009877134,
+    "lhsVerity": 0.000042802,
+    "lhsO2": 0.02112691,
+    "nightsUsed": 127,
+    "pooledSeconds": 2268258
+  },
+  "identity": {
+    "note": "lhs = σ²_pooled − σ²_weighted (computed here); gap = ½(B_AB + B_AC − B_BC) (the tool); |Δ| between them",
+    "absDelta": {
+      "h10": 7.979727989493313e-17,
+      "verity": 6.817463260588852e-16,
+      "o2": 1.9637069748057456e-15
+    }
+  },
+  "result": {
+    "dir": "uploads/trio",
+    "offered": 185,
+    "nights": 127,
+    "skipped": 58,
+    "pairs": {
+      "N": 2268258,
+      "hv": {
+        "within": 2.9798326726889415,
+        "B": 0.009919935887523174,
+        "pooled": 2.9897526085764645,
+        "meanMu": 0.03831905426325663
+      },
+      "ho": {
+        "within": 12.828947000183307,
+        "B": 0.031004043846958942,
+        "pooled": 12.859951044030266,
+        "meanMu": 0.14360895199381604
+      },
+      "vo": {
+        "within": 12.512647479057708,
+        "B": 0.021169711059111605,
+        "pooled": 12.533817190116821,
+        "meanMu": 0.10528989773055904
+      }
+    },
+    "pooled": {
+      "h10": 1.6579432312449551,
+      "verity": 1.3318093773315098,
+      "o2": 11.202007812785313
+    },
+    "weighted": {
+      "h10": 1.6480660969072698,
+      "verity": 1.3317665757816712,
+      "o2": 11.180880903276037
+    },
+    "gap": {
+      "h10": 0.009877134337685254,
+      "verity": 0.00004280154983791855,
+      "o2": 0.021126909509273685
+    },
+    "medianSigma": {
+      "h10": 0.7215725406836453,
+      "verity": 0.8388610691217226,
+      "o2": 3.2802554524197176
+    }
+  },
+  "corpus": {
+    "root": "uploads/trio",
+    "resolvable": true,
+    "dataDigest": "639d3065516b",
+    "dataFiles": 796,
+    "foldGeneration": null,
+    "scopedToNightsRead": null,
+    "nights": 185,
+    "stamped": 127,
+    "unstamped": 58,
+    "codeDigests": [
+      "01cf791fcdb3c077"
+    ],
+    "note": "dataDigest = sha256[0:12] over path\\0sha12(bytes) of every git-tracked file under uploads/trio that is not a .trio-stamp; foldGeneration covers the night set and each night's .trio-stamp codeDigest, so an unstamped night contributes its name and no generation. Re-resolve both with tools/fold-generation.mjs",
+    "foldGenerationAtCut": "75bfa5e6b637",
+    "foldGenerationReason": "the record names no nights, so no generation describes the population it read; foldGenerationAtCut covers all 185 night(s) under uploads/trio at the cut",
+    "recovered": {
+      "commit": "d9988f37",
+      "namedCommit": "d9988f37",
+      "matchedNamedCommit": true,
+      "verifiedBy": "the record's own inputs.digest reproduces over this tree: sha256[0:12] over path\\0sha12(bytes) of all 923 tracked file(s) under uploads/trio reads e7d2f87042dc",
+      "note": "the identity above comes from the commit the record names",
+      "by": "tools/fold-generation.mjs",
+      "at": "2026-11-26"
+    }
+  }
+}

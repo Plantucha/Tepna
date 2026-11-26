@@ -9,10 +9,13 @@
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-10-12T20:42:17.110Z",
+    "generated": "2026-11-26T14:16:56.171Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
-    "scrubbed": true
+    "scrubbed": true,
+    "scrubDropped": [
+      "signalQuality"
+    ]
   },
   "recording": {
     "source": "ecg",
@@ -22,10 +25,28 @@
     "endEpochMs": 1782968129689,
     "offsetMin": null,
     "events": 180,
+    "timing": {
+      "timingSource": "device",
+      "independent": false,
+      "anchors": 6738,
+      "spanMs": 25908910.541381836,
+      "ppm": -0.0058084996770580224,
+      "spanPpm": -0.02089558474767985,
+      "ppmEstimator": "end-to-end-median",
+      "ppmUncertainty": null,
+      "resyncs": 0,
+      "seams": 0,
+      "rate": 130.013144787477,
+      "rateRaw": 130.013144787477,
+      "rateApplied": false,
+      "reason": "host ≡ device — residual spread 1.00 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock; the rate correction did not reach the published rate: host column is not a second clock (residual spread 1.00 ms, within one stamp quantum — the host stamp is the device stamp rounded), fs left on the device clock; nothing here sizes the published ppm: the spine measured no sigma-y curve on this axis, so the rate travels without its spread"
+    },
     "hostAxis": {
+      "ok": true,
       "applied": false,
       "anchors": 6738,
-      "ppm": -0.02089558474767985,
+      "ppm": -0.0058084996770580224,
+      "spanPpm": -0.02089558474767985,
       "ppmUncertainty": null,
       "maxStepMs": 0.641845703125,
       "spanMs": 25908910.541381836,
@@ -40,6 +61,15 @@
     "deviceEpoch": {
       "offsetMs": -236637627991,
       "plausible": false
+    },
+    "validity": {
+      "seams": null,
+      "seamsExamined": null,
+      "seamsPlaced": null,
+      "seamsUnplaced": null,
+      "seamsBoundMs": null,
+      "seamsDeviceAxis": null,
+      "seamsReason": "no-seam-sidecar"
     }
   },
   "measurement": {
@@ -88201,7 +88231,8 @@
       "REM": 35,
       "Light": 300,
       "Deep": 35
-    }
+    },
+    "unstagedMin": 0
   },
   "apnea": {
     "cvhrIndex": 4.3,
