@@ -1104,6 +1104,17 @@
      would be indistinguishable from a panel that vanished because the forehead corner FAILED, which
      is the §∅ shape this repo forbids. `no-muse-file` says the night recorded three corners;
      every other reason says the night recorded four and the hat could not use them. */
+  /* ── THE PANEL'S ONE HTML SINK ───────────────────────────────────────────────────────────────
+     `verify:xss-sink` reads every new `innerHTML` line, and this panel writes markup on two paths:
+     the refusal paragraph and the solved tables. Both go through this one helper, so the gate has a
+     single line to judge and the ALLOW entry that carries the reason names one sink rather than a
+     shape that any later line in this file would inherit. What the panel interpolates is a number
+     through `cell()` or `toFixed`, a corner label from this file's own `DEV` table, a refusal name
+     through `esc(String(...))`, or `evb()` output, which is `MetricRegistry.badge()` markup over a
+     static EV key. No file name and no parsed cell reaches it. */
+  function setFourHTML(el, parts) {
+    el.innerHTML = parts.join('');
+  }
   function renderFourCorner(real) {
     const anchor = $('tsIndep');
     if (!anchor) return;
@@ -1130,7 +1141,7 @@
               (F && Number.isFinite(F.seconds) ? ' Four-way overlap ' + F.seconds + ' s.' : '') +
               ' ∅ The refusal is the result — no number is drawn from an input this page could not measure.</p>'
       );
-      host.innerHTML = H.join('');
+      setFourHTML(host, H);
       return;
     }
     /* THE SECONDS ARE NOT THE SECONDS ABOVE, AND THE PAGE SAYS SO (board #8984, decision 1). A fourth
@@ -1256,12 +1267,12 @@
     if (fs)
       H.push(
         '<p class="mut">Forehead corner read through the same HR path as the other optical corners (3-LED consensus → PPI → Malik correction), with two STATED constants: polarity ' +
-          (fs.signStated === -1 ? '−1' : String(fs.signStated)) +
+          (fs.signStated === -1 ? '−1' : esc(String(fs.signStated))) +
           ' (the headband reports received light, which falls at systole) and the foot re-timed at ' +
           (Number.isFinite(fs.footHiHz) ? fs.footHiHz + ' Hz' : '—') +
           '. A stated sign is not a vote, so no channel-consensus stamp is claimed for it.</p>'
       );
-    host.innerHTML = H.join('');
+    setFourHTML(host, H);
   }
   function renderAll(nt, real, derive) {
     $('heroNight').textContent = nt.key;
