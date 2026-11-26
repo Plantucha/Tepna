@@ -99921,6 +99921,56 @@
          `err`" was written while building this group, flagged `cohort-regression.js` — which boots
          IFRAMES — and a "fix" to `m.err` there would have turned a WORKING boot guard into a dead
          one. Trace the channel, not the message shape. */
+      /* ── AN ABSENT CGM SLICE IS NOT ZERO HYPO WINDOWS (§∅, M15) ───────────────────────────────
+         `winHypoFromCSV` returned `0` for an absent csv, so three states arrived at the
+         nocturnal-hypo recall wearing one number: the detector read the night and found it clean,
+         the slice carried no finite reading, and there was no csv. The recall counted the last two
+         as MISSES inside its own denominator, which understates a detector by the size of its own
+         absence. The consumer half of the fix is the group `cgm · hypo · absence`, which reads the
+         page's committed text and runs in BOTH lanes.
+         THESE legs live in THIS group on purpose. The detector is reached as the realm's own
+         binding, so a group of their own would skip in the browser lane, and the browser skip
+         budget is a CEILING that may only shrink (tests/expected-skips.json). This group already
+         declares that one skip, and its reason is the same one. */
+      var f = CW.winHypoFromCSV;
+      /* ANTI-VACUITY FIRST. A missing binding arrives as `null`, and every assertion below would
+         otherwise throw or pass over nothing. */
+      T.ok("the detector was reached as the worker realm's own binding", typeof f === 'function', typeof f);
+      if (typeof f !== 'function') return;
+      var HEAD = 'Timestamp,Measurement(mg/dL)';
+      var csv = function (vals) {
+        return (
+          HEAD +
+          '\n' +
+          vals
+            .map(function (v, i) {
+              return '2026-01-01 0' + (i % 10) + ':00:00,' + v;
+            })
+            .join('\n')
+        );
+      };
+      // cadence 5 min → minCells = max(2, ceil(15/5)) = 3 cells below 70 make one window
+      T.eq('no csv at all is null, never 0', f(undefined, 5), null);
+      T.eq('an empty string is null', f('', 5), null);
+      T.eq('a header-only slice examined nothing, so it is null', f(HEAD, 5), null);
+      T.eq('a slice whose every value is unparseable is null', f(csv(['', 'x', '—']), 5), null);
+      /* THE OTHER HALF, and the one that makes the first half mean something: a night this detector
+         DID read and found clean keeps its honest zero. Without this row, returning `null` for
+         everything would pass. */
+      T.eq('a read night with no low reading is 0, not null', f(csv([110, 105, 99, 120, 130]), 5), 0);
+      T.eq('…and 0 is a number, so a consumer can tell it from the absence', typeof f(csv([110, 105, 99]), 5), 'number');
+      T.eq('three consecutive cells below 70 are one window', f(csv([110, 65, 60, 62, 120]), 5), 1);
+      T.eq('two consecutive cells fall short of 15 min at a 5-min cadence', f(csv([110, 65, 60, 120]), 5), 0);
+      T.eq('…and the same two cells are a window at a 15-min cadence', f(csv([110, 65, 60, 120]), 15), 1);
+      T.eq('a non-finite cell breaks the run', f(csv([65, 60, '', 62, 61]), 5), 0);
+      T.eq('two separated runs count twice', f(csv([65, 60, 62, 120, 65, 60, 62]), 5), 2);
+      /* THE PRODUCER'S OWN CONSUMER. `cohort-worker.js` is deliberately outside readSources(), so the
+         realm hands over the file's text (run-tests.mjs). */
+      var wsrc = CW.src || '';
+      T.ok('the worker source was read', wsrc.length > 1000, wsrc.length + ' bytes');
+      T.ok('the detector refuses an absent csv by name', /if \(!csv\) return null;/.test(wsrc));
+      T.ok('…and nulls a slice it examined with no finite reading', /return seen \? episodes : null;/.test(wsrc));
+      T.ok('the coupling row carries the null rather than coercing it', !/score\.(nHypo|winHypo)\s*\|\|\s*0/.test(wsrc), (wsrc.match(/score\.\w+\s*\|\|\s*0/g) || []).join(' | '));
     });
 
     /* ── EVERY KIND OF THE WORKER REALM BOOTS (#3462) ────────────────────────────────
@@ -99996,6 +100046,37 @@
       /* NON-VACUITY for the whole group: the same boot() that produced the readys above must be able
          to REPORT a failure, or every assertion here is describing a happy path nothing could fail. */
       T.ok('the same harness reports err for an unknown KIND', !!(CW.badReady && CW.badReady.type === 'ready' && CW.badReady.err), JSON.stringify(CW.badReady));
+    });
+
+    /* ── AN ABSENT CGM SLICE IS NOT ZERO HYPO WINDOWS (§∅, M15) ───────────────────────────────────
+       `winHypoFromCSV` returned `0` for an absent csv, and the two consumers then wrote `|| 0` over
+       the result, so three distinct states arrived at the recall denominator wearing one number:
+       "the detector read the night and found it clean", "the slice carried no reading", and "there
+       was no csv". The recall counted the last two as MISSES inside its own denominator, which
+       understates a detector by the size of its own absence.
+       The fix is one number and one population: the detector returns `null` when it examined no
+       finite reading, the consumers carry the null, and each recall leg excludes a null night from
+       its denominator and reports the excluded count (checked + excluded = eligible).
+       THIS group holds the CONSUMER half. The recall block lives in a DOM-bound page function, so
+       these legs read the page's committed text, and they run in BOTH lanes.
+       The DETECTOR half is behavioural and lives in `cohort · worker · realm`, which reaches
+       `winHypoFromCSV` as that realm's own binding. */
+    group('CGM hypo windows — the consumers carry the absence (§∅, M15)', 'cgm · hypo · absence', function (T) {
+      /* THE PAGE SIDE. A DOM-bound function, so these read the committed text of the consumer. */
+      var asrc = (env.sources && env.sources['cgm-hrv-coupling-analysis.js']) || '';
+      T.ok('the coupling page source was read', asrc.length > 1000, asrc.length + ' bytes');
+      T.ok('the row builder carries the null rather than coercing it', !/g\.(nHypo|winHypo)\s*\|\|\s*0/.test(asrc), (asrc.match(/g\.\w+\s*\|\|\s*0/g) || []).join(' | '));
+      T.ok('the window leg counts only a night it could read', /if \(r\.nHypoWin != null\) \{/.test(asrc));
+      T.ok('the flag leg counts only a night it could read', /if \(r\.nHypo != null\) \{/.test(asrc));
+      /* ONE DENOMINATOR PER LEG. The two detectors go absent on different nights, so a shared
+         denominator reports one leg's recall over the other leg's population. */
+      T.ok('the flag recall divides by its OWN denominator', /hypoFlagRecall = hypoFlagN \? hypoFlagHit \/ hypoFlagN/.test(asrc));
+      T.ok('the window recall divides by its own denominator', /hypoRecall = hypoRecallN \? hypoRecallHit \/ hypoRecallN/.test(asrc));
+      /* checked + excluded = eligible, reported rather than implied. */
+      ['nHypoNights', 'nHypoNightsFlag', 'nHypoNightsEligible', 'nHypoNightsExcluded', 'nHypoNightsExcludedFlag', 'excludedReason'].forEach(function (k) {
+        T.ok('the hypo block publishes ' + k, new RegExp(k + ':').test(asrc));
+      });
+      T.ok('the csv export writes an empty cell for an absent count, as the dawn column does', /r\.nHypoWin == null \? '' : r\.nHypoWin/.test(asrc) && /r\.nHypo == null \? '' : r\.nHypo/.test(asrc));
     });
 
     group('PAT half-amplitude fiducial — the foot index is FRACTIONAL (EXTERNAL-METHODS-SURVEY §1)', 'pat · fiducial · half-amplitude', function (T) {

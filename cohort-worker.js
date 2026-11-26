@@ -252,12 +252,18 @@ function runPulse(nt) {
 // ground-truth dip directly (mirrors the Integrator timeBelow70 idea, minus the flag
 // gate). Tradeoff on REAL data: higher hypo recall, but susceptible to true
 // compression artifacts — acceptable for a recall-vs-planted-truth measurement.
+// §ABSENCE-IS-NULL: an absent series, and a present series that carries no finite
+// reading, are both `null` — never a measured 0. A header-only slice examines nothing,
+// so "0 hypo windows" over it would be indistinguishable from a night this detector
+// read in full and found clean. A present series with readings and no 15-min run
+// below 70 mg/dL keeps its honest 0.
 function winHypoFromCSV(csv, cadenceMin) {
-  if (!csv) return 0;
+  if (!csv) return null;
   var minCells = Math.max(2, Math.ceil(15 / (cadenceMin || 5)));
   var lines = csv.split(/\r?\n/),
     run = 0,
-    episodes = 0;
+    episodes = 0,
+    seen = 0;
   for (var i = 1; i < lines.length; i++) {
     // row 0 is the header
     var ln = lines[i];
@@ -265,12 +271,13 @@ function winHypoFromCSV(csv, cadenceMin) {
     var c = ln.indexOf(',');
     if (c < 0) continue;
     var v = parseFloat(ln.slice(c + 1)); // Measurement(mg/dL) is the 2nd column
+    if (isFinite(v)) seen++;
     if (isFinite(v) && v < 70) {
       run++;
       if (run === minCells) episodes++;
     } else run = 0;
   }
-  return episodes;
+  return seen ? episodes : null;
 }
 function runGluco(cgmCSV) {
   var parsed = GLUDSP.parseCSV(cgmCSV);
@@ -554,7 +561,7 @@ function doJob(seed) {
         var rg = runGluco(sub);
         if (rg && rg.score && rg.score.mean != null && isFinite(rg.score.mean)) {
           pulseC.push(rp);
-          nocturnal.push({ n: nt.n, score: { mean: rg.score.mean, cv: rg.score.cv, nHypo: rg.score.nHypo || 0, winHypo: rg.score.winHypo || 0, dawnSurge: rg.score.dawnSurge } });
+          nocturnal.push({ n: nt.n, score: { mean: rg.score.mean, cv: rg.score.cv, nHypo: rg.score.nHypo, winHypo: rg.score.winHypo, dawnSurge: rg.score.dawnSurge } });
         }
       } catch {}
     });
