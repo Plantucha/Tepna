@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** REFERENCE (living) · **last-verified:** 2026-11-01 · **Serves:**
+**Status:** REFERENCE (living) · **last-verified:** 2026-11-26 · **Serves:**
 `FIXTURE-CORPUS-REACHABILITY-2026-08-09-BRIEF.md` §3
 
 # Where the raw recordings actually are
@@ -29,6 +29,14 @@ which is why this file exists.
 > `DEX_UPLOADS` by hand for the primary-checkout case.
 
 ## 🟢 CONSOLIDATED 2026-08-28 — `/srv/data/tepna-corpus/` is THE canonical corpus (owner-ordered)
+
+> **Since 2026-10-21 the canonical root is on the TrueNAS, not on a local disk.**
+> `/srv/data/tepna-corpus` is a symlink to `/mnt/nas/tepna-corpus` (NFSv4.2, `soft` mount). Every
+> path below still resolves, but a read goes over the network, and a NAS outage makes the corpus
+> absent. The "second disk" in the paragraph below describes 2026-08-28 to 2026-10-21.
+> Compare the corpus with the vigil archive by path and size with
+> `node tools/corpus-archive-parity.mjs`. On 2026-11-26 it found 30 corpus stream files shorter
+> than their archive twins, on 5 nights (board #9165).
 
 > **Byte baseline (2026-09-21).** After the NAS migration and the first `corpus-tier` run, a second
 > instrument hashed every local regular file against its NAS twin and produced a SHA-256 manifest of
@@ -133,7 +141,7 @@ exists."*
 | store | address | mount | holds | measured |
 |---|---|---|---|---|
 | **Synology** | `192.168.0.35:/volume1/MEDIA` | `/mnt/synology` (NFSv3, fstab) | **`nsrr-shhs1/` — 189 GB** | 11 TB vol, 7.1 TB free |
-| **TrueNAS** | `192.168.0.142:/mnt/Storage10TB/{tepna-corpus,vigil-archive,nsrr}` | `/mnt/nas/<dataset>` (NFSv4.2, fstab) | **VERIFIED FULL COPY of the canonical corpus, 2026-09-20** — 60,380 files, path+size parity both directions, 0 missing | **7.5 TB free** |
+| **TrueNAS** | the TrueNAS host, `/mnt/Storage10TB/{tepna-corpus,vigil-archive,nsrr}` | `/mnt/nas/<dataset>` (NFSv4.2, fstab) | **the canonical corpus since 2026-10-21** (a full copy before that, verified 2026-09-20) — 60,380 files, path+size parity both directions, 0 missing | **7.5 TB free** |
 
 ⚠️ **`nsrr-shhs1` is not incidental media — it is a consumed corpus.** Five tools read it
 (`tools/nsrr-score-pool.mjs`, `nsrr-stage-validate.mjs`, `nsrr-effort-typing.mjs`,
