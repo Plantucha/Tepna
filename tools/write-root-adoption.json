@@ -191,6 +191,7 @@
     "tools/archive-manifest.mjs": "The helper `gitHead` asks `git rev-parse HEAD` at the tool root and feeds `producedBy.commit`, which names the code that produced the verdict.",
     "tools/board-share.mjs": "The helper `headCommit` asks `git rev-parse --short=8 HEAD` at the tool root and feeds `producedBy.commit`, with a named reason when git refuses.",
     "tools/cohort-fit.mjs": "The helper `headCommit` asks `git rev-parse --short HEAD` at the tool root and stamps the `commit` field of the provenance record.",
+    "tools/common-mode-blind-trial.mjs": "The helper `headCommit` asks `git rev-parse --short=8 HEAD` at the tool root and feeds `producedBy.commit`. It spawns no other child, and it judges the trio corpus rather than a tree.",
     "tools/estate-drift.mjs": "The helper `gitHead` asks `git rev-parse --short HEAD` at the tool root and feeds `producedBy.commit`, which names the code that produced the verdict.",
     "tools/nsrr-score-pool.mjs": "The helper `headCommit` asks `git rev-parse --short HEAD` at the tool root and feeds the verdict meta `commit` field.",
     "tools/nsrr-stage-validate.mjs": "The helper `gitCommitOf` asks `git rev-parse --short HEAD` at the tool root and feeds the `commit` field of the population verdict.",
