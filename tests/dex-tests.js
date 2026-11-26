@@ -43374,6 +43374,27 @@
         T.eq(name + ' · (d) …as a refusal, not a device fallback', cShort.axis, 'refused');
         // (e) an explicit null is absence, not a malformed axis, so the keys ride the device clock
         T.eq(name + ' · (e) a null axis is absence, so the keys ride the device clock', D.beatConfidence(PK, QS, FS, T0, undefined, null).axis, 'device');
+        /* (f) THE DEFECT LEG — residue 2026-11-26-ecgdex-beat-confidence-start-absent-reads-as-zero.
+           An absent start keys the map in OFFSETS from the first sample, and the old code reported
+           `device` for it — indistinguishable from a record that began at the epoch. Sized against
+           the mutant: drop `_t0OK` from `_axisName` and this leg reds. */
+        var noT0 = D.beatConfidence(PK, QS, FS, null);
+        T.eq(name + ' \u00b7 (f) an absent start reports the offset axis out of band', noT0.axis, 'device-offset');
+        T.ok(name + ' \u00b7 (f) \u2026with a reason naming the offsets', typeof noT0.axisReason === 'string' && /offsets from the first sample/.test(noT0.axisReason), String(noT0.axisReason));
+        T.eq(name + ' \u00b7 (f) \u2026and the first key is 0, not an epoch second', keysOf(noT0)[0], 0);
+        T.eq(name + ' \u00b7 (f) \u2026the map still answers, because absence here annotates', noT0.size, dev.size);
+        var kn = keysOf(noT0),
+          kv = keysOf(dev),
+          sameTrust = kn.length === kv.length;
+        for (var q = 0; q < kn.length && sameTrust; q++) if (noT0.get(kn[q]) !== dev.get(kv[q])) sameTrust = false;
+        T.ok(name + ' \u00b7 (f) \u2026and no trust value moved with the mark', sameTrust, 'the mark must not change what the statistic decides');
+        // (g) CONTROL — a measured start keeps the device axis and names no axis reason
+        T.eq(name + ' \u00b7 (g) CONTROL a measured start keeps the device axis', dev.axis, 'device');
+        T.eq(name + ' \u00b7 (g) CONTROL \u2026and names no axis reason', dev.axisReason, null);
+        // (h) a handed-in axis carries absolute times, so an absent start says nothing about it
+        var hostNoT0 = D.beatConfidence(PK, QS, FS, null, undefined, bm);
+        T.eq(name + ' \u00b7 (h) a handed-in axis reports host even with no start', hostNoT0.axis, 'host');
+        T.eq(name + ' \u00b7 (h) \u2026and names no axis reason', hostNoT0.axisReason, null);
       });
       /* The worker owns the join and has no module surface in this runner, so the single-source
          property of the axis is a source leg. */

@@ -3538,10 +3538,20 @@
        the per-second weights and the calibration verdict travel together without a wrapper object
        that every caller would have to unpack. The cast states them; the Map itself is unchanged. */
     const out =
-      /** @type {Map<number, any> & { nBeats: number, nSqi: number, nQBelow: number, sqiMedian: number|null, sqiSource: string|null, calibrated: boolean, axis: string|null, reason: string|null }} */ (
+      /** @type {Map<number, any> & { nBeats: number, nSqi: number, nQBelow: number, sqiMedian: number|null, sqiSource: string|null, calibrated: boolean, axis: string|null, axisReason: string|null, reason: string|null }} */ (
         new Map()
       );
-    const t0 = t0Ms || 0;
+    /* ∅ AN ABSENT RECORDING START IS NOT SECOND ZERO. The old spelling read an absent `t0Ms` as
+       the epoch, so every key became an OFFSET from the first sample while the contract above calls
+       these keys absolute seconds (residue
+       2026-11-26-ecgdex-beat-confidence-start-absent-reads-as-zero). The keys keep that base,
+       because 0 is the only base available and the node's own join already uses it — CLAUDE.md §∅
+       annotates reduced coverage and refuses only a discontinuity. The difference travels OUT OF
+       BAND instead: `axis` reads `device-offset`, and `axisReason` names it, so a consumer that
+       joins these keys to an absolute per-second series can refuse. A handed-in `beatMs` carries
+       absolute times of its own, so it reports `host` whatever the start says. */
+    const _t0OK = Number.isFinite(t0Ms);
+    const t0 = _t0OK ? t0Ms : 0;
     /* ∅ ONE AXIS, OR A REFUSAL — NEVER A SILENT PER-BEAT FALLBACK. `beatMs` carries the caller's
        absolute wall-clock ms for every beat, so a consumer that keys its own per-second series on
        the host-disciplined axis (CLAUDE.md §🔒.7, `DexClock.hostAxis`) hands that axis in and
@@ -3557,6 +3567,8 @@
       }
     }
     const _bm = _bmOK ? beatMs : null;
+    const _axisName = _bm ? 'host' : _t0OK ? 'device' : 'device-offset';
+    const _axisWhy = _axisName === 'device-offset' ? 'the recording start is absent — these keys are offsets from the first sample, not absolute seconds' : null;
     if (beatMs != null && !_bmOK) {
       out.nBeats = n;
       out.nSqi = 0;
@@ -3564,6 +3576,7 @@
       out.sqiSource = null;
       out.calibrated = false;
       out.axis = 'refused';
+      out.axisReason = null;
       out.reason = 'the per-beat time axis is absent or non-finite — these keys would mix two clocks, so the map refuses';
       return out;
     }
@@ -3584,7 +3597,8 @@
       out.sqiMedian = null;
       out.sqiSource = null;
       out.calibrated = false;
-      out.axis = _bm ? 'host' : 'device';
+      out.axis = _axisName;
+      out.axisReason = _axisWhy;
       out.reason = 'fewer than 20 beats — the trust statistic was never calibrated, so every second reads 1 by default';
       return out;
     } // too short to calibrate
@@ -3597,7 +3611,8 @@
       out.sqiMedian = null;
       out.sqiSource = null;
       out.calibrated = false;
-      out.axis = _bm ? 'host' : 'device';
+      out.axis = _axisName;
+      out.axisReason = _axisWhy;
       out.reason = 'the peak series spans under one second — there is no window to calibrate over';
       return out;
     }
@@ -3686,7 +3701,8 @@
     out.sqiMedian = nSqi ? qMed : null;
     out.sqiSource = nSqi === 0 ? 'absent' : nSqi < n ? 'partial' : 'per-beat';
     out.calibrated = nSqi > 0 && nQBelow > 0;
-    out.axis = _bm ? 'host' : 'device';
+    out.axis = _axisName;
+    out.axisReason = _axisWhy;
     out.reason = out.calibrated
       ? null
       : nSqi === 0
@@ -6618,7 +6634,9 @@
           _confSpine.map((s) => Math.round(s * rec.fs)),
           sqi,
           rec.fs,
-          rec.t0Ms || 0
+          /* ∅ The start travels as it was measured — see the mirror's own note. A fabricated 0
+             would hide the `device-offset` axis mark. */
+          rec.t0Ms
         )
       : null;
     /* ∅ THE CHANNEL HAS A THIRD STATE, AND IT USED TO LOOK LIKE THE FIRST. `ppiConf` was null under
@@ -6641,6 +6659,9 @@
           : _pConfMap.sqiSource === 'absent'
             ? 'sqi-absent'
             : 'sqi-flat';
+    /* ∅ The base MIRRORS the map's. `beatConfidence` falls back to 0 for an absent start too, so the
+       two key sets meet whichever way the start reads, and the absence is marked on the map as
+       `axis: 'device-offset'` rather than here. */
     const _t0 = rec.t0Ms || 0;
     /* ∅ ONE SECOND, SPELLED ONE WAY. `beatConfidence` keys every beat through `secAbs` —
        `floor((t0 + (round(sec·fs)/fs)·1000) / 1000)` over the pseudo-sample indices this call hands
