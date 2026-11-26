@@ -30,6 +30,68 @@ changesets.)
 
 ---
 
+## [2.38.0] — 2026-11-26
+
+### Added
+- Add the EEG stage-formula evaluator, which reads the fit's coefficients out of a data file. (`EEGDEX-STAGE-FORMULA-2026-11-24-BRIEF.md`)
+- Open a Muse night from the monitor: EEGDex reads every Muse frame file of the night as one recording.
+- A second EEG stage model file, the one of two passes, ships beside the one-pass (`EEGDEX-STAGE-FORMULA-2026-11-24-BRIEF.md`)
+- Score an EEG night with a reader-supplied stage formula, behind a switch that starts off. (`EEGDEX-STAGE-FORMULA-2026-11-24-BRIEF.md`)
+- Measure how far the PAT foot set moves when the O2Ring beat markers are held over first. `tools/pat-mask-census.mjs` runs the shipped `ppgFootTimes` twice per recording through the worker's new optional `opts.holdGaps`. The default path holds nothing, so no published number moves.
+- Show the signal-quality table on PpgDex, over its optical column, its motion column and its own sidecar ledger. (`SIGNAL-QUALITY-TABLE-2026-11-14-BRIEF.md`)
+- The PR walker posts one addressed board note to a rig bird whose merged PR left its pane idle for 20 minutes.
+- Add the Crane session to the fleet roster lists so the board hook, nudge, note and compute-feeder recognise it.
+- Show the Muse on the fused tab of the monitor. A night without a Muse file reads "not recorded", never red.
+- Add the forehead as a fourth PAT site, with one n-cornered hat over every pair dispersion.
+
+### Changed
+- Build the PulseDex summary and series export payload in one headless builder. Pin both shapes with committed fixtures that a dynamic leg re-runs.
+- Move the ECGDex summary and series export payload into `ecgdex-dsp.js`, where a committed fixture reads the bytes, and carry the shared `recording.timing` block on it.
+- Move GlucoDex's summary-export payload out of `glucodex-app.js exportJSON` into
+- Move MotionDex's multi-session series wrapper into `motiondex-dsp.js motionBuildSeriesExport` with a committed two-night fixture.
+- `papers/null-calibration.html` now binds its control numbers to a committed artifact, so the suite's
+- The sleep-staging paper binds Table 6 to a committed record. The scorer behind the readout re-ran
+- Declare the ECG axis at every caller of the shared R-peak arithmetic.
+- Move the PpgDex summary and series export into the DSP, behind a committed fixture. The payload also gains `recording.timing`, the shared block its own schema obliges.
+- Move the shared half of the signal-quality table to `sq-table.js`, which the second adopter reads. (`SIGNAL-QUALITY-TABLE-2026-11-14-BRIEF.md`)
+
+### Fixed
+- The HRVDex profile reads an absent elevation as `null` in both of its arms. The arm that reads the form answered 0 m. A sea level of 0 m is a legal elevation, so an empty field and a measurement read the same. Both altitude factors in the file now state the absent case. Each answers 1, which is the number it answered before.
+- Badge the numbers three surfaces write into prose, and resolve the pattern-tab labels to their real registry grade.
+- Load clock.js in cohort-runner.html, so the Integrator fuses instead of throwing at every patient. (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- The CPAPDex live-vs-SD comparator publishes no scale residual when the regression does not fit. A live channel with no variance fits no slope, and the card named that residual as a post-regression number. The degeneracy test in the regression is relative now, because an absolute floor missed a flat channel whose values are not exact in binary. The Bland-Altman figures read the raw differences, so each one stays measured.
+- A train of equal RR intervals has no spectrum, so ECGDex, PpgDex and PulseDex now publish no LF/HF ratio and no breath rate for it.
+- An EDF+ event duration that the device never stated now reads `null` and not 0. `parseTAL` gave 0 to an omitted duration field and to a written "0" alike, because the string "0" is falsy as well. The bus then published a 0-second apnea. A written 0 keeps its value, which is the marker form a real AirSense uses for a span. (`LOCAL-QWEN-SWEEPS-2026-11-22-BRIEF.md`)
+- The clinical summary added a night whose therapy hours the DSP refuses as a night of zero hours, so a (`LOCAL-QWEN-SWEEPS-2026-11-22-BRIEF.md`)
+- Fit the CPAPDex usage trend against the calendar night of each night, never its position in the list. A run with gaps no longer overstates the slope by its own spacing.
+- Write `_scale`, `physMin` and `physMax` on every synthetic EDF channel, as `readEDF` writes them.
+- ECGDex reports an absence as an absence. The HF and LF shares are null when the two bands hold no power, where they read 0.0 and 0.0. The SD1/SD2 ratio is null when SD2 is below the published precision. The metric table prints a dash for an absent value.
+- ECGDex read two absences as measurements. An unmeasured `analyzablePct` entered the cross-night
+- The three published thresholds of the EEG feature block now name their sources. (`EEGDEX-STAGE-FORMULA-2026-11-24-BRIEF.md`)
+- GlucoDex reads a CGM `Low` or `High` cell as a reading outside the sensor range. Each one counts as sensor-active time and as time below 54 or above 250 mg/dL, opens or extends a nocturnal-hypo event, and carries no value. A file that opens on many such cells is read, where the column pick refused it. The exports gain `outOfRange` and `rowsDropped`, and the Integrator's glucose window counts the same cells as time out of range.
+- Name an unfitted sensor drift and a lone session median in the GlucoDex sessions card.
+- Keep the three hero cards of the three-cornered-hat page inside the window. The long unit sentence now wraps.
+- Each CAMQ point in HRVDex now states how many of the three parasympathetic indicators it averages.
+- The HRVDex sidebar readiness chip now badges the number it mirrors. The readiness hero badges its (`BADGE-COVERAGE-AUDIT-BRIEF.md`)
+- Empty every string literal before the id-emission ratchet looks for an object key.
+- The fused report names the optical site of every corner, lane and consensus row. A three-cornered hat
+- Read a dynamic `import()` as a fourth load form in the browser lane inventory.
+- The monitor states what it could not read. A page whose poll fails, or never returns for 15 s, says "No answer from the box" with the time of the last state. A battery level from a device that is not connected names the hour it was read. A night index that did not load says so and retries, where it read "no nights on disk". A CPAP state the page does not know is a warning that names it, where it read "idle · next run 13:00". The battery history skips the level that a disconnected device repeats: on the box, 19,528 of 64,970 rows in seven nights.
+- Seven sites no longer read an absence as a number. OxyDex SpO2 sample entropy, the cardiorespiratory coupling index and the RMSSD arc skip an absent second. The PPG2W motion cell, the MotionDex respiration confidence over an uncovered window and an unreadable ResMed flow rate are null. A repeated EDF label keeps both signals.
+- The two OxyDex night durations now carry an evidence badge. The night-row header and the (`BADGE-COVERAGE-AUDIT-BRIEF.md`)
+- OxyDex counted a pair of heart-rate readings across a removed stretch as one second of beat-to-beat (`LOCAL-QWEN-SWEEPS-2026-11-22-BRIEF.md`)
+- State an unjudged recording in the PAT mask census, and keep it out of the mover share. Judge a recording on the legs the bar can evaluate, so a replaced foot set never reads as unjudged.
+- `tools/ai-probe-overnight.sh` stops at `AI_PROBE_DEADLINE` and exits 4, so a supervisor no longer kills it without a verdict.
+- Give PulseDex one altitude road. The published factor is now the factor that multiplies, so a reader can recompute the published VO₂ base.
+- Exit 2 from a write-mode regen whose own build threw, because that fixture stays stale.
+- The release now refreshes the per-group test timings before its gate. The 5 % cap on untimed groups then starts each cycle at zero, so it no longer reds the next pull request that adds a group. The step never blocks a release. It keeps the committed table when the suite, the generator or the shard planner refuses.
+- Make the release chain wait while the merge queue checks its pull request.
+- Accept a render rig as booted only when its frame holds the requested page, and name the page that a red leg read.
+- The walker no longer commits a build output into an author PR that it rebases. A conflict rebase rebuilds the bundles, and the walker then committed every path that the rebuild moved. Check 10 of `pr-compliance` refuses a bundle in an author PR, so #5797 went red after its first rebase.
+- A release run that recorded its last step stays finished when a new step joins the chain. Before this fix, the finished v2.37.0 run read as unfinished after `timings` joined, and the release timer held the next release. (`CONTROLLED-RELEASES-2026-07-05-BRIEF.md`)
+
+---
+
 ## [2.37.0] — 2026-11-25
 
 ### Added
@@ -4773,7 +4835,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.37.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.38.0...HEAD
+[2.38.0]: https://github.com/Plantucha/Tepna/compare/v2.37.0...v2.38.0
 [2.37.0]: https://github.com/Plantucha/Tepna/compare/v2.36.0...v2.37.0
 [2.36.0]: https://github.com/Plantucha/Tepna/compare/v2.35.0...v2.36.0
 [2.35.0]: https://github.com/Plantucha/Tepna/compare/v2.34.0...v2.35.0
