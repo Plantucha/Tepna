@@ -30155,12 +30155,23 @@
 
     group('§∅ · OxyDex events — a hole is not an event, in the seven event metrics', 'oxydex-dsp · absence', function (T) {
       var B = env.OxyDex && env.OxyDex._bare;
-      var need = ['computeOxyCrash', 'computeSpO2Percentiles', 'detectODI', 'computeODRI', 'computeSpikeDecay', 'computeRollingMetrics', 'computePBmetrics', 'computeO2HREfficiency'];
+      var need = [
+        'computeOxyCrash',
+        'computeSpO2Percentiles',
+        'detectODI',
+        'computeODRI',
+        'computeSpikeDecay',
+        'computeSpikeUndershoot',
+        'computeSpike50PctRecovery',
+        'computeRollingMetrics',
+        'computePBmetrics',
+        'computeO2HREfficiency'
+      ];
       var absentFn = need.filter(function (k) {
         return !B || typeof B[k] !== 'function';
       });
       if (absentFn.length) {
-        T.ok('OxyDex._bare exposes the eight functions this group reads', false, 'not loaded: ' + absentFn.join(', ') + ' — this group must not read as a pass');
+        T.ok('OxyDex._bare exposes the ten functions this group reads', false, 'not loaded: ' + absentFn.join(', ') + ' — this group must not read as a pass');
         return;
       }
       /* GROUP G3 of the null-and-zero audit (board #6444, routed by decision #6446 — findings N1-01,
@@ -30257,6 +30268,41 @@
         [{ baseline: 60, peak: 95, mfm: mfm300 }]
       );
       T.ok('N1-04 CONTROL · a real fast recovery is still fast', decCtl && decCtl.spikeDecayMeanS < 60, 'mean = ' + JSON.stringify(decCtl && decCtl.spikeDecayMeanS));
+
+      /* 2026-11-26-oxydex-spike-time-absent-reads-as-midnight · `(sp.mfm || 0)` read a spike with no
+         time as minute 0. On a recording that STARTS at midnight the +/- 300 s window then searched a
+         real peak, and three sites published a decay, an undershoot and a 50 % recovery for a spike
+         whose time nobody recorded. These rows start at 00:00 for that reason: the group's own `t0` is
+         23:00, where the fabricated minute falls outside the window and hides the defect. */
+      var tMid = Date.UTC(2026, 5, 13, 0, 0, 0);
+      var mkMid = function (count, hFn) {
+        var out = [];
+        for (var i = 0; i < count; i++) out.push({ tMs: tMid + i * 1000, t: new Date(tMid + i * 1000), spo2: 96, hr: hFn(i), motion: 0, pi: null });
+        return out;
+      };
+      var midHr = function (i) {
+        return i >= 120 && i < 130 ? 95 : 58;
+      };
+      var noTime = [{ baseline: 60, peak: 95, mfm: null }];
+      var atMin2 = [{ baseline: 60, peak: 95, mfm: 2 }];
+      T.eq('§∅ spike time · a spike with no time yields NO decay', B.computeSpikeDecay(mkMid(600, midHr), noTime), null);
+      T.ok(
+        '§∅ spike time CONTROL · the same peak at a measured minute still decays',
+        (B.computeSpikeDecay(mkMid(600, midHr), atMin2) || {}).spikeDecayCount === 1,
+        JSON.stringify(B.computeSpikeDecay(mkMid(600, midHr), atMin2))
+      );
+      T.eq('§∅ spike time · and NO undershoot', B.computeSpikeUndershoot(mkMid(600, midHr), noTime), null);
+      T.ok(
+        '§∅ spike time CONTROL · the measured spike still undershoots',
+        (B.computeSpikeUndershoot(mkMid(600, midHr), atMin2) || {}).spikeUndershootCount === 1,
+        JSON.stringify(B.computeSpikeUndershoot(mkMid(600, midHr), atMin2))
+      );
+      T.eq('§∅ spike time · and NO 50 % recovery', B.computeSpike50PctRecovery(mkMid(600, midHr), noTime), null);
+      T.ok(
+        '§∅ spike time CONTROL · the measured spike still recovers',
+        (B.computeSpike50PctRecovery(mkMid(600, midHr), atMin2) || {}).spike50PctRecovN === 1,
+        JSON.stringify(B.computeSpike50PctRecovery(mkMid(600, midHr), atMin2))
+      );
 
       /* N1-08 · the emptiest window was the worst window: a 30-minute hole published `worst10` near a
          saturation of zero, `worst30minT95` at 100 % and a stable-window count that scored the hole. */
