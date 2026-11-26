@@ -50,7 +50,6 @@ import { writeFileSync } from 'node:fs';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { chromium } from 'playwright';
 import { makeVerdict, printVerdict } from './verdict-emit.mjs';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 import { writeRootOrDie } from './write-root.mjs';
@@ -113,7 +112,13 @@ async function runZone(browser, tz) {
   };
 }
 
+/* ⚠ PLAYWRIGHT LOADS LAZILY, AND THE REASON IS A CI RED I CAUSED. A static `import … from
+   'playwright'` runs at module evaluation, so it threw on the CI runner, which carries no browser.
+   The adoption manifest runs `--verdict-sample` there, read its empty stdout and reported
+   `emits could not be read — Unexpected end of JSON input`: the gate never reached the branch that
+   opens no browser. A measurement path may need a browser; the SHAPE path must not. */
 export async function measure() {
+  const { chromium } = await import('playwright');
   const browser = await chromium.launch();
   try {
     const runs = [];
