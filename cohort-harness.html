@@ -9596,11 +9596,18 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var decays = [];
     spikes.forEach(function (sp) {
       if (!sp || sp.baseline == null || sp.peak == null) return;
+      /* §∅ A spike whose TIME was never measured is skipped, never searched around minute 0
+         (residue 2026-11-26-oxydex-spike-time-absent-reads-as-midnight). The import adapter publishes
+         `mfm` null for a spike whose stamp carries no HH:MM:SS, and `(sp.mfm || 0)` read that absence
+         as midnight, which is in range. The +/- 300 s window then described an unrelated peak and no
+         output said the time was absent. `oxydex-render.js` already refuses such a spike, and
+         `spikeDecayCount` below reports the population that did contribute. */
+      if (sp.mfm == null || !isFinite(sp.mfm)) return;
       var threshold = sp.baseline + 2;
       var peakIdx = -1;
       // Search near spike timestamp (±5 min) to avoid matching earlier spikes
       var startHr0 = rows.length > 0 ? rows[0].t.getUTCHours() * 60 + rows[0].t.getUTCMinutes() + rows[0].t.getUTCSeconds() / 60 : 0;
-      var apxIdx = Math.round(((sp.mfm || 0) - startHr0) * 60);
+      var apxIdx = Math.round((sp.mfm - startHr0) * 60);
       var s0 = Math.max(0, apxIdx - 300),
         s1 = Math.min(rows.length, apxIdx + 300);
       for (var i = s0; i < s1; i++) {
@@ -9639,10 +9646,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var undershoots = [];
     spikes.forEach(function (sp) {
       if (!sp || sp.baseline == null || sp.peak == null) return;
+      /* §∅ Skip a spike with no time, for the reason `computeSpikeDecay` above states: `(sp.mfm || 0)`
+         read an absent stamp as midnight and searched the wrong +/- 300 s window. */
+      if (sp.mfm == null || !isFinite(sp.mfm)) return;
       var peakIdx = -1;
       // Search near spike timestamp to avoid matching wrong spike
       var startHr1 = rows.length > 0 ? rows[0].t.getUTCHours() * 60 + rows[0].t.getUTCMinutes() + rows[0].t.getUTCSeconds() / 60 : 0;
-      var apxIdx1 = Math.round(((sp.mfm || 0) - startHr1) * 60);
+      var apxIdx1 = Math.round((sp.mfm - startHr1) * 60);
       var u0 = Math.max(0, apxIdx1 - 300),
         u1 = Math.min(rows.length, apxIdx1 + 300);
       for (var i = u0; i < u1; i++) {
@@ -10570,12 +10580,15 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var times = [];
     spikes.forEach(function (sp) {
       if (!sp || sp.baseline == null || sp.peak == null) return;
+      /* §∅ Skip a spike with no time, for the reason `computeSpikeDecay` above states: `(sp.mfm || 0)`
+         read an absent stamp as midnight and searched the wrong +/- 300 s window. */
+      if (sp.mfm == null || !isFinite(sp.mfm)) return;
       var amplitude = sp.peak - sp.baseline;
       if (amplitude <= 0) return;
       var halfTarget = sp.baseline + amplitude * 0.5;
       var peakIdx = -1;
       // Find peak near the spike timestamp (search within ±5min of spike time)
-      var spMfm = sp.mfm || 0;
+      var spMfm = sp.mfm;
       var startHr = rows.length > 0 ? rows[0].t.getUTCHours() * 60 + rows[0].t.getUTCMinutes() + rows[0].t.getUTCSeconds() / 60 : 0;
       var approxIdx = Math.round((spMfm - startHr) * 60);
       var searchStart = Math.max(0, approxIdx - 300);
