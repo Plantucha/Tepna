@@ -25125,6 +25125,225 @@
           'AnalysisStats.nCornerHat unavailable — the rows above would read a name nothing answers'
         );
       }
+
+      /* ── THE THIRD ENTRY POINT, added 2026-11-26 (#8914) ──────────────────────────────────────
+         `sensor-trio-worker.js` solves a FOUR-corner hat for the night page, per SECOND rather than
+         per window, so `PATAlign.hatWindows` does not bind it and the window-rule row above is not
+         repeated here. The two rules that do bind are the same two: reach the kernel, carry no copy.
+         The scan runs over comment-stripped source, because this file names the kernel in its prose
+         as well, and a regex that reads a comment passes over a private copy sitting beside it. */
+      var codeOnly = function (s) {
+        return s
+          .split('\n')
+          .filter(function (l) {
+            return !/^\s*(\/\/|\/\*|\*)/.test(l);
+          })
+          .join('\n');
+      };
+      var wsrc3 = env.sources && env.sources['sensor-trio-worker.js'];
+      T.ok("the night page's four-corner worker is readable in this lane", !!wsrc3, 'sensor-trio-worker.js not in env.sources — the rows below would vacuously pass');
+      if (wsrc3) {
+        var wcode3 = codeOnly(wsrc3);
+        T.ok(
+          'comment-stripping left the executable source behind',
+          wcode3.length > 0.4 * wsrc3.length && /function\s+solveFourCorners\s*\(/.test(wcode3),
+          'the strip ate the code, so every row below would pass over nothing — len ' + wcode3.length + ' of ' + wsrc3.length
+        );
+        T.ok(
+          'the night page delegates its four-corner hat to the shared kernel',
+          /\bAnalysisStats\b/.test(wcode3) && /\bnCornerHat\s*\(/.test(wcode3),
+          'solveFourCorners must call AnalysisStats.nCornerHat, never a local solver'
+        );
+        T.ok(
+          'the night worker carries NO private n-corner solver',
+          !/function\s+(nCornerHat|nCornerPairVar)\s*\(/.test(wcode3),
+          'a private copy of the n-corner solver appeared in the night worker — delete it and delegate'
+        );
+        /* This file DOES declare `function threeCorneredHat` and `function tchSigmas`, and both are
+           legitimate: the first is a refusing WRAPPER over the kernel (2026-09-27 removed the real copy
+           from here), and the second builds the three difference series, which is not the solve. So the
+           row that matters is not whether the names exist but whether the ARITHMETIC came back. The
+           classic hat is the `0.5 * (…)` triple; a wrapper has none of it. */
+        var bodyOf = function (name) {
+          var at = wcode3.indexOf('function ' + name + '(');
+          if (at < 0) return '';
+          var end = wcode3.indexOf('\n}', at);
+          return end > at ? wcode3.slice(at, end) : wcode3.slice(at);
+        };
+        var tchBody = bodyOf('threeCorneredHat'),
+          sigBody = bodyOf('tchSigmas');
+        T.ok('the wrapper bodies were sliced out', tchBody.length > 50 && sigBody.length > 50, 'tch=' + tchBody.length + ' sig=' + sigBody.length);
+        T.ok(
+          'the three-corner wrapper delegates and solves nothing itself',
+          /AnalysisStats\.threeCorneredHat/.test(tchBody) && !/0\.5\s*\*/.test(tchBody),
+          'the hat arithmetic came back into the wrapper — it must call the kernel and refuse when the kernel is absent'
+        );
+        T.ok(
+          'and the difference-series helper reaches the hat through that wrapper',
+          /threeCorneredHat\(/.test(sigBody) && !/0\.5\s*\*/.test(sigBody),
+          'tchSigmas must build the three difference series and hand them to the wrapper, never solve'
+        );
+      }
+
+      /* The sub-hat decision of #8914 rests on ONE identity: at N = 3 the n-corner solver returns the
+         classic hat. That is what lets the panel say its chest/ankle/finger sub-hat differs from the
+         hero cards by the SECONDS ALONE. If the identity breaks, that sentence becomes a false claim.
+         The negative triple is kept in the sweep on purpose: `nCornerHat` does NOT refuse it — it
+         returns `ok: true` with the negative variance, a null sigma and a per-corner `cornerReason`,
+         and the panel renders that reason by name. A test that expected a refusal here would have
+         pinned a behaviour the kernel does not have. */
+      if (typeof S.nCornerHat === 'function') {
+        var nAgreed = 0,
+          nNeg = 0;
+        for (var j3 = 0; j3 < CASES.length; j3++) {
+          var cc = CASES[j3],
+            cls = toolHat(cc.vab, cc.vac, cc.vbc),
+            nh = S.nCornerHat({ 'a|b': cc.vab, 'a|c': cc.vac, 'b|c': cc.vbc }, ['a', 'b', 'c'], { windows: 12 }),
+            ok3 = nh.ok && Math.abs(nh.variance.a - cls.a) < 1e-9 && Math.abs(nh.variance.b - cls.b) < 1e-9 && Math.abs(nh.variance.c - cls.c) < 1e-9;
+          if (ok3) nAgreed++;
+          T.ok(
+            'N=3 n-corner hat ≡ the classic hat — ' + cc.why,
+            ok3,
+            ok3 ? '' : 'classic {' + cls.a + ',' + cls.b + ',' + cls.c + '} vs nCornerHat ' + JSON.stringify(nh.variance) + ' reason=' + JSON.stringify(nh.reason)
+          );
+          if (cls.a < 0 || cls.b < 0 || cls.c < 0) {
+            nNeg++;
+            var negName = cls.a < 0 ? 'a' : cls.b < 0 ? 'b' : 'c';
+            T.ok(
+              'a negative corner is named, never a number — ' + cc.why,
+              nh.ok && nh.sigma[negName] === null && nh.cornerReason[negName] === 'negative-variance',
+              'sigma=' + JSON.stringify(nh.sigma) + ' cornerReason=' + JSON.stringify(nh.cornerReason)
+            );
+          }
+        }
+        T.eq('every planted triple agreed at N = 3', nAgreed, CASES.length);
+        T.ok('the negative-corner shape was exercised at least once', nNeg >= 1, 'nNeg=' + nNeg);
+        var nhFew = S.nCornerHat({ 'a|b': 4, 'a|c': 9, 'b|c': 5 }, ['a', 'b', 'c'], { windows: 11 });
+        T.ok('…and the 12-window floor still refuses by name', !nhFew.ok && /windows$/.test(String(nhFew.reason)), 'reason=' + JSON.stringify(nhFew.reason));
+      }
+    });
+
+    /* FOUR CORNERS ON THE NIGHT PAGE (#8914, owner unit). The fourth corner is Muse forehead optics.
+       Every row here guards an acceptance item of that unit that only a source scan can reach: the
+       panel is rendered from the JS because the page's own `.html` is a build output, so there is no
+       markup to assert against, and the real four-signal corpus is not in this lane. What IS decidable
+       here is that the absent corner stays absent — §∅ — and that the three-corner surfaces the fleet
+       already publishes did not move under the fourth. */
+    group('the fourth corner is optional, named when absent, and moved no published surface', 'sensor-trio · four corners', function (T) {
+      var psrc = env.sources && env.sources['sensor-trio-night.js'],
+        wsrc = env.sources && env.sources['sensor-trio-worker.js'];
+      T.ok('the night page source is readable in this lane', !!psrc, 'sensor-trio-night.js not in env.sources — must be listed in BOTH lanes');
+      T.ok('the night worker source is readable in this lane', !!wsrc, 'sensor-trio-worker.js not in env.sources — must be listed in BOTH lanes');
+      if (!psrc || !wsrc) return;
+
+      /* 1 · The fourth corner never gates the night. A Muse-less night stays the three-corner night it
+         is, so `eligible` must not learn the word. */
+      var eligLine = (psrc.match(/^\s*const eligible = .*$/m) || [''])[0];
+      T.ok('the eligibility predicate was found', /nt\.o2/.test(eligLine), 'const eligible = … not matched; the row below would vacuously pass');
+      T.ok(
+        'the forehead corner does NOT gate eligibility',
+        eligLine.length > 0 && !/forehead/i.test(eligLine),
+        'eligible() learned the fourth corner — a Muse-less night would stop being a three-corner night: ' + eligLine.trim()
+      );
+
+      /* 2 · The three-corner key list is untouched. Every three-corner surface iterates DKEYS; the
+         four-corner panel is the only reader of FKEYS. One list growing into the other is how a fourth
+         corner silently reaches the hero cards. */
+      var dk = (psrc.match(/const DKEYS = \[[^\]]*\]/) || [''])[0],
+        fk = (psrc.match(/const FKEYS = \[[^\]]*\]/) || [''])[0];
+      T.ok('DKEYS still names exactly the three published corners', /^const DKEYS = \['h10', 'verity', 'o2'\]$/.test(dk), 'DKEYS=' + dk);
+      T.ok('FKEYS names the four, forehead last', /^const FKEYS = \['h10', 'verity', 'o2', 'forehead'\]$/.test(fk), 'FKEYS=' + fk);
+
+      /* 3 · The forehead classifier demands the `Muse_` prefix. `_RAW.txt` is not a Muse-only suffix,
+         so an unprefixed pattern would claim another vendor's raw stream as a forehead corner. */
+      var rawLines = psrc.split('\n').filter(function (l) {
+        return /_RAW(RUNS)?\\\.txt/.test(l) && /role: 'forehead/.test(l);
+      });
+      T.eq('both forehead roles are classified on one line each', rawLines.length, 2);
+      var prefixed = rawLines.filter(function (l) {
+        return /\/\^Muse_\/i\.test\(n\)/.test(l);
+      }).length;
+      T.eq('every forehead pattern is guarded by the Muse_ prefix', prefixed, rawLines.length);
+
+      /* 4 · The panel ALWAYS ships, and an absence is told apart from a failure. A panel that vanished
+         when the corner was absent would be indistinguishable from one that vanished because the hat
+         refused — the reader could not tell a three-corner night from a broken four-corner night. */
+      T.ok(
+        'the worker ships the four-corner result on every night',
+        /four: four\b/.test(wsrc) && /'no-muse-file'/.test(wsrc),
+        "the payload must carry `four` unconditionally, with 'no-muse-file' for the absent corner"
+      );
+
+      /* 5 · §∅ in the pairwise matrix: an unmeasured pair reads a word, never a zero. The matrix is
+         4×4 and its off-diagonal is a difference VARIANCE, for which 0 is a legal value — two perfectly
+         agreeing corners. So a zero standing in for an absent pair is unreadable, by construction. */
+      var i0 = psrc.indexOf('function renderFourCorner'),
+        i1 = psrc.indexOf('function renderAll', i0 < 0 ? 0 : i0),
+        panel = i0 >= 0 && i1 > i0 ? psrc.slice(i0, i1) : '';
+      T.ok('the four-corner renderer was sliced out of the page source', panel.length > 2000, 'renderFourCorner not found between its own name and renderAll — len ' + panel.length);
+      if (panel) {
+        T.ok('an unmeasured pair renders the word absent', /class="mut">absent</.test(panel), 'the matrix must print absent for a pair nothing measured');
+        T.ok(
+          'and the renderer defaults no number to zero',
+          !/\?\?\s*0\b/.test(panel) && !/\|\|\s*0\b/.test(panel),
+          'a `?? 0` or `|| 0` in the four-corner renderer is the §∅ bug: it turns an unmeasured pair into a measured agreement'
+        );
+        /* 6 · Two sentences the owner ruling requires on the surface: the four-way grid is NARROWER
+           than the hero σ̂ (so the sub-hat is not a contradiction of the published cards), and the
+           fourth corner makes the independence assumption harder, not safer. */
+        T.ok('the panel states that its grid is narrower than the hero seconds', /narrower/i.test(panel), 'without it the chest/ankle/finger sub-hat reads as a contradiction of the hero cards');
+        T.ok('the panel states that four corners make independence HARDER', /harder/i.test(panel), 'the third optical corner weakens the independence assumption and the page must say so');
+      }
+
+      /* 7 · A stated sign is not a vote. The forehead channel runs with `PATAlign.FOREHEAD.sign`, under
+         which the channel-consensus vote is unanimous BY CONSTRUCTION, so a consensus stamp would claim
+         an agreement nobody counted. The worker must skip the stamp under a stated sign and say so. */
+      T.ok(
+        'the polarity stamp is skipped under a stated sign',
+        /var polStamp = !_sign &&/.test(wsrc),
+        'a stated sign must suppress the consensus stamp — a forced-sign vote is unanimous by construction'
+      );
+      T.ok(
+        'and the stated sign travels with the result',
+        /signStated: _sign\b/.test(wsrc) && /signStated: Mres\.signStated\b/.test(wsrc),
+        'the page reports the forehead provenance from signStated; it must reach the payload'
+      );
+
+      /* 8 · The forehead decoder is reached through PATAlign, not copied. `muse-frame.js` is carried by
+         two bundles, so the decode wrapper lives in `pat-align.js`, which no bundle carries. */
+      T.ok(
+        'the worker decodes the forehead stream through PATAlign.decodeMuseOptics',
+        /PATAlign\.decodeMuseOptics\(/.test(wsrc) && !/new MuseFrame\.OpticsPpg\(/.test(wsrc),
+        'the worker must not construct the decoder itself — the wrapper is PATAlign.decodeMuseOptics'
+      );
+      /* BOTH roads delegate the decode. `pat-feasibility-worker.js` carried the only copy until
+         2026-11-26 (#8987); the night worker made it a second reader, and a second copy is what the
+         2026-08-04 hat finding measured. The wrapper may stay in either file — what may not come back
+         is the body, whose tell is `new MuseFrame.OpticsPpg(`. */
+      var fsrc = env.sources && env.sources['pat-feasibility-worker.js'];
+      T.ok('pat-feasibility-worker.js is readable in this lane', !!fsrc, 'pat-feasibility-worker.js not in env.sources');
+      if (fsrc) {
+        T.ok(
+          'the PAT road delegates the forehead decode too, and keeps no copy',
+          /PATAlign\.decodeMuseOptics\(/.test(fsrc) && !/new MuseFrame\.OpticsPpg\(/.test(fsrc),
+          'the decode body came back into pat-feasibility-worker.js — it must call PATAlign.decodeMuseOptics and refuse when that is absent'
+        );
+        T.ok('and it loads the file that answers the name', /'pat-align\.js'/.test(fsrc), 'the dep list must carry pat-align.js, or the delegation reads undefined on every night');
+      }
+      var asrc = env.sources && env.sources['pat-align.js'];
+      T.ok('pat-align.js is readable in this lane', !!asrc, 'pat-align.js not in env.sources');
+      if (asrc) {
+        T.ok(
+          'pat-align.js exports the decoder and the forehead constants',
+          /decodeMuseOptics: decodeMuseOptics\b/.test(asrc) && /FOREHEAD\b/.test(asrc),
+          'the export list must name decodeMuseOptics, or the worker reads undefined and refuses every night'
+        );
+        T.ok(
+          'the forehead sign is negative and its foot is re-timed above the noise band',
+          /sign:\s*-1/.test(asrc) && /footHiHz:\s*3/.test(asrc),
+          'received light FALLS at systole on the forehead, and the 0.5–8 Hz foot rides noise there'
+        );
+      }
     });
 
     /* TCH-CORRELATED-SOLVE-KNIFE-EDGE §3 — a correlated σ is not interpretable without its distance to
@@ -37486,7 +37705,14 @@
          lag medians and the seam count that removed windows from the solve. The page reads it in its `renderFocus`
          helper, beside the three-cornered hat it already draws there, which is where it reads every other hat key.
          Surfaced on purpose: a worker key no consumer reads is what the dead-key leg above would have called dead. */
-      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 28, 'sensor-trio-worker.js': 42, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
+      /* sensor-trio-worker.js 42 -> 43 on 2026-11-26 (the night four-corner unit, #8914): the payload gains
+         `four`, the four-corner hat over chest, ankle, finger and Muse forehead, with its own second count,
+         pairwise matrix, sub-hats, residual and forehead provenance. The night page reads it in its
+         `renderFourCorner` helper, which is where it reads every key of that panel. The key ships on EVERY
+         night, including a three-corner night, where it carries `ok: false` and the reason `no-muse-file` —
+         that is what lets a reader tell an absent corner from a hat that refused, and it is why the count
+         rises by exactly one rather than by one per field. Surfaced on purpose. */
+      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 28, 'sensor-trio-worker.js': 43, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
       Object.keys(UNDECIDED_EXPECTED).forEach(function (w2) {
         T.eq(
           w2 + ' · helper-reached (UNDECIDABLE) key count',
