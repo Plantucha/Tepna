@@ -89,11 +89,39 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # ── reuse (identical tree): skip the heavy jobs when the merge queue already tested this tree green ──
+  # tools/ci-tree-reuse.mjs holds the rule and its evidence (board #9312, #9314). A push to main only;
+  # on any other event this job is skipped and the full workflow runs. It fails open.
+  reuse:
+    # Not sampled yet: a sparse checkout plus one API read. Re-derive it from `tools/ci-timing.mjs` once it has runs.
+    timeout-minutes: 3
+    name: reuse (identical tree)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      reused: ${{ steps.pick.outputs.reused }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            tools/ci-tree-reuse.mjs
+            tools/argv-guard.mjs
+          sparse-checkout-cone-mode: false
+      - id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/ci-tree-reuse.mjs --workflow tests.yml
+
   # ── the assertion suite, split 6 ways ──────────────────────────────────────────────
   suite:
     # measured 2026-11-03 over 17 job run(s): p90 3m21s, max 3m32s (tools/ci-timing.mjs --limit 100). Cap = ceil(max(p95, max) × 2); max bounds p95.
     # max over the six shards
     timeout-minutes: 8
+    needs: reuse
+    if: ${{ !cancelled() && needs.reuse.outputs.reused != 'true' }}
     name: suite (shard ${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
     strategy:
@@ -114,6 +142,8 @@ jobs:
   static:
     # measured 2026-11-03 over 17 job run(s): p90 6m09s, max 6m32s (tools/ci-timing.mjs --limit 100). Cap = ceil(max(p95, max) × 2); max bounds p95.
     timeout-minutes: 14
+    needs: reuse
+    if: ${{ !cancelled() && needs.reuse.outputs.reused != 'true' }}
     name: shard-union + build + provenance
     runs-on: ubuntu-latest
     steps:
@@ -315,8 +345,8 @@ jobs:
     # measured 2026-10-11 over 29 job run(s): p95 0.1 min, max 0.1 min (tools/ci-timing.mjs `pct`). Cap = ceil(max(p95, max) × 2).
     timeout-minutes: 1
     name: test
-    if: always()
-    needs: [suite, static]
+    if: ${{ always() && needs.reuse.outputs.reused != 'true' }}
+    needs: [reuse, suite, static]
     runs-on: ubuntu-latest
     steps:
       - name: Gate on every shard

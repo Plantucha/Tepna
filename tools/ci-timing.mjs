@@ -125,6 +125,19 @@ export function summarise(jobs) {
   return rows;
 }
 
+/* A REUSED RUN IS NOT A TIMING SAMPLE (board #9328). On a push to main, `tools/ci-tree-reuse.mjs`
+   skips the heavy jobs when the merge queue already tested the same tree green. Such a run holds one
+   short `reuse (identical tree)` job in success and every other job skipped, so its critical path would
+   read as a few seconds and pull every percentile down. Drop the whole run, and count the drop. */
+export const REUSE_JOB = 'reuse (identical tree)';
+export function isReusedRun(jobs) {
+  const list = jobs || [];
+  const reuse = list.find((j) => j.name === REUSE_JOB);
+  if (!reuse || reuse.conclusion !== 'success') return false;
+  const rest = list.filter((j) => j !== reuse);
+  return rest.length > 0 && rest.every((j) => j.conclusion === 'skipped');
+}
+
 /* THE CRITICAL PATH IS A MAX, NOT A SUM — jobs run in parallel, so shaving a job that is not the
    slowest changes nothing. Reported per RUN and then summarised, because the slowest job differs
    between runs and taking the max of the per-job maxima would overstate it. */
@@ -305,6 +318,15 @@ if (has('--selftest')) {
   ok('sampleLabel names the workflow beside the population', sampleLabel({ workflow: 'stale-file.yml', event: 'pull_request' }) === '`stale-file.yml`, event `pull_request`, every branch');
   ok('…and falls back to the population alone', sampleLabel({ branch: 'main' }) === '`main`');
 
+  {
+    const ok2 = (n, c) => ok(n, c);
+    const S = (name, conclusion) => ({ name, conclusion, started_at: null, completed_at: null });
+    ok2('a reuse run with every heavy job skipped is a reused run', isReusedRun([J(REUSE_JOB, 0, 8), S('suite (shard 1/6)', 'skipped'), S('test', 'skipped')]) === true);
+    ok2('a reuse job skipped (a PR run) is not a reused run', isReusedRun([Object.assign(J(REUSE_JOB, 0, 0), { conclusion: 'skipped' }), J('suite (shard 1/6)', 0, 200)]) === false);
+    ok2('a full run after a reuse check is not a reused run', isReusedRun([J(REUSE_JOB, 0, 8), J('suite (shard 1/6)', 10, 200)]) === false);
+    ok2('a run with no reuse job is not a reused run', isReusedRun([J('suite (shard 1/6)', 0, 200)]) === false);
+    ok2('a reuse job alone is not a reused run', isReusedRun([J(REUSE_JOB, 0, 8)]) === false);
+  }
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);
 }
@@ -355,8 +377,13 @@ if (!runs.length) {
 
 const allJobs = [];
 const byRun = new Map();
+let reusedDropped = 0;
 for (const r of runs.slice(0, LIMIT)) {
   const jobs = gh(['api', `repos/${repo}/actions/runs/${r.id}/jobs?per_page=100`, '--jq', '{jobs: [.jobs[] | {name, started_at, completed_at, conclusion}]}']).jobs || [];
+  if (isReusedRun(jobs)) {
+    reusedDropped++;
+    continue;
+  }
   const tagged = jobs.map((j) => Object.assign(j, { run_created_at: r.created_at }));
   byRun.set(r.id, tagged);
   allJobs.push(...tagged);
@@ -367,13 +394,16 @@ const cp = criticalPath(byRun);
 const win = windowOf(runs.slice(0, LIMIT));
 
 if (has('--json')) {
-  console.log(JSON.stringify({ branch: BRANCH, event: EVENT, workflow: WORKFLOW, population: sampleLabel(POP), runsSampled: byRun.size, window: win, jobs: rows, criticalPath: cp }, null, 2));
+  console.log(
+    JSON.stringify({ branch: BRANCH, event: EVENT, workflow: WORKFLOW, population: sampleLabel(POP), runsSampled: byRun.size, reusedDropped, window: win, jobs: rows, criticalPath: cp }, null, 2)
+  );
   process.exit(0);
 }
 
 const out = [];
 out.push(`## CI timing — ${sampleLabel(POP)}, last ${byRun.size} run(s)`);
 if (win) out.push(`Sample window ${win.from} → ${win.to}. An event older than that is outside it.`);
+if (reusedDropped) out.push(`${reusedDropped} reused run(s) dropped: their heavy jobs skipped on a tree the merge queue had tested (\`tools/ci-tree-reuse.mjs\`).`);
 out.push('');
 out.push(`**Critical path** (the slowest job in each run — this, not the sum, is what a PR waits for):`);
 out.push(`p50 **${fmtDur(cp.p50)}** · p90 **${fmtDur(cp.p90)}** · max **${fmtDur(cp.max)}**`);
