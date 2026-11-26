@@ -3855,6 +3855,124 @@
       );
     });
 
+    /* THE BACKGROUND'S PERSISTENCE COMES FROM LAG 2 OVER LAG 1, NEVER FROM LAG 1 OVER LAG 0 (row
+       2026-11-25-fft-null-rho-falls-under-whole-percent-spo2). A whole-percent SpO2 sample is a
+       smoother value plus a rounding error, that error is white, and `r1/r0` therefore falls on a
+       quantised signal. The fitted background flattens with it, the low-frequency end stops being
+       modelled as red, and the argmax there clears the threshold on a record that holds no cycle.
+       `r2/r1` is the same rho for an AR(1) series and the rounding error reaches neither term.
+       Measured on the shipped function over 48 nights of 27,600 samples at 1 Hz, nothing planted:
+       `r1/r0` fabricated 3/48 at SD 1.2, 25/48 at SD 0.6 and 9/48 on a two-component series, and
+       `r2/r1` fabricated 0/48 on every one. On the 42 real O2Ring nights of the corpus both report
+       the SAME 4 nights at 37, 45, 53 and 78 s, so the repair costs no detection anyone has made.
+       The GEOMETRY BELOW IS THE ONE THAT SEPARATES THEM at suite scale: 8 nights of 6,000 samples,
+       AR(1) 0.98 at series SD 0.6, rounded to whole percent. The lag-1 estimator fabricates on 3 of
+       these 8 seeds, so this group reds on the defect rather than describing it. */
+    group('the FFT background reads persistence past the rounding error', 'oxydex · fft-null · rounding', function (T) {
+      var cand = [env.OxyDex && env.OxyDex._bare, env.OxyDex, env.OxyDSP, env.OXYDSP];
+      var OD = null,
+        ci;
+      for (ci = 0; ci < cand.length; ci++) {
+        if (cand[ci] && typeof cand[ci].computeSpO2FFT === 'function') {
+          OD = cand[ci];
+          break;
+        }
+      }
+      if (!OD) {
+        T.skip('computeSpO2FFT not in env');
+        return;
+      }
+      function rng(seed) {
+        var s = seed >>> 0;
+        return function () {
+          s = (s * 1664525 + 1013904223) >>> 0;
+          return s / 4294967296;
+        };
+      }
+      /* One generator for every leg, so the continuous and the rounded night differ in the ROUNDING
+         and in nothing else: same seed, same innovations, same planted cycle. */
+      function night(n, sd, seed, round, amp, perSec) {
+        var r = rng(seed),
+          x = 0,
+          out = [],
+          i,
+          u,
+          v,
+          g,
+          innov = sd * Math.sqrt(1 - 0.98 * 0.98),
+          val;
+        for (i = 0; i < n; i++) {
+          u = 0;
+          v = 0;
+          while (!u) u = r();
+          while (!v) v = r();
+          g = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+          x = 0.98 * x + innov * g;
+          val = 96 + x;
+          if (amp) val += amp * Math.sin((2 * Math.PI * i) / perSec);
+          out.push({ spo2: round ? Math.round(val) : val });
+        }
+        return out;
+      }
+
+      var N = 8,
+        fab = 0,
+        k,
+        res;
+      for (k = 0; k < N; k++) {
+        res = OD.computeSpO2FFT(night(6000, 0.6, k * 7919 + 1, true, 0, 0));
+        if (res && res.detected) fab++;
+      }
+      // NEGATIVE CONTROL. Nothing is planted, so every detection here is a fabrication, and the
+      // lag-1 estimator fabricates on 3 of these same 8 seeds.
+      T.eq('a rounded AR(1) night at SD 0.6 fabricates no cycle (' + fab + '/' + N + ')', fab, 0);
+
+      var found = 0,
+        near = 0;
+      for (k = 0; k < N; k++) {
+        res = OD.computeSpO2FFT(night(6000, 0.6, k * 7919 + 1, true, 0.3, 80));
+        if (res && res.detected) {
+          found++;
+          if (Math.abs(res.peakCycSec - 80) <= 10) near++;
+        }
+      }
+      /* POSITIVE CONTROL, on the SAME seeds and the same rounding as the leg above, and it is what
+         stops the repair from being "refuse more often". An amplitude of 0.3 is half the series SD,
+         so this is the quiet case rather than a comfortable one. */
+      T.eq('a planted 80 s cycle of amplitude 0.3 survives the rounding (' + found + '/' + N + ')', found, N);
+      T.eq('and it is reported AT 80 s, within 10 s on every night', near, N);
+
+      /* THE MECHANISM, stated as a number a reader can check. Rounding adds variance at lag 0 and
+         nothing at any other lag, so it lowers `r1/r0` and leaves `r2/r1` alone. */
+      var cont = OD.computeSpO2FFT(night(6000, 0.6, 1, false, 0, 0)),
+        round = OD.computeSpO2FFT(night(6000, 0.6, 1, true, 0, 0));
+      T.ok(
+        'on a continuous night the two estimators agree, so the fix changes nothing there',
+        cont != null && Math.abs(cont.rhoBg - cont.rhoLag1) < 0.01,
+        JSON.stringify({ rhoLag1: cont && cont.rhoLag1, rhoBg: cont && cont.rhoBg })
+      );
+      T.ok(
+        'rounding the SAME night drops rhoLag1 and the background keeps its persistence',
+        round != null && round.rhoLag1 < cont.rhoLag1 - 0.02 && round.rhoBg > round.rhoLag1 + 0.02,
+        JSON.stringify({ contLag1: cont && cont.rhoLag1, roundLag1: round && round.rhoLag1, roundBg: round && round.rhoBg })
+      );
+      // The published verdict carries BOTH numbers, so the lag-1 distribution the brief records stays
+      // readable beside the one the background used.
+      T.ok('the verdict publishes rhoLag1 and rhoBg together', round != null && typeof round.rhoLag1 === 'number' && typeof round.rhoBg === 'number');
+
+      /* ∅ A REFUSAL PUBLISHES rhoBg AS NULL, never as 0. A 0 would read as a background with no
+         persistence, which is a measurement, and this night was never fitted. */
+      var gap = night(6000, 0.6, 1, true, 0, 0),
+        gi;
+      for (gi = 0; gi < gap.length; gi += 20) gap[gi].spo2 = null;
+      var ref = OD.computeSpO2FFT(gap);
+      T.ok(
+        'a night refused below the coverage floor publishes rhoBg null, not 0',
+        ref != null && ref.detected === false && ref.rhoBg === null && ref.rhoLag1 === null && typeof ref.reason === 'string',
+        JSON.stringify({ rhoBg: ref && ref.rhoBg, rhoLag1: ref && ref.rhoLag1, reason: ref && ref.reason })
+      );
+    });
+
     /* ∅ — THE SPECTRUM'S POPULATION IS THE COVERED SAMPLES, AND AN ABSENT SAMPLE IS NOT `-mean`.
        `computeSpO2FFT` read `r.spo2` into the mean and into the deviation, so an absent row added 0 to
        the mean and then entered EVERY bin as `-mean`. Row

@@ -376,8 +376,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "0feab93c3c3d",
-        "computeHash": "45abcfaf953c"
+        "manifestHash": "a973f29c0998",
+        "computeHash": "4bb6a14e0739"
       },
       "evidence": {
         "envelopeRef": null,
@@ -405,8 +405,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "0feab93c3c3d",
-        "computeHash": "45abcfaf953c"
+        "manifestHash": "a973f29c0998",
+        "computeHash": "4bb6a14e0739"
       },
       "evidence": {
         "envelopeRef": null,
@@ -434,8 +434,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "0feab93c3c3d",
-        "computeHash": "45abcfaf953c"
+        "manifestHash": "a973f29c0998",
+        "computeHash": "4bb6a14e0739"
       },
       "evidence": {
         "envelopeRef": null,
@@ -463,8 +463,8 @@
       },
       "sourceChannel": "O2Ring:spo2",
       "code": {
-        "manifestHash": "0feab93c3c3d",
-        "computeHash": "45abcfaf953c"
+        "manifestHash": "a973f29c0998",
+        "computeHash": "4bb6a14e0739"
       },
       "evidence": {
         "envelopeRef": null,
@@ -1273,12 +1273,13 @@
     "fft": {
       "peakFreqHz": 0.0187,
       "peakCycSec": 53,
-      "snr": 19.88,
+      "snr": 19.89,
       "threshold": 19.26,
       "bins": 325,
       "bandBinsN": 325,
       "strided": false,
       "rhoLag1": 0.9955,
+      "rhoBg": 0.9948,
       "coveredN": 7200,
       "spanN": 7200,
       "absentRunMaxN": 0,
