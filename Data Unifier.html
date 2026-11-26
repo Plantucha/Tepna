@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="66f09b5a723c" data-compute-hash="cda461502f53"><head>
+<html lang="en" data-manifest-hash="cf6dee6bbaed" data-compute-hash="6324359e68e4"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/VJg0iL4BTIOQo1MBGNaCyjASkthShp7aMZCanB9k3A=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6vRsd8wVQoTSJKZCJmwjUOk0mO0dhv4yfkPzZA204MI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-L95+f1CJkFsGZmJsXTzg1qxjuBQQkQLCtzLxyAOtSps=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SNG0V1OhZVY/Q3A5A3nTOITBdDJxUtvqV6nu8qXld30=' 'sha256-SploFxN8y41QfXBKeMXZ3VVUDPeaXF7mfHd2/kuq43U=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XKQFrqQpPPC7kRB+couzlvLcdQFWKGseS/BbyN9tv9s=' 'sha256-cumr3An7W+Q6iJlTfa/0x/W0WcDr47x/lyahofIzqPo=' 'sha256-ftUZOP6BXhq+bjR2sygBrCjNenvCVQLmSg6CrrMVjRk=' 'sha256-gd9IuoPK0m0h+mwKmCjCmBpm6ebuTXqb8O27YnJNX04=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nbCcwjX4Ba9w3RBLEB+5up9PRhrS11tY5toYvGccPHI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-piJPQqTQ1IP+DB0tbyctXlZlRhC4JwaGuRPqPpdWJ9c=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rKOLZSmNqgk9sveMIZvZI2xTcv2C6V9ASMx59wAbxvU=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-wktj1Df+isZKJxu0wGtJ0pZLbTfqdObxwLCd2Fo+wQg=' 'sha256-zmPi1hhzvQ7iExQrkogwmgLpi9q2dJI4MTjAauSml10='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/VJg0iL4BTIOQo1MBGNaCyjASkthShp7aMZCanB9k3A=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6vRsd8wVQoTSJKZCJmwjUOk0mO0dhv4yfkPzZA204MI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-L95+f1CJkFsGZmJsXTzg1qxjuBQQkQLCtzLxyAOtSps=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-PpBpm1uOMgKMNYtYEz40yk6Rax4+gk858PuQoCj/cZI=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SNG0V1OhZVY/Q3A5A3nTOITBdDJxUtvqV6nu8qXld30=' 'sha256-SploFxN8y41QfXBKeMXZ3VVUDPeaXF7mfHd2/kuq43U=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XKQFrqQpPPC7kRB+couzlvLcdQFWKGseS/BbyN9tv9s=' 'sha256-cumr3An7W+Q6iJlTfa/0x/W0WcDr47x/lyahofIzqPo=' 'sha256-ftUZOP6BXhq+bjR2sygBrCjNenvCVQLmSg6CrrMVjRk=' 'sha256-gd9IuoPK0m0h+mwKmCjCmBpm6ebuTXqb8O27YnJNX04=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-i+IZah3NHzRhUDtPLEVgMiL9vK3oHI/+EDhyuxP2uQM=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nbCcwjX4Ba9w3RBLEB+5up9PRhrS11tY5toYvGccPHI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-y6atEKP/AbE4LZCyEBh76Xb2piWlZ5rxz4CQYkPXkFc=' 'sha256-zmPi1hhzvQ7iExQrkogwmgLpi9q2dJI4MTjAauSml10='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -20417,7 +20417,8 @@ __exports.HRVDex = window.HRVDex;
         }
       }
       const F = Math.sqrt(sumSq / cnt);
-      if (F > 0) {
+      // ∅ a residue below the floor is no fluctuation, so the scale gives no point (RR_VAR_MIN_MS2)
+      if (F * F >= RR_VAR_MIN_MS2) {
         logn.push(Math.log10(n));
         logF.push(Math.log10(F));
       }
@@ -20570,6 +20571,11 @@ __exports.HRVDex = window.HRVDex;
 
   // Lomb–Scargle periodogram for unevenly-sampled RR → true VLF/LF/HF + resp-rate proxy
   // Power normalized so the band integral equals signal variance (Parseval).
+  /* ∅ A series with no variation has no spectrum. The detrend leaves a floating-point residue of about
+     1e-24 ms² when every interval is equal and not a short binary fraction, and `hf > 0` read that
+     residue as power: 300 intervals of 807.6923 ms published LF/HF 3.82 and a breath rate of 9 beside
+     LF 0 and HF 0. The floor is 1 µs of SD, about a thousandth of the 1/1024 s interval step. */
+  const RR_VAR_MIN_MS2 = 1e-6;
   function lombScargle(a, nf) {
     const N = a.length;
     const t = [];
@@ -20673,6 +20679,7 @@ __exports.HRVDex = window.HRVDex;
       }
     }
     const variance = x.reduce((s, v) => s + v * v, 0) / N;
+    if (variance < RR_VAR_MIN_MS2) vlf = lf = hf = peakP = peakF = gPeakP = gPeakF = 0; // residue is not power
     const sc = tpFull > 0 ? variance / tpFull : 1; // calibrate ∫PSD = variance over the FULL support (§3.1)
     // DEEP-AUDIT-2026-07-14 §3: tp is the band SUM, so vlf+lf+hf==totalPower holds EXACTLY rather than to
     // within rounding — mirrors ECGDex:601 / PpgDex. (Immaterial here vs the ±1–2 ms² rounding, but keeps
@@ -29960,6 +29967,11 @@ __exports.GlucoDex = window.GlucoDex;
     };
   }
   // Lomb–Scargle on irregular RR for frequency-domain HRV
+  /* ∅ A series with no variation has no spectrum. The detrend leaves a floating-point residue of about
+     1e-24 ms² when every interval is equal and not a short binary fraction, and `hf > 0` read that
+     residue as power: 300 intervals of 807.6923 ms published LF/HF 4.03 and a breath rate of 9.18 beside
+     LF 0 and HF 0. The floor is 1 µs of SD, about a thousandth of the 1/1024 s interval step. */
+  const RR_VAR_MIN_MS2 = 1e-6;
   function lombScargle(tt, nn) {
     if (nn.length < 8) return null;
     const t = tt.map((x) => x);
@@ -30086,6 +30098,10 @@ __exports.GlucoDex = window.GlucoDex;
     let variance = 0;
     for (let i = 0; i < N; i++) variance += y[i] * y[i];
     variance /= N;
+    if (variance < RR_VAR_MIN_MS2) {
+      vlf = lf = hf = 0; // residue is not power
+      hfPeakF = null;
+    }
     const scF = totalFull > 0 ? variance / totalFull : 1; // §3.1 — full support, not the band
     vlf *= scF;
     lf *= scF;
@@ -30218,9 +30234,15 @@ __exports.GlucoDex = window.GlucoDex;
     for (let si = 0; si < scales.length; si++) {
       if (!Wsum[si]) continue;
       const F = Math.sqrt(Esum[si] / (Wsum[si] * scales[si]));
+      /* ∅ A scale with no fluctuation gives no point. `Math.log(F || 1e-9)` gave every such scale one
+         floor value, so a flat series fitted a constant and published α1 = 0, and one 30 ms step in
+         300 equal intervals published 3.95 where ECGDex reads 0.604. Same floor and same three-scale
+         minimum as ECGDex and PulseDex. */
+      if (F * F < RR_VAR_MIN_MS2) continue;
       xs.push(Math.log(scales[si]));
-      ys.push(Math.log(F || 1e-9));
+      ys.push(Math.log(F));
     }
+    if (xs.length < 3) return { value: null, reason: 'no-fluctuation', segments: used, covered };
     const mx = mean(xs),
       myy = mean(ys);
     let num = 0,
@@ -32552,6 +32574,7 @@ __exports.GlucoDex = window.GlucoDex;
     /* Reduced coverage ANNOTATES (§∅). The keys appear only once the series was actually cut, so no
        committed gapless fixture moves for a key that would describe nothing. */
     const _segAnno = (seg, cut) => {
+      if (seg && seg.reason) return { reason: seg.reason }; // the estimator refused, cut or not
       if (!cut) return {};
       if (!seg) return { reason: 'no-run-over-floor' };
       return { segments: seg.segments, coveragePct: nn.length ? r1((100 * seg.covered) / nn.length) : null };
@@ -37272,6 +37295,11 @@ __exports.PpgDex = window.PpgDex;
   // ════════════════════════════════════════════════════════════════════════
   //  FREQUENCY DOMAIN — Lomb–Scargle on unevenly-sampled NN → VLF/LF/HF + resp.
   // ════════════════════════════════════════════════════════════════════════
+  /* ∅ A series with no variation has no spectrum. The detrend leaves a floating-point residue of about
+     1e-24 ms² when every interval is equal and not a short binary fraction, and `hf > 0` read that
+     residue as power: 300 intervals of 807.6923 ms published LF/HF 3.87 and a breath rate of 9 beside
+     LF 0 and HF 0. The floor is 1 µs of SD, about a thousandth of the 1/1024 s interval step. */
+  const RR_VAR_MIN_MS2 = 1e-6;
   function lombScargle(nn, times, nf) {
     const N = nn.length;
     /* REFUSE, DO NOT FABRICATE (Clock Contract §2.6, applied to the spectral path). Returning zeros
@@ -37372,6 +37400,7 @@ __exports.PpgDex = window.PpgDex;
     }
     const variance = x.reduce((s, v) => s + v * v, 0) / N,
       sc = tpFull > 0 ? variance / tpFull : 1;
+    if (variance < RR_VAR_MIN_MS2) vlf = lf = hf = peakP = peakF = 0; // residue is not power
     // DEEP-AUDIT §10: the sub-bands tile [fLo,fHi) exactly, so tp IS vlf+lf+hf. Round the bands FIRST and
     // define tp as their sum, so the Task-Force identity holds EXACTLY rather than to within rounding.
     const _v = Math.round(vlf * sc),
@@ -37432,7 +37461,8 @@ __exports.PpgDex = window.PpgDex;
         }
       }
       const F = Math.sqrt(sumSq / cnt);
-      if (F > 0) {
+      // ∅ a residue below the floor is no fluctuation, so the scale gives no point (RR_VAR_MIN_MS2)
+      if (F * F >= RR_VAR_MIN_MS2) {
         logn.push(Math.log10(n));
         logF.push(Math.log10(F));
       }
@@ -39721,9 +39751,10 @@ __exports.PpgDex = window.PpgDex;
          refusal would have surfaced as a ratio of exactly 0.000. Both derived metrics refuse
          when either axis is absent.
          ∅ The ratio also refuses below `ECG_SD2_MIN_MS`. The retained `|| 1` divided by an invented
-         1 ms, so a series with no long-axis spread published SD1 itself as the ratio. PpgDex
-         (`PPG_SD2_MIN_MS`) and PulseDex (`PX_SD2_MIN_MS`) refuse at the same floor. `ellArea` keeps
-         its 0: a product over a measured zero width is a measured zero area. */
+         1 ms, so a series with no long-axis spread published SD1 itself as the ratio. PulseDex
+         refuses at the same floor (`PX_SD2_MIN_MS`). PpgDex refuses at 0.05 ms (`PPG_SD2_MIN_MS`),
+         because it publishes one decimal. `ellArea` keeps its 0: a product over a measured zero width
+         is a measured zero area. */
       sd1sd2: sd1v == null || sd2v == null || sd2v < ECG_SD2_MIN_MS ? null : +(sd1v / sd2v).toFixed(3),
       ellArea: sd1v == null || sd2v == null ? null : +(Math.PI * sd1v * sd2v).toFixed(0),
       poincareNN,

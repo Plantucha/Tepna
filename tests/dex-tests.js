@@ -56621,6 +56621,114 @@
       var goodPair = CX.compareChannel(mk(25, 1000000), mk(25, 1000000));
       T.ok('a measured pair compares and reports a 0 s header offset', goodPair.ok === true && goodPair.clockOffsetSec === 0, 'ok=' + goodPair.ok);
     });
+    /* ∅ M11 — a regression that did not fit has no residual. `ols` answers null for all three
+       coefficients when the live channel carries no variance, and a flat or dead BLE channel is a real
+       live-capture case. `(reg.slope || 0)` fitted a flat ZERO line, so `resid` became raw B and
+       `residSD` published the SD of the SD-side channel as a POST-regression residual, beside a
+       `scale.a` that already read `—`. Found by the local sweep over cpapdex-cross.js:754. */
+    group('CPAPDex ∅ — a regression that did not fit publishes no residual (M11)', 'cpapdex-cross · compareChannel · absence', function (T) {
+      var CX = env.CPAPCross;
+      if (!CX || typeof CX.compareChannel !== 'function') {
+        T.skip('env.CPAPCross.compareChannel available', 'cpapdex-cross not wired in this lane');
+        return;
+      }
+      var n = 600,
+        FLAT = [],
+        WAVE = [];
+      for (var i = 0; i < n; i++) {
+        FLAT.push(0.4);
+        WAVE.push(Math.sin(i / 9));
+      }
+      var _sd = function (v) {
+        var m =
+            v.reduce(function (p, q) {
+              return p + q;
+            }, 0) / v.length,
+          ss = v.reduce(function (p, q) {
+            return p + (q - m) * (q - m);
+          }, 0);
+        return Math.sqrt(ss / (v.length - 1));
+      };
+      /* The degeneracy test in `ols` is RELATIVE for the reason this pair measures: 600 samples of 0.4
+         leave `den` at -1.9e-9, which clears an ABSOLUTE 1e-12 floor and fits a slope out of rounding
+         noise. 600 samples of 0.5 reach exactly 0. Both are flat, so both must answer null. */
+      var flat = CX.compareChannel({ t0Ms: 1000000, fs: 1, values: FLAT }, { t0Ms: 1000000, fs: 1, values: WAVE });
+      T.ok('ANTI-VACUITY · the flat-live pair still compares — this is not a refusal', flat.ok === true, 'ok=' + flat.ok + ' reason=' + flat.reason);
+      if (flat.ok) {
+        T.eq('a live channel with no variance fits no slope', flat.scale.a, null);
+        T.eq('and no intercept', flat.scale.b, null);
+        T.eq('so the residual SD is absent, not a number', flat.scale.residSD, null);
+        T.ok('the card carries the reason', /no variance/.test(flat.scale.residSDAbsentReason || ''), 'reason=' + flat.scale.residSDAbsentReason);
+        T.ok('the published residual is NOT the SD of the SD-side channel', flat.scale.residSD !== _sd(WAVE), 'residSD=' + flat.scale.residSD + ' sd(B)=' + _sd(WAVE));
+        /* The diffs never read the fit, so these stay MEASURED over the same overlap — a refusal that
+           swallowed them would be the other error. */
+        T.ok('the Bland-Altman bias stays measured', isFinite(flat.blandAltman.bias), 'bias=' + flat.blandAltman.bias);
+        T.ok('the limits of agreement stay measured', isFinite(flat.blandAltman.hiLoA) && flat.blandAltman.hiLoA > flat.blandAltman.loLoA, 'hi=' + flat.blandAltman.hiLoA);
+        T.ok('the paired-sample count stays measured', flat.divergence.pairedSamples === n, 'paired=' + flat.divergence.pairedSamples);
+        T.ok('an absent scale is not far from unity either', flat.scaleFarFromUnity === false, 'scaleFarFromUnity=' + flat.scaleFarFromUnity);
+      }
+      var flat5 = CX.compareChannel(
+        {
+          t0Ms: 1000000,
+          fs: 1,
+          values: FLAT.map(function () {
+            return 0.5;
+          })
+        },
+        { t0Ms: 1000000, fs: 1, values: WAVE }
+      );
+      T.ok('a flat channel that IS exact in binary refuses as well', flat5.ok === true && flat5.scale.a === null && flat5.scale.residSD === null, 'scale.a=' + (flat5.ok && flat5.scale.a));
+      // CONTROL · a pair that DOES fit keeps every number, and keeps the shape a fixture reads.
+      var SCALED = WAVE.map(function (v) {
+        return 0.9 * v + 0.02;
+      });
+      var good = CX.compareChannel({ t0Ms: 1000000, fs: 1, values: WAVE }, { t0Ms: 1000000, fs: 1, values: SCALED });
+      T.ok('CONTROL · a varying pair compares', good.ok === true, 'ok=' + good.ok + ' reason=' + good.reason);
+      if (good.ok) {
+        T.ok('CONTROL · it fits the scale it was given', Math.abs(good.scale.a - 0.9) < 0.01, 'scale.a=' + good.scale.a);
+        T.ok('CONTROL · and it publishes a finite residual SD', isFinite(good.scale.residSD), 'residSD=' + good.scale.residSD);
+        T.ok('CONTROL · a fitting night emits no reason key, so no committed fixture moves', good.scale.residSDAbsentReason === undefined, 'keys=' + Object.keys(good.scale).join(','));
+        T.eq('CONTROL · the fitting shape is the three keys it always carried', Object.keys(good.scale).length, 3);
+      }
+      /* CONTROL · the test is on the VARIANCE, never on the amplitude. The same waveform at a
+         thousandth of the amplitude is still a measurement, and the relative test keeps it. */
+      var tiny = CX.compareChannel(
+        {
+          t0Ms: 1000000,
+          fs: 1,
+          values: WAVE.map(function (v) {
+            return v / 1000;
+          })
+        },
+        {
+          t0Ms: 1000000,
+          fs: 1,
+          values: WAVE.map(function (v) {
+            return v / 500;
+          })
+        }
+      );
+      T.ok('CONTROL · a real waveform at 1/1000 of the amplitude still fits', tiny.ok === true && tiny.scale.a != null && Math.abs(tiny.scale.a - 2) < 0.01, 'scale.a=' + (tiny.ok && tiny.scale.a));
+      var src = String((env.sources || {})['cpapdex-cross.js'] || '');
+      /* The two comments that explain this repair QUOTE the code it removed, so a negative regex over
+         the raw source matches the explanation and reads as the defect. Blank the comments first. */
+      var code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[\t ]*\/\/.*$/gm, '');
+      if (!src) T.skip('cpapdex-cross.js in env.sources', 'not wired in this lane');
+      else {
+        T.ok('ANTI-VACUITY · blanking the comments leaves the code', code.length > src.length / 3, 'code=' + code.length + ' src=' + src.length);
+        T.ok('the flat-zero fallback is gone from the source', !/\(reg\.slope \|\| 0\)/.test(code), 'the flat-zero fallback line is back');
+        T.ok('the guard reads both coefficients', /_regOk = reg\.slope != null && reg\.intercept != null/.test(code), 'the _regOk guard moved');
+        T.ok('the absolute degeneracy floor is gone', !/Math\.abs\(den\) < 1e-12/.test(code), 'the absolute floor is back');
+        T.ok('and the degeneracy test reads the scale of the sums', /Math\.abs\(den\) > 1e-9 \* Math\.abs\(sw \* sxx\)/.test(code), 'the relative degeneracy test moved');
+      }
+      var rsrc = String((env.sources || {})['cpapdex-render.js'] || '');
+      if (!rsrc) T.skip('cpapdex-render.js in env.sources', 'not wired in this lane');
+      else {
+        T.ok('the card names the absence instead of printing one em dash', /no residual — /.test(rsrc), 'the render prints no reason for an absent residual');
+        T.ok('and an absent scale is not graded good', /c\.scale\.a != null && Math\.abs\(c\.scale\.a - 1\) < 0\.05/.test(rsrc), 'the cmpScale grade reads a null scale again');
+      }
+    });
+
     // The live-vs-SD comparator (CPAPDEX-LIVE-SD-COMPARATOR). Agreement is scale/offset + Bland-Altman,
     // never Pearson r; refusal-first; the alignment offset is a first-class finding. A large clock delta
     // between a live capture and its SD twin is a DEFECT (the EdfSink bug class) — the comparator refuses
