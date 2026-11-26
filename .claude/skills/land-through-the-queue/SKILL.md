@@ -11,6 +11,10 @@ description: Use when a finished PR has to reach main — the draft handoff to t
 - **Open it as a draft.** The walker undrafts a green draft while fewer than 4 PRs are out of draft.
   `merge_protections_settings.auto_merge_conditions` queues every non-draft PR without a
   `do-not-merge` label, so arming auto-merge adds nothing. A `do-not-merge` label or Draft is the only hold.
+- **After you push, end the turn. Do not poll your PR.** The walker posts to you on the board when
+  your PR needs you: a red, cancelled or dequeued check, or a hand rebase (#5931). It posts again when
+  the PR merges and your pane is idle (#5747). The board nudge then wakes your pane. About 60 % of
+  `gh pr` poll turns asked only for the merge state (7,500 of 11,985 since 2026-10-12, board #9175).
 - **Mergify tests a batch of up to 4 PRs on a `mergify/merge-queue/` draft PR**, then squashes each.
   The walker skips those branches. Never push to one or close one.
 - **BEHIND is not a block.** The `protect-main` ruleset is no longer strict (2026-11-18), so a PR
