@@ -103,9 +103,52 @@ function quantile(a, q) {
   return lo === hi ? b[lo] : b[lo] + (b[hi] - b[lo]) * (i - lo);
 }
 
+/* ── THE AXIS IS A REQUEST NOW, AND THE DEFAULT IS THE ONE THIS SURFACE SHIPPED ─────────────
+   Row `2026-11-26-the-pat-worker-holds-a-knobless-piecewise-ecg-axis`: this leg timed every R peak on
+   `rec.tMsAt`, the PIECEWISE axis, and it took no axis request, so no caller could ask for the
+   counter axis that every PAT tool defaults to (`rPeakTimesOnAxis`, `counter` since #4783). The three
+   names and the arithmetic match that function, so a page and a tool now ask one question of two
+   realms. `m.ecgAxis` on the job message carries the request in, which is the front door the row
+   says no caller had.
+   THE DEFAULT STAYS `piecewise`. A flip moves every number this surface published, so it is the PAT
+   programme's call and the owner's, and this unit measured the move rather than taking it.
+   MEASURED 2026-11-26 over the box corpus, 69 ECG fragments on 13 nights, 56 measured and 13 excluded
+   (12 under 100 beats, 1 refused below): per fragment the piecewise and counter R trains differ by a
+   median 32.3 ms, and 21 of the 56 carry a median difference above the 60 ms PAT bar. Within one
+   fragment the difference spans a median 52.7 ms and 25 of 56 span more than 60 ms, so a 5-minute bin
+   keeps part of it. The beat-to-beat effect is small on most fragments (RR p95 median 2.3 ms) and
+   reaches 5.8 s on a fragment whose device clock steps 19 s. `tMsCorrected` reads true on all 56.
+   SORTEDNESS REFUSES, ON EVERY AXIS. A device clock can run backwards, and `rPeakTimesOnAxis` throws
+   there, so the ported copy already refused the fragment this leg shipped: 1 of the 57 fragments that
+   reached the arithmetic built a non-monotone PIECEWISE train (2026-08-18, beat 6015 of 24832, the
+   device clock stepping 8.7 s). A train that runs backwards is a wrong answer rather than a noisy
+   one, and §∅ refuses a discontinuity, so this leg names it instead of posting it. */
+var ECG_AXES = ['piecewise', 'counter', 'linear'];
+/* ONE COPY OF THE ARITHMETIC, as `ecgCounterTimeMs` + `rPeakTimesOnAxis` hold it in `tools/`:
+   `piecewise` is the record's own host-disciplined map, `counter` is the device counter under the
+   ppm scale the axis applied, and `linear` is the mean rate. Each falls back to the mean rate when
+   the file carries no counter, so no axis here can fabricate a clock the device never wrote. */
+function ecgAxisTimeMs(rec, pos, axis) {
+  var lin = rec.t0Ms + (pos / rec.fs) * 1000;
+  if (axis === 'linear') return lin;
+  /* THE FALLBACK ARM IS SPELLED IN FULL, and `lin` sits beside it rather than inside it: the root
+     R-peak-timer census in `tests/dex-tests.js` reads this file for the host-axis ternary with the
+     index form as its own fallback, and a named variable there reads as a private whole-file rate. */
+  if (axis === 'piecewise') return typeof rec.tMsAt === 'function' ? rec.tMsAt(pos) : rec.t0Ms + (pos / rec.fs) * 1000;
+  var dev = typeof rec.devMsAt === 'function' ? rec.devMsAt(pos) : null;
+  if (dev == null || !isFinite(dev)) return lin;
+  var ha = rec.hostAxis;
+  var scale = ha && ha.applied === true && isFinite(ha.ppm) ? 1 + ha.ppm * 1e-6 : 1;
+  return rec.t0Ms + dev * scale;
+}
 /* `runsText` (OPTIONAL, LAST — §🧪) is the `_ECGRUNS.txt` companion's bytes when the page paired one.
-   Absent ⇒ every line below runs exactly as it did, so no fixture moves on the no-sidecar path. */
-function ecgRpeakTimes(text, runsText) {
+   Absent ⇒ every line below runs exactly as it did, so no fixture moves on the no-sidecar path.
+   `opts.axis` (OPTIONAL, LAST) names the axis. An omitted object takes the default; a caller that
+   WROTE the key and spelled nothing meant to ask, so that refuses rather than falling through. */
+function ecgRpeakTimes(text, runsText, opts) {
+  if (opts && 'axis' in opts && !opts.axis) throw new Error('ecgRpeakTimes: axis is piecewise, counter or linear, never ' + String(opts.axis) + ' — omit the opts object to take the default');
+  var axis = (opts && opts.axis) || 'piecewise';
+  if (ECG_AXES.indexOf(axis) < 0) throw new Error('ecgRpeakTimes: axis is piecewise, counter or linear, never ' + axis);
   var rec = runsText ? ECGDSP.parseECG(text, { runsText: runsText }) : ECGDSP.parseECG(text);
   if (rec.t0Ms == null) throw new Error('ECG file carried no phone timestamp.');
   var bp = ECGDSP.bandpass(rec.int16, rec.fs);
@@ -168,7 +211,8 @@ function ecgRpeakTimes(text, runsText) {
     var p = refined && isFinite(refined[k]) ? refined[k] : peaks[k];
     return p;
   };
-  for (var i = 0; i < peaks.length; i++) t[i] = typeof rec.tMsAt === 'function' ? rec.tMsAt(posAt(i)) : rec.t0Ms + (posAt(i) / rec.fs) * 1000;
+  for (var i = 0; i < peaks.length; i++) t[i] = ecgAxisTimeMs(rec, posAt(i), axis);
+  for (var _s = 1; _s < t.length; _s++) if (!(t[_s] >= t[_s - 1])) throw new Error(axis + ' ECG axis broke sortedness at beat ' + _s);
   /* FORWARDED, because this reshape drops anything it does not name — the lesson ppgdex-dsp.js states
      three lines above `timingSource`'s own definition, re-applied one layer down. `parseECG` already
      decided this fragment's axis provenance and it died here, which is why `PATGate.verdict`'s
@@ -177,6 +221,9 @@ function ecgRpeakTimes(text, runsText) {
   return {
     t0Ms: rec.t0Ms,
     fs: rec.fs,
+    /* THE AXIS TRAVELS WITH THE TRAIN, so a consumer reads which clock timed these beats rather than
+       assuming the default. A scalar, and never a nested object: the brace rule below binds. */
+    ecgAxis: axis,
     durSec: rec.durSec,
     times: t,
     n: peaks.length,
@@ -1632,7 +1679,9 @@ self.onmessage = function (e) {
   Promise.all(reads)
     .then(function (t) {
       try {
-        var ecg = ecgRpeakTimes(t[0], iRunsE >= 0 ? t[iRunsE] : null),
+        /* `m.ecgAxis` (OPTIONAL) is the page's axis request, and an absent one takes this surface's
+           own default. Until 2026-11-26 the leg held the axis privately, so no page could ask. */
+        var ecg = ecgRpeakTimes(t[0], iRunsE >= 0 ? t[iRunsE] : null, m.ecgAxis ? { axis: m.ecgAxis } : null),
           ppg = ppgFootTimes(t[1], iRunsP >= 0 ? t[iRunsP] : null);
         var ov = overlap(ecg, ppg),
           cp = coupledPAT(ecg.times, ppg.times),
