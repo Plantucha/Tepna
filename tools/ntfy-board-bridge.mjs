@@ -123,6 +123,11 @@ export function makeStallWatch({ onStall, stallMs = STALL_MS, timers = globalThi
 /**
  * The device NAME only (Wren 2026-11-01): the old `Polar[^,.;]*` ran on into the verb, so one device
  * keyed two episodes and a recovery could never close the alert it answered.
+ *
+ * The WHOLE name keys the episode (row `2026-11-25-ntfy-bridge-device-key-cuts-at-40-characters`). A
+ * 40-character cut gave two devices sharing that prefix ONE episode, so one device's recovery closed
+ * the other device's alert. The bound is now `EPISODE_TITLE_MAX`, the same one the title path carries,
+ * which keeps the state key bounded. Every printed surface cuts its own text already.
  */
 export function deviceOf(s) {
   const first = (String(s || '').split('\n')[0] || '').replace(/:.*$/, '');
@@ -131,7 +136,7 @@ export function deviceOf(s) {
     String(s || '').match(/(?:Polar (?:H10|Verity ?Sense|Sense)|Wellue O2Ring[-\w]*|O2Ring[-\w]*)(?: [0-9A-F]{8})?/i) ||
     String(s || '').match(/AirSense ?\d+/i) ||
     String(s || '').match(/WatchPAT[^,.;\s]*/i);
-  return m ? (m[1] || m[0]).trim().slice(0, 40) : 'device';
+  return m ? (m[1] || m[0]).trim().slice(0, EPISODE_TITLE_MAX) : 'device';
 }
 
 /**
@@ -663,6 +668,13 @@ function selftest() {
   ok('the device name stops before the verb', deviceOf('Polar H10 has sent no data since 03:12') === 'Polar H10', deviceOf('Polar H10 has sent no data since 03:12'));
   ok('a recovery of the same device keys the same episode', deviceOf('Polar H10 is recording again') === deviceOf('Polar H10 has sent no data'), deviceOf('Polar H10 is recording again'));
   ok('an unreadable body keys a named fallback', deviceOf('') === 'device', deviceOf(''));
+  /* THE WHOLE DEVICE NAME KEYS AN EPISODE (row `2026-11-25-ntfy-bridge-device-key-cuts-at-40-characters`).
+     A 40-character cut gave these two devices one episode, so one device's recovery closed the other's. */
+  const dpre = 'Polar Verity Sense on the left upper arm beside the strap ';
+  const d1 = classify('vigil', { title: 'Tepna: sensor silent', message: `${dpre}A has sent no data since 03:12` }, conf);
+  const d2 = classify('vigil', { title: 'Tepna: sensor silent', message: `${dpre}B has sent no data since 03:12` }, conf);
+  ok('two device names sharing a 40-character prefix key two episodes', dpre.length > 40 && d1.key !== d2.key, [d1.key, d2.key]);
+  ok('a long device name keys on the whole name', d1.key === `vigil:sensor:${dpre}A`, d1.key);
   const sensor = classify('vigil', { title: 'Tepna: sensor silent', message: 'Polar H10 has sent no data since 03:12' }, conf);
   ok('a sensor alert keys the device episode', sensor.key === 'vigil:sensor:Polar H10', sensor.key);
   const recovered = classify('vigil', { title: 'Tepna: sensor recovered', message: 'Polar H10 is recording again' }, conf);
