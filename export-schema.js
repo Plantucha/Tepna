@@ -213,7 +213,19 @@
       'measurements',
       'windows',
       'firstTMs',
-      'lastTMs'
+      'lastTMs',
+      /* WHAT THE READER COULD NOT USE (`rowsDropped`, declared 2026-11-26 for row
+         `2026-11-25-three-parsers-drop-rows-without-a-count`). The same GATE C leg that named
+         `clockSeamScan` above names this one: the OxyDex app export is scrubbed by default, so the
+         count reached the export and the scrub deleted it again. Measured over the committed
+         exports that carry the field — 14 carry it, 10 are envelope-shaped, and the scrub dropped
+         it from 9 of those 10. Seven lost `recording.rowsDropped` (4 GlucoDex, 3 HRVDex) and two
+         lost the night key (the OxyDex synthetic goldens); the other 4 are array-shaped stored
+         summaries that `scrubExport` refuses outright. EVERY LEAF IS A COUNT of rows the parser
+         removed: `total` plus one counter per reason. So the block holds no path, no serial and no
+         wall clock, and it meets the criterion the 2026-11-09 comment states. A scrub that strips
+         it publishes "nothing dropped" over a file that lost rows, and §∅ names that a defect. */
+      'rowsDropped'
     ],
     /* A per-element block is a small envelope: its own schema/recording/provenance recurse, and
        its metric bags are listed by name. `file` is NOT here — `nights[].file` carried the upload
@@ -288,7 +300,11 @@
          revision-bearing device string. `evidence.inputHash` is `contentId`, declared
          identity-free three blocks up. */
       'clockSeamScan',
-      'measurement'
+      'measurement',
+      /* `rowsDropped` on the night element, declared with the `recording` twin above and on the
+         same measurement. OxyDex publishes the count per night, HRVDex and GlucoDex publish it per
+         recording, so one key needs declaring in both sets. */
+      'rowsDropped'
     ],
     elementSchema: ['name', 'version', 'node', 'nodeVersion', 'generated', 'doc', 'units', 'provenance', 'scrubbed', 'scrubDropped'],
     elementRecording: [

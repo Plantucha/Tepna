@@ -18,6 +18,13 @@
       "forwardBlindShare": 0.1,
       "forwardDecidable": true
     },
+    "rowsDropped": {
+      "total": 0,
+      "short": 0,
+      "unreadable": 0,
+      "outOfRange": 0,
+      "stamp": 0
+    },
     "contentId": "21d9ddfbdabc",
     "file": "synthetic_oxydex_o2ring.csv",
     "provenance": null,
@@ -370,8 +377,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "0c5af8319ab0",
-          "computeHash": "abbc11bc9026"
+          "manifestHash": "0feab93c3c3d",
+          "computeHash": "45abcfaf953c"
         },
         "evidence": {
           "envelopeRef": null,
@@ -399,8 +406,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "0c5af8319ab0",
-          "computeHash": "abbc11bc9026"
+          "manifestHash": "0feab93c3c3d",
+          "computeHash": "45abcfaf953c"
         },
         "evidence": {
           "envelopeRef": null,
@@ -428,8 +435,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "0c5af8319ab0",
-          "computeHash": "abbc11bc9026"
+          "manifestHash": "0feab93c3c3d",
+          "computeHash": "45abcfaf953c"
         },
         "evidence": {
           "envelopeRef": null,
@@ -457,8 +464,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "0c5af8319ab0",
-          "computeHash": "abbc11bc9026"
+          "manifestHash": "0feab93c3c3d",
+          "computeHash": "45abcfaf953c"
         },
         "evidence": {
           "envelopeRef": null,

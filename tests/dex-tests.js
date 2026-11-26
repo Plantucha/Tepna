@@ -81505,6 +81505,98 @@
       }
     });
 
+    /* ∅ — THE DROP COUNT BESIDE THE ROWS, on the two readers that still dropped silently (row
+       `2026-11-25-three-parsers-drop-rows-without-a-count`). OxyDex `parseCSV` and the HRVDex summary
+       reader each removed a row they could not read and counted nothing, so a file that lost rows
+       published the same shape as a file that lost none. The ECGDex third of that row landed first
+       (`parseDeviceRR`/`parseDeviceHR`, PR #5824), and GlucoDex carries the same count above.
+       Every expected number here is derived by hand from the constructed input, and each reason is
+       exercised alone so a count cannot pass by totalling to the right number for the wrong reasons.
+       The blank-line leg is the trap: a file ending in a newline would otherwise report a drop. */
+    group('∅ drop counts — OxyDex parseCSV and the HRVDex summary reader count what they remove', 'oxydex-dsp · hrvdex-dsp · absence · residue', function (T) {
+      var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var OD = (_od && _od._bare) || _od;
+      var parse = OD && (OD.parseCSV || (env.OxyDex && env.OxyDex.parseCSV));
+      if (typeof parse !== 'function') T.skip('OxyDex parseCSV reachable', 'not on this surface');
+      else {
+        /* FOUR BAD ROWS, ONE PER REASON, among three readable ones:
+           `zz` SpO2    — a reading the file claims and nothing can read  ⇒ unreadable
+           SpO2 20      — inside the file, outside the sensor band        ⇒ outOfRange
+           `short,1`    — two fields, so no column map reaches it         ⇒ short
+           `not-a-stamp`— a row that cannot be placed on the clock        ⇒ stamp
+           The trailing newline adds a blank line, which is NOT a dropped row. */
+        var head = 'Time,Oxygen Level,Pulse Rate,Motion';
+        var good = ['23:00:16 12/06/2026,97,58,0', '23:00:17 12/06/2026,96,59,0', '23:00:18 12/06/2026,95,60,0'];
+        var bad = ['23:00:19 12/06/2026,zz,60,0', '23:00:20 12/06/2026,20,60,0', 'short,1', 'not-a-stamp,96,60,0'];
+        var dirty = parse([head].concat(good, bad).join('\n') + '\n');
+        T.eq('OxyDex · the three readable rows survive', dirty.length, 3);
+        T.eq('OxyDex · four dropped rows are counted, one per reason', JSON.stringify(dirty.rowsDropped), '{"total":4,"short":1,"unreadable":1,"outOfRange":1,"stamp":1}');
+        var clean = parse([head].concat(good).join('\n') + '\n');
+        T.eq('OxyDex · a clean file counts zero, and the trailing blank line is not a drop', JSON.stringify(clean.rowsDropped), '{"total":0,"short":0,"unreadable":0,"outOfRange":0,"stamp":0}');
+        T.eq(
+          'OxyDex · the count does NOT survive a map (the documented rider limit, as columnSource)',
+          typeof dirty.map(function (r) {
+            return r;
+          }).rowsDropped,
+          'undefined'
+        );
+        if (!env.OxyDex || typeof env.OxyDex.compute !== 'function') T.skip('OxyDex.compute reachable', 'not on this surface');
+        else {
+          var ex = env.OxyDex.compute({ text: [head].concat(good, bad).join('\n') + '\n' });
+          var el = ex && ex.nights && ex.nights[0];
+          T.ok('OxyDex · compute({text}) publishes a night', !!el, el ? 'ok' : ex ? 'night absent' : 'export absent');
+          if (el) T.eq('OxyDex · …and the night carries the same count', JSON.stringify(el.rowsDropped), '{"total":4,"short":1,"unreadable":1,"outOfRange":1,"stamp":1}');
+          var exClean = env.OxyDex.compute({ text: [head].concat(good).join('\n') + '\n' });
+          var elClean = exClean && exClean.nights && exClean.nights[0];
+          if (elClean)
+            T.eq('OxyDex · a clean night ships the count anyway (∅: clean is a finding)', JSON.stringify(elClean.rowsDropped), '{"total":0,"short":0,"unreadable":0,"outOfRange":0,"stamp":0}');
+          /* A CALLER-SUPPLIED ROW ARRAY WAS NEVER PARSED HERE, so it has no count and must say so.
+             A `0` would claim this path examined the rows it was handed. */
+          var viaRows = env.OxyDex.compute([
+            { tMs: Date.UTC(2026, 5, 12, 23, 0, 16), spo2: 97, hr: 58, motion: 0 },
+            { tMs: Date.UTC(2026, 5, 12, 23, 0, 17), spo2: 96, hr: 59, motion: 0 }
+          ]);
+          var elRows = viaRows && viaRows.nights && viaRows.nights[0];
+          if (elRows) T.eq('OxyDex · a pre-parsed row array reads null, never 0', elRows.rowsDropped, null);
+        }
+      }
+      var H = env.HRVDex;
+      if (!H || typeof H.parseRows !== 'function') T.skip('HRVDex parseRows reachable', 'not on this surface');
+      else {
+        /* TWO BAD ROWS AND ONE BLANK LINE among three readable measurements. `2026-06-27,07:00:00`
+           carries two cells, under the five this reader needs. `not-a-date xx` cannot be placed on the
+           clock. The blank line between them is not a dropped measurement. */
+        var hhead = 'Date,Time,Measurement HR,Mean RR,SDNN,rMSSD,pNN50';
+        var hgood = ['2026-06-25,07:00:00,58,1030,62,45,28', '2026-06-26,07:00:00,59,1020,61,44,27', '2026-06-29,07:00:00,57,1040,63,46,29'];
+        var hdirty = H.parseRows([hhead, hgood[0], '2026-06-27,07:00:00', '', hgood[1], 'not-a-date,xx,58,1030,62,45,28', hgood[2]].join('\n'));
+        T.eq('HRVDex · the three readable measurements survive', hdirty.length, 3);
+        T.eq('HRVDex · the short row and the unplaceable stamp are counted; the blank line is not', JSON.stringify(hdirty.rowsDropped), '{"total":2,"short":1,"stamp":1}');
+        var hclean = H.parseRows([hhead].concat(hgood).join('\n'));
+        T.eq('HRVDex · a clean file counts zero', JSON.stringify(hclean.rowsDropped), '{"total":0,"short":0,"stamp":0}');
+        T.eq(
+          'HRVDex · the count does NOT survive a filter (the same rider limit)',
+          typeof hdirty.filter(function () {
+            return true;
+          }).rowsDropped,
+          'undefined'
+        );
+        if (typeof H.compute !== 'function') T.skip('HRVDex.compute reachable', 'not on this surface');
+        else {
+          var hex = H.compute({ text: [hhead, hgood[0], '2026-06-27,07:00:00', '', hgood[1], 'not-a-date,xx,58,1030,62,45,28', hgood[2]].join('\n') });
+          var hrec = hex && hex.recording;
+          T.ok('HRVDex · compute({text}) publishes a recording block', !!hrec, hrec ? 'ok' : hex ? 'recording absent' : 'export absent');
+          if (hrec) {
+            T.eq('HRVDex · …carrying the reader\u2019s count', JSON.stringify(hrec.rowsDropped), '{"total":2,"short":1,"stamp":1}');
+            T.eq('HRVDex · …and the three measurements it kept', hrec.measurements, 3);
+          }
+          /* The app path hands `allRows`, which no single parse produced. The export says `null`
+             rather than claiming a parse it never ran. */
+          var hviaRows = H.compute(H.parseRows([hhead].concat(hgood).join('\n')).slice(0));
+          T.eq('HRVDex · a caller-supplied row array reads null, never 0', hviaRows && hviaRows.recording ? hviaRows.recording.rowsDropped : 'no export', null);
+        }
+      }
+    });
+
     /* AUDIT-2026-07-16 F1 — the §3 file-level DMY/MDY lock must hold in GlucoDex's node-local parseCSV,
        not only in the shared DexClock.resolveDMY tested above. GlucoDex parses CGM stamps with its own
        _ckParse (a deliberate node-local Clock variant) and used to decide DMY/MDY PER ROW with a fixed
