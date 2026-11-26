@@ -2733,6 +2733,170 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     };
   }
 
+  /* ══ THE N-CORNERED HAT — ONE solver for 3 corners and for 4 ═══════════════════════
+     Four sites (chest ECG, finger PPG, ankle PPG, forehead optics) give 6 pairwise variances for 4
+     unknowns, so the system is OVER-DETERMINED by 2. That over-determination is what
+     `tools/tch-estimator-bakeoff.mjs:338` asks for: its verdict rejects every HR-only candidate at
+     N = 3 and states the ML/GCOV advantage IS over-determination at N ≥ 4, to be folded into the hat
+     rather than swapped for it.
+
+     THE ALGEBRA. Each pair gives one equation, v_ij = x_i + x_j, over the unknown variances x_i = σ²_i.
+     The design matrix holds two ones per row, so AᵀA = (N − 2)·I + J. At N = 3 the system is square and
+     the least-squares answer IS `threeCorneredHat` exactly — the suite asserts that identity, so one
+     solver serves both widths and no page grows a private one (`pat-feasibility-worker.js:843`).
+
+     WHAT IT REFUSES, BY NAME. Fewer than 3 corners, an absent or non-finite pair variance, fewer than
+     `minWindows` windows, a singular design: each reads `ok: false` with its own `reason` and a null
+     `variance`. A pair that never coupled is never a pair of zero (CLAUDE.md §∅).
+
+     A NEGATIVE CORNER IS PUBLISHED. The variance stays as solved, and its `sigma` reads null with
+     `negative-variance` beside it — the treatment the three-site path already gives
+     (`patHatCornerStatus`). Least squares can push a corner negative that an exact triple kept
+     positive, and the reverse, so `subHats` carries every classic triple and a reader sees that spread.
+
+     `residual` MEASURES THE FIT, and nothing else does. With 6 equations over 4 unknowns the residual
+     is the only reading that states whether a night fits the four-corner model at all. `rms` is in ms²,
+     `df` is pairs − corners, and `perPair` names which pair disagrees. At N = 3, `df` is 0 and every
+     residual is 0 by construction. Grade every output here `experimental`. */
+  var N_HAT_MIN_WINDOWS = 12;
+  function _nHatKey(names, i, j) {
+    return names[i] + '|' + names[j];
+  }
+  function _nHatPick(obj, names, i, j) {
+    var a = _nHatKey(names, i, j),
+      b = _nHatKey(names, j, i);
+    if (obj && obj[a] != null) return obj[a];
+    if (obj && obj[b] != null) return obj[b];
+    return null;
+  }
+  /* The pairwise dispersions the solver takes, built from each pair's per-window values with the
+     statistic `_patSolve` already uses: (IQR / 1.349)². A pair under `minWindows` values is LEFT OUT
+     rather than squared to 0, so `nCornerHat` then refuses it by name. */
+  function nCornerPairVar(legWindows, names, opts) {
+    var o = opts || {},
+      minWin = o.minWindows == null ? N_HAT_MIN_WINDOWS : o.minWindows,
+      out = {},
+      i,
+      j;
+    for (i = 0; i < names.length; i++) {
+      for (j = i + 1; j < names.length; j++) {
+        var v = _nHatPick(legWindows, names, i, j);
+        if (!v || v.length < minWin) continue;
+        var rv = _patRobustVar(v);
+        if (isFinite(rv)) out[_nHatKey(names, i, j)] = rv;
+      }
+    }
+    return out;
+  }
+  function nCornerHat(pairVar, names, opts) {
+    var o = opts || {},
+      N = names ? names.length : 0,
+      minWin = o.minWindows == null ? N_HAT_MIN_WINDOWS : o.minWindows,
+      i,
+      j,
+      a,
+      b;
+    function fail(reason, extra) {
+      var r = { ok: false, n: N, variance: null, sigma: null, pair: null, subHats: null, residual: null, reason: reason };
+      if (extra) {
+        for (var k in extra) r[k] = extra[k];
+      }
+      return r;
+    }
+    if (N < 3) return fail('fewer-than-three-corners');
+    if (o.windows != null && o.windows < minWin) return fail('fewer-than-' + minWin + '-windows', { windows: o.windows });
+    var pair = {},
+      absent = [],
+      rows = [],
+      rhs = [],
+      keys = [],
+      ia = [],
+      ja = [];
+    for (i = 0; i < N; i++) {
+      for (j = i + 1; j < N; j++) {
+        var key = _nHatKey(names, i, j),
+          v = _nHatPick(pairVar, names, i, j);
+        if (v == null || !isFinite(v)) {
+          absent.push(key);
+          continue;
+        }
+        pair[key] = v;
+        var row = new Array(N).fill(0);
+        row[i] = 1;
+        row[j] = 1;
+        rows.push(row);
+        rhs.push(v);
+        keys.push(key);
+        ia.push(i);
+        ja.push(j);
+      }
+    }
+    if (absent.length) return fail('pair-variance-absent', { absentPairs: absent, pair: pair });
+    var XtX = [],
+      Xty = new Array(N).fill(0);
+    for (a = 0; a < N; a++) XtX.push(new Array(N).fill(0));
+    for (i = 0; i < rows.length; i++) {
+      for (a = 0; a < N; a++) {
+        Xty[a] += rows[i][a] * rhs[i];
+        for (b = 0; b < N; b++) XtX[a][b] += rows[i][a] * rows[i][b];
+      }
+    }
+    var inv = invMat(XtX);
+    if (!inv) return fail('singular-design', { pair: pair });
+    var x = new Array(N).fill(0);
+    for (a = 0; a < N; a++) {
+      var s = 0;
+      for (b = 0; b < N; b++) s += inv[a][b] * Xty[b];
+      x[a] = s;
+    }
+    var variance = {},
+      sigma = {},
+      cornerReason = {};
+    for (a = 0; a < N; a++) {
+      variance[names[a]] = x[a];
+      sigma[names[a]] = x[a] >= 0 ? Math.sqrt(x[a]) : null;
+      cornerReason[names[a]] = x[a] >= 0 ? null : 'negative-variance';
+    }
+    var perPair = {},
+      ss = 0;
+    for (i = 0; i < keys.length; i++) {
+      var e = rhs[i] - (x[ia[i]] + x[ja[i]]);
+      perPair[keys[i]] = e;
+      ss += e * e;
+    }
+    var subHats = [],
+      k2;
+    for (i = 0; i < N; i++) {
+      for (j = i + 1; j < N; j++) {
+        for (k2 = j + 1; k2 < N; k2++) {
+          var t = [names[i], names[j], names[k2]],
+            h = threeCorneredHat(pair[_nHatKey(names, i, j)], pair[_nHatKey(names, i, k2)], pair[_nHatKey(names, j, k2)]),
+            sv = {},
+            sg = {},
+            trio = [h.a, h.b, h.c];
+          for (a = 0; a < 3; a++) {
+            sv[t[a]] = trio[a];
+            sg[t[a]] = trio[a] >= 0 ? Math.sqrt(trio[a]) : null;
+          }
+          subHats.push({ names: t, variance: sv, sigma: sg });
+        }
+      }
+    }
+    return {
+      ok: true,
+      n: N,
+      names: names.slice(),
+      pairs: keys.length,
+      pair: pair,
+      variance: variance,
+      sigma: sigma,
+      cornerReason: cornerReason,
+      subHats: subHats,
+      residual: { rms: Math.sqrt(ss / keys.length), df: keys.length - N, perPair: perPair, unit: 'ms^2' },
+      reason: null
+    };
+  }
+
   function tchSigmasPairwise(hh, vv, oo, rho) {
     var dHV = [],
       dHO = [],
@@ -3335,6 +3499,8 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     patHatBootstrapCI: patHatBootstrapCI,
     patHatCornerStatus: patHatCornerStatus,
     patDifferencedHat: patDifferencedHat,
+    nCornerHat: nCornerHat,
+    nCornerPairVar: nCornerPairVar,
     patHatContributions: patHatContributions,
     patHatContributionsFromVars: patHatContributionsFromVars,
     parseDerivedHr: parseDerivedHr,
