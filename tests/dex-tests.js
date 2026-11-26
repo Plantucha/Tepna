@@ -55259,7 +55259,9 @@
       var CASES = [
         ['_hr', 'd_hrv_momentum d_sdnn_z d_stress_ac d_vei d_vo2_base d_vo2_delta d_vo2_hrv d_vo2_roll7'],
         ['_meanRR', 'd_csi d_cv_calc d_cvi d_hrv_momentum d_mxdmn_meanrr d_nn50 d_rsa d_sdnn_z d_stress_ac d_vo2_delta'],
-        ['_sdnn', 'd_cai d_cv_calc d_dfa_proxy d_hrv_momentum d_ortho d_pns_eff d_rmssd_sdnn d_sd1_sd2 d_sdnn_z d_stress_ac d_vo2_delta'],
+        /* d_sd2 joins this set (2026-11-25): SDNN 0 beside a non-zero rMSSD gives a negative SD2²,
+           an impossible pair, and the clamp to 0 that published a measured SD2 of 0 is gone. */
+        ['_sdnn', 'd_cai d_cv_calc d_dfa_proxy d_hrv_momentum d_ortho d_pns_eff d_rmssd_sdnn d_sd1_sd2 d_sd2 d_sdnn_z d_stress_ac d_vo2_delta'],
         ['_rmssd', 'd_ari d_cai d_cvi d_hrv_momentum d_lnrmssd d_recovery_debt d_rmssd_cv7 d_rmssd_delta_pct d_rmssd_rolling_ln d_sdnn_z d_stress_ac d_vo2_delta d_vo2_hrv d_vo2_roll7'],
         ['_mxdmn', 'd_hrv_momentum d_sdnn_z d_si d_stress_ac d_vo2_delta'],
         ['_pnn50', 'd_hrv_momentum d_pns_eff d_sdnn_z d_stress_ac d_vo2_delta'],
@@ -55318,7 +55320,7 @@
       var DIGESTS = [
         ['_hr', '50/1537.61769'],
         ['_meanRR', '48/643.765738'],
-        ['_sdnn', '47/1543.723031'],
+        ['_sdnn', '46/1543.723031'], // d_sd2 was a finite 0, so the sum holds and the count drops by one
         ['_rmssd', '44/1457.289137'], // §∅ unit shrabs: an absent rMSSD now drops d_vo2_hrv and d_vo2_roll7 too
         ['_mxdmn', '53/1620.77845'],
         ['_pnn50', '53/2107.119766'],
