@@ -811,6 +811,16 @@ import { CpapDsp } from './cpapdex-dsp.js';
     return lng.complianceNights != null && lng.complianceNights < lng.nights ? '≥4 h of ' + lng.complianceNights + ' scored nights' : '≥4 h nights';
   }
 
+  /* ∅ The tile names the nights the slope fitted and the calendar span they cover, because a slope
+   per calendar night over 7 nights four days apart is not the claim "7d" makes. It names the node's
+   own reason when the fit refused. Row `2026-11-25-cpap-usage-slope-counts-nights-by-ordinal`. */
+  function usageTrendSub(lng) {
+    if (lng.usageTrend7d == null) return lng.usageTrend7dReason || 'not fitted';
+    var n = lng.usageTrend7dNights,
+      span = lng.usageTrend7dSpanDays;
+    return n + (n === 1 ? ' night' : ' nights') + (span != null ? ' over ' + span + (span === 1 ? ' calendar day' : ' calendar days') : '');
+  }
+
   function renderHistory(nights) {
     if (!nights || nights.length < 2 || !D.buildLongitudinal) return '';
     var lng = D.buildLongitudinal(nights);
@@ -835,6 +845,8 @@ import { CpapDsp } from './cpapdex-dsp.js';
       fnum(ut, 2) +
       '<span class="kpi-u">h/night</span></div><div class="kpi-label">' +
       'Usage trend (7d)' +
+      '</div><div class="kpi-sub">' +
+      esc(usageTrendSub(lng)) +
       '</div></div>' +
       (lng.ahiTrend30d
         ? '<div class="kpi"><div class="kpi-val neutral">' +
