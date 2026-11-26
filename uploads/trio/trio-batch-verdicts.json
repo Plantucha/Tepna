@@ -785,9 +785,9 @@
   "reason": null,
   "producedBy": {
    "tool": "tools/trio-batch.mjs",
-   "commit": "16972e987"
+   "commit": "516ae703c"
   },
-  "at": "2026-11-26T14:12:13Z"
+  "at": "2026-11-26T17:03:07Z"
  },
  "fold": {
   "schema": "tepna.verdict/1",
@@ -1346,9 +1346,9 @@
   "reason": "5 of 132 admitted night(s) landed fewer than 3 node-exports: 2026-06-19 (2/3), 2026-08-04 (2/3), 2026-08-29 (2/3), 2026-08-30 (2/3), 2026-09-11 (2/3)",
   "producedBy": {
    "tool": "tools/trio-batch.mjs",
-   "commit": "16972e987"
+   "commit": "516ae703c"
   },
-  "at": "2026-11-26T15:27:37Z"
+  "at": "2026-11-26T18:18:49Z"
  },
  "nights": [
   {
@@ -1372,9 +1372,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-03"
   },
   {
@@ -1398,9 +1398,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-04"
   },
   {
@@ -1424,9 +1424,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-05"
   },
   {
@@ -1450,9 +1450,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-06"
   },
   {
@@ -1476,9 +1476,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-07"
   },
   {
@@ -1502,9 +1502,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-08"
   },
   {
@@ -1528,9 +1528,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-09"
   },
   {
@@ -1554,9 +1554,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-10"
   },
   {
@@ -1580,9 +1580,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-11"
   },
   {
@@ -1606,9 +1606,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-12"
   },
   {
@@ -1632,9 +1632,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-13"
   },
   {
@@ -1658,9 +1658,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-14"
   },
   {
@@ -1684,9 +1684,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-15"
   },
   {
@@ -1710,9 +1710,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-16"
   },
   {
@@ -1736,9 +1736,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-17"
   },
   {
@@ -1762,9 +1762,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-18"
   },
   {
@@ -1788,9 +1788,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-19"
   },
   {
@@ -1814,9 +1814,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-20"
   },
   {
@@ -1840,9 +1840,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-21"
   },
   {
@@ -1866,9 +1866,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-22"
   },
   {
@@ -1892,9 +1892,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-23"
   },
   {
@@ -1918,9 +1918,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-24"
   },
   {
@@ -1944,9 +1944,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-25"
   },
   {
@@ -1970,9 +1970,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-26"
   },
   {
@@ -1996,9 +1996,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-27"
   },
   {
@@ -2022,9 +2022,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-28"
   },
   {
@@ -2048,9 +2048,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-29"
   },
   {
@@ -2074,9 +2074,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-30"
   },
   {
@@ -2100,9 +2100,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-05-31"
   },
   {
@@ -2126,9 +2126,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-06-01"
   },
   {
@@ -2152,9 +2152,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-06-02"
   },
   {
@@ -2178,9 +2178,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-06-03"
   },
   {
@@ -2204,9 +2204,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-06-04"
   },
   {
@@ -2230,9 +2230,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-06-05"
   },
   {
@@ -2256,9 +2256,9 @@
    "reason": "not a concurrent trio night — have ECG+SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-06-06"
   },
   {
@@ -2282,9 +2282,9 @@
    "reason": "not a concurrent trio night — have ECG+SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-06-07"
   },
   {
@@ -2308,9 +2308,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:42Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-06-08"
   },
   {
@@ -2334,9 +2334,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:43Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-06-09"
   },
   {
@@ -2378,9 +2378,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:43Z",
+   "at": "2026-11-26T17:01:57Z",
    "night": "2026-06-10"
   },
   {
@@ -2422,9 +2422,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:43Z",
+   "at": "2026-11-26T17:01:58Z",
    "night": "2026-06-11"
   },
   {
@@ -2466,9 +2466,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:43Z",
+   "at": "2026-11-26T17:01:58Z",
    "night": "2026-06-12"
   },
   {
@@ -2492,9 +2492,9 @@
    "reason": "not a concurrent trio night — have PPG+SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:43Z",
+   "at": "2026-11-26T17:01:58Z",
    "night": "2026-06-13"
   },
   {
@@ -2540,9 +2540,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:43Z",
+   "at": "2026-11-26T17:01:59Z",
    "night": "2026-06-14"
   },
   {
@@ -2584,9 +2584,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:44Z",
+   "at": "2026-11-26T17:01:59Z",
    "night": "2026-06-15"
   },
   {
@@ -2630,9 +2630,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:44Z",
+   "at": "2026-11-26T17:01:59Z",
    "night": "2026-06-16"
   },
   {
@@ -2656,9 +2656,9 @@
    "reason": "not a concurrent trio night — have ECG+SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:44Z",
+   "at": "2026-11-26T17:01:59Z",
    "night": "2026-06-17"
   },
   {
@@ -2682,9 +2682,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:44Z",
+   "at": "2026-11-26T17:01:59Z",
    "night": "2026-06-18"
   },
   {
@@ -2744,9 +2744,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:44Z",
+   "at": "2026-11-26T17:01:59Z",
    "night": "2026-06-19"
   },
   {
@@ -2793,9 +2793,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:45Z",
+   "at": "2026-11-26T17:02:00Z",
    "night": "2026-06-20"
   },
   {
@@ -2819,9 +2819,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:45Z",
+   "at": "2026-11-26T17:02:00Z",
    "night": "2026-06-21"
   },
   {
@@ -2845,9 +2845,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:45Z",
+   "at": "2026-11-26T17:02:00Z",
    "night": "2026-06-22"
   },
   {
@@ -2871,9 +2871,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:45Z",
+   "at": "2026-11-26T17:02:00Z",
    "night": "2026-06-23"
   },
   {
@@ -2915,9 +2915,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:45Z",
+   "at": "2026-11-26T17:02:00Z",
    "night": "2026-06-24"
   },
   {
@@ -2959,9 +2959,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:45Z",
+   "at": "2026-11-26T17:02:00Z",
    "night": "2026-06-25"
   },
   {
@@ -2985,9 +2985,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:45Z",
+   "at": "2026-11-26T17:02:00Z",
    "night": "2026-06-26"
   },
   {
@@ -3029,9 +3029,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:45Z",
+   "at": "2026-11-26T17:02:00Z",
    "night": "2026-06-27"
   },
   {
@@ -3073,9 +3073,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:45Z",
+   "at": "2026-11-26T17:02:01Z",
    "night": "2026-06-28"
   },
   {
@@ -3117,9 +3117,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:45Z",
+   "at": "2026-11-26T17:02:01Z",
    "night": "2026-06-29"
   },
   {
@@ -3161,9 +3161,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:45Z",
+   "at": "2026-11-26T17:02:01Z",
    "night": "2026-06-30"
   },
   {
@@ -3205,9 +3205,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:45Z",
+   "at": "2026-11-26T17:02:01Z",
    "night": "2026-07-01"
   },
   {
@@ -3249,9 +3249,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:45Z",
+   "at": "2026-11-26T17:02:01Z",
    "night": "2026-07-02"
   },
   {
@@ -3275,9 +3275,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:45Z",
+   "at": "2026-11-26T17:02:01Z",
    "night": "2026-07-03"
   },
   {
@@ -3319,9 +3319,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:45Z",
+   "at": "2026-11-26T17:02:01Z",
    "night": "2026-07-04"
   },
   {
@@ -3364,9 +3364,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:45Z",
+   "at": "2026-11-26T17:02:02Z",
    "night": "2026-07-05"
   },
   {
@@ -3408,9 +3408,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:45Z",
+   "at": "2026-11-26T17:02:02Z",
    "night": "2026-07-06"
   },
   {
@@ -3452,9 +3452,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:45Z",
+   "at": "2026-11-26T17:02:02Z",
    "night": "2026-07-07"
   },
   {
@@ -3500,9 +3500,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:45Z",
+   "at": "2026-11-26T17:02:02Z",
    "night": "2026-07-08"
   },
   {
@@ -3544,9 +3544,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:45Z",
+   "at": "2026-11-26T17:02:02Z",
    "night": "2026-07-09"
   },
   {
@@ -3570,9 +3570,9 @@
    "reason": "not a concurrent trio night — have SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:46Z",
+   "at": "2026-11-26T17:02:03Z",
    "night": "2026-07-10"
   },
   {
@@ -3614,9 +3614,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:46Z",
+   "at": "2026-11-26T17:02:03Z",
    "night": "2026-07-11"
   },
   {
@@ -3658,9 +3658,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:46Z",
+   "at": "2026-11-26T17:02:03Z",
    "night": "2026-07-12"
   },
   {
@@ -3702,9 +3702,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:46Z",
+   "at": "2026-11-26T17:02:03Z",
    "night": "2026-07-13"
   },
   {
@@ -3784,9 +3784,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:46Z",
+   "at": "2026-11-26T17:02:05Z",
    "night": "2026-07-16"
   },
   {
@@ -3877,9 +3877,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:47Z",
+   "at": "2026-11-26T17:02:09Z",
    "night": "2026-07-17"
   },
   {
@@ -3970,9 +3970,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:49Z",
+   "at": "2026-11-26T17:02:14Z",
    "night": "2026-07-18"
   },
   {
@@ -4063,9 +4063,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:50Z",
+   "at": "2026-11-26T17:02:16Z",
    "night": "2026-07-19"
   },
   {
@@ -4132,9 +4132,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:50Z",
+   "at": "2026-11-26T17:02:17Z",
    "night": "2026-07-20"
   },
   {
@@ -4221,9 +4221,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:51Z",
+   "at": "2026-11-26T17:02:19Z",
    "night": "2026-07-21"
   },
   {
@@ -4308,9 +4308,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:51Z",
+   "at": "2026-11-26T17:02:20Z",
    "night": "2026-07-22"
   },
   {
@@ -4393,9 +4393,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:52Z",
+   "at": "2026-11-26T17:02:21Z",
    "night": "2026-07-23"
   },
   {
@@ -4483,9 +4483,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:52Z",
+   "at": "2026-11-26T17:02:22Z",
    "night": "2026-07-24"
   },
   {
@@ -4574,9 +4574,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:52Z",
+   "at": "2026-11-26T17:02:23Z",
    "night": "2026-07-25"
   },
   {
@@ -4657,9 +4657,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:53Z",
+   "at": "2026-11-26T17:02:26Z",
    "night": "2026-07-26"
   },
   {
@@ -4734,9 +4734,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:53Z",
+   "at": "2026-11-26T17:02:26Z",
    "night": "2026-07-27"
   },
   {
@@ -4811,9 +4811,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:54Z",
+   "at": "2026-11-26T17:02:27Z",
    "night": "2026-07-28"
   },
   {
@@ -4900,9 +4900,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:54Z",
+   "at": "2026-11-26T17:02:29Z",
    "night": "2026-07-29"
   },
   {
@@ -4985,9 +4985,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:55Z",
+   "at": "2026-11-26T17:02:31Z",
    "night": "2026-07-30"
   },
   {
@@ -5011,9 +5011,9 @@
    "reason": "not a concurrent trio night — have ECG+SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:57Z",
+   "at": "2026-11-26T17:02:32Z",
    "night": "2026-07-31"
   },
   {
@@ -5056,9 +5056,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:57Z",
+   "at": "2026-11-26T17:02:32Z",
    "night": "2026-08-01"
   },
   {
@@ -5149,9 +5149,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:57Z",
+   "at": "2026-11-26T17:02:34Z",
    "night": "2026-08-02"
   },
   {
@@ -5198,9 +5198,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:57Z",
+   "at": "2026-11-26T17:02:34Z",
    "night": "2026-08-03"
   },
   {
@@ -5269,9 +5269,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:58Z",
+   "at": "2026-11-26T17:02:35Z",
    "night": "2026-08-04"
   },
   {
@@ -5344,9 +5344,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:58Z",
+   "at": "2026-11-26T17:02:35Z",
    "night": "2026-08-05"
   },
   {
@@ -5405,9 +5405,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:58Z",
+   "at": "2026-11-26T17:02:36Z",
    "night": "2026-08-06"
   },
   {
@@ -5452,9 +5452,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:58Z",
+   "at": "2026-11-26T17:02:36Z",
    "night": "2026-08-07"
   },
   {
@@ -5529,9 +5529,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:58Z",
+   "at": "2026-11-26T17:02:37Z",
    "night": "2026-08-08"
   },
   {
@@ -5582,9 +5582,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:11:59Z",
+   "at": "2026-11-26T17:02:37Z",
    "night": "2026-08-09"
   },
   {
@@ -5648,9 +5648,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:00Z",
+   "at": "2026-11-26T17:02:40Z",
    "night": "2026-08-10"
   },
   {
@@ -5695,9 +5695,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:00Z",
+   "at": "2026-11-26T17:02:40Z",
    "night": "2026-08-11"
   },
   {
@@ -5744,9 +5744,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:01Z",
+   "at": "2026-11-26T17:02:42Z",
    "night": "2026-08-12"
   },
   {
@@ -5796,9 +5796,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:01Z",
+   "at": "2026-11-26T17:02:43Z",
    "night": "2026-08-13"
   },
   {
@@ -5848,9 +5848,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:01Z",
+   "at": "2026-11-26T17:02:44Z",
    "night": "2026-08-14"
   },
   {
@@ -5899,9 +5899,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:01Z",
+   "at": "2026-11-26T17:02:45Z",
    "night": "2026-08-15"
   },
   {
@@ -5945,9 +5945,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:02Z",
+   "at": "2026-11-26T17:02:48Z",
    "night": "2026-08-16"
   },
   {
@@ -5997,9 +5997,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:03Z",
+   "at": "2026-11-26T17:02:51Z",
    "night": "2026-08-17"
   },
   {
@@ -6067,9 +6067,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:04Z",
+   "at": "2026-11-26T17:02:52Z",
    "night": "2026-08-18"
   },
   {
@@ -6124,9 +6124,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:04Z",
+   "at": "2026-11-26T17:02:52Z",
    "night": "2026-08-19"
   },
   {
@@ -6175,9 +6175,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:04Z",
+   "at": "2026-11-26T17:02:53Z",
    "night": "2026-08-20"
   },
   {
@@ -6222,9 +6222,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:04Z",
+   "at": "2026-11-26T17:02:53Z",
    "night": "2026-08-21"
   },
   {
@@ -6248,9 +6248,9 @@
    "reason": "not a concurrent trio night — have ECG+SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:04Z",
+   "at": "2026-11-26T17:02:53Z",
    "night": "2026-08-22"
   },
   {
@@ -6307,9 +6307,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:04Z",
+   "at": "2026-11-26T17:02:53Z",
    "night": "2026-08-23"
   },
   {
@@ -6350,9 +6350,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:04Z",
+   "at": "2026-11-26T17:02:54Z",
    "night": "2026-08-24"
   },
   {
@@ -6401,9 +6401,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:04Z",
+   "at": "2026-11-26T17:02:54Z",
    "night": "2026-08-25"
   },
   {
@@ -6444,9 +6444,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:04Z",
+   "at": "2026-11-26T17:02:54Z",
    "night": "2026-08-26"
   },
   {
@@ -6491,9 +6491,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:04Z",
+   "at": "2026-11-26T17:02:54Z",
    "night": "2026-08-27"
   },
   {
@@ -6548,9 +6548,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:05Z",
+   "at": "2026-11-26T17:02:54Z",
    "night": "2026-08-28"
   },
   {
@@ -6595,9 +6595,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:05Z",
+   "at": "2026-11-26T17:02:55Z",
    "night": "2026-08-29"
   },
   {
@@ -6646,9 +6646,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:05Z",
+   "at": "2026-11-26T17:02:55Z",
    "night": "2026-08-30"
   },
   {
@@ -6691,9 +6691,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:05Z",
+   "at": "2026-11-26T17:02:55Z",
    "night": "2026-08-31"
   },
   {
@@ -6717,9 +6717,9 @@
    "reason": "not a concurrent trio night — have PPG+SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:05Z",
+   "at": "2026-11-26T17:02:55Z",
    "night": "2026-09-01"
   },
   {
@@ -6743,9 +6743,9 @@
    "reason": "not a concurrent trio night — have PPG+SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:05Z",
+   "at": "2026-11-26T17:02:56Z",
    "night": "2026-09-02"
   },
   {
@@ -6786,9 +6786,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:06Z",
+   "at": "2026-11-26T17:02:56Z",
    "night": "2026-09-03"
   },
   {
@@ -6845,9 +6845,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:06Z",
+   "at": "2026-11-26T17:02:56Z",
    "night": "2026-09-04"
   },
   {
@@ -6892,9 +6892,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:06Z",
+   "at": "2026-11-26T17:02:56Z",
    "night": "2026-09-05"
   },
   {
@@ -6941,9 +6941,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:06Z",
+   "at": "2026-11-26T17:02:57Z",
    "night": "2026-09-06"
   },
   {
@@ -6986,9 +6986,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:06Z",
+   "at": "2026-11-26T17:02:57Z",
    "night": "2026-09-07"
   },
   {
@@ -7031,9 +7031,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:06Z",
+   "at": "2026-11-26T17:02:57Z",
    "night": "2026-09-08"
   },
   {
@@ -7076,9 +7076,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:06Z",
+   "at": "2026-11-26T17:02:57Z",
    "night": "2026-09-09"
   },
   {
@@ -7123,9 +7123,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:06Z",
+   "at": "2026-11-26T17:02:58Z",
    "night": "2026-09-10"
   },
   {
@@ -7170,9 +7170,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:07Z",
+   "at": "2026-11-26T17:02:58Z",
    "night": "2026-09-11"
   },
   {
@@ -7213,9 +7213,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:07Z",
+   "at": "2026-11-26T17:02:58Z",
    "night": "2026-09-12"
   },
   {
@@ -7256,9 +7256,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:07Z",
+   "at": "2026-11-26T17:02:58Z",
    "night": "2026-09-13"
   },
   {
@@ -7299,9 +7299,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:07Z",
+   "at": "2026-11-26T17:02:58Z",
    "night": "2026-09-14"
   },
   {
@@ -7342,9 +7342,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:07Z",
+   "at": "2026-11-26T17:02:58Z",
    "night": "2026-09-15"
   },
   {
@@ -7385,9 +7385,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:07Z",
+   "at": "2026-11-26T17:02:59Z",
    "night": "2026-09-16"
   },
   {
@@ -7428,9 +7428,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:07Z",
+   "at": "2026-11-26T17:02:59Z",
    "night": "2026-09-17"
   },
   {
@@ -7454,9 +7454,9 @@
    "reason": "not a concurrent trio night — have PPG+SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:07Z",
+   "at": "2026-11-26T17:02:59Z",
    "night": "2026-09-18"
   },
   {
@@ -7480,9 +7480,9 @@
    "reason": "not a concurrent trio night — have PPG+SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:07Z",
+   "at": "2026-11-26T17:02:59Z",
    "night": "2026-09-19"
   },
   {
@@ -7523,9 +7523,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:07Z",
+   "at": "2026-11-26T17:02:59Z",
    "night": "2026-09-20"
   },
   {
@@ -7566,9 +7566,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:07Z",
+   "at": "2026-11-26T17:02:59Z",
    "night": "2026-09-21"
   },
   {
@@ -7609,9 +7609,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:07Z",
+   "at": "2026-11-26T17:03:00Z",
    "night": "2026-09-22"
   },
   {
@@ -7652,9 +7652,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:07Z",
+   "at": "2026-11-26T17:03:00Z",
    "night": "2026-09-23"
   },
   {
@@ -7695,9 +7695,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:07Z",
+   "at": "2026-11-26T17:03:00Z",
    "night": "2026-09-24"
   },
   {
@@ -7738,9 +7738,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:07Z",
+   "at": "2026-11-26T17:03:00Z",
    "night": "2026-09-25"
   },
   {
@@ -7781,9 +7781,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:07Z",
+   "at": "2026-11-26T17:03:00Z",
    "night": "2026-09-26"
   },
   {
@@ -7824,9 +7824,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:07Z",
+   "at": "2026-11-26T17:03:00Z",
    "night": "2026-09-27"
   },
   {
@@ -7867,9 +7867,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:07Z",
+   "at": "2026-11-26T17:03:01Z",
    "night": "2026-09-28"
   },
   {
@@ -7893,9 +7893,9 @@
    "reason": "not a concurrent trio night — have ECG+SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:08Z",
+   "at": "2026-11-26T17:03:01Z",
    "night": "2026-09-29"
   },
   {
@@ -7936,9 +7936,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:08Z",
+   "at": "2026-11-26T17:03:01Z",
    "night": "2026-09-30"
   },
   {
@@ -7979,9 +7979,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:08Z",
+   "at": "2026-11-26T17:03:01Z",
    "night": "2026-10-01"
   },
   {
@@ -8022,9 +8022,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:08Z",
+   "at": "2026-11-26T17:03:01Z",
    "night": "2026-10-02"
   },
   {
@@ -8065,9 +8065,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:08Z",
+   "at": "2026-11-26T17:03:01Z",
    "night": "2026-10-03"
   },
   {
@@ -8108,9 +8108,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:08Z",
+   "at": "2026-11-26T17:03:02Z",
    "night": "2026-10-04"
   },
   {
@@ -8151,9 +8151,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:09Z",
+   "at": "2026-11-26T17:03:02Z",
    "night": "2026-10-05"
   },
   {
@@ -8194,9 +8194,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:09Z",
+   "at": "2026-11-26T17:03:02Z",
    "night": "2026-10-06"
   },
   {
@@ -8237,9 +8237,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:09Z",
+   "at": "2026-11-26T17:03:02Z",
    "night": "2026-10-07"
   },
   {
@@ -8280,9 +8280,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:09Z",
+   "at": "2026-11-26T17:03:02Z",
    "night": "2026-10-08"
   },
   {
@@ -8323,9 +8323,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:09Z",
+   "at": "2026-11-26T17:03:02Z",
    "night": "2026-10-09"
   },
   {
@@ -8366,9 +8366,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:09Z",
+   "at": "2026-11-26T17:03:02Z",
    "night": "2026-10-10"
   },
   {
@@ -8409,9 +8409,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:09Z",
+   "at": "2026-11-26T17:03:02Z",
    "night": "2026-10-11"
   },
   {
@@ -8452,9 +8452,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:09Z",
+   "at": "2026-11-26T17:03:03Z",
    "night": "2026-10-12"
   },
   {
@@ -8495,9 +8495,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:10Z",
+   "at": "2026-11-26T17:03:03Z",
    "night": "2026-10-13"
   },
   {
@@ -8538,9 +8538,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:10Z",
+   "at": "2026-11-26T17:03:03Z",
    "night": "2026-10-14"
   },
   {
@@ -8581,9 +8581,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:10Z",
+   "at": "2026-11-26T17:03:03Z",
    "night": "2026-10-15"
   },
   {
@@ -8624,9 +8624,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:10Z",
+   "at": "2026-11-26T17:03:03Z",
    "night": "2026-10-16"
   },
   {
@@ -8667,9 +8667,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:10Z",
+   "at": "2026-11-26T17:03:03Z",
    "night": "2026-10-17"
   },
   {
@@ -8712,9 +8712,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:10Z",
+   "at": "2026-11-26T17:03:03Z",
    "night": "2026-10-18"
   },
   {
@@ -8755,9 +8755,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:10Z",
+   "at": "2026-11-26T17:03:03Z",
    "night": "2026-10-19"
   },
   {
@@ -8798,9 +8798,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:10Z",
+   "at": "2026-11-26T17:03:04Z",
    "night": "2026-10-20"
   },
   {
@@ -8841,9 +8841,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:11Z",
+   "at": "2026-11-26T17:03:04Z",
    "night": "2026-10-21"
   },
   {
@@ -8884,9 +8884,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:11Z",
+   "at": "2026-11-26T17:03:04Z",
    "night": "2026-10-22"
   },
   {
@@ -8910,9 +8910,9 @@
    "reason": "not a concurrent trio night — have PPG+SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:11Z",
+   "at": "2026-11-26T17:03:04Z",
    "night": "2026-10-23"
   },
   {
@@ -8953,9 +8953,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:11Z",
+   "at": "2026-11-26T17:03:04Z",
    "night": "2026-10-24"
   },
   {
@@ -8996,9 +8996,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:11Z",
+   "at": "2026-11-26T17:03:04Z",
    "night": "2026-10-25"
   },
   {
@@ -9039,9 +9039,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:11Z",
+   "at": "2026-11-26T17:03:04Z",
    "night": "2026-10-26"
   },
   {
@@ -9082,9 +9082,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:11Z",
+   "at": "2026-11-26T17:03:04Z",
    "night": "2026-10-27"
   },
   {
@@ -9125,9 +9125,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:11Z",
+   "at": "2026-11-26T17:03:05Z",
    "night": "2026-10-28"
   },
   {
@@ -9151,9 +9151,9 @@
    "reason": "not a concurrent trio night — have ECG+SpO2, the run requires 3",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:11Z",
+   "at": "2026-11-26T17:03:05Z",
    "night": "2026-10-29"
   },
   {
@@ -9194,9 +9194,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:12Z",
+   "at": "2026-11-26T17:03:05Z",
    "night": "2026-10-30"
   },
   {
@@ -9237,9 +9237,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:12Z",
+   "at": "2026-11-26T17:03:05Z",
    "night": "2026-10-31"
   },
   {
@@ -9280,9 +9280,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:12Z",
+   "at": "2026-11-26T17:03:05Z",
    "night": "2026-11-01"
   },
   {
@@ -9323,9 +9323,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:12Z",
+   "at": "2026-11-26T17:03:05Z",
    "night": "2026-11-02"
   },
   {
@@ -9366,9 +9366,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:12Z",
+   "at": "2026-11-26T17:03:05Z",
    "night": "2026-11-03"
   },
   {
@@ -9409,9 +9409,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:12Z",
+   "at": "2026-11-26T17:03:06Z",
    "night": "2026-11-04"
   },
   {
@@ -9452,9 +9452,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:13Z",
+   "at": "2026-11-26T17:03:06Z",
    "night": "2026-11-05"
   },
   {
@@ -9495,9 +9495,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:13Z",
+   "at": "2026-11-26T17:03:06Z",
    "night": "2026-11-06"
   },
   {
@@ -9545,9 +9545,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:13Z",
+   "at": "2026-11-26T17:03:06Z",
    "night": "2026-11-07"
   },
   {
@@ -9588,9 +9588,9 @@
    "reason": null,
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:13Z",
+   "at": "2026-11-26T17:03:07Z",
    "night": "2026-11-08"
   },
   {
@@ -9614,9 +9614,9 @@
    "reason": "not a trio night — no O2Ring anchor; the gate judges nothing without one",
    "producedBy": {
     "tool": "tools/trio-batch.mjs",
-    "commit": "16972e987"
+    "commit": "516ae703c"
    },
-   "at": "2026-11-26T14:12:13Z",
+   "at": "2026-11-26T17:03:07Z",
    "night": "2026-11-09"
   }
  ]
