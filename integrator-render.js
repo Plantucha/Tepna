@@ -330,7 +330,7 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
             '">' +
             dot +
             '<div class="chip-main"><div class="chip-node">' +
-            esc(r.node) +
+            esc(nodeLabel(r)) +
             (r.dateUnknown ? ' <span class="chip-warn">· date unknown</span>' : '') +
             '</div>' +
             '<div class="chip-meta">' +
@@ -762,7 +762,7 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       var col = D.nodeColor(r.node);
       svg += '<rect x="' + padL + '" y="' + y + '" width="' + innerW + '" height="' + laneH + '" rx="7" fill="rgba(255,255,255,.018)" stroke="rgba(255,255,255,.05)"/>';
       // lane label
-      svg += '<text x="' + (padL - 12) + '" y="' + (cy - 3) + '" class="tl-lane-node" text-anchor="end" fill="' + col + '">' + esc(r.node) + '</text>';
+      svg += '<text x="' + (padL - 12) + '" y="' + (cy - 3) + '" class="tl-lane-node" text-anchor="end" fill="' + col + '">' + esc(nodeLabel(r)) + '</text>';
       svg += '<text x="' + (padL - 12) + '" y="' + (cy + 12) + '" class="tl-lane-date" text-anchor="end">' + esc(r.dateStr || '') + '</text>';
       // window bar
       var w = D.recWindow(r);
@@ -1184,6 +1184,17 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
   /* three-cornered-hat card body — per-sensor σ bars (noisiest first, culprit flagged)
      + inverse-variance reconciled level. which: undefined/'rmssd' → block.tch (RMSSD, ms);
      'hr' → block.tchHR (HR-hat, bpm). (INTEGRATOR-THREE-CORNERED-HAT §5 / FU-II §3) */
+  /* A NODE NAME IS NOT A SENSOR (owner ruling 2026-09-13: the site is part of a recording's
+     identity). Two optical recordings of one night both read `PpgDex`, so a reader of the node chips
+     or the timeline lanes could not tell a forehead headband from a wrist strap, and a Muse night
+     carried no name anywhere on the fused page. The site now rides the label when the EXPORT carried
+     one. A record whose site came from the Integrator's own `|| 'wrist'` default
+     (`siteSource: 'integrator-default'`) keeps the bare node name: that default exists to protect the
+     dedupe rule, and an inference of this layer is not an observation to print. */
+  function nodeLabel(r) {
+    var site = D.siteIdent ? D.siteIdent(r) : null;
+    return site ? r.node + ' \u00B7 ' + site : r.node;
+  }
   function tchBars(b, which) {
     var isHR = which === 'hr',
       t = isHR ? b.tchHR : b.tch;
