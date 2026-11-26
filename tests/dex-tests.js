@@ -14896,6 +14896,156 @@
      fuseStagingConsensus (integrator-dsp.js:~2015) surfaces disagreement:true when two single-signal
      stagers' REM fractions differ by more than remGapThresh (default 0.2). Reached through the public
      runFusion (fuseStagingConsensus is module-local): runFusion(recs).staging.blocks[].disagreement. */
+    /* ════ 5g-site · INTEGRATOR identity — THE FUSED REPORT NAMES THE OPTICAL SITE ════
+     Owner ask 2026-11-25 ("add muse to all fused and derived reports"), Integrator item, board #8921
+     and #8957. The Integrator already INGESTS a Muse night: PpgDex exports the headband's optics with
+     `recording.site: 'forehead'`, and `_sameSite` keeps that record apart from a wrist Verity, because
+     the site is part of a recording's identity (owner ruling 2026-09-13). What it could not do was NAME
+     it. `_cornerIds` disambiguated two corners of one node with `deviceKey || file || fname ||
+     recording.device`, and a normalized record carries NONE of those four keys — the filename travels
+     as `_src` and the site as `summary.site`. So the labels read `PpgDex 1` and `PpgDex 2`, in load
+     order, and the node chips and timeline lanes read `PpgDex` twice. */
+    group('Integrator identity — the fused report names the optical site (Muse)', 'integrator-dsp · identity · site', function (T) {
+      var A = env.adaptEnvelopeNode,
+        RF = env.runFusion;
+      if (typeof A !== 'function' || typeof RF !== 'function') {
+        T.ok('adaptEnvelopeNode + runFusion present', false);
+        return;
+      }
+      var t0 = U(2026, 10, 18, 22, 0, 0);
+      // 24 five-minute epochs per source, each node with its own rmssd/hr track so the hat is solvable.
+      var eps = function (base, amp, hrBase) {
+        var out = [];
+        for (var i = 0; i < 24; i++) {
+          out.push({ tMin: i * 5, rmssd: +(base + amp * Math.sin(i / 3)).toFixed(2), hr: +(hrBase + 2 * Math.cos(i / 4)).toFixed(2), beats: 300 });
+        }
+        return out;
+      };
+      var ppg = function (site, siteSource, base, amp, hrBase) {
+        var rec = { site: site, startEpochMs: t0, durationMin: 120, offsetMin: null };
+        if (siteSource) rec.siteSource = siteSource;
+        if (site == null) delete rec.site;
+        return A(
+          {
+            schema: { node: 'PpgDex' },
+            recording: rec,
+            hrv: { time: { rmssd: base, sdnn: base * 1.6, sdnnRobust: base * 1.4, hr: hrBase } },
+            timeseries: { epochs: eps(base, amp, hrBase) },
+            ganglior_events: []
+          },
+          'PpgDex',
+          'ppg-' + (site || 'nosite') + '.json'
+        )[0];
+      };
+      var ecg = A(
+        {
+          schema: { node: 'ECGDex' },
+          recording: { startEpochMs: t0, durationMin: 120, offsetMin: null },
+          hrv: { time: { rmssd: 42, sdnn: 66 } },
+          timeseries: { epochs: eps(42, 5, 56) },
+          ganglior_events: []
+        },
+        'ECGDex',
+        'ecg.json'
+      )[0];
+
+      // ── 1 · the adapter carries WHO said the site, and never claims an observation it lacks
+      /* The pair carries the SAME two series in case 2 and in the control below, so the only
+         difference between a named pair of corners and a numbered one is the site. */
+      var fore = ppg('forehead', 'declared', 33, 5, 59);
+      var wrist = ppg('wrist', 'device-default', 37, 7, 57);
+      var bare = ppg(null, null, 35, 6, 57);
+      T.eq('a declared forehead site reaches the summary verbatim', fore.summary.site, 'forehead');
+      T.eq('…and its siteSource says the wearer declared it', fore.summary.siteSource, 'declared');
+      T.eq('a layout-inferred wrist site reaches the summary too', wrist.summary.site, 'wrist');
+      T.eq("…and its siteSource stays the node's own word for an inference", wrist.summary.siteSource, 'device-default');
+      T.eq('a site-less export still compares as wrist, which the dedupe rule needs', bare.summary.site, 'wrist');
+      T.eq('…and siteSource names THIS layer as the author of that value', bare.summary.siteSource, 'integrator-default');
+
+      // ── 2 · two optical corners of one night are NAMED, not numbered
+      var fus = RF([ecg, fore, wrist], { toleranceSec: 120 });
+      var blk = fus.hrv && fus.hrv.blocks && fus.hrv.blocks[0];
+      T.ok('an HRV consensus block is produced over the three overlapping sources', !!blk, JSON.stringify(fus.hrv && fus.hrv.blocks && fus.hrv.blocks.length));
+      var ids = (blk && blk.tch && blk.tch.cornerIds) || null;
+      T.ok('the three-cornered hat publishes corner labels', !!(ids && ids.length === 3), JSON.stringify(ids));
+      if (ids) {
+        T.ok('the forehead corner carries its site', ids.indexOf('PpgDex forehead') >= 0, JSON.stringify(ids));
+        T.ok('the wrist corner carries its site', ids.indexOf('PpgDex wrist') >= 0, JSON.stringify(ids));
+        T.ok('and NO corner is an ordinal any more', !/^PpgDex \d+$/.test(ids.join('|')) && ids.indexOf('PpgDex 1') < 0 && ids.indexOf('PpgDex 2') < 0, JSON.stringify(ids));
+        T.eq('the three labels stay distinct, which the hat refuses without', new Set(ids).size, 3);
+      }
+
+      // ── 3 · the per-source rows name the site too, and only the optical rows gain the keys
+      var rows = (blk && blk.rmssd && blk.rmssd.values) || [];
+      T.ok('three rmssd rows are published', rows.length === 3, JSON.stringify(rows));
+      var rowFore = rows.filter(function (o) {
+        return o.site === 'forehead';
+      })[0];
+      var rowEcg = rows.filter(function (o) {
+        return o.node === 'ECGDex';
+      })[0];
+      T.ok('the forehead row names its site', !!rowFore, JSON.stringify(rows));
+      if (rowFore) T.eq('…and carries how strong that identity is', rowFore.siteSource, 'declared');
+      T.ok('a non-optical row gains NEITHER key, so no committed non-optical fixture moves', !!rowEcg && !('site' in rowEcg) && !('siteSource' in rowEcg), JSON.stringify(rowEcg));
+
+      /* ── 3b · A SITE THIS LAYER INFERRED IS NEVER PUBLISHED. `summary.site` defaults to wrist so the
+         dedupe rule can compare every record, and that default must not reach a label or a row: it
+         would state an observation nobody made. One exported helper answers the question for the
+         corner labels, the rows, the node chips and the timeline lanes. */
+      /* The renderer reads the helper off the published namespace (`D.siteIdent`), so the leg asks the
+         same question the renderer asks, and not a realm global the renderer could never see. */
+      var SI = (env.IntegratorDSP || {}).siteIdent;
+      T.ok('the DSP exports the publishable-site helper the renderer calls', typeof SI === 'function');
+      if (typeof SI === 'function') {
+        T.eq('a declared site is publishable', SI(fore), 'forehead');
+        T.eq("a node's own layout inference is publishable, because the node declared it", SI(wrist), 'wrist');
+        T.eq('the wrist this LAYER filled in is NOT publishable', SI(bare), null);
+        T.eq('a record with no summary answers null rather than throwing', SI({ node: 'ECGDex' }), null);
+      }
+      var fusBare = RF([ecg, wrist, bare], { toleranceSec: 120 });
+      var rowsBare = (fusBare.hrv && fusBare.hrv.blocks && fusBare.hrv.blocks[0] && fusBare.hrv.blocks[0].rmssd && fusBare.hrv.blocks[0].rmssd.values) || [];
+      T.ok('two rows still carry the wrist site the NODE declared', rowsBare.length === 3, JSON.stringify(rowsBare));
+      T.ok(
+        'and no row states a site this layer inferred',
+        rowsBare.every(function (o) {
+          return o.siteSource !== 'integrator-default';
+        }),
+        JSON.stringify(rowsBare)
+      );
+
+      // ── 4 · CONTROL · two corners at the SAME site keep the ordinal, because a repeated value names nothing
+      var wristB = ppg('wrist', 'device-default', 33, 5, 59); // the forehead record's series, at the wrist
+      var fus2 = RF([ecg, wrist, wristB], { toleranceSec: 120 });
+      var ids2 = (fus2.hrv && fus2.hrv.blocks && fus2.hrv.blocks[0] && fus2.hrv.blocks[0].tch && fus2.hrv.blocks[0].tch.cornerIds) || null;
+      if (ids2) {
+        T.eq('CONTROL · two wrist corners stay distinct', new Set(ids2).size, 3);
+        T.ok('CONTROL · and they fall back to the ordinal rather than repeat one site', /PpgDex 1/.test(ids2.join('|')) && /PpgDex 2/.test(ids2.join('|')), JSON.stringify(ids2));
+      } else {
+        T.ok('CONTROL · the same-site pair still produces a hat', false, 'no cornerIds');
+      }
+
+      // ── 5 · the source says the rule, with the comments blanked so no comment of mine can satisfy a regex
+      var src = (env.sources || {})['integrator-dsp.js'] || '';
+      var rsrc = (env.sources || {})['integrator-render.js'] || '';
+      if (!src || !rsrc) {
+        T.ok('the two Integrator sources are readable in this realm', false, 'env.sources carries neither file');
+        return;
+      }
+      var code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[\t ]*\/\/.*$/gm, '');
+      var rcode = rsrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[\t ]*\/\/.*$/gm, '');
+      T.ok(
+        'ANTI-VACUITY · blanking the comments leaves the code',
+        code.length > src.length / 3 && rcode.length > rsrc.length / 3,
+        code.length + '/' + src.length + ' · ' + rcode.length + '/' + rsrc.length
+      );
+      T.ok('the four keys no record ever carries are gone from the corner tag', !/sv\.deviceKey \|\| sv\.file \|\| sv\.fname/.test(code));
+      T.ok('…and the tag reads the site the dedupe rule reads', /siteSeen\[base \+ '@' \+ site\] === 1/.test(code));
+      var tagBlock = (code.split('var _cornerIds')[1] || '').slice(0, 900);
+      T.ok('the upload filename stays OUT of the published label', tagBlock.length > 200 && !/_src/.test(tagBlock), 'tag block ' + tagBlock.length + ' chars');
+      T.ok('the renderer labels a lane by node AND site', /function nodeLabel\(r\)/.test(rcode) && (rcode.match(/esc\(nodeLabel\(r\)\)/g) || []).length === 2);
+      T.ok('…and it prints no site this layer invented itself', /siteSource !== 'integrator-default'/.test(code) && /D\.siteIdent/.test(rcode));
+    });
+
     group('Integrator staging consensus — REM disagreement threshold (#2)', 'integrator-dsp', function (T) {
       var A = env.adaptEnvelopeNode,
         RF = env.runFusion,
@@ -58710,7 +58860,14 @@
           /node === 'OxyDex'\)[\s\S]*?pulseHr1Hz\s*=\s*_dig\(json,\s*\['stats',\s*'meanHr'\]\)/.test(isrc),
           'generic normalizer missing the OxyDex pulseHr1Hz branch'
         );
-        T.ok('the PpgDex adapter exposes summary.site from recording.site', /summary\.site\s*=\s*_dig\(json,\s*\['recording',\s*'site'\]\)/.test(isrc), 'PpgDex summary.site not wired');
+        /* 2026-11-25 · the assignment moved behind `_siteRaw`, so `siteSource` can say WHO declared the
+           site (board #8957). The leg still pins `recording.site` as the only source of the value, and
+           the `|| 'wrist'` default the dedupe rule needs. */
+        T.ok(
+          'the PpgDex adapter exposes summary.site from recording.site',
+          /_siteRaw\s*=\s*_dig\(json,\s*\['recording',\s*'site'\]\)/.test(isrc) && /summary\.site\s*=\s*_siteRaw\s*\|\|\s*'wrist'/.test(isrc),
+          'PpgDex summary.site not wired'
+        );
         T.ok('the PpgDex adapter exposes summary.pulseHr from hrv.time.hr', /summary\.pulseHr\s*=\s*_dig\(json,\s*\['hrv',\s*'time',\s*'hr'\]\)/.test(isrc), 'PpgDex summary.pulseHr not wired');
       }
       if (psrc) T.ok('the PpgDex node-export carries recording.site', /site:\s*r\.site\s*\|\|\s*'wrist'/.test(psrc), 'PpgDex export missing site');

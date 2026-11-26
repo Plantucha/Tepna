@@ -670,7 +670,15 @@ function adaptEnvelopeNode(json, node, filename) {
       // OXYDEX-PULSE-RESOURCING §Phase 2: the optical site + the WAVEFORM-derived pulse HR. Only a
       // `site:'finger'` PpgDex export is the O2Ring's own pleth — the honest leg fusePulseCrossCheck
       // compares against the ring's smoothed 1 Hz pulse.
-      summary.site = _dig(json, ['recording', 'site']) || 'wrist';
+      /* The `|| 'wrist'` default is load-bearing for the dedupe rule above (:1561 states why), so it
+         stays. What it cannot do alone is tell a reader WHO said 'wrist': the export, or this line.
+         `siteSource` answers that, and it never claims an observation the export did not carry.
+         `'integrator-default'` means the export declared no site at all. The node's own
+         `recording.siteSource` ('declared' when the wearer said so, 'device-default' when the
+         optical layout implied it) rides through unchanged otherwise. */
+      var _siteRaw = _dig(json, ['recording', 'site']);
+      summary.site = _siteRaw || 'wrist';
+      summary.siteSource = _siteRaw ? _dig(json, ['recording', 'siteSource']) || 'export' : 'integrator-default';
       summary.pulseHr = _dig(json, ['hrv', 'time', 'hr']);
       // OXYDEX-PULSE-RESOURCING §Phase 3: the finger-waveform WHOLE-RECORD HRV (ms — real RR-interval
       // RMSSD/SDNN). fuseHrvResource publishes these as the honest, ring-context HRV that SUPERSEDES the
@@ -1563,6 +1571,16 @@ function normalizeFile(json, filename) {
    failure mode is keeping two recordings, never silently dropping one. */
 function _recSite(r) {
   return (r && r.summary && r.summary.site) || null;
+}
+/* THE SITE AS A PUBLISHABLE NAME, which is NOT the same question as the site as a dedupe key.
+   `_recSite` answers with the `|| 'wrist'` default above, because the dedupe rule needs every record
+   to compare somewhere, and comparing an unknown site as wrist is the safe direction there (:1561).
+   A LABEL cannot take that default: printing `wrist` for an export that declared no site states an
+   observation nobody made (CLAUDE.md §∅ — a value that was not measured is null). So a site names a
+   corner, a row, a chip or a lane only when the EXPORT carried one, which `siteSource` records. */
+function _siteIdent(r) {
+  var sm = r && r.summary;
+  return sm && sm.site && sm.siteSource && sm.siteSource !== 'integrator-default' ? sm.site : null;
 }
 function _sameSite(a, b) {
   var sa = _recSite(a),
@@ -3417,14 +3435,29 @@ function _tchHat(like, ptsFn, metric) {
       seen[base] = (seen[base] || 0) + 1;
       out.push(base);
     });
+    /* THE TAG NAMES THE SENSOR SITE, which is the identity this file already dedupes on (owner ruling
+       2026-09-13, `_sameSite` above). The four keys the chain below read before this — `deviceKey`,
+       `file`, `fname` and `recording.device` — are written on NO normalized record: `normalizeFile`
+       carries the upload filename as `_src` (:918, :1417) and the site as `summary.site` (:673). So
+       every one of the four resolved `undefined` and the tag was ALWAYS the ordinal, which is load
+       order. Both optical corners of a night then read `PpgDex 1` and `PpgDex 2`, and a Muse headband
+       recording (`PpgDex`, `site: 'forehead'` since #5238) was unnameable beside a wrist Verity.
+       `_src` deliberately stays OUT of the tag: a filename is an identifier, the export scrub drops
+       it by policy (`dex-export.js`), and `cornerIds` is published output.
+       An unknown site, or two corners of one node at the SAME site, keep the ordinal — a repeated
+       value identifies no corner, and the ordinal at least keeps the two distinct. */
+    var siteSeen = {};
+    srcs.forEach(function (s) {
+      var k = (s.node || 'node') + '@' + (_siteIdent(s) || '?');
+      siteSeen[k] = (siteSeen[k] || 0) + 1; // absence-ok: a tally of records seen, so an absent key is a count of zero
+    });
     var used = {};
     return out.map(function (base, i) {
       if (seen[base] < 2) return base;
       used[base] = (used[base] || 0) + 1;
       var sv = srcs[i];
-      // Prefer something that names the DEVICE/recording; fall back to an ordinal so the corners are
-      // at least distinguishable rather than silently merged.
-      var tag = sv.deviceKey || sv.file || sv.fname || (sv.recording && sv.recording.device) || used[base];
+      var site = _siteIdent(sv);
+      var tag = site != null && siteSeen[base + '@' + site] === 1 ? site : used[base];
       return base + ' ' + String(tag).replace(/\s+/g, '_');
     });
   })([best.A, best.B, best.C]);
@@ -4144,6 +4177,18 @@ function fuseHRVConsensus(recs, dtMs) {
               // published export (caught by the equivalence gate, which reported
               // `rmssd.values.0.src: {"node":"ECGDex","label":…}` against the committed golden).
               var _o = { node: s.node, v: _cmpVal(s, key) };
+              /* THE ROW NAMES THE SITE when the record carries one. Two optical corners of one night
+                 both read `node: 'PpgDex'`, so a reader of these rows could not tell a forehead
+                 headband from a wrist strap — the same blindness the corner labels had. `site` is the
+                 identity `_siteIdent` publishes, and `siteSource` beside it says how strong that
+                 identity is. A record whose export declared no site gains neither key, so a row never
+                 states a site that this layer inferred, and no committed fixture of such a night
+                 moves. */
+              var _site = _siteIdent(s);
+              if (_site != null) {
+                _o.site = _site;
+                _o.siteSource = s.summary.siteSource;
+              }
               Object.defineProperty(_o, 'src', { value: s, enumerable: false });
               return _o;
             })
@@ -8426,6 +8471,9 @@ window.IntegratorDSP = {
   fmtDayShort,
   nodeColor,
   NODE_COLORS,
+  /* The publishable site name, shared with the renderer so the chips, the lanes, the corner labels
+     and the consensus rows all answer the same question the same way. */
+  siteIdent: _siteIdent,
   normalizeFile,
   consumeMeasurements,
   dedupeRecs,
