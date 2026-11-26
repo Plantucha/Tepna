@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**368 tools** · 367 with a purpose line · **1 without**
+**369 tools** · 368 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -70,6 +70,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`consensus-dissent-core.mjs`](../tools/consensus-dissent-core.mjs) | `applyConsensusPolarity` RETURNS THE CHANNELS IT RE-DETECTED, AND TEN CALLERS THREW IT AWAY. |
 | [`consensus-polarity-wiring.mjs`](../tools/consensus-polarity-wiring.mjs) | THE WIRING IS WHERE A FIX STOPS BEING APPLIED, AND NOTHING COUNTED THE WIRING. |
 | [`consensus-refpick-dissent.mjs`](../tools/consensus-refpick-dissent.mjs) | A DISSENTING LED CAN WIN THE REFERENCE PICK, AND NOBODY HAD READ THE WINNER. |
+| [`corpus-archive-parity.mjs`](../tools/corpus-archive-parity.mjs) | is every archived capture whole in the live corpus? READ-ONLY. |
 | [`corpus-census.mjs`](../tools/corpus-census.mjs) | A CENSUS COMMITS ITS FILE LIST, OR IT CANNOT BE DIFFED — residue `2026-09-20-census-file-list-not-retained`. |
 | [`corpus-reads.mjs`](../tools/corpus-reads.mjs) | decide, from a tool's SOURCE, whether it enumerates a corpus root it was handed at run time, and whether it reports the population it actually covered. |
 | [`corpus-scope-core.mjs`](../tools/corpus-scope-core.mjs) | the population half of corpus-scope: snapshots, verdicts, rule lines and the code identity they stamp. |
