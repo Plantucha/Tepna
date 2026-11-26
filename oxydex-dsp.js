@@ -325,7 +325,15 @@
      If a sidecar is dropped in the batch, DECLARE the verification against it. Never SHIFT time —
      the house rule at `oxydex-dsp.js:3235` (a silent correction becomes an invisible bug). */
   function parseRingClockLog(text) {
-    if (typeof text !== 'string' || !text) return [];
+    /* ∅ THIS ANSWERED `[]` ON BOTH ROADS, so a night with no ring-clock sidecar and a night whose
+       sidecar recorded no clock read arrived at the matcher alike — absence as zero reads, which
+       §∅ refuses. An ABSENT text is `null`. A PRESENT, EMPTY one is the named refusal the ruling of
+       2026-11-26 (board #9027) gives every sidecar parser in the fleet: `RingClockLogWriter` stamps
+       its header on open into a 64 KB buffer, so 0 bytes is a capture that stopped before the first
+       flush and the verification is UNMEASURED, never verified against zero reads. A file holding
+       its header alone still parses below and answers `[]`, which is a real observation. */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     var lines = text.split(/\r?\n/);
     var out = [];
     for (var i = 1; i < lines.length; i++) {
@@ -498,6 +506,18 @@
               if (_n && _n._o2BinSource === true) _o2AttachRtcVerification(_n, _rtcLog);
               if (_n) _o2AttachAcqEvidence(_n, (typeof window !== 'undefined' && window._oxyAcqEvidence) || null);
             });
+          } else if (typeof window !== 'undefined' && window._oxyRtcSidecarEmpty === true) {
+            // ∅ THE BATCH CARRIED A RING-CLOCK SIDECAR AND IT HELD NOTHING. The verification is
+            // UNMEASURED, and that is a different fact from a batch nobody paired one with, so the
+            // night says which. Nothing else moves: no `timingSource` and no offset are attached,
+            // exactly as on the road where no sidecar arrived, and this road is the only writer of
+            // the key, so every night decoded without a sidecar keeps its bytes.
+            Object.keys(allNights).forEach(function (_k) {
+              var _n = allNights[_k];
+              if (_n && _n._o2BinSource === true)
+                _n.rtcSidecarReason =
+                  'ring-clock sidecar present and empty (sidecar-empty) — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: the RTC verification is UNMEASURED, never verified against zero reads';
+            });
           }
         } catch (_eRt) {
           /* the matcher is pure — a throw here means a shape we did not expect, not a compute path */
@@ -649,8 +669,13 @@
           // resolves, so drop order does not matter (same posture as \`_PPG2W.txt\`/\`_SPO2.csv\`).
           if (/_rtclog\.csv$/i.test(file.name)) {
             var _rtcText = new TextDecoder('utf-8').decode(_buf);
-            var _rtcRows = parseRingClockLog(_rtcText);
-            if (_rtcRows.length) {
+            var _rtcRows = /** @type {any} */ (parseRingClockLog(_rtcText));
+            // ∅ A PRESENT, EMPTY sidecar (ruling 2026-11-26) is NOT a sidecar that recorded no clock
+            // read. It goes on its own flag rather than into the bag: concatenating nothing would
+            // leave the batch indistinguishable from one that was never handed a sidecar at all.
+            if (_rtcRows && _rtcRows.err) {
+              window._oxyRtcSidecarEmpty = true;
+            } else if (_rtcRows && _rtcRows.length) {
               window._oxyRtcLog = (window._oxyRtcLog || []).concat(_rtcRows);
             }
             resolve(null);
@@ -10130,6 +10155,11 @@
     if (night.rtcOffsetS != null && isFinite(night.rtcOffsetS)) _out.recording.rtcOffsetS = night.rtcOffsetS;
     if (night.rtcVerifiedAtMs != null && isFinite(night.rtcVerifiedAtMs)) _out.recording.rtcVerifiedAtMs = night.rtcVerifiedAtMs;
     if (night.rtcResetSuspect) _out.recording.rtcResetSuspect = true;
+    /* ∅ — and WHY no verification is attached, when the reason is a sidecar that held nothing. A
+       consumer folding the fleet reads an absent `timingSource` as "nobody read the ring's clock";
+       on this one road that reading is wrong, and the key names which. Conditional like the four
+       above, so a night decoded without a sidecar keeps its export bytes. */
+    if (night.rtcSidecarReason) _out.recording.rtcSidecarReason = night.rtcSidecarReason;
     /* ── WHETHER A SEAM SIDECAR WAS READ AT ALL — UNCONDITIONALLY ────────────────────────────
        Owner ruling 2026-11-05 (board #3569), re-stated as D17 on 2026-11-06: a recording with no
        seam sidecar reads seam status UNKNOWN, never seam-free, and an export silent about the

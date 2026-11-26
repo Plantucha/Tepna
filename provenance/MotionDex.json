@@ -1,10 +1,10 @@
 {
   "bundle": "MotionDex.html",
-  "manifestHash": "b8f2538c4db8",
+  "manifestHash": "c1d1ae627f2f",
   "fixtures": {
     "synthetic_motiondex_golden.node-export.json": {
       "bundle": "MotionDex.html",
-      "manifestHash": "b8f2538c4db8",
+      "manifestHash": "c1d1ae627f2f",
       "added": "2026-07-18",
       "inputs": [
         "synthetic_motiondex_acc.txt"
@@ -17,7 +17,7 @@
     },
     "synthetic_motiondex_series.export.json": {
       "bundle": "MotionDex.html",
-      "manifestHash": "b8f2538c4db8",
+      "manifestHash": "c1d1ae627f2f",
       "added": "2026-11-25",
       "note": "The two-session series export (motionBuildSeriesExport + MotionCross.crossNightBlock) over the two committed synthetic ACC nights, each item scrubbed exactly as motiondex-app.js buildEnv scrubs it. Night 2 was minted by genSyntheticACC({ seed: 7, brpm: 11 }) with both stamp columns shifted one day forward, so the pair spans two evenings.",
       "inputs": [

@@ -7195,7 +7195,16 @@
      both: `# stream=ecg rule=stuck min_run=N …` and rows
      `Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule`. */
   function parseEcgRuns(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ A PRESENT, EMPTY SIDECAR IS NOT AN ABSENT ONE (owner-deputy ruling 2026-11-26, board
+       #9027; the full reading sits on `parsePinnedRuns` in `ppgdex-dsp.js`). The writer stamps its
+       own `# stream=… rule=…` header the moment it opens a new file, and that header sits in a
+       64 KB buffer, so a capture that stopped before the first flush leaves exactly 0 bytes. The box
+       side already names that state (`capture-host/solid_night_inputs.py` `_sidecar_unflushed`), and
+       a HEADER-ONLY file is the other fact — a rule stated and no run found — which still parses
+       below. So an ABSENT text answers `null`, and an EMPTY one answers a NAMED REFUSAL: the
+       validity is absent here, and it is never zero runs. */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     var out = /** @type {any} */ ({
       params: null,
       minRun: null,
@@ -7625,7 +7634,14 @@
     /* It lives HERE, not only in `parseECGText`, so a STREAMED caller (`tools/trio-batch.mjs` folds
        60 MB files line by line) reaches the same validity a whole-text caller does. */
     var runs = parseEcgRuns(opts && opts.runsText);
-    if (runs) {
+    /* ∅ A PRESENT, EMPTY sidecar: absent validity with a named reason, never zero runs. Both keys
+       ride THIS road alone, so a record paired with a sidecar, and one paired with none, keep the
+       bytes they have today. */
+    if (runs && runs.err) {
+      rec.blankingSpans = null;
+      rec.blankingSpansReason =
+        'run sidecar present and empty (' + runs.err + ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero runs';
+    } else if (runs) {
       rec.runsSidecar = runs;
       /* §∅ — a sidecar whose rows went unplaced measured nothing here, and `[]` would report that
          the box found no blanking. `null` is the absence; every consumer already guards for it
@@ -7968,7 +7984,16 @@
          writer's sample index. Time is the frame both sides agree on.
      Returns absolute floating ms, the same frame `stampEpochPositions` aligns against. */
   function parseAccRunsTimed(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ A PRESENT, EMPTY SIDECAR IS NOT AN ABSENT ONE (owner-deputy ruling 2026-11-26, board
+       #9027; the full reading sits on `parsePinnedRuns` in `ppgdex-dsp.js`). The writer stamps its
+       own `# stream=… rule=…` header the moment it opens a new file, and that header sits in a
+       64 KB buffer, so a capture that stopped before the first flush leaves exactly 0 bytes. The box
+       side already names that state (`capture-host/solid_night_inputs.py` `_sidecar_unflushed`), and
+       a HEADER-ONLY file is the other fact — a rule stated and no run found — which still parses
+       below. So an ABSENT text answers `null`, and an EMPTY one answers a NAMED REFUSAL: the
+       validity is absent here, and it is never zero runs. */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     var out = /** @type {any} */ ({ minRun: null, spans: [], emitted: 0, comparable: false });
     var lines = String(text).split(/\r?\n/);
     for (var i = 0; i < lines.length; i++) {
@@ -8409,9 +8434,13 @@
        both arrive here as no spans at all. `_runsSidecar` is present exactly when a sidecar parsed,
        so a consumer reads validity UNKNOWN from its absence rather than reading a clean stream. This
        is MotionDex's form of the same field, and `parseECG` above carries `runsSidecar` for the same
-       reason. A zero-byte sidecar still reads as absent here, which row
-       `2026-11-04-a-zero-byte-sidecar-hides-rows-the-device-did-send` owns. */
-    if (_accRuns) {
+       reason. A PRESENT, EMPTY sidecar is neither of those states: it answers the named refusal of
+       the ruling of 2026-11-26, and the reason below carries it, so the absence is attributed here
+       rather than borrowed from the stream that was never paired. */
+    if (_accRuns && _accRuns.err) {
+      /** @type {any} */ (out)._runsSidecarReason =
+        'run sidecar present and empty (' + _accRuns.err + ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero runs';
+    } else if (_accRuns) {
       /** @type {any} */ (out)._runsSidecar = _accRuns;
       if (_accRuns.spans.length) /** @type {any} */ (out)._blankSpans = _accRuns.spans;
     }
