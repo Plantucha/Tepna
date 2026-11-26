@@ -25316,6 +25316,20 @@
         /PATAlign\.decodeMuseOptics\(/.test(wsrc) && !/new MuseFrame\.OpticsPpg\(/.test(wsrc),
         'the worker must not construct the decoder itself — the wrapper is PATAlign.decodeMuseOptics'
       );
+      /* BOTH roads delegate the decode. `pat-feasibility-worker.js` carried the only copy until
+         2026-11-26 (#8987); the night worker made it a second reader, and a second copy is what the
+         2026-08-04 hat finding measured. The wrapper may stay in either file — what may not come back
+         is the body, whose tell is `new MuseFrame.OpticsPpg(`. */
+      var fsrc = env.sources && env.sources['pat-feasibility-worker.js'];
+      T.ok('pat-feasibility-worker.js is readable in this lane', !!fsrc, 'pat-feasibility-worker.js not in env.sources');
+      if (fsrc) {
+        T.ok(
+          'the PAT road delegates the forehead decode too, and keeps no copy',
+          /PATAlign\.decodeMuseOptics\(/.test(fsrc) && !/new MuseFrame\.OpticsPpg\(/.test(fsrc),
+          'the decode body came back into pat-feasibility-worker.js — it must call PATAlign.decodeMuseOptics and refuse when that is absent'
+        );
+        T.ok('and it loads the file that answers the name', /'pat-align\.js'/.test(fsrc), 'the dep list must carry pat-align.js, or the delegation reads undefined on every night');
+      }
       var asrc = env.sources && env.sources['pat-align.js'];
       T.ok('pat-align.js is readable in this lane', !!asrc, 'pat-align.js not in env.sources');
       if (asrc) {
