@@ -29,7 +29,9 @@
 //    ppgdex-dsp. DOM-free by the DSP-purity gate, so it runs in a worker. If it can't
 //    load, the compact Pan–Tompkins fallback below still works. ──
 var HAVE_PPGDSP = false,
-  HAVE_ECGDSP = false;
+  HAVE_ECGDSP = false,
+  /* the FOURTH corner's capability, on its own guard below — absent deps cost the forehead only */
+  HAVE_MUSE = false;
 if (typeof window === 'undefined') {
   self.window = self;
 } // window→self shim: the production DSP wrapper references `window` at load; a worker has none
@@ -69,6 +71,28 @@ try {
     loadScript('trio-reference.js');
   } catch (e) {
     self.__trioRefErr = String((e && e.message) || e);
+  }
+  /* THE FOREHEAD CORNER'S TWO DEPS, ON THEIR OWN GUARD (board #8987). `muse-frame.js` decodes the
+     headband's device frames and `pat-align.js` holds the one decoder and the two stated forehead
+     constants. They sit OUTSIDE the block above on purpose: that block's `catch` sets
+     HAVE_PPGDSP = false, so a forehead failure there would drop the ring and the wrist corners too.
+     A failure here costs the FOURTH corner only, and `museReason` names the throw. A worker realm
+     that cannot load a dep presents as a TIMEOUT rather than a throw, so the reason is read onto the
+     page rather than left to a silent empty card. */
+  try {
+    ['muse-frame.js', 'pat-align.js'].forEach(loadScript);
+    HAVE_MUSE =
+      typeof MuseFrame !== 'undefined' &&
+      MuseFrame &&
+      typeof MuseFrame.OpticsPpg === 'function' &&
+      typeof PATAlign !== 'undefined' &&
+      PATAlign &&
+      typeof PATAlign.decodeMuseOptics === 'function' &&
+      PATAlign.FOREHEAD != null;
+    if (!HAVE_MUSE) self.__museErr = 'muse-frame.js or pat-align.js loaded without the symbols the forehead corner reads';
+  } catch (e) {
+    HAVE_MUSE = false;
+    self.__museErr = String((e && e.message) || e);
   }
   HAVE_ECGDSP = typeof ECGDSP !== 'undefined' && ECGDSP && typeof ECGDSP.parseECG === 'function' && typeof ECGDSP.bandpass === 'function' && typeof ECGDSP.detectPeaks === 'function';
   HAVE_PPGDSP =
@@ -985,11 +1009,103 @@ function ecgHrMap(text, onPhase, runsText) {
    own per-sample validity and the detector downstream of it already reads that. Passing the bytes IS
    the repair; the 111 Verity companions in the corpus record 0 runs, so no Verity number moves today
    and the ring's raw pleth, where 85 of 164 companions do record runs, is the one that can. */
-function ppgHrMapReal(text, onPhase, runsText) {
+/* ── FOUR CORNERS, ONE SOLVER, AND ONE STATISTIC ────────────────────────────────────────────────
+   `AnalysisStats.nCornerHat` solves v_ij = σ²_i + σ²_j by least squares over every measured pair, so
+   six pairs over four unknowns leave 2 degrees of freedom and `residual` reads the fit. At three
+   corners the same solver IS the classic hat, which the core's own suite pins.
+
+   🔴 TWO PANELS, TWO WINDOW SETS, ON PURPOSE (board #8984, decision 1). The headline three-corner σ
+   keeps the 3-way per-second intersection it has always used. A fourth corner can only NARROW the
+   intersection, so routing the headline through the 4-way set would move a published number on every
+   four-signal night to answer a question about a new panel. So this block builds its OWN key set and
+   the page states that the chest/wrist/ring sub-hat and the headline σ cover different seconds.
+
+   🔴 ONE STATISTIC ACROSS BOTH PANELS (decision 3). The pair variances handed to the solver are the
+   PLAIN difference variances `tchSigmas` already uses, not the robust (IQR/1.349)² of
+   `AnalysisStats.nCornerPairVar`, which the PAT page feeds from per-window medians. With one
+   statistic the three-corner sub-hat differs from the headline by the SECONDS ALONE, which is a
+   difference a reader can check. Two statistics would make that gap unattributable.
+
+   ∅ A pair that cannot be measured is LEFT OUT rather than squared to zero, and the solver then
+   refuses it by name. Under 1000 shared seconds the whole panel refuses, which is the same floor the
+   three-corner path applies to its own overlap. */
+var FOUR_MIN_SEC = 1000;
+function solveFourCorners(maps, names) {
+  var K = typeof AnalysisStats !== 'undefined' ? AnalysisStats : null;
+  if (!K || typeof K.nCornerHat !== 'function') return { ok: false, reason: 'AnalysisStats.nCornerHat unavailable — no local copy of the solver is kept', seconds: 0 };
+  var i,
+    j,
+    ks = [];
+  maps[0].forEach(function (_, sec) {
+    for (var q = 1; q < maps.length; q++) if (!maps[q].has(sec)) return;
+    ks.push(sec);
+  });
+  if (ks.length < FOUR_MIN_SEC) return { ok: false, reason: ks.length + '-s four-way overlap under the ' + FOUR_MIN_SEC + '-s floor', seconds: ks.length };
+  ks.sort(function (a, b) {
+    return a - b;
+  });
+  var series = maps.map(function (m) {
+    return ks.map(function (sec) {
+      return m.get(sec);
+    });
+  });
+  var pairVar = {};
+  for (i = 0; i < names.length; i++) {
+    for (j = i + 1; j < names.length; j++) {
+      var d = [];
+      for (var k = 0; k < ks.length; k++) d.push(series[i][k] - series[j][k]);
+      var v = variance(d);
+      if (isFinite(v)) pairVar[names[i] + '|' + names[j]] = v;
+    }
+  }
+  var hat = K.nCornerHat(pairVar, names, { windows: ks.length });
+  hat.seconds = ks.length;
+  hat.spanMin = Math.round((ks[ks.length - 1] - ks[0]) / 60);
+  return hat;
+}
+
+/* ── THE FOREHEAD CORNER — the Muse S Athena optics, through the SAME HR path ────────────────────
+   The headband's recorder writes one `_RAW.txt` of device frames, and the optical samples exist only
+   inside them, so `PATAlign.decodeMuseOptics` streams them into the per-sample layout
+   `PPGDSP.parsePPG` already takes. From there the corner runs the SAME `ppgHrMapReal` as the wrist
+   and the ring: same 3-LED consensus, same `buildPPI`, same Malik correction, same per-second grid
+   and the same spike cleanup. Only the two stated constants of `PATAlign.FOREHEAD` differ, and
+   PpgDex measured both (`ppgdex-app.js`): sign -1, foot re-timed at 3 Hz.
+   ∅ Every refusal is NAMED and none of them is an empty corner: no deps (`museReason`), a decode
+   that found no optical record (the decoder's own `no-row` / `no-optical-record`), or an HR path
+   that dropped out (`__ppgErr`). The caller reads null plus the reason, never a zero-length leg. */
+async function museHrMap(f, onPhase, runsText) {
+  if (!HAVE_MUSE) return { hr: null, reason: self.__museErr || 'muse-frame.js / pat-align.js not loaded' };
+  if (!HAVE_PPGDSP) return { hr: null, reason: 'PPGDSP unavailable — the forehead corner runs the same HR path as the wrist' };
+  try {
+    if (onPhase) onPhase('decoding Muse frames');
+    var dec = await PATAlign.decodeMuseOptics(f);
+    if (!dec || !dec.text) return { hr: null, reason: (dec && dec.reason) || 'no-optical-record', info: dec ? dec.info : null };
+    var F = ppgHrMapReal(dec.text, onPhase, runsText, { sign: PATAlign.FOREHEAD.sign, footHiHz: PATAlign.FOREHEAD.footHiHz });
+    if (!F || !F.hr) return { hr: null, reason: self.__ppgErr || 'forehead HR path produced no per-second grid', info: dec.info || null };
+    return { hr: F.hr, conf: F.conf || null, signStated: F.signStated, footHiHz: F.footHiHz, info: dec.info || null, reason: null };
+  } catch (e) {
+    return { hr: null, reason: String((e && e.message) || e) };
+  }
+}
+
+/* `opts` is OPTIONAL and LAST (§🧪), so every existing two- and three-argument call is unchanged.
+   The forehead corner is the one caller that passes it, with the two constants PpgDex measured and
+   `PATAlign.FOREHEAD` states:
+     sign      forces the channel polarity. The headband reports RECEIVED light, which FALLS at
+               systole, so a vote over its channels can pick the wrong sign on a low-perfusion
+               forehead waveform. A STATED sign is not a vote, and the stamp below says so rather
+               than reporting a unanimous set that was never counted (§∅).
+     footHiHz  re-times the foot in the narrower pulse band. Absent, `rec.footHiHz` stays unset and
+               the 0.5-8 Hz foot ships, which is what the ring and the wrist corners want. */
+function ppgHrMapReal(text, onPhase, runsText, opts) {
   self.__ppgErr = null;
+  var _o = opts || {},
+    _sign = _o.sign === 1 || _o.sign === -1 ? _o.sign : null;
   try {
     if (onPhase) onPhase('parsing PPG');
     var rec = runsText ? PPGDSP.parsePPG(text, { runsText: runsText }) : PPGDSP.parsePPG(text);
+    if (rec && _o.footHiHz > 0) rec.footHiHz = _o.footHiHz;
     if (!rec || !rec.ch || !rec.ch.length || !rec.n) {
       self.__ppgErr = 'parsePPG empty';
       return null;
@@ -997,7 +1113,7 @@ function ppgHrMapReal(text, onPhase, runsText) {
     var perCh = [];
     for (var ci = 0; ci < rec.ch.length; ci++) {
       if (onPhase) onPhase('beat-detect LED ' + (ci + 1) + '/' + rec.ch.length);
-      perCh.push(PPGDSP.detectChannel(rec.ch[ci], rec.fs));
+      perCh.push(_sign ? PPGDSP.detectChannel(rec.ch[ci], rec.fs, _sign) : PPGDSP.detectChannel(rec.ch[ci], rec.fs));
     }
     /* CONSENSUS POLARITY — the order follows `analyze` (apply, then pick). This site picks by
        bandpassed VARIANCE, which a sign flip leaves unchanged, so the order decides nothing here;
@@ -1007,6 +1123,14 @@ function ppgHrMapReal(text, onPhase, runsText) {
        2026-11-05-two-consensus-legs-record-a-count-with-no-shape states that for the printed legs,
        and the return count alone cannot separate a 1-1 tie from agreement, because the pass
        abstains on both and returns 0. */
+    /* 🔴 A STATED SIGN IS NOT A VOTE, AND THE SKIP IS THE STAMP ALONE. With `opts.sign` every channel
+       was detected under that one sign already, so the set is unanimous BY CONSTRUCTION: `signsOf`
+       reports that one sign, and the pass then abstains, exactly as the paragraph above describes for
+       any unanimous set. Those three calls therefore stay on every path, unchanged. What a stated sign
+       must NOT produce is the `unanimous` STAMP, which would report an agreement that nobody counted —
+       the precise misreading the POL_TEXT table on the page is written to prevent. So the stamp below
+       stays null under a stated sign, and the sign travels as its own field for the page to say out
+       loud. */
     var polSigns = ConsensusDissent.signsOf(perCh);
     var polMaj = PPGDSP.consensusSign(polSigns);
     var polCorrected = PPGDSP.applyConsensusPolarity(perCh, function (i, sgn) {
@@ -1018,7 +1142,7 @@ function ppgHrMapReal(text, onPhase, runsText) {
        `catch` — it swallows a throw into `self.__ppgErr` and returns null, which drops the corner and
        skips the night. That is the silent disablement CLAUDE.md §👥.3 warns about, and a visible
        "not read" is the opposite of it. */
-    var polStamp = typeof ConsensusDissent !== 'undefined' && ConsensusDissent ? ConsensusDissent.stampOf(polSigns, polMaj, polCorrected) : null;
+    var polStamp = !_sign && typeof ConsensusDissent !== 'undefined' && ConsensusDissent ? ConsensusDissent.stampOf(polSigns, polMaj, polCorrected) : null;
     var sel = 0,
       best = -1;
     for (ci = 0; ci < perCh.length; ci++) {
@@ -1131,7 +1255,7 @@ function ppgHrMapReal(text, onPhase, runsText) {
        pleth also arrives here and is ONE channel, so its stamp reads `alone` by construction and the
        handler publishes only the Verity one — a two-key container holding a derivable constant and a
        null is the empty container §∅ forbids. */
-    return { hr: out, conf: conf, polarity: polStamp };
+    return { hr: out, conf: conf, polarity: polStamp, signStated: _sign, footHiHz: _o.footHiHz > 0 ? _o.footHiHz : null };
   } catch (e) {
     self.__ppgErr = (e && e.message) || '' + e;
     return null;
@@ -1292,6 +1416,17 @@ async function runRealNight(m) {
     var Vpol = V && V.polarity ? V.polarity : null;
     if (V && V.hr) V = V.hr;
     if (!O || !H || !V) return { skip: true, reason: 'no ' + (!O ? 'O2 ' : '') + (!H ? 'H10 ' : '') + (!V ? 'Verity-HR' : '') };
+    /* THE FOURTH CORNER IS OPTIONAL, AND ITS ABSENCE IS NOT A SKIP (owner ask #8914, acceptance 1).
+       A night with no Muse file is the three-corner night this page already solves, so the forehead
+       is read AFTER the three-corner skip test and never participates in it. `Mres` always carries a
+       reason when `hr` is null, so the page can say which of the three refusals happened. */
+    var Mres = f.forehead ? await museHrMap(f.forehead, pg, await _runsOf(f.foreheadRuns)) : { hr: null, reason: 'no-muse-file' },
+      M = Mres.hr || null;
+    /* `Mres.conf` is NOT read here, and that is deliberate. The page's per-corner confidence means
+       are built in the `derive` job from the aligned series it ships, and extending that join to a
+       fourth corner is its own slice. A confidence this payload carried and no surface read would be
+       the dead key the boundary gate deletes, so the forehead's per-second confidence stays inside
+       `museHrMap`'s return until a surface asks for it. */
     pg('aligning + solving TCH');
     var ks = [];
     H.forEach(function (_, s) {
@@ -1348,6 +1483,11 @@ async function runRealNight(m) {
     var rHV = pearson(hh, vv),
       rHO = pearson(hh, oo),
       rVO = pearson(vv, oo);
+    /* THE FOUR-CORNER PANEL. It runs only when the night carried a forehead stream, and its refusal
+       is a named value rather than an absent field, so the page prints the reason instead of an
+       empty card (§∅). `four.corner` keeps the three-corner panel's vocabulary. */
+    var four = M ? solveFourCorners([H, V, O, M], ['h10', 'verity', 'o2', 'forehead']) : { ok: false, reason: Mres.reason || 'no-muse-file', seconds: 0 };
+    four.foreheadSource = M ? { signStated: Mres.signStated, footHiHz: Mres.footHiHz, info: Mres.info || null } : null;
     // Verity quality gate: an optical HR whose recovered σ exceeds ~12 bpm (far past any plausible
     // wrist-PPG error) AND decorrelates from BOTH other corners is failed HR extraction (lost PPG
     // contact / all-night motion), not a real device σ. Skip it honestly rather than let a 20–35 bpm
@@ -1438,7 +1578,7 @@ async function runRealNight(m) {
          covered 9 h and the overlap is 4 h describes the 4 h when the other two agreed to record. The
          page prints n ÷ each corner's own seconds so the reader sees how much of each stream the
          σ̂ describes. A count of keys in each per-second map — the same maps `ks` was built from. */
-      coverage: { h10: H.size, verity: V.size, o2: O.size },
+      coverage: M ? { h10: H.size, verity: V.size, o2: O.size, forehead: M.size } : { h10: H.size, verity: V.size, o2: O.size },
       /* σ of each corner against this night's two-detector beat reference, or { ok:false, reason } */
       reference: reference,
       /* `hrRatio` SHIPS AGAIN, and a consumer reads it this time: `sensor-trio-night.js` renders it under
@@ -1459,7 +1599,12 @@ async function runRealNight(m) {
          `ppgHrMapReal` and its return was thrown away, so a page drawing this night's σ̂ could not say
          whether the stream behind it had a channel re-detected. `sensor-trio-night.js` renders it under
          the per-corner source KPI, which is where the page states every other fact about its inputs. */
-      polarity: Vpol
+      polarity: Vpol,
+      /* THE FOUR-CORNER PANEL, or its named refusal (owner ask #8914). It always ships, because a
+         `four` that is absent on a three-corner night and absent on a FAILED four-corner night makes
+         the two indistinguishable at the surface — the §∅ shape this repo forbids. `ok: false` with
+         `reason` separates them: `no-muse-file` is the first, every other reason is the second. */
+      four: four
     };
     if (m.wantSeries) {
       out.hh = hh;

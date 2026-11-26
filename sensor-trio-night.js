@@ -63,9 +63,14 @@
   const DEV = {
     h10: { name: 'Polar H10', kind: 'chest ECG', col: '#3DE0D0', rgb: '61,224,208' },
     verity: { name: 'Verity Sense', kind: 'ankle PPG', col: '#B98AFF', rgb: '185,138,255' },
-    o2: { name: 'O2Ring', kind: 'finger pulse · 1 Hz native', col: '#FFB84D', rgb: '255,184,77' }
+    o2: { name: 'O2Ring', kind: 'finger pulse · 1 Hz native', col: '#FFB84D', rgb: '255,184,77' },
+    /* THE FOURTH CORNER (owner ask #8914). It is NOT in `DKEYS`, and that is the whole shape of this
+       change: every three-corner surface on this page iterates `DKEYS` and must keep reading three
+       corners, so the forehead joins the tables that name it and nothing else. */
+    forehead: { name: 'Muse S', kind: 'forehead optics', col: '#7FD8FF', rgb: '127,216,255' }
   };
   const DKEYS = ['h10', 'verity', 'o2'];
+  const FKEYS = ['h10', 'verity', 'o2', 'forehead'];
   const FLAG = '#FF6B7A',
     MUT = '#6e85a8',
     DIM = '#3d5070',
@@ -138,6 +143,12 @@
          ECGDex's beats to build this night's beat reference, and measures every corner against that. */
       return k === 'HR' ? { role: 'h10', stamp: mo[1] + mo[2] } : k === 'ECG' ? { role: 'h10ecg', stamp: mo[1] + mo[2] } : k === 'RR' ? { role: 'h10rr', stamp: mo[1] + mo[2] } : null;
     }
+    /* THE FOREHEAD CORNER. The Muse S Athena recorder writes one `_RAW.txt` of device frames, and the
+       optical samples exist only inside them, so the role is keyed on the frame file and the worker
+       decodes it. `RAWRUNS.txt` is its validity companion, and the pattern is the same one
+       `pat-feasibility.js` classifies with, so one night's files read the same way on both pages. */
+    if ((mo = n.match(/_(\d{8})_?(\d{6})_RAW\.txt$/i))) return /^Muse_/i.test(n) ? { role: 'forehead', stamp: mo[1] + mo[2] } : null;
+    if ((mo = n.match(/_(\d{8})_?(\d{6})_RAWRUNS\.txt$/i))) return /^Muse_/i.test(n) ? { role: 'foreheadruns', stamp: mo[1] + mo[2] } : null;
     if ((mo = n.match(/^Polar_(?:Sense|VeritySense)_[0-9A-Za-zx]+_(\d{8})_?(\d{6})_([A-Z]+)\.txt$/i))) {
       const k = mo[3].toUpperCase(),
         role = k === 'PPG' ? 'verityPPG' : k === 'PPI' ? 'verityPPI' : k === 'HR' ? 'verityHR' : null;
@@ -289,9 +300,20 @@
     nt.verityPPG = vppg ? vppg.file : null;
     nt.verityPPI = vppi ? vppi.file : null;
     nt.verityHR = vhr ? vhr.file : null;
+    /* ∅ THE FOURTH CORNER IS OPTIONAL AND NEVER GATES THE NIGHT. `eligible` below still asks for the
+       three corners this page has always solved, so a night with no Muse file stays exactly the
+       three-corner night it is (#8914, acceptance 1). The forehead stream is picked nearest the
+       night's anchor, like every other companion stream. */
+    const fore = nearest(C.forehead);
+    nt.forehead = fore ? fore.file : null;
     nt.o2ppgRuns = companionOf(nt.o2ppg);
     nt.h10ecgRuns = companionOf(nt.h10ecg);
     nt.verityPPGRuns = companionOf(nt.verityPPG);
+    /* The Muse companion needs NO new lookup. `companionOf` derives `<base>RUNS.txt` from a chosen
+       stream's own name, and the headband's companion is `…_RAWRUNS.txt` beside `…_RAW.txt`, which is
+       that derivation exactly. The `foreheadruns` role above exists only so the ingest does not
+       drop the file before it reaches `COMPANIONS`: an unclassified file never gets that far. */
+    nt.foreheadRuns = companionOf(nt.forehead);
   }
   const eligible = (nt) => !!((nt.o2ppg || nt.o2) && (nt.h10ecg || nt.h10) && (nt.verityPPG || nt.verityPPI || nt.verityHR));
   const verSrc = (nt) => (nt.verityPPG ? 'PPG' : nt.verityPPI ? 'PPI' : nt.verityHR ? 'HR' : '—');
@@ -490,7 +512,11 @@
         /* the validity companions, each paired by name to the file above it */
         o2ppgRuns: nt.o2ppgRuns || null,
         h10ecgRuns: nt.h10ecgRuns || null,
-        verityPPGRuns: nt.verityPPGRuns || null
+        verityPPGRuns: nt.verityPPGRuns || null,
+        /* the forehead stream and its own companion — absent on a three-corner night, where the
+           worker reads `no-muse-file` and the four-corner panel says so rather than staying blank */
+        forehead: nt.forehead || null,
+        foreheadRuns: nt.foreheadRuns || null
       }
     });
     const real = (r && r.real) || { skip: true, reason: (r && r.error) || 'no result' };
@@ -594,6 +620,16 @@
     rhoCrit: ['experimental', 'the error correlation at which a corner of this hat collapses to zero — a property of this solve, derived from the same unvalidated σ̂'],
     rhoSens: ['experimental', "how fast a corner's σ̂ moves per 0.01 of error correlation, at ρ = 0 — a derivative of the same unvalidated estimator"],
     rhoNeed: ['experimental', 'the precision to which ρ would have to be known to pin a corner σ̂ to ±0.1 bpm — a requirement, not a measurement of ρ'],
+    /* THE FOUR-CORNER PANEL (#8914). Every number it draws is `experimental`, and for a REASON that is
+       stronger than the three-corner hat's: the fourth corner is a THIRD OPTICAL corner, so the
+       independence the hat assumes is weaker here, not better supported. */
+    four: ['experimental', 'σ̂ per corner from the N-cornered hat over four corners — least squares on six pairwise variances, and it assumes independent corner errors across three optical sites'],
+    fourPair: ['experimental', 'the measured variance of each pair’s per-second HR difference, on the seconds all four corners share — the hat’s own input'],
+    fourSub: ['experimental', 'the classic three-cornered hat on each triple of the four corners, all on the four-way seconds — their spread IS the coupling between corners'],
+    fourResid: [
+      'experimental',
+      'the least-squares residual of the four-corner fit — six equations over four unknowns leave 2 degrees of freedom, and this is the only reading that says whether the night fits the model at all. It does NOT test independence'
+    ],
     rhoRef: [
       'measured',
       'error correlation measured against a two-detector consensus over ' +
@@ -1059,11 +1095,180 @@
     const pct = (k) => (c[k] > 0 ? Math.round((100 * real.n) / c[k]) + ' %' : '—');
     return 'share of each stream: ' + DKEYS.map((k) => DEVNAME[k] + ' ' + pct(k)).join(' · ');
   }
+  /* ══ THE FOUR-CORNER PANEL (owner ask #8914) ══════════════════════════════════════════════════
+     The section is BUILT HERE rather than in the page shell, because the shell is a build output and
+     an author PR carries none (CLAUDE.md §5). It is created once, keyed by id, and refilled on every
+     solve — so a second night never stacks a second copy.
+
+     IT ALWAYS RENDERS, and that is deliberate. A panel that simply vanished on a three-corner night
+     would be indistinguishable from a panel that vanished because the forehead corner FAILED, which
+     is the §∅ shape this repo forbids. `no-muse-file` says the night recorded three corners;
+     every other reason says the night recorded four and the hat could not use them. */
+  function renderFourCorner(real) {
+    const anchor = $('tsIndep');
+    if (!anchor) return;
+    const base = anchor.closest('.card') || anchor.parentElement;
+    let host = $('tsFour');
+    if (!host) {
+      host = document.createElement('section');
+      host.id = 'tsFour';
+      if (base.className) host.className = base.className;
+      base.insertAdjacentElement('afterend', host);
+    }
+    const F = real && real.four;
+    const nm = (k) => DEV[k].name;
+    const cell = (x, d) => (Number.isFinite(x) ? x.toFixed(d == null ? 2 : d) : '—');
+    const H = ['<h3>Four corners — the N-cornered hat ' + evb('four') + '</h3>'];
+    if (!F || !F.ok) {
+      const why = (F && F.reason) || 'the worker sent no four-corner result';
+      H.push(
+        why === 'no-muse-file'
+          ? '<p>This night recorded <b>three</b> corners, so the page solved the three-cornered hat above and nothing here is missing. A four-corner night needs the headband’s <code>…_RAW.txt</code> beside the other three streams.</p>'
+          : '<p><b>Four corners were available and the hat refused:</b> <code>' +
+              esc(String(why)) +
+              '</code>.' +
+              (F && Number.isFinite(F.seconds) ? ' Four-way overlap ' + F.seconds + ' s.' : '') +
+              ' ∅ The refusal is the result — no number is drawn from an input this page could not measure.</p>'
+      );
+      host.innerHTML = H.join('');
+      return;
+    }
+    /* THE SECONDS ARE NOT THE SECONDS ABOVE, AND THE PAGE SAYS SO (board #8984, decision 1). A fourth
+       corner can only NARROW the shared grid, so this panel keeps its own key set and the headline σ̂
+       keeps the three-way one it has always used. Without this sentence the chest/ankle/finger
+       sub-hat below reads as a contradiction of the hero cards. */
+    H.push(
+      '<p>Solved on the <b>' +
+        F.seconds +
+        ' s</b> all four corners share' +
+        (Number.isFinite(F.spanMin) ? ' (' + F.spanMin + ' min span)' : '') +
+        ', which is a NARROWER grid than the three-corner hat above. So the chest · ankle · finger sub-hat and the hero σ̂ are the same estimator on <b>different seconds</b>, and they are expected to differ. Six pairwise variances over four unknowns, by least squares.</p>'
+    );
+    // ── each corner's recovered σ̂, with its own named refusal ────────────────────────────────
+    H.push('<table class="tbl"><thead><tr><th>corner</th><th>σ̂ (bpm)</th><th>σ̂² (bpm²)</th><th>note</th></tr></thead><tbody>');
+    for (const k of FKEYS) {
+      const sg = F.sigma ? F.sigma[k] : null,
+        vr = F.variance ? F.variance[k] : null,
+        rs = F.cornerReason ? F.cornerReason[k] : null;
+      H.push(
+        '<tr><td>' +
+          esc(nm(k)) +
+          ' <span class="mut">' +
+          esc(DEV[k].kind) +
+          '</span></td><td style="color:' +
+          DEV[k].col +
+          '">' +
+          cell(sg) +
+          '</td><td>' +
+          cell(vr) +
+          '</td><td>' +
+          (rs ? '<code>' + esc(String(rs)) + '</code>' : sg == null ? 'not solved' : '') +
+          '</td></tr>'
+      );
+    }
+    H.push('</tbody></table>');
+    /* A NEGATIVE CORNER KEEPS ITS SOLVED VARIANCE and reads σ̂ null with `negative-variance` beside it,
+       which is the treatment the three-corner path already gives. Least squares can push a corner
+       negative that an exact triple kept positive, and the reverse — which is why the sub-hats below
+       are worth drawing rather than summarising. */
+    // ── the 4×4 pairwise matrix: the hat's own input, nothing derived ─────────────────────────
+    H.push('<h4>Pairwise variance of the per-second HR difference ' + evb('fourPair') + '</h4>');
+    H.push('<table class="tbl"><thead><tr><th></th>');
+    for (const k of FKEYS) H.push('<th>' + esc(nm(k)) + '</th>');
+    H.push('</tr></thead><tbody>');
+    for (const a of FKEYS) {
+      H.push('<tr><th>' + esc(nm(a)) + '</th>');
+      for (const b of FKEYS) {
+        if (a === b) {
+          H.push('<td class="mut">σ̂² ' + cell(F.variance ? F.variance[a] : null) + '</td>');
+          continue;
+        }
+        const v = F.pair ? (F.pair[a + '|' + b] != null ? F.pair[a + '|' + b] : F.pair[b + '|' + a]) : null;
+        /* ∅ A pair the night could not measure is LEFT OUT of the solve and reads an em dash with its
+           own word here — never a zero, which is a legal variance and would read as two devices that
+           agreed perfectly. */
+        H.push('<td>' + (v == null ? '<span class="mut">absent</span>' : cell(v)) + '</td>');
+      }
+      H.push('</tr>');
+    }
+    H.push('</tbody></table>');
+    // ── the four three-corner sub-hats: the coupling, drawn rather than described ─────────────
+    H.push('<h4>The four three-corner sub-hats ' + evb('fourSub') + '</h4>');
+    H.push(
+      '<p>Each corner sits in <b>three</b> of the four triples. The hat is linear in the pairwise variances, so one corner’s σ̂ moves when ANOTHER corner’s stream changes (memory <code>tch-corners-are-coupled</code>: σ_H10 moved 0.20 bpm on one night with <code>ecgdex-dsp.js</code> byte-identical). The spread down each column below IS that coupling, on one night.</p>'
+    );
+    const subs = Array.isArray(F.subHats) ? F.subHats : [];
+    if (!subs.length) H.push('<p class="mut">The solver returned no sub-hats for this night.</p>');
+    else {
+      H.push('<table class="tbl"><thead><tr><th>triple</th>');
+      for (const k of FKEYS) H.push('<th>' + esc(nm(k)) + '</th>');
+      H.push('</tr></thead><tbody>');
+      for (const sh of subs) {
+        const names = sh && sh.names ? sh.names : [];
+        H.push('<tr><td>' + names.map((k) => esc(DEV[k] ? nm(k) : k)).join(' · ') + '</td>');
+        for (const k of FKEYS) {
+          const inIt = names.indexOf(k) >= 0;
+          const sg = inIt && sh.sigma ? sh.sigma[k] : null;
+          H.push('<td>' + (!inIt ? '<span class="mut">·</span>' : sg == null ? '<code>' + esc(String((sh.cornerReason && sh.cornerReason[k]) || 'not solved')) + '</code>' : cell(sg)) + '</td>');
+        }
+        H.push('</tr>');
+      }
+      H.push('</tbody></table>');
+    }
+    // ── the residual: the ONLY reading that says whether the night fits the model ─────────────
+    const R = F.residual;
+    H.push('<h4>Fit residual ' + evb('fourResid') + '</h4>');
+    if (!R || !Number.isFinite(R.rms)) H.push('<p class="mut">∅ No residual — the solve used no over-determined pair set, so the fit was never tested.</p>');
+    else {
+      let worst = null;
+      if (R.perPair)
+        for (const k of Object.keys(R.perPair)) {
+          const e = Math.abs(R.perPair[k]);
+          if (worst == null || e > worst.e) worst = { k: k, e: e };
+        }
+      H.push(
+        '<p>rms <b>' +
+          cell(R.rms) +
+          ' ' +
+          esc(String(R.unit || 'bpm^2')) +
+          '</b> over ' +
+          (Number.isFinite(R.df) ? R.df : '—') +
+          ' degree' +
+          (R.df === 1 ? '' : 's') +
+          ' of freedom' +
+          (worst ? ' · the pair that disagrees most is <code>' + esc(worst.k) + '</code> at ' + cell(worst.e) : '') +
+          '. A residual near zero says the six measured variances are CONSISTENT with four independent corner errors. It does not say they ARE independent.</p>'
+      );
+    }
+    /* ══ THE CAVEAT THAT HAS TO BE HERE, NOT IN A FOOTNOTE ══════════════════════════════════════
+       The fourth corner is a THIRD OPTICAL corner. Memory `tch-negative-variance-onset-law` derives
+       the negative-variance tell as ρ > σ₀_A/σ₀_B over the two paired corners' FLOOR σ, which does
+       not depend on N. So with near-equal floors a real ρ of 0.3 or 0.5 produces no negative at any
+       number of corners: every variance comes back positive and the assumption is silently violated.
+       Three PPG sites share perfusion and motion error, so the risk GREW with this corner while the
+       only tell for it stayed exactly as weak. Saying that here is the honest version of the ask. */
+    H.push(
+      '<p class="warn-note">⚠ <b>Four corners do not make the independence assumption safer — they make it harder.</b> Three of these four are optical sites, and optical sites share perfusion and motion error. The standard tell for correlated error is a negative recovered variance, and that tell needs ρ &gt; σ₀<sub>A</sub>/σ₀<sub>B</sub> for the paired corners’ floor σ. It does not depend on the number of corners, so near-equal floors hide a real ρ of 0.3–0.5 at any N: every σ̂ above can come back positive with the assumption broken. The residual tests the FIT, not the independence. Every number in this panel is ' +
+        evb('four') +
+        '.</p>'
+    );
+    const fs = F.foreheadSource;
+    if (fs)
+      H.push(
+        '<p class="mut">Forehead corner read through the same HR path as the other optical corners (3-LED consensus → PPI → Malik correction), with two STATED constants: polarity ' +
+          (fs.signStated === -1 ? '−1' : String(fs.signStated)) +
+          ' (the headband reports received light, which falls at systole) and the foot re-timed at ' +
+          (Number.isFinite(fs.footHiHz) ? fs.footHiHz + ' Hz' : '—') +
+          '. A stated sign is not a vote, so no channel-consensus stamp is claimed for it.</p>'
+      );
+    host.innerHTML = H.join('');
+  }
   function renderAll(nt, real, derive) {
     $('heroNight').textContent = nt.key;
     renderReferenceNote(nt.key);
     for (const k of DKEYS) hero(k, real, derive);
     renderIndependence(real);
+    renderFourCorner(real);
     kpi('kOverlap', hmOf(real.n), real.n + ' s on the aligned 1 Hz grid · ' + coverageText(real), 'good');
     /* D7 option A (owner's pick 2026-10-12): the worker's point is the UNWEIGHTED hat (tchSigmas), and so
        is every CI replicate and running prefix (DEEP-AUDIT-VI F16: the CI's estimator follows the point's),

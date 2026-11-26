@@ -24,7 +24,7 @@
  *
  * Exposes: window.PATAlign = { envelope, findAnchors, lagAtAnchor, alignByAnchors,
  *           coupleRtoFoot, patDipEvents, hatWindows, pairWindowValues, seamRefusals,
- *           applySeamRefusals, FOREHEAD, HAT, DEFAULTS }
+ *           applySeamRefusals, FOREHEAD, decodeMuseOptics, HAT, DEFAULTS }
  */
 (function (root) {
   'use strict';
@@ -750,6 +750,52 @@
      moves no `manifestHash` and owes no fixture re-verification (CLAUDE.md §🔏, §👥.3). */
   var FOREHEAD = { role: 'forehead', sign: -1, footHiHz: 3 };
 
+  /* ══ THE FOREHEAD STREAM ARRIVES AS DEVICE FRAMES, NEVER AS SAMPLES ═══════════════════════════
+     The Muse S Athena recorder writes one `_RAW.txt` of frames, and the optical samples exist only
+     inside them. `MuseFrame.OpticsPpg` decodes them into the per-sample layout `PPGDSP.parsePPG`
+     already takes, so this leg needs no second parser. The file is STREAMED: a full night of frames
+     passes the longest string a browser can hold, which is why PpgDex streams it too.
+     The `finish()` record names its own refusal (`no-row`, `no-optical-record`) and counts what it
+     lost, so a night with no optical record reads null with a reason rather than an empty leg (§∅).
+     A realm without `TextDecoderStream` falls back to one read — the suite's shim is one such realm.
+
+     ONE COPY, HERE. Two realms decode this stream: `pat-feasibility-worker.js` and
+     `sensor-trio-worker.js`. A device-frame decoder that exists twice drifts, which is the same
+     argument that put `FOREHEAD` above in this file, so both callers read this one (board #8984,
+     #8987). Here rather than in `muse-frame.js` because `EEGDex.html` and `PpgDex.html` both carry
+     that file, so an edit there moves two `manifestHash` values and the compute closure with them.
+
+     `hostMs` is OPTIONAL and LAST (§🧪). Absent, the host stamp is read through `DexClock`, which
+     the Clock Contract makes the one parser. A realm that carries no `clock.js` and passes no
+     `hostMs` gets a NAMED throw rather than a bare `ReferenceError` (§👥.3). */
+  function decodeMuseOptics(f, hostMs) {
+    var stamp = hostMs;
+    if (typeof stamp !== 'function') {
+      if (typeof DexClock === 'undefined' || !DexClock || typeof DexClock.parseTimestamp !== 'function')
+        throw new Error('PATAlign.decodeMuseOptics: no hostMs given and this realm carries no clock.js — the host stamp has no parser');
+      stamp = function (str) {
+        var ts = DexClock.parseTimestamp(str);
+        return ts ? ts.tMs : null;
+      };
+    }
+    var ppg = new MuseFrame.OpticsPpg({ hostMs: stamp });
+    if (typeof f.stream !== 'function' || typeof TextDecoderStream === 'undefined') {
+      return f.text().then(function (txt) {
+        ppg.push(txt);
+        return ppg.finish();
+      });
+    }
+    var reader = f.stream().pipeThrough(new TextDecoderStream()).getReader();
+    function step() {
+      return reader.read().then(function (r) {
+        if (r.done) return ppg.finish();
+        ppg.push(r.value);
+        return step();
+      });
+    }
+    return step();
+  }
+
   /* ══ A DISCONTINUITY REFUSES, REDUCED COVERAGE ANNOTATES (owner ruling 2026-09-17) ═════════════
      The capture-host writes two sidecars beside every optical stream, and they answer DIFFERENT
      questions. `<base>RUNS.txt` marks held or dropped samples — reduced coverage, and `parsePPG`
@@ -969,6 +1015,7 @@
     seamRefusals: seamRefusals,
     applySeamRefusals: applySeamRefusals,
     FOREHEAD: FOREHEAD,
+    decodeMuseOptics: decodeMuseOptics,
     PHYS: PHYS,
     DEFAULTS: DEFAULTS,
     DIP_DEFAULTS: DIP_DEFAULTS
