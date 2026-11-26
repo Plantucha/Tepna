@@ -33035,15 +33035,18 @@
       var FGM = (env.trioEra || {}).mod;
       if (FGM && FGM.stampFields) {
         var built = FGM.stampFields(
-          { root: 'uploads/trio', resolvable: true, dataDigest: 'aaaaaaaaaaaa', foldGeneration: 'bbbbbbbbbbbb', nights: 1, unstamped: 0 },
+          { root: 'uploads/trio', resolvable: true, dataDigest: 'cccccccccccc', treeDigest: 'aaaaaaaaaaaa', foldGeneration: 'bbbbbbbbbbbb', nights: 1, unstamped: 0 },
           { producer: 'tools/p.mjs', invocation: '-x', day: FOLD_GEN_FROM }
         );
         T.ok('the producer writes the attribute this gate reads', /(^| )foldGeneration=bbbbbbbbbbbb( |$)/.test(built.attrs || ''), built.attrs);
+        /* The digest this gate RECOMPUTES is the tree digest, so the producer must print that one and never
+           the scoped data digest. Residue 2026-11-26-pooled-hat-prints-a-stamp-digest-the-gate-rejects. */
+        T.ok('the producer writes inputsDigest= from the tree digest the gate recomputes, never the scoped data digest', /(^| )inputsDigest=aaaaaaaaaaaa( |$)/.test(built.attrs || ''), built.attrs);
         T.ok(
           '\u2205 and it drops the attribute, not the stamp, when a read night carries no fold stamp',
           (function () {
             var h = FGM.stampFields(
-              { root: 'uploads/trio', resolvable: true, dataDigest: 'aaaaaaaaaaaa', foldGeneration: null, nights: 90, unstamped: 5 },
+              { root: 'uploads/trio', resolvable: true, dataDigest: 'cccccccccccc', treeDigest: 'aaaaaaaaaaaa', foldGeneration: null, nights: 90, unstamped: 5 },
               { producer: 'tools/p.mjs', day: FOLD_GEN_FROM }
             );
             return !!h.attrs && h.attrs.indexOf('foldGeneration') < 0 && typeof h.reason === 'string' && h.reason.indexOf('5 of the 90') === 0;

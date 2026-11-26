@@ -102,6 +102,11 @@ export function repoRelative(dir, { cwd = ROOT } = {}) {
 /** Both digests over one root, plus the fold generation. Absent tree → every field null + a reason. */
 export function corpusIdentity(root = TRIO, { cwd = ROOT, commit = null, nights: only = null } = {}) {
   let files = trackedFiles(root, { cwd, commit });
+  /* The UNSCOPED tracked set, kept before any scoping below: the TABLE-PROVENANCE gate recomputes a
+     stamp's `inputsDigest=` over every git-tracked file under `inputs=`, stamps and root files
+     included, and it knows nothing of the nights a producer read. Residue
+     `2026-11-26-pooled-hat-prints-a-stamp-digest-the-gate-rejects`. */
+  const tree = files;
   /* `only` scopes the identity to the nights a consumer actually READ. 🔴 A number that used 90 of
      147 folders is not described by a generation over all 147: the 57 it never opened would mask a
      hole among the 90. Scoping is the caller's claim about its own population, so it is recorded. */
@@ -119,6 +124,7 @@ export function corpusIdentity(root = TRIO, { cwd = ROOT, commit = null, nights:
       reason: files == null ? `git could not list ${root}` : only == null ? `${root} holds no tracked file` : `none of the ${only.length} named night(s) is tracked under ${root}`,
       dataDigest: null,
       allFilesDigest: null,
+      treeDigest: null,
       dataFiles: 0,
       allFiles: 0,
       generation: null,
@@ -130,6 +136,18 @@ export function corpusIdentity(root = TRIO, { cwd = ROOT, commit = null, nights:
     };
   }
   const read = readerFor({ cwd, commit });
+  /* One sha12 per file, so a scoped identity that also digests the whole tree reads each file once.
+     The recipe is `digestOf`'s, byte for byte. */
+  const shaCache = new Map();
+  const digest = (list) =>
+    sha12(
+      list
+        .map((f) => {
+          if (!shaCache.has(f)) shaCache.set(f, sha12(read(f)));
+          return `${f}\0${shaCache.get(f)}`;
+        })
+        .join('\n')
+    );
   /* 🔴 A NIGHT IS A DIRECTORY, AND A ROOT-LEVEL FILE IS NOT ONE. Measured 2026-10-21: the first
      spelling split every tracked path on `/` and took segment 0, which read
      `uploads/trio/trio-batch-verdicts.json` as a 148th night and reported it UNSTAMPED. The corpus
@@ -161,8 +179,9 @@ export function corpusIdentity(root = TRIO, { cwd = ROOT, commit = null, nights:
     scopedTo: only == null ? null : only.length,
     ok: true,
     reason: null,
-    dataDigest: digestOf(files.data, read),
-    allFilesDigest: digestOf(files.all, read),
+    dataDigest: digest(files.data),
+    allFilesDigest: digest(files.all),
+    treeDigest: digest(tree.all),
     dataFiles: files.data.length,
     allFiles: files.all.length,
     generation,
@@ -178,11 +197,12 @@ export function corpusIdentity(root = TRIO, { cwd = ROOT, commit = null, nights:
 
 /** The corpus block a consumer writes into its record at cut time. */
 export function corpusBlock(identity) {
-  if (!identity.ok) return { root: identity.root, resolvable: false, reason: identity.reason, dataDigest: null, foldGeneration: null };
+  if (!identity.ok) return { root: identity.root, resolvable: false, reason: identity.reason, dataDigest: null, treeDigest: null, foldGeneration: null };
   return {
     root: identity.root,
     resolvable: true,
     dataDigest: identity.dataDigest,
+    treeDigest: identity.treeDigest ?? null,
     dataFiles: identity.dataFiles,
     foldGeneration: identity.generation,
     scopedToNightsRead: identity.scopedTo,
@@ -190,7 +210,7 @@ export function corpusBlock(identity) {
     stamped: identity.stamped,
     unstamped: identity.unstamped,
     codeDigests: identity.codeDigests,
-    note: `dataDigest = sha256[0:12] over path\\0sha12(bytes) of every git-tracked file under ${identity.root} that is not a ${STAMP}; foldGeneration covers the night set and each night's ${STAMP} codeDigest, so an unstamped night contributes its name and no generation. Re-resolve both with ${SELF}`
+    note: `dataDigest = sha256[0:12] over path\\0sha12(bytes) of every git-tracked file under ${identity.root} that is not a ${STAMP}, scoped to the nights read; treeDigest = the same recipe over EVERY git-tracked file under ${identity.root}, unscoped and stamps included, which is the inputsDigest the TABLE-PROVENANCE gate recomputes; foldGeneration covers the night set and each night's ${STAMP} codeDigest, so an unstamped night contributes its name and no generation. Re-resolve both with ${SELF}`
   };
 }
 
@@ -208,7 +228,11 @@ export const STAMP_OUTPUT_OWED = 'output= is yours: sha12 over the table text yo
 export function stampFields(block, { producer = SELF, invocation = '', day } = {}) {
   if (!day) return { attrs: null, reason: 'no generated= day was given, and a stamp dated by the reader is not provenance' };
   if (!block || block.resolvable !== true) return { attrs: null, reason: block?.reason ?? 'the corpus block is absent' };
-  const head = `producer=${producer} invocation="${invocation}" inputs=${block.root} inputsDigest=${block.dataDigest}`;
+  /* `inputsDigest=` is the TREE digest, never `dataDigest`: the gate recomputes it over every tracked
+     file under `inputs=`, so a scoped data digest pasted here reds the gate (#5975: the printer gave
+     60b140964b97, the gate wanted 5e41f0632a36). ∅ A block without the tree digest yields no line. */
+  if (!block.treeDigest) return { attrs: null, reason: 'the corpus block carries no treeDigest, so no inputsDigest= the gate accepts can be printed' };
+  const head = `producer=${producer} invocation="${invocation}" inputs=${block.root} inputsDigest=${block.treeDigest}`;
   if (block.foldGeneration) return { attrs: `${head} foldGeneration=${block.foldGeneration} generated=${day}`, reason: null };
   return {
     attrs: `${head} generated=${day}`,
@@ -953,6 +977,20 @@ function selftest() {
     ok('two nights, one stamped and one not', base.nights === 2 && base.stamped === 1 && base.unstamped === 1, `${base.nights}/${base.stamped}/${base.unstamped}`);
     ok('∅ the unstamped night is NAMED, not counted away', base.unstampedNights.join() === '2026-06-11');
     ok('the data digest ignores the stamp file', base.dataFiles === 2 && base.allFiles === 3);
+    ok('unscoped, the tree digest IS the all-files digest', base.treeDigest === base.allFilesDigest, `${base.treeDigest} vs ${base.allFilesDigest}`);
+    /* THE GATE'S RECIPE, spelled independently: `git ls-files` order, every file, stamps included. */
+    const gateDigest = (() => {
+      const tracked = execFileSync('git', ['ls-files', '-z', '--', TRIO], { cwd }).toString().split('\0').filter(Boolean);
+      return sha12(tracked.map((f) => `${f}\0${sha12(readFileSync(join(cwd, f)))}`).join('\n'));
+    })();
+    const scopedBase = corpusIdentity(TRIO, { cwd, nights: ['2026-06-11'] });
+    ok('SCOPED · the tree digest still covers the whole tree, which is what the gate recomputes', scopedBase.treeDigest === gateDigest, `${scopedBase.treeDigest} vs gate ${gateDigest}`);
+    ok('SCOPED · and the scoped data digest is NOT that value, which is the residue this guards', scopedBase.dataDigest !== gateDigest);
+    ok(
+      'the printed stamp carries the gate value',
+      stampFields(corpusBlock(scopedBase), { day: '2026-11-01' }).attrs?.includes(`inputsDigest=${gateDigest}`) === true,
+      stampFields(corpusBlock(scopedBase), { day: '2026-11-01' }).attrs ?? ''
+    );
 
     /* THE MEASURED DEFECT, as a test: writing provenance must not move the data digest. */
     mk(`${TRIO}/2026-06-11/${STAMP}`, JSON.stringify({ codeDigest: 'aaaa1111' }));
@@ -1098,7 +1136,7 @@ function selftest() {
       /* ── THE STAMP FIELDS A PUBLISHED TABLE OWES. Both branches run here, because the corpus the
          fleet reads has every read night stamped, so the ∅ branch is unreachable from a real run and
          would otherwise ship unexercised. */
-      const stampedBlock = { root: TRIO, resolvable: true, dataDigest: 'aaaaaaaaaaaa', foldGeneration: 'bbbbbbbbbbbb', nights: 2, unstamped: 0 };
+      const stampedBlock = { root: TRIO, resolvable: true, dataDigest: 'cccccccccccc', treeDigest: 'aaaaaaaaaaaa', foldGeneration: 'bbbbbbbbbbbb', nights: 2, unstamped: 0 };
       const sf = stampFields(stampedBlock, { producer: 'tools/p.mjs', invocation: '--dir x', day: '2026-11-01' });
       ok(
         'the stamp line carries the producer, the inputs, the digest, the generation and the day',
@@ -1117,6 +1155,7 @@ function selftest() {
         })()
       );
       ok('∅ a stamp dated by the reader is refused: no day, no attributes', stampFields(stampedBlock, {}).attrs === null);
+      ok('∅ a block with no tree digest prints NO line, never the data digest in its place', stampFields({ ...stampedBlock, treeDigest: null }, { day: '2026-11-01' }).attrs === null);
       ok('the owed-output note names the one field the producer cannot know', STAMP_OUTPUT_OWED.includes('output=') && STAMP_OUTPUT_OWED.includes('paste'));
 
       /* A record carrying a recovered block is judged on the data half ALONE. */

@@ -99,7 +99,7 @@ import { Readable } from 'node:stream';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 /* t0 from the file's first data row — see tools/trio-anchor.mjs for the rule and why the name is not it. */
 import { anchoredRec, concurrentWith, ivIntersect, ivSpan, mergeIv, startOf } from './trio-anchor.mjs';
-import { join, dirname, resolve, basename, sep, isAbsolute } from 'node:path';
+import { join, dirname, resolve, relative, basename, sep, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import os from 'node:os';
@@ -164,6 +164,15 @@ const OUT = resolve(ROOT, opt('--out', OUT_DEFAULT));
    an explicit `--out uploads/trio` — the form `tepna-trio-fold.service` passes — is the default here and
    not a redirect. */
 const OUT_RESOLVED_DEFAULT = resolve(ROOT, OUT_DEFAULT);
+/* The output tree as the verdict's evidence names it: repo-relative, because `OUT` is absolute and
+   `trio-batch-verdicts.json` is committed, so the absolute form put a home path into every fold
+   commit and secret-scan red it (#5960, #5975). A tree outside this checkout has no repo path, so
+   the entry says so and prints no host path. Residue
+   `2026-11-26-trio-batch-verdict-evidence-carries-an-absolute-path`. */
+const evidenceOut = () => {
+  const rel = relative(ROOT, OUT);
+  return rel && !rel.startsWith('..') && !isAbsolute(rel) ? rel : `--out ${basename(OUT)} (outside this checkout)`;
+};
 const ONLY = optAll('--night');
 const LIMIT = parseInt(opt('--limit', '0'), 10) || 0;
 /* the QUALITY tolerance beside the 15 bpm fault gate — the value the residue measured with, above the
@@ -575,7 +584,7 @@ function foldVerdict(landed) {
     population: { checked: n, eligible: n, excluded: 0 },
     criterion: { name: 'trio_node_exports_landed', threshold: want, unit: 'node-exports', direction: 'gte' },
     result: status === 'NOT_RUN' ? null : { complete, short: short.length, nights: landed.map((r) => ({ night: r.night, landed: r.landed })) },
-    evidence: ['tools/trio-batch.mjs', `${OUT} (node-exports on disk)`],
+    evidence: ['tools/trio-batch.mjs', `${evidenceOut()} (node-exports on disk)`],
     reason,
     producedBy: gateProducer()
   });
