@@ -157,9 +157,13 @@ export function backoffMs(attempt, baseMs = 2000, capMs = 30000) {
 }
 
 /* Which steps remain, given what the state file says finished. Order is STEPS' order; a step is
-   never re-run once recorded done, so a crash between two steps resumes at the second. */
+   never re-run once recorded done, so a crash between two steps resumes at the second.
+   A run that recorded the LAST step is finished, whatever STEPS holds now. A step added after that
+   run never ran for it and never will: `timings` joined in #5785, and the finished v2.37.0 run then
+   read 3 on `--status`, so `release-due` held the next release (2026-11-26 03:03 UTC). */
 export function remaining(done) {
   const d = new Set(done || []);
+  if (d.has(STEPS[STEPS.length - 1])) return [];
   return STEPS.filter((s) => !d.has(s));
 }
 
@@ -884,6 +888,8 @@ if (process.argv.includes('--selftest') && isCliEntry(import.meta.url)) {
   ok(remaining([]).length === STEPS.length, 'nothing done → every step remains');
   ok(remaining(['plan', 'worktree', 'stamp'])[0] === 'build', 'resume picks the first unfinished step');
   ok(remaining(STEPS).length === 0, 'all done → nothing remains');
+  ok(remaining(STEPS.filter((s) => s !== 'timings')).length === 0, 'a run that finished before a step joined STEPS stays finished');
+  ok(remaining(STEPS.filter((s) => s !== 'cleanup'))[0] === 'cleanup', 'a run short of its last step still resumes there');
   ok(remaining(resumeDone(['plan', 'worktree']))[0] === 'plan', 'a resume before the stamp plans again, on the main of now');
   ok(remaining(resumeDone(['plan', 'worktree', 'stamp']))[0] === 'build', 'a resume after the stamp never plans or stamps again');
   // porcelain classification — planted: a modified ledger, a deleted changeset, an untracked file, a rename
