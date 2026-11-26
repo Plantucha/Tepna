@@ -89,6 +89,12 @@
       // sample axis, so an orchestrated night refuses over a seam the box recorded at arrival.
       var seamsText = typeof comp.accseams === 'string' ? comp.accseams : null;
       var rows = comp.accruns || seamsText ? parse(text, { runsText: comp.accruns || null, seamsText: seamsText }) : parse(text);
+      /* ∅ A zero-byte sidecar is present, not absent, and `pairCompanions` now keeps its empty text.
+         The parse input does not change, because `parsePinnedRuns` reads an empty text as null. This
+         sits BELOW the call because a source-mirror assertion pins a 200-character window between the
+         `comp.accseams` read above and the `seamsText` argument. */
+      if (comp.accruns === '') prov.warnings.push('ACCRUNS companion present, and it gave no usable data');
+      if (seamsText === '') prov.warnings.push('ACCSEAMS companion present, and it gave no usable data');
       rows = Array.isArray(rows) ? rows : [];
       var t0 = null;
       for (var i = 0; i < rows.length; i++) {
@@ -121,7 +127,8 @@
       }
       // the Verity's other IMU streams: parsed by the same parser, attached beside the ACC. A bad one warns.
       ['gyro', 'magn'].forEach(function (k) {
-        if (!comp[k]) return;
+        // ∅ presence, never truthiness: a zero-byte companion reaches the parse and warns below.
+        if (typeof comp[k] !== 'string') return;
         try {
           var r = parse(comp[k]);
           if (Array.isArray(r) && r.length) frame[k === 'magn' ? 'mag' : 'gyro'] = r;

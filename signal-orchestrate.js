@@ -662,7 +662,15 @@
           best = e;
         }
       }
-      if (best && best.text) {
+      /* ∅ A ZERO-BYTE COMPANION IS PRESENT, NOT ABSENT. The old test read `best.text` for truth, so
+         an empty text gave the same `null` as no file at all, and the "companion present, and it gave
+         no usable data" warning three adapters carry could never speak for it. A truncated capture
+         leaves exactly that file. The text now rides on its own presence, and each adapter reports the
+         zero rows. Nothing published moves: the four sidecar parsers (`parsePinnedRuns`,
+         `parsePpgSeams`, `parsePdSeams`, `parseEcgSeams`) each read an empty text as `null`, and the
+         primary call sites keep their own condition, so a validity or seam companion annotates
+         exactly as before. */
+      if (best && typeof best.text === 'string') {
         out[kind] = best.text;
         any = true;
       }

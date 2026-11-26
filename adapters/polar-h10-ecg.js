@@ -92,6 +92,10 @@
         // REFUSES and a night with no sidecar reads as seams UNKNOWN, so this is the difference between
         // an annotated unknown and a fabricated zero on every orchestrated H10 night.
         var seamsText = ctx.companions && typeof ctx.companions.seams === 'string' ? ctx.companions.seams : null;
+        /* ∅ A zero-byte sidecar is present, not absent. The pairing keeps an empty text, so this
+           reports it. The parse input is unchanged: `parsePinnedRuns` reads an empty text as null. */
+        if (runsText === '') prov.warnings.push('RUNS companion present, and it gave no usable data');
+        if (seamsText === '') prov.warnings.push('SEAMS companion present, and it gave no usable data');
         rec = runsText || seamsText ? parseFn(text, { runsText: runsText, seamsText: seamsText }) : parseFn(text);
       } catch (e) {
         return root.SignalFrame.toSignalFrame('ecg', { usable: false, reason: 'polar-h10-ecg: parse error — ' + ((e && e.message) || e) }, prov);
@@ -149,7 +153,7 @@
       var comp = ctx.companions;
       if (comp && typeof comp === 'object') {
         try {
-          if (comp.rr && typeof ecg.parseDeviceRR === 'function') {
+          if (typeof comp.rr === 'string' && typeof ecg.parseDeviceRR === 'function') {
             var dr = ecg.parseDeviceRR(comp.rr);
             if (dr && dr.length) frame.deviceRR = dr;
             noteRows('RR', dr && dr.length, dr && dr.rowsDropped);
@@ -158,7 +162,7 @@
           prov.warnings.push('RR companion parse failed: ' + ((e0 && e0.message) || e0));
         }
         try {
-          if (comp.hr && typeof ecg.parseDeviceHR === 'function') {
+          if (typeof comp.hr === 'string' && typeof ecg.parseDeviceHR === 'function') {
             var dh = ecg.parseDeviceHR(comp.hr);
             if (dh && dh.length) frame.deviceHR = dh;
             noteRows('HR', dh && dh.length, dh && dh.rowsDropped);
@@ -167,10 +171,13 @@
           prov.warnings.push('HR companion parse failed: ' + ((e1 && e1.message) || e1));
         }
         try {
-          if (comp.acc && typeof ecg.parseDeviceACC === 'function') {
+          if (typeof comp.acc === 'string' && typeof ecg.parseDeviceACC === 'function') {
             // SAMPLE-VALIDITY-ENVELOPE §3.2 — the ACC companion's OWN sidecar rides in under its own
             // companion kind ('accruns', never 'runs' — that slot is the ECG primary's). Absent it,
             // this is the exact single-argument call as before.
+            /* ∅ An empty ACCRUNS is present, not absent. The call shape stays as the source-mirror
+               assertions pin it, because `parsePinnedRuns` reads an empty text as null either way. */
+            if (comp.accruns === '') prov.warnings.push('ACCRUNS companion present, and it gave no usable data');
             var da = comp.accruns ? ecg.parseDeviceACC(comp.acc, { runsText: comp.accruns }) : ecg.parseDeviceACC(comp.acc);
             noteRows('ACC', da && da.acc && da.acc.length, 0);
             if (da && da.acc && da.acc.length) {
