@@ -166,7 +166,13 @@ jobs:
     # context is a red nobody can read as a type error.
     timeout-minutes: 19
     needs: changes
-    # ⚠️ NO JOB-LEVEL `if:` HERE — the guard is on the STEPS below, and the difference deadlocks the repo.
+    # THE ONE JOB-LEVEL `if:` HERE MUST STAY TRUE ON EVERY PR. Without it GitHub applies the implicit
+    # `success()`, which reads every ancestor transitively: `reuse` skips on a pull request, so the
+    # matrix skipped too and the three required `test (py3.1x)` contexts never reported (#6009, board
+    # #9355). `!cancelled()` overrides that; `result != 'failure'` keeps the old skip when `changes`
+    # itself failed, so a broken decision still blocks rather than reporting green.
+    if: ${{ !cancelled() && needs.changes.result != 'failure' }}
+    # ⚠️ NO OTHER JOB-LEVEL CONDITION — the relevance guard is on the STEPS below, and the difference deadlocks the repo.
     # The note above says "a job skipped by a condition reports as skipped and satisfies the requirement".
     # That is true for a PLAIN job and FALSE for a MATRIX job: a matrix is only expanded when the job
     # runs, so a skipped matrix job registers ONE check under the literal `test (py${{ matrix.python-
@@ -543,7 +549,7 @@ jobs:
   # while it earns trust — see the note above `on:` about required checks needing to report.
   mutation-diff:
     needs: changes
-    if: needs.changes.outputs.run == 'true' && github.event_name == 'pull_request'
+    if: ${{ !cancelled() && needs.changes.result != 'failure' && needs.changes.outputs.run == 'true' && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     name: mutation (diff-scoped)
     # The tool REFUSES at its own GATE_BUDGET_SEC (7200 s, mutation_diff.py) with the reason named;
@@ -638,6 +644,7 @@ jobs:
     # measured 2026-11-03 over 17 job run(s): p90 3m35s, max 4m56s (tools/ci-timing.mjs --limit 100). Cap = ceil(max(p95, max) × 2); max bounds p95.
     timeout-minutes: 10
     needs: changes
+    if: ${{ !cancelled() && needs.changes.result != 'failure' }}   # see the `test` job: a skipped `reuse` ancestor skips a job with no `if:`
     runs-on: ubuntu-latest
     name: supply-chain (advisory)
     steps:
