@@ -57,6 +57,7 @@
         "divergencePct": 10,
         "divergenceMetric": "RMSSD",
         "lowQualityExcluded": null,
+        "axisCaveats": null,
         "tch": null,
         "tchStatus": "need ≥3 nodes with a per-epoch rmssd series; have 2",
         "tchHR": {
