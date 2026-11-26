@@ -276,28 +276,19 @@ function holdOverGaps(x, gap) {
    passes the longest string a browser can hold, which is why PpgDex streams it too.
    The `finish()` record names its own refusal (`no-row`, `no-optical-record`) and counts what it
    lost, so a night with no optical record reads null with a reason rather than an empty leg (§∅).
-   A realm without `TextDecoderStream` falls back to one read — the suite's shim is one such realm. */
+
+   DELEGATED to `PATAlign.decodeMuseOptics` on 2026-11-26 (#8987, the night four-corner unit). The
+   decode was a private copy here, and the trio night worker is now a SECOND road that needs it. One
+   copy belongs in `pat-align.js`, which no bundle carries; an edit in `muse-frame.js` would instead
+   move the `manifestHash` of `EEGDex.html` and `PpgDex.html`, which both inline that file, and the
+   compute closure with it. It REFUSES rather than falling back: a local copy as a safety net is what
+   this change removed, and §👥.3's rule holds — guarding an absent alias converts a crash into silent
+   disablement. */
 function decodeMuseOptics(f) {
-  var hostMs = function (str) {
-    var ts = DexClock.parseTimestamp(str);
-    return ts ? ts.tMs : null;
-  };
-  var ppg = new MuseFrame.OpticsPpg({ hostMs: hostMs });
-  if (typeof f.stream !== 'function' || typeof TextDecoderStream === 'undefined') {
-    return f.text().then(function (txt) {
-      ppg.push(txt);
-      return ppg.finish();
-    });
+  if (typeof PATAlign === 'undefined' || !PATAlign || typeof PATAlign.decodeMuseOptics !== 'function') {
+    throw new Error('pat-feasibility-worker: PATAlign.decodeMuseOptics unavailable — the forehead stream has no decoder and no local copy is kept');
   }
-  var reader = f.stream().pipeThrough(new TextDecoderStream()).getReader();
-  function step() {
-    return reader.read().then(function (r) {
-      if (r.done) return ppg.finish();
-      ppg.push(r.value);
-      return step();
-    });
-  }
-  return step();
+  return PATAlign.decodeMuseOptics(f);
 }
 /* `opts` (OPTIONAL and LAST per §🧪) — `holdGaps` below, plus three the forehead corner needs:
      sign        forces the channel polarity. `PATAlign.FOREHEAD.sign` is -1 because the headband

@@ -255,6 +255,12 @@ export const ALLOW = [
   },
   {
     file: 'sensor-trio-night.js',
+    match: 'el.innerHTML = parts.join',
+    reason:
+      "the four-corner panel's one sink helper (setFourHTML), which both of its paths use. Every value the panel interpolates is a number through cell() or toFixed, a corner label read from this file's own DEV table, or a refusal name through esc(String(...)); the solver's reasons are its own in-source strings. The only raw markup is evb() output, which is MetricRegistry.badge() over a static EV key. No file name and no parsed cell reaches the markup."
+  },
+  {
+    file: 'sensor-trio-night.js',
     match: "rc.innerHTML = evb(useMeas ? 'refNight' : 'hat') + ' ' + esc(",
     reason:
       "the night-list row caption. `useMeas` only chooses a branch and is never written into the markup. evb() returns MetricRegistry.badge() markup for one of two static EV keys, 'refNight' or 'hat', and the σ triple, the one value that carries numbers, goes through esc()."
