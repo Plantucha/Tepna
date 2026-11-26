@@ -1354,3 +1354,64 @@ def test_every_drawer_chip_carries_the_device_it_sits_under():
         )
     assert 'class="nchip static"' in blocks["Verity"], "the HRVDex chip is shown, not offered"
     assert re.search(r'class="nchip static"[^>]*data-dev', blocks["Verity"]) is None, "a label carries no device"
+
+
+def test_the_fused_tab_muse_column_reads_not_recorded_without_a_muse_file():
+    """The owner asked for the Muse on every fused and derived report (2026-11-25, board #8921). The fused tab
+    gains a Muse column that draws the DEVICE cell. A night with no Muse file reads "not recorded", the grey
+    dash, never a red square; a night with one opens EEGDex. Rendered on the shipped functions."""
+    import json
+    import re
+    import subprocess
+
+    node = _node_or_skip()
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    fused = until_anchor(
+        split_segment(html, "const NIGHT_FUSED = [", 1, where="monitor.html"),
+        "];",
+        where="monitor.html (the end of the NIGHT_FUSED literal)",
+    )
+    assert "dev:'muse'" in fused, "the fused tab lost its Muse column"
+    # the derived tools keep the three-device needs: a night without a Muse file stays as it was
+    assert all("muse" not in x for x in re.findall(r"needs:\[([^\]]*)\]", fused)), fused
+    d = "2026-11-24/"
+    muse = d + "Muse_S_TEST0001_20261124213000_RAW.txt"
+    with_muse = {
+        "night": "2026-11-24",
+        "EEGDex": {"files": [muse], "loadable": True, "bytes": 10, "coverage": 1, "hours": 7},
+    }
+    without = {"night": "2026-11-23"}
+    src = "\n".join(
+        [
+            "const esc = s => String(s);",
+            "let NIGHTS_TAB = 'fus';",
+            "const NIGHT_GLYPH = {ok:'✓', part:'◐', low:'✕', rec:'●', unk:'?', none:'–', probe:'◔', unworn:'○'};",
+            "const NIGHT_WHY_NOT = {}, NIGHT_COLS = ['EEGDex'];",
+            "const nSolidBlock = () => '', nSpan = () => 7, nUnworn = () => false;",
+            "const nMB = b => b + ' B', nHrs = h => String(h), nLost = () => 'none lost';",
+            "const nRowKey = n => n.night, nBase = f => f.split('/').pop();",
+            "const NIGHT_DEVICES = [{k:'muse', name:'Muse', node:'EEGDex', match:/Muse/i}];",
+            "const NIGHT_FUSED = [{name:'Muse', sub:'', node:'EEGDex', dev:'muse'}];",
+            "const nFusDev = f => NIGHT_DEVICES.find(d=>d.k===f.dev);",
+            _extract_fn(html, "nDevFiles", "\nfunction nHas"),
+            _extract_fn(html, "nHas", "\n/* The device's state"),
+            _extract_fn(html, "nCls", "\n/* NOT WORN"),
+            _extract_fn(html, "nDevCell", "\nfunction nFusCell"),
+            _extract_fn(html, "nFusCell", "\n/* ── SOLID NIGHT"),
+            _extract_fn(html, "nDrawer", "\nfunction renderNights"),
+        ]
+    )
+    prog = (
+        src
+        + "\nconst f = NIGHT_FUSED[0];\nconsole.log(JSON.stringify("
+        + json.dumps([with_muse, without])
+        + ".map(n => [nFusCell(n, f), nDrawer(n), nCls(n, nFusDev(f))])));"
+    )
+    r = subprocess.run([node, "-e", prog], capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    (cell_m, drawer_m, cls_m), (cell_n, drawer_n, cls_n) = json.loads(r.stdout)
+    assert cls_n == "none" and "not recorded" in cell_n and 'class="ng none"' in cell_n, cell_n
+    assert "data-node" not in cell_n and "not recorded this night" in drawer_n, (cell_n, drawer_n)
+    assert cls_m == "ok" and 'data-node="EEGDex"' in cell_m, cell_m
+    assert 'data-node="EEGDex"' in drawer_m and 'data-dev="muse"' in drawer_m, drawer_m
