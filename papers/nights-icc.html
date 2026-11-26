@@ -93,6 +93,54 @@
   </table>
   <p>Running the same ANOVA on the planted latent targets recovers the reliability structure with an informative gap: rMSSD is reproduced almost exactly (measured 0.93 vs latent 0.93), while ODI-4's measured ICC (<b>0.92</b>) now sits close to its latent ceiling (0.94); at cohort-gen&#8239;1.9 it sat at 0.75, well below. The planted apnea burden is highly between-subject reliable, but the oximetric ODI-4 readout adds enough occasion-level noise — against the now-compressed between-subject apnea spread — to pull the measured single-night reliability down to the <b>0.75</b> reported here. &#x26A0; That value no longer reproduces: this tool now measures <b>0.92</b>, and measures 0.92 at cohort-gen&#8239;1.9 as well as at 2.0 &#x2014; so the change is in the measurement pipeline, not in the cohort's apnea spread. The detector does not invent the between-subject separation (it under-recovers it, if anything), so the reliability ordering remains a property of the physiology and the detector, not an artifact of the estimator.</p>
 
+
+  <div class="callout" style="border:2px solid #2b6cb0;background:#f5f9ff">
+    <b>Re-measured 2026-11-26 at paper scale, under cohort-gen&#8239;2.0.</b>
+    <p style="margin:.6em 0 0">No marker binds Tables 1 and 2, and both keep the values they report. Table 1
+    pins cohort-gen&#8239;1.9, and this re-cut runs 2.0. Table 2 rounds the rMSSD ICC to 0.93, and this re-cut
+    measures 0.9295, so the two do not compare equal. This block therefore carries the markers, and it names
+    its own run: <code>node tools/analysis-rerun.mjs --only nights-icc-analysis.html --paper-scale</code>,
+    18&#8239;min&#8239;01&#8239;s, record <code>analysis/published-numbers/nights-icc-2026-11-26.json</code>.</p>
+
+    <p style="margin:.6em 0 0"><b>The denominators reproduce exactly.</b> The run asks for
+    CLAIM iccNightsSubjects = 6000 FROM analysis/published-numbers/nights-icc-2026-11-26.json#claims/nSubjectsRequested subjects.
+    ODI-4 scores
+    CLAIM iccNightsOdiSubjects = 5394 FROM analysis/published-numbers/nights-icc-2026-11-26.json#claims/subjectsOdi subjects
+    over CLAIM iccNightsOdiOccasions = 44256 FROM analysis/published-numbers/nights-icc-2026-11-26.json#claims/occasionsOdi occasions.
+    rMSSD scores
+    CLAIM iccNightsRmssdSubjects = 5275 FROM analysis/published-numbers/nights-icc-2026-11-26.json#claims/subjectsRmssd subjects
+    over CLAIM iccNightsRmssdOccasions = 43244 FROM analysis/published-numbers/nights-icc-2026-11-26.json#claims/occasionsRmssd occasions.
+    CGM-CV scores
+    CLAIM iccNightsCvSubjects = 4377 FROM analysis/published-numbers/nights-icc-2026-11-26.json#claims/subjectsCv subjects.
+    Every count matches Table 1 digit for digit, so the cohort and the three detectors keep their reach.</p>
+
+    <p style="margin:.6em 0 0"><b>The reliability figures.</b> ODI-4 measures
+    CLAIM iccNightsOdi = 0.9238 FROM analysis/published-numbers/nights-icc-2026-11-26.json#claims/iccOdi
+    against a latent
+    CLAIM iccNightsOdiLatent = 0.9395 FROM analysis/published-numbers/nights-icc-2026-11-26.json#claims/iccOdiLatent,
+    at a within-subject CV of
+    CLAIM iccNightsOdiCv = 36 FROM analysis/published-numbers/nights-icc-2026-11-26.json#claims/withinCvOdiPct&#8239;%.
+    rMSSD measures
+    CLAIM iccNightsRmssd = 0.9295 FROM analysis/published-numbers/nights-icc-2026-11-26.json#claims/iccRmssd
+    against a latent
+    CLAIM iccNightsRmssdLatent = 0.9301 FROM analysis/published-numbers/nights-icc-2026-11-26.json#claims/iccRmssdLatent,
+    at a within-subject CV of
+    CLAIM iccNightsRmssdCv = 6.5 FROM analysis/published-numbers/nights-icc-2026-11-26.json#claims/withinCvRmssdPct&#8239;%.
+    Table 2 holds for rMSSD and for the ODI-4 figures it already marks as 2.0-era. Table 1 does not: its
+    ODI-4 row reads the cohort-gen&#8239;1.9 pin, and the pin moved.</p>
+
+    <p style="margin:.6em 0 0"><b>Minimum occasions.</b> One night reaches both targets on both metrics:
+    CLAIM iccNightsOdiMinOcc80 = 1 FROM analysis/published-numbers/nights-icc-2026-11-26.json#claims/minOccOdi80 and
+    CLAIM iccNightsOdiMinOcc90 = 1 FROM analysis/published-numbers/nights-icc-2026-11-26.json#claims/minOccOdi90 for ODI-4,
+    CLAIM iccNightsRmssdMinOcc80 = 1 FROM analysis/published-numbers/nights-icc-2026-11-26.json#claims/minOccRmssd80 and
+    CLAIM iccNightsRmssdMinOcc90 = 1 FROM analysis/published-numbers/nights-icc-2026-11-26.json#claims/minOccRmssd90 for rMSSD.
+    Table 1 reports 2 and 4 nights for ODI-4, which follows its lower pinned ICC.</p>
+
+    <p style="margin:.6em 0 0"><b>&#8709; The CGM-CV row carries no claim.</b> Its between-subject variance
+    reads a computed 0, so ICC(1,1) lands at exactly 0 and every minimum-occasions answer is null. A null is
+    not a number, so the record logs that row under <code>refusals</code> and this block binds nothing to it.
+    The subject count above stays a claim, because the run really did score those subjects.</p>
+  </div>
   <h2 class="sec">4. Discussion</h2>
   <p>The metrics split cleanly into two regimes. rMSSD and ODI-4 are <em>trait-like</em>: most of their variance is between people, so a single night is already informative for rMSSD (and a second night mainly buys precision), while ODI-4 — noisier since the AHI-ceiling revision — needs two to four nights to be solid. Daily CGM-CV is <em>state-like</em>: its variance lives within the person across days, so it indexes the day, not the person, and needs a window-level summary or a coupling model to become a stable descriptor. This distinction matters for any downstream use — a screening cut-point, a "your number changed" alert, a cohort covariate — because applying a trait framing to a state-like metric sorts mostly noise.</p>
   <div class="callout"><b>Limitations.</b> This is synthetic ground truth. The cohort is flat-arc (stable) by construction, so the within-subject variance is the generator's night-to-night model plus real detector noise — realistic in structure, but not a substitute for measured human test–retest data (Stöberl et al., 2017; Bertsch et al., 2012). The exact ICC values (and especially the CGM-CV≈0 result) depend on the synthetic generator's between-/within-subject variance ratios; a real repeated-measures cohort could shift them, particularly for CGM where real individuals differ more in habitual variability than stable synthetic days do. Per-metric subject counts are large (4,377–5,394), so sampling uncertainty on these ICCs is small. These results <b>certify the reliability structure of the pipeline and the minimum-recording-length method</b>; they motivate, but do not replace, a labelled repeated-measures validation.</p></div>
