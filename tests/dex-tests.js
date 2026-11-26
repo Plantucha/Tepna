@@ -52978,6 +52978,50 @@
       }
     });
 
+    /* ∅ A PB MARKER WITH NO ONSET IS NOT A MARKER AT LIGHTS-OUT (residue
+       2026-11-26-cpapdex-annotation-onset-absent-reads-as-lights-out). `periodicBreathingSpans`
+       read both pairing arms through `a.onsetSec || 0`, so a marker with no usable onset landed at
+       second 0. An End then published a zero-second span that `spans` counted, and a Start opened at
+       lights-out and charged the night for seconds nobody measured. The sort key fabricated the same
+       0, which is how the End reached an open Start at all. Legs (a) and (b) red on the pre-fix file;
+       (c) through (e) are the controls. */
+    group('∅ CPAPDex — a periodic-breathing marker with no onset pairs with nothing', 'cpapdex-dsp · absence · annotations', function (T) {
+      var D = env.CpapDsp || env.CPAPDSP;
+      T.ok('CpapDsp exposed', !!(D && typeof D.periodicBreathingSpans === 'function'), 'CPAPDex not co-loaded in this runner');
+      if (!D) return;
+      var CS = 'Cheyne-Stokes';
+      var endNoOnset = D.periodicBreathingSpans(
+        [
+          { class: CS, durSec: 0, onsetSec: 0, boundary: 'start' },
+          { class: CS, durSec: 0, boundary: 'end' }
+        ],
+        500
+      );
+      T.eq('(a) an End with no onset counts out of band', endNoOnset.onsetAbsent, 1);
+      T.eq('(a) …and it closes no span, so the Start stays open', endNoOnset.unpairedStart, 1);
+      T.eq('(a) …and the open Start runs to the session end, not to a zero-second span', endNoOnset.sec, 500);
+      var startNoOnset = D.periodicBreathingSpans([{ class: CS, durSec: 0, boundary: 'start' }], 500);
+      T.eq('(b) a Start with no onset opens nothing', startNoOnset.spans, 0);
+      T.eq('(b) …so it charges the night no seconds', startNoOnset.sec, 0);
+      T.eq('(b) …and it counts out of band instead', startNoOnset.onsetAbsent, 1);
+      T.eq('(b) …and it is not an unpaired Start, because it never opened', startNoOnset.unpairedStart, 0);
+      var nonFinite = D.periodicBreathingSpans([{ class: CS, durSec: 0, onsetSec: Infinity, boundary: 'start' }], 500);
+      T.eq('(c) a non-finite onset is refused the same way', nonFinite.onsetAbsent, 1);
+      T.eq('(c) …and it opens no span', nonFinite.unpairedStart, 0);
+      var ownSpan = D.periodicBreathingSpans([{ class: 'PeriodicBreathing', durSec: 40 }], 500);
+      T.eq('(d) CONTROL a TAL carrying its own duration keeps its seconds with no onset at all', ownSpan.sec, 40);
+      T.eq('(d) CONTROL …and it is not an absence', ownSpan.onsetAbsent, 0);
+      var realZero = D.periodicBreathingSpans(
+        [
+          { class: CS, durSec: 0, onsetSec: 0, boundary: 'start' },
+          { class: CS, durSec: 0, onsetSec: 120, boundary: 'end' }
+        ],
+        500
+      );
+      T.eq('(e) CONTROL a written onset of 0 is a real onset at lights-out', realZero.sec, 120);
+      T.eq('(e) CONTROL …it pairs, and it reports no absence', realZero.spans + realZero.onsetAbsent, 1);
+    });
+
     /* ∅ AN ABSENT SAMPLE RATE IS NOT A NUMBER (task 19). `cpapdex-edf.js:296` writes `fs: null` when
        the header's record duration is 0, and five sites here turned that absence — or an absent
        `raw.fs` — into 1, 0.5, 25 or 60. Measured before the fix: `prepare` halved a 0.5 Hz hour
@@ -86762,7 +86806,7 @@
         pinPass('cpapdex-edf.js', ED.selfTest(), 20);
       } else T.ok('cpapdex-edf.js loaded with selfTest()', false, 'env.CpapEdf missing in this runner');
       if (DS && typeof DS.selfTest === 'function') {
-        pinPass('cpapdex-dsp.js', DS.selfTest(), 116); // +9 · the §2 step 4 digit-run bound, accept beside reject
+        pinPass('cpapdex-dsp.js', DS.selfTest(), 118); // +2 · a PB marker with no onset, the End arm and the Start arm
       } else T.ok('cpapdex-dsp.js loaded with selfTest()', false, 'env.CpapDsp missing in this runner');
       T.ok('ecgdex-morph.js exposes analyze() (exercised via ECGDSP.analyze)', !!(EM && typeof EM.analyze === 'function'));
       T.ok('ppgdex-morph.js exposes analyze() (exercised via PPGDSP morphology)', !!(PM && typeof PM.analyze === 'function'));
