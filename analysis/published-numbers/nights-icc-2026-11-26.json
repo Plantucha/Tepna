@@ -1,0 +1,143 @@
+{
+  "schema": "tepna.published-number-record/1",
+  "producer": "tools/analysis-rerun.mjs driving nights-icc-analysis.html",
+  "producerCommit": "72a5207fe",
+  "invocation": "node tools/analysis-rerun.mjs --only nights-icc-analysis.html --paper-scale --timeout-min 70 --out .cache/nights-icc-rerun.json",
+  "generated": "2026-11-26",
+  "runtimeSeconds": 1083,
+  "inputs": {
+    "path": null,
+    "committed": false,
+    "note": "the cohort is SYNTHETIC and no capture file enters this run: the page builds it in-browser from cohort-gen.js and synth-gen.js, so the generator versions below are the inputs",
+    "cohortGenVersion": "cohort-gen/2.0",
+    "synthGenVersion": "synth-gen/2.1"
+  },
+  "deterministic": "the page seeds its own cohort; a re-run at the same generator versions and the same nSubjects reproduces these values",
+  "publishedIn": "papers/nights-icc.html §re-measured 2026-11-26",
+  "supersedes": null,
+  "population": {
+    "nSubjectsRequested": 6000,
+    "perMetricNote": "each metric keeps the subjects whose occasions its own node could score, so every row carries its own denominator",
+    "odi": {
+      "subjects": 5394,
+      "occasions": 44256,
+      "medianOccPerSubject": 8
+    },
+    "rmssd": {
+      "subjects": 5275,
+      "occasions": 43244,
+      "medianOccPerSubject": 8
+    },
+    "cv": {
+      "subjects": 4377,
+      "occasions": 35013,
+      "medianOccPerSubject": 8
+    }
+  },
+  "claims": {
+    "note": "values EXACTLY as the paper states them, so CLAIM … FROM … #claims/<key> compares equal; full precision sits under result",
+    "iccOdi": 0.9238,
+    "iccOdiLatent": 0.9395,
+    "withinCvOdiPct": 36,
+    "iccRmssd": 0.9295,
+    "iccRmssdLatent": 0.9301,
+    "withinCvRmssdPct": 6.5,
+    "subjectsOdi": 5394,
+    "occasionsOdi": 44256,
+    "subjectsRmssd": 5275,
+    "occasionsRmssd": 43244,
+    "subjectsCv": 4377,
+    "nSubjectsRequested": 6000,
+    "minOccOdi80": 1,
+    "minOccOdi90": 1,
+    "minOccRmssd80": 1,
+    "minOccRmssd90": 1
+  },
+  "refusals": {
+    "note": "§∅ — the GlucoDex CV row is not a published claim here. Its between-subject variance reads a computed 0, so ICC1 is exactly 0 and every minimum-occasions answer is null rather than a number",
+    "cvIcc1": 0,
+    "cvVarBetween": 0,
+    "cvMinOcc": {
+      "0.75": null,
+      "0.80": null,
+      "0.90": null,
+      "target": null
+    }
+  },
+  "result": {
+    "generated": "2026-11-26T21:40:59.433Z",
+    "target": 0.8,
+    "minNights": 5,
+    "nSubjects": 6000,
+    "framing": "Test-retest reliability on STABLE (flat-arc) synthetic patients, 1–12-night longitudinal lane. Each occasion measured by the REAL detector (ODI-4 OxyDex / rMSSD PulseDex / CGM-CV GlucoDex day-split). ICC(1,1) one-way random effects; Spearman–Brown → minimum occasions per target. Latent ICC = same ANOVA on planted targets (non-circular detector check). Synthetic ground truth — certifies the reliability structure of the pipeline, not real-world clinical reliability.",
+    "metrics": {
+      "odi": {
+        "node": "OxyDex",
+        "occasion": "night",
+        "unit": "events/h",
+        "icc1": 0.9238,
+        "subjects": 5394,
+        "occasions": 44256,
+        "medianOccPerSubject": 8,
+        "varBetween": 132.892,
+        "varWithin": 10.9676,
+        "withinSD": 3.312,
+        "withinCVpct": 36,
+        "minOcc": {
+          "0.75": 1,
+          "0.80": 1,
+          "0.90": 1,
+          "target": 1
+        }
+      },
+      "rmssd": {
+        "node": "PulseDex",
+        "occasion": "night",
+        "unit": "ms",
+        "icc1": 0.9295,
+        "subjects": 5275,
+        "occasions": 43244,
+        "medianOccPerSubject": 8,
+        "varBetween": 94.7116,
+        "varWithin": 7.189,
+        "withinSD": 2.681,
+        "withinCVpct": 6.5,
+        "minOcc": {
+          "0.75": 1,
+          "0.80": 1,
+          "0.90": 1,
+          "target": 1
+        }
+      },
+      "cv": {
+        "node": "GlucoDex",
+        "occasion": "day",
+        "unit": "%",
+        "icc1": 0,
+        "subjects": 4377,
+        "occasions": 35013,
+        "medianOccPerSubject": 8,
+        "varBetween": 0,
+        "varWithin": 3.2783,
+        "withinSD": 1.811,
+        "withinCVpct": 17,
+        "minOcc": {
+          "0.75": null,
+          "0.80": null,
+          "0.90": null,
+          "target": null
+        }
+      }
+    },
+    "latent": {
+      "odi": {
+        "icc1": 0.9395,
+        "subjects": 6000
+      },
+      "rmssd": {
+        "icc1": 0.9301,
+        "subjects": 6000
+      }
+    }
+  }
+}
