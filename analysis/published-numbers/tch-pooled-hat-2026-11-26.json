@@ -1,17 +1,17 @@
 {
   "schema": "tepna.published-number-record/1",
   "producer": "tools/tch-pooled-hat.mjs",
-  "producerCommit": "d9988f37",
+  "producerCommit": "af66d481",
   "invocation": "node tools/tch-pooled-hat.mjs --dir uploads/trio --json",
   "generated": "2026-11-26",
   "inputs": {
     "path": "uploads/trio",
     "committed": true,
     "files": 923,
-    "digest": "e7d2f87042dc",
+    "digest": "5e41f0632a36",
     "note": "sha256[0:12] over path\\0sha12(bytes) of every git-tracked file under uploads/trio at producerCommit — a RESOLVABLE upstream node: recompute it and a moved corpus is visible"
   },
-  "publishedIn": "briefs/SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md §11 (re-derived over 127 nights after the 2026-11-26 re-fold under closure 01cf791fcdb3c077)",
+  "publishedIn": "briefs/SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md §11 (re-derived over 127 nights after the 2026-11-26 re-fold under closure 01cf791fcdb3c077; re-folded again under 252c85071f0cd2d7 after #5962, every number unchanged)",
   "supersedes": "analysis/published-numbers/tch-pooled-hat-2026-10-12.json (inputs 5daa4fc8ded5 at its last re-stamp, 90 nights; the 2026-11-26 re-fold rewrote every export under closure 01cf791fcdb3c077 and the fold admits 127 nights, so the population changed as well as the fold)",
   "claims": {
     "note": "the values EXACTLY as the prose states them (9 dp), so CLAIM … FROM … #claims/<key> compares equal; full precision is under result",
@@ -82,7 +82,7 @@
   "corpus": {
     "root": "uploads/trio",
     "resolvable": true,
-    "dataDigest": "639d3065516b",
+    "dataDigest": "d971e4791ac7",
     "dataFiles": 796,
     "foldGeneration": null,
     "scopedToNightsRead": null,
@@ -90,16 +90,16 @@
     "stamped": 127,
     "unstamped": 58,
     "codeDigests": [
-      "01cf791fcdb3c077"
+      "252c85071f0cd2d7"
     ],
     "note": "dataDigest = sha256[0:12] over path\\0sha12(bytes) of every git-tracked file under uploads/trio that is not a .trio-stamp; foldGeneration covers the night set and each night's .trio-stamp codeDigest, so an unstamped night contributes its name and no generation. Re-resolve both with tools/fold-generation.mjs",
-    "foldGenerationAtCut": "75bfa5e6b637",
+    "foldGenerationAtCut": "95fc93794d18",
     "foldGenerationReason": "the record names no nights, so no generation describes the population it read; foldGenerationAtCut covers all 185 night(s) under uploads/trio at the cut",
     "recovered": {
-      "commit": "d9988f37",
-      "namedCommit": "d9988f37",
+      "commit": "af66d481",
+      "namedCommit": "af66d481",
       "matchedNamedCommit": true,
-      "verifiedBy": "the record's own inputs.digest reproduces over this tree: sha256[0:12] over path\\0sha12(bytes) of all 923 tracked file(s) under uploads/trio reads e7d2f87042dc",
+      "verifiedBy": "the record's own inputs.digest reproduces over this tree: sha256[0:12] over path\\0sha12(bytes) of all 923 tracked file(s) under uploads/trio reads 5e41f0632a36",
       "note": "the identity above comes from the commit the record names",
       "by": "tools/fold-generation.mjs",
       "at": "2026-11-26"

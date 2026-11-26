@@ -3376,6 +3376,2382 @@
         }
       ],
       "nightCount": 132
+    },
+    {
+      "schema": "tepna.fold-provenance/1",
+      "at": "2026-11-26T18:18:48.356Z",
+      "codeDigest": "252c85071f0cd2d7",
+      "fileSetDigest": "531602e55ce1616e",
+      "fileCount": 5217,
+      "srcRoots": [
+        {
+          "root": "/srv/data/tepna-corpus",
+          "mount": {
+            "target": "/mnt/nas/tepna-corpus",
+            "fstype": "nfs4",
+            "source": "<host>:/mnt/Storage10TB/tepna-corpus"
+          }
+        }
+      ],
+      "nights": [
+        {
+          "key": "2026-06-10",
+          "inputsDigest": "5591bc7339eed27a",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-06-11",
+          "inputsDigest": "060d971edda053f9",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-06-12",
+          "inputsDigest": "6deaaf872c8d0124",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-06-14",
+          "inputsDigest": "7f71b03d61cd9465",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-06-15",
+          "inputsDigest": "20b0abe6c1475bd5",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-06-16",
+          "inputsDigest": "05faf4f55da4f6fd",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-06-19",
+          "inputsDigest": null,
+          "codeDigest": null,
+          "nodes": null,
+          "ok": false,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 2,
+          "notOkReason": "exports-missing"
+        },
+        {
+          "key": "2026-06-20",
+          "inputsDigest": "fe18fc64b0f985ef",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-06-24",
+          "inputsDigest": "4747949d758b7dd0",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-06-25",
+          "inputsDigest": "0b9d508291aaaaf9",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-06-27",
+          "inputsDigest": "1043881af07c1eaa",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-06-28",
+          "inputsDigest": "7653a5bd12770c52",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-06-29",
+          "inputsDigest": "1fbba1db6b0110ac",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-06-30",
+          "inputsDigest": "5f1377de353ef865",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-01",
+          "inputsDigest": "5dcb04b1047374d0",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-02",
+          "inputsDigest": "93018359e958229f",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-04",
+          "inputsDigest": "b6539eaf893fe153",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-05",
+          "inputsDigest": "798bc44f6523363a",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-06",
+          "inputsDigest": "d3769e9326510d86",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-07",
+          "inputsDigest": "5ca4ad033ef522af",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-08",
+          "inputsDigest": "fb653e1c59a4aed0",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-09",
+          "inputsDigest": "a0200fc4a6f8d788",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-11",
+          "inputsDigest": "d582f4745e028e4a",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-12",
+          "inputsDigest": "030d7b44101d774f",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-13",
+          "inputsDigest": "beca40a992ba56dd",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-16",
+          "inputsDigest": "7af8b9266aa75484",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-17",
+          "inputsDigest": "6d0284dcfcacedea",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-18",
+          "inputsDigest": "0f53c5a9c59b8a84",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-19",
+          "inputsDigest": "f2bff4bd40a1d3a8",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-20",
+          "inputsDigest": "5c060e7d032e0c79",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-21",
+          "inputsDigest": "8aa291ff04d85cde",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-22",
+          "inputsDigest": "5f33163999991e32",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-23",
+          "inputsDigest": "99047c5d492625ac",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-24",
+          "inputsDigest": "fdc4b090110a9ed9",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-25",
+          "inputsDigest": "f6b83cca111531e0",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-26",
+          "inputsDigest": "e52dd6692dce2cf4",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-27",
+          "inputsDigest": "2243374cc9c0adb0",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-28",
+          "inputsDigest": "8b36be44c3c4a7b6",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-29",
+          "inputsDigest": "7f7a2c83ac3133a8",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-07-30",
+          "inputsDigest": "702d3f8c579c1cba",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-01",
+          "inputsDigest": "11f5a78f5b7ce3cc",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-02",
+          "inputsDigest": "ef43ffd0f5656eac",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-03",
+          "inputsDigest": "6913f1f1468d98e8",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-04",
+          "inputsDigest": null,
+          "codeDigest": null,
+          "nodes": null,
+          "ok": false,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 2,
+          "notOkReason": "exports-missing"
+        },
+        {
+          "key": "2026-08-05",
+          "inputsDigest": "596d02e5173cea9d",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-06",
+          "inputsDigest": "d2374ab3c7b62478",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-07",
+          "inputsDigest": "69f5083347d30430",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-08",
+          "inputsDigest": "a900f963e4165ad4",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-09",
+          "inputsDigest": "4eafcaa39eaeb6b2",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-10",
+          "inputsDigest": "fbde41f495d59ddf",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-11",
+          "inputsDigest": "d956bc71be0de1e9",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-12",
+          "inputsDigest": "b10aec235a777706",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-13",
+          "inputsDigest": "d05c46c5a218b9a4",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-14",
+          "inputsDigest": "d7128bc82a7c3f33",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-15",
+          "inputsDigest": "77fd9b99bee8e68d",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-16",
+          "inputsDigest": "45081bf26fa7947a",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-17",
+          "inputsDigest": "b51349ec8ed5296e",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-18",
+          "inputsDigest": "8b44dcf822235548",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-19",
+          "inputsDigest": "7e735f45e57f5806",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-20",
+          "inputsDigest": "88d182b3910e8c15",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-21",
+          "inputsDigest": "358a9f5539daf3ec",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-23",
+          "inputsDigest": "0d7c06d2dfbb03c9",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-24",
+          "inputsDigest": "bec82a86a2751895",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-25",
+          "inputsDigest": "fedad7b99fac1cae",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-26",
+          "inputsDigest": "11208132d311302e",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-27",
+          "inputsDigest": "a80e8baa504cf33f",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-28",
+          "inputsDigest": "76daf4a6fb37b030",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-08-29",
+          "inputsDigest": null,
+          "codeDigest": null,
+          "nodes": null,
+          "ok": false,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 2,
+          "notOkReason": "exports-missing"
+        },
+        {
+          "key": "2026-08-30",
+          "inputsDigest": null,
+          "codeDigest": null,
+          "nodes": null,
+          "ok": false,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 2,
+          "notOkReason": "exports-missing"
+        },
+        {
+          "key": "2026-08-31",
+          "inputsDigest": "01d172ab3317a3b0",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-03",
+          "inputsDigest": "4ba63e5c19c99dca",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-04",
+          "inputsDigest": "85f6ab268bf65f0f",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-05",
+          "inputsDigest": "f8c4c7d672ff92ab",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-06",
+          "inputsDigest": "9c681fac0c14a2c8",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-07",
+          "inputsDigest": "dcd3ab9c0dd293f7",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-08",
+          "inputsDigest": "98215e029b2f9d72",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-09",
+          "inputsDigest": "d70d174e5cb3fbb1",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-10",
+          "inputsDigest": "e5e17f5d78cf81ef",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-11",
+          "inputsDigest": null,
+          "codeDigest": null,
+          "nodes": null,
+          "ok": false,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 2,
+          "notOkReason": "exports-missing"
+        },
+        {
+          "key": "2026-09-12",
+          "inputsDigest": "8255f74e6843ac6d",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-13",
+          "inputsDigest": "3d0ab0798e375d1d",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-14",
+          "inputsDigest": "ba32b352d3d8a992",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-15",
+          "inputsDigest": "d6b6c0d5c993e561",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-16",
+          "inputsDigest": "6fb437bcac3c644a",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-17",
+          "inputsDigest": "c0d4a66fe9654501",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-20",
+          "inputsDigest": "f29cb5c56bb9a484",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-21",
+          "inputsDigest": "ae36f5ab64ca39c4",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-22",
+          "inputsDigest": "d6f2a12cae16f533",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-23",
+          "inputsDigest": "78da0469e8a34b6e",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-24",
+          "inputsDigest": "55736ce6022c7a18",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-25",
+          "inputsDigest": "59fbf165357f5cc2",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-26",
+          "inputsDigest": "2d7c2ae5fba3a9e3",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-27",
+          "inputsDigest": "ee5aea060bbf0e40",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-28",
+          "inputsDigest": "369b0c799ccb0765",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-09-30",
+          "inputsDigest": "b69546f384b5fc4a",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-01",
+          "inputsDigest": "8d53de8955e00f53",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-02",
+          "inputsDigest": "ada04bb325fec425",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-03",
+          "inputsDigest": "0ce3064cf2e7f877",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-04",
+          "inputsDigest": "d8070c06cb07ba67",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-05",
+          "inputsDigest": "c456498b5d2e9a2a",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-06",
+          "inputsDigest": "6fb1d9aec151a256",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-07",
+          "inputsDigest": "62bcfee61259783a",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-08",
+          "inputsDigest": "78117e5a2fcf6391",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-09",
+          "inputsDigest": "a6aacf2fc0869c00",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-10",
+          "inputsDigest": "e12603bec883a236",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-11",
+          "inputsDigest": "356efc5f73c5b6db",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-12",
+          "inputsDigest": "f7b44c78781b88a1",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-13",
+          "inputsDigest": "593fc658a8382585",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-14",
+          "inputsDigest": "41099ac83cfbb638",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-15",
+          "inputsDigest": "6ef5f42a189ecb70",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-16",
+          "inputsDigest": "6e490aa04a2ceec2",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-17",
+          "inputsDigest": "ad6921c53dee9032",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-18",
+          "inputsDigest": "5c9c139ebfad5712",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-19",
+          "inputsDigest": "bb812e05c2ea6749",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-20",
+          "inputsDigest": "cabac51c7e243909",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-21",
+          "inputsDigest": "31c341efbd11837d",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-22",
+          "inputsDigest": "9711d8e32fd9d79f",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-24",
+          "inputsDigest": "ef3708ab50b8923c",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-25",
+          "inputsDigest": "91b0855ea9618822",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-26",
+          "inputsDigest": "e9a5eb238ff317e6",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-27",
+          "inputsDigest": "df7eeb1d21835e1d",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-28",
+          "inputsDigest": "7e1b92d0109a6e91",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-30",
+          "inputsDigest": "baf0bca161a997c5",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-10-31",
+          "inputsDigest": "0f6e7449fd73bede",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-11-01",
+          "inputsDigest": "9a8b0dda283acf6f",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-11-02",
+          "inputsDigest": "3a443f49e408a168",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-11-03",
+          "inputsDigest": "e263ba6fed735e5f",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-11-04",
+          "inputsDigest": "f1108316510c19b8",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-11-05",
+          "inputsDigest": "c2212aac154e6fb6",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-11-06",
+          "inputsDigest": "ef96bbf1f7c585bf",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-11-07",
+          "inputsDigest": "c262d29de4239379",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        },
+        {
+          "key": "2026-11-08",
+          "inputsDigest": "ab894a36de4c2dc1",
+          "codeDigest": "252c85071f0cd2d7",
+          "nodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "ok": true,
+          "plannedNodes": [
+            "ECGDex",
+            "OxyDex",
+            "PpgDex"
+          ],
+          "exports": 3,
+          "notOkReason": null
+        }
+      ],
+      "nightCount": 132
     }
   ]
 }

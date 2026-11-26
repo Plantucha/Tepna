@@ -707,7 +707,9 @@ The derivation holds to floating point. **The prediction it makes, however, is f
 > | h10 | CLAIM tch5LhsH10 = 0.009877134 FROM analysis/published-numbers/tch-pooled-hat-2026-11-26.json#claims/lhsH10 | CLAIM tch5GapH10 = 0.009877134 FROM analysis/published-numbers/tch-pooled-hat-2026-11-26.json#claims/gapH10 | 8.0e-17 |
 > | verity | CLAIM tch5LhsVerity = 0.000042802 FROM analysis/published-numbers/tch-pooled-hat-2026-11-26.json#claims/lhsVerity | CLAIM tch5GapVerity = 0.000042802 FROM analysis/published-numbers/tch-pooled-hat-2026-11-26.json#claims/gapVerity | 6.8e-16 |
 > | o2 | CLAIM tch5LhsO2 = 0.02112691 FROM analysis/published-numbers/tch-pooled-hat-2026-11-26.json#claims/lhsO2 | CLAIM tch5GapO2 = 0.02112691 FROM analysis/published-numbers/tch-pooled-hat-2026-11-26.json#claims/gapO2 | 2.0e-15 |
-> <!-- TABLE-PROVENANCE producer=tools/tch-pooled-hat.mjs invocation="--dir uploads/trio --json" inputs=uploads/trio inputsDigest=e7d2f87042dc foldGeneration=8f207c804af1 generated=2026-11-26 output=c10c55504fae -->
+> <!-- TABLE-PROVENANCE producer=tools/tch-pooled-hat.mjs invocation="--dir uploads/trio --json" inputs=uploads/trio inputsDigest=5e41f0632a36 foldGeneration=f5fe08e31ab2 generated=2026-11-26 output=c10c55504fae -->
+>
+> **2026-11-26, second re-fold.** The OxyDex IEI fix (#5962) moved the fold closure to `252c85071f0cd2d7`, and a re-fold rewrote every export. The tool re-cut this table over the same 127 nights. Every number above is bit-identical. Only the tracked-input digest moved, from `e7d2f87042dc` to `5e41f0632a36`, so the stamp carries the new digest.
 >
 > **What moved.** The three `medianSigma` values fall: h10 0.773566 → 0.721573, verity 0.929767 → 0.838861,
 > o2 3.329850 → 3.280255. The between-night SHARES (B/within) are **0.333 / 0.242 / 0.169 %** against the
