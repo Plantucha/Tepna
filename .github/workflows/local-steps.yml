@@ -141,6 +141,9 @@ jobs:
       - name: verify:module-carriers
         if: ${{ !cancelled() }}
         run: npm run -s verify:module-carriers
+      - name: verify:trio-cache
+        if: ${{ !cancelled() }}
+        run: npm run -s verify:trio-cache
       - name: verify:write-root-adoption
         if: ${{ !cancelled() }}
         run: npm run -s verify:write-root-adoption

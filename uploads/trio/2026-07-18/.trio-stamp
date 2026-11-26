@@ -5,5 +5,12 @@
     "ECGDex",
     "OxyDex",
     "PpgDex"
-  ]
+  ],
+  "exports": {
+    "ECGDex_2026-07-18.node-export.json": "473e1c8b6371b63bb48e58666dfeb9bd444e81cabe161127f21ae9d3ad74bbf1",
+    "OxyDex_2026-07-18.node-export.json": "09580a106e865a983ef02a67df2db58fa4535f85959fadf560e3d3bbd01382e4",
+    "PpgDexFinger_2026-07-18.node-export.json": "1e5eca3fa9777b57f853359c11960288f015e234db14e7ecc5c5998d33668d6b",
+    "PpgDex_2026-07-18.node-export.json": "2dcebc64d0eb9a8bae08c705b879ec46b771e6ecce5fc49f89c1feb9dd2918ef"
+  },
+  "exportsBoundBy": "seal 2026-11-26: bytes unchanged since stamp commit a596d4700"
 }

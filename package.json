@@ -73,6 +73,7 @@
     "verify:docs-constants": "node tools/docs-constants.mjs",
     "verify:brief-header-claims": "node tools/brief-header-claims.mjs --base origin/main",
     "verify:module-carriers": "node tools/module-carriers.mjs",
+    "verify:trio-cache": "node tools/trio-cache-audit.mjs",
     "verify:pr-compliance": "node tools/pr-compliance.mjs",
     "tools-index": "node tools/tools-index.mjs",
     "sync:docs-index": "node tools/sync-docs-index.mjs",
