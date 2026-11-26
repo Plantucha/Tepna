@@ -783,7 +783,10 @@
       r.d_sdi = _hasLfHf && _all(r._sns, r._psns) ? (r._lf + r._sns * 10) / (r._hf + r._psns * 10) : NaN;
       // ── Poincaré SD1 / SD2 ──
       r.d_sd1 = _all(r._rmssd) ? r._rmssd / Math.sqrt(2) : NaN;
-      const sd2sq = _all(r._sdnn) ? Math.max(0, 2 * r._sdnn * r._sdnn - r.d_sd1 * r.d_sd1) : NaN;
+      /* Brennan 2001 (10.1109/10.959330): SD2² = 2·SDNN² − SD1². ∅ No RR series gives a negative
+         value here, so a pair that does is inconsistent input, and `Math.max(0, …)` published a
+         measured SD2 of 0 for it. `Math.sqrt` of a negative is NaN, which is this node's absence. */
+      const sd2sq = _all(r._sdnn) ? 2 * r._sdnn * r._sdnn - r.d_sd1 * r.d_sd1 : NaN;
       r.d_sd2 = Math.sqrt(sd2sq);
       r.d_sd1_sd2 = r.d_sd2 > 0 ? r.d_sd1 / r.d_sd2 : NaN;
 
@@ -1193,10 +1196,19 @@
     return !!(r && r._hf > 0 && r._lf > 0);
   }
 
+  /* ∅ the second companion: how many of the three parasympathetic indicators the score averages.
+     The three use different scales, so one night reads 50 on rMSSD 20 ms alone, 8 on pNN50 2 %
+     alone, 69 on HF 300 ms² alone and 42 on all three. A reduced set annotates (§∅, ruling #8826),
+     and the tests here match the ones `computeCAMQ` applies. */
+  function camqParaCount(r) {
+    if (!r) return 0;
+    return (r._rmssd > 0 ? 1 : 0) + (_all(r._pnn50) && r._pnn50 >= 0 ? 1 : 0) + (r._hf > 0 ? 1 : 0);
+  }
+
   function computeCAMQ(r) {
     // Cardiac Autonomic Modulation Quality
     // Parasympathetic indicators (positive contribution): RMSSD, HF power, pNN50
-    // Sympathetic indicators (negative contribution): LF/HF ratio, AMo50
+    // Sympathetic indicator (negative contribution): LF/HF ratio
     // Output: 0-100 scale, higher = healthier
     if (!r) return null;
     var paraScore = 0,
@@ -1672,6 +1684,7 @@
     getFilteredRows,
     computeCAMQ,
     camqSympMeasured,
+    camqParaCount,
     _hrvClockS,
     hrvEventsFromRows,
     hrvBuildNodeExport,
