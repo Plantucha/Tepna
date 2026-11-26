@@ -93,6 +93,37 @@ def resident():
         except Exception: out[be] = []
     return out
 
+# 2026-11-26 (board #9061, decision #9062): an embed goes to a copy that sits WHOLLY IN VRAM when one exists. Ollama keeps ONE
+# runner per model on each backend. `doc-search.mjs` asks for `num_gpu: 0` (+ `keep_alive: 1m`) when the card is short of free
+# VRAM, and that option RELOADED the shared GPU runner on the CPU ("runner options changed" → "no usable GPU found", ROCm
+# journal, 2 reloads since 11-20, both onto the CPU). Option-less requests then reused the CPU runner and reset its 30-min
+# keep-alive, so it stayed on the CPU. A resident GPU copy needs no new VRAM, so the CPU request is dropped when one serves it.
+def in_vram():
+    """backend -> set of model names whose loaded copy sits wholly in VRAM (size_vram >= size > 0)."""
+    out = {}
+    for be in BACKENDS:
+        try: out[be] = {m['name'] for m in json.loads(call(be, 'GET', '/api/ps')[1]).get('models', []) if m.get('size_vram', 0) >= m.get('size', 0) > 0}
+        except Exception: out[be] = set()
+    return out
+
+def embed_pick(model, req, vram):
+    """(backend, why) for an embed: its lane's backend when that copy is in VRAM, else a backend whose copy is, else the lane."""
+    lane, bulk = embed_lane(req)
+    what = f'embed lane: {"bulk" if bulk else "interactive"} ({n_inputs(req)} input)'
+    if model in vram.get(lane, ()): return lane, what
+    other = next((b for b in BACKENDS if model in vram.get(b, ())), None)
+    if other: return other, f'{what}; {lane} holds no VRAM copy, {other} does'
+    return lane, f'{what}; no VRAM copy loaded'
+
+def drop_cpu_ask(req):
+    """Remove a caller's CPU request (options.num_gpu 0 and the short keep_alive sent with it). True when it changed req."""
+    o = req.get('options')
+    if not isinstance(o, dict) or o.get('num_gpu') != 0: return False
+    del o['num_gpu']
+    if not o: del req['options']
+    req.pop('keep_alive', None)
+    return True
+
 def n_inputs(req):
     i = req.get('input')
     return len(i) if isinstance(i, list) else 1
@@ -123,12 +154,12 @@ def prompt_tokens(req):
         c = m.get('content'); txt += c if isinstance(c, str) else json.dumps(c)
     return len(txt) / 4.0   # ~4 chars per token for English text (test 2026-11-09: 3.5 overestimated 2x on repetitive text)
 
-def choose(model, path, req):
-    model = norm(model); now = time.time(); res = resident()
-    where = [be for be in BACKENDS if model in res[be]]
+def choose(model, path, req, vram=None):
+    model = norm(model); now = time.time()
     if is_embed(model, path):
-        be, bulk = embed_lane(req)
-        return be, f'embed lane: {"bulk" if bulk else "interactive"} ({n_inputs(req)} input)'
+        return embed_pick(model, req, in_vram() if vram is None else vram)
+    res = resident()
+    where = [be for be in BACKENDS if model in res[be]]
     if where:
         be = where[0]; other = 'vulkan' if be == 'rocm' else 'rocm'
         h = [x for x in history[model] if now - x[0] <= WINDOW]
@@ -187,7 +218,10 @@ class H(http.server.BaseHTTPRequestHandler):
                 if norm(model) in ms: return self.forward(be, body)
             return self.forward(DEFAULT, body)
         with lock:
-            be, why = choose(model, self.path, req)
+            vram = in_vram() if is_embed(model, self.path) else None
+            be, why = choose(model, self.path, req, vram)
+            if vram is not None and norm(model) in vram.get(be, ()) and drop_cpu_ask(req):
+                body = json.dumps(req).encode(); why += '; dropped num_gpu 0, a VRAM copy serves it'
             if norm(model) not in resident()[be]:
                 make_room(model, be); placed[norm(model)] = (be, time.time())
             inflight[be] += 1
@@ -276,6 +310,17 @@ if __name__ == '__main__':
         sick[o1[0]] = time.time(); assert box_order(time.time()) == [o2[0]]; sick.clear()         # a sick box is skipped
         sick['a'] = time.time() - SICK_FOR - 1; assert 'a' in box_order(time.time()); sick.clear()  # ...until SICK_FOR passes
         assert addr('a') == ('192.0.2.1', 1) and addr('rocm') == ('127.0.0.1', BACKENDS['rocm'])
+        m, bulk2, one = 'bge-m3:latest', {'input': ['a', 'b']}, {'input': 'a'}
+        assert embed_pick(m, bulk2, {EMBED_BULK: {m}, other: set()})[0] == EMBED_BULK                 # lane copy in VRAM: stay
+        assert embed_pick(m, bulk2, {EMBED_BULK: set(), other: {m}})[0] == other                      # lane copy on CPU: the VRAM one
+        assert embed_pick(m, one, {EMBED_BULK: {m}, other: set()})[0] == EMBED_BULK
+        assert embed_pick(m, bulk2, {EMBED_BULK: set(), other: set()})[0] == EMBED_BULK               # no VRAM copy: lane as before
+        r1 = {'input': 'a', 'options': {'num_gpu': 0}, 'keep_alive': '1m'}
+        assert drop_cpu_ask(r1) and r1 == {'input': 'a'}
+        r2 = {'input': 'a', 'options': {'num_gpu': 0, 'num_ctx': 512}, 'keep_alive': '1m'}
+        assert drop_cpu_ask(r2) and r2 == {'input': 'a', 'options': {'num_ctx': 512}}
+        for r in ({'input': 'a'}, {'input': 'a', 'options': {'num_gpu': 99}, 'keep_alive': '1m'}, {'options': None}):
+            before = json.dumps(r); assert not drop_cpu_ask(r) and json.dumps(r) == before          # no CPU ask: untouched
         print('ollama-router selftest ok'); sys.exit(0)
     log(f'start: listen {LISTEN}, backends {BACKENDS}, default {DEFAULT}')
     S(('127.0.0.1', LISTEN), H).serve_forever()
