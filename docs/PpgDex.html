@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="0da576b8a9d1" data-compute-hash="8ffe97bc232a">
+<html lang="en" data-manifest-hash="211647d55d56" data-compute-hash="d9a702319333">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9pxFCJPFipgaRs8G3wH7bh1NlNw0+rSdVQp4xMLxMqc=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-B0wjicJWpWjP44BEx8fMPqBm8gqs68DdWkg6amzikmY=' 'sha256-Bs4AFA5DaQoaTGAliTror4PzGkqoquOpSelo788DHWo=' 'sha256-FCj+atbc3xEU0yRTX7MWus+kfvoNPgYFxszdwjvufcQ=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-Hjjq/dyCl54f7PO5KlTqSvb1kgh7Gm/NWD/7cWt770E=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UiJdLIejK5YCW72lJMbSpQm6oU3PbLlrDpblXzUyWAg=' 'sha256-WLSf6RDbro32fr9V499zIXx05PeWHrSytiNLDT0boh4=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wYDQbx7BnjeWBpxiSXeMr45U444dBQ1yup2hvhEudhU=' 'sha256-wf4RTSM7a/w0v70WYQZ955f96BmGr4O4fzzpEnQVXuA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-B0wjicJWpWjP44BEx8fMPqBm8gqs68DdWkg6amzikmY=' 'sha256-Bs4AFA5DaQoaTGAliTror4PzGkqoquOpSelo788DHWo=' 'sha256-FCj+atbc3xEU0yRTX7MWus+kfvoNPgYFxszdwjvufcQ=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-Hjjq/dyCl54f7PO5KlTqSvb1kgh7Gm/NWD/7cWt770E=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UiJdLIejK5YCW72lJMbSpQm6oU3PbLlrDpblXzUyWAg=' 'sha256-WLSf6RDbro32fr9V499zIXx05PeWHrSytiNLDT0boh4=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-ozXYpshsMdrwsEyJBWYqO0KiO2kSFx6jdoCQD12VNjc=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wYDQbx7BnjeWBpxiSXeMr45U444dBQ1yup2hvhEudhU=' 'sha256-wf4RTSM7a/w0v70WYQZ955f96BmGr4O4fzzpEnQVXuA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.38.0</title>
@@ -15150,7 +15150,16 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
      -PRINCIPLES §2). Column 0 is the run's first-sample stamp, column 5 its duration in ms. A row that
      does not parse adds no span, so a damaged sidecar can only blank LESS, never invent a run. */
   function parseAccRunsTimed(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ A PRESENT, EMPTY SIDECAR IS NOT AN ABSENT ONE (owner-deputy ruling 2026-11-26, board
+       #9027; the full reading sits on `parsePinnedRuns` in `ppgdex-dsp.js`). The writer stamps its
+       own `# stream=… rule=…` header the moment it opens a new file, and that header sits in a
+       64 KB buffer, so a capture that stopped before the first flush leaves exactly 0 bytes. The box
+       side already names that state (`capture-host/solid_night_inputs.py` `_sidecar_unflushed`), and
+       a HEADER-ONLY file is the other fact — a rule stated and no run found — which still parses
+       below. So an ABSENT text answers `null`, and an EMPTY one answers a NAMED REFUSAL: the
+       validity is absent here, and it is never zero runs. */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     const out = /** @type {any} */ ({ minRun: null, spans: [], emitted: 0, comparable: false });
     for (const raw of text.split(/\r?\n/)) {
       const line = raw.trim();
@@ -15280,10 +15289,13 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     /* §∅ — A SIDECAR THAT FOUND NO RUN IS A MEASUREMENT, AND ITS ABSENCE IS NOT. Spans alone
        cannot carry that difference, so `_runsSidecar` rides beside them and is present exactly when a
        sidecar parsed. Absent means nobody looked, which is validity UNKNOWN. Same field and same
-       reason as MotionDex's parser of this name and as ECGDex's `parseDeviceACC`. A zero-byte sidecar
-       still reads as absent here, which row
-       `2026-11-04-a-zero-byte-sidecar-hides-rows-the-device-did-send` owns. */
-    if (_accRuns) {
+       reason as MotionDex's parser of this name and as ECGDex's `parseDeviceACC`. A PRESENT, EMPTY
+       sidecar is a third state, and it answers the named refusal of the ruling of 2026-11-26; the
+       reason below attributes that absence rather than borrowing the one that means nobody looked. */
+    if (_accRuns && _accRuns.err) {
+      /** @type {any} */ (out)._runsSidecarReason =
+        'run sidecar present and empty (' + _accRuns.err + ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero runs';
+    } else if (_accRuns) {
       /** @type {any} */ (out)._runsSidecar = _accRuns;
       if (_accRuns.spans.length) /** @type {any} */ (out)._blankSpans = _accRuns.spans;
     }
