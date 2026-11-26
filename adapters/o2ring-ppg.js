@@ -104,6 +104,10 @@
         // seams UNKNOWN, so this is the difference between an annotated unknown and a fabricated zero on
         // every orchestrated PPG night.
         var seamsText = ctx.companions && typeof ctx.companions.seams === 'string' ? ctx.companions.seams : null;
+        /* ∅ A zero-byte sidecar is present, not absent. The pairing keeps an empty text, so this
+           reports it. The parse input is unchanged: `parsePinnedRuns` reads an empty text as null. */
+        if (runsText === '') prov.warnings.push('RUNS companion present, and it gave no usable data');
+        if (seamsText === '') prov.warnings.push('SEAMS companion present, and it gave no usable data');
         rec = runsText || seamsText ? parseFn(text, { runsText: runsText, seamsText: seamsText }) : parseFn(text);
       } catch (e) {
         return root.SignalFrame.toSignalFrame('ppg', { usable: false, reason: 'o2ring-ppg: parse error — ' + ((e && e.message) || e) }, prov);

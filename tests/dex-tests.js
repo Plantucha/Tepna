@@ -56848,6 +56848,21 @@
         /PPI companion present.*ppi-header-names-no-interval-column/.test(warn(pRun({ ppi: 'a;bogus;c\n1;2;3\n' }))),
         warn(pRun({ ppi: 'a;bogus;c\n1;2;3\n' }))
       );
+      /* ∅ THE ZERO-BYTE COMPANION (2026-11-26). `pairCompanions` dropped a companion whose text was
+         empty, so a truncated capture read as no file and these warnings could not speak for it. Each
+         adapter now reads companion PRESENCE rather than truthiness, and every parser above returns
+         zero rows for an empty text, so the warning each already carries is what fires. */
+      T.ok('ECG: a zero-byte RR companion warns by name', /RR companion present/.test(warn(eRun({ rr: '' }))), warn(eRun({ rr: '' })));
+      T.ok('ECG: a zero-byte HR companion warns by name', /HR companion present/.test(warn(eRun({ hr: '' }))), warn(eRun({ hr: '' })));
+      T.ok('ECG: a zero-byte ACC companion warns by name', /ACC companion present/.test(warn(eRun({ acc: '' }))), warn(eRun({ acc: '' })));
+      var eZeroRuns = eRun({ acc: 'Phone timestamp;X;Y;Z\n' + stamp(0) + ';1;2;3\n', accruns: '' });
+      T.ok('ECG: a zero-byte ACCRUNS beside a real ACC warns by name', /ACCRUNS companion present/.test(warn(eZeroRuns)), warn(eZeroRuns));
+      T.ok('ACC: a zero-byte gyro companion warns by name', /GYRO companion present/.test(warn(aRun({ gyro: '' }))), warn(aRun({ gyro: '' })));
+      T.ok('ACC: a zero-byte ACCRUNS companion warns by name', /ACCRUNS companion present/.test(warn(aRun({ accruns: '' }))), warn(aRun({ accruns: '' })));
+      var pZero = pRun({ acc: '', gyro: '', magn: '', ppi: '' });
+      ['ACC', 'GYRO', 'MAGN', 'PPI'].forEach(function (n) {
+        T.ok('PPG: a zero-byte ' + n + ' companion warns by name', new RegExp(n + ' companion present').test(warn(pZero)), warn(pZero));
+      });
     });
 
     group('ECGDex device cross-check parsers — floating clock, no Date-parse/now() (Finding 2)', 'ecgdex-dsp · ecgdex-app', function (T) {
@@ -64076,6 +64091,16 @@
         // box's `…_PPGSEAMS.txt` — the ECG lane above carries it since #4406. Still an exact set compare.
         T.ok('  companionKinds(ppg) = acc/gyro/magn/ppi/runs/accruns/seams', JSON.stringify(ORCH.companionKinds('ppg')) === JSON.stringify(['acc', 'gyro', 'magn', 'ppi', 'runs', 'accruns', 'seams']));
         T.ok('  a no-sidecar drop pairs nothing → null', ORCH.pairCompanions('ecg', 'lone_20260617_010000_ECG.txt', [{ name: 'lone_20260617_010000_ECG.txt', text: 'ECG' }]) === null);
+        /* ∅ A ZERO-BYTE COMPANION IS PRESENT, NOT ABSENT (2026-11-26). `pairCompanions` read `best.text`
+           for truth, so an empty text was dropped and a truncated capture gave the same `null` as the
+           line above. A kind with NO file is still omitted, which is the control that line holds. */
+        var zero = [
+          { name: 'Polar_H10_X_20260617_010000_ECG.txt', text: 'ECG' },
+          { name: 'Polar_H10_X_20260617_010000_RR.txt', text: '' }
+        ];
+        var pcZero = ORCH.pairCompanions('ecg', 'Polar_H10_X_20260617_010000_ECG.txt', zero);
+        T.eq('  a ZERO-BYTE sidecar pairs as an empty text, never as an absent one', pcZero && pcZero.rr, '');
+        T.ok('  and a kind with no file at all is still omitted', !(pcZero && 'hr' in pcZero));
 
         // §1 (ECG-INGEST-FOLLOWUPS) — DEVICE-ID companion filter (the cross-host analogue of the app fix).
         // A folder-walk / drop that mixes a Verity-Sense session and an H10 session must pair each primary

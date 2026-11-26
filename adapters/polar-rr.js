@@ -70,12 +70,18 @@
       var comp = ctx.companions || {};
       var seamsText = typeof comp.ppiseams === 'string' ? comp.ppiseams : typeof comp.hrseams === 'string' ? comp.hrseams : null;
       var raw = seamsText ? parseRR(text, { seamsText: seamsText }) : parseRR(text);
+      /* ∅ A zero-byte sidecar is present, not absent, and `pairCompanions` now keeps its empty text.
+         `parsePdSeams` reads an empty text as null, so the parse input is unchanged. This sits BELOW
+         the call because a source-mirror assertion pins a 200-character window between the
+         `comp.ppiseams` read above and the `seamsText` argument. */
+      var warnings = /** @type {string[]} */ ([]);
+      if (seamsText === '') warnings.push('SEAMS companion present, and it gave no usable data');
       var frame = root.SignalFrame.toSignalFrame('rr', raw, {
         adapter: 'polar-rr',
         vendor: VENDOR,
         device: DEVICE,
         files: ctx.files || null,
-        warnings: []
+        warnings: warnings
       });
       /* THE PARSED SIDECAR, CARRIED ACROSS THE FRAME BOUNDARY (§4). `emitRRNodeExport` rebuilds the
          compute input from this frame, so a key hung only on the parse result would be a sidecar read
