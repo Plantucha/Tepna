@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**369 tools** · 368 with a purpose line · **1 without**
+**370 tools** · 369 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -151,6 +151,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`make-synthetic-edf.mjs`](../tools/make-synthetic-edf.mjs) | emit a DETERMINISTIC, SYNTHETIC ResMed EDF file set. WHY THIS EXISTS. |
 | [`make-synthetic-eeg-edf.mjs`](../tools/make-synthetic-eeg-edf.mjs) | emit a DETERMINISTIC, SYNTHETIC single-channel EEG EDF. WHY THIS EXISTS. |
 | [`make-synthetic-inputs.mjs`](../tools/make-synthetic-inputs.mjs) | a COMMITTABLE vendor-format input for every node. WHY. The suite's strongest correctness gate — Phase-9 `compute() ≡ committed export` — DOES NOT RUN IN CI. |
+| [`make-synthetic-raw-frames.mjs`](../tools/make-synthetic-raw-frames.mjs) | emit a DETERMINISTIC, SYNTHETIC headband raw-frame capture: the `<base>_RAW.txt` row format `writers.StreamWriter.write_muse` writes. |
 | [`measurement-emitter-perf-oxydex.mjs`](../tools/measurement-emitter-perf-oxydex.mjs) | MEASUREMENT-PROVENANCE-ROADMAP §10 for the OXYDEX emitter and the Integrator adapter — runtime, peak memory, export size, against bands written BEFORE the run. |
 | [`measurement-walk.mjs`](../tools/measurement-walk.mjs) | WALK A MEASUREMENT BACK TO ITS RAW INPUT — the roadmap §3 backward walk-through, as a check. |
 | [`memory-program.mjs`](../tools/memory-program.mjs) | Reads the shared fleet memory directory (READ-ONLY) and asks the Anthropic Batch API to classify each file, so that a bird can consolidate the directory from a reviewed proposal. |
