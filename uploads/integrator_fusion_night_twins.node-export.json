@@ -2979,6 +2979,7 @@
       "hrvConsensus": {
         "blocks": [
           {
+            "axisCaveats": null,
             "crossWindowExcluded": false,
             "divergenceMetric": "RMSSD",
             "divergencePct": 10,

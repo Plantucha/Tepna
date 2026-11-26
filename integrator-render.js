@@ -209,6 +209,17 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     positional_apnea: { evidence: 'experimental', cite: 'Supine vs non-supine event rate from ECGDex ACC posture. Directional, small-n.' },
     auto_glycemic: { evidence: 'heuristic', cite: 'Directional night-to-night association between glucose variability and autonomic load. Hypothesis-generating, not causal.' },
     hrv_consensus: { evidence: 'emerging', cite: 'Cross-device consensus of time-domain HRV (rMSSD / SDNN; Task Force 1996). Divergence flags a QC conflict, not a disease state.' },
+    /* THE SAME CONSENSUS, ONE TIER DOWN, when a source of one optical site is resolved on another
+       site's axis. Not a second method — `hrv_consensus`'s own cite still applies. What is missing is
+       the CALIBRATION: `_cmpVal` swaps every PpgDex SDNN to `sdnnRobustMs`, whose ~+3.5 % agreement
+       with a chest ECG was measured on wrist nights, and a forehead headband record is a source here.
+       Selected by `axisCaveats` (integrator-dsp `axisSiteCaveats`), so a block that compares one site
+       keeps the `emerging` tier and this upgrades itself the day the axis carries a forehead figure.
+       Same shape as `tch_error_pseudo` below: an inherited tier, not an independent judgement. */
+    hrv_consensus_cross_site: {
+      evidence: 'experimental',
+      cite: "Cross-device HRV consensus (rMSSD / SDNN; Task Force 1996) in which one source's SDNN is resolved on an axis calibrated at a DIFFERENT optical site. PpgDex measured the forehead beat-to-beat spread 1 to 18 % above a chest ECG over the same beats, on 7 recordings of one wearer, so part of the surfaced SDNN agreement is the site rather than the sensors. The divergence still flags a QC conflict, never a disease state."
+    },
     /* AUDIT-FOLLOWUPS §4.3-sibling (§4.4): `staging_disagreement` is emitted by integrator-dsp.js:5913
        and was the ONE finding type absent from TYPE_EV, so evBadge() fell through its `!key` guard and
        returned '' — the card rendered with NO badge at all, silently, against the §🎫 mandate.
@@ -1104,7 +1115,9 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
             '<div class="fc-big">' + b.divergencePct + '%<span class="fc-unit"> max divergence</span></div>',
             b.note + ' Sources: ' + b.nodes.join(', ') + '.',
             b.nodes,
-            'hrv_consensus'
+            /* ONE TIER DOWN while a source is compared across sites (§\ud83c\udfab: the grade follows the
+               premise, and the premise here is the axis's calibration site). */
+            b.axisCaveats ? 'hrv_consensus_cross_site' : 'hrv_consensus'
           )
         );
         if (b.tch) {

@@ -11167,6 +11167,82 @@
       });
     });
 
+    /* ════ 5a-bis · THE ROBUST SDNN AXIS IS WRIST-CALIBRATED, and a forehead record says so ════
+     Gap 2 of CLAIM `integrator-muse-streams` (board #8957). `_cmpVal` resolves EVERY PpgDex SDNN to
+     `sdnnRobustMs`, and that axis earned its ~+3.5 % agreement figure on WRIST nights. A Muse
+     headband record exports `site: 'forehead'` and is a source in this consensus today, so the block
+     was publishing an agreement across two optical sites with no mark. PpgDex states the forehead
+     bias itself: rMSSD 1 to 18 % above a chest ECG over the same beats, over 7 recordings of one
+     wearer. Reported, not refused — the same decision `hrStatMixed` takes for a mixed HR statistic.
+     The flag also drops the card from `emerging` to `experimental`, which is the §🎫 half. ════ */
+    group('Integrator HRV consensus — a forehead record names the wrist-calibrated SDNN axis', 'integrator-dsp', function (T) {
+      var A = env.adaptEnvelopeNode,
+        FC = env.fuseHRVConsensus,
+        AX = env.IntegratorDSP && env.IntegratorDSP.axisSiteCaveats;
+      if (typeof A !== 'function' || typeof FC !== 'function' || typeof AX !== 'function') {
+        T.ok('adaptEnvelopeNode + fuseHRVConsensus + axisSiteCaveats present', false);
+        return;
+      }
+      var t0 = U(2026, 5, 7, 8, 30, 0);
+      function node(name, rec, hrv) {
+        return A(
+          {
+            schema: { node: name },
+            recording: Object.assign({ startEpochMs: t0, durationMin: 120 }, rec || {}),
+            quality: { analyzablePct: 95 },
+            hrv: { time: hrv },
+            ganglior_events: [{ t: '08:30:10', tMs: t0 + 10000, impulse: 'x', node: name, conf: 0.8 }]
+          },
+          name,
+          name.toLowerCase() + '.json'
+        )[0];
+      }
+      var ecg = node('ECGDex', {}, { rmssd: 42, sdnn: 50 });
+      var head = node('PpgDex', { site: 'forehead' }, { rmssd: 46, sdnn: 63, sdnnRobust: 51.5 });
+      var wrist = node('PpgDex', { site: 'wrist' }, { rmssd: 42, sdnn: 63, sdnnRobust: 51.5 });
+      T.eq('the forehead record publishes the site the dedupe rule reads', env.IntegratorDSP.siteIdent(head), 'forehead');
+
+      var blk = (FC([ecg, head], 1000) || { blocks: [] }).blocks[0];
+      T.ok('the consensus still runs — the source is kept, not dropped', !!blk && blk.nodes.indexOf('PpgDex') >= 0, blk && blk.nodes.join(','));
+      T.ok(
+        '…and the SDNN leg still resolves on the robust axis',
+        blk &&
+          blk.sdnn &&
+          blk.sdnn.values.some(function (o) {
+            return o.node === 'PpgDex' && o.v === 51.5;
+          })
+      );
+      T.eq(
+        'the block NAMES the crossed site, in a machine-readable field',
+        JSON.stringify(blk && blk.axisCaveats),
+        JSON.stringify([{ node: 'PpgDex', site: 'forehead', axis: 'sdnnRobustMs', calibratedAt: 'wrist', reason: 'axis-calibrated-at-another-site' }])
+      );
+      T.ok('…and the prose says it too, naming the site and the axis', blk && /forehead/.test(blk.note) && /wrist-calibrated SDNN axis/.test(blk.note), blk && blk.note.slice(-220));
+      T.ok('…and the population travels with the claim, never a bare warning', blk && /7 recordings of one wearer/.test(blk.note));
+
+      /* ── CONTROLS · the caveat fires on the CROSSED SITE and on nothing else ───────────────── */
+      var blkW = (FC([ecg, wrist], 1000) || { blocks: [] }).blocks[0];
+      T.eq('CONTROL · a wrist record is compared on its own axis, so the block carries no caveat', blkW && blkW.axisCaveats, null);
+      T.ok('CONTROL · …and its note gains no warning', blkW && !/wrist-calibrated SDNN axis/.test(blkW.note));
+      var blkU = (FC([ecg, node('PpgDex', {}, { rmssd: 42, sdnn: 63, sdnnRobust: 51.5 })], 1000) || { blocks: [] }).blocks[0];
+      T.eq('CONTROL · a record that DECLARED no site states none here either (∅ — never an inferred site)', blkU && blkU.axisCaveats, null);
+      var blkN = (FC([ecg, node('PpgDex', { site: 'forehead' }, { rmssd: 46, sdnn: 63 })], 1000) || { blocks: [] }).blocks[0];
+      T.eq('CONTROL · no robust axis means no swap, so the calibration caveat does not apply', blkN && blkN.axisCaveats, null);
+      var blkR = (FC([node('ECGDex', {}, { rmssd: 42 }), node('PpgDex', { site: 'forehead' }, { rmssd: 46, sdnnRobust: 51.5 })], 1000) || { blocks: [] }).blocks[0];
+      T.eq('CONTROL · SDNN never compared ⇒ no caveat about the SDNN axis', blkR && blkR.axisCaveats, null);
+      T.ok('…and that block still compared rMSSD, so the control is not vacuous', blkR && blkR.rmssd && blkR.rmssd.values.length === 2);
+
+      /* ── THE PURE FUNCTION · callable without a fusion ────────────────────────────────────── */
+      T.eq('axisSiteCaveats answers an empty list for a non-optical node', JSON.stringify(AX([ecg])), '[]');
+      T.eq('…and one entry for the forehead record', AX([ecg, head]).length, 1);
+      T.eq('…and it keys on the SITE, not on the node name', JSON.stringify(AX([wrist])), '[]');
+      T.eq(
+        'PLANT · an axis site of `forehead` would silence the caveat, so the constant is load-bearing',
+        env.sources && typeof env.sources['integrator-dsp.js'] === 'string' ? /var SDNN_ROBUST_AXIS_SITE = 'wrist';/.test(env.sources['integrator-dsp.js']) : true,
+        true
+      );
+    });
+
     /* ════ 5a · INTEGRATOR HRV consensus uses PpgDex's ROBUST SDNN axis (DEEP-AUDIT 2026-07-22 finding A) ════
      PpgDex's bare hrv.time.sdnn is a WHOLE-RECORD optical SDNN, baseline-wander-inflated (~+26% vs ECG per its
      own sdnnNote); hrv.time.sdnnRobust is the cross-node-comparable axis (~+3.5%), the one fuseHrvResource
