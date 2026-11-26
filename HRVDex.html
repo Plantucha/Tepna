@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="abe3f370daa8" data-compute-hash="b7dc6ab326b9">
+<html lang="en" data-manifest-hash="4959ba8e6fa5" data-compute-hash="dacfb13a7b5d">
 <head>
 <!--
   HRVDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-0ep63/kXvTcgZT1MWnXzkfYIswyUrrY4On+Wlh3V8DA=' 'sha256-61EKDHjZmWpqft4k+a/I1q50bB2joJ6+ZPKAsLdYZno=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8PRBTa79fUaN2zhWDMHlkkyA9S3dSTeqfWILOdsEo0k=' 'sha256-8uGkzHbQAd3I80hXGNPa1aYxZwhmEZKxkoCNC87gEQc=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlzpZ24IJcnKNBRM85d33+1Z66nfoAH34jdbFlLvncA=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-JGpGAy4Cg7SQYROJGszfN1J0ctgzSZuz7qBEHqyvLL8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-hAE+LZ0d7JPx/cG5gi0PG8EUxoe7vCTWHxVkdkT8kvI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-61EKDHjZmWpqft4k+a/I1q50bB2joJ6+ZPKAsLdYZno=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8PRBTa79fUaN2zhWDMHlkkyA9S3dSTeqfWILOdsEo0k=' 'sha256-8uGkzHbQAd3I80hXGNPa1aYxZwhmEZKxkoCNC87gEQc=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DlzpZ24IJcnKNBRM85d33+1Z66nfoAH34jdbFlLvncA=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-Hjjq/dyCl54f7PO5KlTqSvb1kgh7Gm/NWD/7cWt770E=' 'sha256-JGpGAy4Cg7SQYROJGszfN1J0ctgzSZuz7qBEHqyvLL8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WldNv6ZaczXfSpdI9/QwglNtPxw2x/dd1j50BSnl680=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>HRVDex — Heart Rate Variability Analyzer · v2.38.0</title>
@@ -5725,7 +5725,19 @@ body.light .topbar::after{ opacity:.25; }
       'measurements',
       'windows',
       'firstTMs',
-      'lastTMs'
+      'lastTMs',
+      /* WHAT THE READER COULD NOT USE (`rowsDropped`, declared 2026-11-26 for row
+         `2026-11-25-three-parsers-drop-rows-without-a-count`). The same GATE C leg that named
+         `clockSeamScan` above names this one: the OxyDex app export is scrubbed by default, so the
+         count reached the export and the scrub deleted it again. Measured over the committed
+         exports that carry the field — 14 carry it, 10 are envelope-shaped, and the scrub dropped
+         it from 9 of those 10. Seven lost `recording.rowsDropped` (4 GlucoDex, 3 HRVDex) and two
+         lost the night key (the OxyDex synthetic goldens); the other 4 are array-shaped stored
+         summaries that `scrubExport` refuses outright. EVERY LEAF IS A COUNT of rows the parser
+         removed: `total` plus one counter per reason. So the block holds no path, no serial and no
+         wall clock, and it meets the criterion the 2026-11-09 comment states. A scrub that strips
+         it publishes "nothing dropped" over a file that lost rows, and §∅ names that a defect. */
+      'rowsDropped'
     ],
     /* A per-element block is a small envelope: its own schema/recording/provenance recurse, and
        its metric bags are listed by name. `file` is NOT here — `nights[].file` carried the upload
@@ -5800,7 +5812,11 @@ body.light .topbar::after{ opacity:.25; }
          revision-bearing device string. `evidence.inputHash` is `contentId`, declared
          identity-free three blocks up. */
       'clockSeamScan',
-      'measurement'
+      'measurement',
+      /* `rowsDropped` on the night element, declared with the `recording` twin above and on the
+         same measurement. OxyDex publishes the count per night, HRVDex and GlucoDex publish it per
+         recording, so one key needs declaring in both sets. */
+      'rowsDropped'
     ],
     elementSchema: ['name', 'version', 'node', 'nodeVersion', 'generated', 'doc', 'units', 'provenance', 'scrubbed', 'scrubDropped'],
     elementRecording: [
@@ -11200,9 +11216,23 @@ body.light .topbar::after{ opacity:.25; }
     const _order = typeof DexClock !== 'undefined' && DexClock.resolveDMY ? DexClock.resolveDMY(_stamps, true) : { dmy: true, locked: false };
     // §1.1 — pass the contradiction through so the ambiguous slash shapes refuse instead of guessing
     const _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked, dmyContradictory: _order.contradictory === true };
+    /* ∅ — WHAT THE READER DROPPED TRAVELS WITH THE ROWS (row
+       `2026-11-25-three-parsers-drop-rows-without-a-count`). This reader removes a row with too few
+       cells and a row whose stamp will not parse, and nothing counted either, so a file that lost
+       measurements published the same shape as a file that lost none.
+       ⚠ A BLANK LINE IS NOT A DROPPED ROW, so the short arm reads the raw line first.
+       The counter rides the ARRAY this function returns. A `map`, `filter` or spread returns a plain
+       array and loses it, so `hrvBuildNodeExport` reads it before its own filter. */
+    const _dropped = { total: 0, short: 0, stamp: 0 };
     for (let i = 1; i < lines.length; i++) {
       const cells = lines[i].split(',');
-      if (cells.length < 5) continue;
+      if (cells.length < 5) {
+        if (lines[i].trim()) {
+          _dropped.total++;
+          _dropped.short++;
+        }
+        continue;
+      }
       const r = {};
       headers.forEach((h, idx) => {
         r[h] = cells[idx] ? cells[idx].trim().replace(/\r/g, '') : '';
@@ -11256,8 +11286,14 @@ body.light .topbar::after{ opacity:.25; }
       // carried the column. Absence is null; the renderer already prints '—' for null.
       r._hrv = numOrNull(r['HRV Score'] != null && String(r['HRV Score']).trim() !== '' ? r['HRV Score'] : r['HRV']);
       r._cv = numOrNull(r['CV']);
-      if (isFinite(r._tMs)) rows.push(r);
+      if (isFinite(r._tMs)) {
+        rows.push(r);
+      } else {
+        _dropped.total++;
+        _dropped.stamp++;
+      }
     }
+    /** @type {any} */ (rows).rowsDropped = _dropped;
     return rows;
   }
   function parseCSV(text, opts) {
@@ -12391,6 +12427,11 @@ body.light .topbar::after{ opacity:.25; }
 
   function hrvBuildNodeExport(rows, opts) {
     opts = opts || {};
+    /* ∅ — the reader's drop count, read BEFORE the filter below builds a new array and loses the
+       rider. The headless `HRVDex.compute({text})` path hands this builder the very array
+       `_hrvParseSummaryRows` returned. The app path hands it `allRows`, which no single parse produced,
+       so the count is `null` there and the export says so rather than claiming zero. */
+    var _parseDropped = (rows && /** @type {any} */ (rows).rowsDropped) || null;
     // SIGNAL-ADAPTER-FOLLOWUPS-VII §1: sort ascending by floating tMs HERE — ONE ordering rule
     // for both callers. The app path passes the already-commitRows-sorted allRows (idempotent
     // re-sort); the headless HRVDex.compute({text}) path passed _hrvParseSummaryRows in FILE order,
@@ -12441,6 +12482,10 @@ body.light .topbar::after{ opacity:.25; }
         startEpochMs: t0,
         offsetMin: dated[0] && dated[0]._offsetMin != null ? dated[0]._offsetMin : null,
         measurements: dated.length,
+        /* What the reader could not read, clean case included (∅). A reader cannot tell "counted,
+           nothing dropped" from "no counter on this path" unless the clean case says so, so a parse
+           ships the object and a caller-supplied row array ships `null`. */
+        rowsDropped: _parseDropped,
         firstTMs: t0,
         lastTMs: last ? last._tMs : null,
         spanDays: t0 != null && last ? Math.round((last._tMs - t0) / 864e5) + 1 : null,

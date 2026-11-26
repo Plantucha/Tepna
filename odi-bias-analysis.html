@@ -4046,9 +4046,25 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // §1.1 — pass the contradiction through so the ambiguous slash shapes refuse instead of guessing.
     // This is the node the finding's repro used: one anomalous row moved a proven-MDY night 6 months.
     var _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked, dmyContradictory: _order.contradictory === true };
+    /* ∅ — WHAT THE PARSER DROPPED TRAVELS WITH THE ROWS (row
+       `2026-11-25-three-parsers-drop-rows-without-a-count`). A row this parser cannot read is removed,
+       and nothing counted it, so a file that lost rows published the same shape as a file that lost
+       none. The ECGDex companion parsers already carry this count (`parseDeviceRR`, `parseDeviceHR`);
+       this is that count on the OxyDex CSV path, by REASON, because "unreadable" and "out of band"
+       are different findings about a device.
+       ⚠ A BLANK LINE IS NOT A DROPPED ROW. The short-row arm reads the raw line first: counting a
+       blank one would report a drop on every file that ends with a newline, which is every file.
+       The counter rides the ARRAY beside `columnSource`, under the same limit documented there. */
+    var _dropped = { total: 0, short: 0, unreadable: 0, outOfRange: 0, stamp: 0 };
     for (var i = firstDataIdx; i < lines.length; i++) {
       var p = lines[i].trim().split(DELIM);
-      if (p.length < 3) continue;
+      if (p.length < 3) {
+        if (lines[i].trim()) {
+          _dropped.total++;
+          _dropped.short++;
+        }
+        continue;
+      }
       var tStr = timeCol < p.length ? p[timeCol].trim() : '';
       var sStr = spo2Col >= 0 && spo2Col < p.length ? p[spo2Col].trim() : '';
       var hStr = hrCol >= 0 && hrCol < p.length ? p[hrCol].trim() : '';
@@ -4103,10 +4119,26 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       /* UNPARSEABLE AND OUT-OF-RANGE STILL DROP THE ROW. `'zz'` is not an absence — it is a reading
          the file claims to have and we cannot read, and admitting it as `null` would let bad data in
          through the door absence opened. The conditions are split, never relaxed. */
-      if (!_spo2Absent && !Number.isFinite(_sv)) continue;
-      if (!_hrAbsent && !Number.isFinite(_hv)) continue;
-      if (_sv != null && (_sv < 50 || _sv > 100)) continue; // sanity check
-      if (_hv != null && (_hv < 20 || _hv > 250)) continue; // sanity check
+      if (!_spo2Absent && !Number.isFinite(_sv)) {
+        _dropped.total++;
+        _dropped.unreadable++;
+        continue;
+      }
+      if (!_hrAbsent && !Number.isFinite(_hv)) {
+        _dropped.total++;
+        _dropped.unreadable++;
+        continue;
+      }
+      if (_sv != null && (_sv < 50 || _sv > 100)) {
+        _dropped.total++;
+        _dropped.outOfRange++;
+        continue; // sanity check
+      }
+      if (_hv != null && (_hv < 20 || _hv > 250)) {
+        _dropped.total++;
+        _dropped.outOfRange++;
+        continue; // sanity check
+      }
       var spo2 = _sv,
         hr = _hv;
       // Perfusion index (§4 Phase 1): present only on the OXYFRAME sidecar. `pi_pct` = 0 is the ring's
@@ -4121,7 +4153,11 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       // compat Date, ALWAYS read back with getUTC*. Time-only rows anchor to _anchorMs
       // and roll forward monotonically past midnight (no Jan-2000, no +86400000 hack).
       var _ts = parseTimestamp(tStr, { dateAnchorMs: _anchorMs, prevTMs: _prevTMs, preferDMY: _tsOpts.preferDMY, dmyLocked: _tsOpts.dmyLocked, dmyContradictory: _tsOpts.dmyContradictory });
-      if (!_ts) continue;
+      if (!_ts) {
+        _dropped.total++;
+        _dropped.stamp++;
+        continue;
+      }
       _prevTMs = _ts.tMs;
       rows.push({ tMs: _ts.tMs, t: new Date(_ts.tMs), spo2: spo2, hr: hr, motion: motion, pi: pi });
     }
@@ -4135,6 +4171,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
        call sites in this file hand `rows` straight to `processNight`, so it survives to there. A
        suite leg pins that limit, so a later refactor cannot lose it quietly. */
     /** @type {any} */ (rows).columnSource = _colSource;
+    /* ∅ — the drop count rides the same array, with the same limit: a `map`, `slice`, `filter` or
+       spread returns a plain array and loses it, so a consumer reads it BEFORE it reshapes. Both call
+       sites in this file hand `rows` straight to `processNight`, which copies it onto the night. */
+    /** @type {any} */ (rows).rowsDropped = _dropped;
     return rows;
   }
 
@@ -7055,6 +7095,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
        moves every night's export bytes once — the detail lists are conditional, as `clockResyncs`
        already is in ECGDex. */
     night_obj.clockSeamScan = seamSummary(_seamScan);
+    /* THE DROP COUNT TRAVELS THE SAME WAY, for the same reason: a night that lost rows published the
+       same shape as a night that lost none (row `2026-11-25-three-parsers-drop-rows-without-a-count`).
+       `parseCSV` rides the count on the array it returns, and `rows` here IS that array, so the count
+       reaches the night without a second parse. A night built from an already-parsed array carries
+       no count, and `null` says so. */
+    night_obj.rowsDropped = /** @type {any} */ (rows).rowsDropped || null;
     /* AN EPOCH SPLIT BY A SEAM IS NOT A FIVE-MINUTE WINDOW (owner ruling 2026-09-17: a discontinuity
        refuses, reduced coverage annotates). It publishes NO value and is listed with its reason
        instead: a null `hr` here would be read as "the device reported nothing", which is the
@@ -12589,6 +12635,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       // The tripwire's own verdict travels with the night (DEVICE-TIME-HANDLING §U3); the two detail
       // lists only when a seam fired, so a clean night's bytes carry one small object, not three.
       clockSeamScan: n.clockSeamScan || null,
+      // What the parser could not read ships with the night, clean case included (∅): a reader cannot
+      // tell "counted, nothing dropped" from "no counter on this path" unless the clean case says so.
+      rowsDropped: n.rowsDropped || null,
       ...(Array.isArray(n.clockSeams) && n.clockSeams.length ? { clockSeams: n.clockSeams } : {}),
       ...(Array.isArray(n.clockSeamRefusals) && n.clockSeamRefusals.length ? { clockSeamRefusals: n.clockSeamRefusals } : {}),
       contentId: n.contentId != null ? n.contentId : null,
