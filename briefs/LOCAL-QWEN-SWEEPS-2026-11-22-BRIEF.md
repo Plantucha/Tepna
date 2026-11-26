@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-11-22 · **Created:** 2026-11-22 · **Owner:** "yes" to a design, 2026-11-22 (token diet) · **Reopens, narrowly:** `QWEN-ENGINEERING-PROGRAM-2026-08-27-BRIEF.md` (shelved 2026-09-20)
+**Status:** DONE — 2026-11-26 · **Created:** 2026-11-22 · **Owner:** "yes" to a design, 2026-11-22 (token diet) · **Reopens, narrowly:** `QWEN-ENGINEERING-PROGRAM-2026-08-27-BRIEF.md` (shelved 2026-09-20)
 
 # Local qwen first-pass sweeps — design and the check on its output
 
@@ -123,6 +123,88 @@ case and reports a marker that is absent.
 - [x] `tools/qwen-lead-check.mjs`, with a self-test that feeds it one fabricated line number and one
       stale lead, and a registered verdict.
 - [x] The §4 marker fix in `tools/qwen-agent.mjs`.
-- [ ] One ABSENCE batch over 10 root `*-dsp.js` files, triaged by a bird, with the precision and the
+- [x] One ABSENCE batch over 10 root `*-dsp.js` files, triaged by a bird, with the precision and the
       token cost recorded in a new §6 of this brief.
-- [ ] A keep, narrow or retire decision for the lens, posted on the board as `--kind decision`.
+- [x] A keep, narrow or retire decision for the lens, posted on the board as `--kind decision`.
+
+## 6 · The ABSENCE batch, measured (Magpie, 2026-11-26)
+
+Rule 0: `doc-search --brief "local qwen sweep lens keep narrow retire decision"` → this brief
+§3.5-§3.7, `tools/qwen-lead-triage.mjs`.
+
+### 6.1 · Coverage — all ten root `*-dsp.js` files
+
+The sweep record is `<git common dir>/tepna-mutation/compute-feeder/qwen-done.jsonl`, one line for
+each lens-file-ref the feeder completed, with the count of lens sites it read. The absence lens holds
+443 completed sweeps, 56 of them over the ten root `*-dsp.js` files. The site count below is the
+largest single sweep of that file, because the sum counts one file once for each ref.
+
+| file | sweeps | lens sites | raw leads | kept by the mechanical check | triaged | confirmed |
+|---|---|---|---|---|---|---|
+| `oxydex-dsp.js` | 6 | 42 | 75 | 75 | 10 | 4 |
+| `ppgdex-dsp.js` | 11 | 64 | 66 | 65 | 4 | 0 |
+| `ecgdex-dsp.js` | 12 | 89 | 53 | 46 | 2 | 1 |
+| `cpapdex-dsp.js` | 5 | 23 | 33 | 33 | 9 | 4 |
+| `integrator-dsp.js` | 4 | 26 | 15 | 15 | 3 | 0 |
+| `glucodex-dsp.js` | 3 | 9 | 4 | 4 | 1 | 0 |
+| `eegdex-dsp.js` | 5 | 14 | 0 | 0 | 0 | 0 |
+| `hrvdex-dsp.js` | 3 | 4 | 0 | 0 | 0 | 0 |
+| `motiondex-dsp.js` | 3 | 27 | 0 | 0 | 0 | 0 |
+| `pulsedex-dsp.js` | 4 | 5 | 0 | 0 | 0 | 0 |
+
+**Four of the ten files produced no lead at all**, over 15 sweeps and 50 lens sites. The sweep record
+proves the lens READ them, so this is a measured silence and never an unswept gap. Whether the silence
+is a clean bill or a miss stays unmeasured: no planted absence defect has run through the lens, and
+this batch buys no answer to that question.
+
+### 6.2 · Precision
+
+The API first pass is one batch, `msgbatch_01XBVnTLyrYUT4sZP2jN4kjh`, 2026-11-23, at ref
+`0011993f8b9e`. It triaged 167 absence leads over all files: 55 confirmed, 112 rejected, 33 %. Over
+the ten root `*-dsp.js` files it triaged 29: **9 confirmed, 20 rejected, 31 %**. The band in §3.5
+keeps a lens at 30 % or more, so the lens sits just inside it on this file set.
+
+A bird re-read all 9 confirmed `*-dsp.js` leads at `origin/main` on 2026-11-26, which is what §3.4
+asks for before a row, a fix or this decision. **Two leads no longer have a site**: the quoted line of
+`cpapdex-dsp.js:1093` and of `cpapdex-dsp.js:456` is absent from the file, so neither reads as a
+current defect and neither reads as a rejection. The other **7 of 7 hold**, in three families, each
+with its reachability named:
+
+- **`oxydex-dsp.js` `sp.mfm || 0`, three sites** (`computeSpikeDecay`, `computeSpikeUndershoot`,
+  `computeSpike50PctRecovery`). The import adapter publishes `mfm: null` for a spike whose time it
+  could not parse, and the consumers guard `sp.baseline == null || sp.peak == null` and never `mfm`.
+  A spike with a real baseline and no time becomes minute 0, which is midnight and in range, so the
+  ±300 s search lands at an arbitrary offset. The same adapter already answers null for `baseline`,
+  `peak`, `duration` and `spo2` for this reason.
+- **`cpapdex-dsp.js` `a.onsetSec || 0`, two sites.** The reader itself treats `onsetSec` as optional,
+  because `timeSec` falls back to it only when `tMs` is absent, so an annotation with neither reads
+  its onset as lights-out.
+- **`ecgdex-dsp.js` `t0Ms || 0`, one site, and the call site at `:3275` repeats it.** With no
+  `beatMs` the per-second keys then count from 0 and present as absolute seconds. The function
+  refuses a mixed axis and publishes `axis` out of band, and it marks an absent START nowhere.
+- **`oxydex-dsp.js` `events[i-1].duration || 0`, one site** (`computeIEI`). The adapter publishes a
+  null desat duration, which reads as a zero-length event, so the inter-event interval absorbs it and
+  `ieiMeanSec`, `ieiSDsec` and `ieiCV` carry it with no trace.
+
+These are leads and not repairs: this unit logs them and fixes none.
+
+### 6.3 · Cost
+
+`node tools/qwen-lead-triage.mjs report` reads the API spend from its own ledger: **$2.45 over 206
+triaged leads across the three lenses, $0.037 for each confirmed lead.** The local model's own compute
+is the idle driver's, and the brief buys it as a sunk cost.
+
+**The bird half of the cost is NOT measured, and it is null and never zero.** §3.6 asks for
+`tools/fleet-turns.mjs` before and after the batch. This unit read it only after, so no token delta
+exists for the re-read of the 9 leads. The next batch takes the before reading first. For the record,
+the bird row at the end of this unit reads 0.97 tools for each turn against the target of 2.
+
+### 6.4 · Decision — KEEP the absence lens, narrowly
+
+Posted on the board as `--kind decision`. The lens holds 31 % on this file set and 33 % over the whole
+ledger, both at or above the §3.5 band, and a bird re-read found every live confirmed lead sound. It
+is kept and not promoted: §3.5 allows no promotion past Level 1 in this brief.
+
+The narrowing this batch earns is a question and not a cut: four of ten files answered nothing over 50
+lens sites, so the next batch measures the lens against a PLANTED absence defect in one of those four
+before it spends more on them.
