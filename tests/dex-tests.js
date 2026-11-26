@@ -17441,7 +17441,13 @@
           'tools/trio-batch.mjs': /deviceDrawn !== true/,
           'tools/pat-host-offset.mjs': /if\s*\(\s*ax\.deviceDrawn === true \|\| px\.deviceDrawn === true\s*\)/,
           'tools/device-stability.mjs': /if\s*\(r\.drawn\)\s*return\s*'drawn-device-axis'/,
-          'tools/pat-drift-attribution.mjs': /if\s*\(hostAxis\.deviceDrawn === true\)/
+          'tools/pat-drift-attribution.mjs': /if\s*\(hostAxis\.deviceDrawn === true\)/,
+          /* Joined the population 2026-11-26 with the committed raw-frame fixture. It is the one
+             member that refuses the OPPOSITE way round: it WRITES a fixture, so a drawn device column
+             makes the FILE wrong rather than the arithmetic, and `clock.js` asks a node adopting
+             `deviceDrawn` to re-cut its fixtures to a realistic device axis first. The conditional is
+             `!== false`, so an absent or undefined flag refuses too. */
+          'tools/make-synthetic-raw-frames.mjs': /if\s*\(ax\.deviceDrawn !== false\)/
         };
         /* EXCLUDED — an axis consumer that must NOT refuse, each with the reason it must not. These are
            verified readings of the code, not a place to park an unmigrated spender: a row here says the
@@ -17486,7 +17492,14 @@
              publishes `axisOk`, `axisAccepted` and `axisRefused` as the population, because the harm
              it counts is the conjunction `flaggedAndAccepted` and never a rate it spends. */
           'tools/wild-anchor-census.mjs':
-            "REPORTS — it measures the raw divergence step against the smaller of the two clocks' spans and forwards the spine's `ppm` beside it as the diagnostic §🔒.7 calls it. It applies no rate, corrects no axis and places no sample."
+            "REPORTS — it measures the raw divergence step against the smaller of the two clocks' spans and forwards the spine's `ppm` beside it as the diagnostic §🔒.7 calls it. It applies no rate, corrects no axis and places no sample.",
+          /* Joined the population 2026-11-26 with EEGDex's raw-frame known answer. Its axis tokens are
+             a `typeof correctionAt` existence check and the `independent` value interpolated into the
+             error it throws when that check fails: it re-runs the node on a committed input and writes
+             what the node answered, so the placement is the DSP's, and refusing here would disagree
+             with the code under test. */
+          'tools/regen-eegdex-goldens.mjs':
+            'PLACES — it re-runs `EEGDSP.ingestMuseRaw` and `compute` over a committed input and stores the export, so every epoch time is the one the node placed. It reads the axis only to refuse an input that carries no live `hostCorr`, and it applies no rate of its own.'
         };
         var POP = [],
           AXIS = [],
@@ -17547,8 +17560,11 @@
            `ring-offset-census.mjs` joined on the `.ppm` it audits; 15 the same day, when
            `ring-rate-cause.mjs` joined to decompose that same `.ppm` into named causes. The number is
            a ratchet on a derived set, so it moves only beside a classification. 16 from 2026-11-02,
-           when `wild-anchor-census.mjs` joined on the `ppm` it prints beside the raw anchor step. */
-        T.eq('POPULATION is 16 — the published denominator', POP.length, 16, 'POPULATION=' + POP.join(', '));
+           when `wild-anchor-census.mjs` joined on the `ppm` it prints beside the raw anchor step. 18
+           from 2026-11-26, when the raw-frame fixture landed: its generator joined REFUSES on the
+           `deviceDrawn !== false` control it writes the file under, and `regen-eegdex-goldens.mjs`
+           joined EXCLUDED on the existence check it refuses an axis-less input with. */
+        T.eq('POPULATION is 18 — the published denominator', POP.length, 18, 'POPULATION=' + POP.join(', '));
       }
 
       /* THE NOTE IN `clock.js` IS A CLAIM ABOUT THREE NODES, so it drifts when they migrate and nothing
@@ -91958,6 +91974,32 @@
                nulls against a staged golden. That red is correct: the fixture was minted with the
                model and nothing else reproduces it. */
             return n.buildNodeExport(n.compute(n.ingestEDF(input, { edf: env.CpapEdf }), { model: env.stageModel }));
+          },
+          pick: function (res) {
+            return res;
+          },
+          fixPick: function (fx) {
+            return fx;
+          }
+        },
+        /* EEGDex RAW FRAMES (2026-11-26): a COMMITTED synthetic headband `_RAW.txt` →
+           buildNodeExport(compute(ingestMuseRaw(text))) ≡ the committed golden. The EDF leg above
+           reaches `ingestEDF`, which carries ONE clock; this input carries two — a device tick that
+           folds every 2^28 ns and a jittered host stamp column with a planted rate offset — so this
+           is the only gated path that reaches the frame tokeniser, the 14-bit unpack, the tick
+           unwrap, `DexClock.hostAxis` over the row anchors, and the epoch placement that spends it.
+           The golden's `sleep.hypnogram[1].tMs` carries the placed correction (2 ms off its
+           device-index time), so a regression that drops the axis moves committed bytes.
+           `frame` and `clock` are passed EXPLICITLY, for the same reason `edf` is above: the DSP's
+           defaults read `global.MuseFrame` / `global.DexClock`, which neither realm declares, and
+           the `frame-reader-absent` / `clock-absent` refusal would read downstream as "this file
+           holds no EEG" — a load-order bug wearing a data answer's clothes. */
+        {
+          key: 'eegdex_frames',
+          label: 'EEGDex (raw frames)',
+          node: env.EEGDSP,
+          run: function (n, input) {
+            return n.buildNodeExport(n.compute(n.ingestMuseRaw(input, { frame: env.MuseFrame, clock: env.DexClock }), { model: env.stageModel }));
           },
           pick: function (res) {
             return res;

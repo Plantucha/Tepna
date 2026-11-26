@@ -1,0 +1,158 @@
+{
+  "kernel": {
+    "version": "1.0.0",
+    "hash": "118ebed5"
+  },
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "EEGDex",
+    "nodeVersion": "1.0",
+    "bus": "ganglior"
+  },
+  "recording": {
+    "source": "muse-raw",
+    "startEpochMs": 1767308400000,
+    "offsetMin": null,
+    "durSec": 60,
+    "sampleRateHz": 256,
+    "channel": "left-ear",
+    "timing": {
+      "timingSource": "device+host",
+      "independent": true,
+      "anchors": 1920,
+      "spanMs": null,
+      "ppm": -9.429020424486476,
+      "spanPpm": null,
+      "ppmEstimator": null,
+      "ppmUncertainty": null,
+      "resyncs": null,
+      "seams": null,
+      "rate": null,
+      "rateRaw": null,
+      "rateApplied": null,
+      "reason": "this node looks for neither device-clock resyncs nor axis seams, so both counts are unknown rather than zero; nothing here sizes the published ppm: the spine measured no sigma-y curve on this axis, so the rate travels without its spread; the published ppm names no estimator arm, so a reader cannot tell which of the two documented biases applies to it"
+    }
+  },
+  "sleep": {
+    "epochSec": 30,
+    "hypnogram": [
+      {
+        "tMs": 1767308400000,
+        "stage": "wake"
+      },
+      {
+        "tMs": 1767308430002,
+        "stage": "wake"
+      }
+    ],
+    "stageCounts": {
+      "wake": 2,
+      "light": 0,
+      "deep": 0,
+      "REM": 0
+    },
+    "tstHours": 0,
+    "sleepEfficiencyPct": 0,
+    "lightPct": null,
+    "deepPct": null,
+    "remPct": null,
+    "stageSource": {
+      "kind": "model",
+      "id": "eeg-base-p2-lab-2026-11-17",
+      "sha16": "9e86313e6a4352e5",
+      "err": null
+    },
+    "wakePct": 100,
+    "latencySleepMin": null,
+    "latencyRemMin": null,
+    "wasoMin": null,
+    "stageShifts": 0,
+    "remPeriods": null,
+    "architectureAbsence": {
+      "lightPct": "no-sleep-epoch",
+      "deepPct": "no-sleep-epoch",
+      "remPct": "no-sleep-epoch",
+      "latencySleepMin": "no-sleep-onset",
+      "latencyRemMin": "no-sleep-onset",
+      "wasoMin": "no-sleep-onset",
+      "remPeriods": "no-rem-epoch"
+    },
+    "spindleDensity": null,
+    "spindlesPerMin": {
+      "light": null,
+      "deep": null
+    },
+    "spindleReason": "no-staged-nrem-epoch",
+    "spindlePopulation": {
+      "eligibleEpochs": 0,
+      "eligibleMin": 0,
+      "stageEpochs": {
+        "light": 0,
+        "deep": 0
+      },
+      "excludedByHole": 0,
+      "detections": 0
+    },
+    "swaDecayPctPerPeriod": null,
+    "swaReason": "no-sleep-onset",
+    "swaPeriods": [],
+    "bands": {
+      "totalPower": 313640.816,
+      "alphaRel": 46.3,
+      "thetaRel": 0.8,
+      "alphaTheta": 32.959,
+      "rel": {
+        "delta": 49.9,
+        "theta": 0.8,
+        "alpha": 46.3,
+        "sigma": 0.1,
+        "beta": 2.8
+      },
+      "relSum": 99.9,
+      "reason": null,
+      "ratioReason": null,
+      "sef95": 10.58,
+      "sefReason": null,
+      "population": {
+        "epochs": 2,
+        "withBands": 2,
+        "ratioEpochs": 2,
+        "sefEpochs": 2
+      }
+    }
+  },
+  "quality": {
+    "analyzablePct": 100,
+    "nUnscorable": 0,
+    "nEpochs": 2,
+    "t0Reason": null,
+    "refused": {
+      "contactPct": {
+        "value": null,
+        "reason": "no-contact-sidecar"
+      },
+      "frontalAsym": {
+        "value": null,
+        "reason": "single-channel-ingest"
+      },
+      "calmScore": {
+        "value": null,
+        "reason": "depends-on-refused-inputs"
+      }
+    }
+  },
+  "ganglior_events": [
+    {
+      "t": "23:00:00",
+      "tMs": 1767308400000,
+      "impulse": "stage_wake",
+      "node": "EEGDex",
+      "conf": 1,
+      "meta": {
+        "stage": "wake",
+        "epoch": 0
+      }
+    }
+  ]
+}

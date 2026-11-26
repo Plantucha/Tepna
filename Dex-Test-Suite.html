@@ -611,6 +611,11 @@ async function main(){
     ['glucodex_gap', 'synthetic_glucodex_lingo_gap.csv', 'synthetic_glucodex_gap_golden.node-export.json'],
     ['glucodex_clarity_low', 'synthetic_glucodex_clarity_low.csv', 'synthetic_glucodex_clarity_low_golden.node-export.json'],
     ['ecgdex_flat_edr', 'synthetic_ecgdex_flat_edr.txt', null],  // §1.10 degenerate-EDR twin (invariant, no golden)
+    // EEGDex RAW-FRAME leg (2026-11-26) — the node's SECOND ingest, and the only committed input in
+    // the repo that carries TWO clocks: a device tick that folds every 2^28 ns and a jittered host
+    // stamp column. It rides this TEXT loop (the EDF leg below needs its own ArrayBuffer fetch).
+    // BOTH LANES OR NEITHER, as the EDF comment below says at length.
+    ['eegdex_frames', 'synthetic_eegdex_frames_RAW.txt', 'synthetic_eegdex_frames_golden.node-export.json'],
     // ADVERSARIAL twins (DEEP-AUDIT §1/§8/§9) — input only, no golden; the INVARIANTS are the gate.
     ['oxydex_dmy', 'synthetic_oxydex_o2ring_dmy.csv', null],
     ['oxydex_mdy', 'synthetic_oxydex_o2ring_mdy.csv', null],
