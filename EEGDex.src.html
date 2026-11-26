@@ -29,15 +29,19 @@
    ════════════════════════════════════════════════════════════════════════ */
 .eg-zone{display:flex;align-items:center;justify-content:center;text-align:center;min-height:74px;padding:16px;border:1.5px dashed var(--line,rgba(255,255,255,.18));border-radius:14px;color:var(--text2);font-size:13px;cursor:pointer;transition:border-color .2s,background .2s}
 .eg-zone:hover,.eg-zone.eg-over{border-color:var(--accent,#58A6FF);background:rgba(88,166,255,.06)}
-/* hypnogram — one column per epoch, height by stage depth. An UNSCORED epoch is hatched, never
-   drawn at a stage's height: §∅, an absence has no depth. */
-.eg-hyp{display:flex;align-items:flex-end;gap:1px;height:92px;margin:10px 0 8px}
-.eg-ep{flex:1 1 0;min-width:1px;border-radius:2px 2px 0 0}
-.eg-ep-w{background:#F0A860;height:100%}
+/* hypnogram — one column per drawn epoch, height by class depth. An UNSCORED epoch is hatched,
+   never drawn at a class's height: §∅, an absence has no depth.
+   THE STRIP FITS ITS CARD AT ANY WIDTH (owner order 2026-11-25). `flex:1 1 0` with `min-width:0`
+   and no gap makes N columns divide the card's own width, and `overflow:hidden` holds a sub-pixel
+   rounding error inside the box, so the page body never scrolls sideways. A 1px minimum and a 1px
+   gap are what pushed an 8 h night past the right edge: 960 epochs then demanded 1919px whatever
+   the card measured. The renderer caps the COLUMN COUNT for legibility; this rule caps the WIDTH. */
+.eg-hyp{display:flex;align-items:flex-end;gap:0;height:92px;margin:10px 0 8px;width:100%;max-width:100%;overflow:hidden}
+.eg-ep{flex:1 1 0;min-width:0;border-radius:2px 2px 0 0}
+.eg-ep-wake{background:#F0A860;height:100%}
 .eg-ep-rem{background:#A78BFA;height:82%}
-.eg-ep-n1{background:#58A6FF;height:62%}
-.eg-ep-n2{background:#3DE0D0;height:42%}
-.eg-ep-n3{background:#5EC8B0;height:22%}
+.eg-ep-light{background:#3DE0D0;height:52%}
+.eg-ep-deep{background:#5EC8B0;height:22%}
 .eg-ep-nul{background:repeating-linear-gradient(45deg,rgba(255,255,255,.12),rgba(255,255,255,.12) 2px,transparent 2px,transparent 4px);height:100%}
 .eg-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--text2)}
 .eg-lg{display:inline-flex;align-items:center;gap:5px}
@@ -93,23 +97,21 @@
       <div class="controls" style="margin-top:12px">
         <button class="btn" type="button" id="egDemo">▶ Demo</button>
       </div>
-      <!-- THE STAGE FORMULA'S SWITCH, and it carries no `checked`: the page loads with the formula
-           OFF and the band-power stager is this node's answer until the reader decides otherwise. The
-           model file is DATA, so the reader supplies it and no coefficient of it sits in this page. -->
-      <p class="chart-note"><label><input type="checkbox" id="egFormulaOn"> Also score with a stage formula (research) — drop its model file here too</label></p>
+      <!-- NO STAGE SWITCH. The fitted stage model is the ONE stage source (owner order
+           2026-11-25, board #8966), the page carries its coefficients as DATA in the JSON block at
+           the foot of this file, and a reader who drops a model file of their own replaces it for
+           that night. There is nothing left to switch between. -->
+      <p class="chart-note">Drop a stage model file beside the recording to score that night with a model of your own. The page carries one already, and the hypnogram names whichever scored the night.</p>
       <p class="chart-note" id="egStatus"></p>
     </div>
 
-    <div class="section-title" id="egKPI" style="display:none">Key Metrics <span class="st-note">single-channel band-power staging — not a polysomnogram score</span></div>
+    <div class="section-title" id="egKPI" style="display:none">Key Metrics <span class="st-note">one EEG channel, staged by a fitted model — not a polysomnogram score</span></div>
     <div class="kpi-grid" id="egKpiGrid"></div>
 
-    <div class="section-title" id="egHypno" style="display:none">Hypnogram <span class="st-note">30 s epochs · median-smoothed · unscored epochs hatched</span></div>
+    <div class="section-title" id="egHypno" style="display:none">Hypnogram <span class="st-note">30 s epochs · four classes: wake, light, deep, REM · unscored epochs hatched</span></div>
     <div class="card" id="egHypnoCard" style="display:none"></div>
 
-    <div class="section-title" id="egFormula" style="display:none">Stage Formula <span class="st-note">a second stage source, off unless you turn it on · four classes · no figure stands beside it yet</span></div>
-    <div class="card" id="egFormulaCard" style="display:none"></div>
-
-    <div class="section-title" id="egArch" style="display:none">Sleep Architecture <span class="st-note">twelve numbers over the staged series · each absence names its own reason</span></div>
+    <div class="section-title" id="egArch" style="display:none">Sleep Architecture <span class="st-note">eleven numbers over the staged series · each absence names its own reason</span></div>
     <div class="card" id="egArchCard" style="display:none"></div>
 
     <div class="section-title" id="egBands" style="display:none">Spectral Bands <span class="st-note">relative power per epoch, summarised as a median over scored epochs</span></div>
@@ -160,10 +162,18 @@
 <script src="cpapdex-edf.js"></script>
 <script src="clock.js"></script>
 <script src="muse-frame.js"></script>
-<!-- The stage formula's two modules: the feature block that prepares the 35 columns and the
-     evaluator that reads a model file's coefficients. Both are inert until the switch is on. -->
+<!-- The stage model's two modules: the feature block that prepares the 35 columns and the
+     evaluator that reads a model file's coefficients. They are the node's one stage path. -->
 <script src="eegdex-stage-features.js"></script>
 <script src="eegdex-stage-model.js"></script>
+<!-- THE BUILT-IN MODEL, AS DATA AND NOT AS CODE (board #8966 rules 2 and 3). `type` is not
+     JavaScript, so the browser parses nothing here and the CSP's `script-src` never applies to it;
+     the app reads the element's text and calls JSON.parse itself. The bundler's inline step keeps
+     the open tag, so `type` and `id` survive the inline and the bytes join the manifest — a change
+     to this file therefore moves `manifestHash` and `computeHash` like any other inlined asset.
+     IT IS THE ONE-PASS FILE ON PURPOSE: the two-pass file reads up to 160 epochs away and refuses
+     an import shorter than that, so a 40-minute headband night would show no hypnogram at all. -->
+<script type="application/json" id="egBuiltinModel" src="eeg-stage-model-base-2026-11-17.json"></script>
 <script type="module" src="eegdex-dsp.js"></script>
 <script type="module" src="eegdex-render.js"></script>
 <script type="module" src="eegdex-app.js"></script>
