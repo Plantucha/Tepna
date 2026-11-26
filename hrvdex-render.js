@@ -13,7 +13,7 @@
 // ESM-MIGRATION Phase 4: explicit DSP-helper imports — destructured from the namespace's
 // _bare surface (the app shell sets __DEX_NAMESPACED__, so the bare-global spray no longer
 // runs on this page; every DSP helper this module uses is named here, import-style).
-const { smooth, getFilteredRows, computeCAMQ, camqSympMeasured, _hrvUpdateExportHint } = window.HRVDex._bare;
+const { smooth, getFilteredRows, computeCAMQ, camqSympMeasured, camqParaCount, _hrvUpdateExportHint } = window.HRVDex._bare;
 
 // ── evidence badge hook (System-Cohesion) — resolves a badge from a rendered
 // label via HrvRegistry (hrvdex-registry.js). Zero-touch; safe no-op if the
@@ -1352,9 +1352,11 @@ function _patStd(a) {
 function _patVals(rows, key) {
   return rows.map((r) => r[key]).filter((v) => typeof v === 'number' && isFinite(v));
 }
+/* The label always comes from PATTERN_METRICS. A lookup that fails gives a literal and never the key,
+   because the key is a select's value and three stat lines write this label through innerHTML. */
 function _patLabel(key) {
   const m = PATTERN_METRICS.find((x) => x.key === key);
-  return m ? m.label : key;
+  return m ? m.label : 'unlisted metric';
 }
 function _patShort(key) {
   return _patLabel(key).replace(/\s*\(.*\)/, '');
@@ -1750,12 +1752,14 @@ function renderCardiovascularResearch(rows) {
      with no sympathetic correction and used to look exactly like a measured LF/HF of 1.0. The point
      now carries SHAPE and colour, because colour alone fails a colour-blind reader, and the card
      note names what the marker means. Row hrvdex-dsp.js:1076 of ABSENCE-SURVEY-2026-09-22.
-     One pass also replaces two passes that called computeCAMQ over the same rows twice. */
+     One pass also replaces two passes that called computeCAMQ over the same rows twice.
+     The parasympathetic leg is marked too: a score over fewer than three indicators draws a triangle,
+     a score that lacks both draws a star, and the tooltip states the count. */
   var camqPts = [];
   rows.forEach(function (r) {
     var v = computeCAMQ(r);
     if (v == null) return;
-    camqPts.push({ date: r._date, v: v, symp: camqSympMeasured(r) });
+    camqPts.push({ date: r._date, v: v, symp: camqSympMeasured(r), para: camqParaCount(r) });
   });
   var camqDates = camqPts.map(function (p) {
     return p.date;
@@ -1768,13 +1772,17 @@ function renderCardiovascularResearch(rows) {
     yMin: 0,
     yMax: 100,
     pointColors: camqPts.map(function (p) {
-      return p.symp ? '#3DE0D0' : '#9FB0C3';
+      return p.symp && p.para === 3 ? '#3DE0D0' : '#9FB0C3';
     }),
     pointStyles: camqPts.map(function (p) {
-      return p.symp ? 'circle' : 'crossRot';
+      if (p.para === 3) return p.symp ? 'circle' : 'crossRot';
+      return p.symp ? 'triangle' : 'star';
     }),
     pointRadii: camqPts.map(function (p) {
-      return p.symp ? 2 : 4;
+      return p.symp && p.para === 3 ? 2 : 4;
+    }),
+    pointNotes: camqPts.map(function (p) {
+      return p.para + ' of 3 parasympathetic indicators' + (p.symp ? '' : ' · no sympathetic correction');
     }),
     bands: [
       { from: 60, to: 100, color: 'rgba(57,217,138,.06)' },
@@ -1828,7 +1836,15 @@ function drawSimpleLine(canvasId, dates, values, opts) {
       maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        tooltip: { mode: 'index', intersect: false }
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+          callbacks: {
+            afterLabel: function (c) {
+              return opts.pointNotes ? opts.pointNotes[c.dataIndex] : undefined;
+            }
+          }
+        }
       },
       scales: {
         y: {
