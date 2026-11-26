@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="c8802bbd273f" data-compute-hash="f5b53c3fbf9e">
+<html lang="en" data-manifest-hash="04db1df12352" data-compute-hash="04c640e2f9d5">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-1GXN++OkM02KioWXqr41sn7DFt/p7OeiRsHDpnTpfhg=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9QRboSUSYzrbn51k+5VZpEvlzF9oodHxE9XXdVBdo94=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AJI3024kFPXR8vHy8m8EF0R1krYY18zhOaNj9BrPCdA=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-HSupXiOlS10DKIv8PJ020A62ViYHX37BUQgMw/OjCU0=' 'sha256-Hjjq/dyCl54f7PO5KlTqSvb1kgh7Gm/NWD/7cWt770E=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-N+/PqjailC3HlNrby5dUWhmGtXf6lf42byiOskRM4qo=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-uL5Mk6EmQptr+t9EgG1LzcoOZ7fX6f4l9VyMICyOagI=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-xAVFOpLOv7kw5LBmDy3JqsS1wxhCArhZ7529G6P/HhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-1GXN++OkM02KioWXqr41sn7DFt/p7OeiRsHDpnTpfhg=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9QRboSUSYzrbn51k+5VZpEvlzF9oodHxE9XXdVBdo94=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AJI3024kFPXR8vHy8m8EF0R1krYY18zhOaNj9BrPCdA=' 'sha256-CNkm2h+ZlrSYYzoGx9OxoFo/k2UmcAbaZ9Bd72GM4as=' 'sha256-E1IsN6aDCUvHb/53fIyPoB7AQMLdRp5olYowv/ZbZ6A=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-HSupXiOlS10DKIv8PJ020A62ViYHX37BUQgMw/OjCU0=' 'sha256-Hjjq/dyCl54f7PO5KlTqSvb1kgh7Gm/NWD/7cWt770E=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-N+/PqjailC3HlNrby5dUWhmGtXf6lf42byiOskRM4qo=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XqyVux6nZ1GoEpXw5HlJF6/fUCrzC+aJ4dGKEuYCK0w=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-kTxkaK3PHpZvdb7lA5NwtRZ+Z3PdMfLtdpLeBeKpFwY=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-w+K4SClv2KqkqS1q3YkYrs1abMotyr4n5k3ifd3W5es=' 'sha256-xAVFOpLOv7kw5LBmDy3JqsS1wxhCArhZ7529G6P/HhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.38.0</title>
@@ -22568,6 +22568,24 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   }
 
   // ── 12. Desaturation Inter-Event Interval (IEI) ───────────────────
+  /* ∅ AN EVENT WITH NO DURATION PLACES NO END ON THE CLOCK (§∅; residue
+     `2026-11-26-oxydex-iei-absorbs-an-unmeasured-desat-duration`). The quiet interval runs from the
+     previous event's END to the next event's start, which is what the registry cite states. An
+     or-zero fallback on that duration read an unmeasured event as zero-length, so the gap grew into
+     the whole start-to-start distance, and `ieiMeanSec`, `ieiSDsec` and `ieiCV` carried the surplus
+     with no trace of which event was unmeasured. Such an interval describes nothing, so this reader
+     drops it and counts it out of band beside the population it did use. A written 0 is a real
+     duration and stays 0, which the controls pin.
+
+     WHAT REACHES THIS: the detector always writes a number, because `durationSec` is arithmetic over
+     sample indices (the `events.push` near oxydex-dsp.js:4532), and the consumer shape copies it
+     (near oxydex-dsp.js:5579). The stored-summary path hands `obj.desatProfile` straight from a
+     dropped JSON file (near oxydex-dsp.js:9181), so an event there carries whatever that file holds.
+     `computeIEI` is also an exported surface on `OxyDSP`, so a caller builds its own events. */
+  function desatDurSec(ev) {
+    return ev && ev.duration != null && isFinite(ev.duration) ? ev.duration : null;
+  }
+
   function computeIEI(desat) {
     if (!desat || !desat.events || desat.events.length < 3) return null;
     var events = desat.events.filter(function (ev) {
@@ -22575,10 +22593,17 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     });
     if (events.length < 3) return null;
     var intervals = [];
+    var durAbsent = 0;
     for (var i = 1; i < events.length; i++) {
-      var gap = events[i].startIdx - (events[i - 1].startIdx + (events[i - 1].duration || 0));
+      var prevDur = desatDurSec(events[i - 1]);
+      if (prevDur == null) {
+        durAbsent++; // the previous event places no end on the clock, so this interval is unmeasurable
+        continue;
+      }
+      var gap = events[i].startIdx - (events[i - 1].startIdx + prevDur);
       if (gap > 0) intervals.push(gap);
     }
+    // Every interval unmeasurable leaves no metric at all, and null is the whole report.
     if (!intervals.length) return null;
     var mean =
       intervals.reduce(function (a, b) {
@@ -22594,7 +22619,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       ieiMeanSec: +mean.toFixed(1),
       ieiSDsec: +sd.toFixed(1),
       ieiCV: cv,
-      ieiLabel: cv !== null && cv < 0.3 ? 'Regular (PB/CS pattern)' : cv !== null && cv > 0.8 ? 'Highly variable (OA/mixed)' : 'Moderate variability'
+      ieiLabel: cv !== null && cv < 0.3 ? 'Regular (PB/CS pattern)' : cv !== null && cv > 0.8 ? 'Highly variable (OA/mixed)' : 'Moderate variability',
+      // The population these three describe, and the intervals no duration placed on the clock.
+      ieiN: intervals.length,
+      ieiDurationAbsent: durAbsent
     };
   }
 
