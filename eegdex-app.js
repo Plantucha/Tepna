@@ -22,13 +22,57 @@ import { EEGUI } from './eegdex-render.js';
     return document.getElementById(id);
   };
   var RESULT = null;
-  /* THE SECOND STAGE SOURCE'S STATE, and it is OFF until the reader turns it on (@kestrel, #8464
-     rule 3). `FRAME` is the last ingested frame, held because the formula is a SECOND pass over the
-     same samples: a switch flip or a model file must be able to score the night already on screen
-     without asking for the file again. `MODEL` is the reader's model file, and no coefficient of it
-     is in this page. */
+  /* THE STAGE MODEL'S STATE. There is no switch left to read: the fitted model is the ONE stage
+     source (owner order 2026-11-25, board #8966).
+
+     `FRAME` is the last ingested frame, held because a model file dropped after the recording must
+     be able to re-score the night already on screen without asking for the recording again.
+
+     TWO MODELS, AND THE READER'S WINS. `BUILTIN` is the one-pass model the page carries as data in
+     its own JSON block; `MODEL` is a file the reader dropped. `activeModel()` prefers the drop, for
+     that night, and the hypnogram names whichever one scored it. */
   var FRAME = null;
   var MODEL = null;
+  var BUILTIN = null;
+  var BUILTIN_WHY = null;
+
+  /* THE PAGE'S OWN MODEL, READ FROM A DATA BLOCK AND NEVER FROM CODE. The element's type is not
+     JavaScript, so nothing in it was ever evaluated; this function is the only thing that parses
+     it, and a block that is absent or unparseable leaves `BUILTIN` null with a stated reason rather
+     than a half-read model.
+
+     IN THE DEVELOPMENT `.src.html` FORM THE BLOCK IS EMPTY. A `type="application/json"` script's
+     `src` is not fetched by the browser, and this node's CSP sets `connect-src 'none'`, so the
+     unbundled page carries no built-in model and says so. The bundler inlines the file's bytes, so
+     the built page and the served copy carry it. */
+  function loadBuiltin() {
+    var el = $('egBuiltinModel'),
+      txt = el ? String(el.textContent || '').trim() : '';
+    if (!el) {
+      BUILTIN_WHY = 'this page carries no built-in model block';
+      return;
+    }
+    if (!txt) {
+      BUILTIN_WHY = 'the built-in model block is empty — this is the unbundled development page, so drop a model file';
+      return;
+    }
+    var m = null;
+    try {
+      m = JSON.parse(txt);
+    } catch (e) {
+      BUILTIN_WHY = 'the built-in model block is not readable JSON: ' + ((e && e.message) || String(e));
+      return;
+    }
+    if (!m || m.schema !== 'tepna.stage-formula/1') {
+      BUILTIN_WHY = 'the built-in model block reads schema ' + ((m && m.schema) || 'none') + ', not tepna.stage-formula/1';
+      return;
+    }
+    BUILTIN = m;
+  }
+
+  function activeModel() {
+    return MODEL || BUILTIN;
+  }
 
   /* EDF is BINARY. A text read would corrupt every sample it decoded, so this node reads the buffer
      and never a string. */
@@ -73,17 +117,18 @@ import { EEGUI } from './eegdex-render.js';
         return { ok: false, why: file.name + ' — reads schema ' + (m && m.schema ? m.schema : 'none') + ', not tepna.stage-formula/1' };
       }
       MODEL = m;
-      return { ok: true, why: file.name + ' — stage formula ' + (m.id || 'unnamed') + ' loaded' };
+      return { ok: true, why: file.name + ' — stage model ' + (m.id || 'unnamed') + ' loaded, and it scores this night in place of the built-in model' };
     });
   }
 
-  /* The formula section, drawn from the frame already on screen. The switch decides whether this
-     node runs a second stage source at all, and nothing here touches `RESULT` or the strip above. */
-  function renderFormula() {
-    var on = $('egFormulaOn') && $('egFormulaOn').checked,
-      card = $('egFormulaCard'),
-      title = $('egFormula');
-    EEGUI.renderFormula(card, title, !on || !FRAME ? null : EEGDSP.formulaStages(FRAME, MODEL));
+  /* A MODEL FILE ARRIVING AFTER THE RECORDING RE-SCORES THE NIGHT ON SCREEN. The stage series is
+     part of the one summary now, so a new model is a new `compute` over the held frame and not a
+     second card beside the first. With no frame yet there is nothing to re-score and the status
+     line is the whole answer. */
+  function rescore() {
+    if (!FRAME) return;
+    RESULT = EEGDSP.compute(FRAME, { model: activeModel() });
+    EEGUI.renderSummary(RESULT, FRAME.truth || null);
   }
 
   function ingestFiles(fileList) {
@@ -91,8 +136,8 @@ import { EEGUI } from './eegdex-render.js';
     if (!files.length) return;
     /* One EEG recording per analysis. A second file is named rather than merged: two EDFs are two
        recordings until something proves they share a clock. */
-    /* A model file travels in the SAME drop, because the formula needs the night and the
-       coefficients together and a second drop zone would be a second thing to explain. */
+    /* A model file travels in the SAME drop, because a reader who wants their own model wants it
+       for the night they are dropping, and a second drop zone would be a second thing to explain. */
     var models = files.filter(function (f) {
       return /\.json$/i.test(f.name);
     });
@@ -102,7 +147,7 @@ import { EEGUI } from './eegdex-render.js';
     if (models.length) {
       takeModel(models[0]).then(function (r) {
         setStatus(r.why);
-        renderFormula();
+        rescore();
       });
       if (!files.length) return;
     }
@@ -161,9 +206,8 @@ import { EEGUI } from './eegdex-render.js';
       return;
     }
     FRAME = frame;
-    RESULT = EEGDSP.compute(frame);
+    RESULT = EEGDSP.compute(frame, { model: activeModel() });
     EEGUI.renderSummary(RESULT);
-    renderFormula();
     if (RESULT && RESULT.err) {
       setExportReady(false);
       setStatus(label + ' — ' + RESULT.err + (RESULT.reason ? ' (' + RESULT.reason + ')' : ''));
@@ -205,9 +249,10 @@ import { EEGUI } from './eegdex-render.js';
 
   function runDemo() {
     /* THE OVERNIGHT SIMULATOR (owner order 2026-11-14, board #6256), not a recording. Eight hours of
-       authored arithmetic: about 90 min per cycle, one spectrum per stage, spindles and K-complexes
-       in N2, blinks in wake, movement bursts, electrode pops and two absent spans. It proves the
-       wiring, the units and the refusals, and it says nothing about the stager's accuracy.
+       authored arithmetic: about 90 min per cycle, one spectrum per segment, spindles and
+       K-complexes in spindle-rich light sleep, blinks in wake, movement bursts, electrode pops and
+       two absent spans. It proves the wiring, the units and the refusals, and it says nothing about
+       the model's accuracy against people.
 
        THE ANCHOR IS DECLARED HERE, never in the DSP. A synthetic run has no file, so the generator
        returns `t0Ms: null` and the reason beside it (§🔒.4). The demo wants a clock on its
@@ -216,7 +261,7 @@ import { EEGUI } from './eegdex-render.js';
        `genSynthetic` stays the five-block fixture for the render-coverage rig and for the
        known-answer band test, which pin its numbers. */
     var frame = EEGDSP.genOvernight({ durSec: 8 * 3600, scenario: 'artefactual', t0Ms: Date.UTC(2026, 0, 1, 23, 0, 0) });
-    RESULT = EEGDSP.compute(frame);
+    RESULT = EEGDSP.compute(frame, { model: activeModel() });
     /* The render reads `summary.source`, which `compute` carries from the frame, so the label needs
        no second argument and an EDF run cannot accidentally claim it.
 
@@ -226,8 +271,10 @@ import { EEGUI } from './eegdex-render.js';
        construction rather than by a flag. */
     FRAME = frame;
     EEGUI.renderSummary(RESULT, frame.truth);
-    renderFormula();
-    setStatus('Demo — synthetic, not a recording: an 8 h simulated night, authored arithmetic.');
+    setStatus(
+      'Demo — synthetic, not a recording: an 8 h simulated night, authored arithmetic.' +
+        (activeModel() ? '' : ' No model reached this page, so no epoch carries a class: ' + (BUILTIN_WHY || 'no reason given') + '.')
+    );
     setExportReady(true);
   }
 
@@ -266,6 +313,7 @@ import { EEGUI } from './eegdex-render.js';
   }
 
   function wire() {
+    loadBuiltin();
     var input = $('egInput'),
       zone = $('egZone');
     if (input)
@@ -287,9 +335,6 @@ import { EEGUI } from './eegdex-render.js';
       });
     }
     if ($('egDemo')) $('egDemo').addEventListener('click', runDemo);
-    /* THE SWITCH. Its markup carries no `checked`, so the page loads with the formula OFF and the
-       band-power stager is this node's answer until the reader decides otherwise. */
-    if ($('egFormulaOn')) $('egFormulaOn').addEventListener('change', renderFormula);
     if ($('egExport')) $('egExport').addEventListener('click', exportJSON);
     // theme toggle — the shared fleet control, wired here and NOT in an inline script, so the strict
     // script-src CSP keeps an empty hash list. Mirrors motiondex-app.js.
@@ -305,20 +350,21 @@ import { EEGUI } from './eegdex-render.js';
         RESULT = null;
         FRAME = null;
         MODEL = null;
-        if ($('egFormulaOn')) $('egFormulaOn').checked = false;
-        ['egKpiGrid', 'egHypnoCard', 'egBandsCard', 'egQualityCard', 'egFormulaCard'].forEach(function (id) {
+        ['egKpiGrid', 'egHypnoCard', 'egBandsCard', 'egQualityCard'].forEach(function (id) {
           var el = $(id);
           if (el) {
             el.innerHTML = '';
             if (id !== 'egKpiGrid') el.style.display = 'none';
           }
         });
-        ['egKPI', 'egHypno', 'egBands', 'egQuality', 'egFormula'].forEach(function (id) {
+        ['egKPI', 'egHypno', 'egBands', 'egQuality'].forEach(function (id) {
           var el = $(id);
           if (el) el.style.display = 'none';
         });
         setExportReady(false);
         if ($('egInput')) $('egInput').value = '';
+        /* The READER's model is dropped by a clear, and the page's own model is not: it is part of
+           the page rather than part of the night. */
         setStatus('Cleared.');
       });
     if (location.hash === '#demo') setTimeout(runDemo, 200);

@@ -27,9 +27,15 @@
   /* Column height encodes stage DEPTH, so the series reads as a hypnogram and not as a bar chart.
      The classes and the hex values live in EEGDex.src.html; this table is the mirror the legend
      needs, because a legend dot cannot carry a CSS class that sets its height. */
-  var STAGE_CLASS = { W: 'eg-ep-w', N1: 'eg-ep-n1', N2: 'eg-ep-n2', N3: 'eg-ep-n3', REM: 'eg-ep-rem' };
-  var STAGE_COLOR = { W: '#F0A860', REM: '#A78BFA', N1: '#58A6FF', N2: '#3DE0D0', N3: '#5EC8B0' };
-  var STAGE_ORDER = ['W', 'REM', 'N1', 'N2', 'N3'];
+  var STAGE_CLASS = { wake: 'eg-ep-wake', light: 'eg-ep-light', deep: 'eg-ep-deep', REM: 'eg-ep-rem' };
+  var STAGE_COLOR = { wake: '#F0A860', REM: '#A78BFA', light: '#3DE0D0', deep: '#5EC8B0' };
+  var STAGE_ORDER = ['wake', 'REM', 'light', 'deep'];
+
+  /* FOUR CLASSES AND NOT FIVE STAGES (board #8966 rule 4). The one stage source names `wake`,
+     `light`, `deep` and `REM`, so these are the only keys any figure here draws. `light` is NOT N1
+     and NOT N2: no height, hue or label on this surface maps it onto either, and the hover carries
+     the class name the model wrote. The five-stage ladder this table replaced went with the
+     band-power stager. */
 
   /* BAND_LABEL holds the registry ABBRS, so each row badges from the registry grade. BAND_EDGE
      states the edges the CODE uses (eegdex-dsp.js BANDS), half-open as it bands them. */
@@ -61,7 +67,7 @@
     'under-two-scored-epochs': 'under two scored epochs, so no transition exists'
   };
 
-  /* The twelve architecture rows, in the order a reader walks a night: how much, how well, of what,
+  /* The eleven architecture rows, in the order a reader walks a night: how much, how well, of what,
      how long until, how broken. Each entry is [registry abbr, key, decimals, suffix]. The abbr IS
      the badge key, so a row whose label is not a registry abbr would mint nothing and the coverage
      gate would catch it. */
@@ -69,9 +75,8 @@
     ['TST', 'TST', 2, ' h'],
     ['SE', 'SE', 1, ' %'],
     ['Wake %', 'wakePct', 1, ' %'],
-    ['N1 %', 'n1Pct', 1, ' %'],
-    ['N2 %', 'n2Pct', 1, ' %'],
-    ['N3 %', 'n3Pct', 1, ' %'],
+    ['Light %', 'lightPct', 1, ' %'],
+    ['Deep %', 'deepPct', 1, ' %'],
     ['REM %', 'remPct', 1, ' %'],
     ['SOL', 'latencySleepMin', 1, ' min'],
     ['REM Lat', 'latencyRemMin', 1, ' min'],
@@ -159,26 +164,98 @@
   }
 
   /* ── THE HYPNOGRAM ────────────────────────────────────────────────────────────────────────────
-     One column per epoch, at that stage's depth. An epoch with no stage is HATCHED at full height
-     rather than drawn at some stage's height: §∅, an absence has no depth, and a column drawn at
-     Wake's height would read as a scored Wake epoch. */
+     One column per epoch, at that class's depth. An epoch with no class is HATCHED at full height
+     rather than drawn at some class's height: §∅, an absence has no depth, and a column drawn at
+     wake's height would read as a scored wake epoch.
+
+     THE STRIP FITS ITS CARD AT ANY PAGE WIDTH (owner order 2026-11-25, board #8966 rule 9). Two
+     mechanisms, and both are needed. The CSS gives every column `flex:1 1 0` with no minimum and
+     hides the overflow, so N columns always divide the card's own width. That alone leaves an 8 h
+     night drawing 960 columns under one pixel each, where a single hatched absence disappears into
+     its neighbours — a §∅ failure on the screen rather than in the data. So above `EG_MAX_COLS`
+     the strip MERGES epochs into a column and the note says how many it merged.
+
+     A MERGED COLUMN TAKES THE MOST COMMON CLASS, AND AN ABSENCE WINS A TIE. A bin of four holding
+     two scored epochs and two refusals draws hatched, because an absence that loses a coin toss is
+     an absence the reader never sees. The per-epoch series travels in the export, which is where a
+     reader holds every epoch. */
+  var EG_MAX_COLS = 480;
+
+  /* Epochs per drawn column: 1 until the series asks for more columns than the cap. */
+  function hypPer(n) {
+    return n > EG_MAX_COLS ? Math.ceil(n / EG_MAX_COLS) : 1;
+  }
+
+  /* The most common class over [from, to), where `null` is a candidate and WINS every tie. */
+  function hypModal(stages, from, to) {
+    var tal = {},
+      nul = 0,
+      best = null,
+      bestN = 0,
+      i,
+      k;
+    for (i = from; i < to; i++) {
+      /* An ABSENT epoch never enters `tal`: it goes to `nul`, and `nul` wins every tie below. */
+      if (stages[i] == null) nul++;
+      else tal[stages[i]] = (tal[stages[i]] || 0) + 1; /* absence-ok: a tally counts, so an unseen class starts at a legal zero */
+    }
+    for (k in tal) {
+      if (tal[k] > bestN) {
+        bestN = tal[k];
+        best = k;
+      }
+    }
+    return nul >= bestN ? null : best;
+  }
+
+  /* One strip of columns over a stage series, binned by `per`. `hover(from, to, cls)` names the
+     column, so the scored strip and the generator's plan can say different things about one grid. */
+  function hypStrip(stages, per, hover) {
+    var out = '',
+      from,
+      to,
+      cls;
+    for (from = 0; from < stages.length; from += per) {
+      to = Math.min(stages.length, from + per);
+      cls = per === 1 ? stages[from] : hypModal(stages, from, to);
+      out += '<div class="eg-ep ' + (cls == null ? 'eg-ep-nul' : STAGE_CLASS[cls] || 'eg-ep-nul') + '" title="' + esc(hover(from, to, cls)) + '"></div>';
+    }
+    return out;
+  }
+
+  /* WHO STAGED IT, ON THE SURFACE, ALWAYS (board #8966 rule 2). The series is one model's output,
+     so the strip names the model id and the first 16 characters of its file hash. A reader holding
+     two nights can then tell whether one model or two scored them. An absent source is said, never
+     guessed. */
+  function modelLine(summary) {
+    var src = summary && summary.stageSource;
+    if (!src) return 'this summary names no stage source';
+    if (src.kind === 'given') return 'the stage series was supplied to this node, which measured none of it';
+    if (src.kind !== 'model') return 'no model file reached this node' + (src.err ? ' — ' + src.err : '');
+    return 'model ' + (src.id || 'unnamed') + ' · file ' + (src.sha16 || 'hash absent');
+  }
+
   function hypnoHtml(summary, truth) {
     var hyp = (summary && summary.hypnogram) || [];
     if (!hyp.length) return '<p class="eg-empty">No epochs to draw.</p>';
     var counts = (summary && summary.stageCounts) || {};
-    var eps = '',
+    var per = hypPer(hyp.length),
+      ep = summary.epochSec || 30,
+      stages = [],
       legend = '',
       i,
-      h,
       s;
-    for (i = 0; i < hyp.length; i++) {
-      h = hyp[i];
-      eps +=
-        '<div class="eg-ep ' + (h.stage == null ? 'eg-ep-nul' : STAGE_CLASS[h.stage] || 'eg-ep-nul') + '" title="' + esc(clock(h.tMs) + ' · ' + (h.stage == null ? 'unscored' : h.stage)) + '"></div>';
-    }
+    for (i = 0; i < hyp.length; i++) stages.push(hyp[i].stage);
+    var eps = hypStrip(stages, per, function (from, to, cls) {
+      var h = hyp[from],
+        t = clock(h.tMs) + ' · ';
+      if (to - from > 1) return t + (cls == null ? 'unscored' : cls) + ' · ' + (to - from) + ' epochs merged, most common class';
+      if (cls == null) return t + 'unscored — ' + (h.absentReason || 'no reason given');
+      return t + cls + (h.conf == null ? '' : ' · confidence ' + num(h.conf, 2));
+    });
     for (i = 0; i < STAGE_ORDER.length; i++) {
       s = STAGE_ORDER[i];
-      /* An absent count prints an em dash. The stager initialises all five keys, so a 0 here IS a
+      /* An absent count prints an em dash. The engine initialises all four keys, so a 0 here IS a
          measured zero — but a fallback that wrote 0 for an absent key would make the two the same. */
       legend += '<span class="eg-lg"><span class="eg-dot" style="background:' + STAGE_COLOR[s] + '"></span>' + s + ' ' + (counts[s] == null ? '—' : counts[s]) + '</span>';
     }
@@ -186,9 +263,9 @@
     legend += '<span class="eg-lg"><span class="eg-dot eg-ep-nul"></span>unscored ' + (nul == null ? '—' : nul) + '</span>';
     /* ── THE GENERATOR'S OWN PLAN, UNDER THE SCORED SERIES (demo path only) ───────────────────
        `truth` reaches this function from the DEMO, never from `compute`, so a recording cannot grow
-       a truth strip and the simulator cannot lose one. The two strips sit on the same epoch grid, so
-       a column above a column is the same 30 s, and a reader sees where the stager and the plan
-       part without any agreement number standing between them.
+       a truth strip and the simulator cannot lose one. The two strips sit on the same epoch grid AND
+       take the SAME bin width, so a column above a column is the same span, and a reader sees where
+       the model and the plan part without any agreement number standing between them.
 
        NO AGREEMENT FIGURE IS PRINTED HERE. Agreement is a metric and this node's registry grades
        none, so a number beside these strips would mint a grade the registry never gave. The test
@@ -196,44 +273,58 @@
     var tr = '';
     if (truth && truth.hypnogram && truth.hypnogram.length) {
       var th = truth.hypnogram,
-        tcols = '',
-        bothN = 0,
-        ts;
+        tst = [],
+        bothN = 0;
       for (i = 0; i < th.length; i++) {
-        ts = th[i].absent ? null : th[i].stage;
-        tcols +=
-          '<div class="eg-ep ' + (ts == null ? 'eg-ep-nul' : STAGE_CLASS[ts] || 'eg-ep-nul') + '" title="' + esc('planned · epoch ' + th[i].epoch + ' · ' + (ts == null ? 'absent' : ts)) + '"></div>';
-        if (i < hyp.length && hyp[i].stage != null && ts != null) bothN++;
+        tst.push(th[i].absent ? null : th[i].stage);
+        if (i < hyp.length && hyp[i].stage != null && tst[i] != null) bothN++;
       }
+      var tcols = hypStrip(tst, per, function (from, to, cls) {
+        return 'planned · epoch ' + th[from].epoch + ' · ' + (cls == null ? 'absent' : cls) + (to - from > 1 ? ' · ' + (to - from) + ' epochs merged' : '');
+      });
       tr =
         '<div class="eg-hyp">' +
         tcols +
         '</div><p class="chart-note">' +
         esc(
-          'The strip above is the stager and this one is the generator\u2019s own plan, on the same ' +
-            (summary.epochSec || 30) +
+          'The strip above is the model and this one is the generator’s own plan, on the same ' +
+            ep +
             ' s grid: ' +
             th.length +
             ' planned epochs against ' +
             hyp.length +
             ' scored, and ' +
             bothN +
-            ' epochs where both name a stage. A column is the plan and not a score, so it is authored arithmetic and carries no evidence grade. The test lane holds the agreement against its own floor; this figure prints none.'
+            ' epochs where both name a class. A column is the plan and not a score, so it is authored arithmetic and carries no evidence grade. The test lane holds the agreement against its own floor; this figure prints none.'
         ) +
         '</p>';
     }
     return (
-      row('Hypnogram', hyp.length + ' epochs', (summary.epochSec || '—') + ' s each · median-smoothed') +
+      row('Hypnogram', hyp.length + ' epochs', ep + ' s each · ' + modelLine(summary)) +
       '<div class="eg-hyp">' +
       eps +
       '</div><div class="eg-legend">' +
       legend +
-      '</div><p class="chart-note">A hatched column is an epoch with no stage. The stager scores one EEG channel, so this is not a polysomnogram score.</p>' +
+      '</div><p class="chart-note">' +
+      esc(
+        'A hatched column is an epoch with no class, and its hover carries the reason. ' +
+          (per > 1 ? 'Each column merges ' + per + ' epochs and draws their most common class, and a tie reads as unscored. ' : '') +
+          'Four classes: wake, light, deep and REM. `light` is the one non-deep NREM class this model names, and it is neither N1 nor N2.'
+      ) +
+      '</p>' +
+      /* THE LIMITS TRAVEL WITH THE STRIP. They moved here from the separate formula card this node
+         used to draw, because the model is now the one stage source and a reader who sees the
+         series must see what it is not. */
+      '<p class="chart-note">' +
+      esc(
+        'What this series is not: it scores ONE EEG channel and it is not a polysomnogram score; the coefficients were fitted on sleep-laboratory derivations and a small number of forehead recordings; a frontal derivation recognises deep sleep less well than a central one; the model scores after the night and never during it; three of its own thresholds carry no citation this repository verified — the share of an epoch’s inputs that must be measured before a class is reported, and the widths of its short and long running means. No blind read has judged this port against an expert score, so every number taken from this series is graded experimental, and no agreement figure stands beside it.'
+      ) +
+      '</p>' +
       tr
     );
   }
 
-  /* ── THE BAND SHARES ─────────────────────────────────────────────────────────────────────────
+  /* ── THE BAND TABLE AND THE BAND SHARES ─────────────────────────────────────────────────────────────────────────
      Each segment's width IS that band's median share of total power, so the bar is never scaled to
      make the five add up. The bands stop at 30 Hz while the total runs to 45 Hz, and the five
      medians are taken independently, so the unfilled remainder is real and the note names it. */
@@ -308,7 +399,7 @@
         'Spindles',
         num(sp.density, 2) + ' /min',
         (sp.population ? sp.population.detections + ' detections over ' + num(sp.population.eligibleMin, 0) + ' staged NREM min' : '') +
-          (sp.byStage ? ' · N2 ' + num(sp.byStage.N2, 2) + ' · N3 ' + num(sp.byStage.N3, 2) : '')
+          (sp.byStage ? ' · light ' + num(sp.byStage.light, 2) + ' · deep ' + num(sp.byStage.deep, 2) : '')
       );
     if (!sw) out += row('SWA Decay', '—', 'this summary carries no slow-wave trend');
     else if (sw.decayPctPerPeriod == null) out += row('SWA Decay', '—', sw.reason || 'absent, with no reason given');
@@ -373,7 +464,7 @@
 
   /* Stage DEPTH as a fraction of the plot height, mirroring the `.eg-ep-*` heights in
      EEGDex.src.html for the same reason as STAGE_COLOR: an SVG staircase cannot read a CSS height. */
-  var STAGE_DEPTH = { W: 1, REM: 0.82, N1: 0.62, N2: 0.42, N3: 0.22 };
+  var STAGE_DEPTH = { wake: 1, REM: 0.82, light: 0.52, deep: 0.22 };
 
   var CH = { W: 680, P: { l: 46, r: 12, t: 12, b: 22 } };
 
@@ -859,7 +950,7 @@
               ' at the first, which is the fit the percentage above reports. '
           )
         : esc('No line is drawn, because this summary carries no fit — ' + (sw.reason || 'no reason given') + '. ')) +
-      esc('A stretch is a run of N2 or N3 epochs, so the x axis counts stretches and not hours.') +
+      esc('A stretch is a run of light or deep epochs, so the x axis counts stretches and not hours.') +
       '</p>'
     );
   }
@@ -894,12 +985,12 @@
       sxSec = function (sec) {
         return P.l + (sec / dur) * span;
       };
-    var body = frameOf(H, 'W', 'N3') + xTicks(H, hyp.length || 1, summary.epochSec, summary.t0Ms);
+    var body = frameOf(H, 'wake', 'deep') + xTicks(H, hyp.length || 1, summary.epochSec, summary.t0Ms);
     /* The staircase is a STEP line and not a smoothed one: a stage holds for its whole epoch, and a
        slope between two epochs would draw a transition that took 30 s.
 
-       ONE PATH PER STAGE, AND RUNS MERGE. An 8 h night holds 960 epochs, and a line element per
-       epoch writes the stroke and the width 960 times over five distinct values. A sleeper holds
+       ONE PATH PER CLASS, AND RUNS MERGE. An 8 h night holds 960 epochs, and a line element per
+       epoch writes the stroke and the width 960 times over four distinct values. A sleeper holds
        one stage for many epochs at a time, so the merged runs number in the dozens. */
     var ep = summary.epochSec || 30,
       stepD = {},
@@ -928,7 +1019,7 @@
        the export, which is where a reader can hold them. */
     var tickD = {};
     for (i = 0; i < ev.length; i++) {
-      kk = STAGE_DEPTH[ev[i].stage] == null ? 'W' : ev[i].stage;
+      kk = STAGE_DEPTH[ev[i].stage] == null ? 'wake' : ev[i].stage;
       tickD[kk] = (tickD[kk] || '') + 'M' + sxSec(ev[i].atSec).toFixed(1) + ',' + (detRow - 7) + 'v8';
     }
     for (ki = 0; ki < stageKeys.length; ki++) {
@@ -1064,7 +1155,8 @@
     k += kpi('% Analyzable', pct(summary.quality ? summary.quality.analyzablePct : null), (summary.nEpochs == null ? '—' : summary.nEpochs) + ' epochs');
     k += kpi('TST', arch.TST == null ? '—' : num(arch.TST, 2) + ' h', 'sleep epochs × ' + (summary.epochSec || '—') + ' s');
     k += kpi('SE', pct(arch.SE), 'of scored epochs, not of the span');
-    k += kpi('N3 %', pct(arch.n3Pct), 'of total sleep time');
+    k += kpi('Light %', pct(arch.lightPct), 'of total sleep time');
+    k += kpi('Deep %', pct(arch.deepPct), 'of total sleep time');
     k += kpi('REM %', pct(arch.remPct), 'of total sleep time');
     var spk = summary.spindles || null;
     k += kpi(
@@ -1102,136 +1194,13 @@
     }
   }
 
-  /* ── THE FORMULA HYPNOGRAM ─────────────────────────────────────────────────────────────────────
-     The second stage source's own strip, drawn only when the reader turned the switch on AND a
-     model file arrived. It never replaces the strip above, and the two are never merged.
-
-     NOT ONE NUMBER IS PRINTED HERE, and that is the state this PR ships in. The brief's own rule is
-     that the screen shows no figure before the three published thresholds each hold a ledger
-     citation, and no blind read has judged this port yet. So the surface carries the SHAPE, the
-     model's identity and the limits — and the registry grades the series `experimental`, which is one
-     rank above `heuristic`, the lowest tier the ladder holds (@kestrel, #8464 rule 5 and #8668).
-
-     THE COLUMN HEIGHTS ARE BORROWED FOR DRAWING ONLY. The formula names four classes and the strip
-     above names five stages, so this figure reuses the five-stage ladder's heights to place four
-     classes and the note says so. A borrowed height is a drawing choice; it claims no equivalence
-     between `light` and N2, and the class name in every hover is the formula's own.
-
-     §∅ — an epoch the evaluator refused is HATCHED, exactly as an unscored epoch is above, and the
-     reason it carries is the evaluator's own. */
-  /* The file the reader must supply, named on the surface for a reader who holds only the page. */
-  var MODEL_FILE_NAME = 'eeg-stage-model-two-pass-2026-11-24.json';
-  var MODEL_FILE_SHA16 = '27d0114dd8c5b43e';
-  var MODEL_FILE_ALT = 'eeg-stage-model-base-2026-11-17.json';
-  var MODEL_FILE_ALT_SHA16 = '500f1a71f6ca3e18';
-  var FORMULA_DRAW = { wake: 'eg-ep-w', light: 'eg-ep-n2', deep: 'eg-ep-n3', REM: 'eg-ep-rem' };
-
-  function formulaHtml(f) {
-    if (!f) return '';
-    if (f.err) {
-      /* A refusal is the surface. It names what is absent, and it draws no strip: §∅ — a figure over
-         an absence would read as a night that scored badly rather than one nothing scored. */
-      return (
-        row('Formula hypnogram', 'no series', 'the formula refused') +
-        '<p class="chart-note">' +
-        esc('The stage formula scored nothing: ' + f.err + '. The hypnogram above is this node’s own stager and it stands on its own.') +
-        '</p>' +
-        /* A READER WITH ONLY THE PAGE HOLDS NO MODEL FILE (@kestrel, #8668). The page carries no
-           coefficients, so the text names the file to look for and the bytes that identify it. */
-        (/no model file/.test(f.err)
-          ? '<p class="chart-note">' +
-            esc(
-              'Two files in the root of this repository fit it. ' +
-                MODEL_FILE_NAME +
-                ' (first 16 hash characters ' +
-                MODEL_FILE_SHA16 +
-                ') scores two passes and needs the whole night. ' +
-                MODEL_FILE_ALT +
-                ' (' +
-                MODEL_FILE_ALT_SHA16 +
-                ') scores one pass and takes a shorter import. Drop one of them where you dropped the recording.'
-            ) +
-            '</p>'
-          : '')
-      );
-    }
-    var eps = (f.epochs || []).length,
-      cols = '',
-      legend = '',
-      i,
-      e,
-      st,
-      seen = {},
-      keys = ['wake', 'light', 'deep', 'REM'];
-    if (!eps) return row('Formula hypnogram', 'no epochs', 'the night holds none');
-    for (i = 0; i < eps; i++) {
-      e = f.epochs[i];
-      st = e.stage;
-      if (st != null) seen[st] = true;
-      cols +=
-        '<div class="eg-ep ' +
-        (st == null ? 'eg-ep-nul' : FORMULA_DRAW[st] || 'eg-ep-nul') +
-        '" title="' +
-        esc('epoch ' + i + ' · ' + (st == null ? 'not scored — ' + (e.reason || 'no reason given') : st)) +
-        '"></div>';
-    }
-    for (i = 0; i < keys.length; i++) {
-      /* The legend carries the CLASS NAMES and no count, because a count is a number. A class the
-         night never reads is still listed, so an absent class is visible as an absence. */
-      legend +=
-        '<span class="eg-lg"><span class="eg-dot" style="background:' +
-        STAGE_COLOR[{ wake: 'W', light: 'N2', deep: 'N3', REM: 'REM' }[keys[i]]] +
-        '"></span>' +
-        esc(keys[i] + (seen[keys[i]] ? '' : ' (none)')) +
-        '</span>';
-    }
-    legend += '<span class="eg-lg"><span class="eg-dot eg-ep-nul"></span>not scored</span>';
-    return (
-      row('Formula hypnogram', 'a second stage source', 'off unless you turn it on') +
-      '<div class="eg-hyp">' +
-      cols +
-      '</div><div class="eg-legend">' +
-      legend +
-      '</div>' +
-      '<p class="chart-note">' +
-      esc(
-        'Model ' +
-          (f.id || 'unnamed') +
-          (f.modelSha16 ? ' · file ' + f.modelSha16 : '') +
-          '. The column heights come from the five-stage ladder above and place four classes, so a height names no stage of that ladder; the hover carries the class the formula named.'
-      ) +
-      '</p>' +
-      '<p class="chart-note">' +
-      esc(
-        'What this series is not: the coefficients were fitted on sleep-laboratory derivations and a small number of forehead recordings; a frontal derivation recognises deep sleep less well than a central one; the formula scores after the night and never during it; a model of two passes reads up to 160 epochs away, so it needs the whole night and it refuses a shorter import by name; a hatched column is an epoch it refused, and it carries the reason the evaluator gave. It is a research aid and not a diagnosis, and no figure stands beside it until a blind read of this port holds a citation.'
-      ) +
-      '</p>'
-    );
-  }
-
-  /* THE DOM WRITE LIVES HERE, beside every other write of this node. `formulaHtml` escapes each
-     value it interpolates, and the assembled markup then goes out through the one `setHTML` helper
-     the node already uses — a write in the app shell would be a second, unescapable sink. */
-  function renderFormula(card, title, f) {
-    if (!card || !title) return;
-    if (!f) {
-      setHTML(card, '');
-      card.style.display = 'none';
-      title.style.display = 'none';
-      return;
-    }
-    setHTML(card, formulaHtml(f));
-    card.style.display = '';
-    title.style.display = '';
-  }
-
   global.EEGUI = {
     synthNote: synthNote,
     renderSummary: renderSummary,
     hypnoHtml: hypnoHtml,
-    formulaHtml: formulaHtml,
-    renderFormula: renderFormula,
-    FORMULA_DRAW: FORMULA_DRAW,
+    modelLine: modelLine,
+    hypPer: hypPer,
+    hypModal: hypModal,
     archHtml: archHtml,
     bandHtml: bandHtml,
     qualityHtml: qualityHtml,
