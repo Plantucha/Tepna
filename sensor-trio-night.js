@@ -1456,7 +1456,21 @@
     dl(stamp() + '.json', new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }));
   }
   // ── wiring ─────────────────────────────────────────────────────────────────
+  /* THE THREE HERO CARDS SHARE THE ROW, AND THEIR SENTENCES WRAP. The shared sheet sets `.m-unit` to one
+     line with an ellipsis, which suits a KPI unit. A hero unit is a sentence ("measured on this night
+     against the beat reference · the hat said 4.50"), and a `1fr` column cannot shrink below its
+     content, so the row grew past the page and pushed the O2Ring card off the right edge (owner
+     screenshot, night 2026-11-24). The page's own sheet is a build output, so the rule rides this file. */
+  const HERO_CSS =
+    '.ts-heroes{grid-template-columns:repeat(3,minmax(0,1fr))}' +
+    '.ts-heroes .metric-hero{min-width:0}' +
+    '.ts-heroes .m-unit{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}' +
+    '@media (max-width:1100px){.ts-heroes{grid-template-columns:minmax(0,1fr)}}';
   document.addEventListener('DOMContentLoaded', () => {
+    const heroCss = document.createElement('style');
+    heroCss.setAttribute('data-hero-wrap', '');
+    heroCss.textContent = HERO_CSS;
+    document.head.appendChild(heroCss);
     /* COPY THE LIST BEFORE THE RESET. `e.target.files` is LIVE: `value = ''` empties it, and the ingest
        awaits a row read per file, so it saw one file and then an empty list (2026-11-03: 11 files handed
        over, "indexed from 0 file(s) · 0 eligible"). The reset stays, so the same pick fires again. */
