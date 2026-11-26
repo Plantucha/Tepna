@@ -456,7 +456,7 @@ body.light .mob-drawer-panel{background:#FFFFFF}
           Sleep Architecture
         </div>
         <div class="qj-links"><a href="#sleep" class="qj-sec">Sleep Architecture</a></div>
-        <div class="qj-metrics"><a href="#sleep" class="qm">REM %</a><a href="#sleep" class="qm">Spindles</a><a href="#sleep" class="qm">FAA</a><a href="#sleep" class="qm">Calm</a><a href="#sleep" class="qm">Hypnogram</a><a href="#sleep" class="qm">TST</a><a href="#sleep" class="qm">SE</a><a href="#sleep" class="qm">N3 %</a><a href="#sleep" class="qm">N1 %</a><a href="#sleep" class="qm">N2 %</a><a href="#sleep" class="qm">Wake %</a><a href="#sleep" class="qm">SOL</a><a href="#sleep" class="qm">REM Lat</a><a href="#sleep" class="qm">WASO</a><a href="#sleep" class="qm">Shifts</a><a href="#sleep" class="qm">REM Per</a><a href="#sleep" class="qm">SWA Decay</a></div>
+        <div class="qj-metrics"><a href="#sleep" class="qm">REM %</a><a href="#sleep" class="qm">Spindles</a><a href="#sleep" class="qm">FAA</a><a href="#sleep" class="qm">Calm</a><a href="#sleep" class="qm">Hypnogram</a><a href="#sleep" class="qm">TST</a><a href="#sleep" class="qm">SE</a><a href="#sleep" class="qm">Deep %</a><a href="#sleep" class="qm">Light %</a><a href="#sleep" class="qm">Wake %</a><a href="#sleep" class="qm">SOL</a><a href="#sleep" class="qm">REM Lat</a><a href="#sleep" class="qm">WASO</a><a href="#sleep" class="qm">Shifts</a><a href="#sleep" class="qm">REM Per</a><a href="#sleep" class="qm">SWA Decay</a></div>
       </div>
     </div>
     <div class="qj-no-results" id="qjNoResults" hidden>No metrics match your search.</div>
@@ -712,7 +712,7 @@ body.light .mob-drawer-panel{background:#FFFFFF}
       
     </div>
     
-    <span class="ev-corner ev-emerging" title="REM % — REM fraction from the staged hypnogram — it inherits the single-channel stager's tier, never the reference standard's. PSG EEG staging is the reference standard; this stager is not PSG-validated"></span>
+    <span class="ev-corner ev-experimental" title="REM % — REM fraction from the staged hypnogram — it inherits the single-channel stager's tier, never the reference standard's. PSG EEG staging is the reference standard; this stager is not PSG-validated"></span>
   </div>
 
   <div class="mc" data-tier="research">
@@ -784,7 +784,7 @@ body.light .mob-drawer-panel{background:#FFFFFF}
       
     </div>
     
-    <span class="ev-corner ev-emerging" title="Hypnogram — Single-channel band-power staging — literature-backed, not PSG-validated (EEGDEX-BUILD-BRIEF §0)"></span>
+    <span class="ev-corner ev-experimental" title="Hypnogram — per-epoch stage series from the fitted stage formula over one EEG channel — four classes: wake, light, deep and REM. No blind read has judged this port against an expert score"></span>
   </div>
 
   <div class="mc">
@@ -802,7 +802,7 @@ body.light .mob-drawer-panel{background:#FFFFFF}
       
     </div>
     
-    <span class="ev-corner ev-emerging" title="TST — Total sleep time from the staged hypnogram — it inherits the stager tier, never the clock tier"></span>
+    <span class="ev-corner ev-experimental" title="TST — Total sleep time from the staged hypnogram — it inherits the stager tier, never the clock tier"></span>
   </div>
 
   <div class="mc">
@@ -820,61 +820,43 @@ body.light .mob-drawer-panel{background:#FFFFFF}
       
     </div>
     
-    <span class="ev-corner ev-emerging" title="SE — Sleep efficiency over the scored population — an unscorable epoch is excluded, never counted as wake"></span>
+    <span class="ev-corner ev-experimental" title="SE — Sleep efficiency over the scored population — an unscorable epoch is excluded, never counted as wake"></span>
   </div>
 
   <div class="mc">
     <div class="mh">
       <div class="mi">
-        <span class="ma">N3 %</span>
-        <span class="mf">Fraction of total sleep time scored N3, the slow-wave share</span>
+        <span class="ma">Deep %</span>
+        <span class="mf">Fraction of total sleep time the model classes deep</span>
       </div>
       <span class="mt tc">Core</span>
     </div>
     
     <div class="fb">
       <div class="fl">Formula</div>
-      <div class="ft">100 × N3 / sleepEpochs</div>
+      <div class="ft">100 × deep / sleepEpochs</div>
       
     </div>
     
-    <span class="ev-corner ev-emerging" title="N3 % — N3 fraction from the staged hypnogram — single-channel stager, not a PSG score"></span>
-  </div>
-
-  <div class="mc" data-tier="secondary">
-    <div class="mh">
-      <div class="mi">
-        <span class="ma">N1 %</span>
-        <span class="mf">Fraction of total sleep time scored N1, the lightest stage</span>
-      </div>
-      <span class="mt ta">Advanced</span>
-    </div>
-    
-    <div class="fb">
-      <div class="fl">Formula</div>
-      <div class="ft">100 × N1 / sleepEpochs</div>
-      
-    </div>
-    
-    <span class="ev-corner ev-emerging" title="N1 % — N1 fraction from the staged hypnogram — the stage a band-power rule scores least reliably. Against the simulator's planted truth this engine over-reads N1, so the number carries the stager's tier and a stated shortfall"></span>
+    <span class="ev-corner ev-experimental" title="Deep % — deep fraction from the staged hypnogram. `deep` is the fitted model's own class name and it is not AASM N3. A frontal derivation recognises deep sleep less well than a central one"></span>
   </div>
 
   <div class="mc">
     <div class="mh">
       <div class="mi">
-        <span class="ma">N2 %</span>
-        <span class="mf">Fraction of total sleep time scored N2, the dominant NREM stage</span>
+        <span class="ma">Light %</span>
+        <span class="mf">Fraction of total sleep time the model classes light</span>
       </div>
       <span class="mt tc">Core</span>
     </div>
     
     <div class="fb">
       <div class="fl">Formula</div>
-      <div class="ft">100 × N2 / sleepEpochs</div>
+      <div class="ft">100 × light / sleepEpochs</div>
       
     </div>
     
-    <span class="ev-corner ev-emerging" title="N2 % — N2 fraction from the staged hypnogram — single-channel stager, not a PSG score"></span>
+    <span class="ev-corner ev-experimental" title="Light % — light fraction from the staged hypnogram. `light` is the one non-deep NREM class this model names, and it is neither N1 nor N2"></span>
   </div>
 
   <div class="mc" data-tier="secondary">
@@ -892,7 +874,7 @@ body.light .mob-drawer-panel{background:#FFFFFF}
       
     </div>
     
-    <span class="ev-corner ev-emerging" title="Wake % — Wake fraction over the scored population — an unscorable epoch is excluded, never counted as wake. It is the complement of sleep efficiency over the same denominator"></span>
+    <span class="ev-corner ev-experimental" title="Wake % — Wake fraction over the scored population — an unscorable epoch is excluded, never counted as wake. It is the complement of sleep efficiency over the same denominator"></span>
   </div>
 
   <div class="mc">
@@ -910,7 +892,7 @@ body.light .mob-drawer-panel{background:#FFFFFF}
       
     </div>
     
-    <span class="ev-corner ev-emerging" title="SOL — Sleep-onset latency from the staged hypnogram. It counts ELAPSED epochs, so an unscorable epoch before onset still costs the time it occupied — a latency is a clock fact rather than a scoring fact"></span>
+    <span class="ev-corner ev-experimental" title="SOL — Sleep-onset latency from the staged hypnogram. It counts ELAPSED epochs, so an unscorable epoch before onset still costs the time it occupied — a latency is a clock fact rather than a scoring fact"></span>
   </div>
 
   <div class="mc" data-tier="secondary">
@@ -928,7 +910,7 @@ body.light .mob-drawer-panel{background:#FFFFFF}
       
     </div>
     
-    <span class="ev-corner ev-emerging" title="REM Lat — REM latency from the staged hypnogram — it inherits the stager's REM tier, and a night with no REM epoch reports the absence with its own reason"></span>
+    <span class="ev-corner ev-experimental" title="REM Lat — REM latency from the staged hypnogram — it inherits the stager's REM tier, and a night with no REM epoch reports the absence with its own reason"></span>
   </div>
 
   <div class="mc">
@@ -946,7 +928,7 @@ body.light .mob-drawer-panel{background:#FFFFFF}
       
     </div>
     
-    <span class="ev-corner ev-emerging" title="WASO — Wake after sleep onset from the staged hypnogram. The bounds are STRICT, so wake before onset and wake after the final sleep epoch are not WASO"></span>
+    <span class="ev-corner ev-experimental" title="WASO — Wake after sleep onset from the staged hypnogram. The bounds are STRICT, so wake before onset and wake after the final sleep epoch are not WASO"></span>
   </div>
 
   <div class="mc" data-tier="secondary">
@@ -982,7 +964,7 @@ body.light .mob-drawer-panel{background:#FFFFFF}
       
     </div>
     
-    <span class="ev-corner ev-emerging" title="REM Per — REM period count from the staged hypnogram. It is NOT the Feinberg–Floyd NREM–REM cycle, which needs an NREM duration rule this engine does not apply, and the name says so"></span>
+    <span class="ev-corner ev-experimental" title="REM Per — REM period count from the staged hypnogram. It is NOT the Feinberg–Floyd NREM–REM cycle, which needs an NREM duration rule this engine does not apply, and the name says so"></span>
   </div>
 
   <div class="mc" data-tier="research">
