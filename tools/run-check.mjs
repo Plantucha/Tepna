@@ -169,6 +169,7 @@ export const STEPS = [
   'verify:paper-references',
   'verify:paper-claim-markers',
   'verify:module-carriers',
+  'verify:trio-cache',
   'verify:pr-compliance',
   'verify:verdict-adoption',
   'verify:write-root-adoption',

@@ -22,6 +22,15 @@ export const sha16 = (s) => createHash('sha256').update(s).digest('hex').slice(0
    being asked. The `/mnt/nas -> ext4 on /` case is pinned as a test rather than a comment, because
    it is the row that looks like an answer and is not.
    Returns null — never a guess — where the path or mountinfo cannot be read (§∅). */
+/* A network mount's source names the server as `host:/export`. The ledger is committed, so the host
+   stays out of it: a LAN address in the repo is a leak, and `secret-scan` reds it. The export path and
+   the fstype stay, because they are what tells two corpora apart. A local device (`/dev/sda3`) has no
+   host and passes through unchanged. */
+export function redactMountSource(source) {
+  if (typeof source !== 'string') return source ?? null;
+  return source.replace(/^[^/\s]+:(?=\/)/, '<host>:');
+}
+
 export function mountOf(path, mountinfo = null) {
   let real;
   try {
@@ -47,7 +56,7 @@ export function mountOf(path, mountinfo = null) {
     if (!(real === target || real.startsWith(target === '/' ? '/' : `${target}/`))) continue;
     if (best && best.target.length >= target.length) continue;
     const [fstype, source] = line.slice(sep + 3).split(' ');
-    best = { target, fstype, source };
+    best = { target, fstype, source: redactMountSource(source) };
   }
   return best;
 }

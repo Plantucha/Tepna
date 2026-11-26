@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
 // SPDX-License-Identifier: Apache-2.0
-import { appendFold, buildRecord, fileSetDigest, ledgerFindings, LEDGER_NAME, LEDGER_SCHEMA, mountOf, RECORD_SCHEMA } from '../tools/fold-provenance.mjs';
+import { appendFold, buildRecord, fileSetDigest, ledgerFindings, LEDGER_NAME, LEDGER_SCHEMA, mountOf, RECORD_SCHEMA, redactMountSource } from '../tools/fold-provenance.mjs';
 
 let pass = 0;
 const fails = [];
@@ -25,6 +25,11 @@ ok('longest prefix wins over /', mountOf('/srv/data/tepna-corpus', MI)?.source =
 ok('a path under the nfs mount keeps it', mountOf('/mnt/nas/tepna-corpus/2026-09-01/x.txt', MI)?.fstype === 'nfs4');
 ok('/tmp is not matched by a /tm prefix', mountOf('/tmpfoo', MI)?.target === '/', JSON.stringify(mountOf('/tmpfoo', MI)));
 ok('absent mountinfo returns null, never a guess', mountOf('/srv/data', '') === null);
+ok('a network mount keeps its export path and drops the host', mountOf('/mnt/nas/tepna-corpus', MI)?.source === '<host>:/mnt/Storage10TB/x', JSON.stringify(mountOf('/mnt/nas/tepna-corpus', MI)));
+ok('a local device source passes through unchanged', redactMountSource('/dev/sda3') === '/dev/sda3');
+ok('a named host is redacted like an address', redactMountSource('nas.example:/vol/a') === '<host>:/vol/a');
+ok('tmpfs has no host and passes through', redactMountSource('tmpfs') === 'tmpfs');
+ok('an absent source stays null', redactMountSource(undefined) === null);
 
 /* The duplicate ingest this record exists to surface: one basename, two roots. If the digest keyed
    on basename the six copies would collapse to one and the record would look clean. */

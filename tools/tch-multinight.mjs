@@ -424,7 +424,23 @@ function readNightDir(dir) {
      it has to be asked for by name. */
   return { label: dir.split('/').pop(), series, motion, marker, prov, pseudo, hasStamp: existsSync(join(dir, '.trio-stamp')) };
 }
+/* THE FILENAME PREFIX DECIDES FIRST, because a SITE export carries its parent's `schema.node`.
+   `trio-batch` writes `PpgDexFinger_<night>` and `PpgDexForehead_<night>` beside `PpgDex_<night>`, and
+   all three say `schema.node: "PpgDex"`. The schema test alone read the finger as the wrist corner:
+   on a night with no Verity export the O2Ring finger stood in as the Verity corner, and on a night
+   with both, the finger's `timingSource` set `pseudo` for the run. A `<Label>_` prefix names its
+   corner. A prefix that STARTS with a label and goes on is a site export and is no trio corner. A
+   name with no such prefix falls back to the schema, as before. */
 function nodeOf(j, fname) {
+  const tok = /^([A-Za-z]+)_/.exec(
+    String(fname || '')
+      .split('/')
+      .pop()
+  );
+  if (tok) {
+    if (LABELS.includes(tok[1])) return tok[1];
+    if (LABELS.some((L) => tok[1].startsWith(L))) return null;
+  }
   const s = (j.schema && (j.schema.node || j.node)) || j.node || '';
   for (const L of LABELS) if (String(s).includes(L) || new RegExp(L, 'i').test(fname)) return L;
   return null;
@@ -671,6 +687,21 @@ function verify(rows, corpus) {
   const _L = ['ECGDex', 'PpgDex', 'OxyDex'];
   ok('completeness · a full corner set is NOT convicted — overlap keeps its own verdict', classifyCompleteness(_L, _L, false) === null, String(classifyCompleteness(_L, _L, false)));
   ok('completeness · …and a full set with the fold stamp is equally uncontested', classifyCompleteness(_L, _L, true) === null);
+  {
+    const PS = { schema: { node: 'PpgDex' } };
+    ok('nodeOf · the wrist export is the PpgDex corner', nodeOf(PS, 'PpgDex_2026-08-20.node-export.json') === 'PpgDex', String(nodeOf(PS, 'PpgDex_2026-08-20.node-export.json')));
+    ok(
+      'nodeOf · 🔴 a finger export with schema.node PpgDex is NO corner',
+      nodeOf(PS, 'PpgDexFinger_2026-08-22.node-export.json') === null,
+      String(nodeOf(PS, 'PpgDexFinger_2026-08-22.node-export.json'))
+    );
+    ok('nodeOf · 🔴 a forehead export is NO corner', nodeOf(PS, 'PpgDexForehead_2026-11-22.node-export.json') === null, String(nodeOf(PS, 'PpgDexForehead_2026-11-22.node-export.json')));
+    ok(
+      'nodeOf · a name with no label prefix falls back to the schema',
+      nodeOf({ schema: { node: 'OxyDex' } }, 'night.json') === 'OxyDex',
+      String(nodeOf({ schema: { node: 'OxyDex' } }, 'night.json'))
+    );
+  }
   const _p = classifyCompleteness(['ECGDex', 'PpgDex'], _L, false);
   ok('completeness · a 2-of-3 night NAMES the missing corner instead of blaming overlap', /missing OxyDex/.test(_p || '') && !/overlap/.test(_p || ''), String(_p));
   ok('completeness · …and says the corners it DID find, so the reader can see what the fold got through', /ECGDex\+PpgDex/.test(_p || ''), String(_p));

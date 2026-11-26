@@ -78,7 +78,24 @@
  * memory is returned to the OS on exit, so nothing accumulates across the corpus, and no
  * --max-old-space-size is needed on the command line: the parent sizes each child's heap to the host.
  */
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync, openSync, readSync, closeSync, fstatSync, realpathSync, mkdtempSync, rmSync, utimesSync } from 'node:fs';
+import {
+  readFileSync,
+  writeFileSync,
+  readdirSync,
+  existsSync,
+  mkdirSync,
+  statSync,
+  openSync,
+  readSync,
+  closeSync,
+  fstatSync,
+  realpathSync,
+  mkdtempSync,
+  rmSync,
+  utimesSync,
+  createReadStream
+} from 'node:fs';
+import { Readable } from 'node:stream';
 import { refuseUnknownArgvOrExit, isCliEntry } from './argv-guard.mjs';
 /* t0 from the file's first data row — see tools/trio-anchor.mjs for the rule and why the name is not it. */
 import { anchoredRec, concurrentWith, ivIntersect, ivSpan, mergeIv, startOf } from './trio-anchor.mjs';
@@ -326,7 +343,7 @@ function redoReason(stamp, nJson, inputsDigest, codeDigest, contentOf) {
    checked = legs judged against the anchor, excluded = legs the night did not offer) and NIGHTS for the
    run. `criterion` is the run's own gate: three-way overlap ≥ MIN_OVERLAP h, direction gte. */
 const Verdict = createRequire(import.meta.url)('../verdict.js');
-const GATE_LEGS = ['oxy', 'ecg', 'ppg', 'accH10', 'accVer', 'gyro', 'magn', 'o2ppg'];
+const GATE_LEGS = ['oxy', 'ecg', 'ppg', 'accH10', 'accVer', 'gyro', 'magn', 'o2ppg', 'muse'];
 const nightVerdicts = [];
 let _gitCommit = null;
 try {
@@ -1630,6 +1647,14 @@ if (!flag('--code-digest') && (!SRC || !existsSync(SRC))) {
    OUTSIDE is this orchestrator's own text — scheduling, logging, retries and diagnostics cannot alter a
    fold's numbers, and hashing `__filename` made all 48 edits to this file (21 in July, 15 in August, 12
    in September — ~19/month) re-stale all 82 stamped nights at ~78 min per whole-corpus re-fold. */
+/* No comment goes INSIDE the array below: two gates parse it as a literal list of quoted names.
+   `sq-table.js` — the signal-quality table. `ecgdex-dsp.js` and `ppgdex-dsp.js` THROW without it since the
+   table moved to a spine module (#5711, #5719), so every ECGDex and PpgDex leg of a fold failed until it
+   joined this list. It writes the export's signal-quality fact, so it sits inside the closure.
+   `muse-frame.js` and `pat-align.js` — the forehead corner. `muse-frame.js` decodes the Muse S device
+   frames, and `pat-align.js` holds the one decoder entry (`decodeMuseOptics`) and the two constants PpgDex
+   measured for that site (`FOREHEAD`). Both change the `PpgDexForehead` export. Adding the three moves
+   CODE_DIGEST once, so every stamped night reads as folded under older code: the safe direction. */
 const COMPUTE_MODULES = [
   'clock.js',
   'clock-seam.js',
@@ -1639,7 +1664,10 @@ const COMPUTE_MODULES = [
   'oxydex-util.js',
   'oxydex-dsp.js',
   'ecgdex-dsp.js',
+  'sq-table.js',
   'ppgdex-dsp.js',
+  'muse-frame.js',
+  'pat-align.js',
   'integrator-dsp.js'
 ];
 const sha16 = (s) => createHash('sha256').update(s).digest('hex').slice(0, 16);
@@ -1798,6 +1826,8 @@ function loadInto(ctx, file) {
 let ctx = null,
   ECGDex,
   PpgDex,
+  PPGDSP,
+  PATAlign,
   OxyDex,
   DexKernel,
   dexScrubExport,
@@ -1807,9 +1837,13 @@ function loadDsps() {
   ctx = makeCtx();
   // clock.js FIRST — the delegating DSPs alias DexClock.parseTimestamp at load (CLAUDE.md §Clock Contract).
   // kernel-constants.js supplies DexKernel, which every builder stamps into the export envelope.
+  /* `decodeMuseOptics` STREAMS a night of device frames when the realm has `TextDecoderStream`, and
+     reads the whole file as one string when it has none. A Muse segment on the box reaches 415 MB, so
+     the one-string road costs most of a child's heap. Node has the class, so the realm gets it. */
+  ctx.TextDecoderStream = globalThis.TextDecoderStream;
   for (const f of COMPUTE_MODULES) loadInto(ctx, f);
-  ({ ECGDex, PpgDex, OxyDex, DexKernel, dexScrubExport } = ctx);
-  for (const [n, v] of Object.entries({ ECGDex, PpgDex, OxyDex, DexKernel, dexScrubExport })) if (!v) throw new Error('trio-batch: ' + n + ' did not load into the headless realm');
+  ({ ECGDex, PpgDex, PPGDSP, PATAlign, OxyDex, DexKernel, dexScrubExport } = ctx);
+  for (const [n, v] of Object.entries({ ECGDex, PpgDex, PPGDSP, PATAlign, OxyDex, DexKernel, dexScrubExport })) if (!v) throw new Error('trio-batch: ' + n + ' did not load into the headless realm');
   // `rich: true` is what unlocks timeseries.epochs[] — the app's light stream omits it, and ONLY the
   // orchestrate emitter opts in (signal-orchestrate.emitEcg/PpgNodeExport). tch-multinight reads
   // timeseries.epochs[].{hr,motionIndex}, so without rich the export is epoch-less and useless here.
@@ -1842,6 +1876,11 @@ const RE_O2_DAT_CH = /^Wellue_O2Ring-S_[^_]+_(\d{14})_STORED\.dat$/; // onboard 
    Absent from the onboard `.dat` backup, which carries 1 Hz SpO2/HR/motion and no waveform, so this
    exists only on nights the capture host was listening. */
 const RE_O2_PPG_CH = /^Wellue_O2Ring-S_[^_]+_(\d{14})_PPG\.txt$/;
+/* THE MUSE S HEADBAND'S DEVICE FRAMES — the forehead optical corner (owner unit #8914, PR #5874).
+   The capture host writes `Muse_<model>_<id>_<14-digit stamp>_RAW.txt`, one row per BLE frame, and
+   the optical samples exist only inside the frames. `_RAWRUNS.txt` is its validity sidecar and never
+   matches here, because the pattern ends at `_RAW.txt`. Same name rule as `sensor-trio-night.js`. */
+const RE_MUSE_CH = /^Muse_.+_(\d{14})_RAW\.txt$/;
 
 // Clock Contract: floating wall-clock ms — components verbatim through Date.UTC, never new Date(str).
 const utc = (y, mo, d, h, mi, s) => Date.UTC(y, mo - 1, d, h, mi, s);
@@ -2467,7 +2506,7 @@ function dedupeStream(recs, opts = {}) {
 
 const nights = new Map();
 const bump = (key) => {
-  if (!nights.has(key)) nights.set(key, { key, ecg: [], acc_h10: [], ppg: [], acc_ver: [], gyro: [], magn: [], oxy: [], o2ppg: [] });
+  if (!nights.has(key)) nights.set(key, { key, ecg: [], acc_h10: [], ppg: [], acc_ver: [], gyro: [], magn: [], oxy: [], o2ppg: [], muse: [] });
   return nights.get(key);
 };
 
@@ -2578,6 +2617,19 @@ for (const rel of readdirSync(SRC, { recursive: true })) {
     bump(nightKeyOf(rec.t0)).o2ppg.push(rec);
     continue;
   }
+  // Muse S forehead optics → PpgDex's FOREHEAD site. Its rows carry ISO host stamps, so `startOf` and
+  // `endOf` read its window from content exactly as they read a Polar stream.
+  m = RE_MUSE_CH.exec(name);
+  if (m) {
+    t0 = parse14(m[1]);
+    if (t0 === null) {
+      refusedStamps.push(name);
+      continue;
+    }
+    const rec = anchoredRec({ name, full, t0, bytes: st.size, dev: 'Muse', stream: 'RAW', kind: 'txt', stamp: m[1] });
+    bump(nightKeyOf(rec.t0)).muse.push(rec);
+    continue;
+  }
   // O2Ring onboard binary — bare "<14>.dat" OR capture-host "Wellue_O2Ring-S_…_STORED.dat".
   m = RE_O2_DAT.exec(name) || RE_O2_DAT_CH.exec(name);
   if (m) {
@@ -2613,7 +2665,7 @@ if (refusedStamps.length) {
 
 /* Applied once, after the walk, to every stream list of every night — before any planning reads a
    session count, an overlap or a byte total, all of which a duplicate inflates. */
-const DEDUPE_LISTS = ['ecg', 'acc_h10', 'ppg', 'acc_ver', 'gyro', 'magn', 'oxy', 'o2ppg'];
+const DEDUPE_LISTS = ['ecg', 'acc_h10', 'ppg', 'acc_ver', 'gyro', 'magn', 'oxy', 'o2ppg', 'muse'];
 for (const n of nights.values()) {
   n.dropped = [];
   n.conflicts = [];
@@ -2794,7 +2846,7 @@ for (const n of plan) {
   if (!anchorIv.length) {
     console.log(`  ⊘ ${n.key} — not a trio night (no O2Ring anchor)`);
     nightVerdict(n.key, 'NOT_APPLICABLE', {
-      offered: GATE_LEGS.filter((l) => n[{ oxy: 'oxy', ecg: 'ecg', ppg: 'ppg', accH10: 'acc_h10', accVer: 'acc_ver', gyro: 'gyro', magn: 'magn', o2ppg: 'o2ppg' }[l]]?.length).length,
+      offered: GATE_LEGS.filter((l) => n[{ oxy: 'oxy', ecg: 'ecg', ppg: 'ppg', accH10: 'acc_h10', accVer: 'acc_ver', gyro: 'gyro', magn: 'magn', o2ppg: 'o2ppg', muse: 'muse' }[l]]?.length).length,
       judged: 0,
       reason: 'not a trio night — no O2Ring anchor; the gate judges nothing without one'
     });
@@ -2814,11 +2866,15 @@ for (const n of plan) {
        MIN_OVERLAP 0, like the IMU companions: this stream is a SECOND optical opinion, not a
        precondition for the night, so a short finger session should contribute what it has rather than
        be dropped — and unlike ECG/PPG it gates nothing downstream. */
-    o2ppg: concurrentSet(n.o2ppg, anchorIv, 'O2Ring PPG', n.key, 0)
+    o2ppg: concurrentSet(n.o2ppg, anchorIv, 'O2Ring PPG', n.key, 0),
+    /* The forehead is a THIRD optical opinion under the same rule as the finger: it must overlap the
+       ring's anchor to be this night's sleep, and MIN_OVERLAP 0 lets a short headband session give what
+       it has. It gates nothing downstream, so a night with no Muse file plans exactly as before. */
+    muse: concurrentSet(n.muse, anchorIv, 'Muse optics', n.key, 0)
   };
   const have = [pick.ecg && 'ECG', pick.ppg && 'PPG', pick.oxy.length && 'SpO2'].filter(Boolean);
   const offeredLegs = GATE_LEGS.filter(
-    (l) => (l === 'oxy' ? n.oxy : n[{ ecg: 'ecg', ppg: 'ppg', accH10: 'acc_h10', accVer: 'acc_ver', gyro: 'gyro', magn: 'magn', o2ppg: 'o2ppg' }[l]])?.length
+    (l) => (l === 'oxy' ? n.oxy : n[{ ecg: 'ecg', ppg: 'ppg', accH10: 'acc_h10', accVer: 'acc_ver', gyro: 'gyro', magn: 'magn', o2ppg: 'o2ppg', muse: 'muse' }[l]])?.length
   ).length;
   const judgedLegs = GATE_LEGS.filter((l) => pick[l] && pick[l].length).length;
   /* THREE IS A FUSION PRECONDITION, NOT A DATA ONE (POOLED-CLOCK-FIT-FOLLOWUPS §4).
@@ -2940,6 +2996,7 @@ for (const n of plan) {
   pick.ppg = inSleep(pick.ppg);
   pick.accH10 = inSleep(pick.accH10);
   pick.o2ppg = inSleep(pick.o2ppg);
+  pick.muse = inSleep(pick.muse);
   pick.accVer = inSleep(pick.accVer);
   pick.gyro = inSleep(pick.gyro);
   pick.magn = inSleep(pick.magn);
@@ -3206,6 +3263,7 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
   // How long to wait for a dead child's pipes to drain before reporting without them (see `settle`).
   const CHILD_STDIO_GRACE_MS = 5000;
   const nightOutcome = new Map(); // night key → { ok, total } so the parent can stamp a fully-green night
+  const nightStart = new Map(); // night key → ms when its first split leg was dispatched
   let done = 0,
     failed = 0;
   const oomRetry = []; // nights that died of heap exhaustion, retried ALONE after the pool drains
@@ -3217,6 +3275,13 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
          line past Biome's width, which wrapped the array and blinded the gate. It said so rather
          than passing — "the dispatch shape changed — this gate is reading nothing". */
       const cap = opts.heapMB || heapMB;
+      /* A split night's stamp is the PARENT's, so the parent invalidates it before the first leg of
+         that night starts and records when that was. The stamp below binds only exports written after
+         this instant: a child exits 0 when its node throws, so its exit code cannot say the leg landed. */
+      if (node && !nightStart.has(p.key)) {
+        nightStart.set(p.key, Date.now());
+        clearNightOutputs(join(OUT, p.key));
+      }
       const args = [`--max-old-space-size=${cap}`, __filename, '--src', SRC, '--out', OUT, '--night', p.key, '--child', '--min-hours', String(MIN_HOURS), '--min-overlap', String(MIN_OVERLAP)];
       if (node) args.push('--only-node', node);
       if (KEEP_DAYTIME) args.push('--keep-daytime');
@@ -3300,10 +3365,18 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
           if (o.ok === o.total) {
             const dir = join(OUT, p.key);
             const nJson = countTrioExports(dir);
-            if (nJson === TRIO_NODES.length)
+            const since = nightStart.get(p.key);
+            const fresh = readdirSync(dir)
+              .filter((f) => /\.node-export\.json$/.test(f) && since != null && statSync(join(dir, f)).mtimeMs >= since)
+              .sort();
+            const stale = TRIO_NODES.filter((n) => !fresh.includes(`${n}_${p.key}.node-export.json`));
+            if (nJson === TRIO_NODES.length && stale.length)
+              console.log(`    ⊘ ${p.key}: no stamp — ${stale.join(', ')} export predates this fold (the leg did not land; an earlier fold's file is on disk)`);
+            else if (nJson === TRIO_NODES.length)
               writeFileSync(
                 join(dir, STAMP),
-                JSON.stringify({ inputsDigest: inputDigest(p), inputsContent: inputContent(p), codeDigest: CODE_DIGEST, nodes: TRIO_NODES.slice().sort() }, null, 2) + '\n'
+                JSON.stringify({ inputsDigest: inputDigest(p), inputsContent: inputContent(p), codeDigest: CODE_DIGEST, nodes: TRIO_NODES.slice().sort(), exports: bindExports(dir, fresh) }, null, 2) +
+                  '\n'
               );
             // …and the clock fit, for the same reason the stamp is here: it reads all THREE exports,
             // so no --only-node child can compute it correctly. Printed under its own heading because
@@ -3378,10 +3451,42 @@ const hoursOf = (ex) => {
   return d != null ? d / 3600 : null;
 };
 // A scrubbed export must never carry the serial back out via a filename/device field.
+/* ── THE STAMP BINDS BYTES, not presence (`tools/trio-cache-audit.mjs`) ─────────────────────────────
+   `NIGHT_WROTE` lists every node-export THIS process wrote for the night it is folding, and the stamp
+   records the sha256 of each one. A count of files on disk cannot tell a fresh export from the one an
+   earlier fold left behind: a leg that throws leaves the old file in place, and a count then certifies
+   it under the new code. The audit holds every stamped night against this record and reds on a moved
+   byte, a missing file or an export the record does not bind. */
+let NIGHT_WROTE = null;
+/* HOISTED DECLARATIONS, not `const` arrows: the dispatching parent stamps a split night from a
+   child-exit callback and exits before module evaluation reaches this line (see `cpapApneaTimes`). */
+function sha256File(f) {
+  return createHash('sha256').update(readFileSync(f)).digest('hex');
+}
+/* CLEAR BEFORE RECOMPUTE. Every file in a night folder is a fold output, so a refold owns all of them.
+   A leg that refuses under the new code (a seam, a refused merge) writes nothing, and without this the
+   old leg export survived beside the new ones: the fold summary counted it as landed, and every reader
+   of the folder read the old answer as the current one. The pattern names the fold's own outputs, so a
+   foreign file in the folder stays. The pattern lives inside the function: the parent's split path
+   calls this before module evaluation reaches a top-level `const` this far down (TDZ). */
+function clearNightOutputs(dir) {
+  const FOLD_OUTPUT = /^(\.trio-stamp|[A-Za-z]+_\d{4}-\d{2}-\d{2}\.node-export\.json|(agreement|arrival)_\d{4}-\d{2}-\d{2}\.json)$/;
+  let names = [];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const f of names) if (FOLD_OUTPUT.test(f)) rmSync(join(dir, f), { force: true });
+}
+function bindExports(dir, files) {
+  return Object.fromEntries(files.map((f) => [f, sha256File(join(dir, f))]));
+}
 const writeExport = (dir, node, key, ex) => {
   const scrubbed = dexScrubExport(ex);
   const f = join(dir, `${node}_${key}.node-export.json`);
   writeFileSync(f, JSON.stringify(scrubbed, null, 2) + '\n');
+  if (NIGHT_WROTE) NIGHT_WROTE.push(basename(f));
   const eps = (scrubbed.timeseries && scrubbed.timeseries.epochs) || [];
   const withHr = eps.filter((e) => e.hr != null).length;
   const withMot = eps.filter((e) => e.motionIndex != null).length;
@@ -4032,6 +4137,11 @@ for (const p of work) {
   const dir = join(OUT, p.key);
   mkdirSync(dir, { recursive: true });
   const row = { key: p.key, nodes: [] };
+  /* INVALIDATE BEFORE RECOMPUTE. The old stamp described the old exports; once this fold starts to
+     replace them it describes nothing. A night that dies half-way is then unstamped, which every reader
+     already treats as not done. A `--only-node` child owns one leg and leaves the stamp to the parent. */
+  NIGHT_WROTE = [];
+  if (!ONLY_NODE) clearNightOutputs(dir);
 
   /* The two fragment merges are `tools/trio-fold-merge.mjs`: a night folds on PARSED records,
      because the worst per-stream union in this corpus is past V8’s maximum string and because
@@ -4213,6 +4323,46 @@ for (const p of work) {
       console.log(`    ✗ PpgDexFinger  ${e.message}`);
     }
 
+  /* THE MUSE S FOREHEAD — PpgDex's FOREHEAD site, through the road the app takes (PR #5874).
+     `PATAlign.decodeMuseOptics` is the ONE decoder of the device frames; this fold calls it and never
+     builds a second (`sensor-trio · four corners` scans for a direct `new MuseFrame.OpticsPpg(`). It
+     streams each segment, and the decoded text goes through the same `parsePPG` and `mergePpg` as
+     the wrist and the finger, with the `_RAWRUNS.txt` sidecar beside it.
+     Two constants differ, and `ppgdex-app.js` measured both: the headband reports RECEIVED light, so
+     every channel runs under the stated sign -1, and the foot is re-timed in 0.5-3 Hz. The app sets
+     both on the parsed record and then `opticalDevice = 'Muse'` on the result, so the export names the
+     headband and the `Muse:ppg` channel. This block does the same three steps in the same order.
+     ∅ A segment the decoder refuses names its reason and folds nothing; a night whose every segment
+     refuses writes no forehead export and prints why, never an empty one. */
+  if (wantNode('PpgDex') && p.muse && p.muse.length)
+    try {
+      const FH = PATAlign.FOREHEAD;
+      const recs = [];
+      for (const f of p.muse) {
+        const handle = { name: f.name, stream: () => Readable.toWeb(createReadStream(f.full)), text: () => Promise.resolve(readFileSync(f.full, 'utf8')) };
+        const dec = await PATAlign.decodeMuseOptics(handle);
+        if (!dec || !dec.text) {
+          console.log(`    ⊘ PpgDexForehead  ${f.name}: ${(dec && dec.reason) || 'no-optical-record'}`);
+          continue;
+        }
+        recs.push(PpgDex.parsePPG(dec.text, { runsText: readRuns(f.full, 'RAW') }));
+      }
+      const mrec = recs.length ? mergePpg(recs) : null;
+      if (!mrec || !mrec.ch || !mrec.ch.length || !mrec.n) console.log('    ⊘ PpgDexForehead  no decoded optical record on this night');
+      else {
+        mrec._preChannels = mrec.ch.map((c) => PPGDSP.detectChannel(c, mrec.fs, FH.sign));
+        mrec.footHiHz = FH.footHiHz;
+        const mr = PpgDex.computeResult(mrec, { ...COMMON, source: 'muse-forehead-ppg' });
+        mr.opticalDevice = 'Muse';
+        const mex = PpgDex.buildNodeExport(mr, COMMON);
+        const mh = hoursOf(mex);
+        if (!KEEP_DAYTIME && mh != null && mh < MIN_HOURS) console.log(`    ⊘ PpgDexForehead  ${mh.toFixed(1)} h < --min-hours ${MIN_HOURS} (daytime/short) — skipped`);
+        else writeExport(dir, 'PpgDexForehead', p.key, mex);
+      }
+    } catch (e) {
+      console.log(`    ✗ PpgDexForehead  ${e.message}`);
+    }
+
   /* OxyDex — O2Ring CSV (HH:MM:SS DD/MM/YYYY → Clock Contract rule 4, preferDMY). The Motion
      column supplies this corner's motionIndex. fileMeta name is already serial-free. */
   if (wantNode('OxyDex'))
@@ -4262,7 +4412,11 @@ for (const p of work) {
   if (row.nodes.length === 3) {
     writeFileSync(
       join(dir, STAMP),
-      JSON.stringify({ inputsDigest: inputDigest(p), inputsContent: inputContent(p), codeDigest: CODE_DIGEST, nodes: row.nodes.map((n) => n.node).sort() }, null, 2) + '\n'
+      JSON.stringify(
+        { inputsDigest: inputDigest(p), inputsContent: inputContent(p), codeDigest: CODE_DIGEST, nodes: row.nodes.map((n) => n.node).sort(), exports: bindExports(dir, NIGHT_WROTE.slice().sort()) },
+        null,
+        2
+      ) + '\n'
     );
   }
 

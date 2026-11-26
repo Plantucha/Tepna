@@ -17206,9 +17206,23 @@
          equality so a future second literal is caught rather than inferred from the single-declaration
          check alone. */
       T.eq(
-        'the closure is exactly the ten modules the realm loads (clock-seam.js since 2026-10-30: the fold runs OxyDex, which scans for a clock seam)',
+        'the closure is exactly the thirteen modules the realm loads (clock-seam.js since 2026-10-30: the fold runs OxyDex, which scans for a clock seam; sq-table.js since 2026-11-26: ECGDex and PpgDex throw without it; muse-frame.js and pat-align.js since 2026-11-26: the forehead corner)',
         mods.slice().sort().join(','),
-        ['clock.js', 'clock-seam.js', 'kernel-constants.js', 'export-schema.js', 'dex-export.js', 'ecgdex-dsp.js', 'integrator-dsp.js', 'oxydex-dsp.js', 'oxydex-util.js', 'ppgdex-dsp.js']
+        [
+          'clock.js',
+          'clock-seam.js',
+          'kernel-constants.js',
+          'export-schema.js',
+          'dex-export.js',
+          'ecgdex-dsp.js',
+          'integrator-dsp.js',
+          'muse-frame.js',
+          'oxydex-dsp.js',
+          'oxydex-util.js',
+          'pat-align.js',
+          'ppgdex-dsp.js',
+          'sq-table.js'
+        ]
           .sort()
           .join(','),
         'the compute closure changed. If a module was ADDED to the fold, add it here deliberately; if one was removed, the stamps it justified are stale in the other direction.'
