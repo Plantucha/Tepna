@@ -334,7 +334,7 @@ export function auditOrder(items, issued, changedSince) {
    runs out of tokens. `run` releases the reserve into the queue when no bird has posted on the board
    for --quiet-h hours, the fleet's out-of-tokens signature. Verify-lead batches always go to the queue:
    a lead goes stale as main moves. */
-const BIRDS = ['kestrel', 'heron', 'osprey', 'magpie', 'finch', 'wren'];
+const BIRDS = ['kestrel', 'heron', 'osprey', 'magpie', 'finch', 'wren', 'crane'];
 
 /** The newest board post by a bird, as epoch ms, or null when the board is unreadable. Read-only. */
 export function lastBirdPostMs() {

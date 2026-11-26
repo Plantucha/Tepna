@@ -47,7 +47,7 @@ mode="${1:-}"
 BOARD="${AGENT_BOARD_BIN:-$HOME/.local/bin/agent-board}"
 [ -x "$BOARD" ] || exit 0
 
-FLEET=" kestrel heron osprey magpie finch wren "
+FLEET=" kestrel heron osprey magpie finch wren crane "
 
 resolve_name() {
   local n="${AGENT_BOARD_NAME:-}"

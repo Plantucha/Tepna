@@ -33,7 +33,7 @@ HERDR="${HERDR_BIN:-$HOME/.local/bin/herdr}"
 SESSION="${HERDR_FLEET_SESSION:-birds}"
 agents="$("$HERDR" --session "$SESSION" agent list 2>/dev/null)" || { echo "board-nudge: herdr agent list failed" >&2; exit 1; }
 
-for bird in kestrel heron osprey magpie finch wren; do
+for bird in kestrel heron osprey magpie finch wren crane; do
   state="$(printf '%s' "$agents" | jq -r --arg n "$bird" '.result.agents[]? | select(.name == $n) | .agent_status // empty' | head -1)"
   if [ -z "$state" ]; then echo "$bird: no live session"; continue; fi
   # Unread = the per-subscription counts plus the addressed-only count `status` prints.
