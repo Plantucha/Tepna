@@ -70022,6 +70022,164 @@
       );
     });
 
+    /* ════ THE HAT OVER THE BEAT REFERENCE'S OWN KEY SET, BESIDE THE HEADLINE ═══════════════════════
+       Row `2026-11-26-four-corner-hat-still-over-reads-the-chest` measured the four-corner hat against
+       a reference on a DIFFERENT second set, so the ratio of the two sigmas carried a key-set
+       difference as well as the hat's bias. The remedy publishes the hat the reference's own key set
+       already solves, beside the measured sigma, and leaves every headline figure where it is (board
+       #8984 decision 1).
+       The load-bearing claim is that this hat needs no second estimator. Over one key set the plain
+       difference variance obeys `Var(Xi - Xj) = si^2 + sj^2 - 2*rho_ij*si*sj`, because `Xi - Xj` equals
+       `Ei - Ej` and both `sd` and `AnalysisStats.variance` divide by n-1 (#9332). The group RUNS
+       `scoreSeries` on a synthetic night and asserts that identity to 1e-9, so the published hat is
+       arithmetic over the sigma and rho printed beside it. */
+    group('the reference key set carries its own hat — beside the headline, never over it', 'sensor-trio · trio-reference · hat · ∅ · regression', function (T) {
+      var src = env.sources || {};
+      var rf = src['trio-reference.js'] || '',
+        wk = src['sensor-trio-worker.js'] || '',
+        pg = src['sensor-trio-night.js'] || '';
+      T.ok('trio-reference.js is in env.sources (' + rf.length + ' bytes)', rf.length > 10000, 'an unread source reads exactly like a clean one');
+      T.ok('sensor-trio-worker.js is in env.sources (' + wk.length + ' bytes)', wk.length > 20000, 'an unread source reads exactly like a clean one');
+      T.ok('sensor-trio-night.js is in env.sources (' + pg.length + ' bytes)', pg.length > 20000, 'an unread source reads exactly like a clean one');
+      var KS = dexAnalysisStats(env);
+      T.ok('analysis-stats is reachable in this lane' + (KS.reason ? ' — ' + KS.reason : ''), !!KS.S, 'the hat solve below needs the real estimator');
+
+      /* ── (1) `scoreSeries` sliced out of the reference and RUN on a synthetic night ── */
+      var score = null,
+        sliceErr = '';
+      if (rf && KS.S) {
+        var a0 = rf.indexOf('  const mean = (a) =>'),
+          c0 = rf.indexOf('  function corr(x, y) {'),
+          s0 = rf.indexOf('  function scoreSeries(REF, H, V, O, alsoRequire) {');
+        var c1 = c0 < 0 ? -1 : rf.indexOf('\n  }', c0),
+          s1 = s0 < 0 ? -1 : rf.indexOf('\n  }', s0);
+        if (a0 < 0 || c1 < 0 || s1 < 0) sliceErr = 'a slice marker moved in trio-reference.js';
+        else {
+          var body = rf.slice(a0, c1 + 4) + '\n' + rf.slice(s0, s1 + 4) + '\nreturn scoreSeries;';
+          try {
+            score = new Function('stats', 'KEYS', 'MIN_SECONDS', body)(
+              function () {
+                return KS.S;
+              },
+              ['h10', 'verity', 'o2'],
+              1000
+            );
+          } catch (e) {
+            sliceErr = String((e && e.message) || e);
+          }
+        }
+      }
+      T.ok('`scoreSeries` sliced out of the source and evaluated' + (sliceErr ? ' — ' + sliceErr : ''), typeof score === 'function', 'the rows below would vacuously pass');
+      if (typeof score === 'function') {
+        var seed = 20261126;
+        var rnd = function () {
+          seed = (seed * 1103515245 + 12345) % 2147483648;
+          return seed / 2147483648;
+        };
+        var g = function () {
+          return rnd() + rnd() + rnd() - 1.5;
+        };
+        var N = 1200;
+        var REF = new Map(),
+          H = new Map(),
+          V = new Map(),
+          O = new Map(),
+          M = new Map(),
+          MW = new Map();
+        for (var i = 0; i < N; i++) {
+          var truth = 60 + 5 * Math.sin(i / 50),
+            g1 = g(),
+            g2 = g(),
+            g3 = g();
+          REF.set(i, truth);
+          H.set(i, truth + 1 * g1);
+          V.set(i, truth + 2 * (0.2 * g1 + 0.9798 * g2));
+          O.set(i, truth + 3 * g3);
+          if (i % 2 === 0) M.set(i, 1);
+          if (i < 1100) MW.set(i, 1);
+        }
+        var r = score(REF, H, V, O);
+        T.ok('the synthetic night scores', r.ok === true, r.ok ? '' : 'reason: ' + r.reason);
+        T.eq('the key set is every second the reference and three corners share', r.n, N);
+        T.ok('the reference key set carries a hat at all', !!r.hat, 'the worker cannot publish what the scorer drops');
+        var PAIRS = [
+          ['hv', 'h10', 'verity'],
+          ['ho', 'h10', 'o2'],
+          ['vo', 'verity', 'o2']
+        ];
+        PAIRS.forEach(function (P) {
+          var si = r.trueSd[P[1]],
+            sj = r.trueSd[P[2]],
+            rho = r.rho[P[0]];
+          var fromPublished = si * si + sj * sj - 2 * rho * si * sj;
+          T.ok(
+            'the ' + P[0] + ' pair variance IS arithmetic over the published sigma and rho (' + r.vars[P[0]].toFixed(6) + ' vs ' + fromPublished.toFixed(6) + ')',
+            Math.abs(r.vars[P[0]] - fromPublished) < 1e-9,
+            'the identity is what makes this hat a projection of the block beside it, not a second estimator'
+          );
+        });
+        var c = KS.S.threeCorneredHat(r.vars.hv, r.vars.ho, r.vars.vo);
+        T.ok('the published hat is the classic solve on those three pair variances', Math.abs(r.hat.h10 - Math.sqrt(c.a)) < 1e-12, 'one estimator, never a private copy');
+        T.ok('…for the Verity corner too', Math.abs(r.hat.verity - Math.sqrt(c.b)) < 1e-12, 'one estimator, never a private copy');
+        T.ok('…and the ring corner', Math.abs(r.hat.o2 - Math.sqrt(c.c)) < 1e-12, 'one estimator, never a private copy');
+        /* A fourth corner only NARROWS the key set, which is the whole reason the headline keeps its own. */
+        var rn = score(REF, H, V, O, [MW]);
+        T.ok('a fourth corner narrows the key set', rn.ok === true, rn.ok ? '' : 'reason: ' + rn.reason);
+        T.eq('…to the seconds that corner covers', rn.n, 1100);
+        T.ok('…and the narrower set carries its own hat', Number.isFinite(rn.hat.h10), 'a same-seconds ratio needs a same-seconds hat');
+        T.ok('the narrow hat is not the wide one', rn.hat.h10 !== r.hat.h10, 'two key sets give two solves — that difference is the row');
+        var rr = score(REF, H, V, O, [M]);
+        T.ok('a fourth corner under the floor REFUSES', rr.ok === false, 'a 600 s overlap is not a night');
+        T.ok('…and the refusal counts the corners it required', /all 4 corners/.test(String(rr.reason)), 'reason: ' + rr.reason);
+      }
+
+      /* ── (2) the worker carries the solve out, and the headline stays where it is ── */
+      T.ok('the worker publishes the three-way key set hat', /hat: s\.hat/.test(wk), 'the scorer solved it and the payload dropped it');
+      T.ok('the worker publishes the four-way one beside it', /hat: f4\.hat/.test(wk), 'the same-seconds ratio is the point of that block');
+      T.ok('the headline sigma still rides the three-way scoring', /n: s\.n,\s*sigma: s\.trueSd/.test(wk), 'board #8984 decision 1 — a fourth corner may not move a published number');
+      T.eq('the four-way scoring feeds the BESIDE block only', (wk.match(/scoreSeries\(B\.REF, H, V, O, \[M\]\)/g) || []).length, 1);
+
+      /* ── (3) `refHatText` sliced out of the page and RUN ── */
+      var clause = null,
+        cErr = '';
+      if (pg) {
+        var h0 = pg.indexOf('  function refHatText(R, keys, fmt) {'),
+          h1 = h0 < 0 ? -1 : pg.indexOf('\n  }', h0);
+        if (h1 < 0) cErr = 'the refHatText marker moved in sensor-trio-night.js';
+        else
+          try {
+            clause = new Function(pg.slice(h0, h1 + 4) + '\nreturn refHatText;')();
+          } catch (e2) {
+            cErr = String((e2 && e2.message) || e2);
+          }
+      }
+      T.ok('`refHatText` sliced out of the page and evaluated' + (cErr ? ' — ' + cErr : ''), typeof clause === 'function', 'the rows below would vacuously pass');
+      if (typeof clause === 'function') {
+        var f2t = function (x) {
+          return x == null ? '—' : x.toFixed(2);
+        };
+        T.eq('no reference, no clause', clause(null, 'h10', f2t), '');
+        T.eq('a reference with no hat prints nothing', clause({ n: 1200 }, 'h10', f2t), '');
+        T.eq('one corner names the second count it was solved over', clause({ n: 1200, hat: { h10: 2.3456 } }, 'h10', f2t), 'over the reference’s own 1200 s the hat reads 2.35');
+        T.eq('∅ a refused corner reads `refused`, never a formatted null', clause({ n: 1200, hat: { h10: null } }, 'h10', f2t), 'over the reference’s own 1200 s the hat reads refused');
+        T.eq('∅ a non-finite corner reads the same', clause({ n: 1200, hat: { h10: NaN } }, 'h10', f2t), 'over the reference’s own 1200 s the hat reads refused');
+        T.eq(
+          'the three corners read in order, refusals included',
+          clause({ n: 900, hat: { h10: 1, verity: 2, o2: null } }, ['h10', 'verity', 'o2'], f2t),
+          'over the reference’s own 900 s the hat reads 1.00 / 2.00 / refused'
+        );
+        T.eq('∅ an absent second count says `seconds`, it never reads as 0', clause({ hat: { h10: 1 } }, 'h10', f2t), 'over the reference’s own seconds the hat reads 1.00');
+        T.eq('an empty key list prints nothing', clause({ n: 900, hat: { h10: 1 } }, [], f2t), '');
+      }
+
+      /* ── (4) the page publishes it BESIDE the headline, with its own badge ── */
+      T.ok('the hero reads the clause', /const rh = useMeas \? refHatText\(R, k, f2\)/.test(pg), 'a helper nothing calls publishes nothing');
+      T.ok('…and badges it (§🎫)', /evb\('hatRef'\)/.test(pg), 'every surfaced number carries a badge');
+      T.ok('the page grades the restricted hat', /hatRef: \['experimental'/.test(pg), 'the same assumption as the hat it restricts');
+      T.ok('the headline clause now names its own key set', /the hat over the three-way overlap said/.test(pg), 'two sigmas without their sets is what the row measured');
+      T.ok('the night row carries the clause too', /const rhRow = refHatText\(R, DKEYS, f2\)/.test(pg), 'the row tooltip states both figures');
+    });
+
     /* ── SAMPLE-VALIDITY-ENVELOPE done-when 4 — A RATCHET ON THE CALLERS THAT READ NO VALIDITY ────────────
        Six sample parsers accept the box's `…RUNS.txt` validity sidecar as `opts.runsText`: `parseECG` /
        `parseECGText` (ecgdex-dsp), `parseDeviceACC` (ecgdex-dsp), `parsePPG` (ppgdex-dsp), `parsePPG2W`
