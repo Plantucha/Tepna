@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="9cba851a70e8" data-compute-hash="9c7be7e4ec71"><head>
+<html lang="en" data-manifest-hash="8ab8e432d144" data-compute-hash="33a504393d65"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/VJg0iL4BTIOQo1MBGNaCyjASkthShp7aMZCanB9k3A=' 'sha256-2c3velFfSLNAC5jrCyn6cBTvi048ZOdXnJBmosvpvTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6vRsd8wVQoTSJKZCJmwjUOk0mO0dhv4yfkPzZA204MI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-9pxFCJPFipgaRs8G3wH7bh1NlNw0+rSdVQp4xMLxMqc=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G73E908mGzZSzGnycAfYtgzAkAHMoWN+0fdZLpQ+vSE=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IkoMy5gaSZB78svoNIZIL2ktLgpZKVC/niY+oBHTILk=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SploFxN8y41QfXBKeMXZ3VVUDPeaXF7mfHd2/kuq43U=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VwGqHWLSbaEDNL4p+AGh+MW4SneiHEn07RjprPzHgDU=' 'sha256-WldNv6ZaczXfSpdI9/QwglNtPxw2x/dd1j50BSnl680=' 'sha256-XhoVrB9BEhIhXlJd1jwCh7RHO4FOkVbzNeegg72RUoo=' 'sha256-biiHe0emfmUwcQd5Pyue/Fau47ELBDIFcEj5LYEobr8=' 'sha256-cumr3An7W+Q6iJlTfa/0x/W0WcDr47x/lyahofIzqPo=' 'sha256-e8170odGJFoMGeKcTjWRUs5iHkAOyFMpt6z2GWfyQ/w=' 'sha256-gd9IuoPK0m0h+mwKmCjCmBpm6ebuTXqb8O27YnJNX04=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nbCcwjX4Ba9w3RBLEB+5up9PRhrS11tY5toYvGccPHI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-raT0ySRfzf6NqNlfouX617HrkGtfFTUrwTDtvd3UNb4=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-siTJEQpoDNnQ91b99O0dbWcjjTAHcnriuo4RN8xHJak=' 'sha256-voG5FOxK9EscA+uaXp7M2jU1JtX/IItWxJB4xuUEhEg=' 'sha256-yFPiGik662jFYAbvMxIGlhr8nHZY5SUqMK7xfqYl2hM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/VJg0iL4BTIOQo1MBGNaCyjASkthShp7aMZCanB9k3A=' 'sha256-2c3velFfSLNAC5jrCyn6cBTvi048ZOdXnJBmosvpvTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6vRsd8wVQoTSJKZCJmwjUOk0mO0dhv4yfkPzZA204MI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G73E908mGzZSzGnycAfYtgzAkAHMoWN+0fdZLpQ+vSE=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IkoMy5gaSZB78svoNIZIL2ktLgpZKVC/niY+oBHTILk=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VwGqHWLSbaEDNL4p+AGh+MW4SneiHEn07RjprPzHgDU=' 'sha256-WldNv6ZaczXfSpdI9/QwglNtPxw2x/dd1j50BSnl680=' 'sha256-Wo4/K7k5QgSkWNGcpXlpO47rZCtUgINwmCVfNxw1fhw=' 'sha256-XhoVrB9BEhIhXlJd1jwCh7RHO4FOkVbzNeegg72RUoo=' 'sha256-biiHe0emfmUwcQd5Pyue/Fau47ELBDIFcEj5LYEobr8=' 'sha256-cumr3An7W+Q6iJlTfa/0x/W0WcDr47x/lyahofIzqPo=' 'sha256-e8170odGJFoMGeKcTjWRUs5iHkAOyFMpt6z2GWfyQ/w=' 'sha256-gd9IuoPK0m0h+mwKmCjCmBpm6ebuTXqb8O27YnJNX04=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nbCcwjX4Ba9w3RBLEB+5up9PRhrS11tY5toYvGccPHI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-ozXYpshsMdrwsEyJBWYqO0KiO2kSFx6jdoCQD12VNjc=' 'sha256-p+HCojI0vbZLxG1YnY1+Ntjb2s7jiJoyGHyazcshxTE=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-sFs72+V/8cWGPXBlZh3vzQt74z9v7wDFM6WscVNeSSI=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-voG5FOxK9EscA+uaXp7M2jU1JtX/IItWxJB4xuUEhEg=' 'sha256-yFPiGik662jFYAbvMxIGlhr8nHZY5SUqMK7xfqYl2hM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -6148,7 +6148,15 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
      If a sidecar is dropped in the batch, DECLARE the verification against it. Never SHIFT time —
      the house rule at `oxydex-dsp.js:3235` (a silent correction becomes an invisible bug). */
   function parseRingClockLog(text) {
-    if (typeof text !== 'string' || !text) return [];
+    /* ∅ THIS ANSWERED `[]` ON BOTH ROADS, so a night with no ring-clock sidecar and a night whose
+       sidecar recorded no clock read arrived at the matcher alike — absence as zero reads, which
+       §∅ refuses. An ABSENT text is `null`. A PRESENT, EMPTY one is the named refusal the ruling of
+       2026-11-26 (board #9027) gives every sidecar parser in the fleet: `RingClockLogWriter` stamps
+       its header on open into a 64 KB buffer, so 0 bytes is a capture that stopped before the first
+       flush and the verification is UNMEASURED, never verified against zero reads. A file holding
+       its header alone still parses below and answers `[]`, which is a real observation. */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     var lines = text.split(/\r?\n/);
     var out = [];
     for (var i = 1; i < lines.length; i++) {
@@ -6321,6 +6329,18 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
               if (_n && _n._o2BinSource === true) _o2AttachRtcVerification(_n, _rtcLog);
               if (_n) _o2AttachAcqEvidence(_n, (typeof window !== 'undefined' && window._oxyAcqEvidence) || null);
             });
+          } else if (typeof window !== 'undefined' && window._oxyRtcSidecarEmpty === true) {
+            // ∅ THE BATCH CARRIED A RING-CLOCK SIDECAR AND IT HELD NOTHING. The verification is
+            // UNMEASURED, and that is a different fact from a batch nobody paired one with, so the
+            // night says which. Nothing else moves: no `timingSource` and no offset are attached,
+            // exactly as on the road where no sidecar arrived, and this road is the only writer of
+            // the key, so every night decoded without a sidecar keeps its bytes.
+            Object.keys(allNights).forEach(function (_k) {
+              var _n = allNights[_k];
+              if (_n && _n._o2BinSource === true)
+                _n.rtcSidecarReason =
+                  'ring-clock sidecar present and empty (sidecar-empty) — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: the RTC verification is UNMEASURED, never verified against zero reads';
+            });
           }
         } catch (_eRt) {
           /* the matcher is pure — a throw here means a shape we did not expect, not a compute path */
@@ -6472,8 +6492,13 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
           // resolves, so drop order does not matter (same posture as \`_PPG2W.txt\`/\`_SPO2.csv\`).
           if (/_rtclog\.csv$/i.test(file.name)) {
             var _rtcText = new TextDecoder('utf-8').decode(_buf);
-            var _rtcRows = parseRingClockLog(_rtcText);
-            if (_rtcRows.length) {
+            var _rtcRows = /** @type {any} */ (parseRingClockLog(_rtcText));
+            // ∅ A PRESENT, EMPTY sidecar (ruling 2026-11-26) is NOT a sidecar that recorded no clock
+            // read. It goes on its own flag rather than into the bag: concatenating nothing would
+            // leave the batch indistinguishable from one that was never handed a sidecar at all.
+            if (_rtcRows && _rtcRows.err) {
+              window._oxyRtcSidecarEmpty = true;
+            } else if (_rtcRows && _rtcRows.length) {
               window._oxyRtcLog = (window._oxyRtcLog || []).concat(_rtcRows);
             }
             resolve(null);
@@ -15953,6 +15978,11 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     if (night.rtcOffsetS != null && isFinite(night.rtcOffsetS)) _out.recording.rtcOffsetS = night.rtcOffsetS;
     if (night.rtcVerifiedAtMs != null && isFinite(night.rtcVerifiedAtMs)) _out.recording.rtcVerifiedAtMs = night.rtcVerifiedAtMs;
     if (night.rtcResetSuspect) _out.recording.rtcResetSuspect = true;
+    /* ∅ — and WHY no verification is attached, when the reason is a sidecar that held nothing. A
+       consumer folding the fleet reads an absent `timingSource` as "nobody read the ring's clock";
+       on this one road that reading is wrong, and the key names which. Conditional like the four
+       above, so a night decoded without a sidecar keeps its export bytes. */
+    if (night.rtcSidecarReason) _out.recording.rtcSidecarReason = night.rtcSidecarReason;
     /* ── WHETHER A SEAM SIDECAR WAS READ AT ALL — UNCONDITIONALLY ────────────────────────────
        Owner ruling 2026-11-05 (board #3569), re-stated as D17 on 2026-11-06: a recording with no
        seam sidecar reads seam status UNKNOWN, never seam-free, and an export silent about the
@@ -30694,7 +30724,16 @@ __exports.GlucoDex = window.GlucoDex;
      -PRINCIPLES §2). Column 0 is the run's first-sample stamp, column 5 its duration in ms. A row that
      does not parse adds no span, so a damaged sidecar can only blank LESS, never invent a run. */
   function parseAccRunsTimed(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ A PRESENT, EMPTY SIDECAR IS NOT AN ABSENT ONE (owner-deputy ruling 2026-11-26, board
+       #9027; the full reading sits on `parsePinnedRuns` in `ppgdex-dsp.js`). The writer stamps its
+       own `# stream=… rule=…` header the moment it opens a new file, and that header sits in a
+       64 KB buffer, so a capture that stopped before the first flush leaves exactly 0 bytes. The box
+       side already names that state (`capture-host/solid_night_inputs.py` `_sidecar_unflushed`), and
+       a HEADER-ONLY file is the other fact — a rule stated and no run found — which still parses
+       below. So an ABSENT text answers `null`, and an EMPTY one answers a NAMED REFUSAL: the
+       validity is absent here, and it is never zero runs. */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     const out = /** @type {any} */ ({ minRun: null, spans: [], emitted: 0, comparable: false });
     for (const raw of text.split(/\r?\n/)) {
       const line = raw.trim();
@@ -30824,10 +30863,13 @@ __exports.GlucoDex = window.GlucoDex;
     /* §∅ — A SIDECAR THAT FOUND NO RUN IS A MEASUREMENT, AND ITS ABSENCE IS NOT. Spans alone
        cannot carry that difference, so `_runsSidecar` rides beside them and is present exactly when a
        sidecar parsed. Absent means nobody looked, which is validity UNKNOWN. Same field and same
-       reason as MotionDex's parser of this name and as ECGDex's `parseDeviceACC`. A zero-byte sidecar
-       still reads as absent here, which row
-       `2026-11-04-a-zero-byte-sidecar-hides-rows-the-device-did-send` owns. */
-    if (_accRuns) {
+       reason as MotionDex's parser of this name and as ECGDex's `parseDeviceACC`. A PRESENT, EMPTY
+       sidecar is a third state, and it answers the named refusal of the ruling of 2026-11-26; the
+       reason below attributes that absence rather than borrowing the one that means nobody looked. */
+    if (_accRuns && _accRuns.err) {
+      /** @type {any} */ (out)._runsSidecarReason =
+        'run sidecar present and empty (' + _accRuns.err + ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero runs';
+    } else if (_accRuns) {
       /** @type {any} */ (out)._runsSidecar = _accRuns;
       if (_accRuns.spans.length) /** @type {any} */ (out)._blankSpans = _accRuns.spans;
     }
@@ -43232,7 +43274,16 @@ __exports.PpgDex = window.PpgDex;
      both: `# stream=ecg rule=stuck min_run=N …` and rows
      `Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule`. */
   function parseEcgRuns(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ A PRESENT, EMPTY SIDECAR IS NOT AN ABSENT ONE (owner-deputy ruling 2026-11-26, board
+       #9027; the full reading sits on `parsePinnedRuns` in `ppgdex-dsp.js`). The writer stamps its
+       own `# stream=… rule=…` header the moment it opens a new file, and that header sits in a
+       64 KB buffer, so a capture that stopped before the first flush leaves exactly 0 bytes. The box
+       side already names that state (`capture-host/solid_night_inputs.py` `_sidecar_unflushed`), and
+       a HEADER-ONLY file is the other fact — a rule stated and no run found — which still parses
+       below. So an ABSENT text answers `null`, and an EMPTY one answers a NAMED REFUSAL: the
+       validity is absent here, and it is never zero runs. */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     var out = /** @type {any} */ ({
       params: null,
       minRun: null,
@@ -43662,7 +43713,14 @@ __exports.PpgDex = window.PpgDex;
     /* It lives HERE, not only in `parseECGText`, so a STREAMED caller (`tools/trio-batch.mjs` folds
        60 MB files line by line) reaches the same validity a whole-text caller does. */
     var runs = parseEcgRuns(opts && opts.runsText);
-    if (runs) {
+    /* ∅ A PRESENT, EMPTY sidecar: absent validity with a named reason, never zero runs. Both keys
+       ride THIS road alone, so a record paired with a sidecar, and one paired with none, keep the
+       bytes they have today. */
+    if (runs && runs.err) {
+      rec.blankingSpans = null;
+      rec.blankingSpansReason =
+        'run sidecar present and empty (' + runs.err + ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero runs';
+    } else if (runs) {
       rec.runsSidecar = runs;
       /* §∅ — a sidecar whose rows went unplaced measured nothing here, and `[]` would report that
          the box found no blanking. `null` is the absence; every consumer already guards for it
@@ -44005,7 +44063,16 @@ __exports.PpgDex = window.PpgDex;
          writer's sample index. Time is the frame both sides agree on.
      Returns absolute floating ms, the same frame `stampEpochPositions` aligns against. */
   function parseAccRunsTimed(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ A PRESENT, EMPTY SIDECAR IS NOT AN ABSENT ONE (owner-deputy ruling 2026-11-26, board
+       #9027; the full reading sits on `parsePinnedRuns` in `ppgdex-dsp.js`). The writer stamps its
+       own `# stream=… rule=…` header the moment it opens a new file, and that header sits in a
+       64 KB buffer, so a capture that stopped before the first flush leaves exactly 0 bytes. The box
+       side already names that state (`capture-host/solid_night_inputs.py` `_sidecar_unflushed`), and
+       a HEADER-ONLY file is the other fact — a rule stated and no run found — which still parses
+       below. So an ABSENT text answers `null`, and an EMPTY one answers a NAMED REFUSAL: the
+       validity is absent here, and it is never zero runs. */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     var out = /** @type {any} */ ({ minRun: null, spans: [], emitted: 0, comparable: false });
     var lines = String(text).split(/\r?\n/);
     for (var i = 0; i < lines.length; i++) {
@@ -44446,9 +44513,13 @@ __exports.PpgDex = window.PpgDex;
        both arrive here as no spans at all. `_runsSidecar` is present exactly when a sidecar parsed,
        so a consumer reads validity UNKNOWN from its absence rather than reading a clean stream. This
        is MotionDex's form of the same field, and `parseECG` above carries `runsSidecar` for the same
-       reason. A zero-byte sidecar still reads as absent here, which row
-       `2026-11-04-a-zero-byte-sidecar-hides-rows-the-device-did-send` owns. */
-    if (_accRuns) {
+       reason. A PRESENT, EMPTY sidecar is neither of those states: it answers the named refusal of
+       the ruling of 2026-11-26, and the reason below carries it, so the absence is attributed here
+       rather than borrowed from the stream that was never paired. */
+    if (_accRuns && _accRuns.err) {
+      /** @type {any} */ (out)._runsSidecarReason =
+        'run sidecar present and empty (' + _accRuns.err + ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero runs';
+    } else if (_accRuns) {
       /** @type {any} */ (out)._runsSidecar = _accRuns;
       if (_accRuns.spans.length) /** @type {any} */ (out)._blankSpans = _accRuns.spans;
     }
@@ -46538,7 +46609,16 @@ __exports.ECGDex = window.ECGDex;
      retired bug from every old file. The zero-order hold that genuinely repeats 6-7x by design is
      the O2Ring's `accraw`, a DIFFERENT stream from this one. */
   function parseAccRuns(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ A PRESENT, EMPTY SIDECAR IS NOT AN ABSENT ONE (owner-deputy ruling 2026-11-26, board
+       #9027; the full reading sits on `parsePinnedRuns` in `ppgdex-dsp.js`). The writer stamps its
+       own `# stream=… rule=…` header the moment it opens a new file, and that header sits in a
+       64 KB buffer, so a capture that stopped before the first flush leaves exactly 0 bytes. The box
+       side already names that state (`capture-host/solid_night_inputs.py` `_sidecar_unflushed`), and
+       a HEADER-ONLY file is the other fact — a rule stated and no run found — which still parses
+       below. So an ABSENT text answers `null`, and an EMPTY one answers a NAMED REFUSAL: the
+       validity is absent here, and it is never zero runs. */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     var out = /** @type {any} */ ({ params: null, minRun: null, spans: [], rows: [], malformed: false, emitted: 0, examined: null, sawHeader: false, comparable: false });
     var lines = String(text).split(/\r?\n/);
     for (var i = 0; i < lines.length; i++) {
@@ -46603,7 +46683,16 @@ __exports.ECGDex = window.ECGDex;
      device axis the seam just broke, and `idx` is a per-writer-session counter that restarts at every
      reconnect while the file appends. */
   function parseAccSeams(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ A PRESENT, EMPTY SIDECAR IS NOT AN ABSENT ONE (owner-deputy ruling 2026-11-26, board
+       #9027; the full reading sits on `parsePinnedRuns` in `ppgdex-dsp.js`). The writer stamps its
+       own `# stream=… rule=…` header the moment it opens a new file, and that header sits in a
+       64 KB buffer, so a capture that stopped before the first flush leaves exactly 0 bytes. The box
+       side already names that state (`capture-host/solid_night_inputs.py` `_sidecar_unflushed`), and
+       a HEADER-ONLY file is the other fact — a rule stated and no seam found — which still parses
+       below. So an ABSENT text answers `null`, and an EMPTY one answers a NAMED REFUSAL: the
+       validity is absent here, and it is never zero seams. */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     var out = /** @type {any} */ ({
       params: null,
       rule: null,
@@ -46747,6 +46836,14 @@ __exports.ECGDex = window.ECGDex;
     if (!rows) return rows;
     var sc = typeof seams === 'string' ? parseAccSeams(seams) : seams && typeof seams === 'object' && Array.isArray(seams.rows) ? seams : null;
     if (!sc) return rows;
+    /* ∅ A PRESENT, EMPTY sidecar: absent validity with a named reason, never zero seams. Nothing is
+       hung as a sidecar, because an object carrying no rows is not one. */
+    if (sc.err) {
+      rows._recordedSeams = null;
+      rows._recordedSeamsReason =
+        'seam sidecar present and empty (' + sc.err + ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero seams';
+      return rows;
+    }
     rows._seamsSidecar = sc;
     /* §∅ — `[]` is the honest answer for a sidecar that examined intervals and recorded no seam, and
        the WRONG answer for one whose rows this reader could not keep. `null` is the absence, and the
@@ -47021,7 +47118,12 @@ __exports.ECGDex = window.ECGDex;
     /* Same idiom as the seam list: hung on the row array, so no consumer signature changes and a
        stream without a sidecar keeps today's bytes exactly. */
     var _runs = parseAccRuns(opts && opts.runsText);
-    if (_runs) {
+    /* ∅ A PRESENT, EMPTY sidecar names its own absence (ruling 2026-11-26), and the key rides that
+       road alone, so a stream paired with a sidecar, and one paired with none, keep today's bytes. */
+    if (_runs && _runs.err) {
+      out._runsSidecarReason =
+        'run sidecar present and empty (' + _runs.err + ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero runs';
+    } else if (_runs) {
       out._runsSidecar = _runs;
       if (_runs.spans.length) out._blankSpans = _runs.spans;
     }
