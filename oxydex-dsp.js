@@ -10166,7 +10166,11 @@
      The field names are the PpgDex ones on purpose — the parity assertion is a deep compare, so a
      rename here would make the gate vacuous. */
   function _parsePinnedRuns(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ An absent text is `null`; a PRESENT, EMPTY one is a named refusal, never zero rows — the
+       writer stamps its header on open, so 0 bytes is a capture that stopped before the first flush
+       (ruling 2026-11-26; the full reading sits on the twin `parsePinnedRuns` in `ppgdex-dsp.js`). */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     /* The `any` cast is PpgDex's too, and for the same reason: every field starts null and is filled
        from the file, so inference pins each one to `null` and rejects the assignment that is the point. */
     var out = /** @type {any} */ ({
@@ -10301,15 +10305,25 @@
       if (!isFinite(a) || !isFinite(b)) continue;
       rows.push({ tMs: ts.tMs, ch0: a, ch1: b, motion: isFinite(mo) ? mo : null, src: src });
     }
-    var runs = _parsePinnedRuns(opts && opts.runsText);
+    var runsParsed = _parsePinnedRuns(opts && opts.runsText);
+    /* ∅ A PRESENT, EMPTY sidecar maps no span, so it takes the no-sidecar road and names itself. */
+    var runsEmptyReason = runsParsed && runsParsed.err ? runsParsed.err : null;
+    var runs = runsEmptyReason ? null : runsParsed;
     var mapped = _ppg2wBlankSpans(rows, runs);
-    return {
+    var out = {
       t0Ms: rows.length ? rows[0].tMs : null,
       rows: rows,
       runs: runs,
       blankSpans: mapped.spans,
       spansUnmapped: mapped.unmapped
     };
+    /* The key exists only on this road, so a night with a sidecar or with none is byte-identical. */
+    if (runsEmptyReason)
+      /** @type {any} */ (out).runsAbsentReason =
+        'pinned-runs sidecar present and empty (' +
+        runsEmptyReason +
+        ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero runs';
+    return out;
   }
 
   /** Per-buffer {ac, dc}: linear-detrended RMS + |mean|. RMS (not peak-to-peak) won the 2026-08-20

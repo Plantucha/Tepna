@@ -464,7 +464,16 @@
      report a parameter difference as a disagreement on every file in the corpus — the
      same-name-two-populations error with a threshold in place of a denominator. */
   function parsePinnedRuns(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ A PRESENT, EMPTY SIDECAR IS NOT AN ABSENT ONE (owner-deputy ruling 2026-11-26, board #9027).
+       The writer stamps its own `# stream=… rule=…` header the moment it opens a new file
+       (`capture-host/writers.py` `_RunSidecar` and `_SeamSidecar`), and that header sits in a 64 KB
+       buffer. So a capture that stopped before the first flush leaves exactly 0 bytes, which the box
+       side already names (`capture-host/solid_night_inputs.py` `_sidecar_unflushed`). A HEADER-ONLY
+       file is the other fact — a rule stated and no run found — and it still parses below.
+       An ABSENT text therefore answers `null`, and an EMPTY one answers a NAMED REFUSAL: the
+       validity is absent here, and it is never zero runs. */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     const out = /** @type {any} */ ({
       params: null,
       minRun: null,
@@ -953,7 +962,11 @@
      device-minus-host` is about exactly that. A row this reader cannot place is counted and named
      (§∅), never dropped and never placed at a guessed second. */
   function parsePpgSeams(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ An absent text is `null`; a PRESENT, EMPTY one is a named refusal, never zero rows — the
+       writer stamps its header on open, so 0 bytes is a capture that stopped before the first flush
+       (ruling 2026-11-26; the full reading sits on `parsePinnedRuns` in `ppgdex-dsp.js`). */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     const out = /** @type {any} */ ({
       params: null,
       rule: null,
@@ -1207,7 +1220,16 @@
      why no existing fixture input moves. */
   function attachPpgSeams(rec, opts) {
     if (!rec) return rec;
-    const seams = parsePpgSeams(opts && opts.seamsText);
+    const _scPpg = parsePpgSeams(opts && opts.seamsText);
+    /* ∅ A PRESENT, EMPTY sidecar says nothing about seams, so the validity is ABSENT and the reader
+       is told why. Without this the refusal would read as a parsed sidecar carrying no row. */
+    if (_scPpg && _scPpg.err) {
+      /** @type {any} */ (rec).recordedSeams = null;
+      /** @type {any} */ (rec).recordedSeamsReason =
+        'seam sidecar present and empty (' + _scPpg.err + ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero seams';
+      return rec;
+    }
+    const seams = _scPpg;
     if (seams) {
       /** @type {any} */ (rec).seamsSidecar = seams;
       /* §∅ — `[]` is the honest answer for a sidecar that examined intervals and recorded no seam, and
@@ -1919,7 +1941,11 @@
        here rather than per channel, and keyed by the writer's own channel LABEL (`channel 0`),
        which is the same label `_PPG.txt`'s header uses — so the two sides are joined on a name
        both files actually carry, not on an index one of them merely implies. */
-    const _runs = parsePinnedRuns(opts && opts.runsText);
+    const _runsParsed = parsePinnedRuns(opts && opts.runsText);
+    /* ∅ A PRESENT, EMPTY sidecar takes the NO-SIDECAR road below, because that road publishes the
+       absence (`pinnedCrossCheck: null`) rather than a zero. The reason travels on the record. */
+    const _runsEmptyReason = _runsParsed && _runsParsed.err ? _runsParsed.err : null;
+    const _runs = _runsEmptyReason ? null : _runsParsed;
     const _chanKey = function (ci) {
       return 'channel ' + ci;
     };
@@ -2457,6 +2483,14 @@
     };
     /* `opts.seamsText` is the `…_PPGSEAMS.txt` companion's bytes when the caller paired one. LAST and
        OPTIONAL per §🧪: a call without it leaves `_rec` byte-identical, so no existing fixture moves. */
+    /* ∅ `pinnedCrossCheck` is null on both roads, and a reader cannot tell "no sidecar was paired"
+       from "the paired sidecar was empty". This key names the second, and it exists on no other
+       road, so no record that carries a sidecar or none moves. */
+    if (_runsEmptyReason)
+      /** @type {any} */ (_rec).pinnedSidecarReason =
+        'pinned-runs sidecar present and empty (' +
+        _runsEmptyReason +
+        ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero runs';
     return attachPpgSeams(_rec, { seamsText: opts && opts.seamsText });
   }
 
