@@ -39,51 +39,51 @@
     "hypnogram": [
       {
         "tMs": 1767308400000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767308430000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767308460000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767308490000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767308520000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767308550000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767308580000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767308610000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767308640000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767308670000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767308700000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767308730000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767308760000,
@@ -95,139 +95,139 @@
       },
       {
         "tMs": 1767308820000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767308850000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767308880000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767308910000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767308940000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767308970000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767309000000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767309030000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767309060000,
-        "stage": "REM"
+        "stage": "wake"
       },
       {
         "tMs": 1767309090000,
-        "stage": "REM"
+        "stage": "light"
       },
       {
         "tMs": 1767309120000,
-        "stage": "N2"
+        "stage": "light"
       },
       {
         "tMs": 1767309150000,
-        "stage": "N2"
+        "stage": "REM"
       },
       {
         "tMs": 1767309180000,
-        "stage": "N2"
+        "stage": "REM"
       },
       {
         "tMs": 1767309210000,
-        "stage": "N2"
+        "stage": "REM"
       },
       {
         "tMs": 1767309240000,
-        "stage": "N2"
+        "stage": "REM"
       },
       {
         "tMs": 1767309270000,
-        "stage": "N2"
+        "stage": "REM"
       },
       {
         "tMs": 1767309300000,
-        "stage": "N2"
+        "stage": "REM"
       },
       {
         "tMs": 1767309330000,
-        "stage": "N2"
+        "stage": "REM"
       },
       {
         "tMs": 1767309360000,
-        "stage": "N2"
+        "stage": "REM"
       },
       {
         "tMs": 1767309390000,
-        "stage": "N2"
+        "stage": "REM"
       },
       {
         "tMs": 1767309420000,
-        "stage": "N2"
+        "stage": "REM"
       },
       {
         "tMs": 1767309450000,
-        "stage": "N2"
+        "stage": "REM"
       },
       {
         "tMs": 1767309480000,
-        "stage": "N3"
+        "stage": "wake"
       },
       {
         "tMs": 1767309510000,
-        "stage": "N3"
+        "stage": "wake"
       },
       {
         "tMs": 1767309540000,
-        "stage": "N3"
+        "stage": "wake"
       },
       {
         "tMs": 1767309570000,
-        "stage": "N3"
+        "stage": "wake"
       },
       {
         "tMs": 1767309600000,
-        "stage": "N3"
+        "stage": "wake"
       },
       {
         "tMs": 1767309630000,
-        "stage": "N3"
+        "stage": "wake"
       },
       {
         "tMs": 1767309660000,
-        "stage": "N3"
+        "stage": "wake"
       },
       {
         "tMs": 1767309690000,
-        "stage": "N3"
+        "stage": "wake"
       },
       {
         "tMs": 1767309720000,
-        "stage": "N3"
+        "stage": "wake"
       },
       {
         "tMs": 1767309750000,
-        "stage": "N3"
+        "stage": "wake"
       },
       {
         "tMs": 1767309780000,
-        "stage": "N3"
+        "stage": "wake"
       },
       {
         "tMs": 1767309810000,
-        "stage": "N3"
+        "stage": "wake"
       },
       {
         "tMs": 1767309840000,
@@ -279,52 +279,48 @@
       }
     ],
     "stageCounts": {
-      "W": 0,
-      "N1": 0,
-      "N2": 12,
-      "N3": 12,
-      "REM": 36
+      "wake": 33,
+      "light": 2,
+      "deep": 0,
+      "REM": 25
     },
-    "tstHours": 0.5,
-    "sleepEfficiencyPct": 100,
-    "n3Pct": 20,
-    "remPct": 60,
-    "n1Pct": 0,
-    "n2Pct": 20,
-    "wakePct": 0,
-    "latencySleepMin": 0,
+    "tstHours": 0.225,
+    "sleepEfficiencyPct": 45,
+    "lightPct": 7.4,
+    "deepPct": 0,
+    "remPct": 92.6,
+    "stageSource": {
+      "kind": "model",
+      "id": "eeg-base-p2-lab-2026-11-17",
+      "sha16": "9e86313e6a4352e5",
+      "err": null
+    },
+    "wakePct": 55,
+    "latencySleepMin": 6,
     "latencyRemMin": 0,
-    "wasoMin": 0,
-    "stageShifts": 3,
-    "remPeriods": 2,
+    "wasoMin": 10.5,
+    "stageShifts": 6,
+    "remPeriods": 3,
     "architectureAbsence": {},
     "spindleDensity": 0,
     "spindlesPerMin": {
-      "N2": 0,
-      "N3": 0
+      "light": 0,
+      "deep": null
     },
     "spindleReason": null,
     "spindlePopulation": {
-      "eligibleEpochs": 24,
-      "eligibleMin": 12,
+      "eligibleEpochs": 2,
+      "eligibleMin": 1,
       "stageEpochs": {
-        "N2": 12,
-        "N3": 12
+        "light": 2,
+        "deep": 0
       },
       "excludedByHole": 0,
       "detections": 0
     },
     "swaDecayPctPerPeriod": null,
     "swaReason": "under-two-nrem-stretches",
-    "swaPeriods": [
-      {
-        "period": 0,
-        "fromEpoch": 24,
-        "toEpoch": 48,
-        "epochs": 24,
-        "deltaPower": 59.789
-      }
-    ],
+    "swaPeriods": [],
     "bands": {
       "totalPower": 21.261,
       "alphaRel": 9.3,
@@ -374,33 +370,66 @@
     {
       "t": "23:00:00",
       "tMs": 1767308400000,
-      "impulse": "stage_rem",
+      "impulse": "stage_wake",
       "node": "EEGDex",
-      "conf": null,
+      "conf": 1,
       "meta": {
-        "stage": "REM",
+        "stage": "wake",
         "epoch": 0
       }
     },
     {
-      "t": "23:12:00",
-      "tMs": 1767309120000,
-      "impulse": "stage_n2",
+      "t": "23:06:00",
+      "tMs": 1767308760000,
+      "impulse": "stage_rem",
       "node": "EEGDex",
-      "conf": null,
+      "conf": 0.9997,
       "meta": {
-        "stage": "N2",
-        "epoch": 24
+        "stage": "REM",
+        "epoch": 12
+      }
+    },
+    {
+      "t": "23:07:00",
+      "tMs": 1767308820000,
+      "impulse": "stage_wake",
+      "node": "EEGDex",
+      "conf": 0.9884,
+      "meta": {
+        "stage": "wake",
+        "epoch": 14
+      }
+    },
+    {
+      "t": "23:11:30",
+      "tMs": 1767309090000,
+      "impulse": "stage_light",
+      "node": "EEGDex",
+      "conf": 0.8085,
+      "meta": {
+        "stage": "light",
+        "epoch": 23
+      }
+    },
+    {
+      "t": "23:12:30",
+      "tMs": 1767309150000,
+      "impulse": "stage_rem",
+      "node": "EEGDex",
+      "conf": 0.9884,
+      "meta": {
+        "stage": "REM",
+        "epoch": 25
       }
     },
     {
       "t": "23:18:00",
       "tMs": 1767309480000,
-      "impulse": "stage_n3",
+      "impulse": "stage_wake",
       "node": "EEGDex",
-      "conf": null,
+      "conf": 0.9771,
       "meta": {
-        "stage": "N3",
+        "stage": "wake",
         "epoch": 36
       }
     },
@@ -409,7 +438,7 @@
       "tMs": 1767309840000,
       "impulse": "stage_rem",
       "node": "EEGDex",
-      "conf": null,
+      "conf": 0.6269,
       "meta": {
         "stage": "REM",
         "epoch": 48

@@ -82,12 +82,32 @@ function realm() {
   const ctx = vm.createContext(sb);
   ctx.__DEX_NAMESPACED__ = true;
   // cpapdex-edf.js BEFORE eegdex-dsp.js: the DSP reads its EDF through that reader, by design.
-  for (const f of ['kernel-constants.js', 'signal-frame.js', 'dex-export.js', 'metric-registry.js', 'codegen/generated/eegdex-registry.js', 'cpapdex-edf.js', 'eegdex-dsp.js'])
+  // THE TWO STAGE MODULES ARE LOAD-BEARING HERE. The DSP's one stage path reads them off the realm
+  // at CALL time and refuses by name when either is absent, so a realm without them would mint a
+  // fixture whose every epoch reads null — a known answer about nothing.
+  for (const f of [
+    'kernel-constants.js',
+    'signal-frame.js',
+    'dex-export.js',
+    'metric-registry.js',
+    'codegen/generated/eegdex-registry.js',
+    'cpapdex-edf.js',
+    'eegdex-stage-features.js',
+    'eegdex-stage-model.js',
+    'eegdex-dsp.js'
+  ])
     vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(REPO, f), 'utf8')), ctx, { filename: f });
   return ctx;
 }
 
 const { EEGDSP, CpapEdf } = realm();
+
+/* THE MODEL THE PAGE ITSELF CARRIES, and the fixture is a known answer OVER IT. It is tracked in
+   the repository, so CI reads the same bytes; the first 16 characters of its hash reach the export
+   through `stageSource`, so a fixture scored by another model cannot pass for this one. The one-pass
+   file is the page's default for the reason the brief states: the two-pass file refuses an import
+   shorter than 160 epochs. */
+const MODEL = JSON.parse(fs.readFileSync(path.join(REPO, 'eeg-stage-model-base-2026-11-17.json'), 'utf8'));
 
 /* buildNodeExport(compute(ingestEDF(bytes))) off the committed EDF, or null when it is absent.
    `edf` is passed EXPLICITLY: the DSP's default reads a `global.CpapEdf` this realm does not
@@ -99,7 +119,7 @@ const fromEdf = (file) => {
   const ab = b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
   const frame = EEGDSP.ingestEDF(ab, { edf: CpapEdf });
   if (!frame || !frame.ok) throw new Error(`ingestEDF refused ${file}: ${frame ? frame.reason : 'no answer'}`);
-  const res = EEGDSP.compute(frame);
+  const res = EEGDSP.compute(frame, { model: MODEL });
   if (!res || res.err) throw new Error(`compute refused ${file}: ${res ? res.err : 'no answer'}`);
   return EEGDSP.buildNodeExport(res);
 };

@@ -112,6 +112,12 @@ function realm() {
   sb.globalThis = sb;
   const ctx = vm.createContext(sb);
   ctx.__DEX_NAMESPACED__ = true;
+  /* NO STAGE MODULE IS LOADED HERE, AND THAT IS DELIBERATE. This realm asks the engine for
+     `genSynthetic` only, which is arithmetic over sines and reads no model. A caller that adds a
+     `compute` call to this tool must add `eegdex-stage-features.js` and `eegdex-stage-model.js`
+     above the DSP and pass the model file, because `formulaStages` reads both globals at CALL time
+     and refuses BY NAME rather than throwing: a realm without them stages nothing, silently, and a
+     fixture minted from it would be a known answer about nothing. */
   // cpapdex-edf.js BEFORE eegdex-dsp.js: the DSP reads its EDF through that reader, by design.
   for (const f of ['kernel-constants.js', 'signal-frame.js', 'dex-export.js', 'metric-registry.js', 'codegen/generated/eegdex-registry.js', 'cpapdex-edf.js', 'eegdex-dsp.js'])
     vm.runInContext(DexBuild.classicify(fs.readFileSync(path.join(REPO, f), 'utf8')), ctx, { filename: f });

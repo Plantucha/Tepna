@@ -23,12 +23,19 @@
  * unbuildable for want of a headband.
  *
  * ── WHAT STAGING FROM ONE EEG CHANNEL CAN AND CANNOT DO ──────────────────────────────────────
- * ⚠️ This is a BAND-POWER stager, and that is a deliberate ceiling rather than a first draft to be
- * improved later by tuning. Published single-channel rule-based staging reaches roughly kappa
- * 0.4–0.6 against expert PSG; modern learned models reach 0.7–0.8 on far more input.
- * ⚠️ THOSE TWO KAPPA RANGES ARE UNCITED and are retained as orientation, not as authority — §📚 is
- * explicit that a number without a checkable citation keeps the suite's own tier and never earns
- * `validated`. What follows IS cited, and it is what the argument below actually rests on.
+ * THE STAGER IS THE FITTED POLYNOMIAL of `tepna.stage-formula/1`, and it is the only stager this
+ * node has (owner order 2026-11-25, board #8966; `briefs/EEGDEX-STAGE-DEFAULT-2026-11-26-BRIEF.md`).
+ * The band-power rule set that stood here until that order is GONE. It is not parked and not behind
+ * a switch: on the owner's own night it read REM 48.9 %, N1 0 %, wake 0 % and a sleep efficiency of
+ * 100 %, which is a stager reporting a night nobody slept.
+ *
+ * The code holds the block kinds and the pass kinds; every number lives in a model FILE. A better
+ * model later is a new file and no new code. The page carries one built-in model, and a model file
+ * in the drop replaces it for that night.
+ *
+ * ⚠️ FOUR CLASSES, and they are the fit's own: `wake`, `light`, `deep` and `REM`. `light` is NOT N1
+ * and NOT N2. The fit named one light-sleep class, so a consumer that reads `light` as either AASM
+ * stage claims a split nobody fitted.
  *
  * THE HUMAN CEILING IS THE POINT, and it is measurable rather than rhetorical. Arnal et al. (2020),
  * "The Dreem Headband compared to polysomnography…", SLEEP 43(11) zsaa097,
@@ -36,30 +43,30 @@
  * reached 83.5 ± 6.4 % accuracy (F1 83.8 ± 6.3) while FIVE HUMAN EXPERTS scoring the same records
  * averaged 86.4 ± 8.0 % (F1 86.3 ± 7.4). Experts agree with each other to about 86 %; that is the
  * band any stager is competing inside.
- * ⚠️ Arnal reports ACCURACY and F1, NOT kappa — do not read its 83.5 % against the 0.4–0.6 above as
- * if they shared a scale. They are different statistics over the same task, and quoting one for the
- * other is the unit error this file would otherwise be inviting.
+ * ⚠️ Arnal reports ACCURACY and F1, NOT kappa. A kappa figure from elsewhere does not share that
+ * scale, and quoting one for the other is the unit error this file refuses.
  * The programme that makes "expert agreement" a defined quantity rather than an impression is the
  * AASM Inter-scorer Reliability programme — Rosenberg & Van Hout (2013), "The American Academy of
  * Sleep Medicine Inter-scorer Reliability Program: Sleep Stage Scoring", J Clin Sleep Med 9(1),
  * doi:10.5664/jcsm.2350. Cited for the benchmark's IDENTITY only: its agreement figures are not
- * quoted here because they were not verifiable at author time, and a number nobody checked is
- * exactly what the paragraph above refuses.
+ * quoted here because they were not verifiable at author time.
  *
- * A rule engine that scored 0.8 here would be evidence of a leak, not of quality — most likely the
- * reference having entered the features. The number this produces is a FLOOR for the node and a reference
- * point for `REM-STAGING-FOLLOWUPS` §2b, whose whole ask is a real recall figure that has never
- * existed.
+ * ⚠️ THIS NODE PUBLISHES NO AGREEMENT FIGURE OF ITS OWN. The model file's blind read lives on the
+ * board, and every number the staged series produces is graded `experimental` until a blind read
+ * says more. A frontal derivation recognises deep sleep less well than a central one, the fit used
+ * sleep-lab derivations and a small number of forehead recordings, and the stager scores AFTER the
+ * night rather than during it.
  *
  * ⚠️ And it is scored at 30 s, matching the AASM grid the experts scored on. `ECGDex`'s stager emits
  * FIVE-MINUTE epochs, and comparing those to a 30 s reference cost a real measurement earlier: each
  * detector window spanned ten expert epochs and the join had to take a modal label. Here the grids
  * are identical by construction, so no aggregation stands between the detector and the truth.
  *
- * §∅ THROUGHOUT: an epoch whose signal is absent, flat or saturated yields `stage: null`, never a
- * default of 'W'. Wake is the majority class in a clipped or disconnected stretch, so defaulting to
- * it would score WELL while measuring nothing — the exact failure that makes a blind instrument read
- * as a working one.
+ * §∅ THROUGHOUT: an epoch whose signal is absent, flat or saturated yields `stage: null` and a
+ * named reason, never a default of `wake`. Wake is the majority class in a clipped or disconnected
+ * stretch, so defaulting to it would score WELL while measuring nothing — the exact failure that
+ * makes a blind instrument read as a working one. The fit refuses on its own account too: an epoch
+ * missing half its inputs reads `null` with `under-half-measured`.
  */
 
 /* ── NSRR DATA ACKNOWLEDGEMENT (data access and use agreement §11, §16) ───────────────────────
@@ -240,8 +247,9 @@
   }
 
   /* ── WHY AN EPOCH HAS NO SPECTRUM (∅) ─────────────────────────────────────────────────────────
-     `epochBands` returns `null` and `stageEpoch` then returns `null`, so the hypnogram already
-     refuses an unusable epoch rather than defaulting it to a stage. What it did NOT carry is the
+     `epochBands` returns `null`, the feature block then has no row to hand the fit, and the epoch
+     reaches the hypnogram as `null`, so the series already refuses an unusable epoch rather than
+     defaulting it to a stage. What it did NOT carry is the
      REASON, and ∅ asks an output over absent input to name one.
 
      This function mirrors `epochBands`'s own arms in `epochBands`'s own order, and it invents no
@@ -268,6 +276,18 @@
     }
     if (flat) return 'flat-signal';
     return 'no-spectrum';
+  }
+
+  /* THE NAMES `epochAbsence` GIVES THAT MEAN THE SIGNAL ITSELF IS NOT THERE. `epochAbsence`
+     always answers with a string, and its last answer `no-spectrum` is the one it gives when it
+     found nothing wrong with the samples at all, so it cannot be read as a yes-or-no question. This
+     helper asks the narrower one the stage series needs: is this epoch one continuous stretch of
+     real signal? A hole, a whole absent epoch, a frozen line, an absent rate and a stub of an epoch
+     all answer no; `no-spectrum` is not in the set, because a healthy epoch answers it. */
+  var SIG_ABSENT = { 'no-samples': 1, 'no-sample-rate': 1, 'epoch-too-short': 1, 'signal-absent': 1, 'partial-hole': 1, 'flat-signal': 1 };
+  function epochDiscontinuity(sig, from, to, fs) {
+    var r = epochAbsence(sig, from, to, fs);
+    return SIG_ABSENT[r] ? r : null;
   }
 
   /* RMS of a window, used for EMG tone and EOG activity. Null on an unusable window. */
@@ -299,131 +319,23 @@
     return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
   }
 
-  /* ── the stager ────────────────────────────────────────────────────────────
-     Rules over RELATIVE band power plus EMG tone and EOG activity, each normalised to that
-     recording's own median. Absolute microvolts are not comparable between recordings — different
-     amplifiers, impedances and montages — so every threshold here is relative, the same discipline
-     the Integrator's effort rule got wrong with an absolute floor. */
-  /* Thresholds fitted by grid search over 576 combinations on a TRAINING half of SHHS1 records, then
-     evaluated ONCE on a held-out half. Reported figures are the held-out ones:
+  /* ── THE STAGER LIVES IN TWO FILES AND A MODEL FILE ───────────────────────────────────────────
+     `eegdex-stage-features.js` computes the 35 inputs per 30 s epoch, `eegdex-stage-model.js`
+     evaluates the design blocks and the softmax pass, and the coefficients arrive as data. This
+     file holds no threshold of its own any more: `stageEpoch`, its fitted `TUNED` block and
+     `smoothHypnogram` went with the band-power rule set (owner order 2026-11-25, board #8966).
 
-         baseline (hand-set)     train kappa 0.148   test kappa 0.174
-         fitted                  train kappa 0.293   test kappa 0.314
-
-     ⚠️ Test kappa exceeds train kappa, so these are not overfitted — if anything the held-out half is
-     the easier one. That is worth stating because the opposite pattern is what a leak looks like, and
-     the module header warns that a suspiciously good score here would be evidence of one.
-
-     ⚠️ THE TEST HALF WAS CONSULTED EXACTLY ONCE, after the winner was fixed. Re-running the grid
-     against it would turn the held-out number into a training number silently, and every further
-     tweak of these constants owes a fresh split. */
-  var TUNED = { n3: 0.65, remD: 0.45, remEmg: 0.95, remEog: 0.9, n2s: 0.075, n2d: 0.25, wFast: 0.3, wEmg: 0.85 };
-
-  function stageEpoch(b, emgRel, eogRel, p) {
-    if (!b) return null; // §∅ — no spectrum, no stage. Never a default of 'W'.
-    p = p || TUNED;
-    var d = b.rel.delta,
-      a = b.rel.alpha,
-      sg = b.rel.sigma,
-      bt = b.rel.beta;
-    /* N3: slow-wave dominance — relative delta as the band-power proxy for the AASM criterion. */
-    if (d >= p.n3) return 'N3';
-    /* ⚠️ EOG CONJUGACY WAS TRIED HERE AND IS DELIBERATELY NOT USED — measured 2026-09-15, recorded so
-       it is not re-derived. In REM the eyes move together, so a left and a right EOG electrode should
-       see the same deflection with opposite sign; SHHS carries both channels at 100 %, so the feature
-       is available. Correlation over 30 s epochs, share below -0.2, 8 records:
-
-           REM 23.7 %  ·  Wake 7.1 %  ·  N1 6.3 %  ·  N2 0.4 %  ·  N3 0.2 %
-
-       The signal is REAL — REM is 30-100x more often anti-correlated than NREM — but it is SPECIFIC
-       and not SENSITIVE: it sees under a quarter of REM. Two wirings were measured on identical
-       records, changing nothing else:
-
-           as a REQUIREMENT (replacing the amplitude arm) .. REM recall 20.2 % -> 6.7 %, kappa -0.010
-           as an ADDITIONAL sufficient path (OR) ........... REM recall 20.2 % -> 20.2 %, kappa -0.0005
-
-       Worse as a gate, and redundant as an OR because the amplitude arm already fires on everything it
-       would catch. So it buys nothing here and costs a second channel dependency, and a recording with
-       one EOG lead would silently lose it. Revisit only if the amplitude arm is tightened — at that
-       point conjugacy's specificity would have something left to add.
-
-    ⚠️ AND EMG ATONIA WAS TRIED AND ALSO REJECTED — 2026-09-15, same method, recorded so it is not
-       re-derived. REM is defined by atonia, so tightening `remEmg` looks obvious. EMG by expert
-       stage, each record normalised to its own median, 8 records:
-
-           Wake 2.285  ·  N1 1.092  ·  N2 0.856  ·  N3 0.554  ·  REM 0.610      (medians)
-
-       Two things fall out. First, REM is NOT the quietest stage — N3 is — so "tighten EMG to find the
-       atonic stage" finds N3. That does not bite here only because the N3 branch runs FIRST and has
-       already consumed those epochs. Second, the shipped 0.95 does admit most of N2 (median 0.856),
-       which is a real imprecision, so tightening to 0.75 — the midpoint of the REM and N2 medians —
-       is a principled choice rather than a fitted one.
-
-       Measured A/B on identical records: REM recall 23.7 % -> 7.5 %, kappa -0.0026. WORSE.
-
-       ⚠️ THE REASON IS THE CONJUNCTION, AND IT IS THE FINDING WORTH KEEPING. REM requires low delta
-       AND low EMG AND eye movement SIMULTANEOUSLY, so each arm's false-negative rate MULTIPLIES:
-       tightening any single arm costs more recall than its own selectivity buys. Two principled
-       single-arm changes have now been measured and both lost — conjugacy above, EMG here. Improving
-       REM needs the rule's SHAPE changed (weighted evidence, where one strong arm can carry a weak
-       one) rather than any threshold or any further feature. Do not spend a third attempt on a
-       single arm.
-
-       REM: low delta, low EMG tone, eye movement present. The EMG leg is what separates REM from N1,
-       which otherwise look alike in this feature space — without it a stager calls everything N1, and
-       the untuned version did exactly that (REM recall 3.9 %).
-       ⚠️ The `== null` arms make an ABSENT channel permissive rather than disqualifying: a recording
-       with no EMG should still be stageable, just less well. Requiring the channel would silently
-       return null for every epoch of such a record — an absence of input becoming an absence of
-       output, which reads as "nothing to score" rather than "scored with less". */
-    if (d < p.remD && (emgRel == null || emgRel < p.remEmg) && (eogRel == null || eogRel > p.remEog)) return 'REM';
-    /* N2: spindle band lifted against a moderate delta background. */
-    if (sg >= p.n2s && d >= p.n2d) return 'N2';
-    /* Wake: fast activity with tone. */
-    if (bt + a > p.wFast && (emgRel == null || emgRel > p.wEmg)) return 'W';
-    if (d >= 0.3) return 'N2';
-    return 'N1';
-  }
-
-  /* ── temporal smoothing ────────────────────────────────────────────────────
-     Sleep stages persist; an isolated epoch flanked by two of another stage is far more likely a
-     misclassification than a real one-epoch bout. Applied AFTER staging so the rules stay readable
-     and the raw hypnogram is still available for comparison.
-
-     ⚠️ `ecgdex-dsp.js` carries a hard-won warning about exactly this, and it is worth reading before
-     assuming smoothing is free: an unconditional despiker "is not a denoiser, it is an eraser" — on a
-     series where one class dominates, every isolated MINORITY-stage epoch is overwritten by
-     construction. Measured there: two epochs satisfied the full REM rule and the smoother deleted
-     both, reporting REM = 0 min.
-
-     ⚠️ ITS REMEDY DOES NOT TRANSFER HERE, AND THE REASON IS THE GRID. ECGDex exempts the minority
-     stages because it runs a FIVE-MINUTE epoch, where a single epoch IS a legitimate REM or Deep bout
-     (real bouts run 5-25 min). EEGDex runs 30 s, where a real REM bout is 10-50 epochs — so an
-     isolated 30 s singleton is genuinely more likely noise than bout. The same rule is right there and
-     wrong here, because the unit differs.
-
-     That inversion is an argument, not evidence, so the effect on REM recall specifically is MEASURED
-     rather than assumed — see the commit. A smoother that lifted overall kappa while collapsing REM
-     would be the ECGDex failure wearing a better headline number. */
-  function smoothHypnogram(stages) {
-    if (!stages || stages.length < 3) return stages ? stages.slice() : stages;
-    var out = stages.slice();
-    for (var i = 1; i < stages.length - 1; i++) {
-      var a = stages[i - 1],
-        b = stages[i],
-        c = stages[i + 1];
-      /* §∅ — a null epoch is an ABSENCE and is never smoothed over, in either direction: it must not
-         be filled from its neighbours (that fabricates a stage for an unscorable epoch), and it must
-         not be allowed to outvote a real one. */
-      if (a == null || b == null || c == null) continue;
-      if (a === c && b !== a) out[i] = a;
-    }
-    return out;
-  }
+     NO SECOND SMOOTHER IS OURS TO ADD. The fit reads 5-epoch and 21-epoch means of its own inputs,
+     so a despiker over its output would smooth a series that is already smoothed, and the ECGDex
+     warning about an unconditional despiker deleting every minority-stage singleton applies to any
+     such pass. `formulaStages` below is the one stage path, and `analyze` calls it. */
 
   /* ── analyze ───────────────────────────────────────────────────────────────
-     `rec` = { eeg:Float|Array, fs, emg?, emgFs?, eog?, eogFs?, t0Ms? }. Samples, not a vendor file:
-     see the scope note at the top. */
+     `rec` = { eeg:Float|Array, fs, t0Ms? }. Samples, not a vendor file: see the scope note at the
+     top. An `emg` or `eog` lead on the frame is IGNORED here. The band-power stager read both, and
+     the fit reads one EEG derivation, so this node now measures the EEG channel alone. The
+     generators below still emit the two leads, because a frame carrying them is what the
+     reproducibility legs hold. */
   /* ── REM PERIODS, AND THE NREM STRETCHES BETWEEN THEM ──────────────────────────────────────────
      One function, so the count `sleepArchitecture` publishes and the stretches `swaTrend` measures
      over can never disagree. A REM period is a maximal run of REM epochs merged across a non-REM
@@ -497,7 +409,7 @@
     for (i = 0; i < edges.length; i++) {
       var vals = [];
       for (j = edges[i][0]; j < edges[i][1]; j++) {
-        if ((stages[j] === 'N2' || stages[j] === 'N3') && bands[j]) vals.push(bands[j].abs.delta);
+        if ((stages[j] === 'light' || stages[j] === 'deep') && bands[j]) vals.push(bands[j].abs.delta);
       }
       if (vals.length < SWA_MIN_EPOCHS) {
         out.population.excluded++;
@@ -555,11 +467,15 @@
      merged across a non-REM gap of up to `REM_GAP_EP` epochs. That is NOT the Feinberg-Floyd sleep
      cycle, which requires an NREM period of its own minimum length ahead of each REM period, so
      this key is not called `cycles` and no consumer may read it as one. */
-  var ARCH_KEYS = ['TST', 'SE', 'n1Pct', 'n2Pct', 'n3Pct', 'remPct', 'wakePct', 'latencySleepMin', 'latencyRemMin', 'wasoMin', 'stageShifts', 'remPeriods'];
+  /* THE FOUR CLASSES OF THE FIT, and `lightPct` is not an N1 or an N2 share (board #8966 rule 4).
+     `n1Pct`, `n2Pct` and `n3Pct` went with the band-power stager: a three-way NREM split is a claim
+     about a model that never fitted one, and publishing it under a four-class stager would read as
+     a split this node measured. */
+  var ARCH_KEYS = ['TST', 'SE', 'lightPct', 'deepPct', 'remPct', 'wakePct', 'latencySleepMin', 'latencyRemMin', 'wasoMin', 'stageShifts', 'remPeriods'];
   var REM_GAP_EP = 10; // 5 min at a 30 s epoch
 
   function isSleepStage(st) {
-    return st === 'N1' || st === 'N2' || st === 'N3' || st === 'REM';
+    return st === 'light' || st === 'deep' || st === 'REM';
   }
 
   function sleepArchitecture(stages) {
@@ -569,7 +485,7 @@
       i,
       st;
     for (i = 0; i < ARCH_KEYS.length; i++) arch[ARCH_KEYS[i]] = null;
-    var tally = { W: 0, N1: 0, N2: 0, N3: 0, REM: 0 },
+    var tally = { wake: 0, light: 0, deep: 0, REM: 0 },
       scored = 0,
       first = -1,
       last = -1,
@@ -585,7 +501,7 @@
         if (st === 'REM' && firstRem < 0) firstRem = i;
       }
     }
-    var asleep = tally.N1 + tally.N2 + tally.N3 + tally.REM;
+    var asleep = tally.light + tally.deep + tally.REM;
     var out = {
       arch: arch,
       absence: absence,
@@ -601,16 +517,14 @@
     var minPerEp = EPOCH_SEC / 60;
     arch.TST = +((asleep * EPOCH_SEC) / 3600).toFixed(3);
     arch.SE = +((100 * asleep) / scored).toFixed(1);
-    arch.wakePct = +((100 * tally.W) / scored).toFixed(1);
+    arch.wakePct = +((100 * tally.wake) / scored).toFixed(1);
     if (asleep) {
-      arch.n1Pct = +((100 * tally.N1) / asleep).toFixed(1);
-      arch.n2Pct = +((100 * tally.N2) / asleep).toFixed(1);
-      arch.n3Pct = +((100 * tally.N3) / asleep).toFixed(1);
+      arch.lightPct = +((100 * tally.light) / asleep).toFixed(1);
+      arch.deepPct = +((100 * tally.deep) / asleep).toFixed(1);
       arch.remPct = +((100 * tally.REM) / asleep).toFixed(1);
     } else {
-      absence.n1Pct = 'no-sleep-epoch';
-      absence.n2Pct = 'no-sleep-epoch';
-      absence.n3Pct = 'no-sleep-epoch';
+      absence.lightPct = 'no-sleep-epoch';
+      absence.deepPct = 'no-sleep-epoch';
       absence.remPct = 'no-sleep-epoch';
     }
     if (first < 0) {
@@ -624,7 +538,7 @@
       if (firstRem < 0) absence.latencyRemMin = 'no-rem-epoch';
       else arch.latencyRemMin = +((firstRem - first) * minPerEp).toFixed(1);
       var waso = 0;
-      for (i = first + 1; i < last; i++) if (stages[i] === 'W') waso++;
+      for (i = first + 1; i < last; i++) if (stages[i] === 'wake') waso++;
       arch.wasoMin = +(waso * minPerEp).toFixed(1);
     }
     if (scored < 2) absence.stageShifts = 'under-two-scored-epochs';
@@ -658,60 +572,90 @@
     var nEp = Math.floor(sig.length / spe);
     if (nEp < 2) return { err: 'under two epochs of EEG' };
 
+    /* THE BANDS ARE NOT THE STAGER any more. They are the published band shares, the spindle
+       detector's background and the slow-wave trend's input, and the stage series comes from the
+       fitted model below. The EMG and the EOG legs went with the rule set that read them: the
+       feature block of `tepna.stage-formula/1` reads ONE EEG derivation and no other channel, so a
+       tone or an eye-movement ratio would be computed and read by nobody. */
     var bands = [],
-      emgR = [],
-      eogR = [],
       i;
-    for (i = 0; i < nEp; i++) {
-      bands.push(epochBands(sig, i * spe, (i + 1) * spe, fs));
-      /* ∅ — A RATE WE DO NOT HAVE IS NOT THE EEG RATE. `rec.emgFs || fs` read an EMG or EOG lead of
-         undeclared rate at the EEG's rate, which multiplies every window bound by the ratio of the two:
-         measured on one 480 s synthetic frame, an EMG lead at 25 Hz read at 100 Hz covered only the first
-         four epochs and left twelve with no tone, so the stager's permissive `== null` arm drove them
-         into REM — 8 REM epochs instead of the 3 a declared `emgFs: 25` produces, TST 0.117 h instead of
-         0.108, SE 87.5 instead of 81.3. An undeclared (or non-positive) rate now makes the leg ABSENT,
-         which is a state these arms already model, instead of inventing a rate the caller never stated.
-         `rec.emgFs`/`eogFs` in the contract at the top of this block is what a caller declares. */
-      var ef = rec.emgFs > 0 ? rec.emgFs : null,
-        of = rec.eogFs > 0 ? rec.eogFs : null;
-      emgR.push(rec.emg && ef != null ? rms(rec.emg, Math.round(i * EPOCH_SEC * ef), Math.round((i + 1) * EPOCH_SEC * ef)) : null);
-      eogR.push(rec.eog && of != null ? rms(rec.eog, Math.round(i * EPOCH_SEC * of), Math.round((i + 1) * EPOCH_SEC * of)) : null);
+    for (i = 0; i < nEp; i++) bands.push(epochBands(sig, i * spe, (i + 1) * spe, fs));
+
+    /* ── THE STAGE SERIES ─────────────────────────────────────────────────────────────────────
+       Two seams, and a caller gives at most one. `opts.model` is a parsed `tepna.stage-formula/1`
+       file, and the page gives the built-in model on every night. `opts.stages` is a series the
+       caller already holds — the simulator's own plan in the spindle and the slow-wave groups —
+       and it never comes from a reader.
+
+       §∅ · NEITHER SEAM MEANS NO STAGE, NEVER A DEFAULT. A night with no model reports every epoch
+       as absent with the reason `no-stage-model`, so a reader sees that nothing scored the night
+       rather than a hypnogram of wake. */
+    var stages = [],
+      confs = [],
+      reasons = [],
+      stageErr = null,
+      fs2 = null;
+    if (opts.stages) {
+      for (i = 0; i < nEp; i++) {
+        var gv = opts.stages[i];
+        var gs = gv && typeof gv === 'object' ? gv.stage : gv;
+        stages.push(gs == null ? null : gs);
+        confs.push(gv && typeof gv === 'object' && typeof gv.conf === 'number' ? gv.conf : null);
+        reasons.push(gs == null ? 'not-in-given-series' : null);
+      }
+    } else if (opts.model) {
+      fs2 = formulaStages({ samples: sig, fs: fs, t0Ms: rec.t0Ms }, opts.model);
+      if (fs2.err) {
+        stageErr = fs2.err;
+        for (i = 0; i < nEp; i++) {
+          stages.push(null);
+          confs.push(null);
+          reasons.push('stage-model-refused');
+        }
+      } else {
+        for (i = 0; i < nEp; i++) {
+          var ep = fs2.epochs[i] || null;
+          stages.push(ep ? ep.stage : null);
+          /* THE POSTERIOR OF THE STAGE THE EPOCH NAMES, and null when it names none. The band-power
+             rule set had no posterior and reported `conf: null` on every epoch; this one does, so
+             `confidenceSvg`'s "darker = surer" finally draws a measured quantity. */
+          confs.push(ep && ep.stage != null && ep.posterior ? +Math.max.apply(null, ep.posterior).toFixed(4) : null);
+          reasons.push(ep && ep.stage == null ? ep.reason : null);
+        }
+      }
+    } else {
+      for (i = 0; i < nEp; i++) {
+        stages.push(null);
+        confs.push(null);
+        reasons.push('no-stage-model');
+      }
     }
-    /* per-recording normalisation — see the stager's note on absolute thresholds */
-    var emgMed = median(emgR),
-      eogMed = median(eogR);
 
     var hypnogram = [],
-      rawStages = [],
-      counts = { W: 0, N1: 0, N2: 0, N3: 0, REM: 0 },
+      counts = { wake: 0, light: 0, deep: 0, REM: 0 },
       nNull = 0;
     for (i = 0; i < nEp; i++) {
-      var st = stageEpoch(bands[i], emgMed > 0 && emgR[i] != null ? emgR[i] / emgMed : null, eogMed > 0 && eogR[i] != null ? eogR[i] / eogMed : null);
-      rawStages.push(st);
-    }
-    /* smoothing is opt-OUT rather than opt-in, because the raw series is the diagnostic and the
-       smoothed one is the product; `opts.smooth === false` recovers the raw hypnogram exactly */
-    var stages = opts.smooth === false ? rawStages : smoothHypnogram(rawStages);
-    for (i = 0; i < nEp; i++) {
-      var st2 = stages[i];
-      /* §∅ · `conf` IS NULL ON EVERY EPOCH, and that is the contract rather than a gap.
-         `hypno-export.js` states it for the whole fleet: `confidence` is "the posterior of the
-         decoded stage", and "a stager without posteriors (ECGDex's rule set) reports
-         `confidence: null`, and the card says so". This stager is a band-power rule set with no
-         posterior, so there is no number to state. The flat 0.5 that stood here until 2026-11-10 was
-         an in-range sentinel: `confidenceSvg` draws "darker = surer", so a constant drew a uniform
-         strip that read as a measured confidence at every epoch. A consumer now reads the absence. */
-      /* ∅ · a null stage CARRIES ITS REASON. `absentReason` is null whenever a stage exists, so a
-         consumer never reads a reason beside a value. */
+      /* ∅ · THE SIGNAL'S OWN ABSENCE IS ASKED FIRST, AND IT OVERRULES A CLASS (owner ruling
+         2026-09-17: a DISCONTINUITY refuses, reduced coverage annotates). An epoch holding a seam
+         or a hole is not one continuous stretch of signal, and the fit does not know that: its own
+         floor is the SHARE of the feature inputs it could measure, so a 23 ms dropout leaves well
+         over half the epoch measured and the fit answers a class over a discontinuity. This engine
+         refused such an epoch before the fit arrived, through `epochBands`, and it still refuses
+         it. The band shares, the spindle detector and the slow-wave trend already drop a holed
+         epoch, so a stage kept here would be the ONE number on the page standing over a hole.
+         A null stage then CARRIES ITS REASON: the signal's when the signal is absent, the
+         evaluator's when the signal is whole and the fit still could not read it. */
+      var sigAbs = epochDiscontinuity(sig, i * spe, (i + 1) * spe, fs),
+        st2 = sigAbs ? null : stages[i];
       hypnogram.push({
         epoch: i,
         tMs: rec.t0Ms != null ? rec.t0Ms + i * EPOCH_SEC * 1000 : null,
         stage: st2,
-        conf: null,
-        absentReason: st2 == null ? epochAbsence(sig, i * spe, (i + 1) * spe, fs) : null
+        conf: sigAbs ? null : confs[i],
+        absentReason: st2 == null ? sigAbs || reasons[i] || 'unscorable' : null
       });
       if (st2 == null) nNull++;
-      else counts[st2]++;
+      else if (counts[st2] != null) counts[st2]++;
     }
 
     var scored = nEp - nNull;
@@ -743,12 +687,20 @@
       /* The spindle answer over the epochs THIS function staged, so the density and the hypnogram
          it is a density over can never come from two different stagings. */
       spindles: detectSpindles(sig, fs, hypnogram),
-      /* ∅ · a lead the caller passed but could not be read, each with its own reason. A lead the
-         caller never passed is not listed: that is a frame without the lead, not a refusal. */
-      leadAbsence: {
-        emg: rec.emg && !(rec.emgFs > 0) ? 'emg-rate-undeclared' : null,
-        eog: rec.eog && !(rec.eogFs > 0) ? 'eog-rate-undeclared' : null
-      },
+      /* WHO STAGED THE NIGHT, on every result. A number from the staged series means nothing
+         without the model that produced it, so the id and the 16-character hash of the file travel
+         with the series rather than beside it on one screen. `given` is the simulator's own plan,
+         which a test feeds through `opts.stages` and a reader never can. */
+      stageSource: opts.stages
+        ? { kind: 'given', id: null, sha16: null, err: null }
+        : opts.model
+          ? {
+              kind: 'model',
+              id: (fs2 && fs2.id) || opts.model.id || null,
+              sha16: (opts.model.source && opts.model.source.sha256_16) || null,
+              err: stageErr
+            }
+          : { kind: 'none', id: null, sha16: null, err: 'no model file reached this node' },
       quality: {
         analyzablePct: +((100 * scored) / nEp).toFixed(1),
         nUnscorable: nNull
@@ -950,7 +902,9 @@
     maxSec: 3.0,
     mergeSec: 0.2,
     holeGuardSec: 1.0,
-    stages: { N2: 1, N3: 1 }
+    /* THE STAGES A SPINDLE IS COUNTED IN, in the stager's own vocabulary. A spindle is an NREM
+       graphoelement, and this stager names two NREM classes rather than three. */
+    stages: { light: 1, deep: 1 }
   };
 
   /* An RBJ bandpass biquad, constant 0 dB peak gain, centred on the spindle band. ONE section: at
@@ -1010,9 +964,9 @@
     var out = {
       spindles: [],
       density: null,
-      byStage: { N2: null, N3: null },
+      byStage: { light: null, deep: null },
       reason: null,
-      population: { eligibleEpochs: 0, eligibleMin: 0, stageEpochs: { N2: 0, N3: 0 }, excludedByHole: 0, detections: 0 }
+      population: { eligibleEpochs: 0, eligibleMin: 0, stageEpochs: { light: 0, deep: 0 }, excludedByHole: 0, detections: 0 }
     };
     if (!sig || !sig.length) {
       out.reason = 'no-samples';
@@ -1110,7 +1064,7 @@
       return out;
     }
     out.density = +(out.spindles.length / out.population.eligibleMin).toFixed(3);
-    var perStage = { N2: 0, N3: 0 };
+    var perStage = { light: 0, deep: 0 };
     for (i = 0; i < out.spindles.length; i++) perStage[out.spindles[i].stage]++;
     for (var k in perStage) {
       var mins = (out.population.stageEpochs[k] * EPOCH_SEC) / 60;
@@ -1465,7 +1419,7 @@
     var fs = frame.fs;
     if (!sig || !sig.length) return { err: 'no EEG signal', reason: 'no-samples' };
     if (!(fs > 0)) return { err: 'no EEG signal', reason: 'no-sample-rate' };
-    var res = analyze({ eeg: sig, fs: fs, t0Ms: frame.t0Ms, emg: frame.emg, eog: frame.eog, emgFs: frame.emgFs, eogFs: frame.eogFs }, opts);
+    var res = analyze({ eeg: sig, fs: fs, t0Ms: frame.t0Ms }, opts);
     if (!res || res.err) return res || { err: 'no EEG signal', reason: 'analyze-returned-nothing' };
     /* The per-epoch spectrum rides its OWN key. `buildNodeExport` copies `bands` whole, so a
        45-bin vector an epoch would otherwise reach the bus, where no consumer asked for it. */
@@ -1487,15 +1441,17 @@
     return res;
   }
 
-  /* THE FIVE BLOCKS, each written to satisfy ONE branch of `stageEpoch` in the order that function
-     tests them. `emg` and `eog` are per-block amplitudes, and the stager normalises each to the
-     RECORDING's own median, so what matters is their rank across the five rows and not the absolute
-     numbers: the median of both columns is the N1 row, which puts Wake above the tone threshold and
-     REM below it while leaving N2 excluded from REM by tone rather than by eye movement. */
+  /* FIVE SPECTRAL BLOCKS, AND NOT FIVE STAGE CLAIMS. Every number here is unchanged from the day
+     they were written to drive the five arms of the band-power stager, because a known-answer band
+     test pins them ("every band publishes its own median share"): a new amplitude or a new block
+     order moves the numbers that leg exists to hold. What changed is the LABEL. The stager that
+     read these rows is gone, so a row no longer names a sleep stage — it names the spectral shape
+     it draws, and nothing in this file reads the name. The stage series over this frame is whatever
+     the model file returns, and the test asserts that and not a label from this table. */
   var BLOCKS = [
-    // delta 0.08, beta+alpha 0.92, quiet spindle band, high tone -> the Wake arm
+    // alpha with beta over it, a quiet spindle band, the highest muscle tone of the five
     {
-      stage: 'W',
+      spec: 'alpha-beta-high-tone',
       comps: [
         [20, 14],
         [10, 10],
@@ -1504,9 +1460,9 @@
       emg: 3.0,
       eog: 1.5
     },
-    // theta-dominant, fast share under the Wake floor, tone at the median -> falls through to N1
+    // theta-dominant, the fast share under the alpha block, tone at the median of the column
     {
-      stage: 'N1',
+      spec: 'theta-dominant',
       comps: [
         [6, 14],
         [1.2, 7],
@@ -1515,9 +1471,9 @@
       emg: 1.0,
       eog: 0.8
     },
-    // the spindle band lifted against a moderate delta background -> the N2 arm
+    // the spindle band lifted against a moderate slow background
     {
-      stage: 'N2',
+      spec: 'spindle-band-lifted',
       comps: [
         [1.2, 12],
         [14, 10],
@@ -1526,9 +1482,9 @@
       emg: 0.8,
       eog: 0.7
     },
-    // slow-wave dominance over the 0.65 relative-delta floor -> the N3 arm, tested first
+    // slow-wave dominance, the lowest tone but for the mixed block
     {
-      stage: 'N3',
+      spec: 'slow-wave-dominant',
       comps: [
         [1.2, 40],
         [10, 4]
@@ -1536,9 +1492,9 @@
       emg: 0.5,
       eog: 0.5
     },
-    // low delta with low tone and eye movement present -> the REM conjunction
+    // low slow power, low tone, and eye movement present
     {
-      stage: 'REM',
+      spec: 'mixed-low-voltage',
       comps: [
         [6, 10],
         [10, 10],
@@ -1553,11 +1509,12 @@
   /* ── A DETERMINISTIC SYNTHETIC NIGHT ──────────────────────────────────────────────────────────
      For the demo path and the render-coverage rig. It is authored arithmetic, NOT a corpus night and
      no substitute for one: it proves the wiring, the units and the refusals, and it says nothing
-     about the stager's accuracy. The stager's accuracy is the held-out kappa in the TUNED block
-     above, measured against expert staging.
+     about any stager's accuracy. THIS NODE PUBLISHES NO ACCURACY FIGURE OF ITS OWN (board #8966
+     rule 6).
 
-     The signal alternates a slow-wave-dominant block and a fast-dominant block, so the hypnogram
-     holds more than one stage; a single-stage hypnogram would let a broken stager pass the rig. */
+     The signal walks five spectral blocks, so the frame is not one repeated shape. It does not
+     follow that the hypnogram holds five stages, or any: the stage series is the model file's
+     output over these five blocks, and an epoch the model refuses reads `null` with its reason. */
   function genSynthetic(opts) {
     opts = opts || {};
     var fs = opts.hz > 0 ? opts.hz : 100;
@@ -1585,10 +1542,10 @@
     return {
       samples: sig,
       fs: fs,
-      /* The two channels the stager's REM and Wake arms read. They are emitted because an ABSENT
-         channel makes those arms permissive, so a frame without them drives every low-delta epoch
-         into REM and three of the five branches become unreachable — the demo would then show a
-         two-stage night and a broken stager could pass the rig. */
+      /* TWO LEADS THIS NODE NO LONGER READS. They were the band-power stager's tone and
+         eye-movement inputs. `analyze` ignores them now, and they stay on the frame because the
+         reproducibility legs hold them byte for byte, and because a multi-lead reader is the one
+         thing a one-channel fit cannot be. */
       emg: emg,
       eog: eog,
       emgFs: fs,
@@ -1604,8 +1561,8 @@
   /* ── AN OVERNIGHT SIMULATOR WITH A GROUND-TRUTH HYPNOGRAM ─────────────────────────────────────
      Owner order 2026-11-14 (board #6256): EEGDex ships a labelled simulator, so the surface can be
      exercised before a real overnight recording exists. It is AUTHORED ARITHMETIC, never a
-     recording, and every surface that draws it says so. It states nothing about the stager's
-     accuracy against people — that number is the held-out kappa in the TUNED block above.
+     recording, and every surface that draws it says so. It states nothing about any stager's
+     accuracy against people, and THIS NODE PUBLISHES NO SUCH NUMBER (board #8966 rule 6).
 
      `genSynthetic` above STAYS UNTOUCHED and keeps the render-coverage rig. Its five blocks are
      pinned by a known-answer band test (`every band publishes its own median share`), so a new PRNG
@@ -1637,19 +1594,24 @@
     return x / 4294967296;
   }
 
-  /* ONE SPECTRUM PER STAGE, each written to reach ONE arm of `stageEpoch` in that function's own
-     order, and each shaped like the stage it names:
+  /* FIVE SPECTRAL PALETTES, KEYED BY SHAPE AND NOT BY A STAGE NAME. Each is the EEG picture a
+     textbook draws for one part of a night, and each amplitude is unchanged from the day it was
+     authored, so the signal this generator writes is byte for byte the signal it wrote before:
 
-       W    alpha with beta over it, high muscle tone      → the `bt + a > wFast` arm
-       N1   theta-dominant, low fast share, mid tone       → falls through to N1
-       N2   slow background with the spindle band lifted   → the `sg >= n2s && d >= n2d` arm
-       N3   high-amplitude delta                           → the `d >= n3` arm
-       REM  low-voltage mixed, lowest tone, active eyes    → the `d < remD` arm
+       alphaBeta     alpha with beta over it, the highest muscle tone
+       thetaOnset    theta-dominant, a low fast share, tone at the middle
+       spindleLight  a slow background with the spindle band lifted
+       slowWave      high-amplitude delta
+       mixedRem      low-voltage mixed, the lowest tone, active eyes
 
-     The amplitudes are authored, not fitted. `emg` and `eog` are compared to their own per-night
-     MEDIAN by the stager, so what matters is the ORDER of the five tones, never their absolute size. */
+     THE PLAN BELOW NAMES BOTH: the class it is ground truth for (`wake`, `light`, `deep`, `REM` —
+     the fit's own four, board #8966 rule 4) and the palette to draw. Two different palettes carry
+     the one `light` class, which is what keeps sleep onset spectrally apart from spindle-rich light
+     sleep without this file mapping either onto an AASM stage it cannot measure.
+
+     The amplitudes are authored, never fitted, and no measurement compares against them. */
   var EEG_NIGHT_SPECTRA = {
-    W: {
+    alphaBeta: {
       comps: [
         [10, 13],
         [20, 9],
@@ -1659,7 +1621,7 @@
       eog: 1.6,
       noise: 4
     },
-    N1: {
+    thetaOnset: {
       comps: [
         [6, 13],
         [1.2, 6],
@@ -1669,7 +1631,7 @@
       eog: 0.9,
       noise: 3.5
     },
-    N2: {
+    spindleLight: {
       comps: [
         [1.2, 13],
         [13.5, 9],
@@ -1679,7 +1641,7 @@
       eog: 0.5,
       noise: 3
     },
-    N3: {
+    slowWave: {
       comps: [
         [1.0, 36],
         [2.2, 14],
@@ -1689,7 +1651,7 @@
       eog: 0.4,
       noise: 3
     },
-    REM: {
+    mixedRem: {
       comps: [
         [6, 9],
         [18, 5],
@@ -1701,35 +1663,40 @@
     }
   };
 
-  /* THE CYCLE PLAN, AASM-shaped rather than fitted: about 90 min per cycle, N3 shrinking across the
-     night and REM growing, with a short arousal closing each cycle. That decay is the one
-     architectural fact a single repeating cycle gets wrong (Carskadon and Dement, Principles and
-     Practice of Sleep Medicine, 6th edition, chapter 2 — a textbook description of sleep
-     architecture, cited as the shape this plan follows and not as a measurement of this code).
+  /* THE CYCLE PLAN, textbook-shaped rather than fitted: about 90 min per cycle, deep sleep
+     shrinking across the night and REM growing, with a short arousal closing each cycle. That decay
+     is the one architectural fact a single repeating cycle gets wrong (Carskadon and Dement,
+     Principles and Practice of Sleep Medicine, 6th edition, chapter 2 — a textbook description of
+     sleep architecture, cited as the shape this plan follows and not as a measurement of this code).
 
-     An arousal is 60 s, which is TWO epochs on purpose: `smoothHypnogram` replaces a SINGLE
-     isolated epoch with its neighbours, so a 30 s arousal would be smoothed away and the plan would
-     then name a stage the hypnogram cannot hold. */
+     Each segment names its ground-truth CLASS and its spectral PALETTE. The two light segments draw
+     different palettes, and both are the one `light` class, because the fit publishes one light
+     class and this file may not invent a second.
+
+     An arousal is 60 s, which is TWO epochs on purpose, and the reason outlived the smoother that
+     first demanded it: a 30 s arousal is one epoch, so any pass that reads a 5-epoch mean — and the
+     fit reads one — can carry it away, which would leave the plan naming a class the staged series
+     cannot hold. */
   function nightPlan(durSec, opts) {
     opts = opts || {};
     var onset = opts.onsetSec >= 0 ? opts.onsetSec : 300;
-    var raw = [{ stage: 'W', sec: Math.min(onset, durSec) }],
+    var raw = [{ stage: 'wake', spec: 'alphaBeta', sec: Math.min(onset, durSec) }],
       used = raw[0].sec,
       c = 0,
       i;
     while (used < durSec && c < 12) {
       var cyc = [
-        { stage: 'N1', sec: 90 },
-        { stage: 'N2', sec: 2250 + c * 120 },
-        { stage: 'N3', sec: Math.max(0, 1500 - c * 450) },
-        { stage: 'N2', sec: 900 },
-        { stage: 'REM', sec: 600 + c * 300 },
-        { stage: 'W', sec: 60 }
+        { stage: 'light', spec: 'thetaOnset', sec: 90 },
+        { stage: 'light', spec: 'spindleLight', sec: 2250 + c * 120 },
+        { stage: 'deep', spec: 'slowWave', sec: Math.max(0, 1500 - c * 450) },
+        { stage: 'light', spec: 'spindleLight', sec: 900 },
+        { stage: 'REM', spec: 'mixedRem', sec: 600 + c * 300 },
+        { stage: 'wake', spec: 'alphaBeta', sec: 60 }
       ];
       for (i = 0; i < cyc.length; i++) {
         if (cyc[i].sec <= 0 || used >= durSec) continue;
         var take = Math.min(cyc[i].sec, durSec - used);
-        raw.push({ stage: cyc[i].stage, sec: take });
+        raw.push({ stage: cyc[i].stage, spec: cyc[i].spec, sec: take });
         used += take;
       }
       c++;
@@ -1738,7 +1705,7 @@
       at = 0;
     for (i = 0; i < raw.length; i++) {
       if (raw[i].sec <= 0) continue;
-      out.push({ stage: raw[i].stage, fromSec: at, toSec: at + raw[i].sec });
+      out.push({ stage: raw[i].stage, spec: raw[i].spec, fromSec: at, toSec: at + raw[i].sec });
       at += raw[i].sec;
     }
     return out;
@@ -1770,9 +1737,12 @@
     for (i = 0; i < plan.length; i++) {
       var seg = plan[i],
         span = seg.toSec - seg.fromSec;
-      if (seg.stage === 'N2' || seg.stage === 'N3') {
-        /* Spindle density, per minute of the stage: N2 carries them, N3 fewer. */
-        var cnt = Math.floor((span / 60) * (seg.stage === 'N2' ? 3 : 1));
+      /* THE EVENT ARMS KEY ON THE PALETTE, NEVER ON THE CLASS. Spindle-rich light sleep and sleep
+         onset are both the `light` class, and only the first carries spindles, so a class-keyed arm
+         would plant spindles in the theta-onset segment and move a signal no reader asked to move. */
+      if (seg.spec === 'spindleLight' || seg.spec === 'slowWave') {
+        /* Spindle density, per minute: the spindle-rich palette carries them, slow-wave fewer. */
+        var cnt = Math.floor((span / 60) * (seg.spec === 'spindleLight' ? 3 : 1));
         for (k = 0; k < cnt; k++) {
           var at = seg.fromSec + ((k + 0.5) * span) / (cnt || 1) + (xs32(ref) - 0.5) * 8;
           var fast = xs32(ref) > 0.35;
@@ -1785,17 +1755,17 @@
           });
         }
       }
-      if (seg.stage === 'N2') {
+      if (seg.spec === 'spindleLight') {
         var kc = Math.floor(span / 60);
         for (k = 0; k < kc; k++) {
           kcx.push({
             atSec: +(seg.fromSec + ((k + 0.5) * span) / (kc || 1) + (xs32(ref) - 0.5) * 10).toFixed(3),
             durSec: 0.6,
-            stage: 'N2'
+            stage: 'light'
           });
         }
       }
-      if (scenario === 'artefactual' && (seg.stage === 'W' || seg.stage === 'N1')) {
+      if (scenario === 'artefactual' && (seg.spec === 'alphaBeta' || seg.spec === 'thetaOnset')) {
         /* Blinks ride the EOG lead and propagate to a frontal EEG lead. They belong to wake. */
         var bl = Math.floor((span / 60) * 12);
         for (k = 0; k < bl; k++) {
@@ -1838,7 +1808,7 @@
        cannot vary has examined nothing, so the generator plants the variation and `truth` records
        the slope it planted.
 
-       The plant scales the AMPLITUDE of every sub-delta component inside N2 and N3 by
+       The plant scales the AMPLITUDE of every sub-delta component inside the two NREM palettes by
        `sqrt(1 + slope * hours)`, so the POWER of those components falls linearly at `|slope|` of
        its initial value per hour. The floor stops a recording longer than 10 h driving the
        multiplier through zero. `swaSlopePerH: 0` disables the plant, which is the CONTROL a test
@@ -1848,8 +1818,8 @@
     for (i = 0; i < n; i++) {
       var t = i / fs;
       while (pi < plan.length - 1 && t >= plan[pi].toSec) pi++;
-      var sp = EEG_NIGHT_SPECTRA[plan[pi].stage];
-      var swaMul = swaSlope && (plan[pi].stage === 'N2' || plan[pi].stage === 'N3') ? Math.sqrt(Math.max(EEG_SWA_FLOOR, 1 + swaSlope * (t / 3600))) : 1;
+      var sp = EEG_NIGHT_SPECTRA[plan[pi].spec];
+      var swaMul = swaSlope && (plan[pi].spec === 'spindleLight' || plan[pi].spec === 'slowWave') ? Math.sqrt(Math.max(EEG_SWA_FLOOR, 1 + swaSlope * (t / 3600))) : 1;
       var v = 0;
       for (j = 0; j < sp.comps.length; j++) {
         var amp = sp.comps[j][0] < BANDS.delta[1] ? sp.comps[j][1] * swaMul : sp.comps[j][1];
@@ -1966,14 +1936,16 @@
      survive the scrub (`export-schema.js` recurses into `schema` and `recording` only).
 
      ONE STAGE IMPULSE PER TRANSITION, named `stage_<stage>` because ECGDex already emits that
-     spelling for its HRV-derived stages. The Integrator can then hold an EEG stage against the
-     proxy for the same minute instead of reading two vocabularies for one fact.
+     spelling for its HRV-derived stages. The four names are the fit's own: `stage_wake`,
+     `stage_light`, `stage_deep` and `stage_rem` (board #8966 rule 4). `stage_light` is NOT N1 and
+     NOT N2, and the meta bag carries the class verbatim so a consumer reads the word the model
+     wrote rather than an AASM stage nobody measured.
 
-     `conf` is null, and that is deliberate. The hypnogram's own per-epoch `conf` is null too, for
-     the reason `analyze` states: a band-power rule set has no posterior to report. ECGDex's 0.7 on
-     the same impulse IS still a constant, and it rides the bus. Either number would put a
-     confidence on the bus that no instrument here produced, and `conf` is declared 0..1 OR null, so
-     null is the value that states what we know. */
+     `conf` NOW CARRIES A REAL NUMBER, and that is the one thing the band-power stager could never
+     give it. The fit returns a posterior over the four classes, `analyze` publishes the largest as
+     the epoch's `conf`, and this export forwards it. An epoch with no posterior — a refusal, or a
+     series the reader supplied — still rides as `null`, because `conf` is declared 0..1 OR null and
+     a fabricated constant would put a confidence on the bus that no instrument produced. */
   function buildNodeExport(summary, opts) {
     summary = summary || {};
     opts = opts || {};
@@ -2004,7 +1976,7 @@
           tMs: ep.tMs == null ? null : ep.tMs,
           impulse: 'stage_' + String(ep.stage).toLowerCase(),
           node: 'EEGDex',
-          conf: null,
+          conf: ep.conf == null ? null : ep.conf,
           meta: { stage: ep.stage, epoch: ep.epoch }
         });
         prev = ep.stage;
@@ -2042,14 +2014,17 @@
         stageCounts: summary.stageCounts || null,
         tstHours: arch.TST == null ? null : arch.TST,
         sleepEfficiencyPct: arch.SE == null ? null : arch.SE,
-        n3Pct: arch.n3Pct == null ? null : arch.n3Pct,
+        /* THE NREM SHARES ARE TWO, and they carry the fit's own names. `n1Pct`, `n2Pct` and
+           `n3Pct` are GONE from this export (board #8966 rule 5): the stager names one light class
+           and one deep class, and a consumer that kept reading `n3Pct` would read a slow-wave share
+           that this node no longer measures. That is a contract break, and the release is `major`.
+           A consumer that reads only `tstHours` still works. */
+        lightPct: arch.lightPct == null ? null : arch.lightPct,
+        deepPct: arch.deepPct == null ? null : arch.deepPct,
         remPct: arch.remPct == null ? null : arch.remPct,
-        /* THE FOUR KEYS ABOVE STAY WHERE CONSUMERS ALREADY READ THEM, and the eight unit B adds
-           arrive under `architecture` beside the per-key absence map. A consumer that reads only
-           `tstHours` keeps working, and one that wants the whole picture reads one object whose
-           every null names its own reason. */
-        n1Pct: arch.n1Pct == null ? null : arch.n1Pct,
-        n2Pct: arch.n2Pct == null ? null : arch.n2Pct,
+        /* WHO STAGED IT. The series is a model's output, so the export names the model and the hash
+           of the file, and a reader of the export can tell two nights scored by two models apart. */
+        stageSource: summary.stageSource || null,
         wakePct: arch.wakePct == null ? null : arch.wakePct,
         latencySleepMin: arch.latencySleepMin == null ? null : arch.latencySleepMin,
         latencyRemMin: arch.latencyRemMin == null ? null : arch.latencyRemMin,
@@ -2060,7 +2035,7 @@
         /* A density with its population beside it: the staged NREM minutes it is a rate over, the
            detections it counted, and the reason when it answers nothing. */
         spindleDensity: sp.density,
-        spindlesPerMin: { N2: sp.byStage ? sp.byStage.N2 : null, N3: sp.byStage ? sp.byStage.N3 : null },
+        spindlesPerMin: { light: sp.byStage ? sp.byStage.light : null, deep: sp.byStage ? sp.byStage.deep : null },
         spindleReason: sp.reason || null,
         spindlePopulation: sp.population || null,
         swaDecayPctPerPeriod: swa.decayPctPerPeriod == null ? null : swa.decayPctPerPeriod,
@@ -2192,13 +2167,12 @@
     EPOCH_SEC: EPOCH_SEC,
     REFUSALS: REFUSALS,
     epochBands: epochBands,
-    stageEpoch: stageEpoch,
-    smoothHypnogram: smoothHypnogram,
-    TUNED: TUNED,
     rms: rms,
     median: median,
     analyze: analyze,
-    /* the SECOND stage source, off unless the reader turns it on and supplies a model file */
+    /* THE ONE STAGE SOURCE. `analyze` calls it with the model the page carries, or with the model
+       file the reader dropped. `stageEpoch`, `smoothHypnogram` and `TUNED` are GONE from this table
+       with the band-power rule set that held them (board #8966 rule 1). */
     formulaStages: formulaStages,
     /* the app-facing surface: the adapter entry point, the EDF ingest, the night band summary,
        the node export and the deterministic demo frame */

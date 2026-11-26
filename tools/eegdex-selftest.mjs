@@ -6,7 +6,7 @@
  * ═════════════════════════════════════════════════════════════════════════════
  * Assertions for `eegdex-dsp.js`, on PLANTED signals rather than the corpus — a staging engine that
  * only demonstrates itself on real EEG cannot show WHY it is right, and a corpus test cannot separate
- * "the rule fired" from "the night happened to be mostly N2".
+ * "the model answered" from "the night happened to be mostly one class".
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -22,11 +22,18 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
    classicify the text and give the realm a self-referential `window`. Loading the raw text instead
    throws a SyntaxError, which is the honest failure rather than a silent one. */
 const DexBuild = createRequire(import.meta.url)(join(ROOT, 'tools', 'build-core.js'));
-const ctx = { Math, console, isFinite, Float64Array, Object, Array, Number };
+const ctx = { Math, console, isFinite, Float64Array, Float32Array, Object, Array, Number, JSON };
 ctx.window = ctx;
 vm.createContext(ctx);
-vm.runInContext(DexBuild.classicify(readFileSync(join(ROOT, 'eegdex-dsp.js'), 'utf8')), ctx, { filename: 'eegdex-dsp.js' });
+/* THE TWO STAGE MODULES LOAD BESIDE THE DSP (the spine-module realm sweep). The DSP's one stage
+   path reads `global.EEGFEAT` and `global.EEGSTAGE` at CALL time and refuses by name when either is
+   absent, so a realm without them would not throw — every epoch would read `null` and the staging
+   assertions below would pass over a series nothing scored. */
+for (const f of ['eegdex-stage-features.js', 'eegdex-stage-model.js', 'eegdex-dsp.js']) vm.runInContext(DexBuild.classicify(readFileSync(join(ROOT, f), 'utf8')), ctx, { filename: f });
 const D = ctx.EEGDSP;
+/* The model the page itself carries, read from the repository root. It is the one-pass file: the
+   two-pass file refuses an import under 160 epochs, and the planted nights here are shorter. */
+const MODEL = JSON.parse(readFileSync(join(ROOT, 'eeg-stage-model-base-2026-11-17.json'), 'utf8'));
 
 /* a pure sine at `hz`, so a band's power must land in that band and nowhere else */
 function sine(hz, fs, sec, amp = 20) {
@@ -77,17 +84,16 @@ holed[100] = NaN;
 A('§∅: an epoch containing a hole refuses, never treats it as 0', D.epochBands(holed, 0, fs * 30, fs) === null);
 A('§∅: a sub-5s window refuses', D.epochBands(sine(10, fs, 30), 0, fs * 2, fs) === null);
 A('§∅: fs of 0 refuses rather than dividing', D.epochBands(sine(10, fs, 30), 0, fs * 30, 0) === null);
-A('§∅: stageEpoch(null) is null, NOT a default of W', D.stageEpoch(null, 1, 1) === null);
+A('the stage modules reached this realm', !!(ctx.EEGFEAT && ctx.EEGSTAGE), 'eegdex-stage-features.js or eegdex-stage-model.js did not load, so every epoch would read null');
+A('the model file reads the formula schema', MODEL.schema === 'tepna.stage-formula/1', String(MODEL.schema));
 
-/* the stager's own rules, each fired by a planted spectrum */
-const mkRel = (r) => ({ rel: Object.assign({ delta: 0, theta: 0, alpha: 0, sigma: 0, beta: 0 }, r) });
-A('stager: delta-dominant epoch → N3', D.stageEpoch(mkRel({ delta: 0.8 }), 1, 1) === 'N3');
-A('stager: low delta + low EMG + eye movement → REM', D.stageEpoch(mkRel({ delta: 0.2, theta: 0.3 }), 0.5, 1.5) === 'REM');
-A('stager: spindle band over moderate delta → N2', D.stageEpoch(mkRel({ delta: 0.35, sigma: 0.15 }), 1.2, 0.5) === 'N2');
-A('stager: fast activity with tone → W', D.stageEpoch(mkRel({ beta: 0.4, alpha: 0.2, delta: 0.05 }), 1.5, 0.5) === 'W');
-/* the control: REM and N1 differ ONLY by EMG tone in this feature space, so the EMG leg must matter */
-A('stager: the SAME spectrum with high EMG tone is not REM', D.stageEpoch(mkRel({ delta: 0.2, theta: 0.3 }), 2.0, 1.5) !== 'REM');
-A('stager: an absent EMG channel is permissive, not disqualifying', D.stageEpoch(mkRel({ delta: 0.2, theta: 0.3 }), null, 1.5) === 'REM');
+/* ── THE ONE STAGE PATH ────────────────────────────────────────────────────────────────────────
+   `stageEpoch`, `smoothHypnogram` and the fitted `TUNED` block are GONE (owner order 2026-11-25,
+   board #8966). The assertions that fired each arm of that rule set went with it, and nothing here
+   replaces them with an accuracy claim: the model's agreement with an expert score is unmeasured in
+   this repository, so these legs test the PATH — the four class names, the refusals and the seams —
+   and never how well it stages a person. */
+const CLASSES = ['wake', 'light', 'deep', 'REM'];
 
 /* analyze() end to end on a planted night: 20 min delta, then 20 min beta */
 const night = new Float64Array(fs * 2400);
@@ -97,68 +103,100 @@ const night = new Float64Array(fs * 2400);
   night.set(d, 0);
   night.set(b, fs * 1200);
 }
-const out = D.analyze({ eeg: night, fs });
+const out = D.analyze({ eeg: night, fs }, { model: MODEL });
 A('analyze: produces one epoch per 30 s', out.nEpochs === 80, String(out.nEpochs));
 A(
-  'analyze: the delta half is staged N3',
-  out.hypnogram.slice(0, 39).every((h) => h.stage === 'N3')
+  'analyze: every epoch reads one of the four classes, or null',
+  out.hypnogram.every((h) => h.stage === null || CLASSES.indexOf(h.stage) >= 0),
+  'an epoch names a class outside the model: ' + JSON.stringify(out.hypnogram.map((h) => h.stage).filter((x) => x !== null && CLASSES.indexOf(x) < 0)[0])
 );
 A(
-  'analyze: the beta half is NOT staged N3',
-  out.hypnogram.slice(41, 79).every((h) => h.stage !== 'N3')
+  '§∅: every unscored epoch names its own reason',
+  out.hypnogram.every((h) => h.stage !== null || !!h.absentReason),
+  'an epoch reads null with no reason beside it'
+);
+A(
+  'analyze: no epoch carries a retired stage name',
+  out.hypnogram.every((h) => ['W', 'N1', 'N2', 'N3'].indexOf(h.stage) < 0)
+);
+A('analyze: the summary names the model that scored it', out.stageSource && out.stageSource.kind === 'model' && out.stageSource.id === (MODEL.id || null), JSON.stringify(out.stageSource));
+A(
+  'analyze: the series equals formulaStages over the same frame',
+  (() => {
+    const f = D.formulaStages({ samples: night, fs }, MODEL);
+    if (f.err || !f.epochs) return false;
+    return out.hypnogram.every((h, k) => (f.epochs[k] ? f.epochs[k].stage : null) === h.stage);
+  })(),
+  'the hypnogram is not the model output over the same epochs'
+);
+A(
+  '§∅: WITH NO MODEL, no epoch is staged and each names the absence',
+  (() => {
+    const o = D.analyze({ eeg: night, fs });
+    return o.hypnogram.every((h) => h.stage === null && h.absentReason === 'no-stage-model') && o.stageSource.kind === 'none';
+  })(),
+  'a frame with no model produced a stage, or an unnamed absence'
+);
+A(
+  '§∅: a model of the wrong schema REFUSES by name, it does not fall back',
+  (() => {
+    const o = D.analyze({ eeg: night, fs }, { model: { schema: 'something.else/1' } });
+    return !!o.stageSource.err && o.hypnogram.every((h) => h.stage === null);
+  })()
 );
 A('analyze: architecture is present when epochs scored', out.architecture.TST != null);
 A(
+  'architecture: the two NREM shares are light and deep, and the three AASM shares are gone',
+  'lightPct' in out.architecture && 'deepPct' in out.architecture && !('n1Pct' in out.architecture) && !('n2Pct' in out.architecture) && !('n3Pct' in out.architecture)
+);
+A(
   'analyze: §∅ — an all-flat recording yields no stages and a null architecture',
   (() => {
-    const o = D.analyze({ eeg: new Float64Array(fs * 300), fs });
+    const o = D.analyze({ eeg: new Float64Array(fs * 300), fs }, { model: MODEL });
     return o.quality.analyzablePct === 0 && o.architecture.TST === null;
   })()
 );
 A('analyze: refuses an absent signal rather than returning an empty hypnogram', !!D.analyze({ fs }).err);
 
-/* smoothing — including the failure `ecgdex-dsp.js` measured and warned about */
-A('smooth: an isolated epoch between two of another stage is corrected', JSON.stringify(D.smoothHypnogram(['N2', 'N2', 'W', 'N2', 'N2'])) === JSON.stringify(['N2', 'N2', 'N2', 'N2', 'N2']));
-A('smooth: a real two-epoch bout is NOT erased', JSON.stringify(D.smoothHypnogram(['N2', 'REM', 'REM', 'N2'])) === JSON.stringify(['N2', 'REM', 'REM', 'N2']));
+/* THE GIVEN-SERIES SEAM, which is how the spindle and slow-wave groups hold their own truth: a
+   caller may hand `analyze` a stage series, and the node then measures none of it and says so. */
 A(
-  'smooth: endpoints are left alone (no neighbour on one side)',
+  'analyze: a given series is used verbatim, and the source says the node measured none of it',
   (() => {
-    const o = D.smoothHypnogram(['W', 'N2', 'N2']);
-    return o[0] === 'W';
+    const given = [];
+    for (let k = 0; k < 80; k++) given.push(k < 40 ? 'deep' : 'light');
+    const o = D.analyze({ eeg: night, fs }, { stages: given });
+    return o.stageSource.kind === 'given' && o.hypnogram[0].stage === 'deep' && o.hypnogram[79].stage === 'light';
   })()
 );
 A(
-  '§∅: a null epoch is never FILLED from its neighbours',
+  '§∅: a given series SHORTER than the night leaves the rest absent, with its own reason',
   (() => {
-    const o = D.smoothHypnogram(['N2', null, 'N2']);
-    return o[1] === null;
+    const o = D.analyze({ eeg: night, fs }, { stages: ['deep'] });
+    return o.hypnogram[0].stage === 'deep' && o.hypnogram[79].stage === null && o.hypnogram[79].absentReason === 'not-in-given-series';
   })()
 );
+
+/* ∅ · THE SIGNAL'S OWN ABSENCE OVERRULES A CLASS (owner ruling 2026-09-17: a discontinuity
+   refuses). The fit's floor is the SHARE of its feature inputs it could measure, so one hole in an
+   otherwise whole epoch leaves it well over that floor and the fit answers a class. The engine
+   refuses the epoch anyway and names the hole, because a stage over a seam is a number standing on
+   a discontinuity. The leg plants ONE non-finite sample in the first epoch and holds the rest of
+   the night as the control, so a gate that refused the whole night would red here too. */
 A(
-  '§∅: a null neighbour never outvotes a real epoch',
+  '∅: one hole in an epoch refuses that epoch and names the hole, whatever the model answered',
   (() => {
-    const o = D.smoothHypnogram([null, 'REM', null]);
-    return o[1] === 'REM';
-  })()
-);
-A('smooth: a series shorter than 3 is returned unchanged', JSON.stringify(D.smoothHypnogram(['W', 'N2'])) === JSON.stringify(['W', 'N2']));
-/* the ECGDex eraser control, in miniature: a minority stage embedded in a dominant one must not be
-   wiped out wholesale — only genuine singletons go */
-A(
-  'smooth: CONTROL — a minority stage with any width survives a dominant background',
-  (() => {
-    const seq = ['N2', 'N2', 'N2', 'REM', 'REM', 'REM', 'N2', 'N2'];
-    return D.smoothHypnogram(seq).filter((x) => x === 'REM').length === 3;
-  })()
-);
-A(
-  'analyze: smooth:false recovers the raw hypnogram',
-  (() => {
-    const n2 = new Float64Array(fs * 300);
-    for (let i = 0; i < n2.length; i++) n2[i] = 20 * Math.sin((2 * Math.PI * 2 * i) / fs);
-    const r = D.analyze({ eeg: n2, fs }, { smooth: false }),
-      q = D.analyze({ eeg: n2, fs });
-    return r.hypnogram.length === q.hypnogram.length;
+    const whole = D.analyze({ eeg: night, fs }, { model: MODEL });
+    const holed = night.slice(0);
+    holed[Math.round(10 * fs)] = NaN;
+    const o = D.analyze({ eeg: holed, fs }, { model: MODEL });
+    return (
+      whole.hypnogram[0].stage !== null &&
+      o.hypnogram[0].stage === null &&
+      o.hypnogram[0].absentReason === 'partial-hole' &&
+      o.hypnogram[0].conf === null &&
+      o.hypnogram[1].stage === whole.hypnogram[1].stage
+    );
   })()
 );
 
