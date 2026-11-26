@@ -50438,7 +50438,7 @@
       T.eq(
         'accExtras([],[]) returns the full shape with empty arrays and explicit nulls, not null',
         JSON.stringify(E.accExtras([], [])),
-        '{"rracc":[],"rraccSummary":null,"agreement":null,"consensus":null,"gait":{"totalSteps":0,"walking":false,"reason":"lowfs","accFs":[],"bouts":[],"cadEpochs":[],"zonePct":[]},"gaitAxis":"acc-relative","off":null,"offReason":"no-ecg-start-stamp","accFs":[],"motionByTMin":null,"movementOnsets":[],"durMin":null}'
+        '{"rracc":[],"rraccSummary":null,"agreement":null,"consensus":null,"gait":{"totalSteps":null,"walking":null,"reason":"lowfs","accFs":[],"bouts":[],"cadEpochs":[],"zonePct":[]},"gaitAxis":"acc-relative","off":null,"offReason":"no-ecg-start-stamp","accFs":[],"motionByTMin":null,"movementOnsets":[],"durMin":null}'
       );
 
       /* The drafted projection is `out[0]`; the PROPERTY claims "an empty array". Those differ —
@@ -84136,7 +84136,13 @@
 
       // Feature 4 — gait: a 4-Hz ACC cannot resolve the 0.5–3.5 Hz step band → graceful no-walk
       T.ok('gait present', !!ex.gait);
-      if (ex.gait) T.ok('4 Hz ACC → walking=false with lowfs reason (graceful)', ex.gait.walking === false && ex.gait.reason === 'lowfs', 'reason=' + ex.gait.reason);
+      /* ∅ — the step band does not fit under a 4-Hz Nyquist, so the detector could not run: the
+         count and the conclusion are both null, and `reason` names the cause. `false` here would be
+         a conclusion with no evidence, and `0` a count of a scan that never happened. */
+      if (ex.gait) {
+        T.ok('4 Hz ACC → walking=null with lowfs reason (graceful)', ex.gait.walking === null && ex.gait.reason === 'lowfs', 'walking=' + ex.gait.walking + ' reason=' + ex.gait.reason);
+        T.eq('4 Hz ACC → totalSteps is null, never a measured-looking 0', JSON.stringify(ex.gait.totalSteps), 'null');
+      }
 
       // Feature 4 — gait DOES detect a real cadence at a usable sample rate (50-Hz walk, ~108 spm)
       var fs = 50,

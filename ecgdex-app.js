@@ -1668,11 +1668,19 @@ self.onmessage = async (e) => {
   function _accCardGait(ex, r) {
     const g = ex.gait;
     if (!g || !g.walking) {
-      const reason = g && g.reason === 'lowfs' ? `ACC sampled at ${g.accFs} Hz — gait needs ≥ 7 Hz to resolve the 0.5–3.5 Hz step band. ` : '';
-      const tail = g && g.totalSteps ? `${g.totalSteps} candidate steps (&lt; 50 threshold).` : 'Consistent with a still / sleep recording.';
+      /* ∅ — `lowfs` is the detector refusing to look, so the card may not print the conclusion of a
+         detector that looked. "No walking detected" and "a still / sleep recording" are both
+         measurements; at `lowfs` the count is null and the card says UNMEASURED instead. */
+      const unmeasured = !!(g && g.reason === 'lowfs');
+      const reason = unmeasured ? `ACC sampled at ${g.accFs} Hz — gait needs ≥ 7 Hz to resolve the 0.5–3.5 Hz step band. ` : '';
+      const tail = unmeasured
+        ? 'Step count and gait are unmeasured for this recording, not zero.'
+        : g && g.totalSteps
+          ? `${g.totalSteps} candidate steps (&lt; 50 threshold).`
+          : 'Consistent with a still / sleep recording.';
       return `<section class="section-card" data-tier="primary" id="accGaitCard">
       <div class="section-card-title">Step Count &amp; Gait</div>
-      <div class="q-note"><span class="pill pill-gray">No walking detected</span> ${reason}${tail}</div>
+      <div class="q-note"><span class="pill pill-gray">${unmeasured ? 'Steps not measured' : 'No walking detected'}</span> ${reason}${tail}</div>
     </section>`;
     }
     const zoneBar = `<div class="acc-zonebar">${g.zonePct
@@ -2639,7 +2647,18 @@ self.onmessage = async (e) => {
       { label: 'CVHR', unit: '/h', good: 'down', get: (s) => (s.longRec && !s.ambulatory ? s.cvhr.index : null) },
       { label: 'Decel. cap.', unit: 'ms', good: 'up', get: (s) => s.dc }
     ];
-    const cov = list.map((s) => Math.max(0.05, (s.analyzablePct || 0) / 100));
+    /* ∅ — `analyzablePct` is nullable BY DESIGN (see the note at the top of this file: `buildNN`
+       publishes a null coveragePct and a null analyzablePct), and every other reader here guards it.
+       The old `|| 0` sent an UNMEASURED share through the floor clamp, so the night entered every
+       weighted fit, baseline and z exactly like a night measured at 0 % analyzable — the worst one —
+       and the weight is the only place a night's quality reaches the published trend label, so the
+       substitution was invisible. The export path answered this in #6802: keep the floor COEFFICIENT
+       (the numbers do not move) and send the absence out of band, in the envelope's own vocabulary
+       (`weightAbsent` / `weightAbsentCount`). The section note below carries the count. A measured 0
+       keeps the floor, because 0 is a real share. */
+    const covAbsent = list.map((s) => typeof s.analyzablePct !== 'number' || !isFinite(s.analyzablePct));
+    const cov = list.map((s, i) => (covAbsent[i] ? 0.05 : Math.max(0.05, s.analyzablePct / 100)));
+    const nWeightAbsent = covAbsent.filter(Boolean).length;
     const tCol = (lbl) => (lbl === 'improving' ? 'ok' : lbl === 'declining' ? 'bad' : 'neutral');
     let rows = '',
       headline = [];
@@ -2716,7 +2735,10 @@ self.onmessage = async (e) => {
         : '<div class="cn-head-item dim">No metric is beyond ±1σ of its personal baseline — a consistent night.</div>');
     $('crossNightNote').innerHTML =
       list.length +
-      " recordings · OLS slope vs date + non-parametric <b>Mann–Kendall</b> (τ, p) for short noisy series · personal-baseline <b>z-scores</b> · coverage-weighted by each night's analyzable %. The same <code>crossNight()</code> engine powers PpgDex &amp; OxyDex trends.";
+      " recordings · OLS slope vs date + non-parametric <b>Mann–Kendall</b> (τ, p) for short noisy series · personal-baseline <b>z-scores</b> · coverage-weighted by each night's analyzable %. The same <code>crossNight()</code> engine powers PpgDex &amp; OxyDex trends." +
+      (nWeightAbsent
+        ? ` <b>${nWeightAbsent} of ${list.length} recording${list.length === 1 ? '' : 's'} carry no measured analyzable share</b> — unmeasured, held at the 0.05 weight floor, not measured at 5 %.`
+        : '');
   }
 
   /* ONE ROAD — the payload now lives in `ecgdex-dsp.js ecgBuildSummaryExport`, where a committed
