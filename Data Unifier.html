@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="e062804c7da1" data-compute-hash="1eafbb9ab65c"><head>
+<html lang="en" data-manifest-hash="d15cedac611a" data-compute-hash="7c2e7ca35873"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/VJg0iL4BTIOQo1MBGNaCyjASkthShp7aMZCanB9k3A=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6vRsd8wVQoTSJKZCJmwjUOk0mO0dhv4yfkPzZA204MI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BOhDyyKtUF76TrmfO8vDviRzS9fbpDUpWlYI9At2z4c=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-L95+f1CJkFsGZmJsXTzg1qxjuBQQkQLCtzLxyAOtSps=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-PpBpm1uOMgKMNYtYEz40yk6Rax4+gk858PuQoCj/cZI=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SNG0V1OhZVY/Q3A5A3nTOITBdDJxUtvqV6nu8qXld30=' 'sha256-SploFxN8y41QfXBKeMXZ3VVUDPeaXF7mfHd2/kuq43U=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XKQFrqQpPPC7kRB+couzlvLcdQFWKGseS/BbyN9tv9s=' 'sha256-cumr3An7W+Q6iJlTfa/0x/W0WcDr47x/lyahofIzqPo=' 'sha256-ftUZOP6BXhq+bjR2sygBrCjNenvCVQLmSg6CrrMVjRk=' 'sha256-gd9IuoPK0m0h+mwKmCjCmBpm6ebuTXqb8O27YnJNX04=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-hAE+LZ0d7JPx/cG5gi0PG8EUxoe7vCTWHxVkdkT8kvI=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nbCcwjX4Ba9w3RBLEB+5up9PRhrS11tY5toYvGccPHI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-y6atEKP/AbE4LZCyEBh76Xb2piWlZ5rxz4CQYkPXkFc=' 'sha256-zmPi1hhzvQ7iExQrkogwmgLpi9q2dJI4MTjAauSml10='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/VJg0iL4BTIOQo1MBGNaCyjASkthShp7aMZCanB9k3A=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6vRsd8wVQoTSJKZCJmwjUOk0mO0dhv4yfkPzZA204MI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BOhDyyKtUF76TrmfO8vDviRzS9fbpDUpWlYI9At2z4c=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-L95+f1CJkFsGZmJsXTzg1qxjuBQQkQLCtzLxyAOtSps=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-PpBpm1uOMgKMNYtYEz40yk6Rax4+gk858PuQoCj/cZI=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SNG0V1OhZVY/Q3A5A3nTOITBdDJxUtvqV6nu8qXld30=' 'sha256-SploFxN8y41QfXBKeMXZ3VVUDPeaXF7mfHd2/kuq43U=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-cumr3An7W+Q6iJlTfa/0x/W0WcDr47x/lyahofIzqPo=' 'sha256-ftUZOP6BXhq+bjR2sygBrCjNenvCVQLmSg6CrrMVjRk=' 'sha256-gd9IuoPK0m0h+mwKmCjCmBpm6ebuTXqb8O27YnJNX04=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-hAE+LZ0d7JPx/cG5gi0PG8EUxoe7vCTWHxVkdkT8kvI=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nbCcwjX4Ba9w3RBLEB+5up9PRhrS11tY5toYvGccPHI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-y6atEKP/AbE4LZCyEBh76Xb2piWlZ5rxz4CQYkPXkFc=' 'sha256-yFPiGik662jFYAbvMxIGlhr8nHZY5SUqMK7xfqYl2hM=' 'sha256-zmPi1hhzvQ7iExQrkogwmgLpi9q2dJI4MTjAauSml10='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -49891,10 +49891,23 @@ __exports.MotionDex = window.MotionDex;
     };
   }
 
-  /* OLS slope of values vs their index (per-night step). null if <2 finite points. */
-  function _olsSlope(arr) {
+  /* OLS slope of values against a per-night x the caller supplies. `xs` carries the CALENDAR night of
+   each value, so a run with gaps reads the value per calendar night and never the value per position
+   in the list. The index axis this replaces did two things to a spaced run: 7 nights four days apart
+   read 0.400 h per night over a true 0.100, and a night with no usage left the list and RENUMBERED
+   the rest, which closed the gap it had left (0.126 over 0.100). Row
+   `2026-11-25-cpap-usage-slope-counts-nights-by-ordinal`. `xs` stays optional and last, so a caller
+   with no stamp to offer keeps the index axis. null if <2 points carry both a value and an x. */
+  function _olsSlope(arr, xs) {
     var pts = [];
-    for (var i = 0; i < arr.length; i++) if (arr[i] != null && isFinite(arr[i])) pts.push([pts.length, arr[i]]);
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i] == null || !isFinite(arr[i])) continue;
+      /* ∅ A night with no stamp carries no calendar position, so it leaves the fit rather than
+       borrowing the position of its neighbour. The caller publishes the count that stayed. */
+      var xi = xs ? xs[i] : pts.length;
+      if (xi == null || !isFinite(xi)) continue;
+      pts.push([xi, arr[i]]);
+    }
     var n = pts.length;
     if (n < 2) return null;
     var sx = 0,
@@ -49929,6 +49942,9 @@ __exports.MotionDex = window.MotionDex;
         complianceReason: 'no-nights',
         nights: 0,
         usageTrend7d: null,
+        usageTrend7dNights: 0,
+        usageTrend7dSpanDays: null,
+        usageTrend7dReason: 'no-nights',
         ahiTrend30d: null,
         crossNight: null,
         mode: null,
@@ -49977,7 +49993,23 @@ __exports.MotionDex = window.MotionDex;
       .map(function (x) {
         return x.n;
       });
-    var usageTrend7d = _olsSlope(chrono.slice(-7).map(usageH));
+    /* ∅ THE X AXIS IS THE CALENDAR NIGHT OF `t0Ms`, never the position in the list, and the KPI says
+     hours per night. Two nights on one calendar day share an x, which OLS carries. A night with no
+     stamp or no usage datum leaves the fit, and `usageTrend7dNights` publishes how many stayed.
+     `usageTrend7dSpanDays` names the calendar span those nights cover, because a slope per night
+     over 7 nights four days apart is not the claim a reader takes from "7d". */
+    var win = chrono.slice(-7);
+    var winUsage = win.map(usageH);
+    var winDays = win.map(function (n) {
+      return n && n.t0Ms != null && isFinite(n.t0Ms) ? Math.floor(n.t0Ms / 86400000) : null;
+    });
+    var fitDays = [];
+    for (var wi = 0; wi < win.length; wi++) {
+      if (winUsage[wi] != null && isFinite(winUsage[wi]) && winDays[wi] != null) fitDays.push(winDays[wi]);
+    }
+    var usageTrend7d = _olsSlope(winUsage, winDays);
+    var usageTrend7dSpanDays = fitDays.length ? Math.max.apply(null, fitDays) - Math.min.apply(null, fitDays) + 1 : null;
+    var usageTrend7dReason = usageTrend7d != null ? null : fitDays.length < 2 ? 'fewer-than-two-fitted-nights' : 'one-calendar-day';
     var last30 = chrono
       .slice(-30)
       .map(ahiOf)
@@ -50022,6 +50054,9 @@ __exports.MotionDex = window.MotionDex;
       complianceReason: scored ? null : 'no-usage-datum',
       nights: nights.length,
       usageTrend7d: usageTrend7d,
+      usageTrend7dNights: fitDays.length,
+      usageTrend7dSpanDays: usageTrend7dSpanDays,
+      usageTrend7dReason: usageTrend7dReason,
       ahiTrend30d: ahiTrend30d,
       crossNight: crossNight,
       mode: lm.mode,
