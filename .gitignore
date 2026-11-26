@@ -70,6 +70,16 @@ uploads/*
 # `node tools/make-synthetic-eeg-edf.mjs`, then `node tools/regen-eegdex-goldens.mjs`.
 !uploads/synthetic_eegdex_c4.edf
 !uploads/synthetic_eegdex_golden.node-export.json
+# EEGDex RAW-FRAME equivalence leg + GATE B record (2026-11-26). The _RAW.txt is SYNTHETIC
+# (tools/make-synthetic-raw-frames.mjs) — genuine 14-bit frame bytes packed around a declared sum of
+# sines plus a seeded LCG, 60 s, no recording of any person. It is the only committed input in the
+# repo that carries TWO clocks: a device tick that folds every 2^28 ns and a jittered host stamp
+# column with a planted -49.9 ppm rate offset. It puts the frame tokeniser, the tick unwrap,
+# DexClock.hostAxis over the row anchors and the epoch placement in a gated path; the EDF road above
+# carries no host column, so no EDF fixture reaches any of it. Regenerate byte-identically with
+# `node tools/make-synthetic-raw-frames.mjs`, then `node tools/regen-eegdex-goldens.mjs`.
+!uploads/synthetic_eegdex_frames_RAW.txt
+!uploads/synthetic_eegdex_frames_golden.node-export.json
 # CPAPDex live-vs-SD comparator pin-twin — SYNTHETIC BRP pair (one wall-clock flow sampled into two
 # files, sd −159 s ×0.998) reproducing the night pin's identity verdict + 27.35-min overlap geometry.
 # Real patient slices stay gitignored (health data, public repo); only the synthetic twin is committed.
