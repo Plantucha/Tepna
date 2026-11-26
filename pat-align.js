@@ -22,7 +22,9 @@
  *
  * Everything here is pure: arrays in, numbers out. No DOM, no workers, no I/O.
  *
- * Exposes: window.PATAlign = { envelope, findAnchors, lagAtAnchor, alignByAnchors, DEFAULTS }
+ * Exposes: window.PATAlign = { envelope, findAnchors, lagAtAnchor, alignByAnchors,
+ *           coupleRtoFoot, patDipEvents, hatWindows, pairWindowValues, seamRefusals,
+ *           applySeamRefusals, FOREHEAD, HAT, DEFAULTS }
  */
 (function (root) {
   'use strict';
@@ -737,6 +739,223 @@
     };
   }
 
+  /* ══ THE FOREHEAD CORNER — the Muse S Athena optics, as PpgDex already measured them ═══════════
+     TWO NUMBERS, ONE SOURCE. PpgDex measured both on its own corpus and `ppgdex-app.js` states the
+     measurements beside them: the headband reports RECEIVED light, which falls at systole, so its
+     pulse is inverted on every unit of the model (`sign: -1`), and its foot in the 0.5-8 Hz band
+     rides noise, so the voted beats keep that band and the foot is re-timed in 0.5-3 Hz
+     (`footHiHz: 3`). The suite asserts these two values against `ppgdex-app.js`'s own constants, so
+     neither side can move alone. A drifted sign does not fail loudly — it doubles a published rMSSD.
+     Here rather than in `muse-frame.js`: no app bundle carries this file, so a constant placed here
+     moves no `manifestHash` and owes no fixture re-verification (CLAUDE.md §🔏, §👥.3). */
+  var FOREHEAD = { role: 'forehead', sign: -1, footHiHz: 3 };
+
+  /* ══ A DISCONTINUITY REFUSES, REDUCED COVERAGE ANNOTATES (owner ruling 2026-09-17) ═════════════
+     The capture-host writes two sidecars beside every optical stream, and they answer DIFFERENT
+     questions. `<base>RUNS.txt` marks held or dropped samples — reduced coverage, and `parsePPG`
+     already carries it through `runsText`, so a window keeps its value with `n` beside it.
+     `<base>SEAMS.txt` marks a CLOCK SEAM, where the host axis stepped: the window no longer
+     describes one continuous stretch of signal, so its value is not reduced, it is undefined.
+
+     `seamRefusals` names each window that a seam falls inside. The refusal travels as a reason, never
+     as a 0 and never as a shorter list with no note (CLAUDE.md §∅): a caller that drops the windows
+     keeps the count and the reason beside the number it publishes. `padMs` widens the interval when a
+     seam's own placement is uncertain; it defaults to 0, so no published window moves.
+
+     THE LINE IS WHETHER ONE WINDOW STILL DESCRIBES ONE STRETCH. A 120 s dropout inside a 5-min window
+     keeps the metric; a 0.6 s seam does not. That is the ruling, not a preference for caution. */
+  function seamRefusals(windows, seamsMs, opts) {
+    var o = opts || {},
+      win = o.winMs == null ? 300000 : o.winMs,
+      pad = o.padMs == null ? 0 : o.padMs,
+      out = [],
+      i,
+      j;
+    var S = (seamsMs || []).filter(function (s) {
+      return s != null && isFinite(s);
+    });
+    for (i = 0; i < (windows || []).length; i++) {
+      /* A hat window carries `t0` (its start) and `t` (its centre), so read `t0` when it exists. A
+         caller with start-only windows keeps today's behaviour. */
+      var w = windows[i],
+        t = w ? (w.t0 != null ? w.t0 : w.t) : null,
+        hit = null;
+      if (t == null || !isFinite(t)) {
+        out.push({ tMs: null, reason: 'window-start-absent' });
+        continue;
+      }
+      for (j = 0; j < S.length && hit === null; j++) if (S[j] >= t - pad && S[j] < t + win + pad) hit = S[j];
+      out.push(hit === null ? null : { tMs: hit, reason: 'clock-seam' });
+    }
+    return out;
+  }
+  /* The windows a seam leaves usable, with the refusal counted rather than silently dropped. Every
+     window refused reads `ok: false` with the reason, so a leg over a seam-filled night is null and
+     named, never an average over two unconnected stretches. */
+  function applySeamRefusals(windows, refusals) {
+    var kept = [],
+      refused = [],
+      i;
+    for (i = 0; i < (windows || []).length; i++) {
+      if (refusals && refusals[i]) refused.push({ index: i, tMs: windows[i] && windows[i].t, reason: refusals[i].reason, seamMs: refusals[i].tMs });
+      else kept.push(windows[i]);
+    }
+    return {
+      ok: kept.length > 0,
+      kept: kept,
+      refused: refused,
+      nRefused: refused.length,
+      reason: kept.length > 0 ? null : refused.length ? refused[0].reason : 'no-windows'
+    };
+  }
+
+  /* ══ THE WINDOW RULE, FOR ANY NUMBER OF CORNERS ════════════════════════════════════════════════
+     The three-site hat buckets each leg's coupled beats into 5-min bins and keeps a bin only when
+     EVERY pair coupled `minBeats` beats inside it (`pat-feasibility-worker.js` `threeHat`). Four
+     corners need the same rule over 6 pairs, so the rule lives here once and the suite pins it to the
+     worker's own windows on a planted night. `_med` repeats the worker's median definition exactly —
+     a lower-middle average on an even count, never an interpolated quantile — because a different
+     median would move every window value and every number downstream of it.
+
+     THE BIN IS ABSOLUTE, so two pairs that never overlap share no window and the night refuses. Each
+     window carries `t0` (its start) and `t` (its centre, the field `threeHat` publishes), so a caller
+     can hand the same window to `seamRefusals` without re-deriving either.
+
+     WEIGHTS ARE INJECTED, never imported: a weighted median belongs to `analysis-stats.js`, and this
+     file holds the PAT geometry. `opts.weightedMedian` takes (values, weights); absent, every window
+     median is the plain median and the output matches the unweighted column. */
+  var HAT = { winMs: 300000, minBeats: 50, minWindows: 12 };
+  function _med(a) {
+    if (!a.length) return NaN;
+    var b = a.slice().sort(function (x, y) {
+      return x - y;
+    });
+    var m = b.length >> 1;
+    return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2;
+  }
+  function _hatKey(names, i, j) {
+    return names[i] + '|' + names[j];
+  }
+  function _hatPick(obj, names, i, j) {
+    var a = _hatKey(names, i, j),
+      b = _hatKey(names, j, i);
+    if (obj && obj[a] != null) return obj[a];
+    if (obj && obj[b] != null) return obj[b];
+    return null;
+  }
+  function hatWindows(pairs, names, opts) {
+    var o = opts || {},
+      win = o.winMs == null ? HAT.winMs : o.winMs,
+      minBeats = o.minBeats == null ? HAT.minBeats : o.minBeats,
+      minWin = o.minWindows == null ? HAT.minWindows : o.minWindows,
+      wmed = typeof o.weightedMedian === 'function' ? o.weightedMedian : null,
+      N = names ? names.length : 0,
+      keys = [],
+      buckets = {},
+      refused = [],
+      i,
+      j;
+    if (N < 3) return { ok: false, n: N, windows: [], reason: 'fewer-than-three-corners', refusedPairs: [] };
+    for (i = 0; i < N; i++) {
+      for (j = i + 1; j < N; j++) {
+        var key = _hatKey(names, i, j),
+          c = _hatPick(pairs, names, i, j);
+        keys.push(key);
+        if (!c || !c.ok || !c.patAtR) {
+          refused.push({ pair: key, reason: (c && c.reason) || 'not coupled' });
+          continue;
+        }
+        var bk = {},
+          ws = c.w || null;
+        for (var k = 0; k < c.patAtR.length; k++) {
+          var b = Math.floor(c.patAtR[k].t / win);
+          (bk[b] || (bk[b] = [])).push(ws ? { lag: c.patAtR[k].lag, w: ws[k] } : c.patAtR[k].lag);
+        }
+        buckets[key] = bk;
+      }
+    }
+    if (refused.length) {
+      return {
+        ok: false,
+        n: N,
+        windows: [],
+        refusedPairs: refused,
+        reason:
+          'a pair did not couple — ' +
+          refused
+            .map(function (r) {
+              return r.pair + ': ' + r.reason;
+            })
+            .join(' · ')
+      };
+    }
+    var bins = {};
+    keys.forEach(function (key) {
+      Object.keys(buckets[key]).forEach(function (b) {
+        bins[b] = true;
+      });
+    });
+    var windows = Object.keys(bins)
+      .map(Number)
+      .sort(function (a, b) {
+        return a - b;
+      })
+      .filter(function (b) {
+        return keys.every(function (key) {
+          return buckets[key][b] && buckets[key][b].length >= minBeats;
+        });
+      })
+      .map(function (b) {
+        var w = { bin: b, t0: b * win, t: (b + 0.5) * win, med: {}, n: {} };
+        keys.forEach(function (key) {
+          var v = buckets[key][b];
+          w.n[key] = v.length;
+          w.med[key] =
+            typeof v[0] === 'number' || !wmed
+              ? _med(
+                  v.map(function (x) {
+                    return typeof x === 'number' ? x : x.lag;
+                  })
+                )
+              : wmed(
+                  v.map(function (x) {
+                    return x.lag;
+                  }),
+                  v.map(function (x) {
+                    return x.w;
+                  })
+                );
+        });
+        return w;
+      });
+    if (windows.length < minWin) {
+      return {
+        ok: false,
+        n: N,
+        windows: windows,
+        refusedPairs: [],
+        reason: windows.length + ' windows with all ' + keys.length + ' pairs coupled (< ' + minWin + ')'
+      };
+    }
+    return { ok: true, n: N, pairs: keys, windows: windows, refusedPairs: [], reason: null, winMs: win, minBeats: minBeats };
+  }
+  /* The per-pair series `AnalysisStats.nCornerPairVar` takes, read off the kept windows. A pair with no
+     window reads an EMPTY array rather than a 0, so the dispersion refuses by name downstream. */
+  function pairWindowValues(windows, names) {
+    var out = {},
+      i,
+      j;
+    for (i = 0; i < (names || []).length; i++) {
+      for (j = i + 1; j < names.length; j++) {
+        var key = _hatKey(names, i, j);
+        out[key] = (windows || []).map(function (w) {
+          return w.med[key];
+        });
+      }
+    }
+    return out;
+  }
+
   var api = {
     envelope: envelope,
     findAnchors: findAnchors,
@@ -744,6 +963,12 @@
     alignByAnchors: alignByAnchors,
     coupleRtoFoot: coupleRtoFoot,
     patDipEvents: patDipEvents,
+    hatWindows: hatWindows,
+    pairWindowValues: pairWindowValues,
+    HAT: HAT,
+    seamRefusals: seamRefusals,
+    applySeamRefusals: applySeamRefusals,
+    FOREHEAD: FOREHEAD,
     PHYS: PHYS,
     DEFAULTS: DEFAULTS,
     DIP_DEFAULTS: DIP_DEFAULTS

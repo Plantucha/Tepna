@@ -48,7 +48,7 @@ try {
      the reason `pat-align.js` was extracted from this very file — a worker's top-level functions can only
      ever be SOURCE-SCANNED by the suite, never executed, so a mechanism that lives here cannot carry the
      planted known-answer test it needs. `AnalysisStats` is already loadable and co-loaded in both lanes. */
-  ['kernel-constants.js', 'clock.js', 'consensus-dissent.js', 'pat-gate.js', 'pat-align.js', 'analysis-stats.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js'].forEach(loadScript);
+  ['kernel-constants.js', 'clock.js', 'consensus-dissent.js', 'pat-gate.js', 'pat-align.js', 'analysis-stats.js', 'muse-frame.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js'].forEach(loadScript);
   DSP_OK = !!(typeof ECGDSP !== 'undefined' && ECGDSP.parseECG && typeof PPGDSP !== 'undefined' && PPGDSP.parsePPG);
 } catch (e) {
   DSP_ERR = String((e && e.message) || e);
@@ -71,7 +71,18 @@ var LAG_SEARCH_MS = 2000,
   BIN_MIN = 5, // bin WIDTH in minutes — NOT a minimum pair count. See BIN_MATCH_MIN.
   PHYS_LO = 200,
   PHYS_HI = 650,
-  FINGER_ANKLE_BAND = { lo: 0, hi: 400 };
+  FINGER_ANKLE_BAND = { lo: 0, hi: 400 },
+  /* ── THE FOREHEAD BANDS ARE STATED, NEVER FITTED ────────────────────────────────────────────────
+     `PHYS_LO` = 200 ms is the chest→ankle physiological floor, and it EXCLUDES a real chest→forehead
+     PAT. The carotid road is short, so the published range sits near 100-150 ms. A leg that reused
+     200 ms would refuse every true pairing and keep the late ones only, which biases the dispersion
+     the hat reads. So the chest→forehead leg takes a WIDE stated search band, and the site→site
+     differentials take the same 0-400 ms window the finger→ankle leg already uses.
+     Both are SEARCH WINDOWS, never a number read off the corpus they judge. Every forehead output is
+     graded `experimental`, and each leg publishes its own observed lag median and IQR, so a later
+     corpus measurement can narrow these bands on evidence (decision #8959). */
+  CHEST_FOREHEAD_BAND = { lo: 50, hi: 400 },
+  FOREHEAD_SITE_BAND = { lo: 0, hi: 400 };
 
 function median(a) {
   if (!a.length) return NaN;
@@ -258,9 +269,57 @@ function holdOverGaps(x, gap) {
   }
   return y;
 }
+/* ── THE FOREHEAD STREAM ARRIVES AS DEVICE FRAMES, NEVER AS SAMPLES ──────────────────────────────
+   The Muse S Athena recorder writes one `_RAW.txt` of frames, and the optical samples exist only
+   inside them. `MuseFrame.OpticsPpg` decodes them into the per-sample layout `PPGDSP.parsePPG`
+   already takes, so this leg needs no second parser. The file is STREAMED: a full night of frames
+   passes the longest string a browser can hold, which is why PpgDex streams it too.
+   The `finish()` record names its own refusal (`no-row`, `no-optical-record`) and counts what it
+   lost, so a night with no optical record reads null with a reason rather than an empty leg (§∅).
+   A realm without `TextDecoderStream` falls back to one read — the suite's shim is one such realm. */
+function decodeMuseOptics(f) {
+  var hostMs = function (str) {
+    var ts = DexClock.parseTimestamp(str);
+    return ts ? ts.tMs : null;
+  };
+  var ppg = new MuseFrame.OpticsPpg({ hostMs: hostMs });
+  if (typeof f.stream !== 'function' || typeof TextDecoderStream === 'undefined') {
+    return f.text().then(function (txt) {
+      ppg.push(txt);
+      return ppg.finish();
+    });
+  }
+  var reader = f.stream().pipeThrough(new TextDecoderStream()).getReader();
+  function step() {
+    return reader.read().then(function (r) {
+      if (r.done) return ppg.finish();
+      ppg.push(r.value);
+      return step();
+    });
+  }
+  return step();
+}
+/* `opts` (OPTIONAL and LAST per §🧪) — `holdGaps` below, plus three the forehead corner needs:
+     sign        forces the channel polarity. `PATAlign.FOREHEAD.sign` is -1 because the headband
+                 reports RECEIVED light, which falls at systole. Absent ⇒ `orientByRise` decides, as
+                 every caller before 2026-11-26 got.
+     footHiHz    re-times the foot in a narrower band (`PATAlign.FOREHEAD.footHiHz` = 3 Hz). Absent
+                 ⇒ `rec.footHiHz` stays unset and the 0.5-8 Hz foot ships.
+     seamsText   the stream's own `…SEAMS.txt`. `parsePPG` places the recorded seams on the record;
+                 a call carrying none leaves it byte-identical (`ppgdex-dsp.js attachPpgSeams`).
+   With none of the three supplied every line below runs as it did, so no published number moves. */
 function ppgFootTimes(text, runsText, opts) {
-  var rec = runsText ? PPGDSP.parsePPG(text, { runsText: runsText }) : PPGDSP.parsePPG(text);
+  /* ── THE GUARDED TERNARY IS THE SHAPE THE RATCHET READS ──────────────────────────────────────────
+     SAMPLE-VALIDITY-ENVELOPE done-when 4 scans for `runsText` inside a call's OWN argument list, or
+     for the else-arm of this exact ternary. An options object assembled ABOVE the call hides the
+     sidecar from that scan, and the gate then reports two bare calls where one carries a companion.
+     So both companions travel INLINE here. `parsePinnedRuns` and `parsePpgSeams` read `null` and an
+     absent key alike, and a caller supplying neither takes the second arm and reaches `parsePPG`
+     with no options at all, exactly as every caller before 2026-11-26 did. */
+  var _seams = (opts && opts.seamsText) || null;
+  var rec = runsText || _seams ? PPGDSP.parsePPG(text, { runsText: runsText || null, seamsText: _seams }) : PPGDSP.parsePPG(text);
   if (rec.t0Ms == null) throw new Error('PPG file carried no phone timestamp.');
+  if (opts && opts.footHiHz > 0) rec.footHiHz = opts.footHiHz;
   /* ── ∅ THE SENTINEL GAPS REACH THIS DETECTOR AS SIGNAL, AND THE NODE HOLDS THEM OVER FIRST ──────
      Row `2026-09-26-pat-finger-feet-detected-on-unmasked-156-rows`. `PPGDSP.analyze` runs
      `holdOverGaps(c, rec.gap)` before its biquad (`ppgdex-dsp.js`, the `chIn` site), so every
@@ -288,8 +347,9 @@ function ppgFootTimes(text, runsText, opts) {
     _gapCount = 0;
     for (var _gi = 0; _gi < rec.gap.length; _gi++) if (rec.gap[_gi]) _gapCount++;
   }
+  var _forceSign = opts && (opts.sign === 1 || opts.sign === -1) ? opts.sign : undefined;
   var per = chIn.map(function (c) {
-    return PPGDSP.detectChannel(c, rec.fs);
+    return PPGDSP.detectChannel(c, rec.fs, _forceSign);
   });
   /* CONSENSUS POLARITY — apply BEFORE the reference pick, which is the order `analyze` ships
      (`ppgdex-dsp.js` applies, then picks): a flipped dissenter's peak count moves, so a pick made
@@ -1420,6 +1480,84 @@ function accFloorCheck(h10AccText, verAccText, fA, fB, t0, t1) {
   return { ok: true, anchors: offs.length, deltaMedianMs: median(offs), offRangeMs: r.offsetRangeMs, tolMs: CHECK_TOL_MS };
 }
 
+/* ── THE FOREHEAD CORNER, AND ONE HAT OVER HOWEVER MANY CORNERS COUPLED ───────────────────────────
+   The headband is OPTIONAL at every level. A night without it leaves every other field of the
+   payload byte-identical, and this function does not run.
+   THE CORNERS are chest, forehead, ankle, and — when the ring recorded too — finger. Each pair is
+   built with the EARLIER site first, because `coupledPAT` pairs each entry of its first argument
+   with the next entry of its second. The hat reads a DISPERSION and `Var(A − B) = Var(B − A)`, so
+   the order costs the solver nothing. The three legs the classic path already computed are REUSED,
+   never recomputed, so the published numbers above cannot drift from these.
+   ONE WINDOW RULE. `PATAlign.hatWindows` is the only place this path states the 5-min window, the
+   50-beat floor and the 12-window floor. The suite holds it against the worker's own `threeHat`.
+   A DISCONTINUITY REFUSES (owner ruling 2026-09-17). The seams the box recorded refuse their own
+   windows BEFORE the solve, and the count of refused windows travels, so the page reports what the
+   night lost instead of publishing a variance across a clock step.
+   ONE SOLVER. `AnalysisStats.nCornerHat` runs at 3 corners and at 4. Its `residual` is the only
+   reading of fit this path offers, and a 3-corner solve has none by construction (`df: 0`). */
+function foreheadCorner(o) {
+  var dec = o.dec;
+  if (!dec || dec.text == null)
+    return { ok: false, n: 0, names: null, reason: (dec && dec.reason) || 'no-forehead-optics', info: dec ? dec.info : null, hat: null, lag: null, stream: null, seams: null, windows: 0 };
+  var fo = ppgFootTimes(dec.text, o.runsText, { sign: PATAlign.FOREHEAD.sign, footHiHz: PATAlign.FOREHEAD.footHiHz, seamsText: o.seamsText });
+  var four = !!(o.fin && o.fin.times && o.fin.times.length && o.cpF && o.cpFA),
+    names = four ? ['chest', 'forehead', 'finger', 'ankle'] : ['chest', 'forehead', 'ankle'],
+    pairs = {};
+  pairs['chest|ankle'] = o.cp;
+  pairs['chest|forehead'] = coupledPAT(o.ecg.times, fo.times, CHEST_FOREHEAD_BAND, { start: 'chest-R', end: 'forehead-foot' });
+  pairs['forehead|ankle'] = coupledPAT(fo.times, o.ppg.times, FOREHEAD_SITE_BAND, { start: 'forehead-foot', end: 'ankle-foot' });
+  if (four) {
+    pairs['chest|finger'] = o.cpF;
+    pairs['finger|ankle'] = o.cpFA;
+    pairs['forehead|finger'] = coupledPAT(fo.times, o.fin.times, FOREHEAD_SITE_BAND, { start: 'forehead-foot', end: 'finger-foot' });
+  }
+  /* THE OBSERVED LAG OF EVERY PAIR, whether or not the hat ran. This is what narrows the stated
+     bands later, so it travels even from a refused night — a band is read off this, never fitted. */
+  var lag = {},
+    keys = Object.keys(pairs);
+  for (var a = 0; a < keys.length; a++) {
+    var c = pairs[keys[a]];
+    if (c && c.ok && c.patAtR && c.patAtR.length) {
+      var lv = c.patAtR.map(function (q) {
+        return q.lag;
+      });
+      lag[keys[a]] = { n: lv.length, medianMs: median(lv), iqrMs: quantile(lv, 0.75) - quantile(lv, 0.25), reason: null };
+    } else lag[keys[a]] = { n: 0, medianMs: null, iqrMs: null, reason: (c && c.reason) || 'not coupled' };
+  }
+  var res = {
+    ok: false,
+    n: names.length,
+    names: names,
+    lag: lag,
+    stream: { t0Ms: fo.t0Ms, fs: fo.fs, n: fo.n, durSec: fo.durSec, validity: fo.validity },
+    info: dec.info,
+    hat: null,
+    seams: null,
+    windows: 0,
+    reason: null
+  };
+  var win = PATAlign.hatWindows(pairs, names);
+  if (!win.ok) {
+    res.reason = win.reason;
+    return res;
+  }
+  /* `recordedSeams` is `null` when the sidecar's rows could not be placed, and `[]` when it examined
+     intervals and recorded none — §∅, and the two must not read alike. A null refuses nothing and
+     says so by name; it never passes as a seam-free stream. */
+  var seams = fo.recordedSeams
+      ? fo.recordedSeams.map(function (r) {
+          return r.tMs;
+        })
+      : null,
+    kept = seams ? PATAlign.applySeamRefusals(win.windows, PATAlign.seamRefusals(win.windows, seams)) : { ok: true, kept: win.windows, refused: [], nRefused: 0, reason: null };
+  res.seams = { recorded: seams ? seams.length : null, reason: seams ? null : fo.recordedSeamsReason || 'no-seam-sidecar', refusedWindows: kept.nRefused };
+  var hat = AnalysisStats.nCornerHat(AnalysisStats.nCornerPairVar(PATAlign.pairWindowValues(kept.kept, names), names), names, { windows: kept.kept.length });
+  res.windows = kept.kept.length;
+  res.hat = hat;
+  res.ok = hat.ok;
+  res.reason = hat.reason;
+  return res;
+}
 self.onmessage = function (e) {
   var m = e.data || {};
   if (m.type === 'ping') {
@@ -1479,6 +1617,26 @@ self.onmessage = function (e) {
   if (m.fingerRunsFile) {
     reads.push(m.fingerRunsFile.text());
     iRunsF = reads.length - 1;
+  }
+  /* ── THE FOREHEAD STREAM AND ITS TWO SIDECARS — OPTIONAL and appended LAST, each on its own, so
+     every index above is unchanged on a night the headband did not record. This read DECODES rather
+     than slurps: the Muse writes frames, and `decodeMuseOptics` streams them through
+     `MuseFrame.OpticsPpg`, which answers the per-sample layout `ppgFootTimes` already takes. */
+  var hasFore = !!m.foreheadFile,
+    iFore = -1,
+    iRunsFh = -1,
+    iSeamsFh = -1;
+  if (hasFore) {
+    reads.push(decodeMuseOptics(m.foreheadFile));
+    iFore = reads.length - 1;
+  }
+  if (m.foreheadRunsFile) {
+    reads.push(m.foreheadRunsFile.text());
+    iRunsFh = reads.length - 1;
+  }
+  if (m.foreheadSeamsFile) {
+    reads.push(m.foreheadSeamsFile.text());
+    iSeamsFh = reads.length - 1;
   }
   Promise.all(reads)
     .then(function (t) {
@@ -1746,6 +1904,21 @@ self.onmessage = function (e) {
               };
             }
           }
+        }
+        /* THE FOURTH SITE. It runs outside the `hasFinger` block above, because chest, ankle and
+           forehead are already three corners: the ring is a fourth corner, never a precondition. */
+        if (hasFore) {
+          out.forehead = foreheadCorner({
+            dec: t[iFore],
+            ecg: ecg,
+            ppg: ppg,
+            fin: hasFinger ? fin : null,
+            cp: cp,
+            cpF: cpF,
+            cpFA: cpFA,
+            runsText: iRunsFh >= 0 ? t[iRunsFh] : null,
+            seamsText: iSeamsFh >= 0 ? t[iSeamsFh] : null
+          });
         }
         if (m.detail) {
           var pack = function (c) {
