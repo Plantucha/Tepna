@@ -6404,6 +6404,123 @@
       T.ok('never null noiseType AND null candidates', !(st.noiseType === null && st.candidates === null), JSON.stringify({ noiseType: st.noiseType, candidates: st.candidates }));
     });
 
+    /* THE START OFFSET, WHICH IS A JITTER TERM AND NOT A DRIFT TERM (board #9329, 2026-11-26).
+       `relSec` counts host-elapsed seconds since `t0Ms`, and `t0Ms` is one real row's host stamp, so
+       the axis must answer 0 at that row's device time. Before this group it answered the running
+       median of the divergence there, which at the first anchor is a SAMPLE OF THE HOST JITTER: over
+       20 Verity segments of 0.05 h to 8.26 h `|relSec[0]|` read a median of 19.6 ms and a max of
+       234.8 ms, with either sign and no relation to duration, while drift alone accounts for 1.4 ms
+       at -30 ppm. The export placed sample 0 at `t0Ms` and at `t0Ms + relSec[0] * 1000` at once.
+       EVERY LEG ASSERTS ITS OWN PREMISE, because a corrected origin over an axis that refused, or
+       over a host column with no jitter to sample, proves nothing. */
+    group('PpgDex places sample 0 at t0Ms itself — the host correction is differential', 'ppgdex-dsp · hostaxis-start-offset · clock-contract', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.parsePPG !== 'function') {
+        T.skip('PPGDSP.parsePPG available', 'not loaded');
+        return;
+      }
+      var seed = 90210;
+      var rnd = function () {
+        seed = (seed * 16807) % 2147483647;
+        return seed / 2147483647 - 0.5;
+      };
+      /* 12 000 rows at 135 Hz ≈ 89 s: 24 anchors (one per PPG_AXIS_EVERY = 500), a real +30 ppm rate
+         and ±200 ms of delivery jitter. The jitter is LARGE on purpose — it is the term under test,
+         and the corpus carries up to 235 ms of it. The device column is jittered too, because a
+         uniform ramp reads DRAWN and a drawn column takes a different branch. */
+      var mk = function (nRows, jitterMs, ppm) {
+        var rows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
+        var step = 1000 / 135,
+          devMs = 0,
+          firstDevMs = null,
+          lastDevMs = 0;
+        for (var i = 0; i < nRows; i++) {
+          devMs += step + 0.4 * rnd();
+          if (firstDevMs === null) firstDevMs = devMs;
+          lastDevMs = devMs;
+          var hostMs = devMs * (1 + ppm * 1e-6) + jitterMs * rnd();
+          var pleth = Math.round(20000 + 3000 * Math.sin((2 * Math.PI * i) / 135 / 0.9));
+          rows.push(
+            new Date(Date.UTC(2026, 10, 26) + Math.round(hostMs)).toISOString().replace('T', ' ').replace('Z', '') +
+              ';' +
+              Math.round(devMs * 1e6) +
+              ';' +
+              pleth +
+              ';' +
+              (pleth + 50) +
+              ';' +
+              (pleth - 50) +
+              ';400'
+          );
+        }
+        var rec = null;
+        try {
+          rec = P.parsePPG(rows.join('\n'), {});
+        } catch (e) {
+          return { err: String(e && e.message) };
+        }
+        /* The first row is where `relNs` is anchored, so the device span below shares the origin
+           `relSec` now shares, and the two are the same quantity. */
+        return { rec: rec, devSpanMs: lastDevMs - firstDevMs };
+      };
+      var two = mk(12000, 200, 30);
+      T.ok('a two-clock PPG text parses', !two.err && two.rec && two.rec.relSec && two.rec.relSec.length > 1000, two.err || 'n=' + (two.rec && two.rec.n));
+      if (two.err || !two.rec || !two.rec.relSec) return;
+      var ha = two.rec.hostAxis || {};
+      T.eq('PREMISE · the axis resolved over the row anchors', ha.ok, true);
+      T.eq('PREMISE · the host column is an independent clock, so there is a correction to take', ha.independent, true);
+      T.ok(
+        'ANTI-VACUITY · the axis answered a NON-ZERO correction at the start row, so a dropped subtraction would move the result',
+        typeof ha.startCorrectionMs === 'number' && isFinite(ha.startCorrectionMs) && Math.abs(ha.startCorrectionMs) > 1,
+        'startCorrectionMs=' + ha.startCorrectionMs
+      );
+      T.eq('…and it is published, so the size of the old disagreement is readable on the export', typeof ha.startCorrectionMs, 'number');
+      T.eq('…with no reason beside it, because nothing refused the baseline', ha.startCorrectionReason, null);
+      /* THE DEFECT ITSELF. Exactly 0, not a tolerance: the subtrahend is the same number the first
+         sample's correction is, so the arithmetic cancels. A tolerance here would pass the absolute
+         form on any night whose jitter sample happened to be small. */
+      T.eq('sample 0 sits AT t0Ms — relSec[0] is 0', two.rec.relSec[0], 0);
+      /* THE SLOPE SURVIVES, which is what separates this repair from deleting the correction. It
+         needs ITS OWN FILE, and that is the same finding the group opens with: the width-21 running
+         median of a ±200 ms jitter carries about 15 ms of noise, which swamps the 2.7 ms that 30 ppm
+         moves over 89 s. So the slope leg runs at 2 ms of jitter and 500 ppm, where the rate term is
+         about 44 ms and the noise is well under a millisecond. The two legs together say the repair
+         removed the constant and kept the rate.
+         THE RECOVERED RATE IS A FRACTION OF THE TRUE ONE, and that is the end clamp, not a defect
+         here: the axis is FLAT outside its anchors, and the width-21 median consumes the first and
+         the last ten anchors, which is 37 s of the 89 s this file covers. 24.6 ms of the 44 ms
+         survives, so the leg asserts a band around what the contract produces. */
+      var slope = mk(12000, 2, 500);
+      if (slope.err || !slope.rec || !slope.rec.hostAxis || slope.rec.hostAxis.ok !== true) {
+        T.ok('PREMISE · the low-jitter file also resolves an axis', false, slope.err || 'ok=' + (slope.rec && slope.rec.hostAxis && slope.rec.hostAxis.ok));
+      } else {
+        T.eq('sample 0 sits at t0Ms on the low-jitter file too', slope.rec.relSec[0], 0);
+        var relSpanMs = slope.rec.relSec[slope.rec.relSec.length - 1] * 1000;
+        T.ok(
+          'the rate correction still rides the series — the host span exceeds the device span',
+          relSpanMs > slope.devSpanMs,
+          'relSpanMs=' + relSpanMs.toFixed(3) + ' devSpanMs=' + slope.devSpanMs.toFixed(3)
+        );
+        T.ok(
+          '…by a rate-sized amount — 24.6 ms of the 44 ms this file carries survives the end clamp',
+          relSpanMs - slope.devSpanMs > 20 && relSpanMs - slope.devSpanMs < 70,
+          'delta=' + (relSpanMs - slope.devSpanMs).toFixed(3) + ' ms'
+        );
+      }
+      /* ∅ · A BASELINE THAT COULD NOT BE TAKEN IS NAMED. Under three anchors the axis refuses, so
+         there is no correction to re-anchor, and the field must read null WITH a reason rather than a
+         0 that a reader cannot tell from a measured zero. */
+      var tiny = mk(900, 200, 30);
+      if (tiny.err || !tiny.rec || !tiny.rec.hostAxis) {
+        T.ok('a sub-anchor file still parses', false, tiny.err || 'no hostAxis');
+        return;
+      }
+      var hb = tiny.rec.hostAxis;
+      T.eq('PREMISE · under three anchors the axis refuses', hb.ok, false);
+      T.eq('…so startCorrectionMs is null, never 0', hb.startCorrectionMs === undefined ? null : hb.startCorrectionMs, null);
+      T.eq('…and sample 0 still sits at t0Ms, on the raw device axis', tiny.rec.relSec[0], 0);
+    });
+
     group('PpgDex stability survives the REAL path — parse → analyze → export, not a hand-built rec', 'ppgdex-dsp · hostaxis-stability · export-boundary', function (T) {
       /* The §2.1 group above hands `buildNodeExport` a rec it constructed with `hostAxis` already on
          it. That tests the EMITTER given a good input, and is blind by construction to whether
@@ -6874,6 +6991,13 @@
         'spanPpm',
         'spreadMs',
         'stability',
+        /* The differential start correction, PpgDex only (2026-11-26): `relSec` is host-elapsed time
+           since `t0Ms`, so the axis is pinned to 0 at the row that supplied `t0Ms`, and
+           `startCorrectionMs` is the correction it answered there — the measured size of the
+           disagreement the samples used to carry. `startCorrectionReason` names a baseline that
+           could not be taken, where the figure is null and a reader must not read it as a 0 (§∅). */
+        'startCorrectionMs',
+        'startCorrectionReason',
         'timingSource',
         'totalMs'
       ];
@@ -6963,7 +7087,10 @@
          #4306 withheld a rate over a drawn column in PpgDex alone. MotionDex took the same decision
          next, and ECGDex — the node that spends `ppm` as a crystal figure — has now taken it under
          the same row. So the pair sits in all three publishers and the intersection above holds it. */
-      T.eq('PpgDex alone publishes the twelve fields only it measures', onlyIn(DECLARED_PPG, DECLARED_ECG, DECLARED_MOTION), [
+      /* FOURTEEN since 2026-11-26: the differential start correction is PpgDex's alone, because
+         `relSec` is the only one of the three series that counts host-elapsed time from a row's own
+         host stamp, so it is the only one with a point of zero divergence to pin through. */
+      T.eq('PpgDex alone publishes the fourteen fields only it measures', onlyIn(DECLARED_PPG, DECLARED_ECG, DECLARED_MOTION), [
         'drawn',
         'drawnReason',
         'flat',
@@ -6975,6 +7102,8 @@
         'rateApplied',
         'rateReason',
         'segments',
+        'startCorrectionMs',
+        'startCorrectionReason',
         'totalMs'
       ]);
       T.eq('ECGDex alone publishes the three fields only it measures', onlyIn(DECLARED_ECG, DECLARED_PPG, DECLARED_MOTION), ['note', 'ppmUncertainty', 'tMsCorrected']);

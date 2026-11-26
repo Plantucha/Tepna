@@ -12,7 +12,7 @@
   },
   "recording": {
     "source": "ppg",
-    "contentId": "0bbe8465160a",
+    "contentId": "254cf4db547b",
     "startEpochMs": 1782021923891,
     "endEpochMs": 1782021963883,
     "durSec": 39.992592592592594,
@@ -67,6 +67,8 @@
       "quantizedShare": 0.5925171328023708,
       "applied": true,
       "timingSource": "device",
+      "startCorrectionMs": -0.40740700000060315,
+      "startCorrectionReason": null,
       "stability": null
     }
   },
@@ -87,13 +89,13 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "c7c0ddfca593",
-        "computeHash": "076e6d1deed8"
+        "manifestHash": "e30cb8978d95",
+        "computeHash": "f2f8c80e6001"
       },
       "evidence": {
         "envelopeRef": null,
         "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
-        "inputHash": "0bbe8465160a"
+        "inputHash": "254cf4db547b"
       },
       "basis": "derived",
       "quality": {
@@ -117,13 +119,13 @@
       },
       "sourceChannel": "Verity:ppg",
       "code": {
-        "manifestHash": "c7c0ddfca593",
-        "computeHash": "076e6d1deed8"
+        "manifestHash": "e30cb8978d95",
+        "computeHash": "f2f8c80e6001"
       },
       "evidence": {
         "envelopeRef": null,
         "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
-        "inputHash": "0bbe8465160a"
+        "inputHash": "254cf4db547b"
       },
       "basis": "derived",
       "quality": {

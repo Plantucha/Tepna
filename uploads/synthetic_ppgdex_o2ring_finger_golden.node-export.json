@@ -12,7 +12,7 @@
   },
   "recording": {
     "source": "ppg",
-    "contentId": "9495b373055a",
+    "contentId": "da5ad6439e81",
     "startEpochMs": 1784340847000,
     "endEpochMs": 1784340886995,
     "durSec": 39.9952282487673,
@@ -72,6 +72,8 @@
       "quantizedShare": 0.7790813282958838,
       "applied": true,
       "timingSource": "host",
+      "startCorrectionMs": -0.273059999999532,
+      "startCorrectionReason": null,
       "stability": null,
       "deviceDrawn": true,
       "drawnShare": 0.5,
@@ -95,13 +97,13 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "c7c0ddfca593",
-        "computeHash": "076e6d1deed8"
+        "manifestHash": "e30cb8978d95",
+        "computeHash": "f2f8c80e6001"
       },
       "evidence": {
         "envelopeRef": null,
         "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
-        "inputHash": "9495b373055a"
+        "inputHash": "da5ad6439e81"
       },
       "basis": "derived",
       "quality": {
@@ -125,13 +127,13 @@
       },
       "sourceChannel": "O2Ring:ppg",
       "code": {
-        "manifestHash": "c7c0ddfca593",
-        "computeHash": "076e6d1deed8"
+        "manifestHash": "e30cb8978d95",
+        "computeHash": "f2f8c80e6001"
       },
       "evidence": {
         "envelopeRef": null,
         "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
-        "inputHash": "9495b373055a"
+        "inputHash": "da5ad6439e81"
       },
       "basis": "derived",
       "quality": {
@@ -637,14 +639,14 @@
       "spine": "foot",
       "n": 32,
       "tSec": [
-        1.19,
+        1.191,
         2.44,
         3.69,
-        4.94,
+        4.941,
         6.191,
         7.439,
         8.69,
-        9.939,
+        9.94,
         11.189,
         12.439,
         13.691,
@@ -656,9 +658,9 @@
         21.191,
         22.439,
         23.691,
-        24.94,
-        26.189,
-        27.438,
+        24.941,
+        26.19,
+        27.439,
         28.69,
         29.939,
         31.191,
