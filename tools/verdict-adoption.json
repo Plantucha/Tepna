@@ -3504,6 +3504,18 @@
     ]
    },
    "note": "ZOTERO FILL (owner 2026-10-11): one object over the citation ledger\u2019s DOIs, criterion ledger_dois_present_in_library eq the ledger count \u2014 PASS when every DOI is in the library (created or already present), SHORTFALL naming the DOIs that could not be resolved or written, NOT_RUN under --dry-run (reads the library, writes nothing). --verdict-sample reads no ledger and touches no library, so it reports NOT_RUN / checked 0."
+  },
+  "tools/tch-four-corner-census.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/tch-four-corner-census.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the four-corner hat counted over every capture night that holds four corner roles (H10 chest ECG, Verity arm PPG, O2Ring finger pulse, Muse forehead optics); pre-stated criterion nights_with_an_unnamed_refusal <= 0, sha256 41c569e1bd522753aa6dc9965ff17681c48197de2f66142c9b9685d9578916bb on board #9094 before the run \u2014 PASS when a night solves and every refusal carries a name, FAIL on a null sigma with no cornerReason or a sigma over a negative variance, NOT_RUN when no night holds four roles, UNDERPOWERED when none reaches the 1000-s four-way overlap floor; population = eligible nights, a night the census cannot read is excluded and named; every sigma travels as data under UNKNOWN, never as a judged threshold"
   }
  }
 }
