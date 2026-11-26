@@ -932,6 +932,7 @@ export const POPULATION_EXCLUSIONS = {
                                 pair). Both are real corpus reads that the scan cannot prove. */
 export const UNDECIDED_CORPUS = {
   'board.mjs': 'a home-directory store under homedir(), neither repo tree nor a flag-supplied path',
+  'corpus-archive-parity.mjs': 'a worklist walk over stack.pop() from --corpus and --archive; stat only, and its own verdict reports the file set it saw (paired, unpaired, excluded)',
   'fleet-turns.mjs': 'a home-directory transcript store under homedir()',
   'sigma-corpus-headless.mjs': 'a worklist walk over stack.pop(), whose origin is whatever was pushed',
   'r5-hr-reference.mjs': 'a template-literal root; the mask blanks the body, so the expression reads empty'
