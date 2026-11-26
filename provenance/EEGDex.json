@@ -14,6 +14,19 @@
       "inputHashes": {
         "synthetic_eegdex_c4.edf": "32e3ce1001c8d7b4"
       }
+    },
+    "synthetic_eegdex_frames_golden.node-export.json": {
+      "bundle": "EEGDex.html",
+      "manifestHash": "d3c1c4e42f89",
+      "added": "2026-11-26",
+      "note": "EEGDex's second ingest, and the only committed input in the repo that carries TWO clocks. The input is a 60 s synthetic headband raw-frame capture written by tools/make-synthetic-raw-frames.mjs: a declared sum of sines plus a seeded LCG packed into genuine 14-bit frame bytes, a device tick that folds every 2^28 ns, and a host stamp column with up to 12 ms of delivery jitter and a planted rate offset of -49.9 ppm (the measured value for this device). No RNG, no Date.now(), no recording of any person, so it is committed by exact-name negation in .gitignore and this leg runs in CI with no corpus. WHAT IT PINS: the frame tokeniser, the 14-bit unpack, the tick unwrap, DexClock.hostAxis over the row anchors reporting independent true and deviceDrawn false (the realistic device axis clock.js asks a deviceDrawn adopter to re-cut its fixtures to), tMsBasis host-disciplined, the placed epoch time (epoch 1 lands 2 ms off its device-index time), and timingSource device+host. WHAT IT DOES NOT PIN: a rate, because 12 ms of jitter over 60 s swamps the 3.0 ms the plant moves; and nothing clinical, because the stage model declares needs_whole_night and two epochs make its night features degenerate by construction. The 1800 s EDF fixture beside it is the one that stages a plausible night.",
+      "inputs": [
+        "synthetic_eegdex_frames_RAW.txt"
+      ],
+      "outputHash": "bb39e97d297289bd",
+      "inputHashes": {
+        "synthetic_eegdex_frames_RAW.txt": "a1757fc1df0ccac3"
+      }
     }
   }
 }

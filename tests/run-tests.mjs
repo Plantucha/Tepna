@@ -1594,6 +1594,13 @@ function readEquiv() {
   // FOLLOWUPS §1.10 — the DEGENERATE-EDR twin: input only, no golden. Its job is an INVARIANT (a
   // rate that cannot be measured is refused, never substituted), not a byte pin.
   pairCommitted('ecgdex_flat_edr', 'synthetic_ecgdex_flat_edr.txt', null);
+  // EEGDex RAW-FRAME leg (2026-11-26) — a COMMITTED synthetic headband `_RAW.txt` → its golden. It is
+  // the node's SECOND ingest and the only committed input in the repo that carries TWO clocks, so it
+  // is the only gated path that reaches the frame tokeniser, the tick unwrap across the 2^28 ns fold,
+  // `DexClock.hostAxis` over the row anchors and the epoch placement that spends it. The EDF leg
+  // below carries no host column at all. pairCommitted (not pair): the input is a repo artifact, so a
+  // DEX_UPLOADS real-corpus override cannot turn this leg into a silent skip.
+  pairCommitted('eegdex_frames', 'synthetic_eegdex_frames_RAW.txt', 'synthetic_eegdex_frames_golden.node-export.json');
 
   // ── EEGDex BINARY-EDF equivalence leg (2026-11-15) ──────────────────────────────
   // `provenance/EEGDex.json` read `fixtures: {}` until this leg, so EEGDex's compute path was pinned
