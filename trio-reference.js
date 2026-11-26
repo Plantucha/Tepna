@@ -183,10 +183,29 @@
     for (const [s, a] of by) out.set(s, median(a));
     return out;
   }
-  /* One night's numbers from four aligned per-second maps (reference + three corners). */
-  function scoreSeries(REF, H, V, O) {
-    const ks = [...REF.keys()].filter((s) => H.has(s) && V.has(s) && O.has(s)).sort((a, b) => a - b);
-    if (ks.length < MIN_SECONDS) return { ok: false, reason: ks.length + ' s with the reference and all three corners (< ' + MIN_SECONDS + ')', n: ks.length };
+  /* One night's numbers from four aligned per-second maps (reference + three corners).
+
+     `alsoRequire` is an OPTIONAL array of further per-second maps whose keys must ALSO be present
+     (row `2026-11-26-four-corner-hat-still-over-reads-the-chest`). The caller that needs it is the
+     four-corner panel: `solveFourCorners` builds its hat over the FOUR-way overlap, and this
+     reference rode the three-way one, so a ratio of the two sigmas compared two different second
+     sets. The row measured the two spans at 4,420 to 21,555 s against 9,197 to 30,850 s, so the
+     mismatch is large enough to carry a direction on its own.
+
+     🔴 THE HEADLINE NEVER MOVES (board #8984, decision 1, restated in `sensor-trio-worker.js`). A
+     fourth corner can only NARROW the intersection, so the shipped three-corner reference keeps the
+     three-way key set it has always used. The parameter is last and optional for that reason: a
+     caller that passes nothing gets the previous key set, the previous refusal text and the previous
+     numbers, byte for byte. The four-way reference travels BESIDE the headline, never over it.
+
+     ∅ A map this function cannot read is LEFT OUT of the requirement rather than treated as an
+     all-seconds map. An absent fourth corner must not silently widen the key set back to three-way
+     and wear the four-way label, which is the confusion this parameter exists to end. */
+  function scoreSeries(REF, H, V, O, alsoRequire) {
+    const extra = (Array.isArray(alsoRequire) ? alsoRequire : []).filter((m) => m && typeof m.has === 'function');
+    const ks = [...REF.keys()].filter((s) => H.has(s) && V.has(s) && O.has(s) && extra.every((m) => m.has(s))).sort((a, b) => a - b);
+    if (ks.length < MIN_SECONDS)
+      return { ok: false, reason: ks.length + ' s with the reference and all ' + (extra.length ? String(3 + extra.length) : 'three') + ' corners (< ' + MIN_SECONDS + ')', n: ks.length };
     const g = (M) => ks.map((s) => M.get(s)),
       ref = g(REF),
       X = { h10: g(H), verity: g(V), o2: g(O) },
