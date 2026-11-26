@@ -1546,13 +1546,19 @@ const NIGHT_DEVICES = [
 ];
 // The fused tab. `node` is the openNight key. 3-hat fused and PAT fused share one page and one run, and
 // `view` picks the section each column shows (`?view=hat` / `?view=pat`), so the two columns open different pages.
+// A `dev` entry is a DEVICE column on this tab: it draws the device cell, so a night with no file of that device
+// reads "not recorded", never a red square. The Muse column is the first (owner, 2026-11-25: "add muse to all
+// fused and derived reports", board #8921). The derived tools keep their three-device `needs` until their pages
+// read the Muse leg; a night without a Muse file must stay exactly as it is.
 const NIGHT_FUSED = [
   {name:'Integrator',   sub:'every stream, one timeline', node:'Integrator', rec:true},
   {name:'3-corner hat', sub:'H10 · Verity · O2Ring',      node:'3 corner hat', needs:['h10','verity','ring'], stitch:'3corner'},
   {name:'3-hat fused',  sub:'classic beside fused',       node:'PAT fused', view:'hat', needs:['h10','verity','ringppg'], stitch:'3corner_fused'},
   {name:'PAT',          sub:'ECG → pulse arrival',        node:'PAT', needs:['h10','verity'], stitch:'pat_h10_verity'},
   {name:'PAT fused',    sub:'classic beside fused',       node:'PAT fused', view:'pat', needs:['h10','verity','ringppg'], stitch:'pat_fused'},
+  {name:'Muse',         sub:'EEG · forehead PPG',         node:'EEGDex', dev:'muse'},
 ];
+const nFusDev = f => NIGHT_DEVICES.find(d=>d.k===f.dev);
 const NIGHT_GLYPH = {ok:'✓', part:'◐', low:'✕', rec:'●', unk:'?', none:'–', probe:'◔', unworn:'○'};
 let NIGHTS_TAB = 'dev';
 const NIGHTS_OPEN_MONTHS = new Set();
@@ -1641,6 +1647,7 @@ function nDevCell(n, d){
   return `<td><button type="button" class="ncell${v.loadable?'':' off'}" ${tag}><span class="top"><i class="ng ${c}">${NIGHT_GLYPH[c]}</i>${esc(nHrs(v.hours))}</span><span class="sub ${c==='part'||c==='low'?c:''}">${esc(sub)}</span><span class="nbar"><i class="${c}" style="width:${w}%"></i></span></button></td>`;
 }
 function nFusCell(n, f){
+  if(f.dev) return nDevCell(n, nFusDev(f));
   const v = n[f.node];
   /* A node RECORD (the Integrator): its cell is the raw input the fold takes, and a click opens OverDex
      with those files and presses Run & fuse. */
@@ -1720,6 +1727,13 @@ function nSolidBlock(n){
 function nDrawer(n){
   if(NIGHTS_TAB==='fus') return nSolidBlock(n) + NIGHT_FUSED.map(f=>{
     const v = n[f.node];
+    if(f.dev){
+      const d = nFusDev(f);
+      if(!nHas(n, d.k)) return `<div><b>${esc(f.name)}</b><br>not recorded this night</div>`;
+      return v && v.loadable
+        ? `<div><b>${esc(f.name)}</b><div class="nchips"><button type="button" class="nchip" data-night="${esc(nRowKey(n))}" data-node="${esc(f.node)}" data-dev="${esc(d.k)}">Open ${esc(f.node)}</button></div></div>`
+        : `<div><b>${esc(f.name)}</b><br>recorded, not offered</div>`;
+    }
     if(f.rec) return v && v.loadable && Array.isArray(v.files) && v.files.length
       ? `<div><b>${esc(f.name)}</b><br>${v.files.length} input files on disk<div class="nchips"><button type="button" class="nchip" data-night="${esc(nRowKey(n))}" data-node="${esc(f.node)}">Open ${esc(f.name)} (OverDex)</button></div></div>`
       : `<div><b>${esc(f.name)}</b><br>no inputs this night</div>`;
@@ -1749,7 +1763,7 @@ function renderNights(){
   $('#navNightsN').style.display=''; $('#navNightsN').textContent=rows.length;
   document.querySelectorAll('[data-ntab]').forEach(b=>b.setAttribute('aria-selected', String(b.dataset.ntab===NIGHTS_TAB)));
   const dev = NIGHTS_TAB==='dev', cols = dev ? NIGHT_DEVICES : NIGHT_FUSED;
-  const sqCls = (n, c) => dev ? nCls(n, c) : (c.off || c.rec ? (n[c.node] ? 'rec' : 'none') : (n[c.node]===true ? 'ok' : 'none'));
+  const sqCls = (n, c) => dev ? nCls(n, c) : c.dev ? nCls(n, nFusDev(c)) : (c.off || c.rec ? (n[c.node] ? 'rec' : 'none') : (n[c.node]===true ? 'ok' : 'none'));
   // overview strip: oldest → newest, left to right; the solid-night row first
   const strip = [...recent].reverse();
   let o = `<div class="lab"><b>Solid night</b></div>` + strip.map(n=>`<button type="button" class="nsq ${n.daytime?'none':nSolidCls(n.night)}" data-go="${esc(nRowKey(n))}" aria-label="${esc(n.night)} solid night: ${esc(nSolidTxt(n.night)[0])}" title="${esc(n.night)} · solid night: ${esc(nSolidTxt(n.night)[0])}"></button>`).join('') + '<div class="sep"></div>';
@@ -1761,7 +1775,7 @@ function renderNights(){
     : 'One square per tool per night: green when every input it needs was recorded. Click a square to jump to its row.';
   $('#nightsLegend').innerHTML = '<span><b>Solid night:</b></span><span><i class="ng ok">✓</i>solid</span><span><i class="ng low">✕</i>not solid</span><span><i class="ng unk">?</i>unknown</span><span><i class="ng probe">◔</i>probe night</span><span><i class="ng none">–</i>not judged</span><span style="flex-basis:100%;height:0"></span>'
     + (dev ? '<span><i class="ng ok">✓</i>≥ 95 % covered</span><span><i class="ng part">◐</i>60–95 %</span><span><i class="ng low">✕</i>&lt; 60 %</span><span><i class="ng rec">●</i>recorded, coverage not measured</span><span><i class="ng unworn">○</i>not worn</span><span><i class="ng unk">?</i>not measured yet</span><span><i class="ng none">–</i>not recorded</span>'
-           : '<span><i class="ng ok">✓</i>every input on disk</span><span><i class="ng rec">●</i>inputs on disk, opens on rig</span><span><i class="ng none">–</i>an input is missing</span>');
+           : '<span><i class="ng ok">✓</i>every input on disk</span><span><i class="ng rec">●</i>inputs on disk, opens on rig</span><span><i class="ng none">–</i>an input is missing</span><span><i class="ng none">–</i>Muse: not recorded</span>');
   $('#nightsTitle').textContent = dev ? 'Every night, by device' : 'Every night, fused and derived';
   $('#nightsWhy').textContent = dev
     ? 'Solid is the box\'s own verdict; click it or the date for each device\'s result and reason. Each device cell opens its analyzer with the night loaded.'
