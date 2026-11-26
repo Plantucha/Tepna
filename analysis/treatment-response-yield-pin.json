@@ -24,7 +24,7 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "46faf431bb51",
       "oxydex-profile.js": "9a35c718b8cf",
-      "oxydex-dsp.js": "15396b9e2693"
+      "oxydex-dsp.js": "e2cac1444bc7"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
@@ -459,11 +459,12 @@
       "old": "7a6f715d9f05",
       "new": "15396b9e2693",
       "reason": "`parseCSV` now counts every row it drops, by reason, and rides the count on the array it returns; `processNight` copies it onto the night and the night element publishes it. Each counter increments on a row the loop already removed, so no kept row, no column map and no metric moves. `measureFromResults` selects on ODI-4 and rMSSD, and neither reads the new field. This run RE-CUT the cohort at paper scale on the tree merged with main's 7a6f715d9f05 rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped, 18291 seeds with the 900/900 target filled."
-    }
+    },
+    {"date":"2026-11-26","file":"oxydex-dsp.js","old":"15396b9e2693","new":"e2cac1444bc7","reason":"`computeSpO2FFT` now fits its AR(1) background from the autocovariance at lag 2 over the autocovariance at lag 1, instead of the lag-1 autocorrelation, because whole-percent quantisation lowers the lag-1 number and flattens the background that exposes the peak. The function feeds the FFT cycle length only. `measureFromResults` selects on ODI-4 and rMSSD, and neither reads it. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped, 18291 seeds with the 900/900 target filled."}
   ],
-  "measuredAt": "2026-11-26T07:01:19.658Z",
+  "measuredAt": "2026-11-26T08:12:50.116Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "72e30a0f9"
+    "commit": "373d788df"
   }
 }
