@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="211647d55d56" data-compute-hash="d9a702319333">
+<html lang="en" data-manifest-hash="c7c0ddfca593" data-compute-hash="076e6d1deed8">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-B0wjicJWpWjP44BEx8fMPqBm8gqs68DdWkg6amzikmY=' 'sha256-Bs4AFA5DaQoaTGAliTror4PzGkqoquOpSelo788DHWo=' 'sha256-FCj+atbc3xEU0yRTX7MWus+kfvoNPgYFxszdwjvufcQ=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-Hjjq/dyCl54f7PO5KlTqSvb1kgh7Gm/NWD/7cWt770E=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UiJdLIejK5YCW72lJMbSpQm6oU3PbLlrDpblXzUyWAg=' 'sha256-WLSf6RDbro32fr9V499zIXx05PeWHrSytiNLDT0boh4=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-ozXYpshsMdrwsEyJBWYqO0KiO2kSFx6jdoCQD12VNjc=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wYDQbx7BnjeWBpxiSXeMr45U444dBQ1yup2hvhEudhU=' 'sha256-wf4RTSM7a/w0v70WYQZ955f96BmGr4O4fzzpEnQVXuA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-0/4J9SLGxLNIwbZruFbXE708Em+Oz72FHhgZpEhRUUs=' 'sha256-03KOFcZIxEy/Hw2Sq2z+NNpWBRsfNte3uR+863y1mbg=' 'sha256-6zxKHdD0yRIV5Fk7SsYUtc9vpinhnq/ngeHDQqjPYP8=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-B0wjicJWpWjP44BEx8fMPqBm8gqs68DdWkg6amzikmY=' 'sha256-Bs4AFA5DaQoaTGAliTror4PzGkqoquOpSelo788DHWo=' 'sha256-DuJJCsnLndZIXpbLQYY2bxaTi1V2aISZP3u7ARDfUck=' 'sha256-FCj+atbc3xEU0yRTX7MWus+kfvoNPgYFxszdwjvufcQ=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-Hjjq/dyCl54f7PO5KlTqSvb1kgh7Gm/NWD/7cWt770E=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-QwiPH2DzDu86yJxF9wU/7Psun57i7J3qsamrzjfkFy4=' 'sha256-S7oiiKAsdZiGzULn0nl1JhGrzJFdM+x4GFDM5jQKgec=' 'sha256-UiJdLIejK5YCW72lJMbSpQm6oU3PbLlrDpblXzUyWAg=' 'sha256-WLSf6RDbro32fr9V499zIXx05PeWHrSytiNLDT0boh4=' 'sha256-cZt/0sClCIkUUp8zJ050gYUaoe6rJ/bqOxffEtH0qsY=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-plPPWvt4BDprSLe2UwtRM0xoWDMQ/x5bgMBmqwsqNxg=' 'sha256-rGLXpq6j83e52OeAgGBacK4aHjjThJi9JZ+3sNfxISw=' 'sha256-wYDQbx7BnjeWBpxiSXeMr45U444dBQ1yup2hvhEudhU=' 'sha256-wf4RTSM7a/w0v70WYQZ955f96BmGr4O4fzzpEnQVXuA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.38.0</title>
@@ -13980,10 +13980,20 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
        the per-second weights and the calibration verdict travel together without a wrapper object
        that every caller would have to unpack. The cast states them; the Map itself is unchanged. */
     const out =
-      /** @type {Map<number, any> & { nBeats: number, nSqi: number, nQBelow: number, sqiMedian: number|null, sqiSource: string|null, calibrated: boolean, axis: string|null, reason: string|null }} */ (
+      /** @type {Map<number, any> & { nBeats: number, nSqi: number, nQBelow: number, sqiMedian: number|null, sqiSource: string|null, calibrated: boolean, axis: string|null, axisReason: string|null, reason: string|null }} */ (
         new Map()
       );
-    const t0 = t0Ms || 0;
+    /* ∅ AN ABSENT RECORDING START IS NOT SECOND ZERO. The old spelling read an absent `t0Ms` as
+       the epoch, so every key became an OFFSET from the first sample while the contract above calls
+       these keys absolute seconds (residue
+       2026-11-26-ecgdex-beat-confidence-start-absent-reads-as-zero). The keys keep that base,
+       because 0 is the only base available and the node's own join already uses it — CLAUDE.md §∅
+       annotates reduced coverage and refuses only a discontinuity. The difference travels OUT OF
+       BAND instead: `axis` reads `device-offset`, and `axisReason` names it, so a consumer that
+       joins these keys to an absolute per-second series can refuse. A handed-in `beatMs` carries
+       absolute times of its own, so it reports `host` whatever the start says. */
+    const _t0OK = Number.isFinite(t0Ms);
+    const t0 = _t0OK ? t0Ms : 0;
     /* ∅ ONE AXIS, OR A REFUSAL — NEVER A SILENT PER-BEAT FALLBACK. `beatMs` carries the caller's
        absolute wall-clock ms for every beat, so a consumer that keys its own per-second series on
        the host-disciplined axis (CLAUDE.md §🔒.7, `DexClock.hostAxis`) hands that axis in and
@@ -13999,6 +14009,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       }
     }
     const _bm = _bmOK ? beatMs : null;
+    const _axisName = _bm ? 'host' : _t0OK ? 'device' : 'device-offset';
+    const _axisWhy = _axisName === 'device-offset' ? 'the recording start is absent — these keys are offsets from the first sample, not absolute seconds' : null;
     if (beatMs != null && !_bmOK) {
       out.nBeats = n;
       out.nSqi = 0;
@@ -14006,6 +14018,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       out.sqiSource = null;
       out.calibrated = false;
       out.axis = 'refused';
+      out.axisReason = null;
       out.reason = 'the per-beat time axis is absent or non-finite — these keys would mix two clocks, so the map refuses';
       return out;
     }
@@ -14026,7 +14039,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       out.sqiMedian = null;
       out.sqiSource = null;
       out.calibrated = false;
-      out.axis = _bm ? 'host' : 'device';
+      out.axis = _axisName;
+      out.axisReason = _axisWhy;
       out.reason = 'fewer than 20 beats — the trust statistic was never calibrated, so every second reads 1 by default';
       return out;
     } // too short to calibrate
@@ -14039,7 +14053,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       out.sqiMedian = null;
       out.sqiSource = null;
       out.calibrated = false;
-      out.axis = _bm ? 'host' : 'device';
+      out.axis = _axisName;
+      out.axisReason = _axisWhy;
       out.reason = 'the peak series spans under one second — there is no window to calibrate over';
       return out;
     }
@@ -14128,7 +14143,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     out.sqiMedian = nSqi ? qMed : null;
     out.sqiSource = nSqi === 0 ? 'absent' : nSqi < n ? 'partial' : 'per-beat';
     out.calibrated = nSqi > 0 && nQBelow > 0;
-    out.axis = _bm ? 'host' : 'device';
+    out.axis = _axisName;
+    out.axisReason = _axisWhy;
     out.reason = out.calibrated
       ? null
       : nSqi === 0
@@ -17060,7 +17076,9 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
           _confSpine.map((s) => Math.round(s * rec.fs)),
           sqi,
           rec.fs,
-          rec.t0Ms || 0
+          /* ∅ The start travels as it was measured — see the mirror's own note. A fabricated 0
+             would hide the `device-offset` axis mark. */
+          rec.t0Ms
         )
       : null;
     /* ∅ THE CHANNEL HAS A THIRD STATE, AND IT USED TO LOOK LIKE THE FIRST. `ppiConf` was null under
@@ -17083,6 +17101,9 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
           : _pConfMap.sqiSource === 'absent'
             ? 'sqi-absent'
             : 'sqi-flat';
+    /* ∅ The base MIRRORS the map's. `beatConfidence` falls back to 0 for an absent start too, so the
+       two key sets meet whichever way the start reads, and the absence is marked on the map as
+       `axis: 'device-offset'` rather than here. */
     const _t0 = rec.t0Ms || 0;
     /* ∅ ONE SECOND, SPELLED ONE WAY. `beatConfidence` keys every beat through `secAbs` —
        `floor((t0 + (round(sec·fs)/fs)·1000) / 1000)` over the pseudo-sample indices this call hands
