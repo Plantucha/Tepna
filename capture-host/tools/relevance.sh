@@ -33,12 +33,43 @@ manifest_paths() {
   sed -n 's/^[[:space:]]*"path"[[:space:]]*:[[:space:]]*"\(.*\)",*$/\1/p' "$MANIFEST"
 }
 
+# ── ONE MEASURED PATH IS CONDITIONAL: THE RESIDUE LEDGER ───────────────────────────────────────────
+#
+# `briefs/RESIDUE.md` is a real root read and it stays in the manifest. `_residue_open()` in
+# tests/test_check_script.py opens the ledger to date a `not-required` declaration — a workflow job
+# this repo may leave un-required while a logged row stays OPEN. The declaration itself lives in that
+# same file's `JOB_PROTECTION` table, and the table holds none today. A ledger-only diff therefore
+# moved no result here, and it still ran the whole Python matrix. So the filter asks the table first.
+#
+# Reading the LEDGER cannot answer the question: the ledger always holds OPEN rows, and only a live
+# declaration makes one of them load-bearing. The next advisory job turns this trigger back on by
+# writing its declaration, with no edit here.
+#
+# A table this script cannot read counts the ledger. That is the same fail-toward-RUN the empty-diff
+# arm takes, and tests/test_relevance_filter.py pins both answers plus that fallback.
+LEDGER="briefs/RESIDUE.md"
+DECLARATIONS="${JOB_PROTECTION_SOURCE:-$HERE/../tests/test_check_script.py}"
+
+declaration_is_live() {
+  local block
+  [ -r "$DECLARATIONS" ] || return 0
+  # The module-level table ALONE. tests/test_check_script.py plants a `not-required` entry inside a
+  # test to exercise its own reader, and that plant is not a declaration.
+  block="$(sed -n '/^JOB_PROTECTION = {/,/^}/p' "$DECLARATIONS")"
+  [ -n "$block" ] || return 0
+  printf '%s\n' "$block" | grep -q '"not-required"'
+}
+
 if [ "${1:-}" = "--list" ]; then
   manifest_paths
   exit 0
 fi
+if [ "${1:-}" = "--list-conditional" ]; then
+  echo "$LEDGER"
+  exit 0
+fi
 if [ "$#" -gt 0 ]; then
-  echo "usage: relevance.sh [--list] < changed-paths" >&2
+  echo "usage: relevance.sh [--list|--list-conditional] < changed-paths" >&2
   exit 2
 fi
 
@@ -58,6 +89,10 @@ while IFS= read -r f; do
     # pins and the coverage floor, and it must run the suite even on the day the trace stops reading it.
     .github/workflows/capture-host-ci.yml) echo true; exit 0 ;;
   esac
+  # The ledger counts only while a declaration reads it. Every other measured path is unconditional.
+  if [ "$f" = "$LEDGER" ] && ! declaration_is_live; then
+    continue
+  fi
   while IFS= read -r r; do
     [ "$f" = "$r" ] && { echo true; exit 0; }
   done <<< "$roots"
