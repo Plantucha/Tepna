@@ -543,6 +543,7 @@
      "surfaces": {
       "hrStats": "export-only",
       "hrStatMixed": "export-only",
+      "axisCaveats": "card",
       "nodes": "card",
       "window": "card",
       "hrvWindow": "export-only",
@@ -565,6 +566,7 @@
      "notes": {
       "hrStats": "the per-node HR statistics of the HR hat, null when no HR hat ran. The export carries it and no realm reads it off an element",
       "hrStatMixed": "a machine-readable sibling of the mixed-source warning in `note`, so a consumer gates on the confound instead of parsing prose",
+      "axisCaveats": "the optical sites this block compared on another site’s calibrated SDNN axis, bound at integrator-dsp.js `fuseHRVConsensus`, and null when every source was compared on its own axis. The renderer READS it to drop the consensus card from `emerging` to `experimental`, so the key surfaces as a grade rather than as a number",
       "nodes": "the source list at integrator-render.js:1105 and :1106, and the slash-joined list at overdex-app.js:861",
       "window": "the card title at integrator-render.js:1102, and the line label at overdex-app.js:859",
       "hrvWindow": "the window the node itself reported, or `wholeRecord`, bound at integrator-dsp.js:4042. No realm reads it off an element",
