@@ -1350,6 +1350,12 @@
     const axisAnchors = []; // { devMs, hostMs } — host-disciplined axis, see PPG_AXIS_EVERY
     let ns0 = null,
       t0Ms = null,
+      /* THE DEVICE TIME OF THE ROW WHOSE HOST STAMP BECAME `t0Ms`, in the units the anchors carry.
+         `relSec` counts host-elapsed seconds since `t0Ms`, so that row is the one point on the axis
+         where the true divergence is 0 BY CONSTRUCTION. The host-axis correction below is taken
+         DIFFERENTIALLY against it; see the `startCorrectionMs` block. Null while no row has supplied
+         a stamp, and null when that row carried no readable device counter. */
+      t0DevMs = null,
       firstTs = null; // lastTs is resolved lazily in the fs fallback (§P1)
     /* MID-FILE RESYNC state (BLE-TIMEBASE-AT-THE-EDGE §2). `ns0` alone anchors the WHOLE file, so a
        counter step mid-file is spanned rather than seen. The current clock SEGMENT re-anchors at a
@@ -1605,6 +1611,8 @@
         if (ts) {
           t0Ms = ts.tMs;
           firstTs = ts;
+          // the same row's device time, for the differential correction below (null if unreadable)
+          t0DevMs = isFinite(relNs) ? relNs / 1e6 : null;
         }
       }
       // HOST-DISCIPLINED AXIS (WEARABLE-HOST-AXIS-2026-08-02 §2) — sample the host clock as we go.
@@ -1915,6 +1923,45 @@
     // per second, so RR/PPI intervals are untouched) while its RATE error is removed. If too few
     // anchors resolved, `ok:false` and the raw device axis is kept — an uncorrected axis is honest,
     // a fabricated correction is not.
+    /* ── §🔒.7 · THE CORRECTION IS DIFFERENTIAL, AGAINST THE ROW THAT SUPPLIED `t0Ms` ──────────
+       `relSec` counts HOST-elapsed seconds since `t0Ms`, and `t0Ms` is the host stamp of one real
+       row. At that row the divergence between the two columns is 0 by construction, so the axis must
+       answer 0 there. It does not: `correctionAt` is a running median of width `CK_AXIS_WIN` over the
+       divergence series, and at the first anchor that median is a SAMPLE OF THE HOST JITTER. The
+       whole sample then lands on every `relSec` as a constant, and the export places sample 0 at two
+       different times at once — `t0Ms`, and `t0Ms + relSec[0] * 1000`.
+       MEASURED (board #9329, 20 Verity segments of 0.05 h to 8.26 h, every one building an axis of
+       59 to 6054 anchors): `|relSec[0]|` median 19.6 ms, max 234.8 ms, 14 of 20 over 10 ms. It
+       carries either sign and does not track duration — the 8.26 h segment reads +12.9 ms while the
+       1.92 h one reads -234.8 ms. On synthetic anchors at the same geometry a clean host column
+       answers exactly 0, drift alone answers -1.4 ms at -30 ppm, and 200 ms of jitter answers
+       -67 ms. So the term is the jitter and not the drift.
+       Subtracting the correction AT THAT ROW pins the estimate through the one point the stream
+       states, and keeps the slope that removes the rate error. A step of the segment model survives
+       too, because one constant comes off every segment alike.
+       ⚠️ IT DOES NOT REDUCE THE ABSOLUTE HOST ERROR, and the field below must not be read as if it
+       did: the series is re-anchored on that row's OWN stamp, which carries that row's own jitter.
+       What it removes is the DISAGREEMENT with the published `t0Ms`.
+       ∅ · A BASELINE THAT CANNOT BE TAKEN IS NAMED, NEVER ASSUMED. Where the start row carried no
+       readable device counter there is no point to pin through, so the samples keep the raw device
+       axis and `startCorrectionReason` says which test refused. A 0 baseline here would be the
+       absolute form again, wearing a corrected name. */
+    const corrAt = function (devMs) {
+      return multiSeg ? segCorrectionAt(devMs) : hostAx.ok ? hostAx.correctionAt(devMs) : 0;
+    };
+    const corrApplies = multiSeg || hostAx.ok;
+    let startCorrectionMs = null,
+      startCorrectionReason = null;
+    if (!corrApplies) startCorrectionReason = hostAx.ok ? null : hostAx.reason || 'no host-disciplined axis';
+    else if (t0DevMs == null) startCorrectionReason = 'the row that supplied t0Ms carried no readable device counter, so the axis has no point of zero divergence to pin through';
+    else {
+      const c0 = corrAt(t0DevMs);
+      if (!isFinite(c0)) startCorrectionReason = 'the host axis answered a non-finite correction at the start row';
+      else startCorrectionMs = c0;
+    }
+    /* The subtrahend, and the one place it is decided: a refused baseline contributes NOTHING rather
+       than a 0 that reads as a measurement. The guard above is why this cannot be `?? 0` (§∅). */
+    const startCorrApplied = startCorrectionMs != null;
     let relSec = new Float64Array(n);
     if (rawAx && rawAx.ok) relSec = rawAx.relSec;
     else if (deltas.length > 20) {
@@ -1931,7 +1978,10 @@
            is ONE segment whose flat offset is the median — which is what the host axis was already
            approximating — so nothing here depends on a stream misbehaving.
            `hostAx` remains the fallback for the case this model declines: no anchors at all. */
-        relSec[i] = (devMs + (multiSeg ? segCorrectionAt(devMs) : hostAx.ok ? hostAx.correctionAt(devMs) : 0)) / 1000;
+        /* A REFUSED BASELINE DROPS THE CORRECTION, it does not apply it whole. An absolute
+           correction over an unknown origin is the defect this block removes, so the honest
+           degradation is the uncorrected device axis with `startCorrectionReason` beside it. */
+        relSec[i] = startCorrApplied ? (devMs + corrAt(devMs) - startCorrectionMs) / 1000 : devMs / 1000;
       }
     } else {
       for (let i = 0; i < n; i++) relSec[i] = i / fs;
@@ -2466,7 +2516,15 @@
                `'host'` is the floor instead: the host carried the timing and the device contributed
                sample ORDER, which under-claims rather than fabricating. The actual absence rides on
                `drawn`/`deviceDrawn` + `drawnReason`, so no consumer has to read a null tier. */
-            timingSource: axisSynthetic !== false ? 'host' : hostAx.independent === false ? 'device' : 'device+host'
+            timingSource: axisSynthetic !== false ? 'host' : hostAx.independent === false ? 'device' : 'device+host',
+            /* WHICH ARITHMETIC PLACED THE SAMPLES, and the constant it took off. `startCorrectionMs`
+               is the correction the axis answered at the row that supplied `t0Ms`, which the samples
+               no longer carry; it is the measured size of the old disagreement on THIS recording.
+               Null with a reason beside it where no baseline could be taken, and a reader must not
+               read a null as a 0 (§∅). The field says the series agrees with `t0Ms`; it does not
+               claim a smaller absolute host error, because the anchor row carries its own jitter. */
+            startCorrectionMs: startCorrectionMs,
+            startCorrectionReason: startCorrectionReason
           }
         : {
             ok: false,
@@ -9084,6 +9142,21 @@
            unknown and §∅ forbids answering an unknown with `false`. */
         applied: r.hostAxis.applied == null ? null : r.hostAxis.applied === true,
         timingSource: r.timingSource || null,
+        /* ── THE DIFFERENTIAL START CORRECTION, FORWARDED (2026-11-26) ────────────────────────────
+           `recording.startEpochMs` is `t0Ms`, and the sample times a consumer rebuilds are
+           host-elapsed seconds from it, so the parse layer pins the axis to 0 at the row that
+           supplied `t0Ms` and takes every correction DIFFERENTIALLY against that point.
+           `startCorrectionMs` is the constant it removed: the correction the axis answered at the
+           start row, which is the measured size of the disagreement these samples used to carry
+           between `startEpochMs` and sample 0. It does NOT claim a smaller absolute host error,
+           because the anchor row carries its own delivery jitter.
+           This reshape drops anything it does not name, which is the defect that ate `stability`
+           twice, so BOTH keys travel. `nz` per §∅: null is "no baseline could be taken" and
+           `startCorrectionReason` says which refusal it was — a reader must never read the null
+           as a measured 0. Unconditional, because a consumer rebuilding sample times needs to know
+           which arithmetic placed them on every axis and not only on a corrected one. */
+        startCorrectionMs: nz(r.hostAxis.startCorrectionMs),
+        startCorrectionReason: r.hostAxis.startCorrectionReason || null,
         /* ⚠️ THE SOURCE KEYS ARE `tau0Sec` AND `noise`, NOT `tau0`/`noiseType`
            (ALLAN-STABILITY-GAPS §2.1). This block read the EXPORTED names back off the spine object,
            which never carried them, so `tau0` and `noiseType` were exported as PERMANENT null on
