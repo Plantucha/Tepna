@@ -51224,6 +51224,39 @@
          envelope stands at 7.5 h, so a slope of 0 says it read the envelope. */
       T.eq('the 7 d usage trend slopes on mask-on hours', D.buildLongitudinal([worn(T0), offMask(T0 + 86400000)]).usageTrend7d, -4);
 
+      /* 1b · THE SLOPE IS PER CALENDAR NIGHT, never per position in the list. Row
+         `2026-11-25-cpap-usage-slope-counts-nights-by-ordinal`. All three runs below carry the SAME
+         true slope of 0.1 h per calendar night. The index axis read 0.100, 0.400 and 0.126. */
+      var risingAt = function (dayOffset, hours) {
+        return { t0Ms: T0 + dayOffset * 86400000, therapyHours: 7.5, nSessions: 1, metrics: { residualAHI: 3, largeLeakPct: 2, usageHours: hours }, sessions: [{}] };
+      };
+      var adjacentRun = [0, 1, 2, 3, 4, 5, 6].map(function (i) {
+        return risingAt(i, 4 + 0.1 * i);
+      });
+      var spacedRun = [0, 1, 2, 3, 4, 5, 6].map(function (i) {
+        return risingAt(i * 4, 4 + 0.1 * (i * 4));
+      });
+      var gappedRun = adjacentRun.map(function (n, i) {
+        return i === 3 ? blankNight(T0 + 3 * 86400000) : n;
+      });
+      T.eq('7 adjacent nights rising 0.1 h per night slope at 0.1', D.buildLongitudinal(adjacentRun).usageTrend7d, 0.1);
+      T.eq('the same nights FOUR DAYS APART slope at 0.1, never 0.4', D.buildLongitudinal(spacedRun).usageTrend7d, 0.1, 'the index axis overstated the slope by the spacing');
+      T.eq('an unmeasured fourth night does not renumber the rest', D.buildLongitudinal(gappedRun).usageTrend7d, 0.1, 'the index axis closed the gap and read 0.126');
+      T.eq('∅ and that night leaves the fit, which the count publishes', D.buildLongitudinal(gappedRun).usageTrend7dNights, 6);
+      T.eq('the span names the calendar days the spaced fit covers', D.buildLongitudinal(spacedRun).usageTrend7dSpanDays, 25);
+      T.eq('CONTROL · the adjacent fit covers 7 calendar days', D.buildLongitudinal(adjacentRun).usageTrend7dSpanDays, 7);
+      T.eq('CONTROL · a fitted run carries no refusal reason', D.buildLongitudinal(adjacentRun).usageTrend7dReason, null);
+      /* ∅ Two nights on ONE calendar day give one x, so the fit has no slope to publish. */
+      var sameDay = D.buildLongitudinal([risingAt(0, 4), { t0Ms: T0 + 3600000, therapyHours: 7.5, nSessions: 1, metrics: { residualAHI: 3, largeLeakPct: 2, usageHours: 5 }, sessions: [{}] }]);
+      T.eq('∅ two nights on one calendar day publish no slope', sameDay.usageTrend7d, null);
+      T.eq('∅ and the refusal names the calendar day', sameDay.usageTrend7dReason, 'one-calendar-day');
+      /* ∅ A night with no stamp carries no calendar position, so it never borrows a neighbour's. */
+      var noStamp = D.buildLongitudinal([{ t0Ms: null, therapyHours: 7.5, nSessions: 1, metrics: { residualAHI: 3, largeLeakPct: 2, usageHours: 4 }, sessions: [{}] }, risingAt(1, 5)]);
+      T.eq('∅ a night with no stamp leaves the fit', noStamp.usageTrend7dNights, 1);
+      T.eq('∅ and one fitted night publishes no slope', noStamp.usageTrend7d, null);
+      T.eq('∅ with the reason naming the fitted population', noStamp.usageTrend7dReason, 'fewer-than-two-fitted-nights');
+      T.eq('CONTROL · a measured 0 h night is a fitted night', D.buildLongitudinal([risingAt(0, 4), risingAt(1, 0)]).usageTrend7dNights, 2);
+
       /* 2 · the cross-night twin, which the EXPORT publishes. */
       if (CP && typeof CP.compliancePct === 'function') {
         T.eq('cross · the same night is not compliant there either', CP.compliancePct([offMask(T0)], 4), 0);
@@ -51284,6 +51317,12 @@
         var blank = { t0Ms: T0 + 172800000, therapyHours: 7.5, nSessions: 1, metrics: { residualAHI: 3, largeLeakPct: 2, usageReason: 'no-pressure-channel' }, sessions: [{}] };
         var histBlank = CR.renderHistory([offMask(T0), blank]);
         T.ok('∅ an unmeasured night refuses in its row', /—/.test(histBlank) && !/7\.5 h ·/.test(histBlank));
+        /* The usage-trend tile states the nights the slope fitted and the calendar span they cover,
+           because a slope per night over nights four days apart is not the claim "7d" makes. */
+        var spacedHist = CR.renderHistory([risingAt(0, 4), risingAt(4, 4.4), risingAt(8, 4.8)]);
+        T.ok('the usage-trend tile names its fitted nights and calendar span', /3 nights over 9 calendar days/.test(spacedHist), 'the tile stated the slope with no span');
+        var sameDayHist = CR.renderHistory([risingAt(0, 4), { t0Ms: T0 + 3600000, therapyHours: 7.5, nSessions: 1, metrics: { residualAHI: 3, largeLeakPct: 2, usageHours: 5 }, sessions: [{}] }]);
+        T.ok('∅ and it prints the refusal reason rather than a slope', /one-calendar-day/.test(sameDayHist));
       } else {
         T.skip('CpapRender.renderHistory', 'cpapdex-render.js not co-loaded in this runner');
       }
