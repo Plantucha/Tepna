@@ -354,8 +354,8 @@
               rmssd: ps.rmssd,
               gMean: g.mean,
               gCV: g.cv,
-              nHypo: g.nHypo || 0,
-              nHypoWin: g.winHypo || 0,
+              nHypo: g.nHypo == null ? null : g.nHypo,
+              nHypoWin: g.winHypo == null ? null : g.winHypo,
               dawn: g.dawnSurge
             };
             ROWS.push(rec2);
@@ -460,11 +460,16 @@
     // discrete hypo coupling — paired within-patient (hypo vs flat nights)
     // recall: window-LOCAL hypo (nHypoWin, the fixed slice-safe detector); hypoFlagHit
     // keeps the legacy full-context analyze() flag (nHypo) for before/after comparison.
+    // Each leg carries its OWN denominator. A night whose detector read nothing
+    // reports `null`, and a null is EXCLUDED from that leg, never counted as a miss:
+    // checked + excluded = eligible on both legs.
     var dRm = [],
       dCv = [],
       hypoRecallHit = 0,
       hypoFlagHit = 0,
-      hypoRecallN = 0;
+      hypoRecallN = 0,
+      hypoFlagN = 0,
+      hypoEligible = 0;
     SUBJ.forEach(function (su) {
       var hyp = su.nights.filter(function (r) {
         return r.gluc === 'hypo';
@@ -473,9 +478,15 @@
         return r.gluc === 'flat';
       });
       hyp.forEach(function (r) {
-        hypoRecallN++;
-        if (r.nHypoWin > 0) hypoRecallHit++;
-        if (r.nHypo > 0) hypoFlagHit++;
+        hypoEligible++;
+        if (r.nHypoWin != null) {
+          hypoRecallN++;
+          if (r.nHypoWin > 0) hypoRecallHit++;
+        }
+        if (r.nHypo != null) {
+          hypoFlagN++;
+          if (r.nHypo > 0) hypoFlagHit++;
+        }
       });
       if (hyp.length && flat.length) {
         dRm.push(
@@ -505,7 +516,7 @@
       }
     });
     var hypoRecall = hypoRecallN ? hypoRecallHit / hypoRecallN : null;
-    var hypoFlagRecall = hypoRecallN ? hypoFlagHit / hypoRecallN : null;
+    var hypoFlagRecall = hypoFlagN ? hypoFlagHit / hypoFlagN : null;
 
     // ── headline ──
     var cards = '';
@@ -552,6 +563,11 @@
         flagRecallMethod: 'legacy glucodex analyze() nocturnalHypo flag (full-context, slice-truncated)',
         enriched: !!($('hypoEnrich') && $('hypoEnrich').checked),
         nHypoNights: hypoRecallN,
+        nHypoNightsFlag: hypoFlagN,
+        nHypoNightsEligible: hypoEligible,
+        nHypoNightsExcluded: hypoEligible - hypoRecallN,
+        nHypoNightsExcludedFlag: hypoEligible - hypoFlagN,
+        excludedReason: 'window-local detector read no finite CGM value on the slice',
         pairedPatients: dRm.length,
         medianDeltaRmssd: median(dRm),
         medianDeltaCV: median(dCv)
@@ -936,7 +952,22 @@
   $('dlCsv').onclick = function () {
     var rows = [['seed', 'age', 'glycemic', 'arc', 'night', 'ahi', 'gluc_kind', 'cpap', 'rmssd', 'noct_gMean', 'noct_gCV', 'nHypo', 'nHypoWin', 'dawnSurge']];
     ROWS.forEach(function (r) {
-      rows.push([r.seed, r.age, r.glyc, r.arc, r.night, r.ahi, r.gluc, r.cpap, r.rmssd, r.gMean, r.gCV, r.nHypo, r.nHypoWin, r.dawn == null ? '' : r.dawn]);
+      rows.push([
+        r.seed,
+        r.age,
+        r.glyc,
+        r.arc,
+        r.night,
+        r.ahi,
+        r.gluc,
+        r.cpap,
+        r.rmssd,
+        r.gMean,
+        r.gCV,
+        r.nHypo == null ? '' : r.nHypo,
+        r.nHypoWin == null ? '' : r.nHypoWin,
+        r.dawn == null ? '' : r.dawn
+      ]);
     });
     dl(
       'cgm-hrv-coupling-results.csv',

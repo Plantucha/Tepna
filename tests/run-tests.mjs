@@ -3262,7 +3262,17 @@ function buildCohortWorker() {
       kinds,
       kindReady,
       escapeClosure,
-      oxyEscapeHTML: oxyBoot ? typeof oxyBoot.ctx.escapeHTML : 'no-oxy-kind'
+      oxyEscapeHTML: oxyBoot ? typeof oxyBoot.ctx.escapeHTML : 'no-oxy-kind',
+      /* The window-local hypo detector, reached as the realm's own binding rather than re-typed into
+         the suite: the lean `pulse` boot evaluates the whole file, so every top-level function of
+         `cohort-worker.js` is a property of its context. A missing binding arrives as `null` and the
+         group FAILS on it instead of skipping. */
+      winHypoFromCSV: typeof w.ctx.winHypoFromCSV === 'function' ? w.ctx.winHypoFromCSV : null,
+      /* The file's own TEXT, read here and not through readSources(): `cohort-worker.js` is
+         deliberately absent from that list (INVISIBLE_SET / INVENTORY_ABSENT in the suite), and
+         adding it there would move the worker-boundary gate's denominators. This realm already
+         reads the file to boot it. */
+      src: _rf(_join(_root, 'cohort-worker.js'), 'utf8')
     };
   } catch (e) {
     console.error(paint('  ! cohort-worker realm failed to build: ' + e.message, C.yellow));
