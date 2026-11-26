@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="e8c90cd08bbd" data-compute-hash="ace9dd1b897c"><head>
+<html lang="en" data-manifest-hash="9cba851a70e8" data-compute-hash="9c7be7e4ec71"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/VJg0iL4BTIOQo1MBGNaCyjASkthShp7aMZCanB9k3A=' 'sha256-2c3velFfSLNAC5jrCyn6cBTvi048ZOdXnJBmosvpvTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6vRsd8wVQoTSJKZCJmwjUOk0mO0dhv4yfkPzZA204MI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-9pxFCJPFipgaRs8G3wH7bh1NlNw0+rSdVQp4xMLxMqc=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-F3vpy36kLZJl/T9D9ou857W7+A/FPw0YXAqL5hvaGqo=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G73E908mGzZSzGnycAfYtgzAkAHMoWN+0fdZLpQ+vSE=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IkoMy5gaSZB78svoNIZIL2ktLgpZKVC/niY+oBHTILk=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SploFxN8y41QfXBKeMXZ3VVUDPeaXF7mfHd2/kuq43U=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VwGqHWLSbaEDNL4p+AGh+MW4SneiHEn07RjprPzHgDU=' 'sha256-WldNv6ZaczXfSpdI9/QwglNtPxw2x/dd1j50BSnl680=' 'sha256-XhoVrB9BEhIhXlJd1jwCh7RHO4FOkVbzNeegg72RUoo=' 'sha256-biiHe0emfmUwcQd5Pyue/Fau47ELBDIFcEj5LYEobr8=' 'sha256-cumr3An7W+Q6iJlTfa/0x/W0WcDr47x/lyahofIzqPo=' 'sha256-e8170odGJFoMGeKcTjWRUs5iHkAOyFMpt6z2GWfyQ/w=' 'sha256-gd9IuoPK0m0h+mwKmCjCmBpm6ebuTXqb8O27YnJNX04=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nbCcwjX4Ba9w3RBLEB+5up9PRhrS11tY5toYvGccPHI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-siTJEQpoDNnQ91b99O0dbWcjjTAHcnriuo4RN8xHJak=' 'sha256-voG5FOxK9EscA+uaXp7M2jU1JtX/IItWxJB4xuUEhEg=' 'sha256-yFPiGik662jFYAbvMxIGlhr8nHZY5SUqMK7xfqYl2hM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/VJg0iL4BTIOQo1MBGNaCyjASkthShp7aMZCanB9k3A=' 'sha256-2c3velFfSLNAC5jrCyn6cBTvi048ZOdXnJBmosvpvTE=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6vRsd8wVQoTSJKZCJmwjUOk0mO0dhv4yfkPzZA204MI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-9pxFCJPFipgaRs8G3wH7bh1NlNw0+rSdVQp4xMLxMqc=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-G73E908mGzZSzGnycAfYtgzAkAHMoWN+0fdZLpQ+vSE=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IkoMy5gaSZB78svoNIZIL2ktLgpZKVC/niY+oBHTILk=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SploFxN8y41QfXBKeMXZ3VVUDPeaXF7mfHd2/kuq43U=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-VwGqHWLSbaEDNL4p+AGh+MW4SneiHEn07RjprPzHgDU=' 'sha256-WldNv6ZaczXfSpdI9/QwglNtPxw2x/dd1j50BSnl680=' 'sha256-XhoVrB9BEhIhXlJd1jwCh7RHO4FOkVbzNeegg72RUoo=' 'sha256-biiHe0emfmUwcQd5Pyue/Fau47ELBDIFcEj5LYEobr8=' 'sha256-cumr3An7W+Q6iJlTfa/0x/W0WcDr47x/lyahofIzqPo=' 'sha256-e8170odGJFoMGeKcTjWRUs5iHkAOyFMpt6z2GWfyQ/w=' 'sha256-gd9IuoPK0m0h+mwKmCjCmBpm6ebuTXqb8O27YnJNX04=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nbCcwjX4Ba9w3RBLEB+5up9PRhrS11tY5toYvGccPHI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-raT0ySRfzf6NqNlfouX617HrkGtfFTUrwTDtvd3UNb4=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-siTJEQpoDNnQ91b99O0dbWcjjTAHcnriuo4RN8xHJak=' 'sha256-voG5FOxK9EscA+uaXp7M2jU1JtX/IItWxJB4xuUEhEg=' 'sha256-yFPiGik662jFYAbvMxIGlhr8nHZY5SUqMK7xfqYl2hM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -8122,11 +8122,36 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // cycles spread across 62-125 s, the classic periodic-breathing range. The fix must KEEP those and drop
   // the fabricated ones. (OXYDEX-FFT-CYCLE-NULL-2026-08-16-BRIEF.)
   //
-  // METHOD — Mann, M. E. & Lees, J. M. (1996), Climatic Change 33, 409-445, doi 10.1007/BF00142586:
-  // test peak HEIGHT against a fitted red background, never peak LOCATION. In a red spectrum the argmax
-  // sits near the low-frequency end by construction, so its position carries no information.
+  // METHOD — THE RULE IS THEIRS, THE ESTIMATOR IS OURS, and the two must not read as one citation.
+  // The height-over-background rule is Mann, M. E. & Lees, J. M. (1996), Climatic Change 33, 409-445,
+  // doi 10.1007/BF00142586: test peak HEIGHT against a fitted red background, never peak LOCATION. In a
+  // red spectrum the argmax sits near the low-frequency end by construction, so its position carries no
+  // information. Those authors fit the persistence to a median-smoothed multitaper spectrum. Step 1
+  // below fits it from two autocovariances instead, which is cheaper and is a DIFFERENT method, so the
+  // number carries no authority from that paper (row
+  // 2026-11-25-fft-null-rho-falls-under-whole-percent-spo2).
   //
-  //   1. rho = lag-1 autocorrelation of the mean-removed series (the background's only parameter).
+  //   1. rho = the AR(1) persistence of the mean-removed series (the background's only parameter),
+  //      read as the autocovariance at LAG 2 OVER the autocovariance at LAG 1.
+  //      ⚠️ NOT the lag-1 autocorrelation, and on a quantised signal that choice decides the null.
+  //      A whole-percent SpO2 sample is a smoother value plus a rounding error, and that error is
+  //      WHITE: it adds variance at lag 0 and nothing at any other lag. So `r1/r0` falls, the fitted
+  //      background flattens, the low-frequency end stops being modelled as red, and the argmax there
+  //      clears the threshold on a featureless record. An AR(1) autocovariance decays as rho^k, so
+  //      `r2/r1` is the same rho and the rounding error reaches neither term.
+  //      MEASURED on this function, 48 synthetic nights of 27,600 samples at 1 Hz per row, nothing
+  //      planted, so every detection is a fabrication — and the planted row is the control that stops
+  //      the repair from being "refuse more":
+  //                                        r1/r0    r2/r1    median r1/r0   median r2/r1
+  //        AR(1) 0.98  SD 1.2 continuous    0/48     0/48        0.9798         0.9798
+  //        AR(1) 0.98  SD 1.2 rounded       3/48     0/48        0.9367         0.9720
+  //        AR(1) 0.98  SD 0.6 rounded      25/48     0/48        0.8918         0.9504
+  //        AR(1) 0.98 SD 1 + 0.80 SD 0.3    9/48     0/48        0.9066         0.9602
+  //        AR(1) 0.995 SD 1.2 rounded       0/48     0/48        0.9679         0.9866
+  //        a planted 80 s cycle, amp 0.3   48/48    48/48  (every one within 10 s of 80 s)
+  //      `r2/r1` recovers the persistence toward 0.98 without reaching it, because a quantisation
+  //      error is not perfectly white against the signal that produced it. It recovers enough: no
+  //      fabrication survives at any row above.
   //   2. AR(1) spectrum  S(f) ~ (1-rho^2) / (1 - 2 rho cos(2 pi f / fs) + rho^2), evaluated on the probe
   //      grid and scaled by the MEDIAN observed/theoretical ratio — median so a real peak cannot inflate
   //      the background that is supposed to expose it.
@@ -8197,6 +8222,35 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var r = num / den;
     // A background needs a POSITIVE persistence; a negative or absurd rho is not a red spectrum, and
     // clamping is honest here because the alternative is a background that curves the wrong way.
+    return r > 0.999 ? 0.999 : r < 0 ? 0 : r;
+  }
+
+  /* The masked autocovariance at one lag, averaged over the pairs that EXIST. A pair spanning an
+     absent sample is not a pair in TIME, so the mask drops it, exactly as `_lag1` does. The average
+     divides by the pairs actually summed, so two lags with different pair counts stay comparable —
+     with scattered absence the lag-2 mask drops more pairs than the lag-1 mask. */
+  function _acov(x, mean, present, lag) {
+    var s = 0,
+      m = 0,
+      i;
+    for (i = lag; i < x.length; i++) {
+      if (present && (!present[i] || !present[i - lag])) continue;
+      s += (x[i] - mean) * (x[i - lag] - mean);
+      m++;
+    }
+    return m > 0 ? s / m : null;
+  }
+
+  /* THE BACKGROUND'S PERSISTENCE, and NOT the lag-1 autocorrelation — see the METHOD note above for
+     the measurement. `r2/r1` is rho for an AR(1) series and white measurement noise reaches neither
+     term, while `r1/r0` falls on a quantised signal and flattens the background that is supposed to
+     expose the peak. The clamp is `_lag1`'s: a background needs a POSITIVE persistence, and an
+     absent or non-positive lag-1 term is not a red spectrum. */
+  function _bgRho(x, mean, present) {
+    var c1 = _acov(x, mean, present, 1),
+      c2 = _acov(x, mean, present, 2);
+    if (c1 === null || c2 === null || !(c1 > 0)) return 0;
+    var r = c2 / c1;
     return r > 0.999 ? 0.999 : r < 0 ? 0 : r;
   }
 
@@ -8408,6 +8462,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         bandBinsN: null,
         strided: false,
         rhoLag1: null,
+        rhoBg: null,
         coveredN: covered,
         spanN: n,
         absentRunMaxN: absentRunMaxN,
@@ -8417,7 +8472,11 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     }
     var RATE = fs > 0 ? fs : 1; // SpO2 rows are 1 Hz; the argument keeps that testable
     var mean = sum / covered;
-    var rho = _lag1(spo2, mean, present);
+    var rho = _bgRho(spo2, mean, present);
+    /* Published beside the background's own number, never fitted into it: the corpus distribution the
+       brief records (median 0.9813 over 103 nights) is a LAG-1 distribution, so dropping the key would
+       strand it. */
+    var rhoLag1 = _lag1(spo2, mean, present);
 
     var kLo = Math.max(1, Math.ceil((_FFT_LO_HZ * n) / RATE));
     var kHi = Math.min(Math.floor(n / 2) - 1, Math.floor((_FFT_HI_HZ * n) / RATE));
@@ -8503,7 +8562,11 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       /* Always false, and kept rather than removed: the export is a consumed contract, and `false` is
          the honest reading — the band was covered, not sampled. */
       strided: false,
-      rhoLag1: +rho.toFixed(4),
+      rhoLag1: +rhoLag1.toFixed(4),
+      /* THE NUMBER THE BACKGROUND ACTUALLY USED. It is `rhoLag1` on a continuous series and LOWER on
+         a quantised one, so a reader who sees them apart is reading the rounding error, not a
+         different signal. */
+      rhoBg: +rho.toFixed(4),
       // The POPULATION, beside the verdict: `coveredN` samples carried a reading and `spanN` is the
       // recorded span. A reader who sees `coveredN < spanN` knows the spectrum describes less than the
       // night, and no consumer must infer coverage from the span.
