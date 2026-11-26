@@ -36,7 +36,12 @@
     drift: ['experimental', 'the p95 step between adjacent 5-min lag medians — the statistic the gate weighs — with the across-night range and the linear rate beside it as diagnostics'],
     floor: ['experimental', "each leg re-timed on its device's packet-arrival floor (the minimum of arrival − last sample, per 10-min window) — derived, unvalidated"],
     acc: ['heuristic', 'motion-anchored offset correction between chest and ankle ACC — a convenience estimate, not a measurement'],
-    hat: ['experimental', 'classic three-cornered hat on 5-min PAT medians — assumes independent per-site errors; unvalidated']
+    hat: ['experimental', 'classic three-cornered hat on 5-min PAT medians — assumes independent per-site errors; unvalidated'],
+    nhat: [
+      'experimental',
+      'n-cornered hat on 5-min PAT medians over 3 or 4 sites — least squares over every pair dispersion; assumes independent per-site errors, and the forehead legs ride a STATED search band rather than a measured one; unvalidated'
+    ],
+    resid: ['experimental', 'root-mean-square of the pair residuals of that least-squares solve — the only reading of fit this path offers, and a 3-corner solve has none by construction']
   };
   function evb(k) {
     var e = EV[k] || EV.lag;
@@ -93,6 +98,16 @@
        `_PPG.txt` rule two lines above and for the same reason — a ring sidecar paired to the
        Verity's text would mark the WRONG spans invalid, which is worse than marking none.
        `_ECG\.txt$` and `_PPG\.txt$` are end-anchored, so neither rule above ever saw these names. */
+    /* ── THE FOREHEAD SITE — the Muse S Athena writes no `_PPG.txt`. Its optical samples exist only inside
+       the frames of `<base>_RAW.txt`, and `MuseFrame.OpticsPpg` decodes them into the per-sample layout
+       `ppgFootTimes` already takes (`ppgdex-app.js` reads the same file the same way). The role test names
+       the DEVICE: `_RAW.txt` is a frame log, so another device's frame log must never land on this site. */
+    if ((mo = n.match(/_(\d{8})_?(\d{6})_RAW\.txt$/i))) return /^Muse_/i.test(n) ? { role: 'forehead', stamp: mo[1] + mo[2] } : null;
+    /* its validity sidecar, written beside the frames by the same `_RunSidecar` as every other stream */
+    if ((mo = n.match(/_(\d{8})_?(\d{6})_RAWRUNS\.txt$/i))) return /^Muse_/i.test(n) ? { role: 'foreheadruns', stamp: mo[1] + mo[2] } : null;
+    /* its CLOCK-SEAM sidecar. A seam is a discontinuity, so it refuses the window it falls in rather
+       than annotating it (owner ruling 2026-09-17), which is why it travels apart from the runs. */
+    if ((mo = n.match(/_(\d{8})_?(\d{6})_RAWSEAMS\.txt$/i))) return /^Muse_/i.test(n) ? { role: 'foreheadseams', stamp: mo[1] + mo[2] } : null;
     if ((mo = n.match(/_(\d{8})_?(\d{6})_ECGRUNS\.txt$/i))) return { role: 'ecgruns', stamp: mo[1] + mo[2] };
     if ((mo = n.match(/_(\d{8})_?(\d{6})_PPGRUNS\.txt$/i))) return { role: /O2Ring/i.test(n) ? 'fingerruns' : 'ppgruns', stamp: mo[1] + mo[2] };
     // ACC on BOTH devices → the cross-device drift anchor (H10 chest vs Verity arm)
@@ -110,7 +125,9 @@
           ? { role: 'ppgarr', stamp: mo[1] + mo[2] }
           : /O2Ring/i.test(n)
             ? { role: 'ringarr', stamp: mo[1] + mo[2] }
-            : null;
+            : /^Muse_/i.test(n)
+              ? { role: 'foreheadarr', stamp: mo[1] + mo[2] }
+              : null;
     return null;
   }
   /* THE NIGHT A FILE BELONGS TO COMES FROM ITS FIRST DATA ROW, NOT ITS NAME.
@@ -280,7 +297,13 @@
       rr = nearestTo(nt.cand.ringarr, fg ? fg.ms : eMs),
       eru = sameStamp(nt.cand.ecgruns, e),
       pru = sameStamp(nt.cand.ppgruns, p),
-      fru = sameStamp(nt.cand.fingerruns, fg);
+      fru = sameStamp(nt.cand.fingerruns, fg),
+      /* the headband runs its own file-set, so its sidecars share a stamp with ITS session, never with the
+         ECG anchor — the same rule the ring's sidecar follows two lines above. */
+      fh = nearestTo(nt.cand.forehead, eMs),
+      fhr = nearestTo(nt.cand.foreheadarr, fh ? fh.ms : eMs),
+      fhru = sameStamp(nt.cand.foreheadruns, fh),
+      fhse = sameStamp(nt.cand.foreheadseams, fh);
     nt.ecg = e ? e.file : null;
     nt.ppg = p ? p.file : null;
     nt.ecgAcc = ea ? ea.file : null;
@@ -292,6 +315,10 @@
     nt.ecgRuns = eru ? eru.file : null;
     nt.ppgRuns = pru ? pru.file : null;
     nt.fingerRuns = fru ? fru.file : null;
+    nt.forehead = fh ? fh.file : null;
+    nt.foreheadArr = fhr ? fhr.file : null;
+    nt.foreheadRuns = fhru ? fhru.file : null;
+    nt.foreheadSeams = fhse ? fhse.file : null;
   }
   var eligible = function (nt) {
     return !!(nt.ecg && nt.ppg);
@@ -318,7 +345,27 @@
       }
       var nt =
         NIGHTS[nk] ||
-        (NIGHTS[nk] = { key: nk, label: nk, cand: { ecg: [], ppg: [], ecgacc: [], ppgacc: [], finger: [], ecgarr: [], ppgarr: [], ringarr: [], ecgruns: [], ppgruns: [], fingerruns: [] } });
+        (NIGHTS[nk] = {
+          key: nk,
+          label: nk,
+          cand: {
+            ecg: [],
+            ppg: [],
+            ecgacc: [],
+            ppgacc: [],
+            finger: [],
+            forehead: [],
+            ecgarr: [],
+            ppgarr: [],
+            ringarr: [],
+            foreheadarr: [],
+            ecgruns: [],
+            ppgruns: [],
+            fingerruns: [],
+            foreheadruns: [],
+            foreheadseams: []
+          }
+        });
       nt.cand[c.role].push({ file: f, stamp: c.stamp, ms: rowMs == null ? stampMs(c.stamp) : rowMs, stampSource: rowMs == null ? 'filename' : 'first-row' });
     }
     Object.keys(NIGHTS).forEach(function (k) {
@@ -495,6 +542,11 @@
         ecgRunsFile: nt.ecgRuns || null,
         ppgRunsFile: nt.ppgRuns || null,
         fingerRunsFile: nt.fingerRuns || null,
+        /* the forehead travels LAST and nullable, so a night without the headband posts the job it
+           always posted. Only the three files a reader consumes cross the boundary. */
+        foreheadFile: nt.forehead || null,
+        foreheadRunsFile: nt.foreheadRuns || null,
+        foreheadSeamsFile: nt.foreheadSeams || null,
         detail: false
       });
     }
@@ -919,6 +971,9 @@
       ecgRunsFile: nt.ecgRuns || null,
       ppgRunsFile: nt.ppgRuns || null,
       fingerRunsFile: nt.fingerRuns || null,
+      foreheadFile: nt.forehead || null,
+      foreheadRunsFile: nt.foreheadRuns || null,
+      foreheadSeamsFile: nt.foreheadSeams || null,
       detail: true
     });
   }
@@ -1303,6 +1358,129 @@
         );
       }
     } else hc.push(hcard('three-cornered hat', '—', '', h && h.reason ? h.reason : 'not solved', C.mut));
+    /* ── THE FOURTH CORNER — THE FOREHEAD, AND ONE HAT OVER 3 OR 4 SITES ───────────────────────────
+       This panel appears only on a night the headband recorded, and it never rewrites a card above:
+       the classic three-cornered hat keeps its own numbers, on its own legs, so a reader can hold the
+       two estimators apart. Every card here is badged `experimental`, because the chest→forehead leg
+       rides a STATED search band (50-400 ms) and not a measured one — `PHYS_LO` would refuse a real
+       forehead PAT near 100-150 ms. The lag card below is what narrows that band later.
+       THE RESIDUAL IS THE ONLY READING OF FIT, and at 3 corners there is none (df = 0): three pairs
+       determine three corners exactly, so a zero there means "nothing to check", never "it fits". */
+    var fh4 = m.forehead;
+    if (fh4) {
+      var fhc = [];
+      if (fh4.ok && fh4.hat) {
+        var H4 = fh4.hat,
+          SITE = { chest: ['H10 chest ECG', C.teal], forehead: ['Muse forehead', '#7FC8FF'], finger: ['O2Ring finger', C.amber], ankle: ['Verity ankle', '#B98AFF'] };
+        H4.names.forEach(function (nm) {
+          var si = SITE[nm] || [nm, C.ink],
+            sg = H4.sigma[nm];
+          fhc.push(
+            hcard(
+              nm + ' σ · ' + H4.n + '-hat',
+              sg == null ? '—' : sg.toFixed(1),
+              sg == null ? '' : 'ms',
+              sg == null ? si[0] + ' — ' + (H4.cornerReason[nm] || 'no σ') + ', variance ' + H4.variance[nm].toFixed(1) + ' ms²' : si[0] + ' · least squares over ' + H4.pairs + ' pair dispersions',
+              sg == null ? C.amber : si[1],
+              'nhat'
+            )
+          );
+        });
+        var pk = Object.keys(H4.pair);
+        fhc.push(
+          hcard(
+            'pairwise spreads',
+            pk
+              .map(function (k) {
+                return H4.pair[k] >= 0 ? Math.sqrt(H4.pair[k]).toFixed(1) : '—';
+              })
+              .join(' · '),
+            'ms',
+            'IQR/1.349 of the window medians of each pair · ' + pk.join(' · '),
+            C.ink,
+            'nhat'
+          )
+        );
+        /* EVERY THREE-CORNER SUBSET, SOLVED ON ITS OWN. A corner the four-site solve reads as small and
+           one subset reads as negative is a corner whose independence the design does not support —
+           and that disagreement is only visible if each subset is published beside the joint solve. */
+        (H4.subHats || []).forEach(function (sh) {
+          fhc.push(
+            hcard(
+              'sub-hat · ' + sh.names.join(' · '),
+              sh.names
+                .map(function (nm) {
+                  return sh.sigma[nm] == null ? '—' : sh.sigma[nm].toFixed(1);
+                })
+                .join(' · '),
+              'ms',
+              'the classic hat on this trio alone, in the order named — a dash is a negative variance',
+              C.ink,
+              'hat'
+            )
+          );
+        });
+        fhc.push(
+          hcard(
+            'residual rms',
+            H4.residual.df > 0 ? H4.residual.rms.toFixed(1) : '—',
+            H4.residual.df > 0 ? 'ms²' : '',
+            H4.residual.df > 0
+              ? 'over ' + H4.residual.df + ' degrees of freedom — how far the ' + H4.pairs + ' pair dispersions sit from ONE consistent set of ' + H4.n + ' site variances'
+              : 'df 0 — ' + H4.pairs + ' pairs determine ' + H4.n + ' corners exactly, so there is no fit to read',
+            H4.residual.df > 0 ? C.ink : C.mut,
+            'resid'
+          )
+        );
+      } else fhc.push(hcard('n-cornered hat', '—', '', fh4.reason || 'not solved', C.mut, 'nhat'));
+      /* THE WINDOWS, AND WHAT A SEAM TOOK. A refused window is a DISCONTINUITY (owner ruling
+         2026-09-17), so it is removed before the solve and counted here. `recorded: null` is a
+         sidecar whose rows could not be placed — never a seam-free stream (§∅). */
+      var sm = fh4.seams;
+      fhc.push(
+        hcard(
+          'windows solved · forehead',
+          String(fh4.windows),
+          '',
+          sm
+            ? sm.recorded == null
+              ? 'no placed seam sidecar: ' + sm.reason + ' — nothing was refused'
+              : sm.recorded + ' recorded seam(s), ' + sm.refusedWindows + ' window(s) refused before the solve'
+            : 'no window set was built',
+          C.ink,
+          'count'
+        )
+      );
+      /* THE OBSERVED LAG OF EVERY FOREHEAD LEG, published whether or not the hat solved — this is the
+         evidence a later corpus measurement narrows the stated band on, so it must survive a refusal. */
+      if (fh4.lag) {
+        var lk = Object.keys(fh4.lag).filter(function (k) {
+          return k.indexOf('forehead') >= 0;
+        });
+        fhc.push(
+          hcard(
+            'forehead lag medians',
+            lk
+              .map(function (k) {
+                return fh4.lag[k].medianMs == null ? '—' : fh4.lag[k].medianMs.toFixed(0);
+              })
+              .join(' · '),
+            'ms',
+            'median R→foot or foot→foot lag, with IQR ' +
+              lk
+                .map(function (k) {
+                  return fh4.lag[k].iqrMs == null ? '—' : fh4.lag[k].iqrMs.toFixed(0);
+                })
+                .join(' · ') +
+              ' ms · ' +
+              lk.join(' · '),
+            C.ink,
+            'lag'
+          )
+        );
+      }
+      hc = hc.concat(fhc);
+    }
     hb.innerHTML = hc.join('');
     drawThree(h, m);
     drawHat(h);
