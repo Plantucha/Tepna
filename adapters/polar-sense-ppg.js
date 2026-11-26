@@ -90,6 +90,10 @@
         // seams UNKNOWN, so this is the difference between an annotated unknown and a fabricated zero on
         // every orchestrated PPG night.
         var seamsText = ctx.companions && typeof ctx.companions.seams === 'string' ? ctx.companions.seams : null;
+        /* ∅ A zero-byte sidecar is present, not absent. The pairing keeps an empty text, so this
+           reports it. The parse input is unchanged: `parsePinnedRuns` reads an empty text as null. */
+        if (runsText === '') prov.warnings.push('RUNS companion present, and it gave no usable data');
+        if (seamsText === '') prov.warnings.push('SEAMS companion present, and it gave no usable data');
         rec = runsText || seamsText ? parseFn(text, { runsText: runsText, seamsText: seamsText }) : parseFn(text);
       } catch (e) {
         return root.SignalFrame.toSignalFrame('ppg', { usable: false, reason: 'polar-sense-ppg: parse error — ' + ((e && e.message) || e) }, prov);
@@ -146,8 +150,11 @@
       };
       if (comp && typeof comp === 'object' && dsp) {
         try {
-          if (comp.acc && typeof dsp.parseSensorXYZ === 'function') {
+          if (typeof comp.acc === 'string' && typeof dsp.parseSensorXYZ === 'function') {
             // §3.2 — the ACC's own sidecar, as `polar-acc.js` and `polar-h10-ecg.js` pass it.
+            /* ∅ An empty ACCRUNS is present, not absent. The call shape stays as the source-mirror
+               assertions pin it, because `parsePinnedRuns` reads an empty text as null either way. */
+            if (comp.accruns === '') prov.warnings.push('ACCRUNS companion present, and it gave no usable data');
             var a = comp.accruns ? dsp.parseSensorXYZ(comp.acc, { runsText: comp.accruns }) : dsp.parseSensorXYZ(comp.acc);
             if (a && a.length) frame.acc = a;
             else noteNoRows('ACC');
@@ -156,7 +163,7 @@
           prov.warnings.push('ACC companion parse failed: ' + ((e0 && e0.message) || e0));
         }
         try {
-          if (comp.gyro && typeof dsp.parseSensorXYZ === 'function') {
+          if (typeof comp.gyro === 'string' && typeof dsp.parseSensorXYZ === 'function') {
             var g = dsp.parseSensorXYZ(comp.gyro);
             if (g && g.length) frame.gyro = g;
             else noteNoRows('GYRO');
@@ -165,7 +172,7 @@
           prov.warnings.push('GYRO companion parse failed: ' + ((e1 && e1.message) || e1));
         }
         try {
-          if (comp.magn && typeof dsp.parseSensorXYZ === 'function') {
+          if (typeof comp.magn === 'string' && typeof dsp.parseSensorXYZ === 'function') {
             var mg = dsp.parseSensorXYZ(comp.magn);
             if (mg && mg.length) frame.magn = mg;
             else noteNoRows('MAGN');
@@ -174,7 +181,7 @@
           prov.warnings.push('MAGN companion parse failed: ' + ((e2 && e2.message) || e2));
         }
         try {
-          if (comp.ppi && typeof dsp.parseDevicePPI === 'function') {
+          if (typeof comp.ppi === 'string' && typeof dsp.parseDevicePPI === 'function') {
             var pp = dsp.parseDevicePPI(comp.ppi);
             if (pp && pp.length) frame.devicePPI = pp;
             else noteNoRows('PPI', pp && pp.reason);

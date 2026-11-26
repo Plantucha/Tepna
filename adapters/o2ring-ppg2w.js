@@ -88,7 +88,7 @@
     },
     parse: function (text, ctx) {
       ctx = ctx || {};
-      var prov = { adapter: 'o2ring-ppg2w', vendor: VENDOR, device: DEVICE, files: ctx.files || null };
+      var prov = { adapter: 'o2ring-ppg2w', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: /** @type {string[]} */ ([]) };
       var oxy = root.OxyDex;
       var parseFn = oxy && typeof oxy.parsePPG2W === 'function' ? oxy.parsePPG2W : null;
       var trendFn = oxy && typeof oxy.spo2WaveformTrend === 'function' ? oxy.spo2WaveformTrend : null;
@@ -98,7 +98,11 @@
       /* `ppg2wruns`, not `runs` — this ring's waveform sidecar has its OWN companion kind, because a
          kind IS the slot name in `pairCompanions` and one device's two sidecars must not share one
          (#3077's ACC ruling, applied here rather than re-derived). */
-      var rec = parseFn(text, { runsText: (ctx.companions && ctx.companions.ppg2wruns) || null });
+      /* ∅ A zero-byte sidecar is present, not absent. The pairing keeps an empty text, so this
+         reports it; `parsePinnedRuns` reads an empty text as null, so the parse input is unchanged. */
+      var ppg2wruns = ctx.companions && typeof ctx.companions.ppg2wruns === 'string' ? ctx.companions.ppg2wruns : null;
+      if (ppg2wruns === '') prov.warnings.push('PPG2WRUNS companion present, and it gave no usable data');
+      var rec = parseFn(text, { runsText: ppg2wruns || null });
       if (!rec || !rec.rows.length)
         return root.SignalFrame.toSignalFrame(
           'spo2',
@@ -113,9 +117,16 @@
          — OxyDex's own, handed in exactly as `oxydex-spo2` receives it — so there is no second CSV
          parser here any more than there is a second waveform parser. */
       var spo2Rows = ctx.spo2Rows || null;
-      if (!spo2Rows && ctx.companions && ctx.companions.spo2 && typeof ctx.parseCSV === 'function') {
-        var csvRows = ctx.parseCSV(ctx.companions.spo2, { fname: null, file: null });
+      if (!spo2Rows && ctx.companions && typeof ctx.companions.spo2 === 'string' && typeof ctx.parseCSV === 'function') {
+        var csvRows = null;
+        try {
+          csvRows = ctx.parseCSV(ctx.companions.spo2, { fname: null, file: null });
+        } catch (eC) {
+          prov.warnings.push('SPO2 companion parse failed: ' + ((eC && eC.message) || eC));
+        }
         if (csvRows && csvRows.length) spo2Rows = csvRows;
+        // ∅ a calibration partner that is present and gives no row is not an absent partner
+        else prov.warnings.push('SPO2 companion present, and it gave no usable data');
       }
       var res = trendFn(rec, spo2Rows || []);
       var spanS = (rec.rows[rec.rows.length - 1].tMs - rec.rows[0].tMs) / 1000;
