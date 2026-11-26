@@ -90,6 +90,25 @@ export const ROLES = [
   { key: 'foreheadRuns', re: /^Muse_.*_RAWRUNS\.txt$/i, required: false, corner: 'forehead' }
 ];
 
+/* THE ONE PARSER, loaded once out of `clock.js` (§✅ — `parseTimestamp` is single-sourced there, and
+   a second spelling of a stamp rule in this tool is exactly what §🔒.2 forbids). It is cached because
+   a census picks files for every night of the tree and the realm costs a file read and a compile. */
+let _clockParse = null;
+export function clockParse(root = ROOT) {
+  if (_clockParse) return _clockParse;
+  const require = createRequire(import.meta.url);
+  const DB = require(join(root, 'tools', 'build-core.js'));
+  const ctx = { console: { log: () => {}, warn: () => {}, error: () => {} }, Date, Math, JSON };
+  ctx.self = ctx;
+  ctx.globalThis = ctx;
+  ctx.window = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(DB.classicify(fs.readFileSync(join(root, 'clock.js'), 'utf8')), ctx, { filename: 'clock.js' });
+  if (!ctx.DexClock || typeof ctx.DexClock.parseTimestamp !== 'function') throw new Error('clock.js did not publish DexClock.parseTimestamp, so no stamp can be read');
+  _clockParse = (s) => ctx.DexClock.parseTimestamp(s);
+  return _clockParse;
+}
+
 /** The 14-digit session stamp a capture file name carries, or null. PURE. */
 export function stampOf(name) {
   const m = String(name).match(/_(\d{8})_?(\d{6})_/);
@@ -108,11 +127,37 @@ export function stampOf(name) {
    hat then refuses or reports a sigma over the wrong stretch of the night. So `largestNotPicked`
    below NAMES every role where the two rules part, and the night report prints it beside the
    sigma — a divergence stated, never a divergence hidden (§∅). */
+/* 🔴 NEARNESS IS A TIME, AND A STAMP IS NOT A NUMBER. The first spelling of this function scored
+   candidates by `Math.abs(Number(stamp) - Number(anchorStamp))` over the 14 digits. Digit-positional
+   arithmetic is not a duration in any unit, and it inverts across every field boundary: against an
+   anchor of `…195959`, a session at `…200000` — one second later — scores 40041 while one at
+   `…195000`, ten minutes earlier, scores 959, so the later-by-a-second file LOSES. The page compares
+   `x.ms`, a real instant, so the digit form was also a silent deviation from the authority this
+   census follows. Both stamps now go through `DexClock.parseTimestamp`, the single parser, which
+   range-validates all six components and returns null on an impossible one (§🔒.2, §🔒.4).
+
+   ⚠ A KNOWN DIFFERENCE FROM THE PAGE, STATED: the page prefers each file's FIRST DATA ROW stamp and
+   falls back to the name (`sensor-trio-night.js:345`), because a name is written at offload and the
+   row at recording — measured there at a 3.9 s median error over 9853 files, with 74 over 5 min. A
+   listing carries names alone, so this census compares names and NAMES THE RISK: `closeCalls` below
+   reports every role where the two best candidates sit within `CLOSE_CALL_MS`, which is where that
+   error could choose differently. */
+export const CLOSE_CALL_MS = 5 * 60 * 1000;
+
+/** The 14-digit name stamp as a real instant through the ONE parser, or null. */
+export function stampMsOf(name, parse = clockParse()) {
+  const s = stampOf(name);
+  if (s == null) return null;
+  const t = parse(s);
+  return t && Number.isFinite(t.tMs) ? t.tMs : null;
+}
+
 /**
  * @param {Array<{name:string,size:number}>} entries
- * @returns {{picked:Object,missing:string[],candidates:Object,anchorStamp:string|null,largestNotPicked:string[]}}
+ * @param {(s:string)=>({tMs:number}|null)} [parse]
+ * @returns {{picked:Object,missing:string[],candidates:Object,anchorStamp:string|null,anchorMs:number|null,largestNotPicked:string[],closeCalls:string[],nearnessBasis:string}}
  */
-export function pickRoleFiles(entries) {
+export function pickRoleFiles(entries, parse = clockParse()) {
   const list = (entries || []).filter((e) => e && typeof e.name === 'string');
   const byRole = {};
   for (const r of ROLES) byRole[r.key] = list.filter((e) => r.re.test(basename(e.name)));
@@ -124,25 +169,36 @@ export function pickRoleFiles(entries) {
      night with no ring has no `o2` corner and the missing list already refuses it. */
   const anchorFrom = biggest(byRole.o2) || biggest(byRole.h10ecg);
   const anchorStamp = anchorFrom ? stampOf(anchorFrom.name) : null;
-  const nearest = (a) => {
-    if (!a.length || anchorStamp == null) return null;
+  const anchorMs = anchorFrom ? stampMsOf(anchorFrom.name, parse) : null;
+  const closeCalls = [];
+  /* `aroundMs == null` is the page's own fallback to the largest file (`if (nt.startMs == null)
+     return largest(a)`), reached by returning null here and letting the caller take `big`. */
+  const nearestTo = (a, aroundMs, key) => {
+    if (!a.length || aroundMs == null) return null;
     const scored = a
-      .map((e) => ({ e, s: stampOf(e.name) }))
-      .filter((x) => x.s != null)
-      .map((x) => ({ e: x.e, d: Math.abs(Number(x.s) - Number(anchorStamp)) }));
+      .map((e) => ({ e, ms: stampMsOf(e.name, parse) }))
+      .filter((x) => x.ms != null)
+      .map((x) => ({ e: x.e, d: Math.abs(x.ms - aroundMs) }));
     if (!scored.length) return null;
     scored.sort((p, q) => p.d - q.d || q.e.size - p.e.size);
+    if (scored.length > 1 && scored[1].d - scored[0].d < CLOSE_CALL_MS && key) closeCalls.push(key);
     return scored[0].e;
   };
   const picked = {};
   const candidates = {};
   const missing = [];
   const disagree = [];
+  /* THE FIRMWARE RR IS PAIRED WITH THE ECG, NOT WITH THE NIGHT. `sensor-trio-night.js:294` states
+     the reason: the RR must come from the SAME recording as the ECG it is paired against, so it is
+     chosen nearest the ECG's start. This census builds its firmware reference out of that pair, so
+     anchoring the RR on the ring would have paired an ECG with another session's beats. */
+  const ecgPick = nearestTo(byRole.h10ecg, anchorMs, 'h10ecg') || biggest(byRole.h10ecg);
+  const ecgMs = ecgPick ? stampMsOf(ecgPick.name, parse) : null;
   for (const r of ROLES) {
     const a = byRole[r.key];
     candidates[r.key] = a.length;
     const big = biggest(a);
-    const near = nearest(a);
+    const near = r.key === 'h10rr' ? nearestTo(a, ecgMs, 'h10rr') : nearestTo(a, anchorMs, r.key);
     if (!big) {
       if (r.required) missing.push(r.key);
       continue;
@@ -150,7 +206,7 @@ export function pickRoleFiles(entries) {
     if (near && near.name !== big.name) disagree.push(r.key);
     picked[r.key] = (near || big).name;
   }
-  return { picked, missing, candidates, anchorStamp, largestNotPicked: disagree };
+  return { picked, missing, candidates, anchorStamp, anchorMs, largestNotPicked: disagree, closeCalls, nearnessBasis: 'name-stamp' };
 }
 
 /** A night is ELIGIBLE when every required role is present. PURE — the population's definition. */
@@ -499,6 +555,9 @@ export function nightRow(night, pick, res) {
     night,
     candidates: pick.candidates,
     largestNotPicked: pick.largestNotPicked,
+    /* where the page's row-stamp preference could have chosen the other session (§ pickRoleFiles) */
+    closeCalls: pick.closeCalls || [],
+    nearnessBasis: pick.nearnessBasis || null,
     skip: res && res.skip ? res.skip : false,
     skipReason: res && res.skip ? res.reason || null : null,
     threeWaySeconds: res && res.n != null ? res.n : null,
@@ -539,6 +598,9 @@ export function reportLines(rows, excluded, verdict) {
     L.push(`${r.night}`);
     if (r.largestNotPicked && r.largestNotPicked.length) {
       L.push(`  the night holds more than one session for ${r.largestNotPicked.join(', ')}; the page's nearest-the-ring rule picked, and the largest file is a different session`);
+    }
+    if (r.closeCalls && r.closeCalls.length) {
+      L.push(`  CLOSE CALL on ${r.closeCalls.join(', ')} — two sessions sit within ${CLOSE_CALL_MS / 1000} s, and this census ranks them by NAME stamp while the page prefers the first data row`);
     }
     if (r.skip) {
       L.push(`  the three-corner night itself was skipped: ${r.skipReason}`);
@@ -850,6 +912,70 @@ function selftest() {
     })()
   );
   ok('a NOT_RUN still publishes no aggregate', censusVerdict({ rows: [], excluded: [], eligible: 0 }).result === null);
+
+  /* ── NEARNESS IS A TIME, not digit arithmetic over the stamp ── */
+  const P = clockParse();
+  ok('a name stamp reads as a real instant through the one parser', stampMsOf('Muse_x_20261121194125_RAW.txt', P) === Date.UTC(2026, 10, 21, 19, 41, 25));
+  ok('an impossible stamp is null, never a rolled date', stampMsOf('Muse_x_20261132194125_RAW.txt', P) === null);
+  ok('a name with no stamp is null', stampMsOf('Muse_RAW.txt', P) === null);
+  /* THE INVERSION THE DIGIT FORM GOT WRONG. Anchor 19:59:59; one candidate one second later across
+     the minute-and-hour boundary, one ten minutes earlier. The digit difference ranks the 1-second
+     file at 40041 and the 10-minute file at 959, so the old rule picked the FAR one. */
+  const invEntries = [
+    { name: 'O2Ring_20261121195959_SPO2.csv', size: 500 },
+    { name: 'Polar_H10_A_20261121195959_ECG.txt', size: 100 },
+    { name: 'Polar_VeritySense_A_20261121200000_PPG.txt', size: 100 },
+    { name: 'Polar_VeritySense_A_20261121195000_PPG.txt', size: 100 },
+    { name: 'Muse_A_20261121195959_RAW.txt', size: 100 }
+  ];
+  const invPick = pickRoleFiles(invEntries, P);
+  ok('the nearest wrist file is the one a SECOND away, not the one ten minutes away', invPick.picked.verityPPG === 'Polar_VeritySense_A_20261121200000_PPG.txt', String(invPick.picked.verityPPG));
+  ok(
+    'REGRESSION · the digit form it replaced would have picked the far file',
+    Math.abs(Number('20261121200000') - Number('20261121195959')) > Math.abs(Number('20261121195000') - Number('20261121195959'))
+  );
+  ok('the anchor instant travels on the pick beside its stamp', invPick.anchorMs === Date.UTC(2026, 10, 21, 19, 59, 59) && invPick.anchorStamp === '20261121195959');
+  ok('the nearness basis is NAMED, because the page prefers the first data row', invPick.nearnessBasis === 'name-stamp');
+  ok('ten minutes apart is NOT a close call, so the window does not cry wolf', !invPick.closeCalls.includes('verityPPG'), JSON.stringify(invPick.closeCalls));
+  /* A GENUINE CLOSE CALL: two wrist sessions two seconds apart, where the page's preference for the
+     first data row (median 3.9 s off the name) could choose the other one. */
+  const ccPick = pickRoleFiles(
+    [
+      { name: 'O2Ring_20261121195959_SPO2.csv', size: 500 },
+      { name: 'Polar_H10_A_20261121195959_ECG.txt', size: 100 },
+      { name: 'Polar_VeritySense_A_20261121200000_PPG.txt', size: 100 },
+      { name: 'Polar_VeritySense_A_20261121200002_PPG.txt', size: 100 },
+      { name: 'Muse_A_20261121195959_RAW.txt', size: 100 }
+    ],
+    P
+  );
+  ok('two candidates inside the close-call window are reported', ccPick.closeCalls.includes('verityPPG'), JSON.stringify(ccPick.closeCalls));
+  ok('…and the nearer of the two is still the pick', ccPick.picked.verityPPG === 'Polar_VeritySense_A_20261121200000_PPG.txt', String(ccPick.picked.verityPPG));
+  /* THE RR IS PAIRED WITH THE ECG, as the page pairs it. The ring anchor sits three hours off the
+     ECG here, so a ring-anchored RR pick would take the other session's beats. */
+  const rrEntries = [
+    { name: 'O2Ring_20261121160000_SPO2.csv', size: 500 },
+    { name: 'Polar_H10_A_20261121190000_ECG.txt', size: 100 },
+    { name: 'Polar_H10_A_20261121190001_RR.txt', size: 100 },
+    { name: 'Polar_H10_A_20261121160500_RR.txt', size: 900 },
+    { name: 'Polar_VeritySense_A_20261121190000_PPG.txt', size: 100 },
+    { name: 'Muse_A_20261121190000_RAW.txt', size: 100 }
+  ];
+  const rrPick = pickRoleFiles(rrEntries, P);
+  ok('the firmware RR is chosen nearest the ECG, never nearest the ring', rrPick.picked.h10rr === 'Polar_H10_A_20261121190001_RR.txt', String(rrPick.picked.h10rr));
+  ok('…and the larger RR of the other session is reported as the largest not picked', rrPick.largestNotPicked.includes('h10rr'), JSON.stringify(rrPick.largestNotPicked));
+  /* A ROOT WITH NO READABLE ANCHOR falls back to the largest file, which is the page's own branch. */
+  const noAnchor = pickRoleFiles(
+    [
+      { name: 'O2Ring_nostamp_SPO2.csv', size: 10 },
+      { name: 'Polar_H10_A_nostamp_ECG.txt', size: 10 },
+      { name: 'Polar_VeritySense_A_20261121190000_PPG.txt', size: 10 },
+      { name: 'Polar_VeritySense_A_20261121200000_PPG.txt', size: 99 },
+      { name: 'Muse_A_20261121190000_RAW.txt', size: 10 }
+    ],
+    P
+  );
+  ok('with no readable anchor the largest file is taken, as the page does', noAnchor.picked.verityPPG === 'Polar_VeritySense_A_20261121200000_PPG.txt' && noAnchor.anchorMs === null);
 
   /* ── ONE WALK: the population comes off the listing, not off a second enumeration ── */
   const treeFix = [
