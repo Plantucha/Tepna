@@ -508,10 +508,23 @@
     };
   }
 
-  /* OLS slope of values vs their index (per-night step). null if <2 finite points. */
-  function _olsSlope(arr) {
+  /* OLS slope of values against a per-night x the caller supplies. `xs` carries the CALENDAR night of
+   each value, so a run with gaps reads the value per calendar night and never the value per position
+   in the list. The index axis this replaces did two things to a spaced run: 7 nights four days apart
+   read 0.400 h per night over a true 0.100, and a night with no usage left the list and RENUMBERED
+   the rest, which closed the gap it had left (0.126 over 0.100). Row
+   `2026-11-25-cpap-usage-slope-counts-nights-by-ordinal`. `xs` stays optional and last, so a caller
+   with no stamp to offer keeps the index axis. null if <2 points carry both a value and an x. */
+  function _olsSlope(arr, xs) {
     var pts = [];
-    for (var i = 0; i < arr.length; i++) if (arr[i] != null && isFinite(arr[i])) pts.push([pts.length, arr[i]]);
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i] == null || !isFinite(arr[i])) continue;
+      /* ∅ A night with no stamp carries no calendar position, so it leaves the fit rather than
+       borrowing the position of its neighbour. The caller publishes the count that stayed. */
+      var xi = xs ? xs[i] : pts.length;
+      if (xi == null || !isFinite(xi)) continue;
+      pts.push([xi, arr[i]]);
+    }
     var n = pts.length;
     if (n < 2) return null;
     var sx = 0,
@@ -546,6 +559,9 @@
         complianceReason: 'no-nights',
         nights: 0,
         usageTrend7d: null,
+        usageTrend7dNights: 0,
+        usageTrend7dSpanDays: null,
+        usageTrend7dReason: 'no-nights',
         ahiTrend30d: null,
         crossNight: null,
         mode: null,
@@ -594,7 +610,23 @@
       .map(function (x) {
         return x.n;
       });
-    var usageTrend7d = _olsSlope(chrono.slice(-7).map(usageH));
+    /* ∅ THE X AXIS IS THE CALENDAR NIGHT OF `t0Ms`, never the position in the list, and the KPI says
+     hours per night. Two nights on one calendar day share an x, which OLS carries. A night with no
+     stamp or no usage datum leaves the fit, and `usageTrend7dNights` publishes how many stayed.
+     `usageTrend7dSpanDays` names the calendar span those nights cover, because a slope per night
+     over 7 nights four days apart is not the claim a reader takes from "7d". */
+    var win = chrono.slice(-7);
+    var winUsage = win.map(usageH);
+    var winDays = win.map(function (n) {
+      return n && n.t0Ms != null && isFinite(n.t0Ms) ? Math.floor(n.t0Ms / 86400000) : null;
+    });
+    var fitDays = [];
+    for (var wi = 0; wi < win.length; wi++) {
+      if (winUsage[wi] != null && isFinite(winUsage[wi]) && winDays[wi] != null) fitDays.push(winDays[wi]);
+    }
+    var usageTrend7d = _olsSlope(winUsage, winDays);
+    var usageTrend7dSpanDays = fitDays.length ? Math.max.apply(null, fitDays) - Math.min.apply(null, fitDays) + 1 : null;
+    var usageTrend7dReason = usageTrend7d != null ? null : fitDays.length < 2 ? 'fewer-than-two-fitted-nights' : 'one-calendar-day';
     var last30 = chrono
       .slice(-30)
       .map(ahiOf)
@@ -639,6 +671,9 @@
       complianceReason: scored ? null : 'no-usage-datum',
       nights: nights.length,
       usageTrend7d: usageTrend7d,
+      usageTrend7dNights: fitDays.length,
+      usageTrend7dSpanDays: usageTrend7dSpanDays,
+      usageTrend7dReason: usageTrend7dReason,
       ahiTrend30d: ahiTrend30d,
       crossNight: crossNight,
       mode: lm.mode,
