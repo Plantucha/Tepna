@@ -5633,6 +5633,10 @@ function fuseHRVConsensus(recs, dtMs) {
       var rm = spread('rmssd'),
         sd = spread('sdnn'),
         lf = spread('lfhf');
+      /* Null, never an empty array, when nothing is caveated — and null too when SDNN was never
+         compared, because an axis that resolved no value needs no caveat about its calibration. */
+      var _axisCaveats = sd ? axisSiteCaveats(like) : [];
+      var axisCaveats = _axisCaveats.length ? _axisCaveats : null;
       /* DEEP-AUDIT-2026-07-11 §12: spread() correctly returns NULL for a key no two sources share (each
        node honestly nulls what it lacks — legal under the node-export contract). `|| 0` converted that
        ABSENCE into a measured 0 % divergence, which then drove qc:'agreement' and the surfaced note
@@ -5749,6 +5753,19 @@ function fuseHRVConsensus(recs, dtMs) {
             ? 'Cross-device divergence ' + worst + '% on ' + _worstMetric + ' (' + win + ') — flag as data-quality issue; reconcile before trusting a single value. Per metric: ' + _perMetric + '.'
             : 'Sources agree within ' + worst + '% on ' + win + ' HRV — reconciled autonomic state is reliable. Per metric: ' + _perMetric + '.') +
         (lowQExcluded ? ' Excluded low-quality source(s): ' + lowQExcluded.join(', ') + '.' : '');
+      if (axisCaveats)
+        note +=
+          ' \u26a0 ' +
+          axisCaveats
+            .map(function (c) {
+              return c.node + ' (' + c.site + ')';
+            })
+            .join(', ') +
+          ' is compared on the ' +
+          SDNN_ROBUST_AXIS_SITE +
+          '-calibrated SDNN axis (' +
+          axisCaveats[0].axis +
+          '), so part of any SDNN agreement or divergence here is the site, not the sensors. PpgDex measured the forehead beat-to-beat spread 1 to 18 % above a chest ECG over the same beats, on 7 recordings of one wearer.';
       if (tch && tch.ok)
         note += ' TCH: ' + tch.culprit + ' carries the largest error variance (σ²≈' + Math.round(tch.sigma2[tch.culprit]) + ' ms², ' + tch.method + ') — down-weight it in the reconciled value.';
       if (tchHR && tchHR.ok)
@@ -5791,6 +5808,9 @@ function fuseHRVConsensus(recs, dtMs) {
            per-metric blocks. A new field, so an older consumer reads the export unchanged. */
         divergenceMetric: _worstMetric,
         lowQualityExcluded: lowQExcluded,
+        /* The machine-readable sibling of the \u26a0 above, and the selector the renderer reads to
+           drop the card one tier. Additive: null on every block that compares one site. */
+        axisCaveats: axisCaveats,
         tch: tch && tch.ok ? tch : null,
         tchStatus: tch ? (tch.ok ? 'ok' : tch.reason) : 'not-attempted',
         tchHR: tchHR && tchHR.ok ? tchHR : null,
@@ -9855,6 +9875,45 @@ function gradeFor(node, id) {
    folded in with whatever it resembles; and a `null` or `undefined` is still mixed, because an absent
    statistic name is not evidence that the legs agree. */
 var HR_STAT_CLASS = { 'rate-of-mean': 'mean-of-rr', 'mean-rate': 'mean-of-rr', 'median-rate': 'median-of-rate' };
+/* ── THE SDNN AXIS WAS CALIBRATED AT ONE SITE, and the consensus applies it at every site ──────
+   `_cmpVal` below resolves every PpgDex SDNN to `summary.sdnnRobustMs`, because the bare optical
+   SDNN runs baseline-wander-inflated. That swap is right, and its agreement figure is not
+   site-free: the ~+3.5 % against a chest ECG was measured on WRIST nights. A forehead headband
+   record is a source in this consensus today (its optics export declares `site: 'forehead'`), and
+   PpgDex states its own forehead bias on the page — rMSSD read 1 to 18 % above a chest ECG over the
+   same beats, over 7 recordings of one wearer (`ppgdex-app.js` `siteControlHtml`).
+
+   So the consensus must SAY that it resolved a record of one site on another site's axis. REPORTED,
+   NOT REFUSED, for the same reason `hrStatMixed` reports a mixed HR statistic rather than
+   suppressing the hat: dropping the source loses the only cross-node-comparable axis it has, while
+   a silent comparison publishes an agreement the calibration does not support. The flag is also what
+   drops the card one evidence tier, exactly as `tch.pseudo` does.
+
+   A record that declares NO site gains NO caveat. `_siteIdent` answers null for an
+   `integrator-default` site, so this layer never states a site it inferred itself, and no committed
+   fixture of a site-less night moves. */
+var SDNN_ROBUST_AXIS_SITE = 'wrist';
+function axisSiteCaveats(sources) {
+  return (sources || [])
+    .filter(function (s) {
+      if (!s || s.node !== 'PpgDex') return false;
+      var sm = s.summary || {};
+      /* The caveat tracks the SWAP, so it fires only where `_cmpVal` actually swaps: a record with
+         no robust axis is compared on the field it published, and that is a different question. */
+      if (!(sm.sdnnRobustMs != null && isFinite(sm.sdnnRobustMs))) return false;
+      var site = _siteIdent(s);
+      return site != null && site !== SDNN_ROBUST_AXIS_SITE;
+    })
+    .map(function (s) {
+      return {
+        node: s.node,
+        site: _siteIdent(s),
+        axis: 'sdnnRobustMs',
+        calibratedAt: SDNN_ROBUST_AXIS_SITE,
+        reason: 'axis-calibrated-at-another-site'
+      };
+    });
+}
 function hrStatMixed(stats) {
   var list = stats || [];
   if (list.indexOf(null) >= 0 || list.indexOf(undefined) >= 0) return true;
@@ -9903,6 +9962,9 @@ window.IntegratorDSP = {
   /* The publishable site name, shared with the renderer so the chips, the lanes, the corner labels
      and the consensus rows all answer the same question the same way. */
   siteIdent: _siteIdent,
+  /* Exported for the suite and for any consumer that must know an axis crossed a site boundary
+     without re-running a fusion. */
+  axisSiteCaveats,
   normalizeFile,
   consumeMeasurements,
   dedupeRecs,
