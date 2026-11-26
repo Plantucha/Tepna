@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**366 tools** · 365 with a purpose line · **1 without**
+**367 tools** · 366 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -335,6 +335,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`tch-degeneracy-stats.mjs`](../tools/tch-degeneracy-stats.mjs) | HOW OFTEN DOES THE THREE-CORNERED HAT GO DEGENERATE, AND ON WHAT KIND OF NIGHT? |
 | [`tch-estimator-bakeoff.mjs`](../tools/tch-estimator-bakeoff.mjs) | INTEGRATOR-TCH-ML-ESTIMATOR §2 bake-off QUESTION (from the brief): does a MAXIMUM-LIKELIHOOD TCH or a GROSLAMBERT / two-sample COVARIANCE estimator recover the quiet-corner σ closer to… |
 | [`tch-firmware-reference.mjs`](../tools/tch-firmware-reference.mjs) | THE HR THREE-CORNERED HAT, CHECKED AGAINST A REFERENCE IT DOES NOT CONTAIN — every night, as a verdict. |
+| [`tch-four-corner-census.mjs`](../tools/tch-four-corner-census.mjs) | THE FOUR-CORNER HAT, COUNTED OVER EVERY NIGHT THAT HOLDS FOUR CORNERS. |
 | [`tch-fused-corpus.mjs`](../tools/tch-fused-corpus.mjs) | the PER-SECOND fused-weight three-cornered hat, over a committed trio corpus, in Node. |
 | [`tch-minrho-corpus.mjs`](../tools/tch-minrho-corpus.mjs) | HOW MUCH shared error does the data actually require? WHY. The bootstrap (`tch-bootstrap-ci.mjs`) found that 41.7 % of within-night replicates produce a non-physical negative-variance… |
 | [`tch-multinight.mjs`](../tools/tch-multinight.mjs) | multi-night three-cornered-hat A/B harness (classic reference-free σ vs per-night motion-derived ρ) |
