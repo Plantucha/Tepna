@@ -36,7 +36,7 @@ import { fileURLToPath } from 'node:url';
 import { isCliEntry } from './argv-guard.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const FLEET = ['kestrel', 'heron', 'osprey', 'magpie', 'finch', 'wren'];
+const FLEET = ['kestrel', 'heron', 'osprey', 'magpie', 'finch', 'wren', 'crane'];
 const boardBin = () => process.env.AGENT_BOARD_BIN || path.join(os.homedir(), '.local/bin/agent-board');
 
 export function parseArgs(argv) {

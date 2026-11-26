@@ -54,6 +54,10 @@ got="$(printf '{"hook_event_name":"UserPromptSubmit"}' | AGENT_BOARD_NAME='' bas
 check "no name: silent, exit 0" "rc=0" "$got"
 got="$(printf '{}' | AGENT_BOARD_NAME=muse bash "$HOOK" inbox; echo "rc=$?")"
 check "a name outside the fleet: silent" "rc=0" "$got"
+# A fleet name (crane, added 2026-11-26) IS wired — the inbox reply passes through.
+got="$(printf '{"hook_event_name":"UserPromptSubmit"}' | AGENT_BOARD_NAME=crane bash "$HOOK" inbox)"
+check "a fleet name (crane) is wired" '{"hookSpecificOutput":{"additionalContext":"board item"}}' "$got"
+: > "$T/dir/calls"  # crane's own subscribe/hook calls above must not count toward the magpie stub below
 
 echo "### INBOX"
 export AGENT_BOARD_NAME=Magpie
