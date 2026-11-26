@@ -2026,6 +2026,33 @@
         "TOKEN-DIET-2026-10-11-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.38.0",
+      "date": "2026-11-26",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "8dbce55ac6b8",
+        "OxyDex": "c25590cdf747",
+        "PulseDex": "3c17f5e2e61d",
+        "GlucoDex": "d68a30f09567",
+        "PpgDex": "2634437aa008",
+        "HRVDex": "abe3f370daa8",
+        "CPAPDex": "afbe0e81a975",
+        "Integrator": "8c6604a97781",
+        "MotionDex": "28cecd193fc8",
+        "EEGDex": "047fb4c1819d"
+      },
+      "briefs": [
+        "EEGDEX-STAGE-FORMULA-2026-11-24-BRIEF.md",
+        "COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md",
+        "LOCAL-QWEN-SWEEPS-2026-11-22-BRIEF.md",
+        "BADGE-COVERAGE-AUDIT-BRIEF.md",
+        "SIGNAL-QUALITY-TABLE-2026-11-14-BRIEF.md",
+        "CONTROLLED-RELEASES-2026-07-05-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
