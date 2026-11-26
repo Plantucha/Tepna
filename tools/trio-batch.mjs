@@ -469,7 +469,8 @@ function emptySummary(entries) {
   const byRole = {};
   const nights = new Set();
   for (const e of entries) {
-    byRole[e.role] = (byRole[e.role] || 0) + 1;
+    /* A first sighting counts 1 — no `|| 0` default, so no line here publishes an absence as a zero. */
+    byRole[e.role] = byRole[e.role] ? byRole[e.role] + 1 : 1;
     nights.add(e.night);
   }
   return { files: entries.length, nights: nights.size, byRole };
@@ -479,7 +480,7 @@ function emptySummary(entries) {
  *  device serial, and the role already answers which stream the night lost. */
 function emptyRoleLine(entries) {
   const byRole = {};
-  for (const e of entries) byRole[e.role] = (byRole[e.role] || 0) + 1;
+  for (const e of entries) byRole[e.role] = byRole[e.role] ? byRole[e.role] + 1 : 1;
   return Object.keys(byRole)
     .sort((a, b) => byRole[b] - byRole[a] || a.localeCompare(b))
     .map((r) => `${r} x${byRole[r]}`)
