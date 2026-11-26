@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**367 tools** · 366 with a purpose line · **1 without**
+**368 tools** · 367 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -350,6 +350,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`treatment-response-yield-pin.mjs`](../tools/treatment-response-yield-pin.mjs) | THE PINNED YIELD — how many synthetic patients qualify for `papers/treatment-response.html`, and which of the two inputs is answerable for the number. |
 | [`trio-anchor.mjs`](../tools/trio-anchor.mjs) | t0 COMES FROM THE FILE'S FIRST DATA ROW, NOT ITS NAME (residue 2026-09-22-capture-filename-stamp- disagrees-with-content) |
 | [`trio-batch.mjs`](../tools/trio-batch.mjs) | TRIO BATCH — raw Polar Sensor Logger + O2Ring capture folder → per-night trio node-exports, in the exact shape `tools/tch-multinight.mjs --dir` ingests (one subdir per night, three… |
+| [`trio-cache-audit.mjs`](../tools/trio-cache-audit.mjs) | THE TRIO FOLD CACHE, AUDITED AS A GATE. `tools/trio-batch.mjs` writes one `.trio-stamp` per folded night, and `--skip-existing` trusts that stamp as the record that the night's exports are… |
 | [`trio-eligible-nights.mjs`](../tools/trio-eligible-nights.mjs) | THE TRIO-ELIGIBLE NIGHT POPULATION, PRODUCED FROM THE COMMITTED TREE. |
 | [`trio-fold-clock.mjs`](../tools/trio-fold-clock.mjs) | A FOLDED NIGHT KEEPS THE CLOCK ANNOTATIONS OF ITS FRAGMENTS `mergePpg` in `tools/trio-batch.mjs` builds a fresh record, and it carried neither `offsetSegments` nor `clockResyncs`. |
 | [`trio-fold-merge.mjs`](../tools/trio-fold-merge.mjs) | A NIGHT'S FRAGMENTS MERGE ON PARSED RECORDS, AND EVERY TOOL OWES THE SAME MERGE |
