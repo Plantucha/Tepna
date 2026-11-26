@@ -1152,6 +1152,18 @@
    },
    "note": "wave-2 adopter: --json prints ONE tepna.verdict/1 (PASS = every changeset-deleting commit in range is a release or declared exempt; FAIL names the flagged shas; NOT_RUN on a shallow clone). Was binned word-only/exempt because its rows' `verdict` field is a classification, not an emitted verdict; the CLI now emits one. Needs full history (fetch-depth: 0), which the static job has."
   },
+  "tools/common-mode-blind-trial.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/common-mode-blind-trial.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the common-mode blind trial (row 2026-10-26-the-common-mode-protocol-has-run-on-no-detector-change). briefs/CROSS-DOMAIN-METHODS-FOLLOWUPS-2026-08-14-BRIEF.md section 7 adopts blind analysis, and this tool RUNS it on the lag-2 background change in oxydex-dsp.js that PR #5904 landed. The four steps come from tools/detector-change-advisory.mjs PROTOCOL, so the protocol has one source. Arm one is the shipped computeSpO2FFT over the ring SpO2 of a trio night; arm two is apnea.cvhrIndex over the H10 chest ECG of the same night, which is a different device, modality and site. The reference measures cyclic heart-rate variation and never an SpO2 cycle, so a FAIL names two causes and is never an accuracy claim. Criterion pre-stated in STATED and hashed before the first night is read: cross_arm_kappa at or above 0.2, with the reference cut at 5.0 events per hour. Population = the trio-eligible nights in analysis/tri_device_nights.json; a night whose export lacks either arm is excluded by name. A plant of stated period and amplitude rides the same run behind the run seed, because a blind instrument flags nothing and reads exactly like a quiet corpus; the agreement number stays unreadable until the plants come back at 0.9. Plants under that band are SHORTFALL at exit 1. A detector arm with no real positive is UNDERPOWERED and never PASS, and that reason reports the plant recovery beside it. No night readable is NOT_RUN at exit 2 with result null."
+  },
   "tools/consensus-polarity-wiring.mjs": {
    "bin": "decides",
    "status": "adopted",

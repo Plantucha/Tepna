@@ -806,6 +806,10 @@ implementations to disagree with**, which §7 argues is the only thing that can 
       for it on a **real detector change**, and a power analysis before an experiment is not that. It
       needs the next genuine detector change to ride along with; it cannot be manufactured, and
       inventing a detector change to exercise a protocol would invert the point of the protocol.
+      **RUN on a real detector change 2026-11-26** — see
+      [`COMMON-MODE-BLIND-TRIAL-2026-11-26-BRIEF.md`](COMMON-MODE-BLIND-TRIAL-2026-11-26-BRIEF.md).
+      PR #5904 changed the SpO2 spectrum, and the trial read 17 trio nights blind. The detector arm
+      flagged none of them, so the trial reports UNDERPOWERED rather than agreement.
 - [x] §3 power-analysed BEFORE running (§7 discipline, first use): E-QC has a structural 2-fold
       ambiguity — pair vs its complement, 51.7 % exact / 98.3 % class at N=5000,
       N-independent
