@@ -1,0 +1,165 @@
+{
+  "schema": "tepna.published-number-record/1",
+  "producer": "tools/timestamp-bench-headless.mjs driving papers/timestamp-pathology-analysis.html",
+  "producerCommit": "e78f8983a",
+  "invocation": "node tools/timestamp-bench-headless.mjs --out .cache/tsbench.json",
+  "generated": "2026-11-26",
+  "runtimeSeconds": 4,
+  "inputs": {
+    "path": null,
+    "committed": true,
+    "note": "no capture file enters this run. The corpus is 24 literal vendor/branch strings written inside the analysis page, and the parser under test is the shipping clock.js — both are committed, so the inputs are the two files named under evidence",
+    "parserUnderTest": "clock.js (DexClock.parseTimestamp)",
+    "runnerZones": [
+      "UTC",
+      "America/New_York",
+      "Asia/Kolkata",
+      "Pacific/Chatham"
+    ]
+  },
+  "deterministic": "every case is a pure function of its literal input and its options, and no clock, network or random source is read. A re-run under the SAME runner timezone reproduces these counts exactly. The runner timezone is an input, not a nuisance: see zoneDependence below",
+  "publishedIn": "papers/timestamp-pathology.html §3 (re-measured 2026-11-26 block)",
+  "supersedes": null,
+  "population": {
+    "corpusCases": 24,
+    "invariants": 6,
+    "assertionsPerRun": 30,
+    "excluded": 0,
+    "note": "checked = eligible = 30 under each runner zone. Nothing is excluded: every case and every invariant reports in every run"
+  },
+  "claims": {
+    "note": "values EXACTLY as the paper states them, so CLAIM … FROM … #claims/<key> compares equal; full precision and the per-zone detail sit under result",
+    "corpusCases": 24,
+    "corpusPass": 24,
+    "invariants": 6,
+    "invariantsHeld": 6,
+    "corpusPassNonUtcRunner": 21,
+    "zonePinnedEpochCases": 3,
+    "runnerZonesRun": 4
+  },
+  "zoneDependence": {
+    "note": "§∅ — the published 24/24 is a UTC-runner figure, and the paper did not say so until this block. The three cases that move are branch-1 epoch cases, and they move for the reason the paper's own §3 states: a bare epoch is a genuine instant, so the parser localises it to the runner's wall clock. The benchmark's expectation for those rows is a fixed epoch (want: 1751925600000), so the EXPECTATION is zone-pinned while the parser is not. The parser is behaving as documented",
+    "movingCases": [
+      "epoch-ms (13-digit ms)",
+      "epoch-s (10-digit s→ms)",
+      "epoch-num (numeric type)"
+    ],
+    "invariantsAreZoneIndependent": "all 6 hold in all 4 zones, as they must: each is a relative comparison, so none reads an absolute instant"
+  },
+  "unrepaired": {
+    "note": "found while measuring, repaired nowhere in this unit, and logged here because no residue row was available (one RESIDUE-only PR is in flight fleet-wide)",
+    "snapshotDisagreement": "papers/timestamp-corpus.json records pass 21, fail 3 with the three epoch rows at ok:false and off=-240 — a US-Eastern runner. papers/timestamp-invariants.json records corpus { pass: 24, total: 24 }. §5 cites both as 'a committed run for diffing', and they are two runs in two different zones. Neither file is regenerated here: a silent rewrite would destroy the evidence of the disagreement",
+    "noGateRunsThisBenchmark": "the analysis page is UNBUNDLED, so neither the provenance gate nor the behaviour gate opens it, and tools/analysis-rerun.mjs does not carry it. §5 calls the benchmark a regression guard; until something runs it in CI, that claim rests on a hand run"
+  },
+  "result": {
+    "generated": "2026-11-26T23:01:28Z",
+    "gate": "timestamp-bench",
+    "status": "PASS",
+    "criterion": {
+      "name": "bench_failures",
+      "threshold": 0,
+      "unit": "assertions",
+      "direction": "lte"
+    },
+    "primaryZone": "UTC",
+    "failuresPrimaryZone": 0,
+    "perZone": [
+      {
+        "tz": "UTC",
+        "corpusPass": 24,
+        "corpusTotal": 24,
+        "invariantsPass": 6,
+        "invariantsTotal": 6,
+        "failing": []
+      },
+      {
+        "tz": "America/New_York",
+        "corpusPass": 21,
+        "corpusTotal": 24,
+        "invariantsPass": 6,
+        "invariantsTotal": 6,
+        "failing": [
+          "13-digit ms",
+          "10-digit s→ms",
+          "numeric type"
+        ]
+      },
+      {
+        "tz": "Asia/Kolkata",
+        "corpusPass": 21,
+        "corpusTotal": 24,
+        "invariantsPass": 6,
+        "invariantsTotal": 6,
+        "failing": [
+          "13-digit ms",
+          "10-digit s→ms",
+          "numeric type"
+        ]
+      },
+      {
+        "tz": "Pacific/Chatham",
+        "corpusPass": 21,
+        "corpusTotal": 24,
+        "invariantsPass": 6,
+        "invariantsTotal": 6,
+        "failing": [
+          "13-digit ms",
+          "10-digit s→ms",
+          "numeric type"
+        ]
+      }
+    ],
+    "byCategoryUtc": {
+      "Epoch": {
+        "n": 4,
+        "ok": 4
+      },
+      "Zoned ISO": {
+        "n": 4,
+        "ok": 4
+      },
+      "Floating ISO": {
+        "n": 2,
+        "ok": 2
+      },
+      "Vendor · O2Ring": {
+        "n": 1,
+        "ok": 1
+      },
+      "Vendor · compact": {
+        "n": 1,
+        "ok": 1
+      },
+      "Vendor · Welltory": {
+        "n": 2,
+        "ok": 2
+      },
+      "Vendor · slash": {
+        "n": 1,
+        "ok": 1
+      },
+      "DMY/MDY lock": {
+        "n": 2,
+        "ok": 2
+      },
+      "Time-only": {
+        "n": 3,
+        "ok": 3
+      },
+      "Malformed → null": {
+        "n": 4,
+        "ok": 4
+      }
+    },
+    "invariants": [
+      "B1 · viewer-timezone independence",
+      "B2 · zoned wall ≡ floating wall",
+      "B3 · DMY 13/05 ≡ MDY 05/13",
+      "B4 · overnight 22:00→06:00 monotonic ~8h",
+      "B5 · missing/garbage → null, never now()",
+      "B6 · epoch str ≡ num"
+    ],
+    "notMeasuredHere": "§3.1 (the synthesised-axis pathology, Table 3) is a corpus observation and the paper's own scope note says the live benchmark does not regenerate it. No number in Table 3 is bound by this record",
+    "byCategoryNote": "the category labels are this run’s, read from the rendered table. papers/timestamp-corpus.json carries older spellings (“Vendor: O2Ring”, “DMY/MDY”, “Malformed→null”) — a reminder that the committed snapshot is a different run"
+  }
+}

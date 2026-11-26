@@ -5,10 +5,10 @@
  "reads": "every tools/*.mjs, comment-blanked, against the two shapes the brief published as greps. The shape is not the exposure: an adopter still matches its own shape, so this gate subtracts an adopter BY NAME.",
  "arms": {
   "write": {
-   "enumeratedWith": "the brief \u00a71 grep: a root from `import.meta.url`, filtered by `writeFileSync` or `appendFileSync`",
+   "enumeratedWith": "the brief §1 grep: a root from `import.meta.url`, filtered by `writeFileSync` or `appendFileSync`",
    "adoptedMeans": "the tool calls writeRoot or writeRootOrDie where the write happens",
-   "pendingMeans": "the tool matches the shape and owes one reading in its own header (brief \u00a73). A name leaves this list only by adopting, or with the file.",
-   "exemptMeans": "the regexes read the tool\u2019s own test data. Each row carries the sentence that says why, and a mute row reds.",
+   "pendingMeans": "the tool matches the shape and owes one reading in its own header (brief §3). A name leaves this list only by adopting, or with the file.",
+   "exemptMeans": "the regexes read the tool’s own test data. Each row carries the sentence that says why, and a mute row reds.",
    "adopted": {
     "tools/absence-ledger.mjs": {
      "since": "2026-11-14",
@@ -28,17 +28,22 @@
     "tools/release.mjs": {
      "since": "2026-11-15",
      "wrapper": "writeRootOrDie",
-     "reading": "it stamps five tracked files \u2014 `suite.manifest.json`, `CITATION.cff`, `RELEASE-MANIFEST.json`, `CHANGELOG.md` and `README.md` \u2014 and unlinks every consumed changeset, so a cross-checkout run cuts a release in a tree nobody named; `release-land.mjs` runs the stamp as a relative path under the worktree\u2019s own cwd, so both call sites already agree; a `--status` report reads a state file and writes no tracked artifact, so the guard sits on the stamp and `--full` branches only"
+     "reading": "it stamps five tracked files — `suite.manifest.json`, `CITATION.cff`, `RELEASE-MANIFEST.json`, `CHANGELOG.md` and `README.md` — and unlinks every consumed changeset, so a cross-checkout run cuts a release in a tree nobody named; `release-land.mjs` runs the stamp as a relative path under the worktree’s own cwd, so both call sites already agree; a `--status` report reads a state file and writes no tracked artifact, so the guard sits on the stamp and `--full` branches only"
     },
     "tools/repo-map.mjs": {
      "since": "2026-11-15",
      "wrapper": "writeRootOrDie",
-     "reading": "`--write` puts the shared repo map in the git common dir of ONE checkout and `doc-search` never rebuilds it, so a run by absolute path from another checkout left the caller\u2019s own tree answering from a stale map at exit 0; the guard sits on the `--write` branch alone, and `writeMap` keeps its injected `root` so the selftest still writes under `mkdtemp`"
+     "reading": "`--write` puts the shared repo map in the git common dir of ONE checkout and `doc-search` never rebuilds it, so a run by absolute path from another checkout left the caller’s own tree answering from a stale map at exit 0; the guard sits on the `--write` branch alone, and `writeMap` keeps its injected `root` so the selftest still writes under `mkdtemp`"
     },
     "tools/sync-docs-index.mjs": {
      "since": "2026-11-14",
      "wrapper": "writeRootOrDie",
      "reading": "it rewrites the tracked `DOCS-INDEX.md` that `docs-ledger` check3b judges, so a wrong checkout both loses the fix and reds a tree nobody is editing; `--check` writes nothing"
+    },
+    "tools/timestamp-bench-headless.mjs": {
+     "since": "2026-11-26",
+     "wrapper": "writeRootOrDie",
+     "reading": "`--out` writes the per-case record a published-number record is cut from, and a wrong checkout would put it in another worktree's tree. The path resolves against the write root at the write, and an absolute path or one that climbs out is refused by name at exit 2 rather than followed"
     },
     "tools/tools-index.mjs": {
      "since": "2026-11-14",
@@ -48,7 +53,7 @@
     "tools/verdict-adoption.mjs": {
      "since": "2026-11-15",
      "wrapper": "writeRootOrDie",
-     "reading": "`--format` rewrites the tracked `tools/verdict-adoption.json` it resolves from its own root, so a cross-checkout run rewrites the shared root\u2019s manifest and leaves the worktree unchanged; every selftest read keeps its own reach"
+     "reading": "`--format` rewrites the tracked `tools/verdict-adoption.json` it resolves from its own root, so a cross-checkout run rewrites the shared root’s manifest and leaves the worktree unchanged; every selftest read keeps its own reach"
     }
    },
    "exempt": {
@@ -58,7 +63,7 @@
     "tools/read-ref-drift.mjs": "both write calls sit in its selftest, which builds a two-clone git fixture under mkdtemp and removes it; the tool writes no tracked artifact, writes nothing under any checkout, and calls no write wrapper",
     "tools/ste-lint.mjs": "its one write builds a `docs/GLOSSARY.md` fixture inside a selftest `mkdtempSync(tmpdir())` directory, so the write regex reads its own test data; it writes no tracked artifact and calls no write wrapper",
     "tools/write-root-adoption.mjs": "its selftests plant both shapes as fixture strings, so the write regexes read its own test data; it writes no tracked artifact and calls no write wrapper",
-    "tools/write-targets.mjs": "every write call and every wrapper name in it is a fixture string in `PLANT` or a detection regex, so both shapes read the tool\u2019s own test data; the census prints to stdout, writes no tracked artifact, and calls no write wrapper"
+    "tools/write-targets.mjs": "every write call and every wrapper name in it is a fixture string in `PLANT` or a detection regex, so both shapes read the tool’s own test data; the census prints to stdout, writes no tracked artifact, and calls no write wrapper"
    },
    "pending": [
     "tools/analysis-rerun.mjs",
@@ -111,9 +116,9 @@
    ]
   },
   "judge": {
-   "enumeratedWith": "the brief \u00a76.2 grep: a verdict, `fileURLToPath(import.meta.url)`, and that root as a child `cwd`",
+   "enumeratedWith": "the brief §6.2 grep: a verdict, `fileURLToPath(import.meta.url)`, and that root as a child `cwd`",
    "adoptedMeans": "the tool calls judgeRoot or judgeRootOrDie where the judge happens",
-   "pendingMeans": "the tool matches the shape and owes one reading in its own header (brief \u00a76.4). A name leaves this list only by adopting, or with the file.",
+   "pendingMeans": "the tool matches the shape and owes one reading in its own header (brief §6.4). A name leaves this list only by adopting, or with the file.",
    "exemptMeans": "the tool spawns no child that judges a tree. Its only child asks `git rev-parse` for a commit stamp, which names the code that produced the verdict and is right in the checkout of the tool itself. Each row carries the sentence that says why, and a mute row reds.",
    "adopted": {
     "tools/robustness-rerun-ab.mjs": {
@@ -129,7 +134,7 @@
     "tools/bus-conf-provenance.mjs": {
      "since": "2026-11-12",
      "wrapper": "judgeRootOrDie",
-     "reading": "it censuses the *-dsp.js files of the tree it resolves and reads that tree\u2019s base ref, so a cross-checkout run would judge another work-unit\u2019s DSP sources and call the answer this branch\u2019s"
+     "reading": "it censuses the *-dsp.js files of the tree it resolves and reads that tree’s base ref, so a cross-checkout run would judge another work-unit’s DSP sources and call the answer this branch’s"
     },
     "tools/detector-change-advisory.mjs": {
      "since": "2026-11-13",
@@ -174,7 +179,7 @@
     "tools/secret-scan.mjs": {
      "since": "2026-11-04",
      "wrapper": "judgeRoot",
-     "reading": "it judges the commits the RUN\u2019s branch adds (#4384, row 2026-11-04-a-verdict-gate-judges-the-checkout-it-lives-in-not-the-one-it-ran-from)"
+     "reading": "it judges the commits the RUN’s branch adds (#4384, row 2026-11-04-a-verdict-gate-judges-the-checkout-it-lives-in-not-the-one-it-ran-from)"
     },
     "tools/workflow-timeout-guard.mjs": {
      "since": "2026-11-14",
@@ -184,7 +189,7 @@
     "tools/write-root-adoption.mjs": {
      "since": "2026-11-11",
      "wrapper": "judgeRoot",
-     "reading": "it censuses the tool tree of the RUN\u2019s work-unit and publishes a verdict about it"
+     "reading": "it censuses the tool tree of the RUN’s work-unit and publishes a verdict about it"
     },
     "tools/trio-cache-audit.mjs": {
      "since": "2026-11-26",

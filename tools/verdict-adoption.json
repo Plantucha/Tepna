@@ -3161,6 +3161,18 @@
    },
    "note": "classic hat vs the two-detector (ECGDex + H10 firmware) reference; PASS/FAIL on the fraction of optical night-corners within band, UNDERPOWERED below 10 nights \u2192 verdictObject(); --json emits the ALL-population object at the top level (unchanged shape for tepna-tchref-nightly.service) with the rolling-30 and solid-stratum objects beside it in `verdicts`, --verdict-sample the synthetic-shape object the gate reads; --axis host|wall selects whether DexClock.hostAxis disciplines the corners, and a non-PASS reason names the axis because a \u03c3 is not comparable across axes"
   },
+  "tools/tch-four-corner-census.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/tch-four-corner-census.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the four-corner hat counted over every capture night that holds four corner roles (H10 chest ECG, Verity arm PPG, O2Ring finger pulse, Muse forehead optics); pre-stated criterion nights_with_an_unnamed_refusal <= 0, sha256 41c569e1bd522753aa6dc9965ff17681c48197de2f66142c9b9685d9578916bb on board #9094 before the run \u2014 PASS when a night solves and every refusal carries a name, FAIL on a null sigma with no cornerReason or a sigma over a negative variance, NOT_RUN when no night holds four roles, UNDERPOWERED when none reaches the 1000-s four-way overlap floor; population = eligible nights, a night the census cannot read is excluded and named; every sigma travels as data under UNKNOWN, never as a judged threshold"
+  },
   "tools/tch-fused-corpus.mjs": {
    "bin": "already-json",
    "status": "adopted",
@@ -3268,6 +3280,18 @@
     ]
    },
    "note": "it publishes the NIGHT POPULATION its figures were taken over: `populationVerdict` over a snapshot taken before the per-night walk and one taken after, so a corpus that moves mid-run reads as SHORTFALL rather than as a table nobody re-read. It prints a PROSE line derived from the object (\"population: <status> \u2014 n night(s) covered of m\") and never the object, so the window-length sweep reports its scope in a form no reader can validate. It now prints `POPULATION <json>` and the rule line beside the prose on BOTH exit paths \u2014 the empty-root refusal included \u2014 and `--verdict-sample` prints the object over a synthetic two-night snapshot, so the gate validates it without the corpus. It entered the population on 2026-10-25, when the enumerator stopped keying membership on a literal decision word and started reading a publication (row 2026-10-22-the-adoption-population-is-keyed-on-a-literal-word-anywhere-in-the-file). The word it prints is `population.status`, computed at run time, so no literal PASS or SHORTFALL ever appears in the source and the old grep could not see it."
+  },
+  "tools/timestamp-bench-headless.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/timestamp-bench-headless.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "it re-runs papers/timestamp-pathology-analysis.html over the shipping clock.js and decides whether the two counts that paper publishes still hold: 24 corpus cases and 6 Clock Contract invariants, threshold 0 failures, pre-stated by the paper rather than by the run. Population = the 30 assertions one run makes (24 + 6), nothing excluded. The RUNNER TIMEZONE is an input and the verdict is scoped to the UTC row: a non-UTC runner moves the three branch-1 epoch cases, whose expected value is a fixed epoch while the parser localises one, so the expectation is zone-pinned and the parser is not. Status map: NOT_RUN the UTC zone was not among --zones (or --verdict-sample, which opens no browser) \u00b7 UNKNOWN the page raised an error, so its own counts cannot be trusted \u00b7 FAIL any assertion failed under UTC \u00b7 PASS none did. A first revision read a pass mark as a tick only, while the invariant table prints the word PASS, so it reported all six invariants failing beside a page count of 6/6 \u2014 a filter that matched everything (CLAUDE.md \u00a74b), caught because the verdict disagreed with the printed table."
   },
   "tools/treatment-response-recut.mjs": {
    "bin": "word-only",
@@ -3540,18 +3564,6 @@
     ]
    },
    "note": "ZOTERO FILL (owner 2026-10-11): one object over the citation ledger\u2019s DOIs, criterion ledger_dois_present_in_library eq the ledger count \u2014 PASS when every DOI is in the library (created or already present), SHORTFALL naming the DOIs that could not be resolved or written, NOT_RUN under --dry-run (reads the library, writes nothing). --verdict-sample reads no ledger and touches no library, so it reports NOT_RUN / checked 0."
-  },
-  "tools/tch-four-corner-census.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/tch-four-corner-census.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the four-corner hat counted over every capture night that holds four corner roles (H10 chest ECG, Verity arm PPG, O2Ring finger pulse, Muse forehead optics); pre-stated criterion nights_with_an_unnamed_refusal <= 0, sha256 41c569e1bd522753aa6dc9965ff17681c48197de2f66142c9b9685d9578916bb on board #9094 before the run \u2014 PASS when a night solves and every refusal carries a name, FAIL on a null sigma with no cornerReason or a sigma over a negative variance, NOT_RUN when no night holds four roles, UNDERPOWERED when none reaches the 1000-s four-way overlap floor; population = eligible nights, a night the census cannot read is excluded and named; every sigma travels as data under UNKNOWN, never as a judged threshold"
   }
  }
 }
