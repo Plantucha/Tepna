@@ -223,6 +223,13 @@
       "anchored": true,
       "note": "Normalises both spellings, then hands the captured field to `DexClock.fileStamp`, which bounds the run and range-validates every component. A refusal is counted and named rather than bucketed noon-to-noon, which is what a rolled component used to do: a planted hour-25 name was stitched into a real night as a second fragment, printing `1+2 fragments` where the names say `1+1` (measured against `origin/main`, 2026-10-27)."
     },
+    "tools/corpus-archive-parity.mjs": {
+      "reads": [
+        "accept-test"
+      ],
+      "anchored": null,
+      "note": "`STREAM` (`_\\d{14}_` before the stream suffix) is the accept test that sorts a night file into a stamped capture stream, which is judged, or a host sidecar, which is only reported. The digits are never sliced and never become a time or a key: files pair by their `<date>/<file>` path. No instant, so `anchored` stays null. Read 2026-11-26 by Crane."
+    },
     "tools/cpap-corpus.mjs": {
       "reads": [
         "time"
