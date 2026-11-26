@@ -58,6 +58,7 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { isCliEntry, refuseUnknownArgvOrExit } from './argv-guard.mjs';
+import { intersectSnapshots, populationVerdict, snapshotEntries, snapshotNights } from './corpus-scope-core.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const TOOL = 'tools/tch-four-corner-census.mjs';
@@ -198,7 +199,7 @@ export function unnamedRefusals(row) {
    night it could not read is excluded with a reason. A PASS over `checked: 0` is invalid by the
    verdict contract, and the NOT_RUN branch below is what an empty population produces instead. */
 /**
- * @param {{rows:Array,excluded:Array,eligible:number,walked:number,at?:string,commit?:string}} a
+ * @param {{rows:Array,excluded:Array,eligible:number,walked:number,at?:string,commit?:string,popStability?:object|null,dropped?:Array<string>}} a
  */
 export function censusVerdict(a) {
   const rows = a.rows || [];
@@ -240,6 +241,15 @@ export function censusVerdict(a) {
           nightsWalked: a.walked == null ? null : a.walked,
           refusalsByReason: countReasons(rows),
           cornerReasons: countCornerReasons(rows),
+          /* the corner-ordering question, with its span caveat recorded beside it (§3b) */
+          referenceDirection: referenceDirection(rows),
+          fourthCornerShift: fourthCornerShift(rows),
+          /* THE POPULATION'S OWN STABILITY, carried so a reader of this verdict alone can see
+             whether the root moved under the run and which nights that cost (§∅ — a move is
+             reduced coverage, which annotates, and never a silent narrowing). */
+          populationStability: a.popStability ? { status: a.popStability.status, reason: a.popStability.reason } : null,
+          nightsDroppedForPopulationMove: a.dropped && a.dropped.length ? a.dropped : [],
+          referenceSpanCaveat: 'the firmware reference is scored over the three-way overlap, not the four-way one, so read the per-night direction and not the ratio',
           excludedNights: excluded.map((e) => ({ night: e.night, reason: e.reason }))
         };
   return {
@@ -257,6 +267,67 @@ export function censusVerdict(a) {
   };
 }
 
+/* ── 3b · THE TWO AGGREGATES THE CORNER ORDERING NEEDS ────────────────────────────────────────
+   A hat recovers precision with no reference, so it can be internally consistent and still charge
+   one corner for an error the corners share. Two counts separate the question into its parts.
+
+   ⚠ THE SECOND SETS DIFFER. `nightReference` scores each corner over the seconds the reference and
+   the three HR series share (`sensor-trio-worker.js:1315`), which is the three-way overlap, not the
+   four-way one — measured here at 9,197–30,850 s against a four-way 4,420–21,555 s. So a RATIO of
+   the two sigmas is not a same-seconds comparison, and the per-night DIRECTION, which survives a
+   change of span far better than a median does, is the figure to read. A same-seconds reference
+   needs `scoreSeries` restricted to the four-way key set, which is a change to the shipped worker
+   and a separate unit. */
+
+/** Per corner: how often the four-corner sigma sits ABOVE the night's own firmware reference. PURE. */
+export function referenceDirection(rows) {
+  const out = {};
+  for (const nm of TRIO_NAMES) {
+    const ratios = [];
+    let above = 0;
+    let below = 0;
+    for (const r of rows || []) {
+      const rf = r && r.reference;
+      const sg = r && r.four && r.four.sigma ? r.four.sigma[nm] : null;
+      const rs = rf && rf.ok && rf.sigma ? rf.sigma[nm] : null;
+      if (!Number.isFinite(sg) || !Number.isFinite(rs) || rs <= 0) continue;
+      ratios.push(sg / rs);
+      if (sg > rs) above++;
+      else below++;
+    }
+    out[nm] = { n: ratios.length, above, below, medianRatio: median(ratios) };
+  }
+  return out;
+}
+
+/** Per corner: how far the FOURTH corner moved it off the same-seconds three-corner hat. PURE. */
+export function fourthCornerShift(rows) {
+  const out = {};
+  for (const nm of TRIO_NAMES) {
+    const rel = [];
+    for (const r of rows || []) {
+      const sg = r && r.four && r.four.sigma ? r.four.sigma[nm] : null;
+      const tri = sameSecondsSubHat(r && r.four);
+      const t3 = tri && tri.sigma ? tri.sigma[nm] : null;
+      if (!Number.isFinite(sg) || !Number.isFinite(t3) || t3 <= 0) continue;
+      rel.push(Math.abs(sg - t3) / t3);
+    }
+    out[nm] = { n: rel.length, medianRelShift: median(rel) };
+  }
+  return out;
+}
+
+/** The median of a numeric list, or null over an empty one (§∅ — never 0). PURE. */
+export function median(xs) {
+  const s = (xs || [])
+    .filter((x) => Number.isFinite(x))
+    .slice()
+    .sort((a, b) => a - b);
+  if (!s.length) return null;
+  const h = s.length >> 1;
+  return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2;
+}
+
 /** Every named four-corner refusal, counted by its reason. A solved night contributes nothing. PURE. */
 export function countReasons(rows) {
   const out = {};
@@ -264,7 +335,7 @@ export function countReasons(rows) {
     const four = r.four;
     if (!four || four.ok) continue;
     const key = normalizeReason(four.reason);
-    out[key] = (out[key] || 0) + 1;
+    out[key] = (out[key] || 0) + 1; // absence-ok: a tally's zero is the identity of a count, not an unmeasured value — the key is absent until a refusal creates it
   }
   return out;
 }
@@ -285,7 +356,7 @@ export function countCornerReasons(rows) {
       const v = four.cornerReason[nm];
       if (v == null) continue;
       const k = nm + ' · ' + v;
-      out[k] = (out[k] || 0) + 1;
+      out[k] = (out[k] || 0) + 1; // absence-ok: a tally's zero is the identity of a count, not an unmeasured value — the key is absent until a corner names this reason
     }
   }
   return out;
@@ -342,24 +413,45 @@ export function fileShim(path) {
    Two transports, one listing shape. A local tree reads through `fs`; a remote tree lists over
    ssh and copies ONE night at a time into scratch, then deletes it. A full night of four corners
    is about 670 MB and eleven of them is 7 GB, so the census never holds more than one night. */
+/* 🔴 THE NIGHT RULE IS THE CORE'S, NOT A SECOND COPY. `snapshotNights` is the one-level night walk
+   eleven shipped scorers already use, and it records what its rule admitted and passed over. A
+   private `/^\d{4}-\d{2}-\d{2}$/` here would be a second authority on what a night directory IS, and
+   the population this tool publishes would describe a listing the core never agreed with. */
 export function listLocal(root) {
+  const snap = snapshotNights(root);
+  if (!snap.ok) throw new Error(`the captures root is not enumerable: ${snap.reason}`);
   const out = [];
-  for (const d of fs.readdirSync(root, { withFileTypes: true })) {
-    if (!d.isDirectory() || !/^\d{4}-\d{2}-\d{2}$/.test(d.name)) continue;
+  for (const night of snap.nights) {
     const entries = [];
-    for (const f of fs.readdirSync(join(root, d.name), { withFileTypes: true })) {
+    for (const f of fs.readdirSync(join(root, night), { withFileTypes: true })) {
       if (!f.isFile()) continue;
-      let size = 0;
+      /* §∅ A FILE WHOSE SIZE WILL NOT READ LEAVES THE LISTING. It used to enter it at `size: 0`,
+         where the picker ranks by size and a zero sorts as the smallest real file — an unreadable
+         capture would have lost a largest-file comparison it never took part in. */
+      let size;
       try {
-        size = fs.statSync(join(root, d.name, f.name)).size;
+        size = fs.statSync(join(root, night, f.name)).size;
       } catch {
-        size = 0;
+        continue;
       }
       entries.push({ name: f.name, size });
     }
-    out.push({ night: d.name, entries });
+    out.push({ night, entries });
   }
   return out.sort((a, b) => a.night.localeCompare(b.night));
+}
+
+/** The population of ONE already-taken listing, in the core's snapshot shape.
+ *
+ *  🔴 THE LISTER DOES NOT WALK. `snapshotEntries` documents that the caller's own lister IS the
+ *  enumeration, and here that listing has already happened: the names come off the `tree` this run
+ *  scores, so the population and the scored set cannot disagree. A lister that re-walked the root
+ *  would reintroduce exactly the two-walk defect this is here to avoid. The unit is `nights`
+ *  because a member is a night directory, and the ssh transport has no `readdirSync` for
+ *  `snapshotNights` to use. */
+export function treeSnapshot(root, tree, at = null) {
+  const listWalkedNights = () => (tree || []).map((t) => t.night);
+  return snapshotEntries(root, { list: listWalkedNights, unit: 'nights', at });
 }
 
 /** `find`-free remote listing: one ssh call for the whole tree, parsed by the pure function below. */
@@ -494,6 +586,31 @@ export function reportLines(rows, excluded, verdict) {
           `  the night page's three-corner hat over its own ${r.threeWaySeconds} three-way seconds — ${TRIO_NAMES.map((nm) => `${nm} ${r.three[nm] == null ? '—' : Number(r.three[nm]).toFixed(3)}`).join(' · ')}`
         );
       }
+    }
+  }
+  /* THE CORNER ORDERING, OVER THE WHOLE POPULATION. Two counts, because they answer two
+     questions: did the fourth corner MOVE a corner, and does a corner stand where its own
+     independent reference puts it. Read the direction, not the ratio — §3b names why. */
+  const rd = referenceDirection(rows);
+  const fs2 = fourthCornerShift(rows);
+  if (TRIO_NAMES.some((nm) => rd[nm].n > 0)) {
+    L.push('');
+    L.push("corner ordering · the four-corner sigma against each night's own firmware reference");
+    L.push('  ⚠ the reference is scored over the THREE-way overlap, so a ratio is not same-seconds; the per-night direction is the figure');
+    for (const nm of TRIO_NAMES) {
+      const d = rd[nm];
+      if (!d.n) {
+        L.push(`  ${nm.padEnd(8)} no night carries both a four-corner sigma and a reference sigma`);
+        continue;
+      }
+      L.push(
+        `  ${nm.padEnd(8)} above the reference on ${d.above}/${d.n} night(s) · median ratio ${fmt(d.medianRatio)}${nm === 'h10' ? ' (and the reference is a LOWER BOUND, so this understates it)' : ''}`
+      );
+    }
+    L.push('  how far the FOURTH corner moved each corner off the same-seconds three-corner hat');
+    for (const nm of TRIO_NAMES) {
+      const s = fs2[nm];
+      L.push(s.n ? `  ${nm.padEnd(8)} median |Δσ|/σ ${fmt(s.medianRelShift)} over ${s.n} night(s)` : `  ${nm.padEnd(8)} no night supports the comparison`);
     }
   }
   L.push('');
@@ -684,6 +801,79 @@ function selftest() {
   ok('the prose names a flagged lead', /H10 lead gate flags this night: lead off/.test(lr));
   const lr2 = reportLines([nightRow('x', p, { four, reference: { ok: false, reason: 'no H10 _RR.txt was selected for this night' } })], [], vp).join('\n');
   ok('a refused reference is NAMED, never dropped', /no firmware-RR reference — no H10 _RR.txt/.test(lr2));
+  /* ── the corner ordering (§3b) ── */
+  ok('median over an empty list is null, never 0', median([]) === null);
+  ok('median takes the mean of the middle pair on an even count', median([1, 2, 3, 4]) === 2.5);
+  /* a corner the hat reads at 2 against a reference of 1 is ABOVE it; the reference of 4 is not */
+  const rdRows = [
+    nightRow('a', p, {
+      four: { ok: true, seconds: 4000, spanMin: 70, names: FOUR_NAMES, sigma: { h10: 2, verity: 1, o2: 3, forehead: 1 }, subHats: [] },
+      reference: { ok: true, n: 9000, sigma: { h10: 1, verity: 4, o2: 3 } }
+    }),
+    nightRow('b', p, {
+      four: { ok: true, seconds: 4000, spanMin: 70, names: FOUR_NAMES, sigma: { h10: 6, verity: 1, o2: 3, forehead: 1 }, subHats: [] },
+      reference: { ok: true, n: 9000, sigma: { h10: 2, verity: 4, o2: 3 } }
+    })
+  ];
+  const rd = referenceDirection(rdRows);
+  ok('the chest corner is counted above its reference on both nights', rd.h10.above === 2 && rd.h10.below === 0, JSON.stringify(rd.h10));
+  ok('the chest median ratio is the median of the per-night ratios', rd.h10.medianRatio === 2.5, String(rd.h10.medianRatio));
+  ok('a corner under its reference counts BELOW, never above', rd.verity.above === 0 && rd.verity.below === 2);
+  ok('an equal pair is not counted as above', rd.o2.above === 0 && rd.o2.below === 2);
+  ok('a night with no reference contributes to no count', referenceDirection([nightRow('c', p, { four })]).h10.n === 0);
+  ok(
+    'a zero reference sigma is skipped, never divided by',
+    referenceDirection([
+      nightRow('d', p, {
+        four: { ok: true, seconds: 4000, spanMin: 70, names: FOUR_NAMES, sigma: { h10: 2, verity: 1, o2: 3, forehead: 1 }, subHats: [] },
+        reference: { ok: true, n: 9000, sigma: { h10: 0, verity: 1, o2: 1 } }
+      })
+    ]).h10.n === 0
+  );
+  const rdL = reportLines(rdRows, [], vp).join('\n');
+  ok('the prose names the per-night direction', /h10 {6}above the reference on 2\/2 night\(s\)/.test(rdL), rdL.slice(rdL.indexOf('corner ordering'), rdL.indexOf('corner ordering') + 300));
+  ok('the prose carries the differing-span caveat beside the ratio', /not same-seconds; the per-night direction is the figure/.test(rdL));
+  ok('the prose says the chest reference understates the gap', /LOWER BOUND, so this understates it/.test(rdL));
+  ok('the ordering block is absent when no night carries a reference', !/corner ordering/.test(reportLines([nightRow('c', p, { four })], [], vp).join('\n')));
+  /* the fourth corner's own displacement: sigma 2 against a same-seconds trio sigma of 1 is 1.0 */
+  const fsh = fourthCornerShift([
+    nightRow('e', p, {
+      four: { ok: true, seconds: 4000, spanMin: 70, names: FOUR_NAMES, sigma: { h10: 2, verity: 1, o2: 3, forehead: 1 }, subHats: [{ names: TRIO_NAMES, sigma: { h10: 1, verity: 1, o2: 3 } }] }
+    })
+  ]);
+  ok('the fourth-corner shift is relative to the same-seconds trio', fsh.h10.medianRelShift === 1 && fsh.verity.medianRelShift === 0, JSON.stringify(fsh.h10));
+  ok(
+    'the verdict publishes both aggregates and the span caveat',
+    (() => {
+      const v = censusVerdict({ rows: rdRows, excluded: [], eligible: 2 });
+      return !!v.result.referenceDirection && !!v.result.fourthCornerShift && /not the four-way one/.test(v.result.referenceSpanCaveat);
+    })()
+  );
+  ok('a NOT_RUN still publishes no aggregate', censusVerdict({ rows: [], excluded: [], eligible: 0 }).result === null);
+
+  /* ── ONE WALK: the population comes off the listing, not off a second enumeration ── */
+  const treeFix = [
+    { night: '2026-11-15', entries: [] },
+    { night: '2026-11-16', entries: [] }
+  ];
+  const snapT = treeSnapshot('/srv/tepna/captures', treeFix, '2026-11-26T00:00:00Z');
+  ok('the snapshot counts the nights of the listing it was given', snapT.ok && snapT.n === 2, JSON.stringify({ ok: snapT.ok, n: snapT.n }));
+  ok('its members are the night names, in the snapshot shape', JSON.stringify(snapT.members) === JSON.stringify(['2026-11-15', '2026-11-16']), JSON.stringify(snapT.members));
+  ok('the unit is nights, so the criterion reads nights_added_or_removed', snapT.unit === 'nights', String(snapT.unit));
+  ok('the snapshot NAMES the lister that chose the population', snapT.rule === 'listWalkedNights', String(snapT.rule));
+  /* the lister must not re-walk: handed an empty listing it reports an empty population and never
+     reaches a disk, which is what makes the population and the scored set the same listing */
+  ok('an empty listing is an empty population, not a walk of the root', treeSnapshot('/nonexistent-root-xyz', [], '2026-11-26T00:00:00Z').n === 0);
+  const popS = populationVerdict(treeSnapshot('/r', treeFix, '2026-11-26T00:00:00Z'), treeSnapshot('/r', [treeFix[0]], '2026-11-26T00:01:00Z'), { tool: TOOL, evidence: [TOOL], commit: 'abc1234' });
+  ok('a night that LEFT mid-run is a SHORTFALL, never a silent narrowing', popS.status === 'SHORTFALL', popS.status + ' — ' + popS.reason);
+  ok(
+    'the intersection names the night both listings held',
+    JSON.stringify(intersectSnapshots(treeSnapshot('/r', treeFix), treeSnapshot('/r', [treeFix[0]])).members) === JSON.stringify(['2026-11-15'])
+  );
+  const vPop = censusVerdict({ rows: rdRows, excluded: [], eligible: 2, popStability: popS, dropped: ['2026-11-16'] });
+  ok('the verdict carries the population move and the nights it cost', vPop.result.populationStability.status === 'SHORTFALL' && vPop.result.nightsDroppedForPopulationMove[0] === '2026-11-16');
+  ok('a run whose population held still carries a null move, never a fabricated PASS', censusVerdict({ rows: rdRows, excluded: [], eligible: 2 }).result.populationStability === null);
+
   const rowD = nightRow('2026-11-21', pd, { four });
   ok('the prose names a multi-session role', /more than one session for forehead/.test(reportLines([rowD], [], vp).join('\n')));
 
@@ -726,7 +916,14 @@ async function main() {
   const captures = arg('--captures');
   const host = arg('--host');
   const only = arg('--night');
-  const limit = Number(arg('--limit', '0')) || 0;
+  /* §∅ AN ABSENT `--limit` IS NO LIMIT, WHICH IS NOT A LIMIT OF ZERO. `Number(x) || 0` collapsed
+     both an absent flag and an unreadable one onto 0, and 0 then read as a legal "take none". */
+  const limitRaw = arg('--limit');
+  const limit = limitRaw == null ? null : Number(limitRaw);
+  if (limit != null && (!Number.isInteger(limit) || limit < 1)) {
+    console.error(`--limit must be a whole number of nights above 0; got ${JSON.stringify(limitRaw)}`);
+    process.exit(2);
+  }
   const scratch = arg('--scratch', join(process.env.TMPDIR || '/tmp', 'tch4-census'));
   if (!captures) {
     console.error('usage: --captures <dir> [--host <host>] [--night <YYYY-MM-DD>] [--scratch <dir>] [--limit N]');
@@ -740,12 +937,18 @@ async function main() {
     }
   })();
 
+  /* ONE WALK, AND THE POPULATION IS DERIVED FROM IT — never re-enumerated. Both the night set this
+     census publishes and the files it scores come off `tree`, the single listing. The snapshot is
+     taken FROM that listing rather than from a second walk, which is the defect measured on
+     `tools/tch-firmware-reference.mjs` 2026-10-21: a night arriving between two walks was scored
+     into a figure whose population never saw it. */
   const tree = host ? listRemote(host, captures) : listLocal(captures);
+  const popBefore = treeSnapshot(captures, tree);
   const walked = tree.length;
   const picks = tree.map((n) => ({ night: n.night, pick: pickRoleFiles(n.entries) }));
   let eligibleNights = picks.filter((x) => nightEligible(x.pick));
   if (only) eligibleNights = eligibleNights.filter((x) => x.night === only);
-  if (limit) eligibleNights = eligibleNights.slice(0, limit);
+  if (limit != null) eligibleNights = eligibleNights.slice(0, limit);
   console.error(`walked ${walked} night(s) under ${captures}${host ? ' on ' + host : ''} · ${eligibleNights.length} hold all four corner roles`);
 
   const rows = [];
@@ -772,9 +975,24 @@ async function main() {
     }
   }
 
-  const verdict = censusVerdict({ rows, excluded, eligible: eligibleNights.length, walked, commit });
-  console.error('\n' + reportLines(rows, excluded, verdict).join('\n') + '\n');
-  if (argv.includes('--json')) console.log(JSON.stringify({ verdict, rows }, null, 1));
+  /* THE CLOSING POPULATION. A census of eleven nights runs about forty minutes against a capture
+     box that is still recording, so the root genuinely moves under it. A night that arrived mid-run
+     is not scored into a population that was blind to it, and one that left is not counted present. */
+  const popAfter = treeSnapshot(captures, host ? listRemote(host, captures) : listLocal(captures));
+  const popStability = populationVerdict(popBefore, popAfter, { commit, tool: TOOL, evidence: [TOOL] });
+  if (popStability.status !== 'PASS') console.error(`population: ${popStability.reason}`);
+  let scored = rows;
+  let dropped = [];
+  if (popStability.status === 'SHORTFALL') {
+    const keep = new Set(intersectSnapshots(popBefore, popAfter).members);
+    dropped = rows.filter((r) => !keep.has(r.night)).map((r) => r.night);
+    scored = rows.filter((r) => keep.has(r.night));
+    if (dropped.length) console.error(`population: ${dropped.length} night(s) left out of every figure: ${dropped.join(', ')}`);
+  }
+  console.error(`POPULATION ${popStability.status} · ${walked} night(s) walked under ${captures} · ${scored.length} scored`);
+  const verdict = censusVerdict({ rows: scored, excluded, eligible: eligibleNights.length, walked, commit, popStability, dropped });
+  console.error('\n' + reportLines(scored, excluded, verdict).join('\n') + '\n');
+  if (argv.includes('--json')) console.log(JSON.stringify({ verdict, rows: scored, populationStability: popStability, droppedForPopulationMove: dropped }, null, 1));
   else console.log(JSON.stringify(verdict));
 }
 
