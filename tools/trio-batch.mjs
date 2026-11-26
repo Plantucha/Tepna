@@ -442,6 +442,51 @@ function childReport(code, body, out, tailLines = 12) {
   return parts.join('\n');
 }
 
+/* ── ZERO-BYTE INPUTS, NAMED ──────────────────────────────────────────────────────
+   ∅ A FILE THAT HOLDS NO BYTES IS NOT A SHORT SESSION. A zero-byte capture still carries a filename
+   stamp, so it used to enter the stream lists and take a window of [t0, t0] — zero width. The
+   concurrency rule then dropped it and printed `skipped N non-concurrent`, which is the reason that
+   belongs to a real recording outside the anchor. An empty file recorded nothing to overlap with, so
+   the run was accounting for an absence under a BORROWED reason. The partition below removes those
+   records before any window, size or session count reads them, and `emptyInputs` carries the count
+   into the run verdict under its own name. */
+let EMPTY_INPUTS = null;
+
+/** PURE. Splits a stream list into the records that hold bytes and the records that hold none. A
+ *  size that is not a number stays on the kept side: `dedupeStream` already names that case, and
+ *  guessing here would hide it. */
+function partitionEmpty(list) {
+  const kept = [];
+  const empty = [];
+  for (const r of list) (Number(r.bytes) === 0 ? empty : kept).push(r);
+  return { kept, empty };
+}
+
+/** PURE. The run-level summary of every empty input, or `null` when no input was empty — ∅ forbids a
+ *  `0` here, because a run over a tree with no empty file measured nothing to report. */
+function emptySummary(entries) {
+  if (!entries.length) return null;
+  const byRole = {};
+  const nights = new Set();
+  for (const e of entries) {
+    /* A first sighting counts 1 — no `|| 0` default, so no line here publishes an absence as a zero. */
+    byRole[e.role] = byRole[e.role] ? byRole[e.role] + 1 : 1;
+    nights.add(e.night);
+  }
+  return { files: entries.length, nights: nights.size, byRole };
+}
+
+/** PURE. `ppg x6, acc_ver x4` — the ROLE and the count, never the filename. A capture name carries a
+ *  device serial, and the role already answers which stream the night lost. */
+function emptyRoleLine(entries) {
+  const byRole = {};
+  for (const e of entries) byRole[e.role] = byRole[e.role] ? byRole[e.role] + 1 : 1;
+  return Object.keys(byRole)
+    .sort((a, b) => byRole[b] - byRole[a] || a.localeCompare(b))
+    .map((r) => `${r} x${byRole[r]}`)
+    .join(', ');
+}
+
 function nightVerdict(key, status, { offered, judged, result, reason, evidence }) {
   const v = Verdict.make({
     gate: 'trio-batch-night',
@@ -459,7 +504,12 @@ function nightVerdict(key, status, { offered, judged, result, reason, evidence }
   nightVerdicts.push(v);
   return v;
 }
-function runVerdict(list, { dry }) {
+function runVerdict(list, opts) {
+  /* `dry` rides in `opts` for every caller and this builder reads none of it: a dry run judges
+     every night exactly as a real one does, and only the WRITE is skipped (see `writeVerdicts`). */
+  /* The caller may state it (every known answer does, which keeps the builder pure); the real run
+     leaves it out and takes what the walk measured. */
+  const empty = opts.empty !== undefined ? opts.empty : EMPTY_INPUTS;
   const nights = list.length;
   const folded = list.filter((v) => v.status === 'PASS').length;
   const failed = list.filter((v) => v.status === 'FAIL').length;
@@ -481,6 +531,9 @@ function runVerdict(list, { dry }) {
     status = 'PASS';
     reason = null;
   }
+  /* A null `result` carries no field, so the count rides the reason — the one place a run that judged
+     nothing can still name what it left out of the lists (∅). */
+  if (empty && (status === 'NOT_RUN' || status === 'NOT_APPLICABLE')) reason = `${reason}; ${empty.files} input file(s) across ${empty.nights} night(s) held zero bytes and are not sessions`;
   const v = Verdict.make({
     gate: 'trio-batch',
     status,
@@ -488,7 +541,7 @@ function runVerdict(list, { dry }) {
     criterion: gateCriterion(),
     // NOT_RUN examined nothing and NOT_APPLICABLE judged nothing — neither measured anything (validator rules);
     // the per-night list still travels in `reason` for the second, so the reader can see which nights were not trio
-    result: status === 'NOT_RUN' || status === 'NOT_APPLICABLE' ? null : { folded, rejected: failed, notTrio: na, nights: list.map((n) => ({ night: n.night, status: n.status })) },
+    result: status === 'NOT_RUN' || status === 'NOT_APPLICABLE' ? null : { folded, rejected: failed, notTrio: na, emptyInputs: empty, nights: list.map((n) => ({ night: n.night, status: n.status })) },
     evidence: ['tools/trio-batch.mjs', SRC ? `${SRC} (capture root)` : 'no --src'],
     reason,
     producedBy: gateProducer()
@@ -1379,6 +1432,35 @@ if (flag('--selftest')) {
     eq('…valid', val(runNone), true);
     const allPass = runVerdict([pass], { dry: false });
     eq('run with every judged night folded ⇒ PASS, reason null', allPass.status + ':' + allPass.reason, 'PASS:null');
+
+    /* ZERO-BYTE INPUTS (∅). The run used to drop an empty file as `non-concurrent`, which is the
+       reason of a real recording outside the anchor, so the absence travelled under a borrowed name. */
+    const peIn = [
+      { bytes: 0, full: '/a_PPG.txt' },
+      { bytes: 310, full: '/b_PPG.txt' },
+      { bytes: 0, full: '/c_PPG.txt' }
+    ];
+    const pe = partitionEmpty(peIn);
+    eq('an empty record leaves the stream list and a sized one stays', JSON.stringify([pe.kept.length, pe.empty.length]), '[1,2]');
+    eq('…and the kept record is the one that holds bytes', pe.kept[0].full, '/b_PPG.txt');
+    eq('a size that is not a number STAYS — dedupeStream names that case, a guess here would hide it', partitionEmpty([{ bytes: NaN, full: '/x' }]).empty.length, 0);
+    eq('an already-sized list is returned untouched', JSON.stringify(partitionEmpty([{ bytes: 1 }]).empty), '[]');
+    eq('no empty input summarises to null, never to a 0 nobody measured (∅)', emptySummary([]), null);
+    const es = emptySummary([
+      { night: '2026-11-15', role: 'ppg' },
+      { night: '2026-11-15', role: 'ppg' },
+      { night: '2026-11-16', role: 'acc_ver' }
+    ]);
+    eq('the summary counts files, nights and roles', JSON.stringify([es.files, es.nights, es.byRole.ppg, es.byRole.acc_ver]), '[3,2,2,1]');
+    eq('the per-night line names the ROLE and the count, never a filename', emptyRoleLine([{ role: 'ppg' }, { role: 'acc_ver' }, { role: 'ppg' }]), 'ppg x2, acc_ver x1');
+    eq('…and equal counts order by role name, so the line is deterministic', emptyRoleLine([{ role: 'ppg' }, { role: 'acc_ver' }]), 'acc_ver x1, ppg x1');
+    const runEmpty = runVerdict(nightVerdicts.slice(before, before + 3), { dry: false, empty: { files: 6, nights: 2, byRole: { ppg: 6 } } });
+    eq('the run verdict carries the empty count under its own key', JSON.stringify(runEmpty.result.emptyInputs), '{"files":6,"nights":2,"byRole":{"ppg":6}}');
+    eq('…and it stays valid under verdict.js', val(runEmpty), true);
+    eq('a run over no empty input carries null there, not a 0', JSON.stringify(runVerdict([pass], { dry: false, empty: null }).result.emptyInputs), 'null');
+    const naEmpty = runVerdict([na], { dry: false, empty: { files: 4, nights: 1, byRole: { ppg: 4 } } });
+    eq('a NOT_APPLICABLE run has no result, so the count rides the reason', /4 input file\(s\) across 1 night\(s\) held zero bytes/.test(naEmpty.reason), true);
+    eq('…and that run is still valid', val(naEmpty), true);
 
     /* WHO WRITES THE FILE. A child is this script over one night, so before 2026-10-13 every child
        rewrote the shared run verdict and the last one to exit won — `106 folded` on screen,
@@ -2675,12 +2757,26 @@ if (refusedStamps.length) {
 /* Applied once, after the walk, to every stream list of every night — before any planning reads a
    session count, an overlap or a byte total, all of which a duplicate inflates. */
 const DEDUPE_LISTS = ['ecg', 'acc_h10', 'ppg', 'acc_ver', 'gyro', 'magn', 'oxy', 'o2ppg', 'muse'];
+const emptyEntries = [];
 for (const n of nights.values()) {
   n.dropped = [];
   n.conflicts = [];
   n.excluded = [];
+  n.empty = [];
   for (const list of DEDUPE_LISTS) {
-    if (!Array.isArray(n[list]) || n[list].length < 2) continue;
+    if (!Array.isArray(n[list])) continue;
+    /* BEFORE the de-duplication, never after. `dedupeStream` compares sizes, and a zero sorts as the
+       smallest real file, so an empty copy could win or lose a comparison it never belonged in — the
+       lesson `tools/tch-four-corner-census.mjs` records for its own picker. */
+    const pe = partitionEmpty(n[list]);
+    if (pe.empty.length) {
+      n[list] = pe.kept;
+      for (const r of pe.empty) {
+        n.empty.push({ path: r.full, role: list });
+        emptyEntries.push({ night: n.key, role: list });
+      }
+    }
+    if (n[list].length < 2) continue;
     const { kept, dropped, conflicts, excluded } = dedupeStream(n[list]);
     n[list] = kept;
     n.dropped.push(...dropped);
@@ -2688,6 +2784,7 @@ for (const n of nights.values()) {
     n.excluded.push(...(excluded || []));
   }
 }
+EMPTY_INPUTS = emptySummary(emptyEntries);
 const dupNights = [...nights.values()].filter((n) => n.dropped.length);
 const conflictNights = [...nights.values()].filter((n) => n.conflicts.length);
 if (dupNights.length) {
@@ -2709,6 +2806,18 @@ if (excludedNights.length) {
      held to a recorded path and size. */
   console.log(`    ${markerKeyingLine(markerKeying(excludedNights.flatMap((n) => n.excluded)))}`);
   for (const line of markerExclusionLines(excludedNights)) console.log(line);
+}
+/* EMPTY, UNDER ITS OWN NAME. Separate from the two lines above because the claim differs again: a
+   dropped file was byte-identical to a keeper, an excluded one was superseded, and an empty one holds
+   no samples at all. Printed per night by ROLE, so a reader sees WHICH stream the night lost. */
+const emptyNights = [...nights.values()].filter((n) => (n.empty || []).length);
+if (emptyNights.length) {
+  const files = emptyNights.reduce((t, n) => t + n.empty.length, 0);
+  console.log(
+    `\n  empty: ${files} file(s) across ${emptyNights.length} night(s) hold ZERO BYTES — a file with no samples is not a short session, so it leaves the stream lists here under its own name and never as a non-concurrent drop (∅)`
+  );
+  for (const n of emptyNights.slice(0, 6)) console.log(`    ${n.key}: ${emptyRoleLine(n.empty)}`);
+  if (emptyNights.length > 6) console.log(`    … +${emptyNights.length - 6} more night(s)`);
 }
 for (const n of conflictNights) {
   for (const c of n.conflicts)
