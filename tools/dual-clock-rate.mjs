@@ -32,7 +32,7 @@
  * reader would have taken "0.0 ppm, spread 0.0" as a perfect crystal. So a non-independent fragment
  * gets its rate REFUSED, not printed — same honesty rule as the Clock Contract's §2.6 null.
  *
- * Usage: node tools/dual-clock-rate.mjs <capture-night-dir>
+ * Usage: node tools/dual-clock-rate.mjs <capture-night-dir>   (H10 _ECG, Verity _PPG, O2Ring _PPG, Muse _RAW)
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -301,7 +301,11 @@ async function rateOf(file) {
 
 /* The names this tool can read a rate out of. Exported so the refusal below and the test gate the
    SAME pattern — a second copy drifts silently, which is this file's own crystal-bound lesson. */
-export const CAPTURE_FILE_RE = /(H10.*_ECG|(?:Verity)?Sense.*_PPG|O2Ring.*_PPG)\.txt$/;
+export const CAPTURE_FILE_RE = /(H10.*_ECG|(?:Verity)?Sense.*_PPG|O2Ring.*_PPG|Muse.*_RAW)\.txt$/;
+/* The device a capture file names. The Muse `_RAW.txt` carries its own unwrapped 100 ns device clock
+   in `sensor timestamp [ns]` (capture-host/muse_athena.py), so it is a second clock like the Polar
+   ones. Before 2026-11-26 every name that was not H10 or Verity read as O2RING. */
+export const deviceLabel = (f) => (/H10/.test(f) ? 'H10' : /Verity/.test(f) ? 'VERITY' : /Muse/.test(f) ? 'MUSE' : 'O2RING');
 
 /* ABSENCE AND EMPTINESS ARE DIFFERENT ANSWERS AND THE CALLER OWES BOTH BY NAME (CLAUDE.md §∅).
    Residue `2026-10-20-dual-clock-rate-reports-an-absent-directory-as-a-stack-trace`: an absent
@@ -322,7 +326,10 @@ export function captureDirRefusal(dir, probe) {
        night" send a reader to different places. */
     return names.length === 0
       ? { reason: 'directory-empty', detail: `${dir} is an empty directory, so no raw file was read` }
-      : { reason: 'no-capture-file-matched', detail: `${dir} holds ${names.length} entr${names.length === 1 ? 'y' : 'ies'} and none is an H10 _ECG, a Verity _PPG or an O2Ring _PPG file` };
+      : {
+          reason: 'no-capture-file-matched',
+          detail: `${dir} holds ${names.length} entr${names.length === 1 ? 'y' : 'ies'} and none is an H10 _ECG, a Verity _PPG, an O2Ring _PPG or a Muse _RAW file`
+        };
   }
   return null;
 }
@@ -375,7 +382,7 @@ if (IS_CLI) {
   if (refusal) {
     console.error(`✕ dual-clock-rate: ${refusal.reason} — ${refusal.detail}`);
     console.error('usage: node tools/dual-clock-rate.mjs <capture-night-dir>');
-    console.error('  <capture-night-dir> needs Polar_H10_*_ECG.txt, *Sense_*_PPG.txt or O2Ring*_PPG.txt');
+    console.error('  <capture-night-dir> needs Polar_H10_*_ECG.txt, *Sense_*_PPG.txt, O2Ring*_PPG.txt or Muse*_RAW.txt');
     console.error('nothing was read and nothing was written.');
     process.exit(2);
   }
@@ -435,7 +442,7 @@ if (IS_CLI) {
       console.log('  (unreadable)', f);
       continue;
     }
-    const dev = /H10/.test(f) ? 'H10   ' : /Verity/.test(f) ? 'VERITY' : 'O2RING';
+    const dev = deviceLabel(f).padEnd(6);
     const k = dev.trim();
     /* ONE predicate decides whether this fragment yields a rate. It used to be an inline
        `spanMin < 60` test, which admitted every non-independent fragment — and those are the
