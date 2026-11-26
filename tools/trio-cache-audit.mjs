@@ -106,7 +106,7 @@ export function verdictFor(rows, { dir, commit = null, at = new Date().toISOStri
   for (const r of failed)
     for (const x of r.reasons) {
       const k = x.split(':')[0];
-      tally[k] = (tally[k] || 0) + 1;
+      tally[k] = Object.hasOwn(tally, k) ? tally[k] + 1 : 1;
     }
   const status = !stamped.length ? 'NOT_RUN' : failed.length ? 'FAIL' : 'PASS';
   const reason = !stamped.length
