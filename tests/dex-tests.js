@@ -3368,6 +3368,35 @@
       T.ok('∅ · the mean-duration KEY is present on the no-event night', 'meanDuration' in nd);
       T.eq('∅ · …and its mean duration is null, not 0 s', nd.meanDuration, null);
     });
+    group('∅ OxyDex — a desaturation with no duration leaves the interval after it unmeasured', 'oxydex-dsp · absence · iei', function (T) {
+      var _odQ = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var OD = (_odQ && _odQ._bare) || _odQ;
+      T.ok('OxyDSP.computeIEI exposed', !!(OD && typeof OD.computeIEI === 'function'), 'OxyDex not co-loaded in this runner');
+      if (!OD || typeof OD.computeIEI !== 'function') return;
+      var ev = function (startIdx, duration) {
+        return { startIdx: startIdx, duration: duration };
+      };
+      // Four events 100 s apart, each 10 s long: every quiet interval measures 90 s.
+      var absent = OD.computeIEI({ events: [ev(0, 10), ev(100, null), ev(200, 10), ev(300, 10)] });
+      T.ok('(a) the night still carries an IEI block', !!absent);
+      if (!absent) return;
+      T.eq('(a) the interval after the unmeasured event drops out, so the mean stays 90 s and not 93.3', absent.ieiMeanSec, 90);
+      T.eq('(a) …and the population names the 2 intervals it used', absent.ieiN, 2);
+      T.ok('(a) …and the absence KEY is present', 'ieiDurationAbsent' in absent);
+      T.eq('(a) …and it counts the one interval no duration placed on the clock', absent.ieiDurationAbsent, 1);
+      var nonFinite = OD.computeIEI({ events: [ev(0, 10), ev(100, Infinity), ev(200, 10), ev(300, 10)] });
+      T.eq('(b) a non-finite duration is refused the same way', nonFinite && nonFinite.ieiDurationAbsent, 1);
+      T.eq('(b) …and its mean reads the same 90 s', nonFinite && nonFinite.ieiMeanSec, 90);
+      var allAbsent = OD.computeIEI({ events: [ev(0, null), ev(100, null), ev(200, null), ev(300, null)] });
+      T.eq('(c) no measurable interval leaves no metric, and null is the whole report', allAbsent, null);
+      var realZero = OD.computeIEI({ events: [ev(0, 10), ev(100, 0), ev(200, 10), ev(300, 10)] });
+      T.eq('(d) CONTROL a written 0 is a real duration, so that interval runs the full 100 s', realZero && realZero.ieiMeanSec, 93.3);
+      T.eq('(d) …and nothing counts as absent', realZero && realZero.ieiDurationAbsent, 0);
+      var measured = OD.computeIEI({ events: [ev(0, 10), ev(100, 10), ev(200, 10), ev(300, 10)] });
+      T.eq('(e) CONTROL a fully measured night keeps its 90 s mean', measured && measured.ieiMeanSec, 90);
+      T.eq('(e) …and all 3 intervals count', measured && measured.ieiN, 3);
+      T.eq('(e) …and its CV stays the measured 0', measured && measured.ieiCV, 0);
+    });
     group('OxyDex §∅ — processNight reports an unmeasured SpO2/HR night as null, never 0', 'oxydex-dsp · absence-as-value · primary-builder', function (T) {
       var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var OD = (_od && _od._bare) || _od;

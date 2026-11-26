@@ -7705,6 +7705,24 @@
   }
 
   // ── 12. Desaturation Inter-Event Interval (IEI) ───────────────────
+  /* ∅ AN EVENT WITH NO DURATION PLACES NO END ON THE CLOCK (§∅; residue
+     `2026-11-26-oxydex-iei-absorbs-an-unmeasured-desat-duration`). The quiet interval runs from the
+     previous event's END to the next event's start, which is what the registry cite states. An
+     or-zero fallback on that duration read an unmeasured event as zero-length, so the gap grew into
+     the whole start-to-start distance, and `ieiMeanSec`, `ieiSDsec` and `ieiCV` carried the surplus
+     with no trace of which event was unmeasured. Such an interval describes nothing, so this reader
+     drops it and counts it out of band beside the population it did use. A written 0 is a real
+     duration and stays 0, which the controls pin.
+
+     WHAT REACHES THIS: the detector always writes a number, because `durationSec` is arithmetic over
+     sample indices (the `events.push` near oxydex-dsp.js:4532), and the consumer shape copies it
+     (near oxydex-dsp.js:5579). The stored-summary path hands `obj.desatProfile` straight from a
+     dropped JSON file (near oxydex-dsp.js:9181), so an event there carries whatever that file holds.
+     `computeIEI` is also an exported surface on `OxyDSP`, so a caller builds its own events. */
+  function desatDurSec(ev) {
+    return ev && ev.duration != null && isFinite(ev.duration) ? ev.duration : null;
+  }
+
   function computeIEI(desat) {
     if (!desat || !desat.events || desat.events.length < 3) return null;
     var events = desat.events.filter(function (ev) {
@@ -7712,10 +7730,17 @@
     });
     if (events.length < 3) return null;
     var intervals = [];
+    var durAbsent = 0;
     for (var i = 1; i < events.length; i++) {
-      var gap = events[i].startIdx - (events[i - 1].startIdx + (events[i - 1].duration || 0));
+      var prevDur = desatDurSec(events[i - 1]);
+      if (prevDur == null) {
+        durAbsent++; // the previous event places no end on the clock, so this interval is unmeasurable
+        continue;
+      }
+      var gap = events[i].startIdx - (events[i - 1].startIdx + prevDur);
       if (gap > 0) intervals.push(gap);
     }
+    // Every interval unmeasurable leaves no metric at all, and null is the whole report.
     if (!intervals.length) return null;
     var mean =
       intervals.reduce(function (a, b) {
@@ -7731,7 +7756,10 @@
       ieiMeanSec: +mean.toFixed(1),
       ieiSDsec: +sd.toFixed(1),
       ieiCV: cv,
-      ieiLabel: cv !== null && cv < 0.3 ? 'Regular (PB/CS pattern)' : cv !== null && cv > 0.8 ? 'Highly variable (OA/mixed)' : 'Moderate variability'
+      ieiLabel: cv !== null && cv < 0.3 ? 'Regular (PB/CS pattern)' : cv !== null && cv > 0.8 ? 'Highly variable (OA/mixed)' : 'Moderate variability',
+      // The population these three describe, and the intervals no duration placed on the clock.
+      ieiN: intervals.length,
+      ieiDurationAbsent: durAbsent
     };
   }
 

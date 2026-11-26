@@ -386,8 +386,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "c8802bbd273f",
-          "computeHash": "f5b53c3fbf9e"
+          "manifestHash": "04db1df12352",
+          "computeHash": "04c640e2f9d5"
         },
         "evidence": {
           "envelopeRef": null,
@@ -415,8 +415,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "c8802bbd273f",
-          "computeHash": "f5b53c3fbf9e"
+          "manifestHash": "04db1df12352",
+          "computeHash": "04c640e2f9d5"
         },
         "evidence": {
           "envelopeRef": null,
@@ -444,8 +444,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "c8802bbd273f",
-          "computeHash": "f5b53c3fbf9e"
+          "manifestHash": "04db1df12352",
+          "computeHash": "04c640e2f9d5"
         },
         "evidence": {
           "envelopeRef": null,
@@ -473,8 +473,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "c8802bbd273f",
-          "computeHash": "f5b53c3fbf9e"
+          "manifestHash": "04db1df12352",
+          "computeHash": "04c640e2f9d5"
         },
         "evidence": {
           "envelopeRef": null,
@@ -1368,7 +1368,9 @@
         "ieiMeanSec": 1906.8,
         "ieiSDsec": 3453.6,
         "ieiCV": 1.81,
-        "ieiLabel": "Highly variable (OA/mixed)"
+        "ieiLabel": "Highly variable (OA/mixed)",
+        "ieiN": 13,
+        "ieiDurationAbsent": 0
       },
       "recovCV": {
         "recovSlopeMean": 3.607,
