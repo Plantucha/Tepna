@@ -237,7 +237,27 @@ if (flag('--selftest')) {
   process.exit(fails ? 1 : 0);
 }
 
-const runs = await measure();
+/* ∅ A RUN THAT COULD NOT LOOK SAYS SO, AND NEVER AS A STACK TRACE. A machine with no playwright
+   cannot measure this page, which is not the same as a page that failed. It gets one NOT_RUN object
+   with the absence named, and exit 2 — the §4c shape for a step that could not examine its subject. */
+let runs;
+try {
+  runs = await measure();
+} catch (e) {
+  const absent = e && (e.code === 'ERR_MODULE_NOT_FOUND' || /Cannot find package 'playwright'/.test(String(e && e.message)));
+  printVerdict(
+    build({
+      status: 'NOT_RUN',
+      reason: absent
+        ? 'playwright is absent on this machine, so no browser could open the page and nothing was examined'
+        : 'the browser run threw before any case was read: ' + String((e && e.message) || e),
+      population: { checked: 0, eligible: 0, excluded: 0 },
+      result: null
+    })
+  );
+  console.error(`⏱ UNEXAMINED ${PAGE} — ${absent ? 'no playwright on this machine' : 'the browser run threw'}`);
+  process.exit(2);
+}
 const decision = decide(runs, zones);
 const { status } = decision;
 
