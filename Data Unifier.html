@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="cf6dee6bbaed" data-compute-hash="6324359e68e4"><head>
+<html lang="en" data-manifest-hash="d5b752bb9bf0" data-compute-hash="9073583d9f58"><head>
 <!--
   Data Unifier.html — Tepna
   Copyright 2026 Michal Planicka
@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/VJg0iL4BTIOQo1MBGNaCyjASkthShp7aMZCanB9k3A=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6vRsd8wVQoTSJKZCJmwjUOk0mO0dhv4yfkPzZA204MI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-L95+f1CJkFsGZmJsXTzg1qxjuBQQkQLCtzLxyAOtSps=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-PpBpm1uOMgKMNYtYEz40yk6Rax4+gk858PuQoCj/cZI=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SNG0V1OhZVY/Q3A5A3nTOITBdDJxUtvqV6nu8qXld30=' 'sha256-SploFxN8y41QfXBKeMXZ3VVUDPeaXF7mfHd2/kuq43U=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XKQFrqQpPPC7kRB+couzlvLcdQFWKGseS/BbyN9tv9s=' 'sha256-cumr3An7W+Q6iJlTfa/0x/W0WcDr47x/lyahofIzqPo=' 'sha256-ftUZOP6BXhq+bjR2sygBrCjNenvCVQLmSg6CrrMVjRk=' 'sha256-gd9IuoPK0m0h+mwKmCjCmBpm6ebuTXqb8O27YnJNX04=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-i+IZah3NHzRhUDtPLEVgMiL9vK3oHI/+EDhyuxP2uQM=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-lh89SenO9iX3mmMjRfvCzzRD3Fc5M2rzsvmuQwRNaTk=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nbCcwjX4Ba9w3RBLEB+5up9PRhrS11tY5toYvGccPHI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-y6atEKP/AbE4LZCyEBh76Xb2piWlZ5rxz4CQYkPXkFc=' 'sha256-zmPi1hhzvQ7iExQrkogwmgLpi9q2dJI4MTjAauSml10='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/VJg0iL4BTIOQo1MBGNaCyjASkthShp7aMZCanB9k3A=' 'sha256-3NW+eLW4psJlC9Wyk27mgUNxiCtbVWZbNw3hq2jFh5Y=' 'sha256-6vRsd8wVQoTSJKZCJmwjUOk0mO0dhv4yfkPzZA204MI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8NTx223+6ROJY3aG1e+uWE507Fk79M4MmSSVTfXHMJA=' 'sha256-9+LNNlzo7OJcV0tqBo/+YuvpMfmr45Rt4B7toctwSoM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CO0K04MPly6f33bxD058pEnawXijtCvRJU77XepecOw=' 'sha256-FUVU7Y1r3+KOeE96M26NSxydq1r+PINO6+V5WF1ciiM=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HFbeC2ccorXKIkmAm7K1+BnVi05+S27G6xG0wYr7Uso=' 'sha256-IRfH3QfrCyX0bMbHaTohFOp9H/+Jqlbte4Abwx24WuA=' 'sha256-L95+f1CJkFsGZmJsXTzg1qxjuBQQkQLCtzLxyAOtSps=' 'sha256-LL+DRY7+jYyVuCKb4u+H65AiUkYp+w7EGw/PEKoczs8=' 'sha256-M+dy13MfY4L9v0RldZFfj5NvqV884bbkblaDQSlfKWs=' 'sha256-MRDzVV8Vi9fbS1NvsdEHrI79x85hiavP+sbVzLf4mmQ=' 'sha256-OCDE+2UpizVbCl6E40FIhHFvOLm/XZ1DlPidjEwR6Bk=' 'sha256-PpBpm1uOMgKMNYtYEz40yk6Rax4+gk858PuQoCj/cZI=' 'sha256-Rvr0MbtRxWaeEoFxtupMNSDrKLW+P5I8Lccx3cYaV1c=' 'sha256-SNG0V1OhZVY/Q3A5A3nTOITBdDJxUtvqV6nu8qXld30=' 'sha256-SploFxN8y41QfXBKeMXZ3VVUDPeaXF7mfHd2/kuq43U=' 'sha256-SqOUr8H9Oty4hIsC7L9amXj9A3GPcwhuZG5Lr6NXJys=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XKQFrqQpPPC7kRB+couzlvLcdQFWKGseS/BbyN9tv9s=' 'sha256-cumr3An7W+Q6iJlTfa/0x/W0WcDr47x/lyahofIzqPo=' 'sha256-ftUZOP6BXhq+bjR2sygBrCjNenvCVQLmSg6CrrMVjRk=' 'sha256-gd9IuoPK0m0h+mwKmCjCmBpm6ebuTXqb8O27YnJNX04=' 'sha256-gzMSVeRjxsEaaMxOAOo+vnjU+FI6yIfYHbeieQtZ14c=' 'sha256-hAE+LZ0d7JPx/cG5gi0PG8EUxoe7vCTWHxVkdkT8kvI=' 'sha256-i+IZah3NHzRhUDtPLEVgMiL9vK3oHI/+EDhyuxP2uQM=' 'sha256-jjvV4CcbjPBVpqM8MvukLRnGcrBLkt+Y+kzLLJPFum8=' 'sha256-k7MSyEAWr+CLeTx0SjFDYWD37PTZFRdy/At6445lTHE=' 'sha256-mUHouQKT59KCj/hfKDgGQKSeUsi+Bw4jKrzkSdO6fpk=' 'sha256-nbCcwjX4Ba9w3RBLEB+5up9PRhrS11tY5toYvGccPHI=' 'sha256-orvBZlJUlXU6Xdf1LiHeobOeqZWhzFkmKqQ5+UypHKU=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-sQmrdbt+afleU7hGJUW0uCjEVXnb/lT8RQFsO3WfSv8=' 'sha256-y6atEKP/AbE4LZCyEBh76Xb2piWlZ5rxz4CQYkPXkFc=' 'sha256-zmPi1hhzvQ7iExQrkogwmgLpi9q2dJI4MTjAauSml10='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -19043,7 +19043,10 @@ __exports.OxyDex = window.OxyDex;
       r.d_sdi = _hasLfHf && _all(r._sns, r._psns) ? (r._lf + r._sns * 10) / (r._hf + r._psns * 10) : NaN;
       // ── Poincaré SD1 / SD2 ──
       r.d_sd1 = _all(r._rmssd) ? r._rmssd / Math.sqrt(2) : NaN;
-      const sd2sq = _all(r._sdnn) ? Math.max(0, 2 * r._sdnn * r._sdnn - r.d_sd1 * r.d_sd1) : NaN;
+      /* Brennan 2001 (10.1109/10.959330): SD2² = 2·SDNN² − SD1². ∅ No RR series gives a negative
+         value here, so a pair that does is inconsistent input, and `Math.max(0, …)` published a
+         measured SD2 of 0 for it. `Math.sqrt` of a negative is NaN, which is this node's absence. */
+      const sd2sq = _all(r._sdnn) ? 2 * r._sdnn * r._sdnn - r.d_sd1 * r.d_sd1 : NaN;
       r.d_sd2 = Math.sqrt(sd2sq);
       r.d_sd1_sd2 = r.d_sd2 > 0 ? r.d_sd1 / r.d_sd2 : NaN;
 
@@ -19453,10 +19456,19 @@ __exports.OxyDex = window.OxyDex;
     return !!(r && r._hf > 0 && r._lf > 0);
   }
 
+  /* ∅ the second companion: how many of the three parasympathetic indicators the score averages.
+     The three use different scales, so one night reads 50 on rMSSD 20 ms alone, 8 on pNN50 2 %
+     alone, 69 on HF 300 ms² alone and 42 on all three. A reduced set annotates (§∅, ruling #8826),
+     and the tests here match the ones `computeCAMQ` applies. */
+  function camqParaCount(r) {
+    if (!r) return 0;
+    return (r._rmssd > 0 ? 1 : 0) + (_all(r._pnn50) && r._pnn50 >= 0 ? 1 : 0) + (r._hf > 0 ? 1 : 0);
+  }
+
   function computeCAMQ(r) {
     // Cardiac Autonomic Modulation Quality
     // Parasympathetic indicators (positive contribution): RMSSD, HF power, pNN50
-    // Sympathetic indicators (negative contribution): LF/HF ratio, AMo50
+    // Sympathetic indicator (negative contribution): LF/HF ratio
     // Output: 0-100 scale, higher = healthier
     if (!r) return null;
     var paraScore = 0,
@@ -19932,6 +19944,7 @@ __exports.OxyDex = window.OxyDex;
     getFilteredRows,
     computeCAMQ,
     camqSympMeasured,
+    camqParaCount,
     _hrvClockS,
     hrvEventsFromRows,
     hrvBuildNodeExport,
