@@ -309,10 +309,15 @@ function decodeMuseOptics(f) {
                  a call carrying none leaves it byte-identical (`ppgdex-dsp.js attachPpgSeams`).
    With none of the three supplied every line below runs as it did, so no published number moves. */
 function ppgFootTimes(text, runsText, opts) {
-  var _po = null;
-  if (runsText) (_po = _po || {}).runsText = runsText;
-  if (opts && opts.seamsText) (_po = _po || {}).seamsText = opts.seamsText;
-  var rec = _po ? PPGDSP.parsePPG(text, _po) : PPGDSP.parsePPG(text);
+  /* ── THE GUARDED TERNARY IS THE SHAPE THE RATCHET READS ──────────────────────────────────────────
+     SAMPLE-VALIDITY-ENVELOPE done-when 4 scans for `runsText` inside a call's OWN argument list, or
+     for the else-arm of this exact ternary. An options object assembled ABOVE the call hides the
+     sidecar from that scan, and the gate then reports two bare calls where one carries a companion.
+     So both companions travel INLINE here. `parsePinnedRuns` and `parsePpgSeams` read `null` and an
+     absent key alike, and a caller supplying neither takes the second arm and reaches `parsePPG`
+     with no options at all, exactly as every caller before 2026-11-26 did. */
+  var _seams = (opts && opts.seamsText) || null;
+  var rec = runsText || _seams ? PPGDSP.parsePPG(text, { runsText: runsText || null, seamsText: _seams }) : PPGDSP.parsePPG(text);
   if (rec.t0Ms == null) throw new Error('PPG file carried no phone timestamp.');
   if (opts && opts.footHiHz > 0) rec.footHiHz = opts.footHiHz;
   /* ── ∅ THE SENTINEL GAPS REACH THIS DETECTOR AS SIGNAL, AND THE NODE HOLDS THEM OVER FIRST ──────

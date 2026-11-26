@@ -37331,7 +37331,12 @@
          2026-09-26-tch-hat-misattributes-shared-optical-error): `runRealNight` gains `reference` (each corner's
          σ, bias and ρ measured against the night's beat reference). The night page reads it in its `refOf`
          helper, which feeds the heroes and the independence row. Surfaced on purpose, as above. */
-      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 27, 'sensor-trio-worker.js': 42, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
+      /* pat-feasibility-worker.js 27 -> 28 on 2026-11-26 (the four-site PAT unit): the payload gains `forehead`, the
+         n-cornered hat over chest, forehead, ankle and — when the ring coupled — finger, beside the forehead legs' own
+         lag medians and the seam count that removed windows from the solve. The page reads it in its `renderFocus`
+         helper, beside the three-cornered hat it already draws there, which is where it reads every other hat key.
+         Surfaced on purpose: a worker key no consumer reads is what the dead-key leg above would have called dead. */
+      var UNDECIDED_EXPECTED = { 'pat-feasibility-worker.js': 28, 'sensor-trio-worker.js': 42, 'qrs-equiv-worker.js': 2, 'qrs-yield-worker.js': 1 };
       Object.keys(UNDECIDED_EXPECTED).forEach(function (w2) {
         T.eq(
           w2 + ' · helper-reached (UNDECIDABLE) key count',
