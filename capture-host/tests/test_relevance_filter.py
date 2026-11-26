@@ -69,12 +69,14 @@ scratch_invented_read = pytest.mark.skipif(
 )
 
 
-def decide(changed, manifest=None):
+def decide(changed, manifest=None, table=None):
     """Run the committed filter the way CI runs it. The test never re-implements the decision: a test
     that re-writes the extraction it is checking agrees with itself, never with the job."""
     env = dict(os.environ)
     if manifest is not None:
         env["ROOT_READS_MANIFEST"] = str(manifest)
+    if table is not None:
+        env["JOB_PROTECTION_SOURCE"] = str(table)
     r = subprocess.run(
         ["bash", str(SCRIPT)],
         input="\n".join(changed),
@@ -97,7 +99,11 @@ def test_the_manifest_is_a_nonempty_measured_set():
 
 
 def test_every_manifest_path_runs_the_suite():
+    """Every measured path but the conditional one. The script names its own exception, so this leg
+    cannot drift from the filter by holding a second copy of the list."""
     for entry in json.loads(MANIFEST.read_text())["paths"]:
+        if entry["path"] in conditional_paths():
+            continue
         assert decide([entry["path"]]) == "true", entry["path"]
 
 
@@ -119,6 +125,82 @@ def test_the_workflow_runs_the_suite_even_without_the_manifest():
     """The workflow owns the matrix, the pins and the coverage floor, so it is a second rail in the
     script rather than a manifest entry that a re-measure could drop."""
     assert decide([".github/workflows/capture-host-ci.yml"], manifest=MANIFEST) == "true"
+
+
+# ── ONE MEASURED PATH IS CONDITIONAL: THE RESIDUE LEDGER ───────────────────────────────────────────
+#
+# `briefs/RESIDUE.md` is a real root read and it stays in the manifest. `_residue_open()` in
+# tests/test_check_script.py opens the ledger to date a `not-required` declaration. The declaration
+# itself lives in that file's `JOB_PROTECTION` table, and the table holds none today, so a
+# ledger-only diff moved no result here and still ran the whole Python matrix.
+#
+# Reading the LEDGER cannot answer the question, because the ledger always holds OPEN rows. Only a
+# live declaration makes one of them load-bearing, so the filter asks the table. The six legs below
+# pin both answers, the block scope of the read, and the fail-toward-RUN fallback.
+LEDGER = "briefs/RESIDUE.md"
+LIVE_TABLE = CH / "tests" / "test_check_script.py"
+
+
+def conditional_paths():
+    """Ask the script which paths it treats as conditional."""
+    out = subprocess.run(["bash", str(SCRIPT), "--list-conditional"], capture_output=True, text=True, check=True).stdout
+    return [line for line in out.split("\n") if line]
+
+
+def write_table(tmp_path, body):
+    """Stand in for the file that carries the declaration table."""
+    p = tmp_path / "declarations.py"
+    p.write_text(body)
+    return p
+
+
+def test_the_ledger_is_the_one_conditional_path():
+    assert conditional_paths() == [LEDGER]
+    assert LEDGER in [e["path"] for e in json.loads(MANIFEST.read_text())["paths"]]
+
+
+@scratch_hostile
+def test_the_live_table_declares_nothing_not_required_today():
+    """Why the next leg reads `false`. A declaration landing here reds this one, and the reader then
+    sees the filter's answer change for a reason."""
+    block = re.search(r"^JOB_PROTECTION = \{.*?^\}", LIVE_TABLE.read_text(), re.S | re.M)
+    assert block, "the table moved — the filter reads it by this anchor"
+    assert "not-required" not in block.group(0)
+
+
+@scratch_hostile
+def test_a_ledger_only_diff_skips_while_no_declaration_is_live():
+    """THE POINT OF THE UNIT, and it resolves the table by the script's own default."""
+    assert decide([LEDGER]) == "false"
+
+
+def test_a_live_declaration_turns_the_ledger_back_on(tmp_path):
+    """THE CONTROL. The next advisory job writes its declaration and the trigger returns, with no
+    edit to the filter."""
+    table = write_table(tmp_path, 'JOB_PROTECTION = {\n    ("a.yml", "j"): ("not-required", "k"),\n}\n')
+    assert decide([LEDGER], table=table) == "true"
+
+
+def test_a_declaration_outside_the_table_does_not_count(tmp_path):
+    """tests/test_check_script.py plants a `not-required` entry inside a test to exercise its own
+    reader. A plant is not a declaration, so the filter reads the module-level block alone."""
+    table = write_table(
+        tmp_path,
+        'JOB_PROTECTION = {\n    ("a.yml", "j"): ("publishes", "k"),\n}\nPLANTED = ("not-required", "k")\n',
+    )
+    assert decide([LEDGER], table=table) == "false"
+
+
+def test_an_unreadable_table_counts_the_ledger(tmp_path):
+    """Fail toward RUN, like the empty-diff arm. A filter that cannot read its condition must not
+    answer SKIP."""
+    assert decide([LEDGER], table=tmp_path / "absent.py") == "true"
+    assert decide([LEDGER], table=write_table(tmp_path, "NOTHING = 1\n")) == "true"
+
+
+def test_a_measured_path_beside_the_ledger_still_runs_the_suite():
+    """The conditional arm suppresses the ledger alone, never the diff that carries it."""
+    assert decide([LEDGER, "clock.js"]) == "true"
 
 
 # THE CONTROL PATHS, ASSEMBLED FROM FRAGMENTS AND DELIBERATELY SO. `mutation_diff.root_reads` turns any
