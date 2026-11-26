@@ -125,8 +125,10 @@
         'Periodic-breathing / Cheyne-Stokes cycle length from the SpO2 periodogram. The PHYSIOLOGY is ' +
         'established and has a genuinely characteristic period; this SpO2-derived, device-dependent ' +
         'estimate is not standardized, hence emerging rather than validated. Reported only when the ' +
-        'peak clears a fitted AR(1) background (Mann & Lees 1996, Climatic Change 33:409-445, ' +
-        'doi 10.1007/BF00142586) — NULL otherwise, because before 2026-08-16 this returned an argmax ' +
+        'peak clears a fitted AR(1) background. The height-over-background RULE is Mann & Lees 1996, ' +
+        'Climatic Change 33:409-445, doi 10.1007/BF00142586; the persistence this code fits is its own ' +
+        'lag-2-over-lag-1 estimator and not their multitaper fit. NULL otherwise, because before ' +
+        '2026-08-16 this returned an argmax ' +
         'unconditionally and fabricated a cycle on featureless nights (~42 % of pure AR(1) runs). ' +
         'Corpus support: 19/103 nights at the band edge against a 42 % null, p = 3.3e-7.'
     },
