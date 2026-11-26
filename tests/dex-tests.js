@@ -36334,7 +36334,12 @@
         counter = (counter + 1 + skipped) & 0xffff;
         skipped = 0;
         tick += TICKS_PER_REC;
-        hostMs += 1000 / 128;
+        /* `driftPpm` PLANTS a known rate offset between the two columns: the device tick keeps its
+           declared cadence and the host column advances by that cadence scaled. It is the only way
+           to measure whether a consumer RECOVERS a drift, because with no option the two columns
+           advance by the same nominal step and the recoverable correction is zero. Sign follows
+           §🔒.7: host-ms per device-ms, so a negative value is a device running fast. */
+        hostMs += (1000 / 128) * (1 + (o.driftPpm || 0) / 1e6);
       }
       return lines.join('\n') + '\n';
     }
@@ -36656,11 +36661,16 @@
       T.eq('the start stamp is the first row, floating', new Date(got.t0Ms).toISOString(), '2026-11-15T01:02:03.456Z');
       T.eq('a zone-free host stamp carries no offset and no reason', JSON.stringify([got.offsetMin, got.t0Reason]), JSON.stringify([null, null]));
 
-      /* §🔒.7 — THE HOST AXIS IS REPORTED AND NOT APPLIED. ECGDex gates its own rate correction at a
-         2400 s span, and that knee is a measurement of the H10's crystal over the H10's fragments.
-         Nothing has measured this device, so `fs` stays on the device clock either way. Read
-         `independent` before `ppm`: a host column derived from the device counter is NOT a second
-         clock, and the two streams below differ in that alone. */
+      /* §🔒.7 — THE RATE IS REPORTED AND NOT APPLIED, AND THE EPOCH TIMES ARE PLACED. ECGDex gates
+         its own rate correction at a 2400 s span, and that knee is a measurement of the H10's
+         crystal over the H10's fragments, so it stays out of this node, which quotes no rate.
+         ⚠ This comment used to add that nothing had measured this device. Past tense since
+         2026-11-26: the box measured -49.9 ppm over 4 sessions of 1.6 h to 7.4 h. It changed
+         neither `fs` nor this group, because `round(EPOCH_SEC * fs)` is the SAME integer at both
+         rates (pinned in `eegdex · clock · epoch-placement`); what it changed is where `compute`
+         puts an epoch, which that group measures.
+         Read `independent` before `ppm`: a host column derived from the device counter is NOT a
+         second clock, and the two streams below differ in that alone. */
       T.eq('a host stamp derived from the device counter is not a second clock', got.hostAxis.independent, false);
       var jit = D.ingestMuseRaw(buildMuseRawText({ records: 2000, gapLen: 0, jitterHost: true }));
       T.eq('a host stamp carrying real jitter is a second clock', jit.hostAxis.independent, true);
@@ -36885,6 +36895,163 @@
       T.eq('an empty file in the night changes nothing', D.ingestMuseRaw([txt, '']).samples.length, whole.samples.length);
       T.eq('a night of empty files refuses', D.ingestMuseRaw(['', '']).reason, 'no-row');
       T.eq('an empty night refuses', D.ingestMuseRaw([]).reason, 'no-row');
+    });
+
+    group('The EEGDex epoch times are placed on the host axis, and say which axis they ride', 'eegdex · clock · epoch-placement', function (T) {
+      var D = env.EEGDSP;
+      if (!D) {
+        T.skip('env.EEGDSP available', 'eegdex-dsp.js is not executed by this lane');
+        return;
+      }
+      /* ── §🔒.7 · WHY THIS GROUP IS ABOUT `tMs` AND NOT ABOUT `fs` ──────────────────────────────
+         The box measured this device at -49.9 ppm host-ms per device-ms over 4 sessions of 1.6 h to
+         7.4 h. Correcting `fs` recovers NONE of that, and the first leg pins the arithmetic rather
+         than the claim: `compute` cuts an epoch at `Math.round(EPOCH_SEC * fs)`, and at 256 Hz the
+         corrected rate rounds to the SAME integer. The quantity that carries the drift is the epoch
+         time, which `buildNodeExport` copies into `ganglior_events[].t` and `.tMs`, where a fusion
+         consumer pairs it against another device. */
+      var PPM = -49.9,
+        FS = 256,
+        SPE = Math.round(30 * FS);
+      T.eq('an epoch holds the same samples at both rates, so a rate correction moves no number', JSON.stringify([SPE, Math.round((30 * FS) / (1 + PPM / 1e6))]), JSON.stringify([7680, 7680]));
+      /* The rate at which one sample boundary finally moves, so the 256 Hz no-op above is a
+         measurement of THIS device and not a general claim about rate corrections. */
+      T.ok(
+        'one sample boundary moves only above 334 Hz',
+        Math.round(30 * 334) !== Math.round((30 * 334) / (1 + PPM / 1e6)) && Math.round(30 * 333) === Math.round((30 * 333) / (1 + PPM / 1e6)),
+        '334 Hz is the knee'
+      );
+
+      var N_EP = 20,
+        T0 = Date.UTC(2026, 10, 15, 23, 0, 0),
+        sig = new Float64Array(N_EP * SPE),
+        i;
+      for (i = 0; i < sig.length; i++) sig[i] = Math.sin(i / 11) * 20 + Math.sin(i / 3.1) * 4;
+      /* A STUB AXIS, so the arithmetic is measured against a rate nobody has to infer back out of a
+         smoothed median. `correctionAt` answers ms to ADD to the device axis, exactly as `clock.js`
+         documents it. `off` plants a constant head offset, which the differential leg below reads. */
+      function axis(off) {
+        return {
+          ok: true,
+          independent: true,
+          correctionAt: function (devMs) {
+            return devMs * (PPM / 1e6) + off;
+          }
+        };
+      }
+      function run(rec) {
+        return D.analyze(Object.assign({ eeg: sig, fs: FS, t0Ms: T0, devMs0: 0 }, rec || {}), {});
+      }
+      var placed = run({ hostCorr: axis(0) });
+      T.ok('the night analyses', !placed.err, placed.err || '');
+      if (placed.err) return;
+      T.eq('a disciplined recording says its epoch times ride the host axis', JSON.stringify([placed.tMsBasis, placed.tMsBasisReason]), JSON.stringify(['host-disciplined', null]));
+      T.eq('the first epoch does not move, because `t0Ms` already stands on the host stamp', placed.hypnogram[0].tMs - T0, 0);
+      /* 19 epochs x 30 s x -49.9 ppm = -28.443 ms, published rounded to the whole ms `tMs` carries.
+         An 8 h night reaches about -1.4 s by the same arithmetic, which is the cost this unit paid. */
+      T.eq('the last epoch of 20 is placed 28 ms earlier than the device index puts it', placed.hypnogram[N_EP - 1].tMs - T0, 19 * 30000 - 28);
+
+      /* ── THE CORRECTION IS DIFFERENTIAL, AND THIS IS THE LEG THAT PROVES IT ────────────────────
+         `t0Ms` is already the host stamp of the first row, and `clock.js` states that
+         `correctionAt(firstAnchor)` is NOT zero: the running median's clamped window pulls each end
+         inward by 5 anchors' worth of drift. Adding the correction whole would publish that bias
+         plus the first row's own offset on every epoch. Subtracting the correction AT `devMs0`
+         removes both, so a constant head offset of 777 ms must change nothing. */
+      var shifted = run({ hostCorr: axis(777) });
+      T.eq('a constant head offset on the axis moves no epoch time', JSON.stringify(shifted.hypnogram.map((e) => e.tMs)), JSON.stringify(placed.hypnogram.map((e) => e.tMs)));
+
+      /* ── ∅ · THE THREE WAYS THE PLACEMENT IS UNAVAILABLE, EACH NAMED ───────────────────────────
+         A basis nobody can read off the numbers is the defect this unit found in the first place, so
+         every fallback publishes `device-index` WITH its own reason rather than a silent arithmetic
+         change. The device-index times are the unplaced ones, which is the honest answer: no
+         correction beats a fabricated one. */
+      var bare = run({});
+      T.eq(
+        'CONTROL - a frame with no axis keeps the device index and names the absence',
+        JSON.stringify([bare.tMsBasis, bare.tMsBasisReason]),
+        JSON.stringify(['device-index', 'no-host-disciplined-axis'])
+      );
+      T.eq('CONTROL - and its last epoch is exactly the device-index arithmetic', bare.hypnogram[N_EP - 1].tMs - T0, 19 * 30000);
+      var noAnchor = run({ hostCorr: axis(0), devMs0: null });
+      T.eq(
+        'an axis with no device anchor to evaluate it at names that, not the axis',
+        JSON.stringify([noAnchor.tMsBasis, noAnchor.tMsBasisReason]),
+        JSON.stringify(['device-index', 'no-device-anchor'])
+      );
+      /* ONE non-finite correction drops the WHOLE series, so no hypnogram carries two timebases. A
+         reader of a mixed series would have to find which epochs rode which axis, and nothing in the
+         export tells them. */
+      var holed = run({
+        hostCorr: {
+          ok: true,
+          independent: true,
+          correctionAt: function (devMs) {
+            return devMs === 7 * 30000 ? NaN : devMs * (PPM / 1e6);
+          }
+        }
+      });
+      T.eq(
+        'one non-finite correction drops the whole series back, by name',
+        JSON.stringify([holed.tMsBasis, holed.tMsBasisReason]),
+        JSON.stringify(['device-index', 'host-axis-correction-not-finite'])
+      );
+      T.eq('...and every epoch then reads the device index, never a half-placed one', JSON.stringify(holed.hypnogram.map((e) => e.tMs - T0)), JSON.stringify(bare.hypnogram.map((e) => e.tMs - T0)));
+      /* §🔒.6 — a recording with no start stamp places nothing and fabricates no time. */
+      var noT0 = D.analyze({ eeg: sig, fs: FS, t0Ms: null, devMs0: 0, hostCorr: axis(0) }, {});
+      T.eq('a stamp-less recording publishes null times and no basis', JSON.stringify([noT0.tMsBasis, noT0.tMsBasisReason, noT0.hypnogram[5].tMs]), JSON.stringify([null, 'no-start-stamp', null]));
+
+      /* ── AND THE WHOLE ROAD, FROM A FILE THE CAPTURE HOST COULD HAVE WRITTEN ───────────────────
+         The legs above measure the arithmetic against a stub. This one measures the PLUMBING: two
+         epochs of real rows, a planted -5000 ppm between the two columns, and host jitter so the
+         host column is a second clock rather than the device time rounded. The planted rate is 100x
+         the measured one because the recoverable quantity scales with the span, and two epochs is
+         the floor `analyze` accepts; the arithmetic is linear, so the magnitude is free. */
+      if (!env.MuseFrame) {
+        T.skip('env.MuseFrame available', 'muse-frame.js is not executed by this lane');
+        return;
+      }
+      var DRIFT = -5000,
+        frame = D.ingestMuseRaw(buildMuseRawText({ records: 2 * SPE, gapLen: 0, jitterHost: true, driftPpm: DRIFT }));
+      T.ok('the planted stream ingests', frame.ok, frame.reason || '');
+      if (!frame.ok) return;
+      T.eq('the host column is still a second clock under a planted drift', frame.hostAxis.independent, true);
+      T.eq('the axis reaches the frame as a live correction, and the device anchor with it', JSON.stringify([frame.hostCorr !== null, typeof frame.devMs0]), JSON.stringify([true, 'number']));
+      var out = D.compute(frame, {});
+      T.eq('the placement survives the frame-to-analyze seam', JSON.stringify([out.tMsBasis, out.tMsBasisReason]), JSON.stringify(['host-disciplined', null]));
+      /* 30 000 ms x -5000 ppm = -150 ms. The tolerance is the residual of a running median over
+         anchors carrying +-6 ms of host jitter, which is about 1 ms at this width; 5 ms also admits
+         the end-window clamp `clock.js` documents. A leg that asserted 0 tolerance would measure the
+         jitter seed and not the recovery. */
+      var moved = out.hypnogram[1].tMs - out.hypnogram[0].tMs - 30000;
+      T.ok('the second epoch recovers the planted drift', Math.abs(moved - 30000 * (DRIFT / 1e6)) < 5, 'recovered ' + moved + ' ms against a planted -150 ms');
+      /* ── THE EXPORT IS THE REASON ANY OF THIS MATTERS ─────────────────────────────────────────
+         The two epoch times above are internal until `buildNodeExport` copies them into
+         `ganglior_events[].t` and `.tMs`, which is where a fusion consumer reads them. The stage
+         series is GIVEN here rather than fitted, because a night of 2 epochs scored by the model
+         may hold no transition at all, and a leg that passes over an empty event list measures
+         nothing. Two unlike classes give exactly two transitions, so the assertion below always has
+         something to read. */
+      var plan = [],
+        nEpExp = Math.floor(frame.samples.length / SPE),
+        q;
+      for (q = 0; q < nEpExp; q++) plan.push(q % 2 ? 'REM' : 'wake');
+      var staged = D.compute(frame, { stages: plan }),
+        ex2 = D.buildNodeExport(staged),
+        evs = ex2.ganglior_events;
+      T.eq('the given series reaches the bus as one event per epoch, because no two neighbours share a class', JSON.stringify(evs.length), JSON.stringify(nEpExp));
+      T.eq('the bus carries the PLACED times, not the device index', JSON.stringify(evs.map((e) => e.tMs)), JSON.stringify(staged.hypnogram.map((e) => e.tMs)));
+      /* The same -152 ms the frame-level leg recovered, read off the bus. The device index would put
+         these two events exactly 30 000 ms apart. */
+      T.ok(
+        'so the two bus events sit the recovered distance apart, not the declared one',
+        Math.abs(evs[1].tMs - evs[0].tMs - 30000 - 30000 * (DRIFT / 1e6)) < 5,
+        'bus gap ' + (evs[1].tMs - evs[0].tMs) + ' ms against a declared 30000 ms'
+      );
+      T.eq('the export states the timebase its epoch times ride', ex2.recording.timing.timingSource, 'host');
+      /* CONTROL - the EDF road carries no host stamp column, so the same builder still under-claims
+         nothing and states the one clock it has. This is also the leg that holds the committed
+         fixture's bytes still: `summary.hostAxis` is null there, so the call is unchanged. */
+      T.eq('CONTROL - an input with no host column still states one clock', D.buildNodeExport(D.compute(D.genSynthetic(), {})).recording.timing.timingSource, 'device-only');
     });
 
     group('The EEGDex node export carries one event per stage transition', 'eegdex · export · ganglior', function (T) {

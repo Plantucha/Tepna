@@ -331,8 +331,9 @@
      such pass. `formulaStages` below is the one stage path, and `analyze` calls it. */
 
   /* ── analyze ───────────────────────────────────────────────────────────────
-     `rec` = { eeg:Float|Array, fs, t0Ms? }. Samples, not a vendor file: see the scope note at the
-     top. An `emg` or `eog` lead on the frame is IGNORED here. The band-power stager read both, and
+     `rec` = { eeg:Float|Array, fs, t0Ms?, devMs0?, hostCorr? }. Samples, not a vendor file: see the
+     scope note at the top. The last two place the epoch times on a host axis (§🔒.7) and are both
+     optional: without them the epoch times stay on the device index and say so. An `emg` or `eog` lead on the frame is IGNORED here. The band-power stager read both, and
      the fit reads one EEG derivation, so this node now measures the EEG channel alone. The
      generators below still emit the two leads, because a frame carrying them is what the
      reproducibility legs hold. */
@@ -631,6 +632,45 @@
       }
     }
 
+    /* ── §🔒.7 · THE EPOCH TIMES ARE PLACED ON THE HOST AXIS WHEN ONE DISCIPLINES THIS RECORDING ──
+       `i * EPOCH_SEC * 1000` is a DEVICE duration, not a host one: `spe` is `round(EPOCH_SEC * fs)`
+       samples and `fs` counts samples per device-second, so the offset carries the device's whole
+       rate error with it. At the measured -49.9 ppm an 8 h night places its last stage transition
+       about 1.4 s off the host timeline, and `buildNodeExport` copies these times into
+       `ganglior_events[].t` and `.tMs`, where a fusion consumer pairs them against another device.
+
+       The correction is DIFFERENTIAL. `t0Ms` is already the HOST stamp of the first row, so adding
+       `correctionAt` whole would count that row's own offset a second time. §🔒.7 permits a drawn
+       axis to be PLACED and never SPENT as a second clock, and this is the placing half.
+
+       ∅ · ONE BASIS FOR THE WHOLE HYPNOGRAM, NEVER A MIXED ONE. Every correction is taken before
+       the first epoch is built, and ONE non-finite value drops the whole series back to the device
+       index with a named reason, rather than leaving a reader to find which epochs rode which
+       axis. `tMsBasis` publishes which arithmetic ran, so the degradation is NAMED. */
+    var hostCorr = rec.hostCorr && typeof rec.hostCorr.correctionAt === 'function' ? rec.hostCorr : null,
+      devMs0 = typeof rec.devMs0 === 'number' && isFinite(rec.devMs0) ? rec.devMs0 : null,
+      corrMs = null,
+      corrWhy = null,
+      qc;
+    if (!hostCorr) corrWhy = 'no-host-disciplined-axis';
+    else if (devMs0 === null) corrWhy = 'no-device-anchor';
+    else {
+      var corr0 = hostCorr.correctionAt(devMs0),
+        cs = [];
+      for (qc = 0; qc < nEp; qc++) {
+        var cq = hostCorr.correctionAt(devMs0 + qc * EPOCH_SEC * 1000);
+        if (!isFinite(cq) || !isFinite(corr0)) {
+          cs = null;
+          break;
+        }
+        cs.push(Math.round(cq - corr0));
+      }
+      corrMs = cs;
+      if (cs === null) corrWhy = 'host-axis-correction-not-finite';
+    }
+    var tMsBasis = rec.t0Ms == null ? null : corrMs ? 'host-disciplined' : 'device-index',
+      tMsBasisReason = rec.t0Ms == null ? 'no-start-stamp' : corrMs ? null : corrWhy;
+
     var hypnogram = [],
       counts = { wake: 0, light: 0, deep: 0, REM: 0 },
       nNull = 0;
@@ -649,7 +689,7 @@
         st2 = sigAbs ? null : stages[i];
       hypnogram.push({
         epoch: i,
-        tMs: rec.t0Ms != null ? rec.t0Ms + i * EPOCH_SEC * 1000 : null,
+        tMs: rec.t0Ms == null ? null : rec.t0Ms + i * EPOCH_SEC * 1000 + (corrMs ? corrMs[i] : 0),
         stage: st2,
         conf: sigAbs ? null : confs[i],
         absentReason: st2 == null ? sigAbs || reasons[i] || 'unscorable' : null
@@ -676,6 +716,11 @@
       nEpochs: nEp,
       absentReasons: absentReasons,
       epochSec: EPOCH_SEC,
+      /* WHICH TIMEBASE EVERY `hypnogram[].tMs` STANDS ON, and the reason when it is the device
+         index. A consumer reading a stage transition off the bus can then tell a time disciplined
+         by the capture host from one carrying the device's rate error, without inferring it. */
+      tMsBasis: tMsBasis,
+      tMsBasisReason: tMsBasisReason,
       hypnogram: hypnogram,
       stageCounts: counts,
       architecture: arch,
@@ -1340,12 +1385,35 @@
     if (!(medSec > 0)) return { ok: false, reason: 'no-sample-rate', eegRecords: eegRecords, cleanSteps: steps.length };
     var fs = +(lib.EEG_SAMPLES / medSec).toFixed(4);
 
-    /* §🔒.7 — the axis is REPORTED, NEVER APPLIED here. ECGDex gates its own `fs` correction at a
-       2400 s span, and that knee is a measurement of the H10's crystal over the H10's own fragments
-       (`ecgdex-dsp.js`, `ECG_AXIS_MIN_SPAN_MS`). It is not a number about this device, and spending
-       it here would be the borrowed reason §∅ forbids. Nothing has measured this device's drift, so
-       the node keeps the device axis and says so through the block below. Read `independent` before
-       `ppm`: a host column that is the device time rounded is not a second clock. */
+    /* §🔒.7 — THE RATE STAYS ON THE DEVICE CLOCK, AND THE EPOCH TIMES RIDE THE HOST AXIS.
+       This block used to say that nothing had measured this device's drift. That premise is spent:
+       `tools/dual-clock-rate.mjs` reads this file's two clocks since 2026-11-26, and the box session
+       measured -49.9 ppm host-ms per device-ms over 4 sessions of 1.6 h to 7.4 h (the device runs
+       fast). The remedy that premise guarded was never the one this node needs, which is why the
+       sentence survived a correct reading of §∅.
+
+       ⚠️ CORRECTING `fs` HERE WOULD BE A FIX IN NAME ONLY, and the arithmetic says so rather than a
+       table: `compute` cuts an epoch at `Math.round(EPOCH_SEC * fs)`, which at this device's 256 Hz
+       is `round(7680) = 7680`. At -49.9 ppm the corrected rate gives `round(7680.383) = 7680` — the
+       SAME integer, so every epoch holds the same samples and no published number moves. A rate
+       correction needs 334 Hz before it changes one sample boundary. ECGDex's `ECG_AXIS_MIN_SPAN_MS`
+       is also still a measurement of the H10's crystal and not of this one, so the span gate stays
+       out: this node quotes no rate to gate.
+
+       The quantity that DOES carry the drift reaches the bus. `compute` places every epoch at
+       `t0Ms + i * EPOCH_SEC * 1000`, which is device-index arithmetic, and `buildNodeExport` copies
+       it into `ganglior_events[].t` and `.tMs`. At -49.9 ppm an 8 h night publishes its last stage
+       transition about 1.4 s off the host timeline, so a fusion consumer pairs it against another
+       device's beat on the wrong axis. §🔒.7's line is that a drawn axis may be PLACED on the host
+       timeline and never SPENT as a second clock, and placing the epochs is exactly the placing half
+       — the same remedy `ecgdex-dsp.js` takes for `tMsAt` and `ppgdex-dsp.js` for `relSec`.
+
+       So the axis travels on the frame as `hostCorr`, and `compute` spends it on the epoch times
+       under its own named gate. `deviceDrawn` does NOT gate it: `clock.js` publishes that flag
+       ADDITIVELY, folding it into a gate reds 11 assertions, and residue
+       2026-09-05-drawn-remedy-is-relabel-not-refuse recorded the `!deviceDrawn` gate as the wrong
+       hypothesis. Read `independent` before `ppm`: a host column that is the device time rounded is
+       not a second clock, and THAT is the gate. */
     var ax = typeof ckLib.hostAxis === 'function' ? ckLib.hostAxis(anchors, {}) : { ok: false, reason: 'host-axis-absent' };
     var ck0 = ckLib.parseTimestamp(parsed.rows[0].hostRaw, {});
 
@@ -1380,6 +1448,22 @@
         unparsable: unparsable
       },
       fsBasis: { source: 'device-tick-median', cleanSteps: steps.length, medianSec: +medSec.toFixed(9), samplesPerRecord: lib.EEG_SAMPLES },
+      /* ── THE TWO FIELDS `compute` NEEDS TO PLACE AN EPOCH ON THE HOST TIMELINE ──────────────────
+         `devMs0` is the device-clock time of the FIRST HOST-ANCHORED row, in the same units the
+         anchors carry (`rowTick * 1000`), because `correctionAt` is a function of the device axis
+         and not of an offset into the recording. It is the first sample's own device time whenever
+         row 0 carries both a parseable stamp and an EEG record, which is the road every real file
+         takes; a row-0 stamp with no EEG record moves the argument by that one row's span, and at
+         this device's rate the correction is DIFFERENTIAL, so a whole second of argument error
+         moves a published epoch time by 50 µs. `hostCorr` is the live axis, and it is `null` unless the axis
+         resolved over an INDEPENDENT host column — a host stamp that is the device time rounded
+         disciplines nothing, and spending it would publish rounding as a correction.
+         ⚠️ `hostCorr` carries a FUNCTION, so it crosses no `postMessage`. No worker loads EEGDSP
+         today (`git grep EEGDSP -- '*worker*.js'` is empty). A road that ever serialises this frame
+         drops the field and `compute` then publishes `tMsBasis: 'device-index'` with its reason, so
+         the degradation is NAMED rather than silent. */
+      devMs0: anchors.length ? anchors[0].devMs : null,
+      hostCorr: ax.ok === true && ax.independent !== false && typeof ax.correctionAt === 'function' ? ax : null,
       hostAxis: {
         ok: ax.ok === true,
         anchors: anchors.length,
@@ -1419,7 +1503,10 @@
     var fs = frame.fs;
     if (!sig || !sig.length) return { err: 'no EEG signal', reason: 'no-samples' };
     if (!(fs > 0)) return { err: 'no EEG signal', reason: 'no-sample-rate' };
-    var res = analyze({ eeg: sig, fs: fs, t0Ms: frame.t0Ms }, opts);
+    /* §🔒.7 — the two placement fields travel to `analyze`, which owns the epoch arithmetic. A
+       frame that carries neither (the EDF road, a synthetic frame, a serialised frame) reaches the
+       same `analyze` and publishes `tMsBasis: 'device-index'` with its reason. */
+    var res = analyze({ eeg: sig, fs: fs, t0Ms: frame.t0Ms, devMs0: frame.devMs0, hostCorr: frame.hostCorr }, opts);
     if (!res || res.err) return res || { err: 'no EEG signal', reason: 'analyze-returned-nothing' };
     /* The per-epoch spectrum rides its OWN key. `buildNodeExport` copies `bands` whole, so a
        45-bin vector an epoch would otherwise reach the bus, where no consumer asked for it. */
@@ -1431,6 +1518,9 @@
     res.offsetMin = frame.offsetMin == null ? null : frame.offsetMin;
     res.t0Reason = frame.t0Ms == null ? frame.t0Reason || 'no-start-stamp' : null;
     res.channel = frame.channel || null;
+    /* The axis's own REPORT (not the live function) rides the summary, because `buildNodeExport`'s
+       timing block is its one consumer and an input with no host column leaves it null. */
+    res.hostAxis = frame.hostAxis || null;
     /* The EDF header's own physical dimension for this channel, carried through so a surface can
        print the power unit it actually has. A synthetic frame declares none, and a renderer then
        says the amplitude unit is undeclared instead of asserting µV². */
@@ -1998,13 +2088,16 @@
            One shape on every node-export, built by one function (`dex-export.js timingBlock`, which
            carries the field list and the null discipline). An EDF header and a synthetic frame each
            carry ONE clock — the start stamp plus the record geometry — and no host stamp column, so
-           there is no second clock here to discipline the device rate against. This node looks for
-           neither device-clock resyncs nor axis seams either, so the bare call publishes both counts
-           as unknown rather than zero.
+           on those roads there is no second clock to discipline the device rate against and the
+           call passes `null`. The raw-frame road DOES carry a host stamp column, and it hands the
+           axis over, so the block states the timebase this export's epoch times actually ride
+           instead of under-claiming every input to `device-only`. This node looks for neither
+           device-clock resyncs nor axis seams either, so the call publishes both counts as unknown
+           rather than zero.
            Guarded like every other `DexExport` reach in this file; `dex-export.js` is inlined in
            every bundle that builds an export and co-loaded by every realm that does, so a `null`
            here is a load-order bug and the export-parity group reds on it. */
-        timing: typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock ? DexExport.timingBlock({}) : null
+        timing: typeof DexExport !== 'undefined' && DexExport && DexExport.timingBlock ? DexExport.timingBlock(summary.hostAxis ? { hostAxis: summary.hostAxis } : {}) : null
       },
       sleep: {
         epochSec: summary.epochSec == null ? EPOCH_SEC : summary.epochSec,
