@@ -470,7 +470,7 @@
       "path": "provenance/trio-fold.json",
       "ok": true,
       "reason": null,
-      "folds": 2,
+      "folds": 3,
       "nights": 132
     },
     "proxy": {
@@ -543,7 +543,7 @@
   "reason": null,
   "producedBy": {
     "tool": "tools/fold-generation.mjs",
-    "commit": "16972e98"
+    "commit": "af66d481"
   },
-  "at": "2026-11-26T15:32:58Z"
+  "at": "2026-11-26T18:19:55Z"
 }
