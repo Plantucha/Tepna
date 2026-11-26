@@ -196,9 +196,23 @@
     const _order = typeof DexClock !== 'undefined' && DexClock.resolveDMY ? DexClock.resolveDMY(_stamps, true) : { dmy: true, locked: false };
     // §1.1 — pass the contradiction through so the ambiguous slash shapes refuse instead of guessing
     const _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked, dmyContradictory: _order.contradictory === true };
+    /* ∅ — WHAT THE READER DROPPED TRAVELS WITH THE ROWS (row
+       `2026-11-25-three-parsers-drop-rows-without-a-count`). This reader removes a row with too few
+       cells and a row whose stamp will not parse, and nothing counted either, so a file that lost
+       measurements published the same shape as a file that lost none.
+       ⚠ A BLANK LINE IS NOT A DROPPED ROW, so the short arm reads the raw line first.
+       The counter rides the ARRAY this function returns. A `map`, `filter` or spread returns a plain
+       array and loses it, so `hrvBuildNodeExport` reads it before its own filter. */
+    const _dropped = { total: 0, short: 0, stamp: 0 };
     for (let i = 1; i < lines.length; i++) {
       const cells = lines[i].split(',');
-      if (cells.length < 5) continue;
+      if (cells.length < 5) {
+        if (lines[i].trim()) {
+          _dropped.total++;
+          _dropped.short++;
+        }
+        continue;
+      }
       const r = {};
       headers.forEach((h, idx) => {
         r[h] = cells[idx] ? cells[idx].trim().replace(/\r/g, '') : '';
@@ -252,8 +266,14 @@
       // carried the column. Absence is null; the renderer already prints '—' for null.
       r._hrv = numOrNull(r['HRV Score'] != null && String(r['HRV Score']).trim() !== '' ? r['HRV Score'] : r['HRV']);
       r._cv = numOrNull(r['CV']);
-      if (isFinite(r._tMs)) rows.push(r);
+      if (isFinite(r._tMs)) {
+        rows.push(r);
+      } else {
+        _dropped.total++;
+        _dropped.stamp++;
+      }
     }
+    /** @type {any} */ (rows).rowsDropped = _dropped;
     return rows;
   }
   function parseCSV(text, opts) {
@@ -1387,6 +1407,11 @@
 
   function hrvBuildNodeExport(rows, opts) {
     opts = opts || {};
+    /* ∅ — the reader's drop count, read BEFORE the filter below builds a new array and loses the
+       rider. The headless `HRVDex.compute({text})` path hands this builder the very array
+       `_hrvParseSummaryRows` returned. The app path hands it `allRows`, which no single parse produced,
+       so the count is `null` there and the export says so rather than claiming zero. */
+    var _parseDropped = (rows && /** @type {any} */ (rows).rowsDropped) || null;
     // SIGNAL-ADAPTER-FOLLOWUPS-VII §1: sort ascending by floating tMs HERE — ONE ordering rule
     // for both callers. The app path passes the already-commitRows-sorted allRows (idempotent
     // re-sort); the headless HRVDex.compute({text}) path passed _hrvParseSummaryRows in FILE order,
@@ -1437,6 +1462,10 @@
         startEpochMs: t0,
         offsetMin: dated[0] && dated[0]._offsetMin != null ? dated[0]._offsetMin : null,
         measurements: dated.length,
+        /* What the reader could not read, clean case included (∅). A reader cannot tell "counted,
+           nothing dropped" from "no counter on this path" unless the clean case says so, so a parse
+           ships the object and a caller-supplied row array ships `null`. */
+        rowsDropped: _parseDropped,
         firstTMs: t0,
         lastTMs: last ? last._tMs : null,
         spanDays: t0 != null && last ? Math.round((last._tMs - t0) / 864e5) + 1 : null,
