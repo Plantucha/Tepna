@@ -3397,6 +3397,39 @@
       T.eq('(e) …and all 3 intervals count', measured && measured.ieiN, 3);
       T.eq('(e) …and its CV stays the measured 0', measured && measured.ieiCV, 0);
     });
+    group('OxyDex — the IEI duration reader takes BOTH desat event shapes', 'oxydex-dsp · iei · event-shape', function (T) {
+      var _odS = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var OD = (_odS && _odS._bare) || _odS;
+      T.ok('OxyDSP.computeIEI exposed', !!(OD && typeof OD.computeIEI === 'function'), 'OxyDex not co-loaded in this runner');
+      if (!OD || typeof OD.computeIEI !== 'function') return;
+      // The RAW primitive shape (`durationSec`, near oxydex-dsp.js:4538) and the profile shape
+      // (`duration`, near oxydex-dsp.js:5579). Four events 100 s apart, each 10 s long: 90 s each.
+      var raw = function (startIdx, durationSec) {
+        return { startIdx: startIdx, durationSec: durationSec };
+      };
+      var shaped = function (startIdx, duration) {
+        return { startIdx: startIdx, duration: duration };
+      };
+      var r = OD.computeIEI({ events: [raw(0, 10), raw(100, 10), raw(200, 10), raw(300, 10)] });
+      T.ok('(a) the raw primitive shape yields an IEI block, where it used to yield null', !!r);
+      T.eq('(a) …and its mean reads the same 90 s the profile shape gives', r && r.ieiMeanSec, 90);
+      T.eq('(a) …and all 3 intervals count', r && r.ieiN, 3);
+      T.eq('(a) …and nothing counts as absent', r && r.ieiDurationAbsent, 0);
+      var sh = OD.computeIEI({ events: [shaped(0, 10), shaped(100, 10), shaped(200, 10), shaped(300, 10)] });
+      T.eq('(b) CONTROL the profile shape still reads its 90 s mean', sh && sh.ieiMeanSec, 90);
+      var mixed = OD.computeIEI({ events: [raw(0, 10), shaped(100, 10), raw(200, 10), shaped(300, 10)] });
+      T.eq('(c) a mixed array reads every event', mixed && mixed.ieiN, 3);
+      T.eq('(c) …and counts none of them absent', mixed && mixed.ieiDurationAbsent, 0);
+      var rz = OD.computeIEI({ events: [raw(0, 10), raw(100, 0), raw(200, 10), raw(300, 10)] });
+      T.eq('(d) CONTROL a written 0 on the raw field stays the 0 the detector wrote', rz && rz.ieiMeanSec, 93.3);
+      var rInf = OD.computeIEI({ events: [raw(0, 10), raw(100, Infinity), raw(200, 10), raw(300, 10)] });
+      T.eq('(e) a non-finite raw duration is unmeasurable, exactly like the profile field', rInf && rInf.ieiDurationAbsent, 1);
+      var both = OD.computeIEI({ events: [{ startIdx: 0, durationSec: 10, duration: 90 }, raw(100, 10), raw(200, 10), raw(300, 10)] });
+      T.eq('(f) `durationSec` wins when one event carries both, as computeSBII reads it', both && both.ieiMeanSec, 90);
+      var fb = OD.computeIEI({ events: [{ startIdx: 0, durationSec: null, duration: 10 }, raw(100, 10), raw(200, 10), raw(300, 10)] });
+      T.eq('(g) a null `durationSec` falls back to `duration`', fb && fb.ieiN, 3);
+      T.eq('(g) …and that interval counts as measured', fb && fb.ieiDurationAbsent, 0);
+    });
     group('OxyDex §∅ — processNight reports an unmeasured SpO2/HR night as null, never 0', 'oxydex-dsp · absence-as-value · primary-builder', function (T) {
       var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
       var OD = (_od && _od._bare) || _od;

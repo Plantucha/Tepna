@@ -7719,8 +7719,17 @@
      (near oxydex-dsp.js:5579). The stored-summary path hands `obj.desatProfile` straight from a
      dropped JSON file (near oxydex-dsp.js:9181), so an event there carries whatever that file holds.
      `computeIEI` is also an exported surface on `OxyDSP`, so a caller builds its own events. */
+  /* BOTH SHAPES REACH THIS READER (row
+     `2026-11-26-the-iei-duration-reader-accepts-one-of-two-event-shapes`). The raw primitive emits
+     `durationSec` (near oxydex-dsp.js:4538), and `computeDesaturationProfile` re-shapes its events
+     to `duration` (near oxydex-dsp.js:5579). Reading `duration` alone answered null for every
+     interval over the raw shape, so the whole metric read null while `ieiDurationAbsent` counted
+     every interval — honest about the absence and wrong about the input. `computeSBII` reads both
+     fields for the same reason, and it states that reason beside itself. */
   function desatDurSec(ev) {
-    return ev && ev.duration != null && isFinite(ev.duration) ? ev.duration : null;
+    if (!ev) return null;
+    var d = ev.durationSec != null ? ev.durationSec : ev.duration;
+    return d != null && isFinite(d) ? d : null;
   }
 
   function computeIEI(desat) {
