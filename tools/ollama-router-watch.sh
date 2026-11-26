@@ -65,8 +65,16 @@ post() {
   timeout 60 ~/.local/bin/agent-board --as finch post --kind finding --to kestrel 13 "$(echo "$1" | tr -d "'\"")" >/dev/null 2>&1 \
     || echo "$now board post failed" >> "$LOG"
 }
+# 2026-11-26 (Kestrel, board #9156): a card job run by ~/bin/gpu-run.sh holds the GPU. The wrapper unloads Qwen and keeps
+# bge-m3, but checks (a) and (c) embed straight on a backend, so they can load a second bge-m3 copy with keep_alive 30m
+# beside the job (07:15:18 on 11-26: the probe loaded bge-m3 on Vulkan 24 s before a ROCm fault). While any wrapper PID
+# is live, skip both. This reads the wrapper's PID files only and never prunes them; the wrapper prunes its own.
+# The router-level embed above still runs: it is the path every interactive query takes anyway.
+cardjob=0; GD=${GPU_RUN_DIR:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/gpu-run.d}
+for g in "$GD"/*.pid; do [ -e "$g" ] && kill -0 "$(basename "$g" .pid)" 2>/dev/null && cardjob=$((cardjob + 1)); done
+[ "$cardjob" = 0 ] || echo "$now checks (a) and (c) skipped: $cardjob gpu-run job(s) hold the card" >> "$LOG"
 if [ "$mode" = router ] && st=$(curl -s -m 8 http://127.0.0.1:11434/router/status 2>/dev/null) && [ -n "$st" ]; then
-  for p in rocm:11436 vulkan:11435; do
+  [ "$cardjob" = 0 ] && for p in rocm:11436 vulkan:11435; do
     be=${p%%:*}; port=${p#*:}; f=$S/watch-$be.strikes; n=0; [ -f "$f" ] && read -r n < "$f"
     busy=$(echo "$st" | python3 -c "import json,sys; print(json.load(sys.stdin)['inflight'].get('$be', 0))" 2>/dev/null)
     [ "${busy:-1}" = 0 ] || { echo 0 > "$f"; continue; }
@@ -111,7 +119,7 @@ if [ "$mode" = router ] && st=$(curl -s -m 8 http://127.0.0.1:11434/router/statu
     echo good > "$f"
   fi
   pf=$S/watch-parity.last; pl=0; [ -f "$pf" ] && read -r pl _ < "$pf"
-  if [ $nbox -gt 0 ] && [ $(( $(date +%s) - pl )) -ge 3600 ]; then
+  if [ "$cardjob" = 0 ] && [ $nbox -gt 0 ] && [ $(( $(date +%s) - pl )) -ge 3600 ]; then
     res=$(echo "$st" | python3 -c '
 import json, math, sys, urllib.request
 st = json.load(sys.stdin); T = ["how does the walker undraft a green PR", "floating wall-clock ms", "absence is null"]
