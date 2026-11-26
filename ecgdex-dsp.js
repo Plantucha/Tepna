@@ -3096,7 +3096,7 @@
       accWakePct = null;
     const gait = accEx && accEx.gait;
     if (gait && gait.walking) {
-      steps = gait.totalSteps || 0;
+      steps = gait.totalSteps != null && isFinite(gait.totalSteps) ? gait.totalSteps : null;
       if (gait.zonePct) briskPct = gait.zonePct.filter((z) => z.zone === 'Brisk walk' || z.zone === 'Vigorous').reduce((s, z) => s + (z.pct || 0), 0);
       if (gait.cadEpochs && gait.cadEpochs.length) {
         const act = gait.cadEpochs.filter((c) => c.cadence >= 20).length; // ≥20 steps/min epoch = ambulatory
@@ -5154,7 +5154,14 @@
   function _gait(vm, fs, off) {
     const N = vm.length,
       stepBandOK = fs >= 7;
-    if (!stepBandOK) return { totalSteps: 0, walking: false, reason: 'lowfs', accFs: fs, bouts: [], cadEpochs: [], zonePct: [] };
+    /* ∅ ABSENCE IS NULL. Below 7 Hz the 0.5-3.5 Hz step band does not fit under Nyquist, so the
+       detector cannot run AT ALL: this is a DISCONTINUITY, not reduced coverage, and §∅ asks for
+       null plus the named reason. The arm used to answer `totalSteps: 0, walking: false` — a
+       measured-looking count of zero and a conclusion with no evidence behind it — and 0 is a legal
+       count, because a still sleeper with a 50 Hz ACC reads 0 too. A consumer that sums totalSteps
+       across nights then understated the total silently. `reason` travels beside the null.
+       Every downstream gate keeps today's branch, because null is falsy where false was. */
+    if (!stepBandOK) return { totalSteps: null, walking: null, reason: 'lowfs', accFs: fs, bouts: [], cadEpochs: [], zonePct: [] };
     // vertical proxy: magnitude − 30-s running-mean gravity baseline (prefix sums)
     const win = Math.max(1, Math.round(30 * fs)),
       half = win >> 1,
@@ -6082,13 +6089,12 @@
                     method: 'De-gravitated vertical magnitude band-passed 0.5–3.5 Hz, adaptive-threshold peak detection (≥ 250 ms inter-step). Single chest sensor → no left/right asymmetry.'
                   }
                 : {
-                    walking: false,
-                    /* `_gait` returns a number on both arms, so the old `|| 0` was dead and it read
-                       as an absence fabrication. The count passes through. NOT FIXED HERE, and
-                       reported in the PR body: `_gait`'s own `lowfs` arm returns `totalSteps: 0`
-                       when the sample rate cannot resolve the step band, which is a detector that
-                       could not look reporting a measured zero. */
-                    totalSteps: accEx.gait.totalSteps,
+                    /* ∅ — The two arms that land here are NOT the same answer. Under 50 detected
+                       steps the detector ran and concluded: `walking: false` is measured. At
+                       `lowfs` it could not look at all, so both the conclusion and the count are
+                       null and `reason` carries the cause (fixed at the producer, `_gait`). */
+                    walking: accEx.gait.walking != null ? accEx.gait.walking : null,
+                    totalSteps: accEx.gait.totalSteps != null ? accEx.gait.totalSteps : null,
                     reason:
                       accEx.gait.reason === 'lowfs'
                         ? 'ACC sample rate ' + accEx.gait.accFs + ' Hz < 7 Hz needed to resolve the 0.5–3.5 Hz step band'
