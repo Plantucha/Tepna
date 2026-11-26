@@ -135,7 +135,7 @@ function gitText(args) {
 }
 
 /* Pure: the `file<TAB>quote` keys of every row in Shrike's verify tables, the shape
-   `| 3 | \`oxydex-dsp.js:9071\` | **REJECTED** | \`piFrames: s.piFrames || 0,\` |` (pipes escaped as \\|). */
+   `| 3 | \`oxydex-dsp.js:9071\` | **REJECTED** | \`piFrames: s.piFrames ?? null,\` |` (pipes escaped as \\|). */
 export function judgedKeys(texts) {
   const keys = new Set();
   const row = /^\|\s*\d+\s*\|\s*`([^`]+?):\d+`\s*\|\s*\*\*(?:CONFIRMED|REJECTED)[^|]*\|\s*`(.+)`[^`]*\|\s*$/;
