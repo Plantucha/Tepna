@@ -93,7 +93,12 @@ export const MERGED_WINDOW = 30;
 export const KODIAK_IDLE_MIN = 20;
 /* The birds whose pane sits in this machine's herdr. A bird on another host, a person, the walker
    itself and an agent of another vendor are outside the set, so no merge ever prompts them. */
-export const RIG_BIRDS = ['kestrel', 'heron', 'osprey', 'magpie'];
+export const RIG_BIRDS = ['kestrel', 'heron', 'osprey', 'magpie', 'crane'];
+/* The board names an author note may address. A note needs no pane read (the board nudge wakes the
+   pane), so a bird on another host is inside this set even though no merge wake reaches it. */
+export const NOTE_BIRDS = ['kestrel', 'heron', 'osprey', 'magpie', 'finch', 'wren', 'crane'];
+/* The alert kinds that end in "a coder owns it": the walker can do no more, so the author hears of it. */
+export const OWNER_KINDS = ['red', 'cancelled', 'dequeued', 'hand-rebase'];
 export const WAKE_IDLE_MIN = 20;
 /* A merge this pass first sees after more than this many minutes wakes nobody, so a first run, or a
    walker that was down for a night, does not prompt the fleet about old merges. */
@@ -148,6 +153,7 @@ export function classify(pr, required, fallback = FALLBACK_REQUIRED) {
     draft: !!pr.isDraft,
     headSha: pr.headSha,
     branch: pr.branch,
+    bird: pr.bird ?? null,
     updatedAtMs: stampMs(pr.updatedAtMs),
     behind: pr.mergeState === 'BEHIND',
     dirty: pr.mergeState === 'DIRTY',
@@ -383,7 +389,7 @@ export function strictPolicy() {
 }
 
 export function snapshot() {
-  const list = JSON.parse(gh(['pr', 'list', '--state', 'open', '--limit', '100', '--json', 'number,isDraft,mergeStateStatus,labels,headRefOid,headRefName,updatedAt,title']));
+  const list = JSON.parse(gh(['pr', 'list', '--state', 'open', '--limit', '100', '--json', 'number,isDraft,mergeStateStatus,labels,headRefOid,headRefName,updatedAt,title,body']));
   const prs = list.map((p) => {
     let checks = [];
     let readable = true;
@@ -406,6 +412,7 @@ export function snapshot() {
       labels: (p.labels || []).map((l) => l.name),
       headSha: p.headRefOid,
       branch: p.headRefName,
+      bird: trailerBird(p.body),
       updatedAtMs: stampMs(p.updatedAt),
       checks,
       readable,
@@ -1231,6 +1238,11 @@ export function pass(opts) {
       requiredSource: snap.required.length ? `ruleset(${snap.required.length})` : 'UNREADABLE — the mirror plus every reported check'
     }) + resLines.map((l) => `${l}\n`).join('');
   const fa = freshAlerts(planned.alerts, rows, state.alertSeen);
+  /* Author notes: a FRESH owner alert, once per (PR, kind, head), to the bird its trailer names. */
+  for (const n of planOwnerNotes(fa.fresh, rows)) {
+    const r = opts.dryRun ? 'dry-run' : postOwnerNote(n);
+    resLines.push(`NOTE ${n.bird} #${n.number} ${n.kind} → ${r}`);
+  }
   const jt = journalText(page, fa.fresh, state.journalBody);
   if (!opts.dryRun) {
     state.alertSeen = fa.seen;
@@ -1325,6 +1337,39 @@ function readBirds() {
 function postWake(p) {
   try {
     sh(path.join(homedir(), '.local', 'bin', 'agent-board'), ['--as', 'pr-walker', 'post', WAKE_THREAD, wakeText(p.numbers), '--to', p.bird, '--kind', 'note'], { timeout: 20000 });
+    return 'posted';
+  } catch (e) {
+    return `failed: ${String(e.message || e).split('\n')[0]}`;
+  }
+}
+
+/* ── A RED THE WALKER CANNOT CLEAR REACHES ITS AUTHOR ─────────────────────────────────────────────
+   Measured 2026-11-26 (board #9134): an owner alert went to the landing page and the journal only, so
+   a coder heard of a red PR when a peer read the page and relayed it (Kestrel → Crane, #9077). The
+   board nudge wakes the pane for an addressed entry, so the missing part was the entry. `fresh` is
+   freshAlerts' list, so each (PR, kind, head) is posted once; a new push is a new head and posts again.
+   A post that fails is not retried: the landing page still shows the alert. */
+export function planOwnerNotes(fresh, rows) {
+  const out = [];
+  for (const al of fresh || []) {
+    if (!OWNER_KINDS.includes(al.kind)) continue;
+    const r = (rows || []).find((x) => x.number === al.number);
+    if (!r || !NOTE_BIRDS.includes(r.bird)) continue;
+    out.push({ bird: r.bird, number: al.number, kind: al.kind, headSha: r.headSha, why: al.why });
+  }
+  return out;
+}
+export function ownerNoteText(n) {
+  return [
+    `#${n.number} needs you (${n.kind}) on head ${String(n.headSha || '').slice(0, 9)}: ${n.why}.`,
+    '',
+    'The walker can do no more for this head. It posts this once for each PR, kind and head.',
+    'Read the PR: `gh pr checks ' + n.number + '`. A new push starts a new head.'
+  ].join('\n');
+}
+function postOwnerNote(n) {
+  try {
+    sh(path.join(homedir(), '.local', 'bin', 'agent-board'), ['--as', 'pr-walker', 'post', WAKE_THREAD, ownerNoteText(n), '--to', n.bird, '--kind', 'note'], { timeout: 20000 });
     return 'posted';
   } catch (e) {
     return `failed: ${String(e.message || e).split('\n')[0]}`;
@@ -1703,6 +1748,23 @@ function selftest() {
     eq(parseBirds('not json'), null, 'wake: unreadable herdr output is null');
     eq(parseBirds('{"result":{"agents":[{"name":"heron","agent_status":"done","state_change_seq":4},{"agent_status":"idle"}]}}').length, 1, 'wake: a pane with no name is not a bird');
     eq(wakeText([3, 7]).startsWith('#3, #7 merged'), true, 'wake: the note names each merge');
+    const R = [
+      { number: 11, headSha: 'abc123456789', bird: 'crane' },
+      { number: 12, headSha: 'def', bird: null },
+      { number: 13, headSha: 'f00', bird: 'wren' }
+    ];
+    const red = (n, kind = 'red') => ({ number: n, kind, why: 'tests red after 1 rerun(s)' });
+    const on = planOwnerNotes([red(11)], R);
+    eq(on.length === 1 && on[0].bird === 'crane' && on[0].headSha === 'abc123456789', true, 'note: a red after the rerun goes to its author');
+    eq(planOwnerNotes([red(11, 'stale-pending'), red(11, 'waiting-for-slot')], R).length, 0, 'note: a kind the walker still handles posts nothing');
+    eq(planOwnerNotes([red(12)], R).length, 0, 'note: a PR with no trailer posts nothing');
+    eq(planOwnerNotes([red(13, 'hand-rebase')], R)[0].bird, 'wren', 'note: a bird off the rig is addressed too');
+    eq(planOwnerNotes([red(99)], R).length, 0, 'note: an alert for a PR no row names posts nothing');
+    const f1 = freshAlerts([red(11)], R, {});
+    eq(planOwnerNotes(freshAlerts([red(11)], R, f1.seen).fresh, R).length, 0, 'note: a standing alert posts once per head');
+    eq(planOwnerNotes(freshAlerts([red(11)], [{ ...R[0], headSha: 'new' }], f1.seen).fresh, R).length, 1, 'note: a new head posts again');
+    eq(ownerNoteText(on[0]).startsWith('#11 needs you (red) on head abc123456'), true, 'note: the text names the PR, kind and head');
+    eq(classify({ number: 1, bird: 'heron', checks: [] }, []).bird, 'heron', 'note: classify keeps the author');
   }
   console.log(`all ${ran} selftests passed`);
 }
