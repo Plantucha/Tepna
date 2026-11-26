@@ -53,12 +53,40 @@ permissions:
   contents: read
 
 jobs:
+  # ── reuse (identical tree): skip the heavy jobs when the merge queue already tested this tree green ──
+  # tools/ci-tree-reuse.mjs holds the rule and its evidence (board #9312, #9314). A push to main only;
+  # on any other event this job is skipped and the full workflow runs. It fails open.
+  reuse:
+    # Not sampled yet: a sparse checkout plus one API read. Re-derive it from `tools/ci-timing.mjs` once it has runs.
+    timeout-minutes: 3
+    name: reuse (identical tree)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      reused: ${{ steps.pick.outputs.reused }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            tools/ci-tree-reuse.mjs
+            tools/argv-guard.mjs
+          sparse-checkout-cone-mode: false
+      - id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/ci-tree-reuse.mjs --workflow local-steps.yml
+
   local-steps:
     # The cap is `ceil(p95 × 2)` per `tools/workflow-timeout-guard.mjs`, and this job has no CI sample yet.
     # So it is derived from the LOCAL sample instead, and the derivation is here to re-run: 130 s of step
     # time measured 2026-11-12, plus checkout and `npm ci`, doubled for a hosted runner, doubled again for
     # the guard's rule. Re-derive it from `tools/ci-timing.mjs --limit 100` once this job has runs.
     timeout-minutes: 20
+    needs: reuse
+    if: ${{ !cancelled() && needs.reuse.outputs.reused != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

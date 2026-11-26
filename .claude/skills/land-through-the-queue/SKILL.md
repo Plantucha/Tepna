@@ -17,6 +17,10 @@ description: Use when a finished PR has to reach main — the draft handoff to t
   `gh pr` poll turns asked only for the merge state (7,500 of 11,985 since 2026-10-12, board #9175).
 - **Mergify tests a batch of up to 4 PRs on a `mergify/merge-queue/` draft PR**, then squashes each.
   The walker skips those branches. Never push to one or close one.
+- **A main push run can skip its heavy jobs.** In `tests`, `capture-host-ci` and `local-steps`, the
+  `reuse (identical tree)` job skips them when a green queue run tested the same tree. Its summary
+  names that run. A reused run is not a timing sample, so read a workflow's duration history from
+  `tools/ci-timing.mjs`, which drops reused runs (#9312, #9328).
 - **BEHIND is not a block.** The `protect-main` ruleset is no longer strict (2026-11-18), so a PR
   that is BEHIND main can merge, and Mergify tests it on top of main itself. Do not update a BEHIND PR
   only to make it current. Merge `origin/main` only to resolve a conflict, and push **once**.

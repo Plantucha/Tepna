@@ -82,6 +82,35 @@ defaults:
     working-directory: capture-host
 
 jobs:
+  # ── reuse (identical tree): skip the heavy jobs when the merge queue already tested this tree green ──
+  # tools/ci-tree-reuse.mjs holds the rule and its evidence (board #9312, #9314). A push to main only;
+  # on any other event this job is skipped and the full workflow runs. It fails open.
+  reuse:
+    # Not sampled yet: a sparse checkout plus one API read. Re-derive it from `tools/ci-timing.mjs` once it has runs.
+    timeout-minutes: 3
+    name: reuse (identical tree)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    defaults:
+      run:
+        working-directory: .
+    outputs:
+      reused: ${{ steps.pick.outputs.reused }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            tools/ci-tree-reuse.mjs
+            tools/argv-guard.mjs
+          sparse-checkout-cone-mode: false
+      - id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/ci-tree-reuse.mjs --workflow capture-host-ci.yml
+
   # Relevance check, as a JOB so the gate can report `skipped` rather than never being scheduled.
   # ALLOWLIST, unlike browser-gates' denylist, because the dependency set here is closed and MEASURED.
   # It used to be closed and ARGUED: tests/conftest.py puts only capture-host/ on sys.path, so nothing
@@ -95,6 +124,8 @@ jobs:
   changes:
     # measured 2026-11-03 over 17 job run(s): p90 51s, max 2m13s (tools/ci-timing.mjs --limit 100). Cap = ceil(max(p95, max) × 2); max bounds p95.
     timeout-minutes: 5
+    needs: reuse
+    if: ${{ !cancelled() && needs.reuse.outputs.reused != 'true' }}
     name: relevance (capture-host)   # distinct from browser-gates' own `changes` job
     runs-on: ubuntu-latest
     defaults:
