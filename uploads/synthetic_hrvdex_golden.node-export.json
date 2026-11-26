@@ -18,6 +18,11 @@
     "startEpochMs": 1779169322000,
     "offsetMin": null,
     "measurements": 30,
+    "rowsDropped": {
+      "total": 0,
+      "short": 0,
+      "stamp": 0
+    },
     "firstTMs": 1779169322000,
     "lastTMs": 1781674922000,
     "spanDays": 30,

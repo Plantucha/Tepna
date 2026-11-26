@@ -18,6 +18,13 @@
       "forwardBlindShare": 0.1,
       "forwardDecidable": true
     },
+    "rowsDropped": {
+      "total": 0,
+      "short": 0,
+      "unreadable": 0,
+      "outOfRange": 0,
+      "stamp": 0
+    },
     "contentId": "f8256c6eb781",
     "file": "Wellue_O2Ring-S_20260919224526_STORED.dat",
     "provenance": null,
@@ -361,8 +368,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "c25590cdf747",
-          "computeHash": "b7bbe716ba94"
+          "manifestHash": "afcee383f1ee",
+          "computeHash": "c628a2db4631"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -389,8 +396,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "c25590cdf747",
-          "computeHash": "b7bbe716ba94"
+          "manifestHash": "afcee383f1ee",
+          "computeHash": "c628a2db4631"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -417,8 +424,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "c25590cdf747",
-          "computeHash": "b7bbe716ba94"
+          "manifestHash": "afcee383f1ee",
+          "computeHash": "c628a2db4631"
         },
         "evidence": {
           "envelopeRef": "20260919224526",
@@ -445,8 +452,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "c25590cdf747",
-          "computeHash": "b7bbe716ba94"
+          "manifestHash": "afcee383f1ee",
+          "computeHash": "c628a2db4631"
         },
         "evidence": {
           "envelopeRef": "20260919224526",

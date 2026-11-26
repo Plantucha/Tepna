@@ -24,7 +24,7 @@
       "dex-escape.js": "f0d38619047a",
       "oxydex-util.js": "46faf431bb51",
       "oxydex-profile.js": "9a35c718b8cf",
-      "oxydex-dsp.js": "25dcad17ec7e"
+      "oxydex-dsp.js": "bea75952e0db"
     },
     "pulse": {
       "synth-gen.js": "a653cf5afb78",
@@ -438,11 +438,18 @@
       "old": "a7a35088bac0",
       "new": "78a6ce4a7002",
       "reason": "`lombScargle` now refuses the band ratio, the breath rate and the peak when the detrended RR variance sits under 1e-6 ms², and each DFA scale with no fluctuation gives no point, so a train of equal intervals no longer publishes floating-point residue as power. measureFromResults selects on ODI and rMSSD, and the PulseDex realm feeds it through parseRRInput, artifactClean, rmssd and std, none of which this change touches. This run RE-CUT the cohort at paper scale rather than re-stamp on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped, 18291 seeds with the 900/900 target filled."
+    },
+    {
+      "date": "2026-11-26",
+      "file": "oxydex-dsp.js",
+      "old": "25dcad17ec7e",
+      "new": "bea75952e0db",
+      "reason": "`parseCSV` now counts every row it drops, by reason, and rides the count on the array it returns; `processNight` copies it onto the night and the night element publishes it. Each counter increments on a row the loop already removed, so no kept row, no column map and no metric moves. measureFromResults selects on ODI-4 and rMSSD, and neither reads the new field. This run RE-CUT the cohort at paper scale rather than re-stamping on that argument, and the yield came back on the SAME counts: 233 tx / 239 flat, 667 / 661 skipped, 18291 seeds with the 900/900 target filled."
     }
   ],
-  "measuredAt": "2026-11-25T22:52:30.927Z",
+  "measuredAt": "2026-11-26T05:29:53.764Z",
   "producedBy": {
     "tool": "tools/treatment-response-yield-pin.mjs",
-    "commit": "0a9080e32"
+    "commit": "c1617c6dd"
   }
 }
