@@ -329,6 +329,12 @@
       "reads": ["identifier"],
       "anchored": null,
       "note": "READ 2026-11-07. `stampBlankedPath` at 230 blanks every 14-digit run so `compareTrees` can ask whether two copy paths are one name under two stamps. The digits key a session and nothing else: the file computes no instant, calls no stamp owner, and never parses the run, so §∅ leaves `anchored` null. A rename test needs the name shape alone, and a blanked path is never a date."
+    },
+    "tools/tch-four-corner-census.mjs": {
+      "reads": ["time"],
+      "anchored": true,
+      "readBy": "Osprey",
+      "note": "`stampOf` lifts the 14-digit session stamp out of a capture file name and `stampMsOf` hands it to `DexClock.parseTimestamp` — the one parser, which range-validates all six components and returns null on an impossible one. The instant is a NEARNESS key and never a night key: the census picks each role's file nearest the ring session, and the firmware RR nearest the chest ECG, as `sensor-trio-night.js` does. Anchored, because the owner is `clock.js` and never a bare `Date.UTC` over a slice. The `8+6` run is the capture that admits the name; it computes no time of its own. The page prefers each file's FIRST DATA ROW stamp and this census has names alone, so a pick inside the close-call window is reported rather than assumed."
     }
   }
 }
