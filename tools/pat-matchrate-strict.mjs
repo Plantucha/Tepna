@@ -321,7 +321,13 @@ function ecgRpeakTimes(text, runsTextOrOpts, optsThird) {
   };
 }
 /* ── @port-from pat-feasibility-worker.js#ppgFootTimes ─────────────────────────────
-   @port-sha b4653e88ce84
+   @port-sha d9491dc56829
+   RECONCILED 2026-11-26 against that source text, for the four-site PAT unit. The worker gained
+   three options, OPTIONAL and LAST in the signature: `sign` forces the channel polarity,
+   `footHiHz` re-times the foot in a narrower band, and `seamsText` carries the stream's own seam
+   sidecar. DELIBERATELY NOT PORTED. Only the forehead corner supplies them, and that corner lives
+   in the worker alone — no caller of this copy reads a headband frame log. With all three absent
+   the worker runs every line below as it did, so no published number moves.
    RECONCILED 2026-11-25 against that source text, for row
    2026-09-26-pat-finger-feet-detected-on-unmasked-156-rows. The worker gained an optional
    `opts.holdGaps`, which holds the sentinel gaps over before `detectChannel` the way the node's

@@ -24948,6 +24948,33 @@
       /* The negative case must actually BE negative, or that row tested nothing. */
       var neg = K.classic(1, 1, 8);
       T.ok('the negative-variance case really is negative', neg.a < 0 || neg.b < 0 || neg.c < 0, 'a=' + neg.a + ' b=' + neg.b + ' c=' + neg.c);
+
+      /* ── THE SECOND ENTRY POINT, added 2026-11-26 (#8945) ──────────────────────────────────────
+         The forehead corner gave this lane a SECOND way into the hat, and a gate that scans one file
+         cannot see a private copy that grows in the other. The 2026-08-04 finding was exactly that:
+         a byte-equivalent copy, ungated, in the file nobody scanned. So the same two rules now bind
+         the worker that runs the four-corner road — delegate to the kernel, carry no copy — plus one
+         more: it states no window rule of its own, because `PATAlign.hatWindows` is the only place
+         this path may state the 5-min window, the 50-beat floor and the 12-window floor. */
+      var wsrc4 = env.sources && env.sources['pat-feasibility-worker.js'];
+      T.ok("the four-corner entry point's source is readable in this lane", !!wsrc4, 'pat-feasibility-worker.js not in env.sources — the three rows below would vacuously pass');
+      if (wsrc4) {
+        T.ok(
+          'the four-corner road delegates its hat to the shared kernel (AnalysisStats.nCornerHat)',
+          /\bAnalysisStats\.nCornerHat\b/.test(wsrc4) && /\bAnalysisStats\.nCornerPairVar\b/.test(wsrc4),
+          'the worker must call the kernel, never a local solver'
+        );
+        T.ok(
+          'the worker carries NO private n-corner solver and NO private window rule',
+          !/function\s+(nCornerHat|nCornerPairVar|hatWindows)\s*\(/.test(wsrc4) && /PATAlign\.hatWindows\s*\(/.test(wsrc4),
+          'a copy of the solver or of the window rule appeared in the worker — delete it and delegate'
+        );
+        T.ok(
+          'the kernel the worker names is the one this lane loaded',
+          typeof S.nCornerHat === 'function' && typeof S.nCornerPairVar === 'function',
+          'AnalysisStats.nCornerHat unavailable — the rows above would read a name nothing answers'
+        );
+      }
     });
 
     /* TCH-CORRELATED-SOLVE-KNIFE-EDGE §3 — a correlated σ is not interpretable without its distance to
@@ -28458,6 +28485,73 @@
        from day one: a planted positive control, TWO nulls (white noise and red wander — the second is
        the one that defeats naive detectors, per OXYDEX-FFT-CYCLE-NULL), a slip twin (the defect this
        module's own coupleRtoFoot history documents), and a sign twin (a rise is not an arousal). */
+    group('A clock seam REFUSES its window; the forehead constants are locked to PpgDex (owner ruling 2026-09-17, #8944 item 5)', 'pat-align · seam · forehead · known-answer', function (T) {
+      var P = env.PATAlign;
+      T.ok('PATAlign.seamRefusals, applySeamRefusals and FOREHEAD exposed', !!(P && typeof P.seamRefusals === 'function' && typeof P.applySeamRefusals === 'function' && P.FOREHEAD));
+      if (!P || typeof P.seamRefusals !== 'function' || !P.FOREHEAD) return;
+
+      /* THE TWO FOREHEAD NUMBERS LIVE ONCE. `ppgdex-app.js` measured them and states the measurement
+         beside each; `pat-align.js` holds the copy the PAT worker reads. This assertion is the lock:
+         either side moving alone reds here. A drifted sign does not fail loudly — it doubles rMSSD. */
+      var app = (env.sources && env.sources['ppgdex-app.js']) || '';
+      if (app.length) {
+        var mSign = app.match(/const MUSE_SIGN = (-?\d+);/),
+          mBand = app.match(/const MUSE_FOOT_HI_HZ = (\d+);/);
+        T.ok('ppgdex-app.js still states both constants', !!(mSign && mBand), JSON.stringify({ sign: mSign && mSign[1], band: mBand && mBand[1] }));
+        if (mSign && mBand) {
+          T.eq('PATAlign.FOREHEAD.sign IS the PpgDex MUSE_SIGN', P.FOREHEAD.sign, +mSign[1]);
+          T.eq('PATAlign.FOREHEAD.footHiHz IS the PpgDex MUSE_FOOT_HI_HZ', P.FOREHEAD.footHiHz, +mBand[1]);
+        }
+      } else T.skip('ppgdex-app.js source available for the constant lock', 'not in env.sources');
+      T.eq('the role name the classify of pat-feasibility.js assigns', P.FOREHEAD.role, 'forehead');
+
+      /* 6 windows on the 5-min grid. One seam at 00:05:10 sits INSIDE window 1 (05:00 … 10:00), and a
+         second at 00:30:00 sits past the last window's end (25:00 … 30:00 is half-open), so exactly one
+         window refuses. Every boundary below is arithmetic over HAT_WIN_MS = 300000, not a measurement. */
+      var WIN = 300000,
+        w = [0, 1, 2, 3, 4, 5].map(function (i) {
+          return { t: i * WIN, ab: 400 + i, ac: 500 + i, bc: 100 + i };
+        });
+      var r = P.seamRefusals(w, [310000, 1800000], { winMs: WIN });
+      T.eq('one window of 6 refuses, and it is the one the seam falls inside', r.filter(Boolean).length, 1);
+      T.ok('the refusal names itself and carries the seam instant — never a 0 and never a bare drop', r[1] && r[1].reason === 'clock-seam' && r[1].tMs === 310000, JSON.stringify(r[1]));
+      T.ok('a seam at the half-open end of the last window refuses NOTHING', r[5] === null, JSON.stringify(r[5]));
+      var seamAtStart = P.seamRefusals([{ t: 300000 }], [300000], { winMs: WIN });
+      T.ok('a seam exactly at a window start refuses that window — the interval is [t, t+win)', seamAtStart[0] && seamAtStart[0].reason === 'clock-seam', JSON.stringify(seamAtStart[0]));
+      var padded = P.seamRefusals([{ t: 300000 }], [299000], { winMs: WIN, padMs: 2000 });
+      T.ok(
+        'padMs widens the interval when the seam placement is uncertain, and defaults to 0',
+        padded[0] !== null && P.seamRefusals([{ t: 300000 }], [299000], { winMs: WIN })[0] === null,
+        JSON.stringify(padded[0])
+      );
+
+      var ap = P.applySeamRefusals(w, r);
+      T.ok(
+        'the kept windows stay in order and the refusal is COUNTED beside them',
+        ap.ok && ap.kept.length === 5 && ap.nRefused === 1 && ap.kept[1].t === 600000 && ap.reason === null,
+        JSON.stringify({ kept: ap.kept.length, n: ap.nRefused })
+      );
+      T.eq(
+        'the refused window keeps its index, its start and the seam that refused it',
+        JSON.stringify(ap.refused[0]),
+        JSON.stringify({ index: 1, tMs: 300000, reason: 'clock-seam', seamMs: 310000 })
+      );
+      var all = P.applySeamRefusals([{ t: 0 }, { t: WIN }], P.seamRefusals([{ t: 0 }, { t: WIN }], [1000, 310000], { winMs: WIN }));
+      T.ok(
+        'every window refused reads ok false with the reason — a null leg, never an average over two unconnected stretches',
+        all.ok === false && all.kept.length === 0 && all.reason === 'clock-seam' && all.nRefused === 2,
+        JSON.stringify(all.reason)
+      );
+      var none = P.applySeamRefusals(w, P.seamRefusals(w, [], { winMs: WIN }));
+      T.ok('a stream with NO seam keeps every window and refuses nothing — a measured zero', none.ok && none.kept.length === 6 && none.nRefused === 0, JSON.stringify(none.nRefused));
+      var noWin = P.applySeamRefusals([], P.seamRefusals([], [310000], { winMs: WIN }));
+      T.ok('no windows at all is its OWN reason, never a seam refusal', noWin.ok === false && noWin.reason === 'no-windows', noWin.reason);
+      var bad = P.seamRefusals([{ t: null }, { t: Number.NaN }], [310000], { winMs: WIN });
+      T.ok('a window with no start reads `window-start-absent`, never a silent pass (§∅)', bad[0].reason === 'window-start-absent' && bad[1].reason === 'window-start-absent', JSON.stringify(bad));
+      var nonFinite = P.seamRefusals([{ t: 0 }], [Number.NaN, null, 1000], { winMs: WIN });
+      T.ok('a non-finite seam instant is dropped from the seam list, and a real one still refuses', nonFinite[0] && nonFinite[0].tMs === 1000, JSON.stringify(nonFinite[0]));
+    });
+
     group('ΔPAT dips: planted arousals found; noise, wander, slip and rises are not', 'pat-align · dip-detector', function (T) {
       var P = env.PATAlign;
       if (!P || typeof P.patDipEvents !== 'function') {
@@ -38261,7 +38355,8 @@
             'self',
             'importScripts',
             'XMLHttpRequest',
-            wsrc.replace(/self\.onmessage[\s\S]*$/, '') + '\nreturn { threeHat: threeHat };'
+            wsrc.replace(/self\.onmessage[\s\S]*$/, '') +
+              '\nreturn { threeHat: threeHat, foreheadCorner: foreheadCorner, coupledPAT: coupledPAT, bands: { fore: CHEST_FOREHEAD_BAND, site: FOREHEAD_SITE_BAND, physLo: PHYS_LO }, setFoot: function (f) { ppgFootTimes = f; } };'
           )(
             env.ECGDSP,
             env.PPGDSP,
@@ -38299,6 +38394,191 @@
           h.ci && h.corners && h.corners.chest && h.diff && h.diff.ok && h.sigma && h.pairSd && h.lagMed && h.windows.length === 20,
           Object.keys(h).join(',')
         );
+
+        /* ONE WINDOW RULE, PINNED. `PATAlign.hatWindows` generalises this bucketing to the 6 pairs the
+           four-corner hat needs (#8943, #8951). It must reproduce the worker's own windows exactly on
+           this night: a different median or a different bin would let the four-site column and the
+           three-site column bin the same beats differently, and no gate would say so. */
+        var HWn = env.PATAlign && env.PATAlign.hatWindows;
+        if (typeof HWn === 'function') {
+          var hw = HWn({ 'chest|finger': leg('ab'), 'chest|ankle': leg('ac'), 'finger|ankle': leg('bc') }, ['chest', 'finger', 'ankle']);
+          T.ok(
+            'PATAlign.hatWindows keeps the SAME windows the worker keeps',
+            hw.ok && hw.windows.length === h.windows.length,
+            JSON.stringify({ align: hw.ok ? hw.windows.length : hw.reason, worker: h.windows.length })
+          );
+          var sameWin =
+            hw.ok &&
+            hw.windows.length === h.windows.length &&
+            hw.windows.every(function (w, i) {
+              return w.t === h.windows[i].t && w.med['chest|finger'] === h.windows[i].ab && w.med['chest|ankle'] === h.windows[i].ac && w.med['finger|ankle'] === h.windows[i].bc;
+            });
+          T.ok('…with the same centre and the same median on every leg of every window', sameWin, JSON.stringify(hw.ok ? hw.windows[0] : hw.reason));
+          T.eq('the window half the four-corner path reads: t0 is the start, t is the centre', hw.ok && hw.windows[0].t - hw.windows[0].t0, 150000);
+          var pvv = env.PATAlign.pairWindowValues(hw.windows, ['chest', 'finger', 'ankle']);
+          var viaN = typeof S.nCornerPairVar === 'function' ? S.nCornerHat(S.nCornerPairVar(pvv, ['chest', 'finger', 'ankle'], { minWindows: 12 }), ['chest', 'finger', 'ankle']) : null;
+          T.ok(
+            'the whole four-corner road at N of 3 — hatWindows, pairWindowValues, nCornerPairVar, nCornerHat — lands on the worker variance',
+            !!(
+              viaN &&
+              viaN.ok &&
+              Math.abs(viaN.variance.chest - h.variance.chest) < 1e-9 &&
+              Math.abs(viaN.variance.finger - h.variance.finger) < 1e-9 &&
+              Math.abs(viaN.variance.ankle - h.variance.ankle) < 1e-9
+            ),
+            JSON.stringify({ road: viaN && viaN.variance, worker: h.variance })
+          );
+        } else T.skip('PATAlign.hatWindows available for the one-window-rule check', 'not exposed');
+
+        /* ── THE FOURTH SITE, WIRED — the worker's forehead corner, run for real ────────────────────
+           REAL here: `foreheadCorner`, `coupledPAT`, the two stated bands, the seam refusal, and the
+           whole road into `nCornerHat`. PLANTED: the file read only. The test swaps `ppgFootTimes`
+           for one that answers a known foot series, because this block pins the WIRING of the corner.
+           The parser it stands in for carries its own groups above.
+           THE PLANT IS CONSISTENT BY CONSTRUCTION. Three corners sit on the grid, and only the
+           forehead wobbles, by 0 to 12 ms over 13 windows. So the true variance vector is
+           (0, V, 0, 0) with V = (IQR / 1.349)^2 = (6 / 1.349)^2: the quartiles of 13 evenly spaced
+           windows land on the series itself, at 3 and 9. Every pair variance is then v_i + v_j, the
+           design is exactly satisfiable, and a correct solver must publish V on the forehead, 0 on
+           the other three, and a residual rms of 0 over df = 6 - 4 = 2. Those numbers were derived
+           before the code ran. */
+        if (typeof Wk.foreheadCorner === 'function') {
+          var WIN = 300000,
+            NW = 13,
+            FV = Math.pow(6 / 1.349, 2),
+            gridT = [],
+            oFore = [];
+          for (var w4 = 0; w4 < NW; w4++) {
+            oFore.push(w4);
+            for (var b4 = 0; b4 < 290; b4++) gridT.push(w4 * WIN + 1000 + b4 * 1000);
+          }
+          function wOf(t) {
+            return Math.floor(t / WIN);
+          }
+          function siteTimes(base, wob) {
+            return gridT.map(function (t) {
+              return t + base + (wob ? oFore[wOf(t)] : 0);
+            });
+          }
+          function flatLeg(lagMs) {
+            return {
+              ok: true,
+              patAtR: gridT.map(function (t) {
+                return { t: t, lag: lagMs };
+              })
+            };
+          }
+          var foreT = siteTimes(120, true),
+            ankT = siteTimes(300, false),
+            finT = siteTimes(220, false),
+            gotOpts = null,
+            foreSeams = null;
+          Wk.setFoot(function (text, runsText, opts) {
+            gotOpts = { opts: opts, runsText: runsText, text: text };
+            return { t0Ms: 0, fs: 55, n: foreT.length, durSec: NW * 300, validity: null, times: foreT, recordedSeams: foreSeams, recordedSeamsReason: foreSeams ? null : 'no sidecar was given' };
+          });
+          function runFore(fin4) {
+            return Wk.foreheadCorner({
+              dec: { text: 'planted', reason: null, info: { rows: foreT.length } },
+              ecg: { times: gridT },
+              ppg: { times: ankT },
+              fin: fin4 ? { times: finT } : null,
+              cp: flatLeg(300),
+              cpF: fin4 ? flatLeg(220) : null,
+              cpFA: fin4 ? flatLeg(80) : null,
+              runsText: 'RUNS-TEXT',
+              seamsText: 'SEAMS-TEXT'
+            });
+          }
+          var f4 = runFore(true);
+          T.ok(
+            'the forehead parser is called with the PpgDex constants and both sidecar texts, never with a default',
+            !!gotOpts && gotOpts.opts.sign === -1 && gotOpts.opts.footHiHz === 3 && gotOpts.opts.seamsText === 'SEAMS-TEXT' && gotOpts.runsText === 'RUNS-TEXT',
+            JSON.stringify(gotOpts && gotOpts.opts)
+          );
+          T.ok(
+            'the ring makes a FOURTH corner, never a precondition: four names, six pairs',
+            f4.n === 4 && f4.names.join() === 'chest,forehead,finger,ankle' && Object.keys(f4.lag).length === 6,
+            f4.names + ' · ' + Object.keys(f4.lag).join()
+          );
+          T.ok(
+            'every pair publishes its own observed lag median, so the stated band can be narrowed on evidence later',
+            f4.lag['chest|forehead'].medianMs === 126 && f4.lag['forehead|ankle'].medianMs === 174 && f4.lag['forehead|finger'].medianMs === 94 && f4.lag['chest|ankle'].medianMs === 300,
+            JSON.stringify({ cf: f4.lag['chest|forehead'].medianMs, fa: f4.lag['forehead|ankle'].medianMs, ff: f4.lag['forehead|finger'].medianMs })
+          );
+          /* THE BAND IS WHY THE LEG EXISTS. A 120 ms chest-forehead PAT sits BELOW `PHYS_LO` = 200,
+             the chest-ankle floor, so the default band refuses every true pairing of this plant. */
+          var defBand = Wk.coupledPAT(gridT, foreT);
+          T.ok(
+            'the stated chest-forehead band admits a 120 ms PAT that the chest-ankle floor refuses outright',
+            Wk.bands.physLo === 200 && Wk.bands.fore.lo < 120 && f4.lag['chest|forehead'].n > 0 && (!defBand.ok || !defBand.patAtR || defBand.patAtR.length === 0),
+            JSON.stringify({ fore: Wk.bands.fore, physLo: Wk.bands.physLo, defaultPairs: defBand.patAtR ? defBand.patAtR.length : defBand.reason })
+          );
+          T.ok(
+            'ONE solver at four corners recovers the planted variance exactly, and the consistent design leaves no residual',
+            f4.ok &&
+              Math.abs(f4.hat.variance.forehead - FV) < 1e-9 &&
+              Math.abs(f4.hat.variance.chest) < 1e-9 &&
+              Math.abs(f4.hat.variance.finger) < 1e-9 &&
+              Math.abs(f4.hat.variance.ankle) < 1e-9 &&
+              Math.abs(f4.hat.residual.rms) < 1e-9 &&
+              f4.hat.residual.df === 2,
+            JSON.stringify({ v: f4.hat.variance, rms: f4.hat.residual.rms, df: f4.hat.residual.df, want: FV })
+          );
+          T.ok(
+            'its sigma is the dispersion itself, 6 ms over 1.349',
+            Math.abs(f4.hat.sigma.forehead - 6 / 1.349) < 1e-9 && f4.windows === NW,
+            JSON.stringify({ sigma: f4.hat.sigma, windows: f4.windows })
+          );
+          var f3 = runFore(false);
+          T.ok(
+            'chest, forehead and ankle are already three corners — the same solver, and df of 0 says a three-corner fit has no residual to read',
+            f3.ok && f3.n === 3 && Object.keys(f3.lag).length === 3 && Math.abs(f3.hat.variance.forehead - FV) < 1e-9 && Math.abs(f3.hat.variance.chest) < 1e-9 && f3.hat.residual.df === 0,
+            JSON.stringify({ n: f3.n, v: f3.hat.variance, df: f3.hat.residual.df })
+          );
+          T.ok(
+            'an absent seam sidecar refuses nothing and says so by name — it never passes as a seam-free stream',
+            f4.seams.recorded === null && f4.seams.refusedWindows === 0 && /sidecar/.test(f4.seams.reason),
+            JSON.stringify(f4.seams)
+          );
+          /* A DISCONTINUITY REFUSES (owner ruling 2026-09-17). One recorded seam inside window 4 takes
+             that window out BEFORE the solve, which leaves 12 of 13 — and the floor is 12, so the hat
+             still solves on the survivors. The refusal is counted, never silent. */
+          foreSeams = [{ tMs: 4 * WIN + 7000 }];
+          var fS = runFore(true);
+          T.ok(
+            'a recorded clock seam refuses its own window before the solve, and the loss is counted',
+            fS.seams.recorded === 1 && fS.seams.refusedWindows === 1 && fS.windows === NW - 1 && fS.ok === true,
+            JSON.stringify({ seams: fS.seams, windows: fS.windows, ok: fS.ok })
+          );
+          /* TWO seams in two different windows leave 11, under the 12-window floor, so the hat
+             refuses by name instead of publishing a variance over a thinner night. */
+          foreSeams = [{ tMs: 4 * WIN + 7000 }, { tMs: 9 * WIN + 11000 }];
+          var fR = runFore(true);
+          T.ok(
+            'under the window floor the hat refuses by name, with the windows it had',
+            fR.ok === false && fR.windows === NW - 2 && /windows/.test(String(fR.reason)),
+            JSON.stringify({ ok: fR.ok, windows: fR.windows, reason: fR.reason })
+          );
+          foreSeams = null;
+          T.ok(
+            'a night whose frames hold no optical record reads null with the DECODER’s own reason, never an empty leg',
+            (function () {
+              var r = Wk.foreheadCorner({
+                dec: { text: null, reason: 'no-optical-record', info: { rows: 0 } },
+                ecg: { times: gridT },
+                ppg: { times: ankT },
+                fin: null,
+                cp: flatLeg(300),
+                runsText: null,
+                seamsText: null
+              });
+              var r2 = Wk.foreheadCorner({ dec: null, ecg: { times: gridT }, ppg: { times: ankT }, fin: null, cp: flatLeg(300), runsText: null, seamsText: null });
+              return r.ok === false && r.reason === 'no-optical-record' && r.hat === null && r2.reason === 'no-forehead-optics';
+            })(),
+            'refusal reasons'
+          );
+        } else T.skip('the worker exposes foreheadCorner for the four-site wiring check', 'not exposed');
 
         /* VERDICT-CONTRIBUTIONS-2026-10-04 §2 row 1 — the worker publishes WHICH leg moved each corner.
            WHAT EACH ASSERTION BELOW PINS, measured rather than assumed. The sum pins the block to the
@@ -38381,6 +38661,173 @@
           'the worker calls the FromVars entry point the kernel reserves for a windowed dispersion',
           /patHatContributionsFromVars\(/.test(wsrc) && !/[^s]patHatContributions\(/.test(wsrc),
           'worker must not hand its window medians to patHatContributions()'
+        );
+      }
+    );
+
+    group(
+      'The n-cornered hat — ONE solver at 3 corners and at 4, and its residual is the only fit reading (#8943, #8951)',
+      'analysis-stats · pat · hat · n-corner · known-answer · plant',
+      function (T) {
+        var KS = dexAnalysisStats(env),
+          S = KS.S;
+        if (!S) {
+          T.ok('the analysis-stats kernel binds in THIS lane', false, KS.reason);
+          return;
+        }
+        if (typeof S.nCornerHat !== 'function' || typeof S.nCornerPairVar !== 'function') {
+          T.ok('AnalysisStats n-corner kernel present', false, 'nCornerHat / nCornerPairVar not exported');
+          return;
+        }
+        var N3 = ['chest', 'finger', 'ankle'],
+          N4 = ['chest', 'finger', 'ankle', 'forehead'];
+        /* Every number below is a CLOSED FORM, derived before the code ran, never read back off it.
+           At N = 4 the design matrix gives AᵀA = 2·I + J, whose inverse is ½·I − (1/12)·J. A single
+           perturbation δ on one pair therefore moves that pair's two corners by +δ/3 each and the other
+           two by −δ/6 each, and the six residuals are ±δ/3 with Σ|e|² = 20·δ²/3. */
+
+        // ── A · N = 3 IS the classic hat, so no page needs a second solver ──
+        var h3 = S.nCornerHat({ 'chest|finger': 100, 'chest|ankle': 200, 'finger|ankle': 300 }, N3),
+          c3 = S.threeCorneredHat(100, 200, 300);
+        T.ok(
+          'at 3 corners the least-squares answer IS threeCorneredHat (square system, exact)',
+          h3.ok && Math.abs(h3.variance.chest - c3.a) < 1e-9 && Math.abs(h3.variance.finger - c3.b) < 1e-9 && Math.abs(h3.variance.ankle - c3.c) < 1e-9,
+          JSON.stringify({ n: h3.variance, classic: c3 })
+        );
+        T.ok(
+          'at 3 corners the fit is exact: df 0, residual 0, one triple',
+          h3.residual.df === 0 && Math.abs(h3.residual.rms) < 1e-9 && h3.subHats.length === 1 && h3.residual.unit === 'ms^2',
+          JSON.stringify(h3.residual)
+        );
+
+        // ── B · N = 4, a CONSISTENT plant: the four corners come back exactly ──
+        var TRUE4 = { chest: 50, finger: 70, ankle: 130, forehead: 170 };
+        function pairsFrom(tv, names) {
+          var out = {};
+          for (var i = 0; i < names.length; i++) {
+            for (var j = i + 1; j < names.length; j++) out[names[i] + '|' + names[j]] = tv[names[i]] + tv[names[j]];
+          }
+          return out;
+        }
+        var P4 = pairsFrom(TRUE4, N4),
+          h4 = S.nCornerHat(P4, N4),
+          exact4 = N4.every(function (k) {
+            return Math.abs(h4.variance[k] - TRUE4[k]) < 1e-9 && Math.abs(h4.sigma[k] - Math.sqrt(TRUE4[k])) < 1e-9;
+          });
+        T.ok('6 consistent pair variances recover all 4 planted corners, σ and σ² together', h4.ok && exact4, JSON.stringify(h4.variance));
+        T.ok(
+          'the over-determination is published: 6 pairs, 4 corners, df 2, residual 0 on a consistent night',
+          h4.pairs === 6 && h4.residual.df === 2 && Math.abs(h4.residual.rms) < 1e-9 && h4.subHats.length === 4,
+          JSON.stringify({ pairs: h4.pairs, df: h4.residual.df, rms: h4.residual.rms, sub: h4.subHats.length })
+        );
+        var everyTripleExact = h4.subHats.every(function (s) {
+          return s.names.every(function (k) {
+            return Math.abs(s.variance[k] - TRUE4[k]) < 1e-9;
+          });
+        });
+        T.ok('each of the 4 classic triples also recovers its 3 corners on a consistent night', everyTripleExact, JSON.stringify(h4.subHats[0].variance));
+        var appears = N4.map(function (k) {
+          return h4.subHats.filter(function (s) {
+            return s.names.indexOf(k) >= 0;
+          }).length;
+        });
+        T.ok('every corner sits in exactly 3 of the 4 triples — the coupling the page shows', appears.join(',') === '3,3,3,3', appears.join(','));
+
+        // ── C · N = 4, ONE pair perturbed by δ = 60 ms²: the closed form above ──
+        var D = 60,
+          P4b = pairsFrom(TRUE4, N4);
+        P4b['chest|finger'] += D;
+        var h4b = S.nCornerHat(P4b, N4),
+          EXP = { chest: 50 + D / 3, finger: 70 + D / 3, ankle: 130 - D / 6, forehead: 170 - D / 6 };
+        T.ok(
+          'a δ on one pair moves ITS two corners by +δ/3 and the other two by −δ/6, as the normal equations state',
+          h4b.ok &&
+            N4.every(function (k) {
+              return Math.abs(h4b.variance[k] - EXP[k]) < 1e-9;
+            }),
+          JSON.stringify({ got: h4b.variance, expected: EXP })
+        );
+        T.ok('the residual rms is √(20·δ²/3 / 6) = √200 ms², the only reading that states whether the night FITS', Math.abs(h4b.residual.rms - Math.sqrt(200)) < 1e-9, String(h4b.residual.rms));
+        var orth = N4.every(function (k, i) {
+          var s = 0;
+          Object.keys(h4b.residual.perPair).forEach(function (key) {
+            if (key.split('|').indexOf(k) >= 0) s += h4b.residual.perPair[key];
+          });
+          return Math.abs(s) < 1e-9 && i >= 0;
+        });
+        T.ok('the residuals of each corner sum to 0 — the least-squares orthogonality, per corner', orth, JSON.stringify(h4b.residual.perPair));
+        var spread = h4b.subHats.map(function (s) {
+          return s.variance.ankle == null ? null : Math.round(s.variance.ankle * 100) / 100;
+        });
+        var distinct = spread.filter(function (v, i) {
+          return spread.indexOf(v) === i;
+        });
+        T.ok('the 4 triples DISAGREE once a pair misfits, and the page reads that spread', distinct.length > 1, JSON.stringify(spread));
+
+        // ── D · a negative corner is PUBLISHED, never clipped and never 0 ──
+        var NEG = { chest: -20, finger: 70, ankle: 130, forehead: 170 },
+          hn = S.nCornerHat(pairsFrom(NEG, N4), N4);
+        T.ok(
+          'a negative corner keeps its solved variance, reads σ null, and names `negative-variance`',
+          hn.ok && Math.abs(hn.variance.chest + 20) < 1e-9 && hn.sigma.chest === null && hn.cornerReason.chest === 'negative-variance' && hn.cornerReason.finger === null && hn.sigma.ankle > 0,
+          JSON.stringify({ v: hn.variance.chest, s: hn.sigma.chest, r: hn.cornerReason.chest })
+        );
+
+        // ── E · every refusal NAMES itself, and refuses with a NULL variance (§∅) ──
+        var r1 = S.nCornerHat({ 'chest|finger': 100 }, ['chest', 'finger']),
+          r2 = S.nCornerHat({ 'chest|finger': 120, 'chest|ankle': 180, 'chest|forehead': 220, 'finger|ankle': 200, 'finger|forehead': 240 }, N4),
+          r3 = S.nCornerHat(P4, N4, { windows: 11 }),
+          r4 = S.nCornerHat(P4, N4, { windows: 12 }),
+          r6 = S.nCornerHat(
+            (function () {
+              var p = pairsFrom(TRUE4, N4);
+              p['ankle|forehead'] = Number.NaN;
+              return p;
+            })(),
+            N4
+          );
+        T.ok('2 corners refuse by name with a null variance', r1.ok === false && r1.reason === 'fewer-than-three-corners' && r1.variance === null, r1.reason);
+        T.ok(
+          'an absent pair variance refuses and NAMES the pair — never a pair of zero',
+          r2.ok === false && r2.reason === 'pair-variance-absent' && r2.absentPairs.join(',') === 'ankle|forehead' && r2.variance === null,
+          JSON.stringify(r2.absentPairs)
+        );
+        T.ok(
+          'a non-finite pair variance takes the same path as an absent one',
+          r6.ok === false && r6.reason === 'pair-variance-absent' && r6.absentPairs.join(',') === 'ankle|forehead',
+          JSON.stringify(r6.absentPairs)
+        );
+        T.ok(
+          'under 12 windows the solve refuses by name, and 12 passes (#8944 item 4)',
+          r3.ok === false && r3.reason === 'fewer-than-12-windows' && r3.windows === 11 && r4.ok === true,
+          JSON.stringify({ at11: r3.reason, at12: r4.ok })
+        );
+
+        // ── F · the dispersion statistic is SINGLE-SOURCED with the three-site path ──
+        var rr = 1234567,
+          W3 = { 'chest|finger': [], 'chest|ankle': [], 'finger|ankle': [] };
+        function nx() {
+          rr = (Math.imul(rr, 1664525) + 1013904223) >>> 0;
+          return rr / 4294967296;
+        }
+        for (var w = 0; w < 20; w++) {
+          W3['chest|finger'].push(400 + 30 * nx());
+          W3['chest|ankle'].push(500 + 50 * nx());
+          W3['finger|ankle'].push(100 + 20 * nx());
+        }
+        var hw = S.nCornerHat(S.nCornerPairVar(W3, N3), N3, { windows: 20 }),
+          refW = S.patHatSolve(W3['chest|finger'], W3['chest|ankle'], W3['finger|ankle']);
+        T.ok(
+          'nCornerPairVar + nCornerHat IS patHatSolve on the same windows — (IQR/1.349)², one statistic',
+          hw.ok && Math.abs(hw.variance.chest - refW.chest) < 1e-9 && Math.abs(hw.variance.finger - refW.finger) < 1e-9 && Math.abs(hw.variance.ankle - refW.ankle) < 1e-9,
+          JSON.stringify({ n: hw.variance, kernel: refW })
+        );
+        var short = { 'chest|finger': W3['chest|finger'], 'chest|ankle': W3['chest|ankle'], 'finger|ankle': W3['finger|ankle'].slice(0, 5) },
+          pvShort = S.nCornerPairVar(short, N3, { minWindows: 12 });
+        T.ok(
+          'a pair under minWindows is LEFT OUT of pairVar, so the solve refuses it by name rather than squaring 5 values to a dispersion',
+          pvShort['finger|ankle'] === undefined && S.nCornerHat(pvShort, N3).reason === 'pair-variance-absent',
+          JSON.stringify(Object.keys(pvShort))
         );
       }
     );
