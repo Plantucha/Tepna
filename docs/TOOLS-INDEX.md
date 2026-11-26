@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**365 tools** · 364 with a purpose line · **1 without**
+**366 tools** · 365 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -65,6 +65,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`cohort-fit.mjs`](../tools/cohort-fit.mjs) | DOES THE SYNTHETIC COHORT LOOK LIKE A REAL ONE? — and what would it take to project it onto one. |
 | [`cohort-runner-headless.mjs`](../tools/cohort-runner-headless.mjs) | drive `cohort-runner.html` headlessly and capture its aggregate, so the robustness benchmark re-runs without a person at a browser. |
 | [`commit-shape.mjs`](../tools/commit-shape.mjs) | the AGENT-NEUTRAL half of the shared-tree guards. WHY THIS EXISTS. |
+| [`common-mode-blind-trial.mjs`](../tools/common-mode-blind-trial.mjs) | RUN §7's COMMON-MODE PROTOCOL ON A REAL DETECTOR CHANGE. `briefs/CROSS-DOMAIN-METHODS-FOLLOWUPS-2026-08-14-BRIEF.md` §7 adopts BLIND ANALYSIS against common-mode blindness, and residue row… |
 | [`compute-feeder.mjs`](../tools/compute-feeder.mjs) | KEEP THE FREE COMPUTE FED (owner 2026-11-22: "build some program feeding qwen and shrike … when fleet run out of tokens, there will be 2 days of compute always ready"). |
 | [`consensus-dissent-core.mjs`](../tools/consensus-dissent-core.mjs) | `applyConsensusPolarity` RETURNS THE CHANNELS IT RE-DETECTED, AND TEN CALLERS THREW IT AWAY. |
 | [`consensus-polarity-wiring.mjs`](../tools/consensus-polarity-wiring.mjs) | THE WIRING IS WHERE A FIX STOPS BEING APPLIED, AND NOTHING COUNTED THE WIRING. |
