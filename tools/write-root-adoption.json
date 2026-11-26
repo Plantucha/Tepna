@@ -33,7 +33,7 @@
     "tools/repo-map.mjs": {
      "since": "2026-11-15",
      "wrapper": "writeRootOrDie",
-     "reading": "`--write` puts the shared repo map in the git common dir of ONE checkout and `doc-search` never rebuilds it, so a run by absolute path from another checkout left the caller’s own tree answering from a stale map at exit 0; the guard sits on the `--write` branch alone, and `writeMap` keeps its injected `root` so the selftest still writes under `mkdtemp`"
+     "reading": "`--write` puts the shared repo map in the git common dir of ONE checkout and `doc-search` never rebuilds it, so a run by absolute path from another checkout left the caller\u2019s own tree answering from a stale map at exit 0; the guard sits on the `--write` branch alone, and `writeMap` keeps its injected `root` so the selftest still writes under `mkdtemp`"
     },
     "tools/sync-docs-index.mjs": {
      "since": "2026-11-14",
@@ -58,7 +58,7 @@
     "tools/read-ref-drift.mjs": "both write calls sit in its selftest, which builds a two-clone git fixture under mkdtemp and removes it; the tool writes no tracked artifact, writes nothing under any checkout, and calls no write wrapper",
     "tools/ste-lint.mjs": "its one write builds a `docs/GLOSSARY.md` fixture inside a selftest `mkdtempSync(tmpdir())` directory, so the write regex reads its own test data; it writes no tracked artifact and calls no write wrapper",
     "tools/write-root-adoption.mjs": "its selftests plant both shapes as fixture strings, so the write regexes read its own test data; it writes no tracked artifact and calls no write wrapper",
-    "tools/write-targets.mjs": "every write call and every wrapper name in it is a fixture string in `PLANT` or a detection regex, so both shapes read the tool’s own test data; the census prints to stdout, writes no tracked artifact, and calls no write wrapper"
+    "tools/write-targets.mjs": "every write call and every wrapper name in it is a fixture string in `PLANT` or a detection regex, so both shapes read the tool\u2019s own test data; the census prints to stdout, writes no tracked artifact, and calls no write wrapper"
    },
    "pending": [
     "tools/analysis-rerun.mjs",
@@ -185,6 +185,11 @@
      "since": "2026-11-11",
      "wrapper": "judgeRoot",
      "reading": "it censuses the tool tree of the RUN\u2019s work-unit and publishes a verdict about it"
+    },
+    "tools/trio-cache-audit.mjs": {
+     "since": "2026-11-26",
+     "wrapper": "judgeRootOrDie",
+     "reading": "the audit reads the trio corpus and the stamps of the tree it resolves and stamps that tree commit on the verdict, so a cross-checkout run would judge another work-unit corpus under this branch commit"
     }
    },
    "exempt": {
