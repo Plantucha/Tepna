@@ -15,6 +15,12 @@
  *   2. `quote-mismatch` the quote is not at `line` (±3) of the file at that ref — a fabricated line number
  *   3. `stale`          no line of the CURRENT origin/main file equals the quote AND matches the lens grep
  *   4. `residue`        a RESIDUE row at origin/main already names `file:line`
+ *   5. `comment`        the quoted line is a comment (`//`, `/*`, `*`, `#`), so no value flows through it
+ *   6. `guarded`        an absence lead whose quoted line already tests `!= null`, `isFinite(` or `is not None`
+ *   7. `judged`         Shrike's verify tables in the outbox already hold a verdict on this file and quote
+ * Rules 5 to 7 came from a replay over the 293 leads Shrike judged 2026-11-22 to 2026-11-26 (Crane): they
+ * drop 147 of them, and no dropped lead was a confirmed defect that was not already judged. The one guarded
+ * lead Shrike confirmed was a badge lead, so rule 6 binds the absence lens only.
  * A lead that survives is a LEAD, never a finding. A bird re-reads the site and reproduces the defect
  * (brief §3.4); nothing closes on this tool's word.
  *
@@ -31,7 +37,7 @@
  *   node tools/qwen-lead-check.mjs --selftest
  *   node tools/qwen-lead-check.mjs --verdict-sample
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
@@ -41,6 +47,9 @@ import { isCliEntry, positionalArgs, refuseUnknownArgvOrExit } from './argv-guar
 const Verdict = createRequire(import.meta.url)('../verdict.js');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const GATE = 'qwen-lead-check';
+const OUTBOX = process.env.SHRIKE_OUTBOX || '/srv/shrike-outbox';
+const COMMENT_RE = /^(?:\/\/|\/\*|\*|#)/;
+const GUARD_RE = /!==?\s*null|\bisFinite\(|\bis not None\b/;
 export const LINE_SLACK = 3;
 
 /* Each lens: which tracked files it reads, the grep that lists candidate sites, and the one question
@@ -79,9 +88,12 @@ export function checkLead(lead, src) {
     if (lines[i].trim() === q) near = true;
   }
   if (!near) return 'quote-mismatch';
+  if (COMMENT_RE.test(q)) return 'comment';
+  if (lead.lens === 'absence' && GUARD_RE.test(q)) return 'guarded';
   const cur = src.fileAt(src.mainRef, lead.file);
   if (cur == null || !cur.split('\n').some((l) => l.trim() === q && lens.re.test(l))) return 'stale';
   if (src.residue.includes(`${lead.file}:${lead.line}`)) return 'residue';
+  if (src.judged?.has(`${lead.file}\t${q}`)) return 'judged';
   return null;
 }
 
@@ -122,12 +134,38 @@ function gitText(args) {
   }
 }
 
+/* Pure: the `file<TAB>quote` keys of every row in Shrike's verify tables, the shape
+   `| 3 | \`oxydex-dsp.js:9071\` | **REJECTED** | \`piFrames: s.piFrames ?? null,\` |` (pipes escaped as \\|). */
+export function judgedKeys(texts) {
+  const keys = new Set();
+  const row = /^\|\s*\d+\s*\|\s*`([^`]+?):\d+`\s*\|\s*\*\*(?:CONFIRMED|REJECTED)[^|]*\|\s*`(.+)`[^`]*\|\s*$/;
+  for (const t of texts) {
+    for (const l of t.split('\n')) {
+      const m = row.exec(l);
+      if (m) keys.add(`${m[1]}\t${m[2].replace(/\\\|/g, '|').trim()}`);
+    }
+  }
+  return keys;
+}
+
+/* Shrike's verify tables, read from the outbox. An absent outbox gives an empty set: rule 7 then drops nothing. */
+export function outboxTexts(dir = OUTBOX) {
+  try {
+    return readdirSync(dir)
+      .filter((f) => /FEEDER-verify-leads-.*\.md$/.test(f))
+      .map((f) => readFileSync(join(dir, f), 'utf8'));
+  } catch {
+    return [];
+  }
+}
+
 export function repoSource() {
   const cache = new Map();
   const mainRef = (gitText(['rev-parse', 'origin/main']) || '').trim();
   return {
     mainRef,
     residue: gitText(['show', 'origin/main:briefs/RESIDUE.md']) || '',
+    judged: judgedKeys(outboxTexts()),
     fileAt(ref, file) {
       if (!/^[0-9a-f]{7,40}$/.test(String(ref)) || /(^|\/)\.\.(\/|$)/.test(file)) return null;
       const k = `${ref}:${file}`;
@@ -184,6 +222,17 @@ function selftest() {
   ck('verdict validates', Verdict.validate(v).errors, []);
   ck('a verdict with a real sha validates', Verdict.validate(verdictFor('l', leads, r, 'abc1234')).errors, []);
   ck('an empty file is NOT_RUN with a reason', [verdictFor('e', [], { kept: [], dropped: {} }).status, !!verdictFor('e', [], { kept: [], dropped: {} }).reason], ['NOT_RUN', true]);
+  const OLD3 = ['// x ?? 0 here', 'const a = v != null ? v : 0;', 'const t = (n ?? 0).toFixed(1);'].join('\n'); // absence-ok: selftest fixture text, the lens bait
+  const files3 = { 'aaaaaaa:z-dsp.js': OLD3, 'bbbbbbb:z-dsp.js': OLD3 };
+  const src3 = { mainRef: 'bbbbbbb', residue: '', judged: judgedKeys(['| 1 | `z-dsp.js:3` | **REJECTED** | `const t = (n ?? 0).toFixed(1);` |']), fileAt: (r, f) => files3[`${r}:${f}`] ?? null }; // absence-ok: selftest fixture text, the lens bait
+  const b3 = { ...base, file: 'z-dsp.js' };
+  ck('a comment line drops', checkLead({ ...b3, line: 1, quote: '// x ?? 0 here' }, src3), 'comment'); // absence-ok: selftest fixture text, the lens bait
+  ck('an absence lead on a != null line drops as guarded', checkLead({ ...b3, line: 2, quote: 'const a = v != null ? v : 0;' }, src3), 'guarded'); // absence-ok: selftest fixture text, the lens bait
+  ck('a badge lead on a guarded line is not dropped as guarded', checkLead({ ...b3, lens: 'badge', line: 2, quote: 'const a = v != null ? v : 0;' }, src3) !== 'guarded', true); // absence-ok: selftest fixture text, the lens bait
+  ck('a site Shrike already judged drops', checkLead({ ...b3, line: 3, quote: 'const t = (n ?? 0).toFixed(1);' }, src3), 'judged'); // absence-ok: selftest fixture text, the lens bait
+  ck('judgedKeys unescapes a table pipe', [...judgedKeys(['| 2 | `y.js:9` | **CONFIRMED (drafted)** | `a = b \\|\\| 0;` |'])], ['y.js\ta = b || 0;']); // absence-ok: selftest fixture text, the lens bait
+  ck('judgedKeys skips a row with no verdict', judgedKeys(['| 2 | `y.js:9` | open | `a` |']).size, 0);
+  ck('an absent outbox gives no text', outboxTexts('/nonexistent-outbox-dir'), []);
   ck('absence grep sees ?? 0 and not ?? 0.5', [LENSES.absence.re.test('x ?? 0;'), LENSES.absence.re.test('x ?? 0.5;')], [true, false]);
   ck('clock grep skips toLocaleString with timeZone', [LENSES.clock.re.test("d.toLocaleString('en', { timeZone: 'UTC' })"), LENSES.clock.re.test('d.toLocaleString()')], [false, true]);
   console.log(fail === 0 ? `all ${ok} selftests passed` : `${ok} passed, ${fail} failed`);
