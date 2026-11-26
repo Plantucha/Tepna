@@ -77326,6 +77326,44 @@
       );
     });
 
+    /* ════ A NON-FINITE TAL ONSET IS NOT A PLACEABLE STAMP (row
+     `2026-11-26-cpapdex-tal-onset-guard-admits-a-non-finite-onset`) ════
+     `parseTAL` guarded its onset with `!isNaN(onsetSec)`, and `parseFloat('+1e999')` answers Infinity,
+     which `isNaN` calls a number. A corrupt TAL therefore became an annotation, and the EDF reader
+     stamped it `tMs = t0Ms + Infinity * 1000`. The sibling duration read has refused a non-finite
+     value since the duration fix, and `pbOnsetSec` in cpapdex-dsp.js refuses one for the exported
+     span reader. This group holds the parser to the same predicate, so the three layers agree. ════ */
+    group('CPAPDex refuses a non-finite EDF+ TAL onset, so no annotation stamps Infinity', 'cpapdex-edf · tal-onset · ∅', function (T) {
+      var E = env.CpapEdf;
+      var ok = !!(E && typeof E.parseTAL === 'function');
+      T.ok('CpapEdf.parseTAL co-loaded', ok, ok ? '' : 'wire cpapdex-edf.js into both runners');
+      if (!ok) return;
+      function tal(str) {
+        var b = [];
+        for (var i = 0; i < str.length; i++) b.push(str.charCodeAt(i));
+        return b;
+      }
+      var inf = E.parseTAL(tal('+1e999\x1510\x14Hypopnea\x14\x00'));
+      T.eq('a TAL whose onset parses to Infinity yields no annotation', inf.length, 0);
+      var negInf = E.parseTAL(tal('-1e999\x1510\x14Hypopnea\x14\x00'));
+      T.eq('…and a negative Infinity yields none either', negInf.length, 0);
+      var unparseable = E.parseTAL(tal('+abc\x1510\x14Hypopnea\x14\x00'));
+      T.eq('CONTROL · an onset that does not parse already yielded none', unparseable.length, 0);
+      var real = E.parseTAL(tal('+100\x1510\x14Hypopnea\x14\x00'));
+      T.eq('CONTROL · a stated onset parses as one annotation', real.length, 1);
+      T.eq('CONTROL …and the reader keeps that onset verbatim', real.length === 1 ? real[0].onsetSec : 'no-annotation', 100);
+      var zero = E.parseTAL(tal('+0\x1510\x14Recording Start\x14\x00'));
+      T.eq('CONTROL · a written 0 is a real onset at lights-out and stays', zero.length === 1 ? zero[0].onsetSec : 'no-annotation', 0);
+      var mixed = E.parseTAL(tal('+1e999\x1510\x14Hypopnea\x14\x00+200\x1512\x14Obstructive Apnea\x14\x00'));
+      T.eq('the drop does not end the record: the TAL after it still parses', mixed.length, 1);
+      T.eq('…and the survivor is the readable one', mixed.length === 1 ? mixed[0].onsetSec : 'no-annotation', 200);
+      var everyFinite = mixed.every(function (a) {
+        return isFinite(a.onsetSec);
+      });
+      T.ok('no annotation this parser returns carries a non-finite onset', everyFinite, 'one annotation carries a non-finite onset');
+      T.ok('the parser now reads the predicate its siblings read', /isFinite\(onsetSec\)/.test((env.sources || {})['cpapdex-edf.js'] || ''), 'the onset guard does not read isFinite');
+    });
+
     /* ════ THE CLINICAL SUMMARY'S THERAPY TOTAL CARRIES THE NIGHTS IT COULD NOT ADD (triage row M9) ════
      `cpapdex-dsp.js` buildNight refuses the night's wall total when any session carries no duration,
      and `cpapdex-fusion.js` carries that null into the export. The summary's `|| 0` added the null as a
