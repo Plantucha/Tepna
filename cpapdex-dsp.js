@@ -1176,9 +1176,29 @@
      ended mid-episode — real time in PB, and discarding it would under-report exactly the worst
      nights), while an End with no Start is discarded rather than back-dated to zero, which would
      fabricate an episode reaching back to lights-out. Overlapping/repeated Starts do not nest: the
-     first one owns the span, matching a device that cannot be in two episodes at once. */
+     first one owns the span, matching a device that cannot be in two episodes at once.
+
+     ∅ AND AN ONSET WE DO NOT HAVE IS NOT SECOND ZERO. Both pairing arms read the onset through
+     `pbOnsetSec`, so a marker with no usable onset sits nowhere on the session clock: it opens no
+     span, it closes none, and `onsetAbsent` counts it out of band. The old `|| 0` spelling
+     back-dated exactly what the paragraph above refuses. An End with no onset published a
+     zero-second span that `spans` counted, and a Start with no onset opened at lights-out and then
+     charged the night for seconds nobody measured (residue
+     2026-11-26-cpapdex-annotation-onset-absent-reads-as-lights-out). A TAL that carries its own
+     duration keeps its seconds whatever its onset says, because that arm reads no clock at all.
+
+     WHAT REACHES THIS. No producer in the tree writes a PB marker with an absent onset:
+     `cpapdex-edf.js` pushes a TAL only when its onset parses, and it copies that onset into the
+     annotation. The parser's guard is `!isNaN`, which ADMITS a non-finite onset from a corrupt
+     record, and this read refuses that too — the sibling `durSec` read two lines below has guarded
+     `isFinite` since the duration fix. `periodicBreathingSpans` is also an exported surface, so a
+     hand-built annotation from any caller lands here. */
+  /* An onset this reader can place, or `null`. A written 0 is a real onset at lights-out and stays 0. */
+  function pbOnsetSec(a) {
+    return a && a.onsetSec != null && isFinite(a.onsetSec) ? a.onsetSec : null;
+  }
   function periodicBreathingSpans(annotations, sessionDurSec) {
-    var out = { sec: 0, spans: 0, unpairedStart: 0, unpairedEnd: 0 };
+    var out = { sec: 0, spans: 0, unpairedStart: 0, unpairedEnd: 0, onsetAbsent: 0 };
     if (!annotations || !annotations.length) return out;
     var pb = [];
     for (var i = 0; i < annotations.length; i++) {
@@ -1188,7 +1208,12 @@
     // Onset order is what makes pairing meaningful; EDF records are written in time order, but a
     // multi-record CSL is concatenated per data record and a caller may hand us a merged array.
     pb.sort(function (a, b) {
-      return (a.onsetSec || 0) - (b.onsetSec || 0);
+      var ao = pbOnsetSec(a),
+        bo = pbOnsetSec(b);
+      // An onset we lack claims no place BEFORE one we have, and above all not ahead of a real Start.
+      if (ao == null) return bo == null ? 0 : 1;
+      if (bo == null) return -1;
+      return ao - bo;
     });
     var open = null;
     for (var j = 0; j < pb.length; j++) {
@@ -1204,16 +1229,21 @@
         out.spans++;
         continue;
       }
+      var onset = pbOnsetSec(a);
+      if (onset == null) {
+        out.onsetAbsent++; // placed nowhere on the session clock, so it pairs with nothing
+        continue;
+      }
       if (a.boundary === 'end') {
         if (open == null) {
           out.unpairedEnd++;
           continue;
         }
-        out.sec += Math.max(0, (a.onsetSec || 0) - open);
+        out.sec += Math.max(0, onset - open);
         out.spans++;
         open = null;
       } else if (a.boundary === 'start') {
-        if (open == null) open = a.onsetSec || 0;
+        if (open == null) open = onset;
         // else: already inside an episode — the first Start owns it, no nesting.
       }
       // boundary null + durSec 0 → a zero-length PB annotation carries no span; ignore it.
@@ -2344,6 +2374,16 @@
     );
     ok('periodicBreathingSpans: repeated Starts do not nest — the first owns the span', pbNest.sec === 100, JSON.stringify(pbNest));
     ok('periodicBreathingSpans: …and the repeat yields ONE span, not two', pbNest.spans === 1, JSON.stringify(pbNest));
+    var pbNoOnsetEnd = periodicBreathingSpans(
+      [
+        { class: 'Cheyne-Stokes', durSec: 0, onsetSec: 0, boundary: 'start' },
+        { class: 'Cheyne-Stokes', durSec: 0, boundary: 'end' }
+      ],
+      500
+    );
+    ok('periodicBreathingSpans: an End with NO onset closes nothing, never a zero-second span', pbNoOnsetEnd.onsetAbsent === 1 && pbNoOnsetEnd.sec === 500, JSON.stringify(pbNoOnsetEnd));
+    var pbNoOnsetStart = periodicBreathingSpans([{ class: 'Cheyne-Stokes', durSec: 0, boundary: 'start' }], 500);
+    ok('periodicBreathingSpans: a Start with NO onset opens nothing, never at lights-out', pbNoOnsetStart.onsetAbsent === 1 && pbNoOnsetStart.sec === 0, JSON.stringify(pbNoOnsetStart));
     var sessMk = /** @type {any} */ (buildSessionFromEdf(_synthEdfSet({ csMarkers: true }), { fname: 'sM' }));
     var sessDur = /** @type {any} */ (buildSessionFromEdf(_synthEdfSet({ cs: true }), { fname: 'sD' }));
     ok('buildSessionFromEdf: the CSR Start/End marker encoding yields 120 s', sessMk.pbSec === 120, String(sessMk.pbSec));
