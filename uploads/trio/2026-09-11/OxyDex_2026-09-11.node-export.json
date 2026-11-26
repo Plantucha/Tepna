@@ -9,7 +9,7 @@
     "node": "OxyDex",
     "nodeVersion": "1.0",
     "multiNight": false,
-    "generated": "2026-11-26T14:46:25.341Z",
+    "generated": "2026-11-26T17:39:22.396Z",
     "provenance": null,
     "doc": "OxyDex single-night SpO₂/oximetry summary computed headless from a SignalFrame(spo2). Emits ganglior_events[] (desat_event from desatProfile + periodic_breathing from oscillation episodes); OxyDex infers respiration from an SpO₂ proxy, not airflow. tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.",
     "scrubbed": true,
@@ -68295,7 +68295,9 @@
           "ieiMeanSec": 736.3,
           "ieiSDsec": 989.7,
           "ieiCV": 1.34,
-          "ieiLabel": "Highly variable (OA/mixed)"
+          "ieiLabel": "Highly variable (OA/mixed)",
+          "ieiN": 3,
+          "ieiDurationAbsent": 0
         },
         "recovCV": {
           "recovSlopeMean": 0.717,
