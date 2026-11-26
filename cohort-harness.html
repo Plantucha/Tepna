@@ -12774,7 +12774,11 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
      The field names are the PpgDex ones on purpose — the parity assertion is a deep compare, so a
      rename here would make the gate vacuous. */
   function _parsePinnedRuns(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ An absent text is `null`; a PRESENT, EMPTY one is a named refusal, never zero rows — the
+       writer stamps its header on open, so 0 bytes is a capture that stopped before the first flush
+       (ruling 2026-11-26; the full reading sits on the twin `parsePinnedRuns` in `ppgdex-dsp.js`). */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     /* The `any` cast is PpgDex's too, and for the same reason: every field starts null and is filled
        from the file, so inference pins each one to `null` and rejects the assignment that is the point. */
     var out = /** @type {any} */ ({
@@ -12909,15 +12913,25 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       if (!isFinite(a) || !isFinite(b)) continue;
       rows.push({ tMs: ts.tMs, ch0: a, ch1: b, motion: isFinite(mo) ? mo : null, src: src });
     }
-    var runs = _parsePinnedRuns(opts && opts.runsText);
+    var runsParsed = _parsePinnedRuns(opts && opts.runsText);
+    /* ∅ A PRESENT, EMPTY sidecar maps no span, so it takes the no-sidecar road and names itself. */
+    var runsEmptyReason = runsParsed && runsParsed.err ? runsParsed.err : null;
+    var runs = runsEmptyReason ? null : runsParsed;
     var mapped = _ppg2wBlankSpans(rows, runs);
-    return {
+    var out = {
       t0Ms: rows.length ? rows[0].tMs : null,
       rows: rows,
       runs: runs,
       blankSpans: mapped.spans,
       spansUnmapped: mapped.unmapped
     };
+    /* The key exists only on this road, so a night with a sidecar or with none is byte-identical. */
+    if (runsEmptyReason)
+      /** @type {any} */ (out).runsAbsentReason =
+        'pinned-runs sidecar present and empty (' +
+        runsEmptyReason +
+        ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero runs';
+    return out;
   }
 
   /** Per-buffer {ac, dc}: linear-detrended RMS + |mean|. RMS (not peak-to-peak) won the 2026-08-20
@@ -14434,7 +14448,11 @@ const OxyDex = window.OxyDex;
   const PD_SEAM_NO_DEVICE_CLOCK = /^(ppi|hr)\b/;
 
   function parsePdSeams(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ An absent text is `null`; a PRESENT, EMPTY one is a named refusal, never zero rows — the
+       writer stamps its header on open, so 0 bytes is a capture that stopped before the first flush
+       (ruling 2026-11-26; the full reading sits on `parsePinnedRuns` in `ppgdex-dsp.js`). */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     const out = /** @type {any} */ ({
       params: null,
       rule: null,
@@ -14584,6 +14602,14 @@ const OxyDex = window.OxyDex;
     if (!obj) return obj;
     const sc = typeof seams === 'string' ? parsePdSeams(seams) : seams && typeof seams === 'object' && Array.isArray(seams.rows) ? seams : null;
     if (!sc) return obj;
+    /* ∅ A PRESENT, EMPTY sidecar: the validity is absent, and the reason says so rather than
+       letting the refusal read as a sidecar that examined intervals and kept nothing. */
+    if (sc.err) {
+      obj._recordedSeams = null;
+      obj._recordedSeamsReason =
+        'seam sidecar present and empty (' + sc.err + ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero seams';
+      return obj;
+    }
     obj._seamsSidecar = sc;
     /* §∅ — `[]` is the honest answer for a sidecar that examined intervals and recorded nothing
        placeable, and the WRONG answer for one whose rows this reader could not keep. `null` is the
