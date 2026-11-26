@@ -10253,7 +10253,16 @@ window.IntegratorDSP = {
      retired bug from every old file. The zero-order hold that genuinely repeats 6-7x by design is
      the O2Ring's `accraw`, a DIFFERENT stream from this one. */
   function parseAccRuns(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ A PRESENT, EMPTY SIDECAR IS NOT AN ABSENT ONE (owner-deputy ruling 2026-11-26, board
+       #9027; the full reading sits on `parsePinnedRuns` in `ppgdex-dsp.js`). The writer stamps its
+       own `# stream=… rule=…` header the moment it opens a new file, and that header sits in a
+       64 KB buffer, so a capture that stopped before the first flush leaves exactly 0 bytes. The box
+       side already names that state (`capture-host/solid_night_inputs.py` `_sidecar_unflushed`), and
+       a HEADER-ONLY file is the other fact — a rule stated and no run found — which still parses
+       below. So an ABSENT text answers `null`, and an EMPTY one answers a NAMED REFUSAL: the
+       validity is absent here, and it is never zero runs. */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     var out = /** @type {any} */ ({ params: null, minRun: null, spans: [], rows: [], malformed: false, emitted: 0, examined: null, sawHeader: false, comparable: false });
     var lines = String(text).split(/\r?\n/);
     for (var i = 0; i < lines.length; i++) {
@@ -10318,7 +10327,16 @@ window.IntegratorDSP = {
      device axis the seam just broke, and `idx` is a per-writer-session counter that restarts at every
      reconnect while the file appends. */
   function parseAccSeams(text) {
-    if (typeof text !== 'string' || !text) return null;
+    /* ∅ A PRESENT, EMPTY SIDECAR IS NOT AN ABSENT ONE (owner-deputy ruling 2026-11-26, board
+       #9027; the full reading sits on `parsePinnedRuns` in `ppgdex-dsp.js`). The writer stamps its
+       own `# stream=… rule=…` header the moment it opens a new file, and that header sits in a
+       64 KB buffer, so a capture that stopped before the first flush leaves exactly 0 bytes. The box
+       side already names that state (`capture-host/solid_night_inputs.py` `_sidecar_unflushed`), and
+       a HEADER-ONLY file is the other fact — a rule stated and no seam found — which still parses
+       below. So an ABSENT text answers `null`, and an EMPTY one answers a NAMED REFUSAL: the
+       validity is absent here, and it is never zero seams. */
+    if (typeof text !== 'string') return null;
+    if (!text.trim()) return { err: 'sidecar-empty' };
     var out = /** @type {any} */ ({
       params: null,
       rule: null,
@@ -10462,6 +10480,14 @@ window.IntegratorDSP = {
     if (!rows) return rows;
     var sc = typeof seams === 'string' ? parseAccSeams(seams) : seams && typeof seams === 'object' && Array.isArray(seams.rows) ? seams : null;
     if (!sc) return rows;
+    /* ∅ A PRESENT, EMPTY sidecar: absent validity with a named reason, never zero seams. Nothing is
+       hung as a sidecar, because an object carrying no rows is not one. */
+    if (sc.err) {
+      rows._recordedSeams = null;
+      rows._recordedSeamsReason =
+        'seam sidecar present and empty (' + sc.err + ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero seams';
+      return rows;
+    }
     rows._seamsSidecar = sc;
     /* §∅ — `[]` is the honest answer for a sidecar that examined intervals and recorded no seam, and
        the WRONG answer for one whose rows this reader could not keep. `null` is the absence, and the
@@ -10736,7 +10762,12 @@ window.IntegratorDSP = {
     /* Same idiom as the seam list: hung on the row array, so no consumer signature changes and a
        stream without a sidecar keeps today's bytes exactly. */
     var _runs = parseAccRuns(opts && opts.runsText);
-    if (_runs) {
+    /* ∅ A PRESENT, EMPTY sidecar names its own absence (ruling 2026-11-26), and the key rides that
+       road alone, so a stream paired with a sidecar, and one paired with none, keep today's bytes. */
+    if (_runs && _runs.err) {
+      out._runsSidecarReason =
+        'run sidecar present and empty (' + _runs.err + ') — the header is stamped on open, so 0 bytes is a capture that stopped before the first flush: validity ABSENT, never zero runs';
+    } else if (_runs) {
       out._runsSidecar = _runs;
       if (_runs.spans.length) out._blankSpans = _runs.spans;
     }
