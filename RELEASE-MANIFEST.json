@@ -2053,6 +2053,32 @@
         "CONTROLLED-RELEASES-2026-07-05-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "3.0.0",
+      "date": "2026-11-27",
+      "bump": "major",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "6c1433c38c2e",
+        "OxyDex": "d8b97d74d092",
+        "PulseDex": "45ee8d0e7a41",
+        "GlucoDex": "a4c9da3c1f7f",
+        "PpgDex": "e30cb8978d95",
+        "HRVDex": "4959ba8e6fa5",
+        "CPAPDex": "d083f6b5ff50",
+        "Integrator": "ea0df593b078",
+        "MotionDex": "c1d1ae627f2f",
+        "EEGDex": "d3c1c4e42f89"
+      },
+      "briefs": [
+        "COMMON-MODE-BLIND-TRIAL-2026-11-26-BRIEF.md",
+        "EEGDEX-STAGE-DEFAULT-2026-11-26-BRIEF.md",
+        "LOCAL-QWEN-SWEEPS-2026-11-22-BRIEF.md",
+        "SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md",
+        "PUBLISHED-NUMBER-PROVENANCE-2026-09-15-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
