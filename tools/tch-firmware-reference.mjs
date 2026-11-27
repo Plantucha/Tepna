@@ -49,8 +49,9 @@
  * optical corners reliably from pairwise differences alone. The reference-measured σ does not need to:
  * on a night with firmware RR it IS the answer, and this tool publishes it.
  *
- * RE-MEASURED 2026-11-26 (Heron, rig, 73 of 128 box night directories, 2026-07-16 → 2026-11-20, at
- * commit f07e30670): the finding above HOLDS on twice the nights, and both estimators read worse.
+ * RE-MEASURED 2026-11-26 (Heron, rig; the box captures root OFFERED 128 night directories, of which
+ * 73 scored and 55 excluded, 2026-07-16 → 2026-11-20, at commit f07e30670): the finding above HOLDS
+ * on twice the nights, and both estimators read worse.
  * Classic hat 109/146 = 74.7 % — FAIL. Correlated hat with leave-one-out ρ: 50.7 %, refused 26/73 —
  * FAIL. Median σ (reference / classic / correlated): H10 0.876 / 1.077 / 1.073 · Verity 0.869 / 0.587 /
  * 0.663 · O2Ring 2.309 / 2.081 / 1.468. Median ρ hv −0.021 · ho 0.024 · vo 0.254.
@@ -58,8 +59,11 @@
  * correlated solve moves the chest by 0.004 bpm. And the chest couples to NEITHER optical corner
  * (ρ_hv, ρ_ho ≈ 0), so the classic chest variance reads σ_H10² + ρ_vo·σ_V·σ_O, whose shared term computes
  * to 0.51 bpm² against a chest variance of 0.77. The over-read is therefore almost all SHARED OPTICAL
- * error, and the identifiability collapse above is why no ρ lifts it off the chest
- * (σ_V − ρ_vo·σ_O = 0.28 bpm here). Board #9375 · #9388, for row
+ * error.
+ * 🔴 DO NOT RETRY THE CORRELATED HAT ON THIS CORPUS: the optical pair sits at the identifiability edge
+ * named above, where σ_V − ρ_vo·σ_O reads 0.28 bpm, so the pairwise difference variances barely depend
+ * on σ_V and no ρ — measured, transferred or guessed — lifts the shared term off the chest.
+ * Board #9375 · #9388, for row
  * `2026-11-26-four-corner-hat-still-over-reads-the-chest`.
  *
  * NIGHTLY: `--ledger <file.jsonl>` keeps one row per scored night (append-only, outside the repo — these
