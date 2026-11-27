@@ -705,7 +705,15 @@ def test_a_watchdog_resync_CLEARS_the_skew_floor_the_backoff_and_stamps_the_land
         monkeypatch, tmp_path, skew=-247288549.0, cycles=1, now=dt.datetime(2026, 11, 1, 22, 16, 39)
     )
     assert calls == [addr]
-    assert ("H10", {"clock_skew_floor_sec": None, "clock_skew_n": 0}) in sets, sets
+    # The landing also drops the drift windows: the write steps the device time (capture.drift_new).
+    cleared = {
+        "clock_skew_floor_sec": None,
+        "clock_skew_n": 0,
+        "clock_rate_ppm": None,
+        "clock_rate_span_s": None,
+        "clock_rate_windows": 0,
+    }
+    assert ("H10", cleared) in sets, sets
     assert "H10" not in capture._CLOCK_SKEW_SAMPLES
     assert addr not in capture._CLOCK_SYNC_COOLDOWN
     assert addr in capture._CLOCK_SYNC_LAST_OK
