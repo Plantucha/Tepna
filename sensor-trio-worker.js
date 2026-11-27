@@ -1366,6 +1366,36 @@ function o2MarkerHrMap(text, runsText) {
     return null;
   }
 }
+/* ── THE SECONDS THE BEAT REFERENCE NEVER SCORED, COUNTED AND MARKED ────────────────────────────
+   Row `2026-11-26-the-chest-fault-flag-misses-the-seconds-that-carry-the-over-read`. The page's
+   chest fault flag reads `h10Fault: null` on all 11 four-corner nights, because
+   `h10FailureClass` keys on the shape of the solved sigma and the correlations, and no night here
+   trips it. Meanwhile the seconds that carry a median 87 % of the chest excess are exactly the
+   seconds the beat reference never scored (#9332): restricting the solve to the reference's own
+   key set drops the median chest ratio from 3.84 to 1.32. So the defect is REPORTING. Nothing on
+   the page says which seconds the reference missed, and a reader cannot tell a clean key set from
+   one the reference dropped a third of.
+   This counts them, per key set, and it keys the count on the SAME disagreement
+   `trio-reference.js consensusPairs` already tests: a second carries a reference value only when
+   our ECG beat and the H10 firmware RR agree within `TrioReference.AGREE_MS`. A second the solve
+   scores and the reference does not is UNMARKED, and this is the count of those.
+   🔴 KEYED ON THE CONSENSUS, NEVER ON THE HAT'S OWN OUTPUT (Kestrel #9393 item 2). A flag tuned on
+   the sigma it explains would mark whatever makes the ratio read well, and it would then carry no
+   information about the beats.
+   🔴 THE HEADLINE SIGMA DOES NOT MOVE (board #8984, decision 1). This is a count beside it, over
+   the key sets the two panels already use, and it feeds no estimator.
+   ∅ A night with no beat reference carries `state: null` with the reference's own reason, never a
+   `false` and never a 0 share: nobody scored those seconds either way. */
+function consensusShare(REF, maps) {
+  var keys = 0,
+    scored = 0;
+  maps[0].forEach(function (_, sec) {
+    for (var q = 1; q < maps.length; q++) if (!maps[q].has(sec)) return;
+    keys++;
+    if (REF.has(sec)) scored++;
+  });
+  return keys ? { seconds: keys, scored: scored, unmarked: keys - scored, share: (keys - scored) / keys } : null;
+}
 /* The firmware-RR reference for one night (residue 2026-09-26-tch-hat-misattributes-shared-optical-error).
    ECGDex's beats and the H10 firmware's beats, paired in time; the intervals the two detectors agree on
    within 8 ms give a per-second reference HR. Each corner's σ is its SD against that reference over the
@@ -1399,6 +1429,24 @@ async function nightReference(f, rec, H, V, O, pg, M) {
         ? { ok: true, n: f4.n, sigma: f4.trueSd, bias: f4.bias, rho: f4.rho, hat: f4.hat }
         : { ok: false, reason: f4.reason, n: f4.n }
       : { ok: false, reason: 'the night carried no forehead corner, so no four-way reference exists', n: null };
+    /* THE CONSENSUS FLAG, over both panels' own key sets (row
+       `2026-11-26-the-chest-fault-flag-misses-the-seconds-that-carry-the-over-read`). See
+       `consensusShare` above for why the count keys on the beat consensus and on nothing the hat
+       produced. `three` runs over the three-way key set the headline sigma rides, and `four` over
+       the four-way set the four-corner panel rides, so a reader holds the share beside each number
+       rather than one share standing for both.
+       ∅ `four` is null with its own reason on a night that carried no forehead corner, so the page
+       can tell "no fourth corner" from "the reference scored every four-way second". */
+    var cThree = consensusShare(B.REF, [H, V, O]),
+      cFour = M && typeof M.has === 'function' ? consensusShare(B.REF, [H, V, O, M]) : null;
+    var consensus = {
+      agreeMs: TrioReference.AGREE_MS,
+      state: cThree ? cThree.unmarked > 0 : null,
+      reason: cThree ? null : 'the three corners shared no second, so no second is marked or unmarked',
+      three: cThree,
+      four: cFour,
+      fourReason: cFour ? null : M && typeof M.has === 'function' ? 'the four corners shared no second' : 'the night carried no forehead corner, so there is no four-way key set'
+    };
     /* THE HAT OVER THE REFERENCE'S OWN SECONDS, BESIDE THE HEADLINE (row
        `2026-11-26-four-corner-hat-still-over-reads-the-chest`). `scoreSeries` already solves the
        classic hat on the pair variances of its own key set, and this line carries that solve out. A
@@ -1421,6 +1469,7 @@ async function nightReference(f, rec, H, V, O, pg, M) {
       rho: s.rho,
       hat: s.hat,
       fourWay: fourWay,
+      consensus: consensus,
       seconds: B.REF.size,
       agreeing: B.cp.pairs.length,
       beats: B.ref.nn.length,
