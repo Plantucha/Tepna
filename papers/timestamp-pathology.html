@@ -79,6 +79,39 @@
   </table>
   <p>Invariant B1 deserves a precise statement: <em>only</em> the floating branches (2–5) are viewer-timezone-independent, and by construction — they never call <code>getTimezoneOffset</code>. The epoch branch (1) <em>does</em> consult the runner timezone, deliberately, because a bare epoch is a genuine instant that must be localized to a wall clock; that is the one place the viewer's zone legitimately enters, and it is confined there.</p>
 
+  <div class="callout" style="border:2px solid #2b6cb0;background:#f5f9ff">
+    <b>Re-measured 2026-11-26, and the runner timezone is an input.</b>
+    <p style="margin:.6em 0 0">Both counts in §3 reproduce. The producer is
+    <code>node tools/timestamp-bench-headless.mjs</code>, which drives the analysis tool over the
+    shipping <code>clock.js</code> and writes one <code>tepna.verdict/1</code> object. The record is
+    <code>analysis/published-numbers/timestamp-pathology-2026-11-26.json</code>. The corpus holds
+    CLAIM tsCorpusCases = 24 FROM analysis/published-numbers/timestamp-pathology-2026-11-26.json#claims/corpusCases cases, and
+    CLAIM tsCorpusPass = 24 FROM analysis/published-numbers/timestamp-pathology-2026-11-26.json#claims/corpusPass of them resolve under a UTC runner. The run
+    checked CLAIM tsInvariants = 6 FROM analysis/published-numbers/timestamp-pathology-2026-11-26.json#claims/invariants contract invariants, and
+    CLAIM tsInvariantsHeld = 6 FROM analysis/published-numbers/timestamp-pathology-2026-11-26.json#claims/invariantsHeld of them hold.</p>
+
+    <p style="margin:.6em 0 0"><b>The published 24/24 is a UTC-runner count, which §3 did not say.</b>
+    The run used CLAIM tsRunnerZonesRun = 4 FROM analysis/published-numbers/timestamp-pathology-2026-11-26.json#claims/runnerZonesRun runner timezones. Under
+    each of the three non-UTC zones &#8212; America/New_York, Asia/Kolkata and Pacific/Chatham &#8212; the
+    corpus reads CLAIM tsCorpusPassNonUtcRunner = 21 FROM analysis/published-numbers/timestamp-pathology-2026-11-26.json#claims/corpusPassNonUtcRunner of 24. The
+    CLAIM tsZonePinnedEpochCases = 3 FROM analysis/published-numbers/timestamp-pathology-2026-11-26.json#claims/zonePinnedEpochCases cases that move are the
+    branch-1 epoch cases, for the reason the paragraph above already states: a bare epoch is a genuine
+    instant, so the parser localizes it to the runner's wall clock. The benchmark states a <em>fixed</em>
+    epoch as the expected value for those three rows, so the EXPECTATION is pinned to a UTC runner while
+    the parser under test is not. The parser behaves as documented, and the published figure carries a
+    condition it did not declare. All six invariants hold in all four zones, as they must: each one is a
+    relative comparison, so none of them reads an absolute instant.</p>
+
+    <p style="margin:.6em 0 0">&#x26A0; <b>The two snapshots §5 cites are two runs in two zones.</b>
+    <code>papers/timestamp-corpus.json</code> records 21 passes and 3 failures, with those three epoch
+    rows at <code>off=-240</code> &#8212; a US-Eastern runner. <code>papers/timestamp-invariants.json</code>
+    records a corpus of 24&#8239;/&#8239;24. This block repairs neither file, because a silent rewrite
+    would destroy the evidence of the disagreement. No marker binds either snapshot.</p>
+
+    <p style="margin:.6em 0 0">Table 3 and §3.1 stay unbound. The scope note there already states that
+    the live benchmark does not regenerate that class, and this record measures nothing in it.</p>
+  </div>
+
   <h3 class="sub">3.1 A pathology no parser can detect: a <em>synthesised</em> axis</h3>
   <p>Every failure in Table 1 is visible in the bytes — a malformed field, an ambiguous order, a missing anchor. The corpus subsequently produced one that is not, and it is the more dangerous class precisely because <b>the parser has nothing to object to</b>: the timestamps are syntactically perfect, monotonic, plausibly spaced, and <em>fabricated</em>. A Wellue O2Ring-S transmits optical samples with <b>no per-sample timestamp</b>, so the capture layer wrote the vendor column itself, as <code>sample_index × an assumed rate</code>. Branches 1–6 resolve such a column flawlessly. There is no parse error to raise, and none of B1–B6 is violated.</p>
   <p>What separates a drawn axis from a measured one is not its <em>format</em> but the <b>distribution of its inter-sample deltas</b>. A generator emits a handful of exact reciprocals of its chosen rate; a real acquisition clock does not:</p>
