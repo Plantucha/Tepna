@@ -34,19 +34,19 @@
     "rule": "a marker is written only where the measurement reproduces the printed digits exactly. A printed cell that rounds the measurement is listed here, with both numbers, and it stays unbound.",
     "roundedCells": {
       "ecgRecallAllPct": {
-        "printed": 100.0,
+        "printed": 100,
         "measured": 99.99
       },
       "ecgRecallCleanPct": {
-        "printed": 100.0,
+        "printed": 100,
         "measured": 99.99
       },
       "ecgRecallApneaPct": {
-        "printed": 100.0,
+        "printed": 100,
         "measured": 99.99
       },
       "ecgPrecisionPct": {
-        "printed": 100.0,
+        "printed": 100,
         "measured": 99.99
       },
       "ecgSqiClean": {
