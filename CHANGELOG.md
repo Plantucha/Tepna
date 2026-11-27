@@ -30,6 +30,66 @@ changesets.)
 
 ---
 
+## [3.0.0] — 2026-11-27
+
+### Added
+- Add Muse forehead optics as a fourth corner of the sensor-trio night page. The panel reports the
+- Mark the seconds the beat reference never scored on the four-corner night page. The page's chest
+- Add `tools/common-mode-blind-trial.mjs`, which runs the common-mode protocol on a real detector change. (`COMMON-MODE-BLIND-TRIAL-2026-11-26-BRIEF.md`)
+- Add tools/corpus-archive-parity.mjs. It compares the live corpus with the vigil archive by path and size. It reads file sizes only and writes nothing. It emits a tepna.verdict/1 object. The status is FAIL when a stamped stream file in the corpus is shorter than its archive copy.
+- Let `tools/dual-clock-rate.mjs` read the Muse `_RAW.txt` device clock and label its row MUSE.
+- Hold EEGDex's raw-frame ingest with a committed known answer that carries two clocks.
+- Say the forehead corner's clock axis out loud on the four-corner night page. The corner's per-second
+- Count the four-corner hat over every capture night that holds four corner roles. The census loads
+- Carry a same-seconds four-way firmware reference beside the headline three-way one, so the four-corner ratio compares one second set.
+- Show a live device-clock rate pill on the capture-host monitor for each device with its own clock.
+- Bind 16 CLAIM markers in `papers/nights-icc.html` to a fresh paper-scale re-measurement record.
+- Re-run the timestamp benchmark from a committed tool and bind the paper's two published counts to the record it writes.
+- The trio fold (`tools/trio-batch.mjs`) now writes a `PpgDexForehead` export from the Muse S optics, through the one decoder `PATAlign.decodeMuseOptics` and the forehead constants in `PATAlign.FOREHEAD`.
+- Publish the three-cornered hat the beat reference's own key set solves, beside the measured sigma on
+- The PR walker posts one board note to a PR's author when an alert ends in "a coder owns it". This covers a red or cancelled check after the retry, a Mergify dequeue and a hand rebase. It posts once for each PR, kind and head, to the bird the `Fleet-Session:` trailer names. Crane joins the birds a merge wake reaches.
+- Re-run the beat-yield analysis at the paper cohort size, from a committed tool.
+- Re-run the rMSSD equivalence analysis at the paper cohort size, from a committed tool.
+
+### Changed
+- Count the residue ledger in the capture-host relevance filter only while a `not-required` declaration is live.
+- A push to main can now skip the heavy jobs of tests, capture-host-ci and local-steps. It skips them when a green merge-queue run of the same workflow tested the same tree. The skipped jobs read skipped, and the reuse job names the reused run. The CI timing tool drops such runs from its sample.
+- docs/CORPUS-LOCATIONS.md now states that the canonical corpus root is on the TrueNAS since 2026-10-21, and names the corpus-archive parity tool.
+- The fitted stage formula is EEGDex's only stager, and the page carries the one-pass model as inlined (`EEGDEX-STAGE-DEFAULT-2026-11-26-BRIEF.md`)
+- Record the absence lens batch over the ten root DSP files. The new section gives the coverage, the precision a bird re-read confirmed, the API cost and the unmeasured bird cost, and it keeps the lens. (`LOCAL-QWEN-SWEEPS-2026-11-22-BRIEF.md`)
+- tools/qwen-lead-check.mjs drops three more kinds of qwen lead before Shrike sees them. They are comment lines, absence leads on a guarded line, and sites that Shrike already judged.
+- Re-fold the trio corpus under the closure that includes ecgdex and ppgdex, and re-cut the pooled hat over 127 nights. (`SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`)
+- Re-fold the trio corpus under fold closure 252c85071f0cd2d7, which carries the OxyDex IEI fix (#5962). The pooled hat re-cut over the same 127 nights is bit-identical. Only the tracked-input digest moved. (`SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`)
+- Record the 2026-11-26 reference run beside the 2026-09-26 one in the firmware-reference tool's
+
+### Fixed
+- Report an absent CGM slice as absent, so the hypo recall counts no unread night as a miss.
+- Mark an absent recording start on the `beatConfidence` map as an offset axis, in both copies.
+- Refuse a periodic-breathing marker with no usable onset, rather than place it at lights-out.
+- Refuse a non-finite EDF+ TAL onset in the CPAPDex parser, so no annotation stamps Infinity.
+- Place each EEGDex epoch time on the host axis, and publish which timebase it rides.
+- Fit the SpO2 spectrum background from lag 2 over lag 1, so whole-percent rounding no longer fabricates a cycle.
+- The trio fold timer now commits the run ledger with the folded nights. Before, a successful fold left the ledger modified. The next run then stopped at its first step, and the timer stayed failed.
+- Name the optical site when the HRV consensus resolves a record on another site's SDNN axis, and drop that block one evidence tier.
+- Read both desaturation event shapes in the IEI duration reader, so a raw-shape event yields its interval.
+- Divide the reachable count of the mask census by the sample it read, and print the walk beside it.
+- Key an ntfy alert episode on the whole device name, so two long names never share one episode.
+- Refuse the quiet interval after a desaturation with no duration, rather than read that event as zero-length.
+- Refuse a decay, an undershoot and a 50 % recovery for an OxyDex spike whose time nobody measured.
+- Let the PAT worker take an ECG axis request on its job message. The ECG leg now refuses a
+- Place PpgDex sample 0 at the recording start the series counts from. `relSec` holds host-elapsed
+- The Ollama router sends an embed to a backend whose copy sits wholly in VRAM. When such a copy serves the request, the router drops the caller's `num_gpu: 0` ask. Before an option-less embed, it unloads a copy that is not in VRAM. A CPU runner then no longer stays loaded for every later caller.
+- Read a present but empty validity or seam sidecar as absent validity under the name `sidecar-empty`, never as zero runs.
+- Give the six sibling sidecar parsers the same named refusal for a present but empty file. Five of them answered the absent value, and the ring-clock reader answered an empty list of reads.
+- Count the rows the OxyDex and HRVDex readers drop, so a night publishes the count beside its rows.
+- The pooled-hat stamp line now prints the `inputsDigest=` value that the TABLE-PROVENANCE gate recomputes. `corpusIdentity` adds `treeDigest`, which covers every tracked file under the root and ignores the scope of the nights read. `stampFields` prints that digest. Before this change, it printed the scoped `dataDigest`, which the gate rejects. (`PUBLISHED-NUMBER-PROVENANCE-2026-09-15-BRIEF.md`)
+- The router watchdog `tools/ollama-router-watch.sh` now skips its two direct backend embeds while a `gpu-run.sh` job holds the card. Check (a) probes each backend for a hang. Check (c) compares the embed box vectors with a GPU backend. Each of them could load a second bge-m3 copy with `keep_alive` 30m beside a capped card job. On 2026-11-26 at 07:15:18 such a probe loaded bge-m3 on Vulkan, 24 s before a ROCm fault.
+- Read companion presence, never truthiness, so a zero-byte sidecar warns rather than reading as absent.
+- Name a zero-byte capture file as empty in the fold, rather than as a non-concurrent session.
+- On a push to main that reuses a green merge-queue run, the capture-host test legs and the supply-chain job now read skipped. Before, they ran their relevance steps and read success, so the CI timing tool kept those runs in its sample.
+
+---
+
 ## [2.38.0] — 2026-11-26
 
 ### Added
@@ -4835,7 +4895,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.38.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/Plantucha/Tepna/compare/v2.38.0...v3.0.0
 [2.38.0]: https://github.com/Plantucha/Tepna/compare/v2.37.0...v2.38.0
 [2.37.0]: https://github.com/Plantucha/Tepna/compare/v2.36.0...v2.37.0
 [2.36.0]: https://github.com/Plantucha/Tepna/compare/v2.35.0...v2.36.0
