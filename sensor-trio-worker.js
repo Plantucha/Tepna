@@ -1083,7 +1083,7 @@ async function museHrMap(f, onPhase, runsText) {
     if (!dec || !dec.text) return { hr: null, reason: (dec && dec.reason) || 'no-optical-record', info: dec ? dec.info : null };
     var F = ppgHrMapReal(dec.text, onPhase, runsText, { sign: PATAlign.FOREHEAD.sign, footHiHz: PATAlign.FOREHEAD.footHiHz });
     if (!F || !F.hr) return { hr: null, reason: self.__ppgErr || 'forehead HR path produced no per-second grid', info: dec.info || null };
-    return { hr: F.hr, conf: F.conf || null, signStated: F.signStated, footHiHz: F.footHiHz, info: dec.info || null, reason: null };
+    return { hr: F.hr, conf: F.conf || null, signStated: F.signStated, footHiHz: F.footHiHz, axis: F.axis || null, info: dec.info || null, reason: null };
   } catch (e) {
     return { hr: null, reason: String((e && e.message) || e) };
   }
@@ -1255,7 +1255,64 @@ function ppgHrMapReal(text, onPhase, runsText, opts) {
        pleth also arrives here and is ONE channel, so its stamp reads `alone` by construction and the
        handler publishes only the Verity one — a two-key container holding a derivable constant and a
        null is the empty container §∅ forbids. */
-    return { hr: out, conf: conf, polarity: polStamp, signStated: _sign, footHiHz: _o.footHiHz > 0 ? _o.footHiHz : null };
+    /* ── THE AXIS STATUS THIS STREAM WAS PLACED UNDER (row
+       2026-11-26-the-forehead-corner-publishes-no-axis-status) ────────────────────────────────────
+       `parsePPG` builds `DexClock.hostAxis` over the row anchors, and `relSec` — which the per-second
+       grid below rides — takes its correction. This function read none of it, so a reader of the
+       night page could not tell a corrected optical map from a drawn one. Clock Contract §7 asks a
+       consumer to read `independent` before it trusts a rate, and this path read nothing at all.
+       Osprey measured the forehead corner over 4 Muse segments of 1.61 h to 7.41 h (board #9315):
+       all four read `ok`, `applied` and `independent` true, so the CORRECTION runs. The gap is the
+       REPORT. `quantizedShare` reads 0.929 on all four, so `clock.js` calls the device column DRAWN
+       and nulls `ppm` BY DESIGN with its own reason — which is why `drawnColumn.ppm` travels under
+       its own name here. A surface must not print that null as a 0, and must not read the drawn
+       figure as a rate (§∅).
+       EVERY FIELD IS `== null ? null`, never a `false` or a `0` default: an axis object that lacks a
+       key is unknown, and the three states a reader needs are true, false and nobody-measured. */
+    /* `_b3` KEEPS THIS READ A PASS-THROUGH, and the shape is load-bearing twice over. §∅ wants three
+       states — true, false and nobody-measured — so an absent key must normalise to null and a
+       measured `false` must survive. Written inline as `_ha.independent === true` the same arithmetic
+       reads as a GATE to the drawn-axis consumer ratchet (`clock · drawn-axis · source-scan`), whose
+       classifier counts `.independent === true` and `.independent ?` as a refusal site. This file
+       refuses nothing: it REPORTS. The helper takes the value, so the ratchet's own
+       `a null-normalisation is NOT a gate` arm is what classifies this read, which is the truth about
+       it. The file also reads `deviceDrawn`, the provenance key `clock.js` publishes, so a later edit
+       that does gate here carries the discriminator the ratchet asks for. */
+    var _ha = rec.hostAxis || null,
+      _hz = function (v) {
+        return v == null || (typeof v === 'number' && !isFinite(v)) ? null : v;
+      },
+      _b3 = function (v) {
+        return v == null ? null : v === true;
+      };
+    var axis = _ha
+      ? {
+          ok: _b3(_ha.ok),
+          applied: _b3(_ha.applied),
+          drawn: _b3(_ha.drawn),
+          /* THE PROVENANCE KEY, which is the one a consumer is required to refuse on. `ppgdex-dsp.js`
+             emits it only when the column is drawn or unmeasured, so an ABSENT `deviceDrawn` beside a
+             `drawn: false` is itself the measured-not-drawn answer, and the page states the two
+             together rather than reading the absence as unknown. */
+          deviceDrawn: _b3(_ha.deviceDrawn),
+          independent: _b3(_ha.independent),
+          timingSource: _ha.timingSource || null,
+          anchors: _hz(_ha.anchors),
+          /* The axis's OWN rate, which `clock.js` nulls on a drawn column, and the figure it parks
+             under `drawnColumn` in that case. Two fields, because they are two different claims: a
+             rate a consumer may spend, and a number it may only report. */
+          ppm: _hz(_ha.ppm),
+          drawnPpm: _ha.drawnColumn ? _hz(_ha.drawnColumn.ppm) : null,
+          ppmReason: _ha.ppmReason || null,
+          /* The constant the differential form took off the series (#6012). It is the measured size
+             of the old disagreement between `t0Ms` and sample 0 on this stream, and it carries its
+             own refusal reason, so a null never reads as a measured 0. */
+          startCorrectionMs: _hz(_ha.startCorrectionMs),
+          startCorrectionReason: _ha.startCorrectionReason || null,
+          reason: _ha.reason || null
+        }
+      : null;
+    return { hr: out, conf: conf, polarity: polStamp, signStated: _sign, footHiHz: _o.footHiHz > 0 ? _o.footHiHz : null, axis: axis };
   } catch (e) {
     self.__ppgErr = (e && e.message) || '' + e;
     return null;
@@ -1529,7 +1586,10 @@ async function runRealNight(m) {
        is a named value rather than an absent field, so the page prints the reason instead of an
        empty card (§∅). `four.corner` keeps the three-corner panel's vocabulary. */
     var four = M ? solveFourCorners([H, V, O, M], ['h10', 'verity', 'o2', 'forehead']) : { ok: false, reason: Mres.reason || 'no-muse-file', seconds: 0 };
-    four.foreheadSource = M ? { signStated: Mres.signStated, footHiHz: Mres.footHiHz, info: Mres.info || null } : null;
+    /* `axis` rides beside the two stated constants, because it is the same KIND of fact: a condition
+       the stream was read under rather than a measurement of the body. `|| null` keeps a corner whose
+       parse carried no axis object readable as unknown. */
+    four.foreheadSource = M ? { signStated: Mres.signStated, footHiHz: Mres.footHiHz, axis: Mres.axis || null, info: Mres.info || null } : null;
     // Verity quality gate: an optical HR whose recovered σ exceeds ~12 bpm (far past any plausible
     // wrist-PPG error) AND decorrelates from BOTH other corners is failed HR extraction (lost PPG
     // contact / all-night motion), not a real device σ. Skip it honestly rather than let a 20–35 bpm
