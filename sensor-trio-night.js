@@ -627,6 +627,13 @@
     /* THE FOUR-CORNER PANEL (#8914). Every number it draws is `experimental`, and for a REASON that is
        stronger than the three-corner hat's: the fourth corner is a THIRD OPTICAL corner, so the
        independence the hat assumes is weaker here, not better supported. */
+    /* The axis status is a fact about the INPUT, like `source` above: what the clock spine read over
+       this stream's row anchors and what it applied. It is not an estimate of the body, so it takes
+       the same `measured` grade the other input facts take. */
+    axis: [
+      'measured',
+      'the host-disciplined clock axis the forehead stream was placed under — what DexClock read over its row anchors and what parsePPG applied; a drawn device column publishes no rate by design, so the figure beside it is reportable and never spendable'
+    ],
     four: ['experimental', 'σ̂ per corner from the N-cornered hat over four corners — least squares on six pairwise variances, and it assumes independent corner errors across three optical sites'],
     fourPair: ['experimental', 'the measured variance of each pair’s per-second HR difference, on the seconds all four corners share — the hat’s own input'],
     fourSub: ['experimental', 'the classic three-cornered hat on each triple of the four corners, all on the four-way seconds — their spread IS the coupling between corners'],
@@ -1284,6 +1291,54 @@
         '.</p>'
     );
     const fs = F.foreheadSource;
+    /* ── THE FOREHEAD AXIS STATUS, SAID OUT LOUD (row
+       2026-11-26-the-forehead-corner-publishes-no-axis-status) ────────────────────────────────────
+       The corner's per-second grid rides `relSec`, which takes the host-axis correction, and no
+       surface stated whether that correction ran. So a reader could not tell a corrected forehead
+       map from a drawn one. Osprey measured the correction running on all 4 Muse segments (board
+       #9315), which makes this a REPORTING repair.
+       THREE RULES THIS TEXT KEEPS, each one a way the line could lie:
+         · `null` is "nobody measured", and it prints as "not read" — never as a no and never as a 0.
+         · a DRAWN device column publishes `ppm` as null BY DESIGN (`clock.js` nulls it and names the
+           reason), so the drawn figure prints under its own words — a number to report, never a rate
+           to spend.
+         · the applied state is the spine's own verdict, forwarded, so this line cannot outlive a
+           change in `ppgdex-dsp.js`. */
+    const axisText = (ax) => {
+      if (!ax) return 'Forehead clock axis: not read — this corner published no axis object.';
+      const yn = (v) => (v === true ? 'yes' : v === false ? 'no' : 'not read');
+      const num = (v, u, d) => (Number.isFinite(v) ? v.toFixed(d) + u : 'not read');
+      const parts = [
+        'axis resolved: ' + yn(ax.ok),
+        'correction applied to the per-second grid: ' + yn(ax.applied),
+        'the host column is a second clock: ' + yn(ax.independent),
+        'anchors: ' + (Number.isFinite(ax.anchors) ? String(ax.anchors) : 'not read')
+      ];
+      if (ax.timingSource) parts.push('timing source: <code>' + esc(ax.timingSource) + '</code>');
+      /* `deviceDrawn` is the provenance key, and `ppgdex-dsp.js` omits it on a measured column, so an
+         absent flag beside `drawn: false` is the measured answer and not an unknown one. */
+      const drawnFlag = ax.deviceDrawn != null ? ax.deviceDrawn : ax.drawn;
+      let drawnPart;
+      if (drawnFlag === true) {
+        drawnPart =
+          'The device column reads <b>DRAWN</b>, so the spine publishes no rate for it' +
+          (ax.ppmReason ? ' (' + esc(ax.ppmReason) + ')' : '') +
+          '. The figure it measured over that column is ' +
+          num(ax.drawnPpm, ' ppm', 2) +
+          ', which this page reports and no consumer may spend as a rate.';
+      } else if (drawnFlag === false) {
+        drawnPart = 'The device column reads measured, not drawn, and the rate over it is ' + num(ax.ppm, ' ppm', 2) + '.';
+      } else {
+        drawnPart = 'Whether the device column is drawn: not read, so neither rate beside it is readable.';
+      }
+      const startPart = Number.isFinite(ax.startCorrectionMs)
+        ? ' The series sits at the recording start, and the constant the node took off there is ' + num(ax.startCorrectionMs, ' ms', 1) + '.'
+        : ax.startCorrectionReason
+          ? ' The node could take no start baseline: ' + esc(ax.startCorrectionReason) + '.'
+          : '';
+      return 'Forehead clock axis — ' + parts.join(' · ') + '. ' + drawnPart + startPart;
+    };
+    if (fs) H.push('<p class="mut">' + evb('axis') + ' ' + axisText(fs.axis) + '</p>');
     if (fs)
       H.push(
         '<p class="mut">Forehead corner read through the same HR path as the other optical corners (3-LED consensus → PPI → Malik correction), with two STATED constants: polarity ' +
