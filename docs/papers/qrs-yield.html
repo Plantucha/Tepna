@@ -51,6 +51,32 @@
   <p>To isolate the <em>yield</em> effect on HRV from the detectors' internal interval-editing policies, rMSSD is reconstructed identically from the detected beat-times and from the true beat-times (times → RR → local-median outlier clean → rMSSD); the bias is their difference. The synthetic ECG renderer places each R-peak at its true beat time, so the detected ECG R-to-R intervals equal the true RR (modulo 130 Hz quantization) and ECG rMSSD is faithful — the ECG arm is the rMSSD reference here (ECGDex's HRV is independently validated on real ECG). The PPG arm's truth (the RR train) and detection (pulse feet) are both genuine, so its bias is a real consequence of the recovered train.</p>
   <p>The run reported here covers 400 sampled patients (one ECG window and one PPG window each; ≈363 valid windows per arm; ≈188,000 true beats per arm, ≈25,000 of them inside apnea/hypopnea events).</p>
 
+  <div class="callout" style="border:1px dashed #b8860b;background:#fffdf5">
+    <p style="margin:0 0 6px"><b>Re-measured 2026-11-27.</b> The run below drives this paper's own
+    analysis page at the paper cohort size, from a committed tool, and it reads no capture corpus:
+    <code>node tools/analysis-rerun.mjs --only qrs-yield-analysis.html --paper-scale</code>. It takes
+    30&nbsp;seconds. The record is <code>analysis/published-numbers/qrs-yield-2026-11-27.json</code>.
+    The 2026-10-27 re-cut reproduces: every cell of Table&nbsp;1 agrees to the digits it prints.</p>
+    <p style="margin:0 0 6px"><b>The population.</b> The run samples
+    CLAIM patients = 400 FROM analysis/published-numbers/qrs-yield-2026-11-27.json#claims/patients patients. The ECG arm scores
+    CLAIM ecgWindows = 362 FROM analysis/published-numbers/qrs-yield-2026-11-27.json#claims/ecgWindows windows over
+    CLAIM ecgTrueBeats = 187740 FROM analysis/published-numbers/qrs-yield-2026-11-27.json#claims/ecgTrueBeats true beats, and the optical arm scores
+    CLAIM ppgWindows = 365 FROM analysis/published-numbers/qrs-yield-2026-11-27.json#claims/ppgWindows windows over
+    CLAIM ppgTrueBeats = 189213 FROM analysis/published-numbers/qrs-yield-2026-11-27.json#claims/ppgTrueBeats true beats.</p>
+    <p style="margin:0 0 6px"><b>The two arms.</b> The ECG arm reproduces a median rMSSD bias of
+    CLAIM ecgRmssdBiasPct = 0 FROM analysis/published-numbers/qrs-yield-2026-11-27.json#claims/ecgRmssdBiasPct %, the exact zero the reference arm predicts. The optical arm reproduces precision
+    CLAIM ppgPrecisionPct = 98.8 FROM analysis/published-numbers/qrs-yield-2026-11-27.json#claims/ppgPrecisionPct % and a median rMSSD bias of
+    CLAIM ppgRmssdBiasMs = -3.92 FROM analysis/published-numbers/qrs-yield-2026-11-27.json#claims/ppgRmssdBiasMs ms, so the downward direction of the HRV cost holds.</p>
+    <p style="margin:0"><b>&#x26A0; The cells this callout does not bind.</b> Table&nbsp;1 rounds every
+    rate and every SQI value, so a marker on them would compare unequal. They stay unbound, and the
+    record names each one with both numbers under <code>notBound/roundedCells</code>. The ECG rates
+    print 100.0&nbsp;% and measure 99.99&nbsp;%; the optical rates print 96.1 / 96.2 / 95.5&nbsp;% and
+    measure 96.09 / 96.18 / 95.54&nbsp;%; the four SQI cells print two decimals and measure four. The
+    &sect;3.2 bias percentage prints &minus;10.4&nbsp;% and measures &minus;10.29&nbsp;%, so only the
+    &minus;3.92&nbsp;ms beside it carries a marker. The <em>&asymp;</em> counts in &sect;2.3,
+    &sect;6 and the Table&nbsp;1 caption name no digits to bind.</p>
+  </div>
+
   <h2 class="sec">3. Results</h2>
   <table class="data">
     <caption class="tbl-cap"><b>Table 1.</b> Pooled beat-yield, signal-quality and HRV bias by detector (≈363 windows/arm; real detectors, synthetic ground truth).</caption>
