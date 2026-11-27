@@ -573,8 +573,9 @@
       const useMeas = !!(R && R.sigma && DKEYS.every((k) => Number.isFinite(R.sigma[k])));
       const sg = useMeas ? R.sigma : real.sigma;
       rc.innerHTML = evb(useMeas ? 'refNight' : 'hat') + ' ' + esc((useMeas ? 'σ ' : 'σ̂ ') + DKEYS.map((k) => f2(sg[k])).join(' / '));
+      const rhRow = refHatText(R, DKEYS, f2);
       rc.title = useMeas
-        ? 'σ measured against the beat reference · the hat said ' + DKEYS.map((k) => f2(real.sigma[k])).join(' / ')
+        ? 'σ measured against the beat reference · the hat over the three-way overlap said ' + DKEYS.map((k) => f2(real.sigma[k])).join(' / ') + (rhRow ? ' · ' + rhRow : '')
         : 'σ̂ from the three-cornered hat — no beat reference on this night';
       rc.style.color = '';
     }
@@ -601,6 +602,9 @@
     count: ['measured', 'seconds on the aligned three-way grid — a count'],
     source: ['measured', 'which file each corner was read from, and the polarity condition the Verity channel set was read under — facts about the inputs'],
     hat: ['experimental', 'three-cornered hat σ̂ — assumes independent corner errors; not validated against a reference'],
+    /* The SAME estimator as `hat`, restricted to the beat reference's own seconds, so a reader can hold
+       it against the measured σ beside it. One assumption, one grade. */
+    hatRef: ['experimental', 'three-cornered hat σ̂ over the beat reference’s own seconds — the same unvalidated estimator, restricted to the seconds the measured σ beside it covers'],
     tau: ['experimental', 'the same hat re-solved on τ-second means of the three series — the same unvalidated estimator, at a coarser time scale'],
     boot: [
       'experimental',
@@ -940,6 +944,21 @@
      each corner against this night's beat reference, and that σ is the headline; the hat's σ̂ stays
      beside it. Without the file the hero is the hat's σ̂, and says so. */
   const refOf = (real) => (real && real.reference && real.reference.ok ? real.reference : null);
+  /* ── THE HAT OVER THE REFERENCE'S OWN SECONDS (row `2026-11-26-four-corner-hat-still-over-reads-the-chest`)
+     The measured σ beside it covers the reference's key set, and the headline σ̂ covers the three-way
+     per-second intersection. Printing both figures without their sets is what let a ratio of two
+     sigmas read as the hat's bias. This clause states the set, so the two numbers compare.
+     ∅ A corner the hat refused reads `refused`, never a number: the worker nulls a negative variance,
+     and a formatted null would publish an absence as a figure. LOCAL and pure — `tests/dex-tests.js`
+     slices it out of this source and runs it. */
+  function refHatText(R, keys, fmt) {
+    if (!R || !R.hat) return '';
+    const ks = Array.isArray(keys) ? keys : [keys];
+    if (!ks.length) return '';
+    const vals = ks.map((k) => (Number.isFinite(R.hat[k]) ? fmt(R.hat[k]) : 'refused'));
+    const span = Number.isFinite(R.n) ? R.n + ' s' : 'seconds';
+    return 'over the reference’s own ' + span + ' the hat reads ' + vals.join(' / ');
+  }
   function hero(k, real, derive) {
     const v = $('hero-' + k + '-val'),
       u = $('hero-' + k + '-unit'),
@@ -956,7 +975,7 @@
     const ci = derive && derive.ci && derive.ci[k];
     if (u) {
       const txt = useMeas
-        ? 'bpm · measured on this night against the beat reference' + (k === 'h10' ? ', a lower bound' : '') + ' · the hat said ' + f2(hat)
+        ? 'bpm · measured on this night against the beat reference' + (k === 'h10' ? ', a lower bound' : '') + ' · the hat over the three-way overlap said ' + f2(hat)
         : s == null
           ? real && k === 'h10' && real.h10Unreliable
             ? 'nulled — ' + real.h10Fault
@@ -964,7 +983,8 @@
               ? 'negative variance — not a number'
               : 'bpm'
           : 'bpm · the hat’s estimate' + (ci ? ' · 95 % CI ' + f2(ci.lo) + ' – ' + f2(ci.hi) : ' · CI unavailable');
-      u.innerHTML = (real && s != null ? evb(useMeas ? 'refNight' : 'hat') + ' ' : '') + esc(txt);
+      const rh = useMeas ? refHatText(R, k, f2) : '';
+      u.innerHTML = (real && s != null ? evb(useMeas ? 'refNight' : 'hat') + ' ' : '') + esc(txt) + (rh ? ' · ' + evb('hatRef') + ' ' + esc(rh) : '');
     }
     const note = $('hero-' + k + '-val') && $('hero-' + k + '-val').parentElement.querySelector('.ts-valid');
     if (note) {

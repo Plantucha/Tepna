@@ -1339,10 +1339,36 @@ async function nightReference(f, rec, H, V, O, pg, M) {
     var f4 = M && typeof M.has === 'function' ? TrioReference.scoreSeries(B.REF, H, V, O, [M]) : null;
     var fourWay = f4
       ? f4.ok
-        ? { ok: true, n: f4.n, sigma: f4.trueSd, bias: f4.bias, rho: f4.rho }
+        ? { ok: true, n: f4.n, sigma: f4.trueSd, bias: f4.bias, rho: f4.rho, hat: f4.hat }
         : { ok: false, reason: f4.reason, n: f4.n }
       : { ok: false, reason: 'the night carried no forehead corner, so no four-way reference exists', n: null };
-    return { ok: true, n: s.n, sigma: s.trueSd, bias: s.bias, rho: s.rho, fourWay: fourWay, seconds: B.REF.size, agreeing: B.cp.pairs.length, beats: B.ref.nn.length, referenceAxis: B.ref.axis };
+    /* THE HAT OVER THE REFERENCE'S OWN SECONDS, BESIDE THE HEADLINE (row
+       `2026-11-26-four-corner-hat-still-over-reads-the-chest`). `scoreSeries` already solves the
+       classic hat on the pair variances of its own key set, and this line carries that solve out. A
+       reader then holds two figures over ONE second set: the sigma each corner measures against the
+       beat reference, and the sigma the hat estimates over the same seconds. The gap between them is
+       the hat's own bias on this night, never a key-set difference.
+       🔴 The headline keeps its key set. `runRealNight`'s `sigma` rides the three-way per-second
+       intersection, and board #8984 decision 1 holds it there.
+       The hat here needs no second estimator. Over one key set the plain difference variance obeys
+       `Var(Xi - Xj) = si^2 + sj^2 - 2*rho_ij*si*sj`, at the n-1 convention both `sd` and
+       `AnalysisStats.variance` use (#9332). So this solve is arithmetic over the `sigma` and `rho`
+       beside it, and `tests/dex-tests.js` asserts that identity against a run of `scoreSeries`.
+       ∅ A corner whose solved variance goes negative arrives `null` here. The page then names the
+       refusal rather than printing a number. */
+    return {
+      ok: true,
+      n: s.n,
+      sigma: s.trueSd,
+      bias: s.bias,
+      rho: s.rho,
+      hat: s.hat,
+      fourWay: fourWay,
+      seconds: B.REF.size,
+      agreeing: B.cp.pairs.length,
+      beats: B.ref.nn.length,
+      referenceAxis: B.ref.axis
+    };
   } catch (e) {
     return { ok: false, reason: 'the beat reference threw: ' + String((e && e.message) || e).slice(0, 160) };
   }
