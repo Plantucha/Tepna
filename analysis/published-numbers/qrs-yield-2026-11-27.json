@@ -1,0 +1,133 @@
+{
+  "schema": "tepna.published-number-record/1",
+  "producer": "tools/analysis-rerun.mjs driving papers/qrs-yield-analysis.html at the paper cohort size",
+  "producerCommit": "0f5a8f757",
+  "invocation": "node tools/analysis-rerun.mjs --only qrs-yield-analysis.html --paper-scale --out .cache/qrsyield.json",
+  "generated": "2026-11-27",
+  "runtimeSeconds": 30,
+  "inputs": {
+    "nSubj": 400,
+    "corpusRead": false,
+    "note": "the cohort is generated inside the page from committed code (cohort-gen.js + the FULL-lane renderers in cohort-full.js and synth-gen.js), so the run reads no capture corpus"
+  },
+  "deterministic": true,
+  "publishedIn": "papers/qrs-yield.html Table 1, the re-measured 2026-10-27 row set (re-measured again 2026-11-27)",
+  "population": {
+    "patients": 400,
+    "ecgWindows": 362,
+    "ppgWindows": 365,
+    "excluded": 38,
+    "note": "400 sampled patients give one window per arm; 362 of them yield a scorable ECG window and 365 a scorable PPG window. The two arms exclude different patients, so the counts differ."
+  },
+  "claims": {
+    "note": "values EXACTLY as papers/qrs-yield.html prints them, so each `CLAIM … FROM …#claims/<key>` marker compares equal. Full precision sits under `result`.",
+    "patients": 400,
+    "ecgWindows": 362,
+    "ecgTrueBeats": 187740,
+    "ecgRmssdBiasPct": 0,
+    "ppgWindows": 365,
+    "ppgTrueBeats": 189213,
+    "ppgPrecisionPct": 98.8,
+    "ppgRmssdBiasMs": -3.92
+  },
+  "notBound": {
+    "rule": "a marker is written only where the measurement reproduces the printed digits exactly. A printed cell that rounds the measurement is listed here, with both numbers, and it stays unbound.",
+    "roundedCells": {
+      "ecgRecallAllPct": {
+        "printed": 100.0,
+        "measured": 99.99
+      },
+      "ecgRecallCleanPct": {
+        "printed": 100.0,
+        "measured": 99.99
+      },
+      "ecgRecallApneaPct": {
+        "printed": 100.0,
+        "measured": 99.99
+      },
+      "ecgPrecisionPct": {
+        "printed": 100.0,
+        "measured": 99.99
+      },
+      "ecgSqiClean": {
+        "printed": 0.97,
+        "measured": 0.9676
+      },
+      "ecgSqiApnea": {
+        "printed": 0.96,
+        "measured": 0.9552
+      },
+      "ppgRecallAllPct": {
+        "printed": 96.1,
+        "measured": 96.09
+      },
+      "ppgRecallCleanPct": {
+        "printed": 96.2,
+        "measured": 96.18
+      },
+      "ppgRecallApneaPct": {
+        "printed": 95.5,
+        "measured": 95.54
+      },
+      "ppgSqiClean": {
+        "printed": 0.99,
+        "measured": 0.9855
+      },
+      "ppgSqiApnea": {
+        "printed": 0.98,
+        "measured": 0.9766
+      },
+      "ppgRmssdBiasPct": {
+        "printed": -10.4,
+        "measured": -10.29
+      }
+    },
+    "sectionProse": {
+      "note": "§3.1 prints the PPG SQI pair as 0.986 and 0.977, and §3.2 prints the median bias as −10.4 %. The same rounding applies, so those stay unbound. The −3.92 ms beside them is bound."
+    },
+    "approximations": {
+      "note": "§2.3, §6 Table 2 and the Table 1 caption print ≈363 windows per arm, ≈188,000 true beats per arm and ≈25,000 apnea beats. An approximation names no digits to bind. The measured apnea beats are 24184 (ECG) and 25040 (PPG)."
+    }
+  },
+  "result": {
+    "generated": "2026-11-27T01:34:29.710Z",
+    "nPatients": 400,
+    "framing": "FULL-lane beat-yield. One ~9-min apnea-cluster window per patient per arm. ECG: CohortFull.renderECGInt16 → ECGDSP.analyze (real Pan-Tompkins); truth = deviceRR. PPG: SYNTH.renderPPG → PPGDSP.analyze (real optical pulse pipeline); truth = SYNTH.buildRR in-window. Recall = PAT-corrected beat match (±120 ms) of true beats, stratified by the master timeline apnea/hypopnea windows. SQI = the detector's own per-beat signal-quality in those segments. rMSSD bias = detected − local-median-cleaned true. SYNTHETIC GROUND TRUTH — certifies ECG yield-robustness and isolates the modest PPG apnea yield dip + over-detection and the resulting HRV bias; not a real-patient miss rate.",
+    "arms": {
+      "ECG": {
+        "node": "ECGDex",
+        "windows": 362,
+        "trueBeats": 187740,
+        "recallAll": 0.9999,
+        "recallClean": 0.9999,
+        "recallApnea": 0.9999,
+        "apneaBeats": 24184,
+        "cleanBeats": 163556,
+        "precision": 0.9999,
+        "sqiClean": 0.9676,
+        "sqiApnea": 0.9552,
+        "rmssdBiasMedianPct": 0,
+        "rmssdBiasMedianMs": 0,
+        "nBiasPairs": 362,
+        "rmssdNote": "faithful (R-peaks rendered at true beat times; reference arm)"
+      },
+      "PPG": {
+        "node": "PpgDex",
+        "windows": 365,
+        "trueBeats": 189213,
+        "recallAll": 0.9609,
+        "recallClean": 0.9618,
+        "recallApnea": 0.9554,
+        "apneaBeats": 25040,
+        "cleanBeats": 164173,
+        "precision": 0.988,
+        "sqiClean": 0.9855,
+        "sqiApnea": 0.9766,
+        "rmssdBiasMedianPct": -10.29,
+        "rmssdBiasMedianMs": -3.92,
+        "nBiasPairs": 365,
+        "rmssdNote": "genuine (PPG truth + pulse-foot detection)"
+      }
+    }
+  }
+}
