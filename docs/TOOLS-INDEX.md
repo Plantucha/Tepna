@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**370 tools** · 369 with a purpose line · **1 without**
+**371 tools** · 370 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -58,6 +58,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`child-bound.mjs`](../tools/child-bound.mjs) | KEEP THE REASON A BOUNDED CHILD GAVE YOU. One `boundedChild` for a synchronous child process that a tool reads an answer from, so a child killed at its cap names the breach instead of… |
 | [`ci-step-parity.mjs`](../tools/ci-step-parity.mjs) | A LOCAL GATE STEP THAT NO WORKFLOW RUNS REDS ON EVERY BIRD'S BOX WHILE `main` STAYS GREEN. |
 | [`ci-timing.mjs`](../tools/ci-timing.mjs) | WHICH CHECK IS THE MERGE RACE? — per-job CI timings, measured. |
+| [`ci-tree-reuse.mjs`](../tools/ci-tree-reuse.mjs) | A PUSH TO MAIN SKIPS THE HEAVY JOBS WHEN THE MERGE QUEUE ALREADY TESTED THE SAME TREE GREEN. |
 | [`circular-stats.mjs`](../tools/circular-stats.mjs) | CIRCULAR STATISTICS — the null the suite's own phase statistic lacked. |
 | [`claim-source.mjs`](../tools/claim-source.mjs) | TWO MECHANISMS BIND A DOC NUMBER TO CODE, AND THIS FILE DRAWS THE LINE BETWEEN THEM. |
 | [`closure-tol-hac.mjs`](../tools/closure-tol-hac.mjs) | derive the 3-source clock-closure tolerance from the legs' own PRECISION instead of their MAGNITUDE. |
