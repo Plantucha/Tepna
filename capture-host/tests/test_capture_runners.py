@@ -11020,3 +11020,53 @@ def test_PLANT_a_battery_RISE_INSIDE_ONE_LINK_is_still_a_measured_charge(tmp_pat
     assert (h10["battery"], h10["charging"], h10["charging_why"]) == (41, True, "rising"), h10
     assert capture.devcaps.source(addr, "can_charge") == "battery-rose"
     capture._STOP.clear()
+
+
+def _drift_feed(ppm, hours, stall_window=None, step=1.0):
+    """Synthetic frames: the device clock runs `ppm` against the host; host stamps carry 0-0.3 s of
+    one-sided delivery delay; `stall_window` delays every frame of that window by 5 s."""
+    st = capture.drift_new()
+    seed = 7
+    t = 0.0
+    while t < hours * 3600:
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        lat = 0.3 * seed / 2147483648
+        if stall_window is not None and int(t // capture.DRIFT_WINDOW_S) == stall_window:
+            lat += 5.0
+        capture.drift_record(st, 1200.0 + t + lat, 50.0 + t * (1 + ppm * 1e-6))  # 1200 s: window-aligned
+        t += step
+    return st
+
+
+def test_drift_rate_finds_a_planted_fast_clock_through_one_sided_delay():
+    st = _drift_feed(50.0, 2.0)
+    r = st["rate"]
+    assert abs(r["ppm"] - 50.0) <= 1.0
+    assert r["windows"] == 11  # 12 windows opened in 2 h, the open one is not in the slope
+    assert 5400 <= r["span_s"] <= 6600
+
+
+def test_drift_rate_keeps_the_sign_for_a_slow_clock_and_ignores_one_stalled_window():
+    st = _drift_feed(-30.0, 2.0, stall_window=4)
+    assert abs(st["rate"]["ppm"] + 30.0) <= 1.0
+
+
+def test_drift_rate_refuses_below_six_closed_windows():
+    st = _drift_feed(50.0, 0.95)  # 6 windows opened, 5 closed
+    assert st["rate"] is None
+    f = capture.drift_fields(st)
+    assert f == {"clock_rate_ppm": None, "clock_rate_span_s": None, "clock_rate_windows": 5}
+    assert capture.drift_fields(capture.drift_new())["clock_rate_windows"] == 0
+    assert capture.drift_rate([(0.0, 0.0)] * 5) is None
+
+
+def test_drift_record_keeps_the_window_floor_and_trims_to_the_cap():
+    st = capture.drift_new()
+    assert capture.drift_record(st, 10.0, 0.0, window_s=100.0) is True
+    assert capture.drift_record(st, 20.0, 15.0, window_s=100.0) is False  # lower offset: the new floor
+    assert capture.drift_record(st, 30.0, 0.0, window_s=100.0) is False  # higher offset: kept out
+    assert st["floors"] == [(20.0, 5.0)]
+    for k in range(1, 6):
+        capture.drift_record(st, 10.0 + 100.0 * k, 100.0 * k, window_s=100.0, cap=3, min_windows=2)
+    assert len(st["floors"]) == 3
+    assert st["rate"]["windows"] == 2

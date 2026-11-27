@@ -3214,6 +3214,73 @@ def clock_skew_estimate(samples, now_mono, window_s=CLOCK_SKEW_WINDOW_S, min_n=C
     return {"skew": max(fresh), "n": len(fresh)}
 
 
+# LIVE DEVICE-CLOCK RATE (owner request 2026-11-26: a live drift badge for every device, computed over
+# good intervals). `clock_skew_floor_sec` above is an OFFSET; this is the RATE, the quantity a night
+# accumulates. Measured offline over 4 Muse sessions on 2026-11-24..25: +48.6 to +50.3 ppm, 1.6 to 7.4 h
+# each. Each 10-min window keeps its FLOOR of (host monotonic - device time): delivery latency is
+# one-sided, so the least-delayed frame is the cleanest offset in that window (the same envelope
+# reasoning as the skew window above). A Theil-Sen slope over the CLOSED windows of ONE link session is
+# the rate. A session is the good interval: a reconnect or a clock write can step the device time, so
+# both drop the windows. The slope is a median of pairwise slopes, so one stalled window cannot move it.
+# Host time is CLOCK_MONOTONIC, which chrony slews in rate and never steps.
+DRIFT_WINDOW_S = 600.0  # one floor per window
+DRIFT_MIN_WINDOWS = 6  # closed windows (1 h) before a rate is published; below that it is None (§∅)
+DRIFT_MAX_WINDOWS = 144  # 24 h of windows per session; the oldest go first
+# name -> drift state of the current link session (see drift_new)
+_DRIFT: dict[str, dict] = {}
+
+
+def drift_new() -> dict:
+    """A drift state for one link session: the open window index, the per-window floors, the rate."""
+    return {"k": None, "floors": [], "rate": None}
+
+
+def drift_rate(closed, min_windows=DRIFT_MIN_WINDOWS):
+    """PURE: the device rate against the host in ppm (+ = the device clock runs fast), or None.
+
+    `closed` is `[(host_s, offset_s), ...]` with `offset = host - device`, one floor per closed window. A
+    fast device clock gains on the host, so the offset falls and the slope is negative; the sign flips
+    here. Refuses below `min_windows`: a rate over less than an hour of floors is not shown (§∅).
+    """
+    if len(closed) < min_windows:
+        return None
+    slopes = sorted((b[1] - a[1]) / (b[0] - a[0]) for i, a in enumerate(closed) for b in closed[i + 1 :])
+    m = len(slopes)
+    med = (slopes[(m - 1) // 2] + slopes[m // 2]) / 2
+    return {"ppm": round(-med * 1e6, 1), "windows": len(closed), "span_s": round(closed[-1][0] - closed[0][0])}
+
+
+def drift_record(state, host_s, dev_s, window_s=DRIFT_WINDOW_S, cap=DRIFT_MAX_WINDOWS, min_windows=DRIFT_MIN_WINDOWS):
+    """PURE: fold one (host, device) time pair into a session's drift state. True when a window closed.
+
+    The rate is computed only when a window closes, so a frame costs one comparison, not a slope. The
+    open window is never in the slope: its floor has not yet seen the whole window.
+    """
+    off = host_s - dev_s
+    k = int(host_s // window_s)
+    floors = state["floors"]
+    if k == state["k"]:
+        if off < floors[-1][1]:
+            floors[-1] = (host_s, off)
+        return False
+    state["k"] = k
+    floors.append((host_s, off))
+    del floors[:-cap]
+    state["rate"] = drift_rate(floors[:-1], min_windows)
+    return True
+
+
+def drift_fields(state) -> dict:
+    """The status fields of a drift state. `clock_rate_windows` counts closed windows, so the monitor
+    can show how far a session is from its first rate."""
+    r = state["rate"]
+    return {
+        "clock_rate_ppm": None if r is None else r["ppm"],
+        "clock_rate_span_s": None if r is None else r["span_s"],
+        "clock_rate_windows": max(len(state["floors"]) - 1, 0),
+    }
+
+
 # The PS-FTP MTU characteristic. Its PRESENCE in a unit's attribute table is what makes a clock write
 # possible at all — `run_polar`'s own note records the alternative: on a device without it the sync
 # "fails on a missing characteristic", at the cost of an 18-second global capture pause. Duplicated as a
@@ -3448,7 +3515,8 @@ def _clock_sync_landed(name, addr, now_mono) -> None:
     that failed with InProgress, and a fifth attempt landed at 21:19:45."""
     _clock_sync_note_outcome(addr, True, False, now_mono)
     _CLOCK_SKEW_SAMPLES.pop(name, None)
-    _set(name, clock_skew_floor_sec=None, clock_skew_n=0)
+    _DRIFT[name] = drift_new()  # the write steps the device time, so the floors before it end here
+    _set(name, clock_skew_floor_sec=None, clock_skew_n=0, **drift_fields(_DRIFT[name]))
 
 
 def _clock_sync_synced_age_s(addr, now_mono):
@@ -4082,6 +4150,7 @@ async def run_polar(dev: dict, root: str):
         writers: dict[int, StreamWriter] = {}
         stream_fs: dict[int, float] = {}  # actual negotiated sample rate per meas (ACC differs per device)
         stream_scale: dict[int, float] = {}  # raw-int → physical-unit factor per meas (GYRO dps / MAG gauss)
+        _DRIFT[name] = drift_new()  # per link session, like prev_ns below
         prev_ns: dict[int, int] = {}  # previous frame's device timestamp per meas — lets decode_frame
         # back-time off the device's own clock instead of the nominal
         # rate. Per-connection scope: a reconnect must NOT carry a stale
@@ -4415,6 +4484,8 @@ async def run_polar(dev: dict, root: str):
                         # displayed value to fix a decision.
                         _win = clock_skew_record(_CLOCK_SKEW_SAMPLES.setdefault(name, []), _time.monotonic(), _skew)
                         _est = clock_skew_estimate(_win, _time.monotonic())
+                        if drift_record(_DRIFT.setdefault(name, drift_new()), _time.monotonic(), _sns / 1e9):
+                            _set(name, **drift_fields(_DRIFT[name]))
                         _set(
                             name,
                             device_time=dev_dt.isoformat(timespec="seconds"),
@@ -5532,6 +5603,8 @@ async def run_muse_athena(dev: dict, root: str):
                 wr = StreamWriter(_path("raw", "txt"), "muse", device_axis=DEVICE_AXIS_CLOCK)  # `<base>_RAW.txt`
                 arr_wr = PmdArrivalLogWriter(_path("pmdarrival", "csv"))
                 clock = muse_athena.TickClock()
+                _DRIFT[name] = drift_new()  # per link session: TickClock restarts its unwrap
+                _set(name, **drift_fields(_DRIFT[name]))
                 replies = muse_athena.ControlReplies()
                 last_rx = [_time.monotonic()]
                 refused = [0]  # frames that did not tokenise this session, and why
@@ -5582,6 +5655,8 @@ async def run_muse_athena(dev: dict, root: str):
                                 BUS.push(ppg_key, opt, muse_athena.OPTICS4_HZ, dev_ns=r_ns)
                     # A refused packet is still written: the raw frame is the record, the decode is not.
                     wr.write_muse(arrival, first_ns, muse_athena.frame_counter(raw), raw)
+                    if first_ns is not None and drift_record(_DRIFT[name], mono, first_ns / 1e9):
+                        _set(name, **drift_fields(_DRIFT[name]))
                     if pkt is None:
                         # A REFUSAL IS COUNTED AND NAMED, never left as an empty-looking frame. A night
                         # where the decoder refused every frame used to publish N arrival rows reading

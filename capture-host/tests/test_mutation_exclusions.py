@@ -665,7 +665,10 @@ def test_the_covered_function_count_is_MEASURED_from_the_ast_not_quoted():
     # 350 → 354 on 2026-11-15 (Muse S Athena native recorder, Kestrel order): `run_muse_athena` and its
     # three closures `_path`, `on_data` and `on_ctrl`. The closures hold the per-session writers, as in
     # run_polar. test_muse_athena_runner.py judges all four. +4, the whole delta.
-    assert n == 354, f"capture.py now defines {n} functions — update the declaration's note deliberately"
+    # 354 → 358 on 2026-11-26 (owner, a live drift badge for every device): `drift_new`, `drift_rate`,
+    # `drift_record` and `drift_fields`, the per-session device-clock rate. All four are pure, and
+    # test_capture_runners.py judges them without a link. +4, the whole delta.
+    assert n == 358, f"capture.py now defines {n} functions — update the declaration's note deliberately"
 
 
 def test_count_functions_counts_nested_and_methods_and_refuses_nothing():
