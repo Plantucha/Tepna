@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**371 tools** · 370 with a purpose line · **1 without**
+**372 tools** · 371 with a purpose line · **1 without**
 
 | tool | purpose |
 |---|---|
@@ -348,6 +348,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`tch-reference-validation.mjs`](../tools/tch-reference-validation.mjs) | See briefs/TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md |
 | [`tch-third-corner.mjs`](../tools/tch-third-corner.mjs) | THE O2RING AS A REAL THIRD CORNER — its own clock, not the host's. |
 | [`tch-window-sensitivity.mjs`](../tools/tch-window-sensitivity.mjs) | how much of the night did you keep, and what did that do to σ? |
+| [`timestamp-bench-headless.mjs`](../tools/timestamp-bench-headless.mjs) | re-run `papers/timestamp-pathology-analysis.html` and report the two counts `papers/timestamp-pathology.html` publishes: the vendor/branch corpus and the six Clock Contract invariants. |
 | [`tools-index.mjs`](../tools/tools-index.mjs) | GENERATE `docs/TOOLS-INDEX.md` — one line per tool, so a capability can be FOUND without already knowing its filename. |
 | [`treatment-response-recut.mjs`](../tools/treatment-response-recut.mjs) | `papers/treatment-response.html` TABLE 1, RE-CUT AT WHAT THE GENERATOR YIELDS — a committed record. |
 | [`treatment-response-yield-pin.mjs`](../tools/treatment-response-yield-pin.mjs) | THE PINNED YIELD — how many synthetic patients qualify for `papers/treatment-response.html`, and which of the two inputs is answerable for the number. |
