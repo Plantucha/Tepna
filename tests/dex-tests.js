@@ -78652,6 +78652,109 @@
         );
       }
     });
+    /* ── THE CONSENSUS FLAG MARKS THE SECONDS THE REFERENCE NEVER SCORED ─────────────────────────
+       Row `2026-11-26-the-chest-fault-flag-misses-the-seconds-that-carry-the-over-read`. The
+       page's chest fault flag reads null on all 11 four-corner nights, and the seconds it leaves
+       unmarked carry a median 87 % of the chest excess (#9332). The remedy counts those seconds
+       per key set, and these legs pin the three properties that make the count worth reading: it
+       keys on the beat consensus and on nothing the hat produced, it counts over the key set each
+       panel actually solves, and an absent reference reports an absence rather than a 0 %. */
+    group('The consensus flag counts the seconds the beat reference never scored', 'sensor-trio-worker · consensus-flag · trio', function (T) {
+      var wk = (env.sources && env.sources['sensor-trio-worker.js']) || '',
+        pg = (env.sources && env.sources['sensor-trio-night.js']) || '';
+      T.ok('the worker and the night page are readable in this lane', wk.length > 20000 && pg.length > 20000, 'list both files in BOTH lanes');
+      if (!wk || !pg) return;
+      function fnText(src, name) {
+        var i = src.search(new RegExp('function ' + name + '\\s*\\(')),
+          d = 0,
+          k;
+        if (i < 0) return null;
+        for (k = src.indexOf('{', src.indexOf(')', i)); k < src.length; k++) {
+          if (src[k] === '{') d++;
+          else if (src[k] === '}' && --d === 0) break;
+        }
+        return src.slice(i, k + 1);
+      }
+      var csSrc = fnText(wk, 'consensusShare');
+      T.ok('the worker defines consensusShare', !!csSrc);
+      if (!csSrc) return;
+      var consensusShare = new Function('return (' + csSrc + ')')();
+
+      /* 🔴 THE DISCRIMINATOR FOR "DO NOT TUNE THE FLAG ON THE HAT'S OUTPUT" (Kestrel #9393 item 2).
+         The body reads two things only: a key set and the reference map. A sigma, a trueSd or a hat
+         inside it would mean the flag marks whatever makes the ratio read well. */
+      T.ok('the flag body reads no sigma, no hat and no solved variance', !/sigma|trueSd|\bhat\b|variance/i.test(csSrc), 'the count must key on the beat consensus alone: ' + csSrc.slice(0, 160));
+      T.eq('the worker calls it for the three-way and the four-way key set, and nowhere else', (wk.match(/consensusShare\(/g) || []).length, 3);
+
+      var REF = new Map(),
+        H = new Map(),
+        V = new Map(),
+        O = new Map(),
+        M = new Map(),
+        s;
+      for (s = 0; s < 3000; s++) {
+        H.set(s, 60);
+        V.set(s, 60);
+        O.set(s, 60);
+      }
+      for (s = 0; s < 2400; s++) REF.set(s, 60);
+      for (s = 600; s < 2400; s++) M.set(s, 60);
+
+      var three = consensusShare(REF, [H, V, O]);
+      T.eq('the three-way key set is the three corners’ own intersection', three.seconds, 3000);
+      T.eq('a second the reference scored counts as scored', three.scored, 2400);
+      T.eq('a second the reference never scored counts as unmarked', three.unmarked, 600);
+      T.eq('the share is the unmarked seconds over the key set', +three.share.toFixed(4), 0.2);
+
+      /* The four-way set is the one `solveFourCorners` solves, so the share beside the four-corner
+         panel is the share of ITS seconds. Here the forehead covers 600–2399 and the reference
+         covers 0–2399, so every four-way second is scored and the share reads a measured 0. */
+      var four = consensusShare(REF, [H, V, O, M]);
+      T.eq('a fourth required map narrows the key set to the seconds it covers', four.seconds, 1800);
+      T.eq('…and a key set the reference covers entirely reads 0 unmarked, which is a measurement', four.unmarked, 0);
+
+      var narrow = new Map();
+      narrow.set(10, 60);
+      T.eq('a corner that shares one second leaves a one-second key set', consensusShare(REF, [H, V, O, narrow]).seconds, 1);
+      T.eq('∅ an empty intersection returns null rather than a 0-of-0 share', consensusShare(REF, [H, V, O, new Map()]), null);
+      T.eq('CONTROL · a reference that scored nothing marks every second unmarked', consensusShare(new Map(), [H, V, O]).unmarked, 3000);
+
+      /* THE PAGE'S SENTENCE, both branches, with no DOM. */
+      var cfSrc = fnText(pg, 'consensusFlagText');
+      T.ok('the night page defines consensusFlagText', !!cfSrc);
+      if (!cfSrc) return;
+      var consensusFlagText = new Function('return (' + cfSrc + ')')();
+      var got = consensusFlagText({
+        ok: true,
+        consensus: { agreeMs: 8, state: true, reason: null, three: three, four: four, fourReason: null }
+      });
+      T.eq('the page states the unmarked count, the population and the share', got.item.indexOf('600 of 3000 three-way s unmarked (20.0 %)'), 0);
+      T.ok('…and the four-way share beside it, over its own population', got.item.indexOf('0 of 1800 four-way s unmarked (0.0 %)') > 0, got.item);
+      T.ok('…and it names the disagreement the count keys on, with its tolerance', /ECG beat and the H10 firmware RR disagree beyond 8 ms/.test(got.item), got.item);
+      T.eq('a night with a reference carries no refusal sentence', got.reason, null);
+
+      var noFour = consensusFlagText({
+        ok: true,
+        consensus: { agreeMs: 8, state: true, three: three, four: null, fourReason: 'the night carried no forehead corner, so there is no four-way key set' }
+      });
+      T.ok('∅ a night with no fourth corner names that, and prints no four-way number', /no four-way key set — the night carried no forehead corner/.test(noFour.item), noFour.item);
+
+      /* ∅ THE LEG THE ROW IS ABOUT. A night with no beat reference must not read as a clean 0 %:
+         nobody scored those seconds either way, so the surface carries the reason and no number. */
+      var refused = consensusFlagText({ ok: false, reason: 'no H10 _RR.txt was selected for this night' });
+      T.eq('∅ a night with no beat reference prints NO share', refused.item, null);
+      T.ok('…and names the reference’s own reason', /no H10 _RR\.txt/.test(refused.reason), refused.reason);
+      T.ok('…and the refusal sentence is not the 0 % sentence', refused.reason.indexOf('0.0 %') < 0, refused.reason);
+      T.eq('∅ a null reference refuses the same way', consensusFlagText(null).item, null);
+
+      /* 🔴 THE HEADLINE NEVER MOVES (board #8984, decision 1). The flag ships beside `sigma`, and
+         the payload's sigma still comes from `tchSigmas` over the three-way series alone. */
+      T.ok(
+        'the payload’s sigma still reads from tchSigmas, with no consensus term',
+        /var s = tchSigmas\(hh, vv, oo\);/.test(wk) && !/tchSigmas\([^)]*consensus/.test(wk),
+        'the flag reached the published sigma'
+      );
+    });
     group('Verity gate classifies the FAILURE (detector harmonic vs lost contact), not just rejects it', 'sensor-trio-worker · trio · regression', function (T) {
       var src = (env.sources && env.sources['sensor-trio-worker.js']) || '';
       T.ok('sensor-trio-worker.js source available to the gate', !!src);
@@ -78845,13 +78948,24 @@
       /* The gate's OWN sink pattern (tools/xss-sink-gate.mjs SINK_RE), not the word: this renderer's
          comment names `innerHTML` to explain why it has none, and a word search reads that as a sink. */
       T.ok('the renderer adds NO innerHTML sink of its own — the sink stays in one helper', gi >= 0 && !/\.innerHTML\s*(?:\+=|=)/.test(gbody));
+      /* UPDATED 2026-11-26 (row `2026-11-26-the-chest-fault-flag-misses-the-seconds-that-carry-the-over-read`):
+         the card now carries a SECOND badged item, the consensus flag, so the item list is a filtered
+         array rather than one conditional pair. The leg's question is unchanged — an absent number puts
+         NO badge in the strip — and `.filter(Boolean)` is what still answers it: each item is null when
+         its own number is absent, and an empty list CLEARS the strip, so a night that loses a number
+         cannot show the previous night's. */
       T.ok(
         'the measured badge rides the FINITE branch only, so no badge sits on an absence',
-        /txt \? \[\['gateEv', txt\]\] : \[\]/.test(gbody),
-        'an empty item list also CLEARS the strip, so a night with no ratio cannot show the last one’s'
+        /txt \? \['gateEv', txt\] : null/.test(gbody) && /\.filter\(Boolean\)/.test(gbody),
+        'a null item and an empty list CLEAR the strip, so a night with no ratio cannot show the last one’s'
+      );
+      T.ok(
+        '…and the consensus flag is conditional in the same way, so an unscored night carries no share badge',
+        /cons\.item \? \['consFlag', cons\.item\] : null/.test(gbody),
+        'an unconditional second item would badge a night whose beat reference scored nothing'
       );
       T.ok('the absence branch names its reason instead of a number', /no HR ratio/.test(gbody) && !/toFixed/.test(gbody));
-      T.ok('…and writes it as TEXT, so the reason is not a sink either', /el\.textContent = txt \?/.test(gbody));
+      T.ok('…and writes it as TEXT, so the reason is not a sink either', /el\.textContent = \[/.test(gbody));
       T.ok('the verdict badge keeps the CARD CORNER, which is the other §🎫 placement', /corner\(\$\('kGate'\), 'gate'\)/.test(pg));
 
       /* THE REASON THE ELEMENT EXISTS. `kpi()` writes textContent, so a badge span cannot ride in the

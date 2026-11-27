@@ -620,6 +620,10 @@
       'median σ of each corner against a two-detector firmware-RR reference over the published record’s nights (tools/tch-firmware-reference.mjs) — for the H10 a lower bound, because the reference is built from its own detections'
     ],
     gate: ['experimental', "the suite's own corner gates (Verity harmonic, H10 lead) — a rule, not a measurement"],
+    consFlag: [
+      'measured',
+      'the seconds a solve scores that this night’s beat reference never scored — our ECG beat and the H10 firmware RR disagree beyond 8 ms there, which is the test `trio-reference.js consensusPairs` applies. A count over the night’s own key sets, never a figure the hat produced'
+    ],
     gateEv: ['measured', 'median Verity HR ÷ median H10 HR over the aligned grid — a ratio of two measured medians, which is the number the Verity harmonic gate ruled on'],
     rhoCrit: ['experimental', 'the error correlation at which a corner of this hat collapses to zero — a property of this solve, derived from the same unvalidated σ̂'],
     rhoSens: ['experimental', "how fast a corner's σ̂ moves per 0.01 of error correlation, at ρ = 0 — a derivative of the same unvalidated estimator"],
@@ -769,6 +773,40 @@
   function gateRatioText(hrRatio) {
     return hrRatio == null || !isFinite(hrRatio) ? null : 'HR\u00d7' + hrRatio.toFixed(2) + ' vs ECG — median Verity / median H10';
   }
+  /* ── THE CONSENSUS FLAG, BESIDE THE GATE IT COMPLETES (row
+     `2026-11-26-the-chest-fault-flag-misses-the-seconds-that-carry-the-over-read`) ───────────────
+     The card states the two corner gates, and on all 11 four-corner nights of the archive both read
+     ok, so the card said "both gates ok" and stopped there. The seconds that carry a median 87 % of
+     the chest excess are the seconds the beat reference never scored (#9332) — restricting the solve
+     to the reference's own key set drops the median chest ratio from 3.84 to 1.32 — and no surface
+     marked them. This line marks them, and it states the population beside the share.
+     The count comes from the worker's `consensusShare`, which keys on the beat consensus
+     (`trio-reference.js consensusPairs`) and on nothing the hat produced, so this line reports a
+     fact about the beats rather than about the sigma beside it. The headline sigma does not move
+     (board #8984, decision 1).
+     PURE, so both branches are testable with no DOM — the `gateRatioText` precedent above.
+     ∅ TWO ABSENCES, TWO SENTENCES. A night with no beat reference scored NO second, and a night
+     whose reference scored every second reads a measured 0 %. One "0 %" for both would claim the
+     reference covered a key set it never saw. */
+  function consensusFlagText(reference) {
+    const c = reference && reference.ok ? reference.consensus : null;
+    if (!c || !c.three)
+      return {
+        item: null,
+        reason: 'no consensus flag: ' + ((c && c.reason) || (reference && reference.reason) || 'the night carried no beat reference, so no second is marked or unmarked')
+      };
+    const one = (w, g) => g.unmarked + ' of ' + g.seconds + ' ' + w + ' s unmarked (' + (100 * g.share).toFixed(1) + ' %)';
+    return {
+      item:
+        one('three-way', c.three) +
+        ' · ' +
+        (c.four ? one('four-way', c.four) : 'no four-way key set — ' + c.fourReason) +
+        ' · our ECG beat and the H10 firmware RR disagree beyond ' +
+        c.agreeMs +
+        ' ms there',
+      reason: null
+    };
+  }
   function gateEvidence(real) {
     const txt = gateRatioText(real && real.hrRatio);
     /* THE BADGE RIDES THE PAGE'S EXISTING INLINE-BADGE HELPER rather than a sink of its own.
@@ -779,14 +817,15 @@
        (`corner($('kGate'), 'gate')`) and the ratio gets the inline one: two grades, two placements, one
        sink, one escaper. An empty item list CLEARS the strip, so a night that loses its ratio does not
        keep the previous night's number. */
-    seriesBadges('kGate', txt ? [['gateEv', txt]] : []);
+    const cons = consensusFlagText(real && real.reference);
+    seriesBadges('kGate', [txt ? ['gateEv', txt] : null, cons.item ? ['consFlag', cons.item] : null].filter(Boolean));
     const el = $('kGateEv');
     if (!el) return;
     /* §∅ — an absent ratio renders its REASON, with no number and no measured badge. The gate still ruled
        there, so the absence is what the card has to show: a `1.00` would manufacture the agreement the
        verdict claims, and a `0.00` would manufacture a disagreement. `textContent`, so this line is not a
        sink either. */
-    el.textContent = txt ? '' : 'no HR ratio — the H10 median was not positive, so the gate ruled on no number';
+    el.textContent = [txt ? '' : 'no HR ratio — the H10 median was not positive, so the gate ruled on no number', cons.reason || ''].filter(Boolean).join(' · ');
   }
   /* ── WHAT THE REFERENCE SAYS ABOUT EACH HERO — COMPOSED FROM THE PUBLISHED RECORD, NEVER TYPED ──────
      `codegen/generated/tch-reference-record.js` (generated by tools/tch-reference-record.mjs from the record under
@@ -1726,6 +1765,9 @@
       neg: real.neg == null ? null : real.neg,
       h10Unreliable: !!real.h10Unreliable,
       h10Fault: real.h10Fault || null,
+      /* The consensus flag travels in the export too, so a reader holds the per-night share and its
+         population without re-running the night. ∅ null when the night carried no beat reference. */
+      consensusFlag: real.reference && real.reference.ok && real.reference.consensus ? real.reference.consensus : null,
       rHV: real.rHV == null ? null : real.rHV,
       rHO: real.rHO == null ? null : real.rHO,
       rVO: real.rVO == null ? null : real.rVO,
