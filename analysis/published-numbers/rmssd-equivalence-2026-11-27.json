@@ -1,0 +1,105 @@
+{
+  "schema": "tepna.published-number-record/1",
+  "producer": "tools/analysis-rerun.mjs driving papers/qrs-equiv-analysis.html at the paper cohort size",
+  "producerCommit": "2cff26a66",
+  "invocation": "node tools/analysis-rerun.mjs --only qrs-equiv-analysis.html --paper-scale --out .cache/qrsequiv.json",
+  "generated": "2026-11-27",
+  "runtimeSeconds": 18,
+  "inputs": {
+    "nSubj": 240,
+    "corpusRead": false,
+    "note": "the cohort is generated inside the page from committed code (cohort-gen.js + the FULL-lane waveform harness), so this record reads no capture and no night. `--paper-scale` runs the 240 patients the paper states, never the page default of 60."
+  },
+  "deterministic": true,
+  "publishedIn": "papers/rmssd-equivalence.html Table 1, the re-measured 2026-10-27 row set (re-measured again 2026-11-27)",
+  "population": {
+    "patients": 240,
+    "windows": 220,
+    "excluded": 20,
+    "note": "220 of 240 patients yield a window with all three rMSSD values; the 20 without one are excluded by the page, and the paper states the same two counts."
+  },
+  "claims": {
+    "note": "values EXACTLY as papers/rmssd-equivalence.html Table 1 prints them, so each `CLAIM … FROM …#claims/<key>` compares equal. Full precision sits under `result`. A printed value that the measurement does not reproduce DIGIT FOR DIGIT is absent here and named under `notBound`.",
+    "patients": 240,
+    "windows": 220,
+    "ecgBiasMs": -0.011,
+    "ecgBiasPct": -0.03,
+    "ecgLoaLoMs": -0.37,
+    "ecgLoaHiMs": 0.35,
+    "ecgPearson": 0.9998,
+    "ppgBiasMs": 3.298,
+    "ppgBiasPct": 8.15,
+    "ppgLoaLoMs": -9.32,
+    "ppgLoaHiMs": 15.92,
+    "ppgEcgBiasMs": 3.31,
+    "ppgEcgBiasPct": 8.18,
+    "ppgEcgLoaLoMs": -9.33,
+    "ppgEcgLoaHiMs": 15.95
+  },
+  "notBound": {
+    "rule": "a marker is written only where the measurement reproduces the printed digits exactly. A printed value that merely ROUNDS to the measurement is left unbound, which is the rule #6000 set when a published 0.93 met a measured 0.9295.",
+    "printedSdMs": {
+      "ecg": {
+        "printed": 0.18,
+        "measured": 0.184
+      },
+      "ppgPulse": {
+        "printed": 6.44,
+        "measured": 6.438
+      },
+      "ppgEcg": {
+        "printed": 6.45,
+        "measured": 6.448
+      }
+    },
+    "printedOpticalPearson": {
+      "ppgPulse": {
+        "printed": 0.806,
+        "measured": 0.8057
+      },
+      "ppgEcg": {
+        "printed": 0.804,
+        "measured": 0.8044
+      }
+    },
+    "abstractRoundings": {
+      "note": "the abstract and conclusion print +3.30 ms, +8.1 %, r 0.81 and an optical-only dispersion of about 6.4 ms. Each is a rounding of a Table 1 value, so the marker binds the table and the abstract stays prose."
+    }
+  },
+  "result": {
+    "framing": "Three-way rMSSD equivalence on co-generated beats. One ~9-min apnea-cluster window per patient, scored by the REAL PulseDex (RR text reference), ECGDex (raw int16 ECG @130 Hz, R rendered at true beat times), and PpgDex (optical pulse @176 Hz) on the SAME beats. Pairwise Bland–Altman: ECG−Pulse = sampling + QRS detection; PPG−Pulse = + PAT jitter (+ optical detection); PAT-jitter SD = quadrature excess of PPG−Pulse over ECG−Pulse. SYNTHETIC GROUND TRUTH — certifies detector agreement and quantifies intrinsic dispersion, not a real-patient equivalence study.",
+    "nWindows": 220,
+    "pairs": {
+      "ecg_minus_pulse": {
+        "n": 220,
+        "biasMs": -0.011,
+        "biasPct": -0.03,
+        "sdMs": 0.184,
+        "loaLoMs": -0.37,
+        "loaHiMs": 0.35,
+        "pearson": 0.9998
+      },
+      "ppg_minus_pulse": {
+        "n": 220,
+        "biasMs": 3.298,
+        "biasPct": 8.15,
+        "sdMs": 6.438,
+        "loaLoMs": -9.32,
+        "loaHiMs": 15.92,
+        "pearson": 0.8057
+      },
+      "ppg_minus_ecg": {
+        "n": 220,
+        "biasMs": 3.31,
+        "biasPct": 8.18,
+        "sdMs": 6.448,
+        "loaLoMs": -9.33,
+        "loaHiMs": 15.95,
+        "pearson": 0.8044
+      }
+    },
+    "patJitterSdMs": 6.435,
+    "generatedAt": "2026-11-27T00:37:42.308Z",
+    "reproduction": "every printed Table 1 bias, bias percentage and limit of agreement reproduces digit for digit, in both electrical and optical arms, 31 days after the 2026-10-27 re-measurement and over 2 further code generations. The three SD columns and the two optical Pearson values reproduce only after rounding, and they stay unbound."
+  }
+}
