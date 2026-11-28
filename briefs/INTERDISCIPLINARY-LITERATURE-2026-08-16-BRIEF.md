@@ -789,6 +789,12 @@ equivalence directly was found.** Related Soviet-school work in scope: **Kotelni
 predating Shannon) and **Kolmogorov–Wiener** prediction/filtering of stationary sequences — the
 foundation under the interpolation `hostAxis` performs.
 
+**Update 2026-11-27 (Kestrel):** a source now states the equivalence. Siraya TN, *Gyroscopy and Navigation*
+11(2):105–114, 2020, doi `10.1134/S2075108720020078`, models clock noise as a process with stationary
+increments and reads the Allan variance as an empirical estimate of its structure function. Kestrel read
+the abstract on CyberLeninka, and the DOI is in the ledger. The abstract does not name Kolmogorov, so
+that link remains an inference.
+
 ⚠️ **Asymmetry to state, not hide:** these were verified for *existence*, but much is published in
 Russian or Chinese and would be assessed via translated abstracts rather than read. That is weaker
 footing than the English-language entries above, and they are not equivalently vetted.
